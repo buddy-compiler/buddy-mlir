@@ -6,8 +6,9 @@
 
 cmake_minimum_required(VERSION 3.10)
 
-# Build buddy-mlir as a standalone project.
-# Use LLVM/MLIR as an external library.
+if(POLICY CMP0077)
+  cmake_policy(SET CMP0077 NEW)
+endif()
 
 #-------------------------------------------------------------------------------
 # Project setup and globals
