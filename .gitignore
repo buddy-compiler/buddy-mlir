@@ -1,0 +1,5 @@
+# Nested build directory
+/build*
+
+# vscode configurations
+/.vscode
