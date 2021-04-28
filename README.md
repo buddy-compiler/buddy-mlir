@@ -45,3 +45,50 @@ $ cmake -G Ninja .. \
     -DCMAKE_BUILD_TYPE=RELEASE
 $ ninja
 ```
+## Tools
+
+### conv-opt
+
+The conv-opt is an MLIR convolution optimizer. 
+
+So far, we provide the 2D convolution vectorization pass `conv-vectorization`. The pass implements the Coefficients Broadcasting algorithm with Strip Mining strategy, and the strip mining size is configurable. Take the size of 256 as an example, you can use the tool with the following configuration.
+
+```
+$ conv-opt <input> -conv-vectorization="strip-mining=256"
+```
+
+**Conversion example**
+
+We provide a function with `linalg.conv_2d` operation. You can use the following commands to print the conversion result.
+
+```
+$ cd buddy-mlir/build/bin
+$ ./conv-opt ../../examples/conv-opt/conv2d.mlir -conv-vectorization="strip-mining=256"
+```
+
+**Edge detection example**
+
+We also provide an edge detection example with the `conv-opt` tool. The `conv-opt` is responsible for lowering the `linalg.conv_2d` to LLVM IR dialect.
+And then we use `mlir-translate` and `llc` tools to generate the object file. At last, we call the MLIR convolution function in a C++ program.
+
+Please use a Linux machine with OpenCV installed to play around.
+You should specify the `<strip mining size>` (e.g. 256) and `<ISA vector extension>` (e.g. avx512f).
+
+```
+$ cd buddy-mlir/build
+$ cmake -G Ninja .. \
+    -DBUDDY_CONV_OPT_EXAMPLES=ON \
+    -DBUDDY_CONV_OPT_STRIP_MINING=<strip mining size> \
+    -DBUDDY_CONV_OPT_ATTR=<ISA vector extension>
+$ ninja edge-detection
+```
+
+We provide an image at `buddy-mlir/examples/conv-opt/images/YuTu.png`, which is the robotic lunar rover that formed part of the Chinese Chang'e 3 mission.
+You can detect the edge of the image with `edge-detection`.
+
+```
+$ cd bin
+$ ./edge-detection ../../examples/conv-opt/images/YuTu.png result.png
+```
+
+Note: the edge detection example currently only supports 1026x1026 images.

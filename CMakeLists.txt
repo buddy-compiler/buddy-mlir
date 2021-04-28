@@ -26,15 +26,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 option(LLVM_INCLUDE_TOOLS "Generate build targets for the LLVM tools." ON)
 option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targets." ON)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions -fno-rtti")
-
 #-------------------------------------------------------------------------------
 # MLIR/LLVM Configuration
 #-------------------------------------------------------------------------------
 find_package(MLIR REQUIRED CONFIG)
 
-set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/bin)
-set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/lib)
+set(LLVM_MLIR_BINARY_DIR ${MLIR_DIR}/../../../bin)
 
 list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
@@ -49,15 +46,11 @@ include(HandleLLVMOptions)
 #-------------------------------------------------------------------------------
 
 # BUDDY project.
-set(BUDDY_MAIN_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
-set(BUDDY_MAIN_INCLUDE_DIR ${BUDDY_MAIN_SRC_DIR}/include)
-
 set(BUDDY_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
-set(BUDDY_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include )
-set(BUDDY_TOOLS_DIR ${CMAKE_BINARY_DIR}/bin)
+set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
+set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 
 # Add MLIR and LLVM headers to the include path
 include_directories(${LLVM_INCLUDE_DIRS})
@@ -72,3 +65,4 @@ include_directories(${BUDDY_INCLUDE_DIR})
 #-------------------------------------------------------------------------------
 
 add_subdirectory(tools)
+add_subdirectory(examples)
