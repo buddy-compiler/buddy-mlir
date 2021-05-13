@@ -49,6 +49,8 @@ include(HandleLLVMOptions)
 set(BUDDY_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
+set(BUDDY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/include/)
+set(BUDDY_DIALECT_INCLUDE_DIR ${BUDDY_INCLUDE_DIR}/Dialect)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 
@@ -57,12 +59,15 @@ include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 
 # Add BUDDY files to the include path
-include_directories(${BUDDY_MAIN_INCLUDE_DIR})
 include_directories(${BUDDY_INCLUDE_DIR})
+include_directories(${BUDDY_DIALECT_INCLUDE_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/Dialect)
 
 #-------------------------------------------------------------------------------
 # Directory setup
 #-------------------------------------------------------------------------------
 
+add_subdirectory(include)
+add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(examples)

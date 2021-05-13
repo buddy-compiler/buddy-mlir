@@ -45,6 +45,12 @@ $ cmake -G Ninja .. \
     -DCMAKE_BUILD_TYPE=RELEASE
 $ ninja
 ```
+
+## Dialect
+
+### Image Dialect
+
+[Image dialect](./include/Dialect/Img) is designed for digital image processing workloads.
 ## Tools
 
 ### conv-opt
@@ -92,3 +98,32 @@ $ ./edge-detection ../../examples/conv-opt/images/YuTu.png result.png
 ```
 
 Note: the edge detection example currently only supports 1026x1026 images.
+
+### img-opt
+
+The img-opt is the driver for image dialect. 
+
+```
+$ img-opt <input> -lower-img
+```
+
+**Conversion example**
+
+Take prewitt operation as an example. 
+If every element of the input is 1, it means there are no edges in the image.
+As a result, the convolution with the prewitt operation is 0.
+
+```
+$ ./build/bin/img-opt ./examples/img-opt/prewitt.mlir -lower-img |\
+  ./llvm/build/bin/mlir-opt -convert-linalg-to-loops -lower-affine -convert-linalg-to-llvm -convert-scf-to-std -convert-vector-to-llvm -convert-std-to-llvm |\
+  ./llvm/build/bin/mlir-cpu-runner -entry-point-result=void -shared-libs=./llvm/build/lib/libmlir_runner_utils.so
+
+Unranked Memref base@ = 0x55e62feb6be0 rank = 2 offset = 0 sizes = [7, 7] strides = [7, 1] data = 
+[[0,   0,   0,   0,   0,   0,   0], 
+ [0,   0,   0,   0,   0,   0,   0], 
+ [0,   0,   0,   0,   0,   0,   0], 
+ [0,   0,   0,   0,   0,   0,   0], 
+ [0,   0,   0,   0,   0,   0,   0], 
+ [0,   0,   0,   0,   0,   0,   0], 
+ [0,   0,   0,   0,   0,   0,   0]]
+```
