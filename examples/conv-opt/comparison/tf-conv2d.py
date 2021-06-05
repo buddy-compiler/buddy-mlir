@@ -45,9 +45,14 @@ def test_conv2d(img, kernel):
   cv2.imwrite("./tf-conv2d.png", output_array[0,:,:,0])
 
 def main():
-  img = cv2.imread('../images/YuTu.png',cv2.IMREAD_GRAYSCALE)
+  img = cv2.imread('../images/YuTu2048.png',cv2.IMREAD_GRAYSCALE)
   img = tf.constant(img, tf.float32)
-  img = tf.reshape(img, [1, 1026, 1026, 1])
+  img = tf.reshape(img, [1, img.shape[0], img.shape[1], 1])
+  '''
+  Perform the edget detection.
+  Uncomment to use the corresponding size kernel for testing.
+  Note that only one kernel size is used for testing at a time.
+  '''
   test_conv2d(img, sobel_3x3_filter)
   # test_conv2d(img, sobel_5x5_filter)
   # test_conv2d(img, sobel_7x7_filter)
