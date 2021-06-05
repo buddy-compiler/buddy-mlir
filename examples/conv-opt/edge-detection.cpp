@@ -10,6 +10,9 @@
 
 #include <iostream>
 #include <opencv2/imgcodecs.hpp>
+#include <time.h>
+
+#include "kernels.h"
 
 using namespace cv;
 using namespace std;
@@ -70,9 +73,10 @@ int main(int argc, char *argv[]) {
   }
 
   // Define the kernel.
-  float kernelAlign[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
-  int kernelRows = 3;
-  int kernelCols = 3;
+  // float kernelAlign[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
+  float *kernelAlign = laplacianKernelAlign;
+  int kernelRows = laplacianKernelRows;
+  int kernelCols = laplacianKernelCols;
 
   // Define the output.
   int outputRows = image.rows - kernelRows + 1;
@@ -96,8 +100,15 @@ int main(int argc, char *argv[]) {
   MemRef_descriptor output =
       MemRef_Descriptor(allocated, outputAlign, 0, sizesOutput, stridesOutput);
 
+  clock_t start,end;
+  start = clock();
+
   // Call the MLIR conv2d function.
   _mlir_ciface_conv_2d(input, kernel, output);
+
+  end = clock();
+  cout << "Execution time: " 
+       << (double)(end - start) / CLOCKS_PER_SEC << " s" << endl;
 
   // Define a cv::Mat with the output of the conv2d.
   Mat outputImage(outputRows, outputCols, CV_32FC1, output->aligned);
