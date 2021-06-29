@@ -91,4 +91,7 @@ $ cd bin
 $ ./edge-detection ../../examples/conv-opt/images/YuTu.png result.png
 ```
 
-Note: the edge detection example currently only supports 1026x1026 images.
+Note: In the edge detection example, images size needs to be an integer multiple of the strip mining size.
+
+We also provide the performance comparison between our conv-opt tool and other state-of-the-art approaches. 
+For more details, please see [convolution comparison](./examples/conv-opt/comparison/README.md).
