@@ -31,7 +31,7 @@ OUT=$(patsubst tempFile/%.mlir, %.out, $(SOURCE))
 all:$(OUT) 
 	$(shell rm -rf tempFile)
 
-TOOL_OPT := -conv-vectorization="strip-mining=${STRIP}" -lower-affine -convert-scf-to-std -convert-vector-to-llvm -convert-std-to-llvm 
+TOOL_OPT := -conv-vectorization="strip-mining=${STRIP}" -lower-affine -convert-scf-to-std -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm 
 
 $(OUT):$(SOURCE)
 	@echo $*
