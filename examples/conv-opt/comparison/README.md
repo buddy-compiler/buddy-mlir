@@ -34,6 +34,7 @@ $ python3 pytorch-conv2d.py
 ```
 
 - TVM
+> **_NOTE:_**  In order to run tvm-conv2d.py, one have to mannully build tvm with your system for building reference please check TVM official installation guide: https://tvm.apache.org/docs/install/from_source.html.
 
 ```
 $ cd buddy-mlir/examples/conv-opt/comparison/
