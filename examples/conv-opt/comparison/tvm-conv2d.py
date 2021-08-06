@@ -80,7 +80,7 @@ def conv_out_size(n, k, p, s):
     kernel size k, padding p, and stride s
     Return output size (width or height)
     """
-    print(n, k, p, s)
+    print("parameters for computing out matrix", n, k, p, s)
     return (n - k + 2 * p) // s + 1
 
 def conv(oc, ic, nh, nw, kh, kw, ph=0, pw=0, sh=1, sw=1):
@@ -136,14 +136,11 @@ def get_conv_data(oc, ic, p=0, s=1, constructor=None):
     return data, weight, out
 
 def test_conv2d_with_kernel(kernel):
-    '''Prepare tvm module with customized kernels 
+    """Prepare tvm module with customized kernels 
     and tests its performance
 
-    img : input image
     kernel : customized kernel
-    p : padding size
-    oc, ic : output and input channels
-    '''
+    """
     oc, ic, p, s = 1, 1, 1, 1
     data, weight, out = get_conv_data(oc, ic, p, s, tvm.nd.array)
     n, k = data.shape[-1], weight.shape[-1]
@@ -153,7 +150,6 @@ def test_conv2d_with_kernel(kernel):
     mod = tvm.build(sch, [X, K, Y])
     print(tvm.lower(sch, [X, K, Y], simple_mode=True))
 
-    # mod = tvm.build(s, [X, K, Y], TARGET)
     start = time.time()
     mod(data, weight, out)
     end = time.time()
@@ -163,6 +159,15 @@ def test_conv2d_with_kernel(kernel):
 
 
 def cached_block(oc, ic, n, k, p, s):
+    """Optimization recommended from TVM examples.
+    Using several technics, including reorder, vectorize, 
+    unroll and compute_at taken from TVM cpu optimization tutorial.
+
+    oc, ic : output and input channels
+    p : padding size, default 0
+    s : stride, default 1
+    k : kernel size, default 3
+    """
     X, K, Y, PaddedX = conv(oc, ic, n, n, k, k, p, p, s, s)
     sch = te.create_schedule(Y.op)
     CachedY = sch.cache_write(Y, 'local')
@@ -188,6 +193,10 @@ def cached_block(oc, ic, n, k, p, s):
     return sch, (X, K, Y)
 
 def test_cache_optimization():
+    """Using official strategy taken from TVM cpu optimization
+    example to optimize tvm module with customized kernels 
+    and tests its performance.
+    """
     oc, ic, p, s = 1, 1, 1, 1
     print('======================================================')
     sch, args = cached_block(oc, ic, 2048, 3, p, s)
@@ -206,7 +215,7 @@ def test_cache_optimization():
 
 
 def main(kernel_size):
-    print("processing kernel size: %s"%kernel_size)
+    print("processing kernel size: %s" % kernel_size)
     if kernel_size == 3:
         edge_detect = test_conv2d_with_kernel(sobel_3x3_filter)
     elif kernel_size == 5:
@@ -227,7 +236,7 @@ if __name__ == "__main__":
     
     # test for optimized version 
     # test_cache_optimization()
-    
+
     main(args.size)
 
     
