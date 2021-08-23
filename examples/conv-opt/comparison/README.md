@@ -33,6 +33,13 @@ $ cd buddy-mlir/examples/conv-opt/comparison/
 $ python3 pytorch-conv2d.py
 ```
 
+- ONNX Runtime
+
+```
+$ cd buddy-mlir/examples/conv-opt/comparison/
+$ python3 onnxruntime-conv2d.py
+```
+
 ## Difference and Performance Comparison
 
 We proposed a coefficients broadcasting algorithm with strip mining strategy (CB-SM) to accelerate 2D convolutions, 
