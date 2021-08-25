@@ -3,10 +3,10 @@ import cv2
 import onnxruntime
 import time
 
-def test_conv2d(img, kernel_shape):
+def test_conv2d(img, filter_size):
   start = time.time()
   # Load the model
-  model_path = f'conv_{kernel_shape}.onnx'
+  model_path = f'conv_{filter_size}x{filter_size}.onnx'
   ort_session = onnxruntime.InferenceSession(model_path)
   # Run inference
   ort_inputs = {ort_session.get_inputs()[0].name: img}
@@ -14,7 +14,7 @@ def test_conv2d(img, kernel_shape):
   edge_detect = ort_outs[0]
   edge_detect = edge_detect.squeeze()
   end = time.time()
-  print(end - start)
+  print(f'conv {filter_size}x{filter_size} : {end - start}')
   return edge_detect
 
 def main():
@@ -25,7 +25,8 @@ def main():
   '''
   Perform the edget detection.
   '''
-  edge_detect = test_conv2d(img, '3x3')
+  for i in range(3, 10, 2):
+    edge_detect = test_conv2d(img, i)
   cv2.imwrite("./onnxruntime-conv2d.png", edge_detect)
 
 if __name__ == "__main__":
