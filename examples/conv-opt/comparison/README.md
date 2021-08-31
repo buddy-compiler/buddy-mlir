@@ -38,8 +38,9 @@ $ python3 pytorch-conv2d.py
 
 ```
 $ cd buddy-mlir/examples/conv-opt/comparison/
-$ python3 tvm-conv2d.py --size 3
+$ python3 tvm-conv2d.py --size 3 --target 'llvm -mcpu=skylake-avx512'
 $ # n kernel size, default 3, alternative options: 3, 5, 7, 9 
+$ # target, default 'llvm -mcpu=skylake-avx512', alternative options: 'cuda'
 ```
 
 ## Difference and Performance Comparison

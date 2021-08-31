@@ -24,8 +24,6 @@ IMAMGE_PATH = '../images/YuTu2048.png'
 
 TILED_HEIGHT, TILED_WEIGHT = 3, 3  # Tile sizes for height and weight
 
-TARGET = 'llvm -mcpu=skylake-avx512'
-
 sobel_3x3 = np.array([[1, 0, -1],
                       [2, 0, -2], 
                       [1, 0, -1]], dtype='float32')
@@ -134,19 +132,21 @@ def get_conv_data(oc, ic, p=0, s=1, constructor=None):
         data, weight, out = (constructor(x) for x in [data, weight, out])
     return data, weight, out
 
-def test_conv2d_with_kernel(kernel):
+def test_conv2d_with_kernel(kernel, target):
     """Prepare tvm module with customized kernels 
     and tests its performance
 
     kernel : customized kernel
+    target : customized target
     """
     oc, ic, p, s = 1, 1, 1, 1
-    data, weight, out = get_conv_data(oc, ic, p, s, tvm.nd.array)
+    device = tvm.device(target, 0)
+    data, weight, out = get_conv_data(oc, ic, p, s, lambda x: tvm.nd.array(x, device=device))
     n, k = data.shape[-1], weight.shape[-1]
     
     X, K, Y, _ = conv(oc, ic, n, n, k, k, p, p, s, s)
     sch = te.create_schedule(Y.op)
-    mod = tvm.build(sch, [X, K, Y])
+    mod = tvm.build(sch, [X, K, Y], target)
     print(tvm.lower(sch, [X, K, Y], simple_mode=True))
 
     start = time.time()
@@ -211,8 +211,9 @@ def test_cache_optimization():
     out = out.asnumpy().squeeze()
     return out
 
-def main(kernel_size):
-    print("processing kernel size: %s" % kernel_size)
+def main(args):
+    kernel_size, target = args.size, args.target
+    print("processing kernel size: %s, with target: %s" % (kernel_size, target))
     if kernel_size == 3:
         kernel_chosen = sobel_3x3_filter
     elif kernel_size == 5:
@@ -223,15 +224,14 @@ def main(kernel_size):
         kernel_chosen = sobel_9x9_filter
     else:
         raise IndexError("only support kernel size in (3, 5, 7, 9)")
-    edge_detect = test_conv2d_with_kernel(kernel_chosen)
+    edge_detect = test_conv2d_with_kernel(kernel_chosen, target)
     cv2.imwrite("./tvm-conv2d.png", edge_detect)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='kernel size')
+    parser = argparse.ArgumentParser(description='specify kernel size and target')
     parser.add_argument('--size', metavar='N', type=int, default=3, help='an integer describe kernel size')
+    parser.add_argument('-t', '--target', default='llvm -mcpu=skylake-avx512' ,help="target flag")
     args = parser.parse_args()
-    
     # test for optimized version 
     # test_cache_optimization()
-
-    main(args.size)
+    main(args)
