@@ -59,7 +59,6 @@ sobel_5x5_filter = sobel_5x5.reshape((1, 1, 5, 5))
 sobel_7x7_filter = sobel_7x7.reshape((1, 1, 7, 7))
 sobel_9x9_filter = sobel_9x9.reshape((1, 1, 9, 9))
 
-
 def padding(X, ph, pw, val=0):
     """Pad X with the given value in 2-D
 
@@ -157,7 +156,6 @@ def test_conv2d_with_kernel(kernel):
     out = out.asnumpy().squeeze()
     return out
 
-
 def cached_block(oc, ic, n, k, p, s):
     """Optimization recommended from TVM examples.
     Using several technics, including reorder, vectorize, 
@@ -213,7 +211,6 @@ def test_cache_optimization():
     out = out.asnumpy().squeeze()
     return out
 
-
 def main(kernel_size):
     print("processing kernel size: %s" % kernel_size)
     if kernel_size == 3:
@@ -227,7 +224,6 @@ def main(kernel_size):
     else:
         raise IndexError("only support kernel size in (3, 5, 7, 9)")
     cv2.imwrite("./tvm-conv2d.png", edge_detect)
-    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='kernel size')
@@ -238,5 +234,3 @@ if __name__ == "__main__":
     # test_cache_optimization()
 
     main(args.size)
-
-    
