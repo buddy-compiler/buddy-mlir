@@ -214,15 +214,16 @@ def test_cache_optimization():
 def main(kernel_size):
     print("processing kernel size: %s" % kernel_size)
     if kernel_size == 3:
-        edge_detect = test_conv2d_with_kernel(sobel_3x3_filter)
+        kernel_chosen = sobel_3x3_filter
     elif kernel_size == 5:
-        edge_detect = test_conv2d_with_kernel(sobel_5x5_filter)
+        kernel_chosen = sobel_5x5_filter
     elif kernel_size == 7:
-        edge_detect = test_conv2d_with_kernel(sobel_7x7_filter)
+        kernel_chosen = sobel_7x7_filter
     elif kernel_size == 9:
-        edge_detect = test_conv2d_with_kernel(sobel_9x9_filter)
+        kernel_chosen = sobel_9x9_filter
     else:
         raise IndexError("only support kernel size in (3, 5, 7, 9)")
+    edge_detect = test_conv2d_with_kernel(kernel_chosen)
     cv2.imwrite("./tvm-conv2d.png", edge_detect)
 
 if __name__ == "__main__":
