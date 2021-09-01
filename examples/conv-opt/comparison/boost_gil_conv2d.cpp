@@ -32,7 +32,7 @@ int main(int argc, char* argv[])
 
   clock_t start,end;
   start = clock();
-  // Calculate 2D convolution between input image and kernel
+  // Apply 2D convolution between input image and kernel
   gil::detail::convolve_2d(gil::view(image), kernel, gil::view(output));
   end = clock();
   std::cout << "Execution time: " 
