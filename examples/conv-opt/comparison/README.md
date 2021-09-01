@@ -6,6 +6,7 @@
 $ cd buddy-mlir/build
 $ cmake -G Ninja .. -DBUDDY_CONV_OPT_EXAMPLES=ON
 $ ninja opencv-filter2D
+$ ninja boost_gil_conv2d
 ```
 
 ## Run Comparison
@@ -49,6 +50,16 @@ $ # target, default 'llvm -mcpu=skylake-avx512', alternative options: 'cuda'
 $ cd buddy-mlir/examples/conv-opt/comparison/
 $ python3 gen-conv-models.py
 $ python3 onnxruntime-conv2d.py
+```
+
+- Boost GIL
+> **_NOTE:_**  In order to run boost_gil_conv2d.cpp, one has to install the Boost distribution and 
+> its related dependencies. Instructions regarding Boost installation can be found here : https://www.boost.org/doc/libs/1_77_0/more/getting_started/unix-variants.html
+> More information regarding external dependencies can be found here : https://github.com/boostorg/gil/blob/develop/CONTRIBUTING.md#install-dependencies
+
+```
+$ cd buddy-mlir/build/bin
+$ ./boost_gil_conv2d ../../examples/conv-opt/images/YuTu.png GIL-comparison.png
 ```
 
 ## Difference and Performance Comparison
