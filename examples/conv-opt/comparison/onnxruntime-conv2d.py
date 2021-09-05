@@ -27,7 +27,7 @@ def main():
   '''
   for i in range(3, 10, 2):
     edge_detect = test_conv2d(img, i)
-  cv2.imwrite("./onnxruntime-conv2d.png", edge_detect)
+    cv2.imwrite(f'./onnxruntime-conv2d_{i}.png', edge_detect)
 
 if __name__ == "__main__":
   main()

@@ -37,6 +37,7 @@ $ python3 pytorch-conv2d.py
 
 ```
 $ cd buddy-mlir/examples/conv-opt/comparison/
+$ python3 gen-conv-models.py
 $ python3 onnxruntime-conv2d.py
 ```
 
