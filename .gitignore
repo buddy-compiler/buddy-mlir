@@ -3,3 +3,6 @@
 
 # vscode configurations
 /.vscode
+
+# ONNX models
+*.onnx
