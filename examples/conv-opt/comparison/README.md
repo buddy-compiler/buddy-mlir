@@ -43,6 +43,14 @@ $ # n kernel size, default 3, alternative options: 3, 5, 7, 9
 $ # target, default 'llvm -mcpu=skylake-avx512', alternative options: 'cuda'
 ```
 
+- ONNX Runtime
+
+```
+$ cd buddy-mlir/examples/conv-opt/comparison/
+$ python3 gen-conv-models.py
+$ python3 onnxruntime-conv2d.py
+```
+
 ## Difference and Performance Comparison
 
 We proposed a coefficients broadcasting algorithm with strip mining strategy (CB-SM) to accelerate 2D convolutions, 
