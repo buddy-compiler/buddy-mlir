@@ -59,7 +59,7 @@ $ python3 onnxruntime-conv2d.py
 
 ```
 $ cd buddy-mlir/build/bin
-$ ./boost_gil_conv2d ../../examples/conv-opt/images/YuTu.png GIL-comparison.png
+$ ./boost_gil_conv2d ../../examples/conv-opt/images/gil_sample.png GIL-comparison.png
 ```
 
 ## Difference and Performance Comparison
