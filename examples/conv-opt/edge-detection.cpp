@@ -73,10 +73,9 @@ int main(int argc, char *argv[]) {
   }
 
   // Define the kernel.
-  // float kernelAlign[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
-  float *kernelAlign = laplacianKernelAlign;
-  int kernelRows = laplacianKernelRows;
-  int kernelCols = laplacianKernelCols;
+  float *kernelAlign = sobel7x7KernelAlign;
+  int kernelRows = sobel7x7KernelRows;
+  int kernelCols = sobel7x7KernelCols;
 
   // Define the output.
   int outputRows = image.rows - kernelRows + 1;
@@ -100,15 +99,11 @@ int main(int argc, char *argv[]) {
   MemRef_descriptor output =
       MemRef_Descriptor(allocated, outputAlign, 0, sizesOutput, stridesOutput);
 
-  clock_t start,end;
-  start = clock();
+  for (int i = 0; i < 10; i++)
+    // Call the MLIR conv2d function.
+    _mlir_ciface_conv_2d(input, kernel, output);
 
-  // Call the MLIR conv2d function.
-  _mlir_ciface_conv_2d(input, kernel, output);
-
-  end = clock();
-  cout << "Execution time: " 
-       << (double)(end - start) / CLOCKS_PER_SEC << " s" << endl;
+  cout << "Happy Teacher's Day !" << endl;
 
   // Define a cv::Mat with the output of the conv2d.
   Mat outputImage(outputRows, outputCols, CV_32FC1, output->aligned);

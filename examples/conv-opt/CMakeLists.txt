@@ -28,8 +28,8 @@ SET_TARGET_PROPERTIES(
 find_package(OpenCV REQUIRED CONFIG)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-add_executable(edge-detection edge-detection.cpp)
-add_dependencies(edge-detection conv-opt)
-target_link_libraries(edge-detection ${OpenCV_LIBS} Conv2D)
+add_executable(teachers-day edge-detection.cpp)
+add_dependencies(teachers-day conv-opt)
+target_link_libraries(teachers-day ${OpenCV_LIBS} Conv2D)
 
 add_subdirectory(comparison)
