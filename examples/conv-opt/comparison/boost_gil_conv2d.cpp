@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
   cv::Mat opencv_image = cv::imread(argv[1], cv::IMREAD_GRAYSCALE);
 
   // Declare input image
-  gil::gray8_image_t image(opencv_image.rows, opencv_image.cols);
+  gil::gray8_image_t image(opencv_image.cols, opencv_image.rows);
 
   // Fill GIL image view with image read using opencv's imread()
   fill_gil_view_with_opencv_mat(opencv_image, gil::view(image));
