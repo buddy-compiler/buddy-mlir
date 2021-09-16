@@ -4,6 +4,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef EXAMPLES_CONV_OPT_KERNELS
+#define EXAMPLES_CONV_OPT_KERNELS
 
 float prewittKernelAlign[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
 int prewittKernelRows = 3;
@@ -54,3 +56,5 @@ float logKernelAlign[25] = {0, 0, 1, 0, 0,
                             0, 0, 1, 0, 0};
 int logKernelRows = 5;
 int logKernelCols = 5;
+
+#endif
