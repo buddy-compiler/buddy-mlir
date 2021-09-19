@@ -38,6 +38,6 @@ $(OUT):$(SOURCE)
 	@${CONV_OPT} tempFile/$*.mlir ${TOOL_OPT} | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-	@${MLIR_OPT} tempFile/$*.mlir -convert-linalg-to-loops -lower-affine -convert-linalg-to-llvm -convert-scf-to-std -convert-std-to-llvm | \
+	@${MLIR_OPT} tempFile/$*.mlir -convert-linalg-to-loops -lower-affine -convert-linalg-to-llvm -convert-scf-to-std -convert-std-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 	@echo
