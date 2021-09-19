@@ -25,7 +25,7 @@ class CBSMConvVectorizationPattern : public ConversionPattern {
 public:
   explicit CBSMConvVectorizationPattern(MLIRContext *context,
                                         int64_t strideParam)
-      : ConversionPattern(linalg::ConvHWOp::getOperationName(), 1, context) {
+      : ConversionPattern(linalg::Conv2DOp::getOperationName(), 1, context) {
     stride = strideParam;
   }
 
@@ -120,6 +120,8 @@ namespace {
 class ConvVectorizationPass
     : public PassWrapper<ConvVectorizationPass, OperationPass<ModuleOp>> {
 public:
+  StringRef getArgument() const final { return "conv-vectorization"; }
+  StringRef getDescription() const final { return "Convolution vectorization."; }
   ConvVectorizationPass() = default;
   ConvVectorizationPass(const ConvVectorizationPass &) {}
   explicit ConvVectorizationPass(int64_t strideParam) { stride = strideParam; }
@@ -157,8 +159,7 @@ void ConvVectorizationPass::runOnOperation() {
 namespace mlir {
 namespace buddy {
 void registerConvVectorizationPass() {
-  PassRegistration<ConvVectorizationPass>("conv-vectorization",
-                                          "Convolution vectorization");
+  PassRegistration<ConvVectorizationPass>();
 }
 } // namespace buddy
 } // namespace mlir
