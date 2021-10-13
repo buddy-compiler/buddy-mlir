@@ -25,9 +25,9 @@ $ cd buddy-mlir
 $ mkdir llvm/build
 $ cd llvm/build
 $ cmake -G Ninja ../llvm -DLLVM_ENABLE_PROJECTS="mlir" \
--DLLVM_TARGETS_TO_BUILD="host" \
--DLLVM_ENABLE_ASSERTIONS=ON \
--DCMAKE_BUILD_TYPE=RELEASE
+    -DLLVM_TARGETS_TO_BUILD="host" \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE
 $ ninja
 $ ninja check-mlir
 ```
@@ -45,6 +45,13 @@ $ cmake -G Ninja .. \
     -DCMAKE_BUILD_TYPE=RELEASE
 $ ninja
 ```
+
+## Dialects
+
+### Bud Dialect
+
+Bud dialect is designed for testing and demonstrating.
+
 ## Tools
 
 ### conv-opt
@@ -95,3 +102,18 @@ Note: In the edge detection example, images size needs to be an integer multiple
 
 We also provide the performance comparison between our conv-opt tool and other state-of-the-art approaches. 
 For more details, please see [convolution comparison](./examples/conv-opt/comparison/README.md).
+
+### bud-opt
+
+The bud-opt is the driver for bud dialect.
+
+```
+$ bud-opt <input> -lower-bud
+```
+
+**Example**
+
+```
+$ cd buddy-mlir/build/bin
+$ ./bud-opt ../../examples/bud-opt/TestConstant.mlir --lower-bud
+```
