@@ -33,19 +33,15 @@ using namespace buddy;
 //===----------------------------------------------------------------------===//
 
 namespace {
-class LowerBudPattern : public ConversionPattern {
+class BudTestConstantLowering : public OpRewritePattern<bud::TestConstantOp> {
 public:
-  explicit LowerBudPattern(MLIRContext *context)
-      : ConversionPattern(bud::TestConstantOp::getOperationName(), 1, context) {
-  }
+  using OpRewritePattern<bud::TestConstantOp>::OpRewritePattern;
 
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto loc = op->getLoc();
+  LogicalResult matchAndRewrite(bud::TestConstantOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
     // Get type from the origin operation.
-    auto resultValue = op->getResult(0);
-    Type resultType = resultValue.getType();
+    Type resultType = op.getResult().getType();
     // Create constant operation.
     Attribute zeroAttr = rewriter.getZeroAttr(resultType);
     Value c0 = rewriter.create<ConstantOp>(loc, resultType, zeroAttr);
@@ -55,6 +51,10 @@ public:
   }
 };
 } // end anonymous namespace
+
+void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
+  patterns.add<BudTestConstantLowering>(patterns.getContext());
+}
 
 //===----------------------------------------------------------------------===//
 // LowerBudPass
@@ -86,7 +86,7 @@ void LowerBudPass::runOnOperation() {
   target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<LowerBudPattern>(context);
+  populateLowerBudConversionPatterns(patterns);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
