@@ -35,8 +35,8 @@ public:
     auto loc = op->getLoc();
     auto ctx = op->getContext();
     // Create constant index.
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     // Get input, kernel and output.
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
@@ -121,7 +121,9 @@ class ConvVectorizationPass
     : public PassWrapper<ConvVectorizationPass, OperationPass<ModuleOp>> {
 public:
   StringRef getArgument() const final { return "conv-vectorization"; }
-  StringRef getDescription() const final { return "Convolution vectorization."; }
+  StringRef getDescription() const final {
+    return "Convolution vectorization.";
+  }
   ConvVectorizationPass() = default;
   ConvVectorizationPass(const ConvVectorizationPass &) {}
   explicit ConvVectorizationPass(int64_t strideParam) { stride = strideParam; }
@@ -144,7 +146,8 @@ void ConvVectorizationPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<AffineDialect, scf::SCFDialect, StandardOpsDialect,
+  target.addLegalDialect<arith::ArithmeticDialect, AffineDialect,
+                         scf::SCFDialect, StandardOpsDialect,
                          memref::MemRefDialect, VectorDialect>();
   target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
