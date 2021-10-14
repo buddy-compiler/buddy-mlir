@@ -19,6 +19,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/Bufferize.h"
 
@@ -50,10 +51,41 @@ public:
     return success();
   }
 };
+
+class BudTestPrintLowering : public OpRewritePattern<bud::TestPrintOp> {
+public:
+  using OpRewritePattern<bud::TestPrintOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(bud::TestPrintOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    // Get type from the origin operation.
+    Type resultType = op.getResult().getType();
+    // Create constant operation.
+    Attribute zeroAttr = rewriter.getZeroAttr(resultType);
+    Value c0 = rewriter.create<arith::ConstantOp>(loc, resultType, zeroAttr);
+    // Create print operation for the scalar value.
+    rewriter.create<vector::PrintOp>(loc, c0);
+    VectorType vectorTy4 =
+        VectorType::get({4 /*number of elements in the vector*/}, resultType);
+    // Broadcast element of the kernel.
+    Value broadcastVector =
+        rewriter.create<vector::BroadcastOp>(loc, vectorTy4, c0);
+    // Create print operation for the vector value.
+    rewriter.create<vector::PrintOp>(loc, broadcastVector);
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
 } // end anonymous namespace
 
 void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
-  patterns.add<BudTestConstantLowering>(patterns.getContext());
+  // clang-format off
+  patterns.add<
+      BudTestConstantLowering,
+      BudTestPrintLowering>(patterns.getContext());
+  // clang-format on
 }
 
 //===----------------------------------------------------------------------===//
@@ -72,7 +104,12 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<buddy::bud::BudDialect, StandardOpsDialect>();
+    // clang-format off
+    registry.insert<
+        buddy::bud::BudDialect,
+        StandardOpsDialect,
+        vector::VectorDialect>();
+    // clang-format on
   }
 };
 } // end anonymous namespace.
@@ -82,7 +119,12 @@ void LowerBudPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<arith::ArithmeticDialect, StandardOpsDialect>();
+  // clang-format off
+  target.addLegalDialect<
+      arith::ArithmeticDialect,
+      StandardOpsDialect,
+      vector::VectorDialect>();
+  // clang-format on
   target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
 
   RewritePatternSet patterns(context);
