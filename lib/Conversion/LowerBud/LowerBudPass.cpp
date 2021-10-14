@@ -44,7 +44,7 @@ public:
     Type resultType = op.getResult().getType();
     // Create constant operation.
     Attribute zeroAttr = rewriter.getZeroAttr(resultType);
-    Value c0 = rewriter.create<ConstantOp>(loc, resultType, zeroAttr);
+    Value c0 = rewriter.create<arith::ConstantOp>(loc, resultType, zeroAttr);
 
     rewriter.replaceOp(op, c0);
     return success();
@@ -82,7 +82,7 @@ void LowerBudPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<StandardOpsDialect>();
+  target.addLegalDialect<arith::ArithmeticDialect, StandardOpsDialect>();
   target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
 
   RewritePatternSet patterns(context);
