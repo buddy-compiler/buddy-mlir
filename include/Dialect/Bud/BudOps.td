@@ -34,4 +34,14 @@ def Bud_TestConstantOp : Bud_Op<"test_constant", []> {
   }];
 }
 
+def Bud_TestPrintOp : Bud_Op<"test_print", []> {
+  let summary = "Test Print Operation.";
+
+  let results = (outs AnyInteger:$result);
+
+  let assemblyFormat = [{
+    attr-dict `:` type($result)
+  }];
+}
+
 #endif // BUD_BUDOPS_TD
