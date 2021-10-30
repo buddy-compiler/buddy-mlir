@@ -1,4 +1,4 @@
-//===- DIP-opt.cpp ----------------------------------------------*- C++ -*-===//
+//===- dip-opt.cpp ----------------------------------------------*- C++ -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// DIP optimizer driver.
+// dip optimizer driver.
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,25 +31,25 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
-#include "DIP/DIPDialect.h"
-#include "DIP/DIPOps.h"
+#include "dip/dipDialect.h"
+#include "dip/dipOps.h"
 
 namespace mlir {
 namespace Buddy {
-void registerLowerDIPPass();
+void registerLowerdipPass();
 } // namespace Buddy
 } // namespace mlir
 
 int main(int argc, char **argv) {
-  // Register all MLIR passes and DIP dialect passes.
+  // Register all MLIR passes and dip dialect passes.
   mlir::registerAllPasses();
-  mlir::Buddy::registerLowerDIPPass();
-  // Register DIP dialect.
+  mlir::Buddy::registerLowerdipPass();
+  // Register dip dialect.
   mlir::DialectRegistry registry;
-  registry.insert<Buddy::DIP::DIPDialect>();
+  registry.insert<Buddy::dip::dipDialect>();
   // Register all MLIR dialect.
   registerAllDialects(registry);
 
   return mlir::asMainReturnCode(
-      mlir::MlirOptMain(argc, argv, "DIP optimizer driver\n", registry));
+      mlir::MlirOptMain(argc, argv, "dip optimizer driver\n", registry));
 }

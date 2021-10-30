@@ -1,4 +1,4 @@
-//===- DIPOps.cpp - DIP Dialect Ops -----------------------------*- C++ -*-===//
+//===- dipDialect.h - dip Dialect Definition --------------------*- C++ -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,14 +13,16 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-//
-// This file defines operations in the DIP dialect.
+// 
+// This is the header file for the dip dialect.
 //
 //===----------------------------------------------------------------------===//
 
-#include "DIP/DIPOps.h"
-#include "DIP/DIPDialect.h"
-#include "mlir/IR/OpImplementation.h"
+#ifndef DIP_DIPDIALECT_H
+#define DIP_DIPDIALECT_H
 
-#define GET_OP_CLASSES
-#include "DIP/DIPOps.cpp.inc"
+#include "mlir/IR/Dialect.h"
+
+#include "dip/dipOpsDialect.h.inc"
+
+#endif // DIP_DIPDIALECT_H

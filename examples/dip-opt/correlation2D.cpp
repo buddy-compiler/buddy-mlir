@@ -1,21 +1,20 @@
 //====- edge-detection.cpp - Example of conv-opt tool ========================//
 //
-// This file implements a 2D correlation example with DIP.Corr2D operation.
-// The DIP.Corr2D operation will be compiled into an object file with the
-// DIP-opt tool.
+// This file implements a 2D correlation example with dip.Corr2D operation.
+// The dip.Corr2D operation will be compiled into an object file with the
+// dip-opt tool.
 // This file will be linked with the object file to generate the executable
 // file.
 //
 //===----------------------------------------------------------------------===//
 
-#include <iostream>
 #include <opencv2/imgcodecs.hpp>
-
 #include <opencv2/opencv.hpp>
 
-#include <time.h>
+#include "../conv-opt/kernels.h"
 
-#include "/home/prathamesh/buddy-mlir/examples/conv-opt/kernels.h"
+#include <iostream>
+#include <time.h>
 
 using namespace cv;
 using namespace std;
@@ -48,7 +47,7 @@ MemRef_descriptor MemRef_Descriptor(float *allocated, float *aligned,
 
 // Declare the Corr2D C interface.
 extern "C" {
-void _mlir_ciface_DIPCorr2D(MemRef_descriptor input, MemRef_descriptor kernel,
+void _mlir_ciface_dipCorr2D(MemRef_descriptor input, MemRef_descriptor kernel,
                             MemRef_descriptor output, unsigned int centerX, unsigned int centerY, int boundaryOption);
 }
 
@@ -111,13 +110,9 @@ bool testImplementation(int argc, char *argv[],
   int outputCols = image.cols;
   float *outputAlign = (float *)malloc(outputRows * outputCols * sizeof(float));
 
-  int k1 = 0;
-  for (int i = 0; i < image.rows; i++) {
-    for (int j = 0; j < image.cols; j++) {
-      outputAlign[k1] = 0;
-      k1++;
-    }
-  }
+  for (int i = 0; i < image.rows; i++)
+    for (int j = 0; j < image.cols; j++)
+      outputAlign[i * image.rows + j] = 0;
 
   // Define the allocated, sizes, and strides.
   float *allocated = (float *)malloc(1 * sizeof(float));
@@ -139,7 +134,7 @@ bool testImplementation(int argc, char *argv[],
   Mat kernel1 = Mat::ones(3, 3, CV_8UC1);
 
   // Call the MLIR Corr2D function.
-  _mlir_ciface_DIPCorr2D(input, kernel, output, x, y, 0);
+  _mlir_ciface_dipCorr2D(input, kernel, output, x, y, 0);
 
   // Define a cv::Mat with the output of the conv2d.
   Mat outputImage(outputRows, outputCols, CV_32FC1, output->aligned);
@@ -152,18 +147,13 @@ bool testImplementation(int argc, char *argv[],
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
   Mat o2;
-  filter2D(image, o2, CV_8UC1, kernel1, cv::Point(x, y), 0.0, cv::BORDER_CONSTANT);
+  filter2D(image, o2, CV_8UC1, kernel1, cv::Point(x, y), 0.0, cv::BORDER_REPLICATE);
 
-  // std::cout << image << "\n\n";
-  // std::cout << kernel1 << "\n\n";
-  // std::cout << o1 << "\n\n";
-  // std::cout << o2 << "\n\n\n\n";
   if (!testImages(o1, o2))
   {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }
-
 
   free(input);
   free(kernel);

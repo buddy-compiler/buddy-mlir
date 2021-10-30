@@ -1,4 +1,4 @@
-//===- DIPDialect.td - DIP Dialect Definition --------------*- tablegen -*-===//
+//===- dipDialect.td - dip Dialect Definition --------------*- tablegen -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This is the top level file for the DIP dialect.
+// This is the top level file for the dip dialect.
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,23 +24,23 @@
 include "mlir/IR/OpBase.td"
 
 //===----------------------------------------------------------------------===//
-// DIP Dialect Definition.
+// dip Dialect Definition.
 //===----------------------------------------------------------------------===//
 
-def DIP_Dialect : Dialect {
-  let name = "DIP";
-  let summary = "The DIP Dialect.";
+def dip_Dialect : Dialect {
+  let name = "dip";
+  let summary = "The dip Dialect.";
   let description = [{
-    The `DIP` dialect is for digital image processing.
+    The `dip` dialect is for digital image processing.
   }];
-  let cppNamespace = "::Buddy::DIP";
+  let cppNamespace = "::Buddy::dip";
 }
 
 //===----------------------------------------------------------------------===//
-// Base DIP Operation Definition.
+// Base dip Operation Definition.
 //===----------------------------------------------------------------------===//
 
-class DIP_Op<string mnemonic, list<OpTrait> traits = []> :
-    Op<DIP_Dialect, mnemonic, traits>;
+class dip_Op<string mnemonic, list<OpTrait> traits = []> :
+    Op<dip_Dialect, mnemonic, traits>;
 
 #endif // DIP_DIPDIALECT_TD
