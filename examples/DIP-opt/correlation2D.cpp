@@ -1,6 +1,6 @@
 //====- edge-detection.cpp - Example of conv-opt tool ========================//
 //
-// This file implements an edge detection example with DIP.Corr2D operation.
+// This file implements a 2D correlation example with DIP.Corr2D operation.
 // The DIP.Corr2D operation will be compiled into an object file with the
 // DIP-opt tool.
 // This file will be linked with the object file to generate the executable
@@ -46,7 +46,7 @@ MemRef_descriptor MemRef_Descriptor(float *allocated, float *aligned,
   return n;
 }
 
-// Declare the conv2d C interface.
+// Declare the Corr2D C interface.
 extern "C" {
 void _mlir_ciface_DIPCorr2D(MemRef_descriptor input, MemRef_descriptor kernel,
                             MemRef_descriptor output, unsigned int centerX, unsigned int centerY, int boundaryOption);
@@ -97,14 +97,12 @@ bool testImplementation(int argc, char *argv[],
     for (int j = 0; j < image.cols; j++) {
       float pixelValue = (float)image.at<uchar>(i, j);
       inputAlign[k] = pixelValue;
-      // std::cout << "inputAlign Value   " << inputAlign[k] << "\n";
       k++;
     }
   }
 
   // Define the kernel.
   float kernelAlign[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
-  // float *kernelAlign = laplacianKernelAlign;
   int kernelRows = 3;
   int kernelCols = 3;
 
@@ -117,8 +115,6 @@ bool testImplementation(int argc, char *argv[],
   for (int i = 0; i < image.rows; i++) {
     for (int j = 0; j < image.cols; j++) {
       outputAlign[k1] = 0;
-      // std::cout << outputAlign[k1] << "  outputAlign\n";
-      // std::cout << "inputAlign Value   " << inputAlign[k] << "\n";
       k1++;
     }
   }
@@ -152,7 +148,6 @@ bool testImplementation(int argc, char *argv[],
   vector<int> compression_params;
   compression_params.push_back(IMWRITE_PNG_COMPRESSION);
   compression_params.push_back(9);
-  // std::cout << outputImage.cols << "  " << outputImage.rows << "\n";
   imwrite(argv[2], outputImage);
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);

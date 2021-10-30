@@ -42,6 +42,7 @@ using namespace vector;
 
 namespace {
 
+// Calculate result of FMA and store it in output memref
 void calcAndStoreFMA(OpBuilder &builder, Location loc, VectorType vecType,
                      Value inputVec, Value kernelVec, Value output,
                      ValueRange indices) {
@@ -73,10 +74,6 @@ public:
     Value centerY = op->getOperand(4);
     Value boundaryOptionVal = op->getOperand(5);
 
-    // ConstantIndexOp p = dyn_cast<ConstantIndexOp>(boundaryOptionVal.getDefiningOp());
-    // auto p1 = boundaryOptionVal.getDefiningOp();
-    // auto p2 = p1->getName();
-    // rewriter.create<PrintOp>(loc, p1);
     unsigned int boundaryOption = 0;
 
     unsigned int stride = 3;
@@ -94,17 +91,7 @@ public:
     Value inputCol = rewriter.create<memref::DimOp>(loc, input, c1);
     Value kernelSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
 
-    // unsigned check = kernelSize.getDefiningOp().getConstantIndex();
-    // auto check = kernelSize.getDefiningOp().getODSResultIndexAndLength();
-    // memref::DimOp check1 = dyn_cast<memref::DimOp>(kernelSize.getDefiningOp());
-    // auto check2 = check1.getODSResultIndexAndLength(2);
-    // auto check3 = check1.getResult();
-    // auto check4 = dyn_cast<ConstantIndexOp>(check3.getDefiningOp()).getValue();
-    // std::cout << check4 << "\n";
-
-    // rewriter.create<PrintOp>(loc, check3);
-    // std::cout << check2.first << "  " << check2.second << "\n";
-
+    // Variables used for detecting rowMid, rowDown, colMid and colRight regions
     Value rowMidHelper = rewriter.create<AddIOp>(loc, inputRow, centerY);
     Value colMidHelper = rewriter.create<AddIOp>(loc, inputCol, centerX);
 
@@ -120,12 +107,15 @@ public:
     buildAffineLoopNest(
         rewriter, loc, lowerBounds, uperBounds, steps,
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+          // Indices of current pixel with respect to pseudo image containing extrapolated boundaries
           Value currRow = builder.create<AddIOp>(loc, ivs[0], ivs[1]);
           Value currCol = builder.create<AddIOp>(loc, ivs[2], ivs[3]);
 
+          // Pixel indices with respect to the actual image
           Value imRow = builder.create<SubIOp>(loc, currRow, centerY);
           Value imCol = builder.create<SubIOp>(loc, currCol, centerX);
 
+          // Index of right most pixel which is accessible in this iteration
           Value colLastElem = builder.create<AddIOp>(loc, currCol, strideVal);
 
           Value rowUpCond = builder.create<CmpIOp>(
