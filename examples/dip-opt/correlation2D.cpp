@@ -48,23 +48,19 @@ MemRef_descriptor MemRef_Descriptor(float *allocated, float *aligned,
 // Declare the Corr2D C interface.
 extern "C" {
 void _mlir_ciface_dipCorr2D(MemRef_descriptor input, MemRef_descriptor kernel,
-                            MemRef_descriptor output, unsigned int centerX, unsigned int centerY, int boundaryOption);
+                            MemRef_descriptor output, unsigned int centerX,
+                            unsigned int centerY, int boundaryOption);
 }
 
-bool testImages(cv::Mat img1, cv::Mat img2)
-{
-  if (img1.rows != img2.rows || img1.cols != img2.cols)
-  {
+bool testImages(cv::Mat img1, cv::Mat img2) {
+  if (img1.rows != img2.rows || img1.cols != img2.cols) {
     std::cout << "Dimensions not equal\n";
     return 0;
   }
 
-  for (std::ptrdiff_t i = 0; i < img1.cols; ++i)
-  {
-    for (std::ptrdiff_t j = 0; j < img1.rows; ++j)
-    {
-      if (img1.at<uchar>(i, j) != img2.at<uchar>(i, j))
-      {
+  for (std::ptrdiff_t i = 0; i < img1.cols; ++i) {
+    for (std::ptrdiff_t j = 0; j < img1.rows; ++j) {
+      if (img1.at<uchar>(i, j) != img2.at<uchar>(i, j)) {
         std::cout << "Pixels not equal at : (" << i << "," << j << ")\n";
         std::cout << (int)img1.at<uchar>(i, j) << "\n";
         std::cout << (int)img2.at<uchar>(i, j) << "\n\n";
@@ -78,9 +74,8 @@ bool testImages(cv::Mat img1, cv::Mat img2)
   return 1;
 }
 
-bool testImplementation(int argc, char *argv[], 
-    std::ptrdiff_t x, std::ptrdiff_t y, std::ptrdiff_t boundaryOption)
-{
+bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
+                        std::ptrdiff_t y, std::ptrdiff_t boundaryOption) {
   // Read as grayscale image.
   Mat image = imread(argv[1], IMREAD_GRAYSCALE);
   if (image.empty()) {
@@ -147,10 +142,10 @@ bool testImplementation(int argc, char *argv[],
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
   Mat o2;
-  filter2D(image, o2, CV_8UC1, kernel1, cv::Point(x, y), 0.0, cv::BORDER_REPLICATE);
+  filter2D(image, o2, CV_8UC1, kernel1, cv::Point(x, y), 0.0,
+           cv::BORDER_REPLICATE);
 
-  if (!testImages(o1, o2))
-  {
+  if (!testImages(o1, o2)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }
@@ -166,17 +161,13 @@ bool testImplementation(int argc, char *argv[],
 
 int main(int argc, char *argv[]) {
   bool flag = 1;
-  for (std::ptrdiff_t x = 0; x < 3; ++x)
-  {
-    for (std::ptrdiff_t y = 0; y < 3; ++y)
-    {
-      if (!testImplementation(argc, argv, x, y, 0))
-      {
+  for (std::ptrdiff_t x = 0; x < 3; ++x) {
+    for (std::ptrdiff_t y = 0; y < 3; ++y) {
+      if (!testImplementation(argc, argv, x, y, 0)) {
         flag = 0;
         break;
       }
-      if (!flag)
-      {
+      if (!flag) {
         break;
       }
     }

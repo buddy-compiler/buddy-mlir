@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This is the header file for operations in dip dialect. 
+// This is the header file for operations in dip dialect.
 //
 //===----------------------------------------------------------------------===//
 
