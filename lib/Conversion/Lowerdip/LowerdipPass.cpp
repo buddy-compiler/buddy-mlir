@@ -47,23 +47,21 @@ void calcAndStoreFMA(OpBuilder &builder, Location loc, VectorType vecType,
   builder.create<scf::IfOp>(
       loc, tailCond,
       [&](OpBuilder &builder, Location loc) {
-        ValueRange indices = ValueRange{index1, index2};
         Value outputVec =
-            builder.create<vector::LoadOp>(loc, vecType, output, indices);
+            builder.create<vector::LoadOp>(loc, vecType, output, ValueRange{index1, index2});
         Value resVec =
             builder.create<vector::FMAOp>(loc, inputVec, kernelVec, outputVec);
-        builder.create<vector::StoreOp>(loc, resVec, output, indices);
+        builder.create<vector::StoreOp>(loc, resVec, output, ValueRange{index1, index2});
 
         builder.create<scf::YieldOp>(loc);
       },
       [&](OpBuilder &builder, Location loc) {
         Value tailIndex = builder.create<SubIOp>(loc, index2, extraElem);
-        ValueRange indices = ValueRange{index1, tailIndex};
         Value outputVec =
-            builder.create<vector::LoadOp>(loc, vecType, output, indices);
+            builder.create<vector::LoadOp>(loc, vecType, output, ValueRange{index1, tailIndex});
         Value resVec =
             builder.create<vector::FMAOp>(loc, inputVec, kernelVec, outputVec);
-        builder.create<vector::StoreOp>(loc, resVec, output, indices);
+        builder.create<vector::StoreOp>(loc, resVec, output, ValueRange{index1, tailIndex});
 
         builder.create<scf::YieldOp>(loc);
       });
