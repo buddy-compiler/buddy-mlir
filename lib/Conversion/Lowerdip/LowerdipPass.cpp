@@ -32,6 +32,7 @@
 using namespace mlir;
 using namespace Buddy;
 using namespace vector;
+using namespace mlir::arith;
 
 //===----------------------------------------------------------------------===//
 // Rewrite Pattern
