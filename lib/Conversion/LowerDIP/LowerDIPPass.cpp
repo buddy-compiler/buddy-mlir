@@ -1,4 +1,4 @@
-//====- LowerdipPass.cpp - dip Dialect Lowering Pass  ---------------------===//
+//====- LowerDIPPass.cpp - dip Dialect Lowering Pass  ---------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines dip dialect lowering pass.
+// This file defines DIP dialect lowering pass.
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,11 +26,11 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/Bufferize.h"
 
-#include "dip/dipDialect.h"
-#include "dip/dipOps.h"
+#include "DIP/DIPDialect.h"
+#include "DIP/DIPOps.h"
 
 using namespace mlir;
-using namespace Buddy;
+using namespace buddy;
 using namespace vector;
 using namespace mlir::arith;
 
@@ -78,7 +78,7 @@ Value createInvertedMask(OpBuilder &builder, Location loc, Value strideVal,
   return rightMask;
 }
 
-class dipCorr2DLowering : public OpRewritePattern<dip::Corr2DOp> {
+class DIPCorr2DLowering : public OpRewritePattern<dip::Corr2DOp> {
 public:
   using OpRewritePattern<dip::Corr2DOp>::OpRewritePattern;
 
@@ -515,51 +515,51 @@ public:
 };
 } // end anonymous namespace
 
-void populateLowerdipConversionPatterns(RewritePatternSet &patterns) {
-  patterns.add<dipCorr2DLowering>(patterns.getContext());
+void populateLowerDIPConversionPatterns(RewritePatternSet &patterns) {
+  patterns.add<DIPCorr2DLowering>(patterns.getContext());
 }
 
 //===----------------------------------------------------------------------===//
-// LowerdipPass
+// LowerDIPPass
 //===----------------------------------------------------------------------===//
 
 namespace {
-class LowerdipPass : public PassWrapper<LowerdipPass, OperationPass<ModuleOp>> {
+class LowerDIPPass : public PassWrapper<LowerDIPPass, OperationPass<ModuleOp>> {
 public:
-  LowerdipPass() = default;
-  LowerdipPass(const LowerdipPass &) {}
+  LowerDIPPass() = default;
+  LowerDIPPass(const LowerDIPPass &) {}
 
   StringRef getArgument() const final { return "lower-dip"; }
-  StringRef getDescription() const final { return "Lower dip Dialect."; }
+  StringRef getDescription() const final { return "Lower DIP Dialect."; }
 
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<Buddy::dip::dipDialect, StandardOpsDialect,
+    registry.insert<buddy::dip::DIPDialect, StandardOpsDialect,
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
-                    AffineDialect>();
+                    AffineDialect, arith::ArithmeticDialect>();
   }
 };
 } // end anonymous namespace.
 
-void LowerdipPass::runOnOperation() {
+void LowerDIPPass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
   target.addLegalDialect<AffineDialect, scf::SCFDialect, StandardOpsDialect,
-                         memref::MemRefDialect, VectorDialect>();
+                         memref::MemRefDialect, VectorDialect, arith::ArithmeticDialect>();
   target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
 
   RewritePatternSet patterns(context);
-  populateLowerdipConversionPatterns(patterns);
+  populateLowerDIPConversionPatterns(patterns);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
 }
 
 namespace mlir {
-namespace Buddy {
-void registerLowerdipPass() { PassRegistration<LowerdipPass>(); }
+namespace buddy {
+void registerLowerDIPPass() { PassRegistration<LowerDIPPass>(); }
 } // namespace Buddy
 } // namespace mlir

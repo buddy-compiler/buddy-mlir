@@ -1,4 +1,4 @@
-//===- dipOps.h - dip Dialect Ops -------------------------------*- C++ -*-===//
+//===- DIPOps.h - dip Dialect Ops -------------------------------*- C++ -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This is the header file for operations in dip dialect.
+// This is the header file for operations in DIP dialect.
 //
 //===----------------------------------------------------------------------===//
 
@@ -27,6 +27,6 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
 #define GET_OP_CLASSES
-#include "dip/dipOps.h.inc"
+#include "DIP/DIPOps.h.inc"
 
 #endif // DIP_DIPOPS_H

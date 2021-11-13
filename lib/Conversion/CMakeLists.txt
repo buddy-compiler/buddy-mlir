@@ -1,2 +1,2 @@
 add_subdirectory(LowerBud)
-add_subdirectory(Lowerdip)
+add_subdirectory(LowerDIP)

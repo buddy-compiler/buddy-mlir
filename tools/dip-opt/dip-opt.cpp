@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// dip optimizer driver.
+// DIP optimizer driver.
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,25 +31,25 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
-#include "dip/dipDialect.h"
-#include "dip/dipOps.h"
+#include "DIP/DIPDialect.h"
+#include "DIP/DIPOps.h"
 
 namespace mlir {
-namespace Buddy {
-void registerLowerdipPass();
-} // namespace Buddy
+namespace buddy {
+void registerLowerDIPPass();
+} // namespace buddy
 } // namespace mlir
 
 int main(int argc, char **argv) {
-  // Register all MLIR passes and dip dialect passes.
+  // Register all MLIR passes and DIP dialect passes.
   mlir::registerAllPasses();
-  mlir::Buddy::registerLowerdipPass();
-  // Register dip dialect.
+  mlir::buddy::registerLowerDIPPass();
+  // Register DIP dialect.
   mlir::DialectRegistry registry;
-  registry.insert<Buddy::dip::dipDialect>();
+  registry.insert<buddy::dip::DIPDialect>();
   // Register all MLIR dialect.
   registerAllDialects(registry);
 
   return mlir::asMainReturnCode(
-      mlir::MlirOptMain(argc, argv, "dip optimizer driver\n", registry));
+      mlir::MlirOptMain(argc, argv, "DIP optimizer driver\n", registry));
 }

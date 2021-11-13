@@ -1,4 +1,4 @@
-//===- dipOps.td - dip Dialect Ops -------------------------*- tablegen -*-===//
+//===- DIPOps.td - dip Dialect Ops -------------------------*- tablegen -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,17 +14,17 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This is the top level file for operations in the dip dialect.
+// This is the top level file for operations in the DIP dialect.
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef DIP_DIPOPS_TD
 #define DIP_DIPOPS_TD
 
-include "dipDialect.td"
+include "DIPDialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
-def dip_Corr2DOp : dip_Op<"Corr2D">
+def DIP_Corr2DOp : DIP_Op<"corr_2d">
 {
   let summary = "Operation for performing 2D correlation";
 

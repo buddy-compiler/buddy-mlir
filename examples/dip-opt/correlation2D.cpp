@@ -1,7 +1,7 @@
 //====- edge-detection.cpp - Example of conv-opt tool ========================//
 //
-// This file implements a 2D correlation example with dip.Corr2D operation.
-// The dip.Corr2D operation will be compiled into an object file with the
+// This file implements a 2D correlation example with dip.corr_2d operation.
+// The dip.corr_2d operation will be compiled into an object file with the
 // dip-opt tool.
 // This file will be linked with the object file to generate the executable
 // file.
@@ -47,7 +47,7 @@ MemRef_descriptor MemRef_Descriptor(float *allocated, float *aligned,
 
 // Declare the Corr2D C interface.
 extern "C" {
-void _mlir_ciface_dipCorr2D(MemRef_descriptor input, MemRef_descriptor kernel,
+void _mlir_ciface_corr_2d(MemRef_descriptor input, MemRef_descriptor kernel,
                             MemRef_descriptor output, unsigned int centerX,
                             unsigned int centerY, int boundaryOption);
 }
@@ -129,7 +129,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   Mat kernel1 = Mat::ones(3, 3, CV_8UC1);
 
   // Call the MLIR Corr2D function.
-  _mlir_ciface_dipCorr2D(input, kernel, output, x, y, 0);
+  _mlir_ciface_corr_2d(input, kernel, output, x, y, 0);
 
   // Define a cv::Mat with the output of the conv2d.
   Mat outputImage(outputRows, outputCols, CV_32FC1, output->aligned);

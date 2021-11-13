@@ -8,6 +8,6 @@ target_link_libraries(dip-opt
   ${dialect_libs}
   ${conversion_libs}
   MLIROptLib
-  Buddydip
-  LowerdipPass
+  BuddyDIP
+  LowerDIPPass
   )

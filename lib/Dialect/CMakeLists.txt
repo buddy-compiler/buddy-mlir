@@ -1,2 +1,2 @@
 add_subdirectory(Bud)
-add_subdirectory(dip)
+add_subdirectory(DIP)
