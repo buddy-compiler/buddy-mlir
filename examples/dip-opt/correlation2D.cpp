@@ -86,12 +86,9 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
   // Define the input with the image.
   float *inputAlign = (float *)malloc(inputSize * sizeof(float));
-  int k = 0;
   for (int i = 0; i < image.rows; i++) {
     for (int j = 0; j < image.cols; j++) {
-      float pixelValue = (float)image.at<uchar>(i, j);
-      inputAlign[k] = pixelValue;
-      k++;
+      inputAlign[image.rows * i + j] = (float)image.at<uchar>(i, j);
     }
   }
 
@@ -104,10 +101,6 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   int outputRows = image.rows;
   int outputCols = image.cols;
   float *outputAlign = (float *)malloc(outputRows * outputCols * sizeof(float));
-
-  for (int i = 0; i < image.rows; i++)
-    for (int j = 0; j < image.cols; j++)
-      outputAlign[i * image.rows + j] = 0;
 
   // Define the allocated, sizes, and strides.
   float *allocated = (float *)malloc(1 * sizeof(float));

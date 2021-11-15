@@ -561,5 +561,5 @@ void LowerDIPPass::runOnOperation() {
 namespace mlir {
 namespace buddy {
 void registerLowerDIPPass() { PassRegistration<LowerDIPPass>(); }
-} // namespace Buddy
+} // namespace buddy
 } // namespace mlir

@@ -31,7 +31,9 @@ def DIP_Dialect : Dialect {
   let name = "dip";
   let summary = "The DIP Dialect.";
   let description = [{
-    The `DIP` dialect is for digital image processing.
+    Digital image processing dialect(`DIP`) dialect is created for the purpose
+    of developing a MLIR backend for performing image processing operations 
+    such as 2D Correlation, Morphological processing, etc.
   }];
   let cppNamespace = "::buddy::dip";
 }
