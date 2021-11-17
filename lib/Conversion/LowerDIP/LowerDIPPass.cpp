@@ -100,7 +100,7 @@ public:
     // Value boundaryOptionVal = op->getOperand(5);
     unsigned int boundaryOption = 1;
 
-    unsigned int stride = 3;
+    unsigned int stride = 100;
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
     FloatType f32 = FloatType::getF32(ctx);
@@ -235,7 +235,7 @@ public:
                               Value rightMaskHelper = builder.create<SubIOp>(
                                   loc, colLastElem, colMidHelper);
                               Value rightMaskElem = builder.create<SubIOp>(
-                                  loc, kernelSize, rightMaskHelper);
+                                  loc, strideVal, rightMaskHelper);
                               Value rightMask = builder.create<CreateMaskOp>(
                                   loc, vectorMask, rightMaskElem);
 
@@ -340,7 +340,7 @@ public:
                                       builder.create<SubIOp>(loc, colLastElem,
                                                              colMidHelper);
                                   Value rightMaskElem = builder.create<SubIOp>(
-                                      loc, kernelSize, rightMaskHelper);
+                                      loc, strideVal, rightMaskHelper);
                                   Value rightMask =
                                       builder.create<CreateMaskOp>(
                                           loc, vectorMask, rightMaskElem);
@@ -467,7 +467,7 @@ public:
                                         builder.create<SubIOp>(loc, colLastElem,
                                                                colMidHelper);
                                     Value rightMaskElem =
-                                        builder.create<SubIOp>(loc, kernelSize,
+                                        builder.create<SubIOp>(loc, strideVal,
                                                                rightMaskHelper);
                                     Value rightMask =
                                         builder.create<CreateMaskOp>(
