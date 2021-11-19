@@ -40,41 +40,43 @@ using namespace mlir::arith;
 
 namespace {
 
-// Calculate result of FMA and store it in output memref
+// Calculate result of FMA and store it in output memref.
 void calcAndStoreFMA(OpBuilder &builder, Location loc, VectorType vecType,
                      Value inputVec, Value kernelVec, Value output,
-                     Value index1, Value index2, Value tailCond,
+                     Value beginIdx, Value endIdx, Value tailCond,
                      Value extraElemMask, Value zeroPadding) {
+  // ToDo : Find a way to get rid of tailCond in cases which do not require that comparison.
   builder.create<scf::IfOp>(
       loc, tailCond,
       [&](OpBuilder &builder, Location loc) {
         Value outputVec =
-            builder.create<LoadOp>(loc, vecType, output, ValueRange{index1, index2});
+            builder.create<LoadOp>(loc, vecType, output, ValueRange{beginIdx, endIdx});
         Value resVec =
             builder.create<FMAOp>(loc, inputVec, kernelVec, outputVec);
-        builder.create<StoreOp>(loc, resVec, output, ValueRange{index1, index2});
+        builder.create<StoreOp>(loc, resVec, output, ValueRange{beginIdx, endIdx});
 
         builder.create<scf::YieldOp>(loc);
       },
       [&](OpBuilder &builder, Location loc) {
         Value outputVec =
             builder.create<MaskedLoadOp>(loc, vecType, output, 
-            ValueRange{index1, index2}, extraElemMask, zeroPadding);
+            ValueRange{beginIdx, endIdx}, extraElemMask, zeroPadding);
         Value resVec =
             builder.create<FMAOp>(loc, inputVec, kernelVec, outputVec);
-        builder.create<MaskedStoreOp>(loc, output, ValueRange{index1, index2},
+        builder.create<MaskedStoreOp>(loc, output, ValueRange{beginIdx, endIdx},
             extraElemMask, resVec);
 
         builder.create<scf::YieldOp>(loc);
       });
 }
 
-// Create an inverted mask having all 1's shifted to right side
+// Create an inverted mask having all 1's shifted to right side.
 Value createInvertedMask(OpBuilder &builder, Location loc, Value strideVal,
-                         VectorType vectorMask, Value leftIndex) {
-  Value leftMask = builder.create<CreateMaskOp>(loc, vectorMask, leftIndex);
-  Value maskInverter = builder.create<CreateMaskOp>(loc, vectorMask, strideVal);
+                         VectorType vectorMaskTy, Value leftIndex) {
+  Value leftMask = builder.create<CreateMaskOp>(loc, vectorMaskTy, leftIndex);
+  Value maskInverter = builder.create<CreateMaskOp>(loc, vectorMaskTy, strideVal);
   Value rightMask = builder.create<SubIOp>(loc, maskInverter, leftMask);
+  // ToDo : Compare performance with XoR.
   return rightMask;
 }
 
@@ -91,7 +93,7 @@ public:
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
 
-    // Register operand values
+    // Register operand values.
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
@@ -99,6 +101,7 @@ public:
     Value centerY = op->getOperand(4);
     // Value boundaryOptionVal = op->getOperand(5);
     unsigned int boundaryOption = 1;
+    // ToDo : Make boundaryOption an attribute.
 
     unsigned int stride = 100;
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
@@ -111,7 +114,7 @@ public:
     Value inputCol = rewriter.create<memref::DimOp>(loc, input, c1);
     Value kernelSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
 
-    // Variables used for detecting rowMid, rowDown, colMid and colRight regions
+    // Variables used for detecting rowMid, rowDown, colMid and colRight regions.
     Value rowMidHelper = rewriter.create<AddIOp>(loc, inputRow, centerY);
     Value colMidHelper = rewriter.create<AddIOp>(loc, inputCol, centerX);
 
@@ -121,9 +124,9 @@ public:
     SmallVector<int64_t, 8> steps{1, 1, stride, 1};
 
     VectorType vectorTy32 = VectorType::get({stride}, f32);
-    VectorType vectorMask = VectorType::get({stride}, i1);
+    VectorType vectorMaskTy = VectorType::get({stride}, i1);
 
-    // Improve this flow for constant padding option
+    // Improve this flow for constant padding option.
     Value zeroPaddingElem =
         rewriter.create<ConstantFloatOp>(loc, (APFloat)(float)0, f32);
     Value zeroPadding =
@@ -145,10 +148,10 @@ public:
           Value tailCond = rewriter.create<CmpIOp>(loc, CmpIPredicate::sge,
                                                    colEndDistance, tailChecker);
           Value extraElemCount = builder.create<SubIOp>(loc, inputCol, ivs[2]);
-          Value extraElemMask = builder.create<CreateMaskOp>(loc, vectorMask, extraElemCount);
+          Value extraElemMask = builder.create<CreateMaskOp>(loc, vectorMaskTy, extraElemCount);
 
           // Indices of current pixel with respect to pseudo image containing
-          // extrapolated boundaries
+          // extrapolated boundaries.
           Value currRow = builder.create<AddIOp>(loc, ivs[0], ivs[1]);
           Value currCol = builder.create<AddIOp>(loc, ivs[2], ivs[3]);
 
@@ -156,11 +159,11 @@ public:
               loc, kernel, ValueRange{ivs[1], ivs[3]});
           Value kernelVec = builder.create<BroadcastOp>(loc, vectorTy32, kernelValue);
 
-          // Pixel indices with respect to the actual image
+          // Pixel indices with respect to the actual image.
           Value imRow = builder.create<SubIOp>(loc, currRow, centerY);
           Value imCol = builder.create<SubIOp>(loc, currCol, centerX);
 
-          // Index of pixel used for determining right region
+          // Index of pixel used for determining right region.
           Value colLastElem = builder.create<AddIOp>(loc, currCol, strideVal);
 
           Value rowUpCond =
@@ -188,7 +191,7 @@ public:
                         Value leftMaskElem =
                             builder.create<SubIOp>(loc, centerX, currCol);
                         Value leftMask = createInvertedMask(
-                            builder, loc, strideVal, vectorMask, leftMaskElem);
+                            builder, loc, strideVal, vectorMaskTy, leftMaskElem);
 
                         if (boundaryOption == 1) {
                           Value paddingVal = builder.create<memref::LoadOp>(
@@ -196,10 +199,10 @@ public:
                           Value padding = builder.create<BroadcastOp>(
                               loc, vectorTy32, paddingVal);
 
-                          Value c11 =
+                          Value leftPaddingOffset =
                               builder.create<SubIOp>(loc, c0, leftMaskElem);
                           inputVec = builder.create<vector::MaskedLoadOp>(
-                              loc, vectorTy32, input, ValueRange{c0, c11},
+                              loc, vectorTy32, input, ValueRange{c0, leftPaddingOffset},
                               leftMask, padding);
                         }
                         calcAndStoreFMA(builder, loc, vectorTy32, inputVec,
@@ -237,7 +240,7 @@ public:
                               Value rightMaskElem = builder.create<SubIOp>(
                                   loc, strideVal, rightMaskHelper);
                               Value rightMask = builder.create<CreateMaskOp>(
-                                  loc, vectorMask, rightMaskElem);
+                                  loc, vectorMaskTy, rightMaskElem);
 
                               if (boundaryOption == 1) {
                                 Value rightRange =
@@ -284,28 +287,28 @@ public:
                                 builder.create<SubIOp>(loc, centerX, currCol);
                             Value leftMask =
                                 createInvertedMask(builder, loc, strideVal,
-                                                   vectorMask, leftMaskElem);
+                                                   vectorMaskTy, leftMaskElem);
 
                             if (!boundaryOption) {
                               Value padding = builder.create<BroadcastOp>(
                                   loc, vectorTy32, zeroPaddingElem);
 
-                              Value c11 =
+                              Value leftPaddingOffset =
                                   builder.create<SubIOp>(loc, c0, leftMaskElem);
                               inputVec = builder.create<MaskedLoadOp>(
                                   loc, vectorTy32, input,
-                                  ValueRange{imRow, c11}, leftMask, padding);
+                                  ValueRange{imRow, leftPaddingOffset}, leftMask, padding);
                             } else if (boundaryOption == 1) {
                               Value paddingVal = builder.create<memref::LoadOp>(
                                   loc, input, ValueRange{imRow, c0});
                               Value padding = builder.create<BroadcastOp>(
                                   loc, vectorTy32, paddingVal);
 
-                              Value c11 =
+                              Value leftPaddingOffset =
                                   builder.create<SubIOp>(loc, c0, leftMaskElem);
                               inputVec = builder.create<MaskedLoadOp>(
                                   loc, vectorTy32, input,
-                                  ValueRange{imRow, c11}, leftMask, padding);
+                                  ValueRange{imRow, leftPaddingOffset}, leftMask, padding);
                             }
                             calcAndStoreFMA(builder, loc, vectorTy32, inputVec,
                                             kernelVec, output, ivs[0], ivs[2],
@@ -343,7 +346,7 @@ public:
                                       loc, strideVal, rightMaskHelper);
                                   Value rightMask =
                                       builder.create<CreateMaskOp>(
-                                          loc, vectorMask, rightMaskElem);
+                                          loc, vectorMaskTy, rightMaskElem);
 
                                   if (!boundaryOption) {
                                     Value padding = builder.create<BroadcastOp>(
@@ -403,7 +406,7 @@ public:
                                   builder.create<SubIOp>(loc, centerX, currCol);
                               Value leftMask =
                                   createInvertedMask(builder, loc, strideVal,
-                                                     vectorMask, leftMaskElem);
+                                                     vectorMaskTy, leftMaskElem);
 
                               if (boundaryOption == 1) {
                                 Value paddingVal =
@@ -412,11 +415,11 @@ public:
                                 Value padding = builder.create<BroadcastOp>(
                                     loc, vectorTy32, paddingVal);
 
-                                Value c11 = builder.create<SubIOp>(
+                                Value leftPaddingOffset = builder.create<SubIOp>(
                                     loc, c0, leftMaskElem);
                                 inputVec = builder.create<MaskedLoadOp>(
                                     loc, vectorTy32, input,
-                                    ValueRange{downRange, c11}, leftMask,
+                                    ValueRange{downRange, leftPaddingOffset}, leftMask,
                                     padding);
                               }
                               calcAndStoreFMA(
@@ -471,7 +474,7 @@ public:
                                                                rightMaskHelper);
                                     Value rightMask =
                                         builder.create<CreateMaskOp>(
-                                            loc, vectorMask, rightMaskElem);
+                                            loc, vectorMaskTy, rightMaskElem);
 
                                     Value downRange = builder.create<SubIOp>(
                                         loc, inputRow, c1);

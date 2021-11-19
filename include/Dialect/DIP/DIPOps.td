@@ -39,6 +39,12 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d">
     for obtaining the boundary extrapolated output image. (kkk|abcdefg|kkk)
     b. Replicate Padding : Uses last/first element of respective column/row for padding
     the extra region used for creating the boundary extrapolated output image. (aaa|abcdefg|ggg)
+  For example: 
+
+  ```mlir
+    dip.corr_2d %inputImage, %kernel, %output, %centerX, %centerY, %boundaryOption : 
+                memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index
+  ```
   }];
 
   let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
