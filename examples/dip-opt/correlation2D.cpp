@@ -48,8 +48,8 @@ MemRef_descriptor MemRef_Descriptor(float *allocated, float *aligned,
 // Declare the Corr2D C interface.
 extern "C" {
 void _mlir_ciface_corr_2d(MemRef_descriptor input, MemRef_descriptor kernel,
-                            MemRef_descriptor output, unsigned int centerX,
-                            unsigned int centerY, int boundaryOption);
+                          MemRef_descriptor output, unsigned int centerX,
+                          unsigned int centerY, int boundaryOption);
 }
 
 bool testImages(cv::Mat img1, cv::Mat img2) {
