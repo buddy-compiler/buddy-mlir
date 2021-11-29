@@ -1,6 +1,6 @@
-//====- conv-opt.cpp - Convolution Optimizations Main ========================//
+//====- buddy-opt.cpp - The driver of buddy-mlir --------------------------===//
 //
-// This file is the driver of convolution optimizers.
+// This file is the dialects and oprimization driver of buddy-mlir project.
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,9 +17,16 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#include "Bud/BudDialect.h"
+#include "Bud/BudOps.h"
+#include "DIP/DIPDialect.h"
+#include "DIP/DIPOps.h"
+
 namespace mlir {
 namespace buddy {
 void registerConvVectorizationPass();
+void registerLowerBudPass();
+void registerLowerDIPPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -28,11 +35,15 @@ int main(int argc, char **argv) {
   mlir::registerAllPasses();
   // Register Vectorization of Convolution.
   mlir::buddy::registerConvVectorizationPass();
+  mlir::buddy::registerLowerBudPass();
+  mlir::buddy::registerLowerDIPPass();
 
   mlir::DialectRegistry registry;
-  // Register all MLIR dialects.
+  // Register all MLIR core dialects.
   registerAllDialects(registry);
+  // Register dialects in buddy-mlir project.
+  registry.insert<buddy::bud::BudDialect, buddy::dip::DIPDialect>();
 
   return mlir::failed(
-      mlir::MlirOptMain(argc, argv, "Convolution optimizer driver", registry));
+      mlir::MlirOptMain(argc, argv, "buddy-mlir optimizer driver", registry));
 }

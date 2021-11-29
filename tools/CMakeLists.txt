@@ -1,3 +1,1 @@
-add_subdirectory(conv-opt)
-add_subdirectory(bud-opt)
-add_subdirectory(dip-opt)
+add_subdirectory(buddy-opt)
