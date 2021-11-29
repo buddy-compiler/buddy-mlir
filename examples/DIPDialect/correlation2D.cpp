@@ -11,7 +11,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/opencv.hpp>
 
-#include "../conv-opt/kernels.h"
+#include "../ConvOpt/kernels.h"
 
 #include <iostream>
 #include <time.h>

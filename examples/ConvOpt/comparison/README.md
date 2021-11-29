@@ -5,7 +5,7 @@
 ```
 $ cd buddy-mlir/build
 $ cmake -G Ninja .. \
-    -DBUDDY_CONV_OPT_EXAMPLES=ON \
+    -DBUDDY_EXAMPLES=ON \
     -DBoost_INCLUDE_DIR=</path/to/boost>
 $ ninja opencv-filter2D
 $ ninja boost_gil_conv2d
