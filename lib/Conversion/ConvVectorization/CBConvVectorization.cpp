@@ -1,7 +1,7 @@
-//====- CBSMConvVectorization.cpp - Vectorize Convolution by CB-SM ===========//
+//====- CBConvVectorization.cpp - Coefficients Broadcasting Algorithm -----===//
 //
-// This file implements the coefficients broadcasting algorthm with strip mining
-// strategy (CB-SM) for convolution vectorization.
+// This file implements the coefficients broadcasting algorthm (CB) for
+// convolution vectorization.
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,10 +21,9 @@ using namespace vector;
 //===----------------------------------------------------------------------===//
 
 namespace {
-class CBSMConvVectorizationPattern : public ConversionPattern {
+class CBConvVectorizationPattern : public ConversionPattern {
 public:
-  explicit CBSMConvVectorizationPattern(MLIRContext *context,
-                                        int64_t strideParam)
+  explicit CBConvVectorizationPattern(MLIRContext *context, int64_t strideParam)
       : ConversionPattern(linalg::Conv2DOp::getOperationName(), 1, context) {
     stride = strideParam;
   }
@@ -153,7 +152,7 @@ void ConvVectorizationPass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<CBSMConvVectorizationPattern>(context, stride);
+  patterns.add<CBConvVectorizationPattern>(context, stride);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
