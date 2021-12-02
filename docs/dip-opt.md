@@ -9,7 +9,6 @@ applications in which boundary extrapolation is not explicitly required. Due to 
 using linalg dialect's 2D correlation API.
 
 dip.corr_2d performs boundary extrapolation for making the size of output image equal to the size of input image and then uses coefficient broadcasting and strip mining(CBSM) approach for performing correlation as shown in following schematic : 
-
 ![](./Images/ConstantPadding+TailProcessing.png)
 
 Boundary extrapolation can be done using
@@ -20,7 +19,6 @@ different methods, supported options are :
    the extra region used for creating the boundary extrapolated output image. (aaa|abcdefg|ggg)
 
 Effects of above mentioned boundary extrapolation methods are as follows : 
-
 ![](./Images/BoundaryExtrapolationStrategies.png)
 
 An example depicting the syntax of created API is :
@@ -36,12 +34,10 @@ An example depicting the syntax of created API is :
   - centerY : y co-ordinate of anchor point
   - boundaryOption : Specifies desired type of boundary extrapolation.
  
-
 #### Algorithm : 
 We use a modified version of coefficient broadcasting and strip mining(CBSM) approach for correlating a 2D image with a 2D kernel. CBSM involves processing several pixel elements together in a vectorized fashion. As a result, we can process multiple pixels in the same number of steps which would otherwise be required during typical single pixel processing. Variable length vector registers of RISC-V architecture help in further improving the performance as we can choose the suitable size of register to be used in required calculations. 
 
 This is depicted by the following schematic : 
-
 ![](./Images/NORMALvsCBCONV.png)
 
 The process of 2D correlation results in smaller dimensions of output as compared to input. In order to equate the dimensions of input image and output image, we assume a pseudo input Image which is created after applying boundary extrapolation techniques on the original input image for dip.corr_2d. This pseudo image when correlated with the given kernel produces an output image having its dimensions equal to the original input image. Please note that the pseudo input image is never created/stored in memory, instead we will use some techniques to mimic the processing for producing expected results.
@@ -74,5 +70,4 @@ On the basis of above mentioned 4 types, we can divide the pseudo input image in
 9. Lower row right col : Apply right and lower extrapolation.
 
 Following schematic depicts the process(with boundary extrapolation and variable anchor point positioning) for two dimensional correlation between a 5x5 image and a 3x3 kernel
-
 ![](./Images/AnchorPointAndBoundaryExtrapolation.png)
