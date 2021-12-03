@@ -107,9 +107,7 @@ $ cd bin
 $ ./edge-detection ../../examples/ConvOpt/images/YuTu.png result.png
 ```
 
-Note: In the edge detection example, images size needs to be an integer multiple of the strip mining size.
-
-We also provide the performance comparison between our conv-opt tool and other state-of-the-art approaches. 
+We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches. 
 For more details, please see [convolution comparison](./examples/ConvOpt/comparison/README.md).
 
 **Lowering DIP Dialect**
