@@ -5,17 +5,22 @@ To help researchers test convolution operations more efficiently, we provide a b
 cd benchmark
 make
 ```
-This will execute the default test, which means output size from 32 to 4096 as geometric progression and convolution kernel size from 3 to 11 with the stride of 2. The size of each vector slice is 32 by default.
+This will execute the default test, which means output size from 64 to 1024 as geometric progression and convolution kernel size from 3 to 19 with the stride of 4. The size of each vector slice is 64 by default.
 
 And the result should be displayed as follows example:
 ```
-conv-3-32
-2.751225 GFLOPS
-0.617487 GFLOPS
+...
+conv-15-192
+72.998447 GFLOPS
+1.846337 GFLOPS
 
-conv-3-64
-5.286114 GFLOPS
-0.616933 GFLOPS
+conv-15-256
+73.856615 GFLOPS
+1.845784 GFLOPS
+
+conv-15-320
+73.864377 GFLOPS
+1.852169 GFLOPS
 ...
 
 ```

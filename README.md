@@ -150,4 +150,18 @@ $ cd buddy-mlir/build/bin
 $ ./buddy-opt ../../examples/BudDialect/TestConstant.mlir --lower-bud
 ```
 
-*NOTE: The benchmark directory is out-of-date. Please see [buddy-benchmark](https://github.com/buddy-compiler/buddy-benchmark) for the current state.*
+## Benchmarks
+
+The benchmarks in this repo use JIT tool (mlir-cpu-runner) as the execution engine.
+For AOT benchmarks, please see [buddy-benchmark repo](https://github.com/buddy-compiler/buddy-benchmark).
+
+We provide the following benchmarks:
+
+- Conv2D
+
+```
+$ cd buddy-mlir/benchmark
+$ make
+```
+
+For more features and configurations, please see the [benchmark document](./benchmark/README.md).
