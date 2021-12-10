@@ -51,6 +51,17 @@ void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
   builder.create<StoreOp>(loc, resVec, output, ValueRange{beginIdx, endIdx});
 }
 
+Value tailChecker(OpBuilder &builder, Location loc, AffineMap calcHelper,
+                  Value strideVal, Value kernelSize, Value c1, Value pseudoCol,
+                  Value colPivot) {
+  Value tailChecker = builder.create<AffineApplyOp>(
+      loc, calcHelper, ValueRange{strideVal, kernelSize, c1});
+  Value colEndDistance = builder.create<SubIOp>(loc, pseudoCol, colPivot);
+  Value tailCond = builder.create<CmpIOp>(loc, CmpIPredicate::sge,
+                                          colEndDistance, tailChecker);
+  return tailCond;
+}
+
 Value tailMaskCreator(OpBuilder &builder, Location loc, Value inputCol,
                       Value colPivot, VectorType vectorMaskTy) {
   Value extraElemCount = builder.create<SubIOp>(loc, inputCol, colPivot);
@@ -103,17 +114,6 @@ Value createInvertedMask(OpBuilder &builder, Location loc, Value strideVal,
   Value rightMask = builder.create<SubIOp>(loc, maskInverter, leftMask);
   // ToDo : Compare performance with XoR.
   return rightMask;
-}
-
-Value tailChecker(OpBuilder &builder, Location loc, AffineMap calcHelper,
-                  Value strideVal, Value kernelSize, Value c1, Value pseudoCol,
-                  Value colPivot) {
-  Value tailChecker = builder.create<AffineApplyOp>(
-      loc, calcHelper, ValueRange{strideVal, kernelSize, c1});
-  Value colEndDistance = builder.create<SubIOp>(loc, pseudoCol, colPivot);
-  Value tailCond = builder.create<CmpIOp>(loc, CmpIPredicate::sge,
-                                          colEndDistance, tailChecker);
-  return tailCond;
 }
 
 class DIPCorr2DLowering : public OpRewritePattern<dip::Corr2DOp> {
