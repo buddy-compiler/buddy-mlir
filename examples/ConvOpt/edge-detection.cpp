@@ -83,6 +83,11 @@ int main(int argc, char *argv[]) {
   int outputCols = image.cols - kernelCols + 1;
   float *outputAlign = (float *)malloc(outputRows * outputCols * sizeof(float));
 
+  // Initialize outputAlign explicitly with zeroes due to dubious behaviour of malloc()
+  for (int i = 0; i < outputRows; ++i)
+    for (int j = 0; j < outputCols; ++j)
+      outputAlign[i * outputRows + j] = 0;
+
   // Define the allocated, sizes, and strides.
   float *allocated = (float *)malloc(1 * sizeof(float));
   intptr_t sizesInput[2] = {image.rows, image.cols};
