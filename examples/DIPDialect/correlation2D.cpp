@@ -48,8 +48,7 @@ MemRef_descriptor MemRef_Descriptor(float *allocated, float *aligned,
 // Declare the Corr2D C interface.
 extern "C" {
 void _mlir_ciface_corr_2d(MemRef_descriptor input, MemRef_descriptor kernel,
-                          MemRef_descriptor output, unsigned int centerX,
-                          unsigned int centerY, int boundaryOption);
+                          MemRef_descriptor output);
 }
 
 bool testImages(cv::Mat img1, cv::Mat img2) {
@@ -74,8 +73,7 @@ bool testImages(cv::Mat img1, cv::Mat img2) {
   return 1;
 }
 
-bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
-                        std::ptrdiff_t y, std::ptrdiff_t boundaryOption) {
+bool testImplementation(int argc, char *argv[]) {
   // Read as grayscale image.
   Mat image = imread(argv[1], IMREAD_GRAYSCALE);
   if (image.empty()) {
@@ -126,7 +124,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   Mat kernel1 = Mat(3, 3, CV_32FC1, laplacianKernelAlign);
 
   // Call the MLIR Corr2D function.
-  _mlir_ciface_corr_2d(input, kernel, output, x, y, 0);
+  _mlir_ciface_corr_2d(input, kernel, output);
 
   // Define a cv::Mat with the output of the conv2d.
   Mat outputImage(outputRows, outputCols, CV_32FC1, output->aligned);
@@ -139,11 +137,12 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
   Mat o2;
-  filter2D(image, o2, CV_8UC1, kernel1, cv::Point(x, y), 0.0,
-           cv::BORDER_REPLICATE);
+  filter2D(image, o2, CV_8UC1, kernel1, cv::Point(1, 1), 0.0,
+           cv::BORDER_CONSTANT);
 
   if (!testImages(o1, o2)) {
-    std::cout << "x, y = " << x << ", " << y << "\n";
+    std::cout << "OpenCV produced different image."
+              << "\n";
     return 0;
   }
 
@@ -157,18 +156,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 }
 
 int main(int argc, char *argv[]) {
-  bool flag = 1;
-  for (std::ptrdiff_t x = 0; x < 3; ++x) {
-    for (std::ptrdiff_t y = 0; y < 3; ++y) {
-      if (!testImplementation(argc, argv, x, y, 0)) {
-        flag = 0;
-        break;
-      }
-      if (!flag) {
-        break;
-      }
-    }
-  }
+  testImplementation(argc, argv);
 
   return 0;
 }

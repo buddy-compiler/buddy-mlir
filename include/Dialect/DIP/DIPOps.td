@@ -22,7 +22,20 @@
 #define DIP_DIPOPS_TD
 
 include "DIPDialect.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+
+def DIP_ConstantPadding : StrEnumAttrCase<"ConstantPadding", -1, "constantpadding">;
+def DIP_ReplicatePadding : StrEnumAttrCase<"ReplicatePadding", -1, "replicatepadding">;
+
+def DIP_BoundaryOptionAttr : StrEnumAttr<"BoundaryOptionAttr",
+    "Specifies desired method of boundary extrapolation during image processing.",
+    [
+      DIP_ConstantPadding,
+      DIP_ReplicatePadding
+    ]>{
+  let cppNamespace = "::buddy::dip";
+}
 
 def DIP_Corr2DOp : DIP_Op<"corr_2d">
 {
@@ -42,8 +55,9 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d">
   For example: 
 
   ```mlir
-    dip.corr_2d %inputImage, %kernel, %output, %centerX, %centerY, %boundaryOption : 
-                memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index
+    dip.corr_2d %inputImage, %kernel, %outputImage
+      {centerX = 1, centerY = 1, boundary_option = "constantpadding", constant_value = 0}
+      : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>
   ```
   }];
 
@@ -53,11 +67,13 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d">
                            [MemRead]>:$memrefK,
                        Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
                            [MemRead]>:$memrefCO,
-                       Index : $centerX, Index : $centerY, 
-                       Index : $boundaryOption);
+                       DefaultValuedAttr<I64Attr, "0">:$centerX,
+                       DefaultValuedAttr<I64Attr, "0">:$centerY,
+                       DIP_BoundaryOptionAttr:$boundary_option,
+                       DefaultValuedAttr<I64Attr, "0">:$constant_value);
 
   let assemblyFormat = [{
-    $memrefI `,` $memrefK `,` $memrefCO `,` $centerX `,` $centerY `,` $boundaryOption attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($centerX) `,` type($centerY) `,` type($boundaryOption)
+    $memrefI `,` $memrefK `,` $memrefCO attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO)
   }];
 }
 
