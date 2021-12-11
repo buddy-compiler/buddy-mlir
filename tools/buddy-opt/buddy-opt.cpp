@@ -25,6 +25,7 @@
 namespace mlir {
 namespace buddy {
 void registerConvVectorizationPass();
+void registerPointwiseConvVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
 } // namespace buddy
@@ -35,6 +36,7 @@ int main(int argc, char **argv) {
   mlir::registerAllPasses();
   // Register Vectorization of Convolution.
   mlir::buddy::registerConvVectorizationPass();
+  mlir::buddy::registerPointwiseConvVectorizationPass();
   mlir::buddy::registerLowerBudPass();
   mlir::buddy::registerLowerDIPPass();
 
