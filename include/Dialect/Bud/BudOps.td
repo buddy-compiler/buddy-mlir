@@ -22,6 +22,7 @@
 #define BUD_BUDOPS_TD
 
 include "BudDialect.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Bud_TestConstantOp : Bud_Op<"test_constant", []> {
@@ -41,6 +42,32 @@ def Bud_TestPrintOp : Bud_Op<"test_print", []> {
 
   let assemblyFormat = [{
     attr-dict `:` type($result)
+  }];
+}
+
+// If the second argument is less than zero, there will be no explicit
+// discriminator values assigned to enumerators in the generated enum class.
+def Bud_ArithEnumAttrAdd : StrEnumAttrCase<"ADD", -1, "add">;
+def Bud_ArithEnumAttrSub : StrEnumAttrCase<"SUB", -1, "sub">;
+
+def Bud_ArithEnumAttr : StrEnumAttr<"ArithEnumAttr",
+    "The arithmetic enum attribute.",
+    [
+      Bud_ArithEnumAttrAdd,
+      Bud_ArithEnumAttrSub
+    ]>{
+  let cppNamespace = "::buddy::bud";
+}
+
+def Bud_TestStrAttrOp : Bud_Op<"test_str_attr",
+    [SameOperandsAndResultType]>,
+    Arguments<(ins AnyInteger:$lhs, AnyInteger:$rhs,
+               OptionalAttr<Bud_ArithEnumAttr>:$arith)>,
+    Results<(outs AnyInteger:$result)> {
+  let summary = "Test String Attribute.";
+
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:` type($result)
   }];
 }
 
