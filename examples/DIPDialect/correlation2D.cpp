@@ -1,8 +1,8 @@
-//====- edge-detection.cpp - Example of conv-opt tool ========================//
+//====- correlation2D.cpp - Example of buddy-opt tool ========================//
 //
 // This file implements a 2D correlation example with dip.corr_2d operation.
 // The dip.corr_2d operation will be compiled into an object file with the
-// dip-opt tool.
+// buddy-opt tool.
 // This file will be linked with the object file to generate the executable
 // file.
 //

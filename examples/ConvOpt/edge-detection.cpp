@@ -1,8 +1,8 @@
-//====- edge-detection.cpp - Example of conv-opt tool ========================//
+//====- edge-detection.cpp - Example of buddy-opt tool ========================//
 //
 // This file implements an edge detection example with linalg.conv_2d operation.
 // The linalg.conv_2d operation will be compiled into an object file with the
-// conv-opt tool.
+// buddy-opt tool.
 // This file will be linked with the object file to generate the executable
 // file.
 //
