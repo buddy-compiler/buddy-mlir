@@ -18,10 +18,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 
 #include "Bud/BudDialect.h"
 #include "Bud/BudOps.h"
@@ -78,13 +78,47 @@ public:
     return success();
   }
 };
+
+class BudTestStrAttrLowering : public OpRewritePattern<bud::TestStrAttrOp> {
+public:
+  using OpRewritePattern<bud::TestStrAttrOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(bud::TestStrAttrOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    // Get type from the origin operation.
+    Type resultType = op.getResult().getType();
+    // Get the attribute.
+    auto arithAttr = op.arith();
+    // Get the lhs and rhs.
+    Value lhs = op.lhs();
+    Value rhs = op.rhs();
+    Value result;
+    // Lowering to different ops according to the attribute.
+    if (arithAttr) {
+      if (*arithAttr == "add")
+        // Create addi operation.
+        result = rewriter.create<arith::AddIOp>(loc, resultType, lhs, rhs);
+      if (*arithAttr == "sub")
+        // Create subi operation.
+        result = rewriter.create<arith::SubIOp>(loc, resultType, lhs, rhs);
+      rewriter.replaceOp(op, result);
+    } else {
+      // Default attribute is "add".
+      result = rewriter.create<arith::AddIOp>(loc, resultType, lhs, rhs);
+      rewriter.replaceOp(op, result);
+    }
+    return success();
+  }
+};
 } // end anonymous namespace
 
 void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
       BudTestConstantLowering,
-      BudTestPrintLowering>(patterns.getContext());
+      BudTestPrintLowering,
+      BudTestStrAttrLowering>(patterns.getContext());
   // clang-format on
 }
 
