@@ -85,11 +85,11 @@ public:
         RankedTensorType::get({outputShape[1] * outputShape[2], outputShape[3]},
                               outputShapeType.getElementType());
 
-    Value reshapedInput = rewriter.create<linalg::TensorCollapseShapeOp>(
+    Value reshapedInput = rewriter.create<tensor::CollapseShapeOp>(
         loc, reshapedInputType, input, reassociationIndices);
-    Value reshapedFilter = rewriter.create<linalg::TensorCollapseShapeOp>(
+    Value reshapedFilter = rewriter.create<tensor::CollapseShapeOp>(
         loc, reshapedFilterType, kernel, reassociationIndices);
-    Value reshapedOutput = rewriter.create<linalg::TensorCollapseShapeOp>(
+    Value reshapedOutput = rewriter.create<tensor::CollapseShapeOp>(
         loc, reshapedOutputType, output, reassociationIndices);
 
     // Create MutmulOp
@@ -97,7 +97,7 @@ public:
         loc, reshapedOutputType, ArrayRef<Value>{reshapedInput, reshapedFilter},
         ArrayRef<Value>{reshapedOutput});
 
-    auto reshapedResult = rewriter.create<linalg::TensorExpandShapeOp>(
+    auto reshapedResult = rewriter.create<tensor::ExpandShapeOp>(
         loc, outputShapeType, matmulResult.getResults()[0],
         reassociationIndices);
 
@@ -157,8 +157,8 @@ void PointwiseConvVectorizationPass::runOnOperation() {
                        StandardOpsDialect, memref::MemRefDialect, VectorDialect,
                        tensor::TensorDialect>();
   target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
-  target.addLegalOp<linalg::FillOp, linalg::TensorCollapseShapeOp,
-                    linalg::MatmulOp, linalg::TensorExpandShapeOp>();
+  target.addLegalOp<linalg::FillOp, tensor::CollapseShapeOp, linalg::MatmulOp,
+                    tensor::ExpandShapeOp>();
 
   RewritePatternSet patterns(context);
   patterns.add<CBSMPointwiseConvVectorizationPattern>(context, stride);
