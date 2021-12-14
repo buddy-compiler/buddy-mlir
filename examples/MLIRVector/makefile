@@ -103,3 +103,38 @@ vector-fma-run:
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+vector-long-lower:
+	@${MLIR_OPT} ./vector-long.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm \
+		--reconcile-unrealized-casts -o ./log.mlir
+
+vector-long-translate:
+	@${MLIR_OPT} ./vector-long.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-long-asm-x86:
+	@${MLIR_OPT} ./vector-long.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${LLC} ${OPT_FLAG} -mtriple=x86_64-unknown-linux-gnu -mattr=+avx512f\
+		--filetype=asm -o log.s
+
+vector-long-asm-rv:
+	@${MLIR_OPT} ./vector-long.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
+		-mattr=+m,+d,+experimental-v -riscv-v-vector-bits-min=128 \
+		--filetype=asm -o log.s
+
+vector-long-run:
+	@${MLIR_OPT} ./vector-long.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
