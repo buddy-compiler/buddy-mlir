@@ -39,14 +39,45 @@ using namespace mlir::arith;
 //===----------------------------------------------------------------------===//
 
 namespace {
+// Calculate result of FMA and store it in output memref. This function cannot
+// handle tail processing.
+void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
+                                     VectorType vecType, Value inputVec,
+                                     Value kernelVec, Value output,
+                                     Value beginIdx, Value endIdx) {
+  Value outputVec = builder.create<LoadOp>(loc, vecType, output,
+                                           ValueRange{beginIdx, endIdx});
+  Value resVec = builder.create<FMAOp>(loc, inputVec, kernelVec, outputVec);
+  builder.create<StoreOp>(loc, resVec, output, ValueRange{beginIdx, endIdx});
+}
 
-// Calculate result of FMA and store it in output memref.
-void calcAndStoreFMA(OpBuilder &builder, Location loc, VectorType vecType,
-                     Value inputVec, Value kernelVec, Value output,
-                     Value beginIdx, Value endIdx, Value tailCond,
-                     Value extraElemMask, Value zeroPadding) {
-  // ToDo : Find a way to get rid of tailCond in cases which do not require that
-  // comparison.
+Value tailChecker(OpBuilder &builder, Location loc, AffineMap calcHelper,
+                  Value strideVal, Value kernelSize, Value c1, Value pseudoCol,
+                  Value colPivot) {
+  Value tailChecker = builder.create<AffineApplyOp>(
+      loc, calcHelper, ValueRange{strideVal, kernelSize, c1});
+  Value colEndDistance = builder.create<SubIOp>(loc, pseudoCol, colPivot);
+  Value tailCond = builder.create<CmpIOp>(loc, CmpIPredicate::sge,
+                                          colEndDistance, tailChecker);
+  return tailCond;
+}
+
+Value tailMaskCreator(OpBuilder &builder, Location loc, Value inputCol,
+                      Value colPivot, VectorType vectorMaskTy) {
+  Value extraElemCount = builder.create<SubIOp>(loc, inputCol, colPivot);
+  Value tailMask =
+      builder.create<CreateMaskOp>(loc, vectorMaskTy, extraElemCount);
+  return tailMask;
+}
+
+// Calculate result of FMA and store it in output memref. This function can
+// handle tail processing.
+void calcAndStoreFMAwTailProcessing(OpBuilder &builder, Location loc,
+                                    VectorType vecType, Value inputVec,
+                                    Value kernelVec, Value output,
+                                    Value beginIdx, Value endIdx,
+                                    Value tailCond, Value zeroPadding,
+                                    Value inputCol, VectorType vectorMaskTy) {
   builder.create<scf::IfOp>(
       loc, tailCond,
       [&](OpBuilder &builder, Location loc) {
@@ -60,6 +91,8 @@ void calcAndStoreFMA(OpBuilder &builder, Location loc, VectorType vecType,
         builder.create<scf::YieldOp>(loc);
       },
       [&](OpBuilder &builder, Location loc) {
+        Value extraElemMask =
+            tailMaskCreator(builder, loc, inputCol, endIdx, vectorMaskTy);
         Value outputVec = builder.create<MaskedLoadOp>(
             loc, vecType, output, ValueRange{beginIdx, endIdx}, extraElemMask,
             zeroPadding);
@@ -79,7 +112,6 @@ Value createInvertedMask(OpBuilder &builder, Location loc, Value strideVal,
   Value maskInverter =
       builder.create<CreateMaskOp>(loc, vectorMaskTy, strideVal);
   Value rightMask = builder.create<SubIOp>(loc, maskInverter, leftMask);
-  // ToDo : Compare performance with XoR.
   return rightMask;
 }
 
@@ -146,15 +178,6 @@ public:
     buildAffineLoopNest(
         rewriter, loc, lowerBounds, uperBounds, steps,
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-          Value tailChecker = builder.create<AffineApplyOp>(
-              loc, calcHelper, ValueRange{strideVal, kernelSize, c1});
-          Value colEndDistance = builder.create<SubIOp>(loc, pseudoCol, ivs[2]);
-          Value tailCond = rewriter.create<CmpIOp>(loc, CmpIPredicate::sge,
-                                                   colEndDistance, tailChecker);
-          Value extraElemCount = builder.create<SubIOp>(loc, inputCol, ivs[2]);
-          Value extraElemMask =
-              builder.create<CreateMaskOp>(loc, vectorMaskTy, extraElemCount);
-
           // Indices of current pixel with respect to pseudo image containing
           // extrapolated boundaries.
           Value currRow = builder.create<AddIOp>(loc, ivs[0], ivs[1]);
@@ -183,9 +206,9 @@ public:
                   Value inputVec = builder.create<BroadcastOp>(loc, vectorTy32,
                                                                zeroPaddingElem);
 
-                  calcAndStoreFMA(builder, loc, vectorTy32, inputVec, kernelVec,
-                                  output, ivs[0], ivs[2], tailCond,
-                                  extraElemMask, zeroPadding);
+                  calcAndStoreFMAwoTailProcessing(builder, loc, vectorTy32,
+                                                  inputVec, kernelVec, output,
+                                                  ivs[0], ivs[2]);
                 } else {
                   Value colLeftCond = builder.create<CmpIOp>(
                       loc, CmpIPredicate::slt, currCol, centerX);
@@ -214,9 +237,9 @@ public:
                               ValueRange{c0, leftPaddingOffset}, leftMask,
                               padding);
                         }
-                        calcAndStoreFMA(builder, loc, vectorTy32, inputVec,
-                                        kernelVec, output, ivs[0], ivs[2],
-                                        tailCond, extraElemMask, zeroPadding);
+                        calcAndStoreFMAwoTailProcessing(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2]);
 
                         builder.create<scf::YieldOp>(loc);
                       },
@@ -235,10 +258,9 @@ public:
                                     loc, vectorTy32, input,
                                     ValueRange{c0, imCol});
                               }
-                              calcAndStoreFMA(builder, loc, vectorTy32,
-                                              inputVec, kernelVec, output,
-                                              ivs[0], ivs[2], tailCond,
-                                              extraElemMask, zeroPadding);
+                              calcAndStoreFMAwoTailProcessing(
+                                  builder, loc, vectorTy32, inputVec, kernelVec,
+                                  output, ivs[0], ivs[2]);
 
                               builder.create<scf::YieldOp>(loc);
                             },
@@ -265,10 +287,13 @@ public:
                                     loc, vectorTy32, input,
                                     ValueRange{c0, imCol}, rightMask, padding);
                               }
-                              calcAndStoreFMA(builder, loc, vectorTy32,
-                                              inputVec, kernelVec, output,
-                                              ivs[0], ivs[2], tailCond,
-                                              extraElemMask, zeroPadding);
+                              Value tailCond = tailChecker(
+                                  builder, loc, calcHelper, strideVal,
+                                  kernelSize, c1, pseudoCol, ivs[2]);
+                              calcAndStoreFMAwTailProcessing(
+                                  builder, loc, vectorTy32, inputVec, kernelVec,
+                                  output, ivs[0], ivs[2], tailCond, zeroPadding,
+                                  inputCol, vectorMaskTy);
 
                               builder.create<scf::YieldOp>(loc);
                             });
@@ -323,10 +348,9 @@ public:
                                   ValueRange{imRow, leftPaddingOffset},
                                   leftMask, padding);
                             }
-                            calcAndStoreFMA(builder, loc, vectorTy32, inputVec,
-                                            kernelVec, output, ivs[0], ivs[2],
-                                            tailCond, extraElemMask,
-                                            zeroPadding);
+                            calcAndStoreFMAwoTailProcessing(
+                                builder, loc, vectorTy32, inputVec, kernelVec,
+                                output, ivs[0], ivs[2]);
 
                             builder.create<scf::YieldOp>(loc);
                           },
@@ -343,10 +367,9 @@ public:
                                   Value inputVec = builder.create<LoadOp>(
                                       loc, vectorTy32, input,
                                       ValueRange{imRow, imCol});
-                                  calcAndStoreFMA(builder, loc, vectorTy32,
-                                                  inputVec, kernelVec, output,
-                                                  ivs[0], ivs[2], tailCond,
-                                                  extraElemMask, zeroPadding);
+                                  calcAndStoreFMAwoTailProcessing(
+                                      builder, loc, vectorTy32, inputVec,
+                                      kernelVec, output, ivs[0], ivs[2]);
 
                                   builder.create<scf::YieldOp>(loc);
                                 },
@@ -385,10 +408,14 @@ public:
                                         ValueRange{imRow, imCol}, rightMask,
                                         padding);
                                   }
-                                  calcAndStoreFMA(builder, loc, vectorTy32,
-                                                  inputVec, kernelVec, output,
-                                                  ivs[0], ivs[2], tailCond,
-                                                  extraElemMask, zeroPadding);
+                                  Value tailCond = tailChecker(
+                                      builder, loc, calcHelper, strideVal,
+                                      kernelSize, c1, pseudoCol, ivs[2]);
+                                  calcAndStoreFMAwTailProcessing(
+                                      builder, loc, vectorTy32, inputVec,
+                                      kernelVec, output, ivs[0], ivs[2],
+                                      tailCond, zeroPadding, inputCol,
+                                      vectorMaskTy);
 
                                   builder.create<scf::YieldOp>(loc);
                                 });
@@ -402,9 +429,9 @@ public:
                         Value inputVec = builder.create<BroadcastOp>(
                             loc, vectorTy32, zeroPaddingElem);
 
-                        calcAndStoreFMA(builder, loc, vectorTy32, inputVec,
-                                        kernelVec, output, ivs[0], ivs[2],
-                                        tailCond, extraElemMask, zeroPadding);
+                        calcAndStoreFMAwoTailProcessing(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2]);
                       } else {
                         Value colLeftCond = builder.create<CmpIOp>(
                             loc, CmpIPredicate::slt, currCol, centerX);
@@ -437,10 +464,9 @@ public:
                                     ValueRange{downRange, leftPaddingOffset},
                                     leftMask, padding);
                               }
-                              calcAndStoreFMA(builder, loc, vectorTy32,
-                                              inputVec, kernelVec, output,
-                                              ivs[0], ivs[2], tailCond,
-                                              extraElemMask, zeroPadding);
+                              calcAndStoreFMAwoTailProcessing(
+                                  builder, loc, vectorTy32, inputVec, kernelVec,
+                                  output, ivs[0], ivs[2]);
 
                               builder.create<scf::YieldOp>(loc);
                             },
@@ -472,10 +498,9 @@ public:
                                           loc, vectorTy32, input,
                                           ValueRange{refRow, imCol});
                                     }
-                                    calcAndStoreFMA(builder, loc, vectorTy32,
-                                                    inputVec, kernelVec, output,
-                                                    ivs[0], ivs[2], tailCond,
-                                                    extraElemMask, zeroPadding);
+                                    calcAndStoreFMAwoTailProcessing(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2]);
 
                                     builder.create<scf::YieldOp>(loc);
                                   },
@@ -512,10 +537,14 @@ public:
                                           ValueRange{downRange, imCol},
                                           rightMask, padding);
                                     }
-                                    calcAndStoreFMA(builder, loc, vectorTy32,
-                                                    inputVec, kernelVec, output,
-                                                    ivs[0], ivs[2], tailCond,
-                                                    extraElemMask, zeroPadding);
+                                    Value tailCond = tailChecker(
+                                        builder, loc, calcHelper, strideVal,
+                                        kernelSize, c1, pseudoCol, ivs[2]);
+                                    calcAndStoreFMAwTailProcessing(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, zeroPadding, inputCol,
+                                        vectorMaskTy);
 
                                     builder.create<scf::YieldOp>(loc);
                                   });
