@@ -71,4 +71,18 @@ def Bud_TestStrAttrOp : Bud_Op<"test_str_attr",
   }];
 }
 
+def CoordinateArrayAttr : Confined<I64ArrayAttr, [ArrayCount<2>]>;
+
+def Bud_TestArrayAttrOp : Bud_Op<"test_array_attr"> {
+  let summary = "Test Array Attribute.";
+
+  let arguments = (ins 
+        Arg<AnyMemRef, "the reference to load from", [MemRead]>:$base,
+        CoordinateArrayAttr:$coordinate);
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+      "$base attr-dict `:` type($base) `,` type($result)";
+}
+
 #endif // BUD_BUDOPS_TD
