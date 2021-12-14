@@ -19,6 +19,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Pass/Pass.h"
@@ -111,6 +112,32 @@ public:
     return success();
   }
 };
+
+class BudTestArrayAttrLowering : public OpRewritePattern<bud::TestArrayAttrOp> {
+public:
+  using OpRewritePattern<bud::TestArrayAttrOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(bud::TestArrayAttrOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    // Get the attribute and the value.
+    ArrayAttr coordinateAttr = op.coordinate();
+    int64_t valX = coordinateAttr[0].cast<IntegerAttr>().getInt();
+    int64_t valY = coordinateAttr[1].cast<IntegerAttr>().getInt();
+    // Get the index attribute and constant value.
+    IntegerAttr attrX = rewriter.getIntegerAttr(rewriter.getIndexType(), valX);
+    IntegerAttr attrY = rewriter.getIntegerAttr(rewriter.getIndexType(), valY);
+    Value idxX = rewriter.create<arith::ConstantOp>(loc, attrX);
+    Value idxY = rewriter.create<arith::ConstantOp>(loc, attrY);
+    SmallVector<Value, 2> memrefIdx = {idxX, idxY};
+    // Get base memref.
+    Value memref = op.base();
+    // Create memref load operation.
+    Value result = rewriter.create<memref::LoadOp>(loc, memref, memrefIdx);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
 } // end anonymous namespace
 
 void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
@@ -118,7 +145,8 @@ void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<
       BudTestConstantLowering,
       BudTestPrintLowering,
-      BudTestStrAttrLowering>(patterns.getContext());
+      BudTestStrAttrLowering,
+      BudTestArrayAttrLowering>(patterns.getContext());
   // clang-format on
 }
 
@@ -142,7 +170,8 @@ public:
     registry.insert<
         buddy::bud::BudDialect,
         StandardOpsDialect,
-        vector::VectorDialect>();
+        vector::VectorDialect,
+        memref::MemRefDialect>();
     // clang-format on
   }
 };
@@ -157,7 +186,8 @@ void LowerBudPass::runOnOperation() {
   target.addLegalDialect<
       arith::ArithmeticDialect,
       StandardOpsDialect,
-      vector::VectorDialect>();
+      vector::VectorDialect,
+      memref::MemRefDialect>();
   // clang-format on
   target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
 
