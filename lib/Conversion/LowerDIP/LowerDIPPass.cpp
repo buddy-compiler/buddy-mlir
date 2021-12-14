@@ -51,6 +51,7 @@ void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
   builder.create<StoreOp>(loc, resVec, output, ValueRange{beginIdx, endIdx});
 }
 
+// Condition for checking occurrence of tail. Returns true in absence of tail.
 Value tailChecker(OpBuilder &builder, Location loc, AffineMap calcHelper,
                   Value strideVal, Value kernelSize, Value c1, Value pseudoCol,
                   Value colPivot) {
@@ -62,6 +63,7 @@ Value tailChecker(OpBuilder &builder, Location loc, AffineMap calcHelper,
   return tailCond;
 }
 
+// Creates mask for loading and storing pixel elements once tail is encountered.
 Value tailMaskCreator(OpBuilder &builder, Location loc, Value inputCol,
                       Value colPivot, VectorType vectorMaskTy) {
   Value extraElemCount = builder.create<SubIOp>(loc, inputCol, colPivot);
@@ -120,6 +122,11 @@ class DIPCorr2DLowering : public OpRewritePattern<dip::Corr2DOp> {
 public:
   using OpRewritePattern<dip::Corr2DOp>::OpRewritePattern;
 
+  explicit DIPCorr2DLowering(MLIRContext *context, int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
+
   LogicalResult matchAndRewrite(dip::Corr2DOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
@@ -136,8 +143,6 @@ public:
     Value centerX = rewriter.create<ConstantIndexOp>(loc, op.centerX());
     Value centerY = rewriter.create<ConstantIndexOp>(loc, op.centerY());
     auto boundaryOptionAttr = op.boundary_option();
-
-    unsigned int stride = 3;
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
     FloatType f32 = FloatType::getF32(ctx);
@@ -561,11 +566,15 @@ public:
     rewriter.eraseOp(op);
     return success();
   }
+
+private:
+  int64_t stride;
 };
 } // end anonymous namespace
 
-void populateLowerDIPConversionPatterns(RewritePatternSet &patterns) {
-  patterns.add<DIPCorr2DLowering>(patterns.getContext());
+void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
+                                        int64_t stride) {
+  patterns.add<DIPCorr2DLowering>(patterns.getContext(), stride);
 }
 
 //===----------------------------------------------------------------------===//
@@ -577,6 +586,7 @@ class LowerDIPPass : public PassWrapper<LowerDIPPass, OperationPass<ModuleOp>> {
 public:
   LowerDIPPass() = default;
   LowerDIPPass(const LowerDIPPass &) {}
+  explicit LowerDIPPass(int64_t strideParam) { stride = strideParam; }
 
   StringRef getArgument() const final { return "lower-dip"; }
   StringRef getDescription() const final { return "Lower DIP Dialect."; }
@@ -588,6 +598,10 @@ public:
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
                     AffineDialect, arith::ArithmeticDialect>();
   }
+
+  Option<int64_t> stride{*this, "DIP-strip-mining",
+                         llvm::cl::desc("Strip mining size."),
+                         llvm::cl::init(32)};
 };
 } // end anonymous namespace.
 
@@ -602,7 +616,7 @@ void LowerDIPPass::runOnOperation() {
   target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
 
   RewritePatternSet patterns(context);
-  populateLowerDIPConversionPatterns(patterns);
+  populateLowerDIPConversionPatterns(patterns, stride);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
