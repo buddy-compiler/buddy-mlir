@@ -461,16 +461,6 @@ public:
                                       inputVec = builder.create<LoadOp>(
                                           loc, vectorTy32, input,
                                           ValueRange{downRange, imCol});
-                                    } else if (boundaryOption == 2) {
-                                      Value refRowHelper =
-                                          builder.create<SubIOp>(loc, currRow,
-                                                                 rowMidHelper);
-                                      Value refRow = builder.create<SubIOp>(
-                                          loc, downRange, refRowHelper);
-
-                                      inputVec = builder.create<LoadOp>(
-                                          loc, vectorTy32, input,
-                                          ValueRange{refRow, imCol});
                                     }
                                     calcAndStoreFMA(builder, loc, vectorTy32,
                                                     inputVec, kernelVec, output,
