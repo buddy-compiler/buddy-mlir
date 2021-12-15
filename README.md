@@ -113,14 +113,14 @@ For more details, please see [convolution comparison](./examples/ConvOpt/compari
 **Lowering DIP Dialect**
 
 ```
-$ buddy-opt <input> -lower-dip
+$ buddy-opt <input> -lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
 ```
 
 - Conversion example:
 
 ```
 $ cd buddy-mlir/build/bin
-$ ./buddy-opt ../../examples/DIPDialect/corr2d.mlir --lower-dip
+$ ./buddy-opt ../../examples/DIPDialect/corr2d.mlir --lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
 ```
 
 - Edge detection example:
@@ -131,7 +131,7 @@ Build and run the example.
 
 ```
 $ cd buddy-mlir/build
-$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON
+$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_DIP_OPT_STRIP_MINING=256
 $ ninja correlation2D
 $ cd bin
 $ ./correlation2D ../../examples/ConvOpt/images/YuTu.png result-dip.png
