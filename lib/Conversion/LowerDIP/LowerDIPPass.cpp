@@ -119,6 +119,11 @@ class DIPCorr2DLowering : public OpRewritePattern<dip::Corr2DOp> {
 public:
   using OpRewritePattern<dip::Corr2DOp>::OpRewritePattern;
 
+  explicit DIPCorr2DLowering(MLIRContext *context, int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
+
   LogicalResult matchAndRewrite(dip::Corr2DOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
@@ -137,8 +142,6 @@ public:
     // Value boundaryOptionVal = op->getOperand(5);
     unsigned int boundaryOption = 1;
     // ToDo : Make boundaryOption an attribute.
-
-    unsigned int stride = 100;
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
     FloatType f32 = FloatType::getF32(ctx);
@@ -550,11 +553,15 @@ public:
     rewriter.eraseOp(op);
     return success();
   }
+
+private:
+  int64_t stride;
 };
 } // end anonymous namespace
 
-void populateLowerDIPConversionPatterns(RewritePatternSet &patterns) {
-  patterns.add<DIPCorr2DLowering>(patterns.getContext());
+void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
+                                        int64_t stride) {
+  patterns.add<DIPCorr2DLowering>(patterns.getContext(), stride);
 }
 
 //===----------------------------------------------------------------------===//
@@ -566,6 +573,7 @@ class LowerDIPPass : public PassWrapper<LowerDIPPass, OperationPass<ModuleOp>> {
 public:
   LowerDIPPass() = default;
   LowerDIPPass(const LowerDIPPass &) {}
+  explicit LowerDIPPass(int64_t strideParam) { stride = strideParam; }
 
   StringRef getArgument() const final { return "lower-dip"; }
   StringRef getDescription() const final { return "Lower DIP Dialect."; }
@@ -577,6 +585,10 @@ public:
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
                     AffineDialect, arith::ArithmeticDialect>();
   }
+
+  Option<int64_t> stride{*this, "DIP-strip-mining",
+                         llvm::cl::desc("Strip mining size."),
+                         llvm::cl::init(32)};
 };
 } // end anonymous namespace.
 
@@ -591,7 +603,7 @@ void LowerDIPPass::runOnOperation() {
   target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
 
   RewritePatternSet patterns(context);
-  populateLowerDIPConversionPatterns(patterns);
+  populateLowerDIPConversionPatterns(patterns, stride);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
