@@ -21,6 +21,7 @@
 #include "Bud/BudOps.h"
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
+#include "RVV/RVVDialect.h"
 
 namespace mlir {
 namespace buddy {
@@ -42,7 +43,11 @@ int main(int argc, char **argv) {
   // Register all MLIR core dialects.
   registerAllDialects(registry);
   // Register dialects in buddy-mlir project.
-  registry.insert<buddy::bud::BudDialect, buddy::dip::DIPDialect>();
+  // clang-format off
+  registry.insert<buddy::bud::BudDialect,
+                  buddy::dip::DIPDialect,
+                  buddy::rvv::RVVDialect>();
+  // clang-format on
 
   return mlir::failed(
       mlir::MlirOptMain(argc, argv, "buddy-mlir optimizer driver", registry));
