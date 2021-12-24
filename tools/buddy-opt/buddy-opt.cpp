@@ -28,6 +28,7 @@ namespace buddy {
 void registerConvVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
+void registerLowerRVVPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -38,6 +39,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerConvVectorizationPass();
   mlir::buddy::registerLowerBudPass();
   mlir::buddy::registerLowerDIPPass();
+  mlir::buddy::registerLowerRVVPass();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
