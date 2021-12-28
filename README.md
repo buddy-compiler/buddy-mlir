@@ -44,7 +44,7 @@ $ cmake -G Ninja .. \
     -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
-$ ninja
+$ ninja check-buddy
 ```
 
 ## Dialects
