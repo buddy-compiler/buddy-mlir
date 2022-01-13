@@ -251,7 +251,7 @@ void mlir::populateRVVLegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, OwningRewritePatternList &patterns) {
   // Populate conversion patterns.
   // Remove any RVV-specific types from function signatures and results.
-  populateFuncOpTypeConversionPattern(patterns, converter);
+  populateFunctionLikeTypeConversionPattern<FuncOp>(patterns, converter);
   converter.addConversion([&converter](ScalableVectorType rvvSVType) {
     return convertScalableVectorTypeToLLVM(rvvSVType, converter);
   });
