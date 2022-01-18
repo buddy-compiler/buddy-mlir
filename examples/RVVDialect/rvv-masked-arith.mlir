@@ -12,6 +12,6 @@ func @rvv_masked_arith(%maskedoff: !rvv.vector<!rvv.m4,i32>,
     %4 = rvv.masked.mul %maskedoff, %a, %b, %mask, %vl, %vta : !rvv.vector<!rvv.m4,i32>, !rvv.vector<!rvv.m4,i32>, !rvv.vector<!rvv.mask8,i1>, i64
     %5 = rvv.masked.mul %maskedoff, %a, %c, %mask, %vl, %vta : !rvv.vector<!rvv.m4,i32>, i32, !rvv.vector<!rvv.mask8,i1>, i64
     %6 = rvv.masked.div %maskedoff, %a, %b, %mask, %vl, %vta : !rvv.vector<!rvv.m4,i32>, !rvv.vector<!rvv.m4,i32>, !rvv.vector<!rvv.mask8,i1>, i64
-    %7 = rvv.masked.div %maskedoff, %a, %c, %mask, %vl, %vta : !rvv.vector<!rvv.m4,i32>, i32, !rvv.vector<!rvv.mask8,i1>, i64
+    %7 = rvv.masked.add %maskedoff, %a, %c, %mask, %vl, %vta : !rvv.vector<!rvv.m4,i32>, i32, !rvv.vector<!rvv.mask8,i1>, i64
   return %7 : !rvv.vector<!rvv.m4,i32>
 }
