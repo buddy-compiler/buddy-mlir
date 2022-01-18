@@ -161,6 +161,61 @@ class ForwardOperands : public OpConversionPattern<OpTy> {
   }
 };
 
+template <typename SourceOp, typename TargetOp>
+class ConvertMaskedOpToLLVMPattern : public ConvertOpToLLVMPattern<SourceOp> {
+public:
+  using ConvertOpToLLVMPattern<SourceOp>::ConvertOpToLLVMPattern;
+
+  // TODO: Add vta attribute to make this pattern correct.
+
+  /// The masked operations have a `vta` attribute. This pattern converts the
+  /// `vta` attribute to a value, append the `vta` value to the operand list,
+  /// and create the intrinsic operation.
+  LogicalResult
+  matchAndRewrite(SourceOp op, typename SourceOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    unsigned numResults = op->getNumResults();
+    Type packedType;
+    ValueRange operands = adaptor.getOperands();
+    SmallVector<Value, 6> operandsVector(operands);
+    operandsVector.pop_back();
+    // Get the type of the `vl` value.
+    Type vlType = operands.back().getType();
+    auto attrs = op->getAttrs();
+    if (attrs.empty()) {
+      // Default attribute for the vta setting (vta = 1).
+      // Add the vta = 1 to the operand list.
+      Attribute vtaDefaultAttr = rewriter.getIntegerAttr(
+          vlType, APInt(vlType.cast<IntegerType>().getWidth(), 1));
+      Value vtaDefaultValue =
+          rewriter.create<LLVM::ConstantOp>(loc, vlType, vtaDefaultAttr);
+      operandsVector.push_back(vtaDefaultValue);
+    } else if (attrs.size() == 1) {
+      // Add the vta to the operand list according to the attribute value.
+      Attribute attr = attrs[0].getValue();
+      IntegerAttr vtaAttr = attr.cast<IntegerAttr>();
+      Value vtaValue = rewriter.create<LLVM::ConstantOp>(loc, vlType, vtaAttr);
+      operandsVector.push_back(vtaValue);
+    } else {
+      return failure();
+    }
+
+    LLVMTypeConverter typeConverter = *this->getTypeConverter();
+    if (numResults != 0) {
+      packedType = typeConverter.packFunctionResults(op->getResultTypes());
+      if (!packedType)
+        return failure();
+    }
+    // Create the intrinsic operation.
+    OperationState state(op->getLoc(), TargetOp::getOperationName());
+    state.addTypes(packedType);
+    state.addOperands(operandsVector);
+    Operation *newOp = rewriter.createOperation(state);
+    return rewriter.replaceOp(op, newOp->getResult(0)), success();
+  }
+};
+
 struct RVVLoadOpLowering : public ConvertOpToLLVMPattern<RVVLoadOp> {
   using ConvertOpToLLVMPattern<RVVLoadOp>::ConvertOpToLLVMPattern;
 
@@ -238,13 +293,13 @@ using RVVSubOpLowering = OneToOneConvertToLLVMPattern<RVVSubOp, RVVIntrSubOp>;
 using RVVMulOpLowering = OneToOneConvertToLLVMPattern<RVVMulOp, RVVIntrMulOp>;
 using RVVDivOpLowering = OneToOneConvertToLLVMPattern<RVVDivOp, RVVIntrDivOp>;
 using RVVMaskedAddOpLowering =
-    OneToOneConvertToLLVMPattern<RVVMaskedAddOp, RVVMaskedIntrAddOp>;
+    ConvertMaskedOpToLLVMPattern<RVVMaskedAddOp, RVVMaskedIntrAddOp>;
 using RVVMaskedSubOpLowering =
-    OneToOneConvertToLLVMPattern<RVVMaskedSubOp, RVVMaskedIntrSubOp>;
+    ConvertMaskedOpToLLVMPattern<RVVMaskedSubOp, RVVMaskedIntrSubOp>;
 using RVVMaskedMulOpLowering =
-    OneToOneConvertToLLVMPattern<RVVMaskedMulOp, RVVMaskedIntrMulOp>;
+    ConvertMaskedOpToLLVMPattern<RVVMaskedMulOp, RVVMaskedIntrMulOp>;
 using RVVMaskedDivOpLowering =
-    OneToOneConvertToLLVMPattern<RVVMaskedDivOp, RVVMaskedIntrDivOp>;
+    ConvertMaskedOpToLLVMPattern<RVVMaskedDivOp, RVVMaskedIntrDivOp>;
 
 /// Populate the given list with patterns that convert from RVV to LLVM.
 void mlir::populateRVVLegalizeForLLVMExportPatterns(
