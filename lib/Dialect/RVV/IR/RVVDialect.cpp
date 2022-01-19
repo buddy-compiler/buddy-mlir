@@ -113,26 +113,3 @@ RVVMaskType RVVMaskType::getMask32(MLIRContext *ctx) {
 RVVMaskType RVVMaskType::getMask64(MLIRContext *ctx) {
   return rvv::Mask64Type::get(ctx);
 }
-
-//===----------------------------------------------------------------------===//
-// Parser and Printer
-//===----------------------------------------------------------------------===//
-
-Type rvv::RVVDialect::parseType(DialectAsmParser &parser) const {
-  llvm::SMLoc typeLoc = parser.getCurrentLocation();
-  StringRef mnemonic;
-  parser.parseKeyword(&mnemonic);
-  {
-    Type genType;
-    auto parseResult = generatedTypeParser(parser, mnemonic, genType);
-    if (parseResult.hasValue())
-      return genType;
-  }
-  parser.emitError(typeLoc, "unknown type in RVV dialect");
-  return Type();
-}
-
-void rvv::RVVDialect::printType(Type type, DialectAsmPrinter &os) const {
-  if (failed(generatedTypePrinter(type, os)))
-    llvm_unreachable("unexpected 'rvv' type kind");
-}
