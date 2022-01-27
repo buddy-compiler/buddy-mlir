@@ -137,6 +137,8 @@ $ cd bin
 $ ./correlation2D ../../examples/ConvOpt/images/YuTu.png result-dip.png
 ```
 
+*Note: Maximum allowed value of `BUDDY_DIP_OPT_STRIP_MINING` for producing correct result is equal to image width.*
+
 **Lowering Bud Dialect**
 
 ```
