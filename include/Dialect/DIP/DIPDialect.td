@@ -42,7 +42,7 @@ def DIP_Dialect : Dialect {
 // Base DIP Operation Definition.
 //===----------------------------------------------------------------------===//
 
-class DIP_Op<string mnemonic, list<OpTrait> traits = []> :
+class DIP_Op<string mnemonic, list<Trait> traits = []> :
     Op<DIP_Dialect, mnemonic, traits>;
 
 #endif // DIP_DIPDIALECT_TD
