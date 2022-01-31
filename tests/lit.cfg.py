@@ -27,7 +27,7 @@ config.suffixes = ['.mlir']
 config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
-config.test_exec_root = os.path.join(config.buddy_obj_root, 'test')
+config.test_exec_root = os.path.join(config.buddy_obj_root, 'tests')
 
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
@@ -46,7 +46,7 @@ config.excludes = ['Inputs', 'Examples', 'CMakeLists.txt', 'README.txt', 'LICENS
 config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
-config.test_exec_root = os.path.join(config.buddy_obj_root, 'test')
+config.test_exec_root = os.path.join(config.buddy_obj_root, 'tests')
 config.buddy_tools_dir = os.path.join(config.buddy_obj_root, 'bin')
 
 # Tweak the PATH to include the tools dir.
