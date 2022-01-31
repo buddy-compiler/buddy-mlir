@@ -1,5 +1,3 @@
-pwd
-ls
 git submodule update --init
 mkdir llvm/build
 cd llvm/build
