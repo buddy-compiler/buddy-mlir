@@ -11,5 +11,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - uses: seanmiddleditch/gha-setup-ninja@master
     - name: test build
       run: bash ./tests/Actions/TestBuild.sh
