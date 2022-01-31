@@ -1,6 +1,8 @@
+pwd
 ls
 git submodule update --init
 mkdir llvm/build
+cd llvm/build
 cmake -G Ninja ../llvm \
     -DLLVM_ENABLE_PROJECTS="mlir" \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
