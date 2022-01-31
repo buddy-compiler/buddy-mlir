@@ -1,3 +1,4 @@
+cd ../..
 git submodule update --init
 mkdir llvm/build
 cmake -G Ninja ../llvm \
