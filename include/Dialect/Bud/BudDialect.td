@@ -40,7 +40,7 @@ def Bud_Dialect : Dialect {
 // Base Bud Operation Definition.
 //===----------------------------------------------------------------------===//
 
-class Bud_Op<string mnemonic, list<OpTrait> traits = []> :
+class Bud_Op<string mnemonic, list<Trait> traits = []> :
     Op<Bud_Dialect, mnemonic, traits>;
 
 #endif // BUD_BUDDIALECT_TD

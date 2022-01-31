@@ -151,7 +151,7 @@ class RVVScalableVectorOf<list<Type> allowedTypes> :
 // RVV operation definitions
 //===----------------------------------------------------------------------===//
 
-class RVV_Op<string mnemonic, list<OpTrait> traits = []> :
+class RVV_Op<string mnemonic, list<Trait> traits = []> :
   Op<RVV_Dialect, mnemonic, traits> {}
 
 def RVVLoadOp : RVV_Op<"load">,
@@ -188,7 +188,7 @@ def RVVStoreOp : RVV_Op<"store">,
 }
 
 class RVV_BinaryAAXNoMask_Op<string mnemonic, string op_description,
-                             list<OpTrait> traits = []> :
+                             list<Trait> traits = []> :
   RVV_Op<mnemonic, !listconcat(traits, [AllTypesMatch<["src1", "dst"]>])> {
   let summary = op_description # "for RVV scalable vectors";
   let description = [{ The `rvv.}] # mnemonic # [{` operation can be of 
@@ -206,7 +206,7 @@ class RVV_BinaryAAXNoMask_Op<string mnemonic, string op_description,
 }
 
 class RVV_BinaryAAXMask_Op<string mnemonic, string op_description,
-                              list<OpTrait> traits = []> :
+                              list<Trait> traits = []> :
   RVV_Op<mnemonic, !listconcat(traits,
                        [AllTypesMatch<["maskedoff", "src1", "dst"]>,
                         AllTypesMatch<["length", "vta"]>])> {
@@ -244,41 +244,41 @@ def RVVMaskedDivOp : RVV_BinaryAAXMask_Op<"masked.div", "masked division">;
 // RVV intrinsic operation definitions
 //===----------------------------------------------------------------------===//
 
-class RVV_USLoad_IntrOp<string mnemonic, list<OpTrait> traits = []> :
+class RVV_USLoad_IntrOp<string mnemonic, list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect, 
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
                   /*list<int> overloadedResults=*/[0], 
                   /*list<int> overloadedOperands=*/[1], 
-                  /*list<OpTrait> traits=*/traits, 
+                  /*list<Trait> traits=*/traits, 
                   /*int numResults=*/1>;
 
-class RVV_USStore_IntrOp<string mnemonic, list<OpTrait> traits = []> :
+class RVV_USStore_IntrOp<string mnemonic, list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect, 
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
                   /*list<int> overloadedResults=*/[], 
                   /*list<int> overloadedOperands=*/[0, 2], 
-                  /*list<OpTrait> traits=*/traits, 
+                  /*list<Trait> traits=*/traits, 
                   /*int numResults=*/0>;
 
 class RVV_BinaryAAXNoMask_IntrOp<string mnemonic,
-                                    list<OpTrait> traits = []> :
+                                    list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect, 
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
                   /*list<int> overloadedResults=*/[0], 
                   /*list<int> overloadedOperands=*/[1, 2], 
-                  /*list<OpTrait> traits=*/traits, 
+                  /*list<Trait> traits=*/traits, 
                   /*int numResults=*/1>;
 
-class RVV_BinaryAAXMask_IntrOp<string mnemonic, list<OpTrait> traits = []> :
+class RVV_BinaryAAXMask_IntrOp<string mnemonic, list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect, 
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
                   /*list<int> overloadedResults=*/[0], 
                   /*list<int> overloadedOperands=*/[2, 4], 
-                  /*list<OpTrait> traits=*/traits, 
+                  /*list<Trait> traits=*/traits, 
                   /*int numResults=*/1>;
 
 def RVVIntrLoadEleOp : RVV_USLoad_IntrOp<"vle">,
