@@ -53,6 +53,8 @@ set(BUDDY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/include/)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 
+set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
+
 # Add MLIR and LLVM headers to the include path
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
