@@ -9,6 +9,7 @@ jobs:
 
     runs-on: ubuntu-latest
 
+# ToDo : Cache llvm build to reduce execution time on each run of virtual instance.
     steps:
     - uses: actions/checkout@v2
     - uses: seanmiddleditch/gha-setup-ninja@master
