@@ -8,10 +8,14 @@ func @main() {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %f1 = arith.constant 1.0 : f32
-  %load_vec = vector.load %mem[%c0, %c0] : memref<4x4xf32>, vector<4xf32>
+  // Broadcast scalar to 1-D vector.
   %ele = memref.load %mem[%c1, %c1] : memref<4x4xf32>
   %broadcast_vec = vector.broadcast %ele : f32 to vector<4xf32>
-  %res = arith.addf %load_vec, %broadcast_vec : vector<4xf32>
-  vector.print %res : vector<4xf32>
+  vector.print %broadcast_vec : vector<4xf32>
+  // Broadcast 1-D vector to 2-D vector. 
+  %load_vec = vector.load %mem[%c0, %c0] : memref<4x4xf32>, vector<4xf32>
+  %broadcast_vec_2d = vector.broadcast %load_vec : vector<4xf32> to vector<4x4xf32>
+  vector.print %broadcast_vec_2d : vector<4x4xf32>
+
   return
 }
