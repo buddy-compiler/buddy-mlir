@@ -18,17 +18,20 @@ endif
 
 vector-load-lower:
 	@${MLIR_OPT} ./vector-load.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-std \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 vector-load-translate:
 	@${MLIR_OPT} ./vector-load.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-std \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 vector-load-run:
 	@${MLIR_OPT} ./vector-load.mlir \
+	    --convert-vector-to-scf --lower-affine --convert-scf-to-std \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
@@ -59,7 +62,7 @@ vector-broadcast-asm-rv:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
 	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
-		-mattr=+m,+d,+experimental-v -riscv-v-vector-bits-min=128 \
+		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
 vector-broadcast-run:
@@ -94,7 +97,7 @@ vector-fma-asm-rv:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
 	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
-		-mattr=+m,+d,+experimental-v -riscv-v-vector-bits-min=128 \
+		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
 vector-fma-run:
@@ -129,7 +132,7 @@ vector-long-asm-rv:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
 	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
-		-mattr=+m,+d,+experimental-v -riscv-v-vector-bits-min=128 \
+		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
 vector-long-run:
