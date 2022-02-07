@@ -18,20 +18,20 @@ endif
 
 vector-load-lower:
 	@${MLIR_OPT} ./vector-load.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-std \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 vector-load-translate:
 	@${MLIR_OPT} ./vector-load.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-std \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 vector-load-run:
 	@${MLIR_OPT} ./vector-load.mlir \
-	    --convert-vector-to-scf --lower-affine --convert-scf-to-std \
+	    --convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
