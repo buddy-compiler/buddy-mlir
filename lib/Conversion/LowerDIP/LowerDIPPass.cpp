@@ -139,9 +139,8 @@ public:
     Value output = op->getOperand(2);
     Value centerX = op->getOperand(3);
     Value centerY = op->getOperand(4);
-    // Value boundaryOptionVal = op->getOperand(5);
-    unsigned int boundaryOption = 1;
-    // ToDo : Make boundaryOption an attribute.
+    Value constantValue = op->getOperand(5);
+    auto boundaryOptionAttr = op.boundary_option();
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
     FloatType f32 = FloatType::getF32(ctx);
@@ -165,7 +164,6 @@ public:
     VectorType vectorTy32 = VectorType::get({stride}, f32);
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
 
-    // Improve this flow for constant padding option.
     Value zeroPaddingElem =
         rewriter.create<ConstantFloatOp>(loc, (APFloat)(float)0, f32);
     Value zeroPadding =
@@ -205,9 +203,9 @@ public:
               loc, rowUpCond,
               [&](OpBuilder &builder, Location loc) {
                 // rowUp
-                if (!boundaryOption) {
+                if (boundaryOptionAttr == (llvm::StringRef)"CONSTANT_PADDING") {
                   Value inputVec = builder.create<BroadcastOp>(loc, vectorTy32,
-                                                               zeroPaddingElem);
+                                                               constantValue);
 
                   calcAndStoreFMAwoTailProcessing(builder, loc, vectorTy32,
                                                   inputVec, kernelVec, output,
@@ -227,7 +225,7 @@ public:
                             createInvertedMask(builder, loc, strideVal,
                                                vectorMaskTy, leftMaskElem);
 
-                        if (boundaryOption == 1) {
+                        if (boundaryOptionAttr == (llvm::StringRef)"REPLICATE_PADDING") {
                           Value paddingVal = builder.create<memref::LoadOp>(
                               loc, input, ValueRange{c0, c0});
                           Value padding = builder.create<BroadcastOp>(
@@ -256,7 +254,7 @@ public:
                             [&](OpBuilder &builder, Location loc) {
                               // colMid & rowUp
                               Value inputVec;
-                              if (boundaryOption == 1) {
+                              if (boundaryOptionAttr == (llvm::StringRef)"REPLICATE_PADDING") {
                                 inputVec = builder.create<LoadOp>(
                                     loc, vectorTy32, input,
                                     ValueRange{c0, imCol});
@@ -277,7 +275,7 @@ public:
                               Value rightMask = builder.create<CreateMaskOp>(
                                   loc, vectorMaskTy, rightMaskElem);
 
-                              if (boundaryOption == 1) {
+                              if (boundaryOptionAttr == (llvm::StringRef)"REPLICATE_PADDING") {
                                 Value rightRange =
                                     builder.create<SubIOp>(loc, inputCol, c1);
                                 Value paddingVal =
@@ -328,9 +326,9 @@ public:
                                 createInvertedMask(builder, loc, strideVal,
                                                    vectorMaskTy, leftMaskElem);
 
-                            if (!boundaryOption) {
+                            if (boundaryOptionAttr == (llvm::StringRef)"CONSTANT_PADDING") {
                               Value padding = builder.create<BroadcastOp>(
-                                  loc, vectorTy32, zeroPaddingElem);
+                                  loc, vectorTy32, constantValue);
 
                               Value leftPaddingOffset =
                                   builder.create<SubIOp>(loc, c0, leftMaskElem);
@@ -338,7 +336,7 @@ public:
                                   loc, vectorTy32, input,
                                   ValueRange{imRow, leftPaddingOffset},
                                   leftMask, padding);
-                            } else if (boundaryOption == 1) {
+                            } else if (boundaryOptionAttr == (llvm::StringRef)"REPLICATE_PADDING") {
                               Value paddingVal = builder.create<memref::LoadOp>(
                                   loc, input, ValueRange{imRow, c0});
                               Value padding = builder.create<BroadcastOp>(
@@ -388,15 +386,15 @@ public:
                                       builder.create<CreateMaskOp>(
                                           loc, vectorMaskTy, rightMaskElem);
 
-                                  if (!boundaryOption) {
+                                  if (boundaryOptionAttr == (llvm::StringRef)"CONSTANT_PADDING") {
                                     Value padding = builder.create<BroadcastOp>(
-                                        loc, vectorTy32, zeroPaddingElem);
+                                        loc, vectorTy32, constantValue);
 
                                     inputVec = builder.create<MaskedLoadOp>(
                                         loc, vectorTy32, input,
                                         ValueRange{imRow, imCol}, rightMask,
                                         padding);
-                                  } else if (boundaryOption == 1) {
+                                  } else if (boundaryOptionAttr == (llvm::StringRef)"REPLICATE_PADDING") {
                                     Value rightRange = builder.create<SubIOp>(
                                         loc, inputCol, c1);
                                     Value paddingVal =
@@ -428,9 +426,9 @@ public:
                     },
                     [&](OpBuilder &builder, Location loc) {
                       // rowDown
-                      if (!boundaryOption) {
+                      if (boundaryOptionAttr == (llvm::StringRef)"CONSTANT_PADDING") {
                         Value inputVec = builder.create<BroadcastOp>(
-                            loc, vectorTy32, zeroPaddingElem);
+                            loc, vectorTy32, constantValue);
 
                         calcAndStoreFMAwoTailProcessing(
                             builder, loc, vectorTy32, inputVec, kernelVec,
@@ -452,7 +450,7 @@ public:
                                   builder, loc, strideVal, vectorMaskTy,
                                   leftMaskElem);
 
-                              if (boundaryOption == 1) {
+                              if (boundaryOptionAttr == (llvm::StringRef)"REPLICATE_PADDING") {
                                 Value paddingVal =
                                     builder.create<memref::LoadOp>(
                                         loc, input, ValueRange{downRange, c0});
@@ -486,7 +484,7 @@ public:
                                     Value inputVec;
                                     Value downRange = builder.create<SubIOp>(
                                         loc, inputRow, c1);
-                                    if (boundaryOption == 1) {
+                                    if (boundaryOptionAttr == (llvm::StringRef)"REPLICATE_PADDING") {
                                       inputVec = builder.create<LoadOp>(
                                           loc, vectorTy32, input,
                                           ValueRange{downRange, imCol});
@@ -515,7 +513,7 @@ public:
                                     Value rightRange = builder.create<SubIOp>(
                                         loc, inputCol, c1);
 
-                                    if (boundaryOption == 1) {
+                                    if (boundaryOptionAttr == (llvm::StringRef)"REPLICATE_PADDING") {
                                       Value paddingVal =
                                           builder.create<memref::LoadOp>(
                                               loc, input,
