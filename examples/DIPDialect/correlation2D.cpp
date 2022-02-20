@@ -13,9 +13,9 @@
 
 #include "../ConvOpt/kernels.h"
 
+#include <dip.hpp>
 #include <iostream>
 #include <time.h>
-#include <dip.hpp>
 
 using namespace cv;
 using namespace std;
@@ -94,7 +94,8 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   Mat kernel1 = Mat(3, 3, CV_32FC1, laplacianKernelAlign);
 
   // Call the MLIR Corr2D function.
-  dip::Corr2D(input, kernel, output, x, y, dip::BOUNDARY_OPTION::REPLICATE_PADDING);
+  dip::Corr2D(input, kernel, output, x, y,
+              dip::BOUNDARY_OPTION::REPLICATE_PADDING);
 
   // Define a cv::Mat with the output of the conv2d.
   Mat outputImage(outputRows, outputCols, CV_32FC1, output->aligned);
