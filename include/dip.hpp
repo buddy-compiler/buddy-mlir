@@ -48,39 +48,35 @@ MemRef_descriptor MemRef_Descriptor(float *allocated, float *aligned,
 }
 
 namespace dip {
-  namespace detail {
-  // Functions present inside dip::detail are not meant to be called by users directly.
-  // Declare the Corr2D C interface.
-  extern "C" {
-  void _mlir_ciface_corr_2d_constant_padding(MemRef_descriptor input, MemRef_descriptor kernel,
-                          MemRef_descriptor output, unsigned int centerX,
-                          unsigned int centerY, float constantValue);
+namespace detail {
+// Functions present inside dip::detail are not meant to be called by users
+// directly. 
+// Declare the Corr2D C interface.
+extern "C" {
+void _mlir_ciface_corr_2d_constant_padding(
+    MemRef_descriptor input, MemRef_descriptor kernel, MemRef_descriptor output,
+    unsigned int centerX, unsigned int centerY, float constantValue);
 
-  void _mlir_ciface_corr_2d_replicate_padding(MemRef_descriptor input, MemRef_descriptor kernel,
-                          MemRef_descriptor output, unsigned int centerX,
-                          unsigned int centerY, float constantValue);
-  }
-  }
+void _mlir_ciface_corr_2d_replicate_padding(
+    MemRef_descriptor input, MemRef_descriptor kernel, MemRef_descriptor output,
+    unsigned int centerX, unsigned int centerY, float constantValue);
+}
+} // namespace detail
 
+enum class BOUNDARY_OPTION { CONSTANT_PADDING, REPLICATE_PADDING };
 
-  enum class BOUNDARY_OPTION{
-  CONSTANT_PADDING, 
-  REPLICATE_PADDING
-  };
-
-  void Corr2D(MemRef_descriptor input, MemRef_descriptor kernel, MemRef_descriptor output, 
-              unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, 
-              float constantValue = 0)
-  {
-    if (option == BOUNDARY_OPTION::CONSTANT_PADDING)
-    {
-      detail::_mlir_ciface_corr_2d_constant_padding(input, kernel, output, centerX, centerY, constantValue);
-    }
-    else if (option == BOUNDARY_OPTION::REPLICATE_PADDING)
-    {
-      detail::_mlir_ciface_corr_2d_replicate_padding(input, kernel, output, centerX, centerY, 0);
-    }
+void Corr2D(MemRef_descriptor input, MemRef_descriptor kernel,
+            MemRef_descriptor output, unsigned int centerX,
+            unsigned int centerY, BOUNDARY_OPTION option,
+            float constantValue = 0) {
+  if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
+    detail::_mlir_ciface_corr_2d_constant_padding(
+        input, kernel, output, centerX, centerY, constantValue);
+  } else if (option == BOUNDARY_OPTION::REPLICATE_PADDING) {
+    detail::_mlir_ciface_corr_2d_replicate_padding(input, kernel, output,
+                                                   centerX, centerY, 0);
   }
 }
+} // namespace dip
 
 #endif
