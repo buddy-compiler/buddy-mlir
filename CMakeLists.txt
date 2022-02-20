@@ -66,6 +66,13 @@ include_directories(${BUDDY_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/Dialect)
 
 #-------------------------------------------------------------------------------
+# Hardware detection
+#-------------------------------------------------------------------------------
+
+include(${BUDDY_SOURCE_DIR}/cmake/check_simd.cmake)
+check_simd()
+
+#-------------------------------------------------------------------------------
 # Directory setup
 #-------------------------------------------------------------------------------
 
