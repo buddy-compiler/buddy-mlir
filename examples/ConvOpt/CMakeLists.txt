@@ -8,12 +8,24 @@ elseif(HAVE_SSE)
   set(SPLITING_SIZE 64)
 endif()
 
+if (WIN32)
+  set(TARGET_TRIPLE_SYS win32)
+elseif (APPLE)
+  set(TARGET_TRIPLE_SYS darwin)
+elseif (Linux)
+  set(TARGET_TRIPLE_SYS linux)
+else()
+  set(TARGET_TRIPLE_SYS none)
+endif ()
+
 message(STATUS "Spliting size: ${SPLITING_SIZE}")
+
+
 
 add_custom_command(OUTPUT conv2d.o
   COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/ConvOpt/conv2d.mlir -conv-vectorization="strip-mining=${SPLITING_SIZE}" -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm='emit-c-wrappers=1' -reconcile-unrealized-casts | 
           ${LLVM_MLIR_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llc -mtriple=x86_64-unknown-linux-gnu -mattr=${BUDDY_CONV_OPT_ATTR} --filetype=obj -o ${BUDDY_BINARY_DIR}/../examples/ConvOpt/conv2d.o
+          ${LLVM_MLIR_BINARY_DIR}/llc -mtriple=x86_64-unknown-${TARGET_TRIPLE_SYS}-gnu -mattr=${BUDDY_CONV_OPT_ATTR} --filetype=obj -o ${BUDDY_BINARY_DIR}/../examples/ConvOpt/conv2d.o
   DEPENDS buddy-opt)
 
 # add_custom_command(OUTPUT conv2d.o
