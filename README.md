@@ -95,7 +95,8 @@ $ cd buddy-mlir/build
 $ cmake -G Ninja .. \
     -DBUDDY_EXAMPLES=ON \
     -DBUDDY_CONV_OPT_STRIP_MINING=<strip mining size> \
-    -DBUDDY_CONV_OPT_ATTR=<ISA vector extension>
+    -DBUDDY_OPT_ATTR=<ISA vector extension> \
+    -DBUDDY_OPT_TRIPLE=<target triple>
 $ ninja edge-detection
 ```
 
