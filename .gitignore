@@ -4,5 +4,8 @@
 # vscode configurations
 /.vscode
 
+# IDEA configurations
+/.idea
+
 # ONNX models
 *.onnx
