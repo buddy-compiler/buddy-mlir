@@ -38,3 +38,24 @@ linalg-conv2d-run:
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-std-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+linalg-conv2d-tiling-lower:
+	@${MLIR_OPT} ./linalg-conv2d.mlir \
+		-linalg-tile="tile-sizes=4,4,2,2" \
+		-o ./log.mlir
+
+linalg-conv2d-tiling-translate:
+	@${MLIR_OPT} ./linalg-conv2d.mlir \
+		-linalg-tile="tile-sizes=4,4,2,2" \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+		-convert-std-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+linalg-conv2d-tiling-run:
+	@${MLIR_OPT} linalg-conv2d.mlir ${MLIR_OPT_OPTIONS} \
+		-linalg-tile="tile-sizes=4,4,2,2" \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+		-convert-std-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
