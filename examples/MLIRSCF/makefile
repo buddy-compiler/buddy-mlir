@@ -47,11 +47,10 @@ scf-parallel-run:
         -async-to-async-runtime \
 		-async-runtime-ref-counting \
         -async-runtime-ref-counting-opt \
+		-arith-expand \
         -convert-async-to-llvm \
         -convert-scf-to-cf \
         -convert-memref-to-llvm \
-        -arith-expand \
-        -std-expand \
         -convert-std-to-llvm \
         -reconcile-unrealized-casts |\
     ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
