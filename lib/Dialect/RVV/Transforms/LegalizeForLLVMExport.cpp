@@ -17,7 +17,7 @@
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -312,9 +312,9 @@ void mlir::populateRVVLegalizeForLLVMExportPatterns(
   });
 
   // clang-format off
-  patterns.add<ForwardOperands<CallOp>,
-               ForwardOperands<CallIndirectOp>,
-               ForwardOperands<ReturnOp>>(converter, &converter.getContext());
+  patterns.add<ForwardOperands<func::CallOp>,
+               ForwardOperands<func::CallIndirectOp>,
+               ForwardOperands<func::ReturnOp>>(converter, &converter.getContext());
   patterns.add<RVVLoadOpLowering,
                RVVStoreOpLowering>(converter);
   patterns.add<RVVAddOpLowering,
@@ -363,7 +363,7 @@ void mlir::configureRVVLegalizeForExportTarget(LLVMConversionTarget &target) {
     return !hasScalableVectorType(op.getType().getInputs()) &&
            !hasScalableVectorType(op.getType().getResults());
   });
-  target.addDynamicallyLegalOp<CallOp, CallIndirectOp, ReturnOp>(
+  target.addDynamicallyLegalOp<func::CallOp, func::CallIndirectOp, func::ReturnOp>(
       [hasScalableVectorType](Operation *op) {
         return !hasScalableVectorType(op->getOperandTypes()) &&
                !hasScalableVectorType(op->getResultTypes());

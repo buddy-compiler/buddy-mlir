@@ -23,7 +23,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
 
@@ -273,7 +273,7 @@ public:
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect, scf::SCFDialect, AffineDialect,
-                    VectorDialect, StandardOpsDialect>();
+                    VectorDialect, func::FuncDialect>();
   }
 
   Option<int64_t> stride{*this, "strip-mining",
@@ -291,9 +291,9 @@ void ConvVectorizationPass::runOnOperation() {
 
   ConversionTarget target(*context);
   target.addLegalDialect<arith::ArithmeticDialect, AffineDialect,
-                         scf::SCFDialect, StandardOpsDialect,
+                         scf::SCFDialect, func::FuncDialect,
                          memref::MemRefDialect, VectorDialect>();
-  target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
+  target.addLegalOp<ModuleOp, FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
