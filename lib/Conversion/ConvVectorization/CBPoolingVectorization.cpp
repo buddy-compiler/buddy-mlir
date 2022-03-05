@@ -73,10 +73,8 @@ public:
     // Strides.
     auto strides = op->getAttrOfType<mlir::DenseIntElementsAttr>("strides")
                        .getValues<int64_t>();
-    Value stridesHeight =
-        rewriter.create<arith::ConstantIndexOp>(loc, strides[0]);
-    Value stridesWidth =
-        rewriter.create<arith::ConstantIndexOp>(loc, strides[1]);
+    Value strHeight = rewriter.create<arith::ConstantIndexOp>(loc, strides[0]);
+    Value strWidth = rewriter.create<arith::ConstantIndexOp>(loc, strides[1]);
     // Dilations.
     auto dilations = op->getAttrOfType<mlir::DenseIntElementsAttr>("dilations")
                          .getValues<int64_t>();
@@ -90,42 +88,31 @@ public:
         return failure();
       }
     }
-    // Subview shape.
-    SmallVector<int64_t> subviewShape{
+    // Pooling window shape.
+    SmallVector<int64_t> winShape{
         1, kernelShape[0] + (dilations[0] - 1) * (kernelShape[0] - 1),
         kernelShape[1] + (dilations[1] - 1) * (kernelShape[1] - 1), 1};
-    Value subviewHeight =
-        rewriter.create<arith::ConstantIndexOp>(loc, subviewShape[1]);
-    Value subviewWidth =
-        rewriter.create<arith::ConstantIndexOp>(loc, subviewShape[2]);
-    // Subview vector type.
-    VectorType subviewVecTy = VectorType::get(subviewShape, fTy);
-    // Flattened vector type.
-    SmallVector<int64_t> flattenedVecShape{1};
-    for (auto &val : subviewShape)
-      flattenedVecShape[0] *= val;
-    VectorType flattenedVecTy = VectorType::get(flattenedVecShape, fTy);
+    Value winHeight = rewriter.create<arith::ConstantIndexOp>(loc, winShape[1]);
+    Value winWidth = rewriter.create<arith::ConstantIndexOp>(loc, winShape[2]);
     // Output shape.
-    Value out0 = rewriter.create<arith::SubIOp>(loc, height, subviewHeight);
-    Value outputHeight =
-        rewriter.create<arith::AddIOp>(loc, out0, stridesHeight);
-    Value out1 = rewriter.create<arith::SubIOp>(loc, width, subviewWidth);
-    Value outputWidth = rewriter.create<arith::AddIOp>(loc, out1, stridesWidth);
+    Value out0 = rewriter.create<arith::SubIOp>(loc, height, winHeight);
+    Value outHeight = rewriter.create<arith::AddIOp>(loc, out0, strHeight);
+    Value out1 = rewriter.create<arith::SubIOp>(loc, width, winWidth);
+    Value outWidth = rewriter.create<arith::AddIOp>(loc, out1, strWidth);
+    // Kernel width.
+    Value kHeight =
+        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[0]);
+    Value kWidth = rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[1]);
+    // Kernel size
+    int64_t kSize = kernelShape[0] * kernelShape[1];
+    // Vector type
+    VectorType vecTy = VectorType::get({kSize}, fTy);
     // Loop arguments.
     SmallVector<Value, 4> lowerBounds(4, c0);
-    SmallVector<Value, 4> upperBounds{batch, outputHeight, outputWidth,
-                                      channels};
+    SmallVector<Value, 4> upperBounds{batch, outHeight, outWidth, channels};
+    SmallVector<Value, 4> steps{c1, strHeight, strWidth, c1};
     bool dilated = dilations[0] != 1 || dilations[1] != 1;
     if (dilated) {
-      // Kernel width.
-      Value kWidth =
-          rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[1]);
-      // Kernel size
-      int64_t kSize = kernelShape[0] * kernelShape[1];
-      // Vector type
-      VectorType vecTy = VectorType::get({kSize}, fTy);
-      // Loop.
-      SmallVector<Value, 4> steps{c1, stridesHeight, stridesWidth, c1};
       mlir::scf::buildLoopNest(
           rewriter, loc, lowerBounds, upperBounds, steps, {},
           [&](OpBuilder &builder, Location loc, ValueRange ivs,
@@ -138,12 +125,11 @@ public:
                 rewriter.create<arith::ConstantIndexOp>(loc, dilations[0]);
             Value dilWidth =
                 rewriter.create<arith::ConstantIndexOp>(loc, dilations[1]);
-            // Loop.
             SmallVector<Value, 2> nestedLowerBounds{ivs[1], ivs[2]};
             Value uHeight =
-                rewriter.create<arith::AddIOp>(loc, ivs[1], subviewHeight);
+                rewriter.create<arith::AddIOp>(loc, ivs[1], winHeight);
             Value uWidth =
-                rewriter.create<arith::AddIOp>(loc, ivs[2], subviewWidth);
+                rewriter.create<arith::AddIOp>(loc, ivs[2], winWidth);
             SmallVector<Value, 2> nestedUpperBounds{uHeight, uWidth};
             SmallVector<Value, 2> nestedSteps{dilHeight, dilWidth};
             mlir::scf::buildLoopNest(
@@ -172,54 +158,69 @@ public:
             // Load into a vector.
             Value vec = rewriter.create<vector::TransferReadOp>(
                 loc, vecTy, window, ValueRange{c0});
-            // TODO remove
-            rewriter.create<vector::PrintOp>(loc, vec);
             // Reduce vector.
             Value res = rewriter.create<vector::ReductionOp>(
                 loc, vector::CombiningKind::ADD, vec);
             // Output indices.
-            Value outputH =
-                rewriter.create<arith::DivUIOp>(loc, ivs[1], stridesHeight);
-            Value outputW =
-                rewriter.create<arith::DivUIOp>(loc, ivs[2], stridesWidth);
+            Value outH =
+                rewriter.create<arith::DivUIOp>(loc, ivs[1], strHeight);
+            Value outW = rewriter.create<arith::DivUIOp>(loc, ivs[2], strWidth);
             // Store value into output.
             rewriter.create<memref::StoreOp>(
-                loc, res, output, ValueRange{ivs[0], outputH, outputW, ivs[3]});
-            // Return
+                loc, res, output, ValueRange{ivs[0], outH, outW, ivs[3]});
             return {};
           });
     } else {
-      SmallVector<int64_t, 4> steps{1, strides[0], strides[1], 1};
-      buildAffineLoopNest(
-          rewriter, loc, lowerBounds, upperBounds, steps,
-          [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-            // Load pooling window.
-            SmallVector<OpFoldResult, 4> offset{ivs[0], ivs[1], ivs[2], ivs[3]};
-            SmallVector<OpFoldResult, 4> sizes{c1, subviewHeight, subviewWidth,
-                                               c1};
-            SmallVector<OpFoldResult, 4> strides{c1, c1, c1, c1};
-            Value subview = rewriter.create<memref::SubViewOp>(
-                loc, input, offset, sizes, strides);
-            // Read vector.
+      mlir::scf::buildLoopNest(
+          rewriter, loc, lowerBounds, upperBounds, steps, {},
+          [&](OpBuilder &builder, Location loc, ValueRange ivs,
+              ValueRange args) -> scf::ValueVector {
+            // Pooling window.
+            Value window = rewriter.create<memref::AllocaOp>(
+                loc, MemRefType::get({kSize}, fTy));
+            SmallVector<Value, 2> nestedLowerBounds{ivs[1], ivs[2]};
+            Value uHeight =
+                rewriter.create<arith::AddIOp>(loc, ivs[1], kHeight);
+            Value uWidth = rewriter.create<arith::AddIOp>(loc, ivs[2], kWidth);
+            SmallVector<Value, 2> nestedUpperBounds{uHeight, uWidth};
+            SmallVector<Value, 2> nestedSteps{c1, c1};
+            mlir::scf::buildLoopNest(
+                rewriter, loc, nestedLowerBounds, nestedUpperBounds,
+                nestedSteps, {},
+                [&](OpBuilder &nestedBuilder, Location nestedLoc,
+                    ValueRange nestedIvs,
+                    ValueRange nestedArgs) -> scf::ValueVector {
+                  // Load value from pooling window.
+                  Value val = builder.create<memref::LoadOp>(
+                      loc, input,
+                      ValueRange{ivs[0], nestedIvs[0], nestedIvs[1], ivs[3]});
+                  // Compute index.
+                  Value i =
+                      builder.create<arith::SubIOp>(loc, nestedIvs[0], ivs[1]);
+                  Value j =
+                      builder.create<arith::SubIOp>(loc, nestedIvs[1], ivs[2]);
+                  Value index0 = builder.create<arith::MulIOp>(loc, i, kWidth);
+                  Value index = builder.create<arith::AddIOp>(loc, index0, j);
+                  // Store value into memref.
+                  builder.create<memref::StoreOp>(loc, val, window, index);
+                  return {};
+                });
+            // Load into a vector.
             Value vec = rewriter.create<vector::TransferReadOp>(
-                loc, subviewVecTy, subview, ValueRange{c0, c0, c0, c0});
-            // Flatten vector.
-            Value flattenedVec =
-                rewriter.create<vector::ShapeCastOp>(loc, flattenedVecTy, vec);
-            // Reduce flattened vector.
+                loc, vecTy, window, ValueRange{c0});
+            // Reduce vector.
             Value res = rewriter.create<vector::ReductionOp>(
-                loc, vector::CombiningKind::ADD, flattenedVec);
+                loc, vector::CombiningKind::ADD, vec);
             // Output indices.
-            Value outputH =
-                rewriter.create<arith::DivUIOp>(loc, ivs[1], stridesHeight);
-            Value outputW =
-                rewriter.create<arith::DivUIOp>(loc, ivs[2], stridesWidth);
-            // Store value.
+            Value outH =
+                rewriter.create<arith::DivUIOp>(loc, ivs[1], strHeight);
+            Value outW = rewriter.create<arith::DivUIOp>(loc, ivs[2], strWidth);
+            // Store value into output.
             rewriter.create<memref::StoreOp>(
-                loc, res, output, ValueRange{ivs[0], outputH, outputW, ivs[3]});
+                loc, res, output, ValueRange{ivs[0], outH, outW, ivs[3]});
+            return {};
           });
     }
-
     // Remove the origin pooling operation.
     rewriter.eraseOp(op);
     return success();
