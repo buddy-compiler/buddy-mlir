@@ -1,4 +1,4 @@
-// RUN: buddy-opt %s -lower-rvv -convert-std-to-llvm | buddy-opt | FileCheck %s
+// RUN: buddy-opt %s -lower-rvv -convert-func-to-llvm | buddy-opt | FileCheck %s
 
 func @rvv_memory(%v: !rvv.vector<!rvv.m4,i32>,
                  %m: memref<?xi32>,

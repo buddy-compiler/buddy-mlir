@@ -20,14 +20,14 @@ tensor-print-lower:
 	@${MLIR_OPT} ./tensor-print.mlir \
 		-arith-bufferize  -tensor-bufferize -linalg-bufferize \
 		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
-		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-std-to-llvm \
+		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts -o ./log.mlir
 
 tensor-print-translate:
 	@${MLIR_OPT} ./tensor-print.mlir \
 		-arith-bufferize  -tensor-bufferize -linalg-bufferize \
 		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
-		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-std-to-llvm \
+		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
@@ -35,7 +35,7 @@ tensor-print-run:
 	@${MLIR_OPT} ./tensor-print.mlir \
 		-arith-bufferize  -tensor-bufferize -linalg-bufferize \
 		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
-		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-std-to-llvm \
+		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
