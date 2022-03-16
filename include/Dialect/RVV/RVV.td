@@ -22,6 +22,8 @@
 #define RVV_OPS
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
+include "mlir/IR/AttrTypeBase.td"
+include "mlir/IR/PatternBase.td"
 
 //===----------------------------------------------------------------------===//
 // Scalable Vector Type
@@ -62,7 +64,6 @@ class RVV_LMULType<string name, string typeMnemonic, string multiplier,
     : TypeDef<RVV_Dialect, name, traits, "::mlir::RVVLMULType"> { 
   let mnemonic = typeMnemonic;
   let summary = "The vector register group multiplier (" # multiplier # ").";
-  let parser = [{return get}]# name #[{($_ctxt);}];
 }
 
 def RVV_LMUL_MF8 : RVV_LMULType<"MF8", "mf8", "1/8"> {}
@@ -82,7 +83,6 @@ class RVV_MaskType<string name, string typeMnemonic, string maskLength,
     : TypeDef<RVV_Dialect, name, traits, "::mlir::RVVMaskType"> { 
   let mnemonic = typeMnemonic;
   let summary = "The mask length (SEW/LMUL = " # maskLength # ") type.";
-  let parser = [{return get}]# name #[{($_ctxt);}];
 }
 
 def RVV_Mask1 : RVV_MaskType<"Mask1", "mask1", "1"> {}
@@ -106,22 +106,7 @@ def ScalableVectorType : ScalableVector_Type<RVV_Dialect, "ScalableVector"> {
   }];
 
   let parameters = (ins "Type":$sizeType, "Type":$elementType);
-
-  let printer = [{
-    $_printer << "<" << getImpl()->sizeType << ',';
-    $_printer << getImpl()->elementType << '>';
-  }];
-
-  let parser = [{
-    if ($_parser.parseLess()) return Type();
-    Type sizeType;
-    if ($_parser.parseType(sizeType)) return Type();
-    if ($_parser.parseComma()) return Type();
-    Type elementType;
-    if ($_parser.parseType(elementType)) return Type();
-    if ($_parser.parseGreater()) return Type();
-    return get($_ctxt, sizeType, elementType);
-  }];
+  let hasCustomAssemblyFormat = 1;
 }
 //===----------------------------------------------------------------------===//
 // Additional LLVM type constraints
