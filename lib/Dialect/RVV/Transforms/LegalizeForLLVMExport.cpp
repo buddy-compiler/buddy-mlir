@@ -360,8 +360,8 @@ void mlir::configureRVVLegalizeForExportTarget(LLVMConversionTarget &target) {
     return false;
   };
   target.addDynamicallyLegalOp<FuncOp>([hasScalableVectorType](FuncOp op) {
-    return !hasScalableVectorType(op.getType().getInputs()) &&
-           !hasScalableVectorType(op.getType().getResults());
+    return !hasScalableVectorType(op.getFunctionType().getInputs()) &&
+           !hasScalableVectorType(op.getFunctionType().getResults());
   });
   target.addDynamicallyLegalOp<func::CallOp, func::CallIndirectOp, func::ReturnOp>(
       [hasScalableVectorType](Operation *op) {
