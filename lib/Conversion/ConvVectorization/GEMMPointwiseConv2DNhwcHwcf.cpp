@@ -23,8 +23,7 @@ using namespace vector;
 namespace {
 class GEMMPointwiseConvPattern : public ConversionPattern {
 public:
-  explicit GEMMPointwiseConvPattern(MLIRContext *context,
-                                                 int64_t strideParam)
+  explicit GEMMPointwiseConvPattern(MLIRContext *context)
       : ConversionPattern(linalg::Conv2DNhwcHwcfOp::getOperationName(), 1,
                           context) {}
 
@@ -49,7 +48,6 @@ public:
     if (filterShape[0] != 1 || filterShape[1] != 1)
       return failure();
 
-    // TODO(Joe): Support conversion to linalg.batch_matmul.
     if (inputShape[0] != 1)
       return failure();
 
