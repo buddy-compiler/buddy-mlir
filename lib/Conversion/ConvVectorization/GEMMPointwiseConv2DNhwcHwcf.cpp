@@ -36,6 +36,7 @@ public:
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
+
     // Get shape of input and output
     ShapedType inputShapeType = input.getType().cast<ShapedType>();
     ShapedType filterShapeType = kernel.getType().cast<ShapedType>();
@@ -107,8 +108,7 @@ public:
 
 namespace {
 class PointwiseConvToGemmPass
-    : public PassWrapper<PointwiseConvToGemmPass,
-                         OperationPass<ModuleOp>> {
+    : public PassWrapper<PointwiseConvToGemmPass, OperationPass<ModuleOp>> {
 public:
   StringRef getArgument() const final { return "pointwise-conv-to-gemm"; }
   StringRef getDescription() const final {
@@ -128,6 +128,7 @@ public:
 
 void PointwiseConvToGemmPass::runOnOperation() {
   MLIRContext *context = &getContext();
+  ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
   target.addLegalDialect<arith::ArithmeticDialect, scf::SCFDialect,
@@ -136,6 +137,11 @@ void PointwiseConvToGemmPass::runOnOperation() {
   target.addLegalOp<ModuleOp, FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp, tensor::CollapseShapeOp, linalg::MatmulOp,
                     tensor::ExpandShapeOp>();
+  RewritePatternSet patterns(context);
+  patterns.add<GEMMPointwiseConvPattern>(context);
+
+  if (failed(applyPartialConversion(module, target, std::move(patterns))))
+    signalPassFailure();
 }
 
 namespace mlir {
