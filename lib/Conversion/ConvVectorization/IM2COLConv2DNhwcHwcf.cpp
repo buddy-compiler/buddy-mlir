@@ -32,9 +32,6 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
-
-    // printf("-----------------");
-
     // Get input, kernel and output.
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
@@ -153,8 +150,7 @@ public:
 
 namespace {
 class IM2COLConv2DPass
-    : public PassWrapper<IM2COLConv2DPass,
-                         OperationPass<ModuleOp>> {
+    : public PassWrapper<IM2COLConv2DPass, OperationPass<ModuleOp>> {
 public:
   StringRef getArgument() const final { return "conv2d-to-im2col"; }
   StringRef getDescription() const final {
