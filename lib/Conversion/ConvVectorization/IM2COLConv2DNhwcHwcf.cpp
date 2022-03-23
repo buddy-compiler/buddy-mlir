@@ -59,9 +59,6 @@ public:
     auto filterShape = filterShapeType.getShape();
     auto outputShape = outputShapeType.getShape();
     // Assertions
-    if (filterShape[0] != 1 || filterShape[1] != 1)
-      return failure();
-
     if (inputShape[0] != 1)
       return failure();
 

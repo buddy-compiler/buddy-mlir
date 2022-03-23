@@ -175,7 +175,7 @@ buddy-conv2d-nhwc-hwcf-run:
 		-entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-buddy-conv2d-general-lower:
+buddy-conv2d-general-translate:
 	@${BUDDY_OPT} ./conv2d_nhwc_hwcf.mlir \
 		-conv2d-to-im2col \
 		-o ./buddy_conv2d_general_log.mlir
