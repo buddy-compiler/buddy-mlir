@@ -120,10 +120,8 @@ buddy-pw-conv2d-lower:
 		--pointwise-conv-to-gemm \
 		-o ./buddy_pw_log.mlir
 
-linalg-conv2d-nhwc-hwcf-run:
+linalg-conv2d-nhwc-hwcf-run :
 	@${MLIR_OPT} ./conv2d_nhwc_hwcf.mlir \
-		-canonicalize \
-		-cse \
 		-linalg-bufferize \
 		-arith-bufferize \
 		-scf-bufferize \
@@ -133,7 +131,6 @@ linalg-conv2d-nhwc-hwcf-run:
 		-buffer-deallocation \
 		-lower-affine \
 		-convert-linalg-to-loops \
-		-convert-linalg-to-llvm \
 		-canonicalize \
 		-convert-linalg-to-llvm \
 		-convert-vector-to-llvm \
@@ -150,8 +147,6 @@ linalg-conv2d-nhwc-hwcf-run:
 buddy-conv2d-nhwc-hwcf-run:
 	@${BUDDY_OPT} ./conv2d_nhwc_hwcf.mlir \
 		-conv2d-to-im2col \
-		-canonicalize \
-		-cse \
 		-linalg-bufferize \
 		-arith-bufferize \
 		-scf-bufferize \
@@ -161,7 +156,6 @@ buddy-conv2d-nhwc-hwcf-run:
 		-buffer-deallocation \
 		-lower-affine \
 		-convert-linalg-to-loops \
-		-convert-linalg-to-llvm \
 		-canonicalize \
 		-convert-linalg-to-llvm \
 		-convert-vector-to-llvm \
@@ -179,6 +173,3 @@ buddy-conv2d-general-translate:
 	@${BUDDY_OPT} ./conv2d_nhwc_hwcf.mlir \
 		-conv2d-to-im2col \
 		-o ./buddy_conv2d_general_log.mlir
-		
-
-		

@@ -2,7 +2,6 @@
 #map0 = affine_map<(d0) -> (d0)>
 #map1 = affine_map<(d0) -> (d0 ceildiv 256)>
 module  {
-
   // func private @print_memref_f32(memref<*xf32>)
   func private @print_memref_f32(tensor<*xf32>) -> ()
 
