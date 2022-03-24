@@ -144,7 +144,7 @@ linalg-conv2d-nhwc-hwcf-run :
 		-entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-buddy-conv2d-nhwc-hwcf-run:
+buddy-conv2d-nhwc-hwcf-im2col-run:
 	@${BUDDY_OPT} ./conv2d_nhwc_hwcf.mlir \
 		-conv2d-to-im2col \
 		-linalg-bufferize \
@@ -169,7 +169,7 @@ buddy-conv2d-nhwc-hwcf-run:
 		-entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-buddy-conv2d-general-translate:
+buddy-conv2d-im2col-translate:
 	@${BUDDY_OPT} ./conv2d_nhwc_hwcf.mlir \
 		-conv2d-to-im2col \
 		-o ./buddy_conv2d_general_log.mlir

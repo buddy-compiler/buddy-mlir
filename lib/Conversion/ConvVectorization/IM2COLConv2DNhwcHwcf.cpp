@@ -51,13 +51,13 @@ public:
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
     // Get shape of input and output
-    ShapedType inputShapeType = input.getType().cast<ShapedType>();
-    ShapedType filterShapeType = kernel.getType().cast<ShapedType>();
-    ShapedType outputShapeType = output.getType().cast<ShapedType>();
+    ShapedType inputShapeTy = input.getType().cast<ShapedType>();
+    ShapedType filterShapeTy = kernel.getType().cast<ShapedType>();
+    ShapedType outputShapeTy = output.getType().cast<ShapedType>();
 
-    auto inputShape = inputShapeType.getShape();
-    auto filterShape = filterShapeType.getShape();
-    auto outputShape = outputShapeType.getShape();
+    auto inputShape = inputShapeTy.getShape();
+    auto filterShape = filterShapeTy.getShape();
+    auto outputShape = outputShapeTy.getShape();
     // Assertions
     if (inputShape[0] != 1)
       return failure();
@@ -80,7 +80,7 @@ public:
                                               filterShape[1], filterShape[2]};
 
     Value colTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, colTensorShape, inputShapeType.getElementType());
+        loc, colTensorShape, inputShapeTy.getElementType());
     
     auto n = rewriter.getAffineDimExpr(0);
     auto d = [&](int i) { return rewriter.getAffineDimExpr(i); };
@@ -96,60 +96,59 @@ public:
 
     auto nloops = colTensorShape.size();  
 
-    SmallVector<StringRef, 3> loopAttributeTypes(nloops, "parallel");
+    SmallVector<StringRef, 3> loopAttrTy(nloops, "parallel");
     
-    SmallVector<AffineMap, 4> indexingMaps = {
+    SmallVector<AffineMap, 4> idxMaps = {
         AffineMap::get(nloops, 0, inputExprs, rewriter.getContext()),
         AffineMap::getMultiDimIdentityMap(nloops, rewriter.getContext())};
     
     auto img2ColTensor = rewriter.create<linalg::GenericOp>(
         loc, colTensor.getType(),
-        /*inputs=*/input, /*outputs=*/colTensor, indexingMaps,
-        loopAttributeTypes,
+        /*inputs=*/input, /*outputs=*/colTensor, idxMaps,
+        loopAttrTy,
         [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange args) {
           nestedBuilder.create<linalg::YieldOp>(nestedLoc, args[0]);
         });
     
-    SmallVector<ReassociationIndices> img2ColTensorReassociationIndices = {
+    SmallVector<ReassociationIndices> img2ColTensorReassociationIdxs = {
         {0, 1, 2}, {3, 4, 5}};
     
-    SmallVector<ReassociationIndices> filterAndOutputReassociationIndices = {
+    SmallVector<ReassociationIndices> filterAndOutputReassociationIdxs = {
         {0, 1, 2}, {3}};
 
-    auto reshapedImg2ColTensorType = RankedTensorType::get(
+    auto reshapedImg2ColTensorTy = RankedTensorType::get(
         {outputShape[1] * outputShape[2],
          filterShape[0] * filterShape[1] * filterShape[2]},
-        inputShapeType.getElementType());
+        inputShapeTy.getElementType());
     
-    auto reshapedFilterType = RankedTensorType::get(
+    auto reshapedFilterTy = RankedTensorType::get(
         {filterShape[0] * filterShape[1] * filterShape[2], filterShape[3]},
-        inputShapeType.getElementType());
+        inputShapeTy.getElementType());
     
-    auto reshapedOutputType =
+    auto reshapedOutputTy =
         RankedTensorType::get({outputShape[1] * outputShape[2], outputShape[3]},
-                              outputShapeType.getElementType());
+                              outputShapeTy.getElementType());
     Value reshapedImg2ColTensor =
         rewriter.create<tensor::CollapseShapeOp>(
-            loc, reshapedImg2ColTensorType, img2ColTensor.getResult(0),
-            img2ColTensorReassociationIndices);
+            loc, reshapedImg2ColTensorTy, img2ColTensor.getResult(0),
+            img2ColTensorReassociationIdxs);
     
     Value reshapedFilter = rewriter.create<tensor::CollapseShapeOp>(
-        loc, reshapedFilterType, kernel, filterAndOutputReassociationIndices);
+        loc, reshapedFilterTy, kernel, filterAndOutputReassociationIdxs);
     
     Value reshapedOutput = rewriter.create<tensor::CollapseShapeOp>(
-        loc, reshapedOutputType, output, filterAndOutputReassociationIndices);
+        loc, reshapedOutputTy, output, filterAndOutputReassociationIdxs);
     
-    auto matmulResult = rewriter.create<linalg::MatmulOp>(
-        loc, reshapedOutputType,
+    auto matRes = rewriter.create<linalg::MatmulOp>(
+        loc, reshapedOutputTy,
         ArrayRef<Value>{reshapedImg2ColTensor, reshapedFilter},
         ArrayRef<Value>{reshapedOutput});
     
-    auto reshapedResult = rewriter.create<tensor::ExpandShapeOp>(
-        loc, outputShapeType, matmulResult.getResults()[0],
-        filterAndOutputReassociationIndices);
+    auto reshapedRes = rewriter.create<tensor::ExpandShapeOp>(
+        loc, outputShapeTy, matRes.getResults()[0],
+        filterAndOutputReassociationIdxs);
 
-    rewriter.replaceOp(op, ArrayRef<Value>{reshapedResult});
-    // rewriter.eraseOp(op);
+    rewriter.replaceOp(op, ArrayRef<Value>{reshapedRes});
     return success();                
   }
 };
