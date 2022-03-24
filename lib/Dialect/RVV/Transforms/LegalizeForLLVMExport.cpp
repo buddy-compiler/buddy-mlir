@@ -211,7 +211,7 @@ public:
     OperationState state(op->getLoc(), TargetOp::getOperationName());
     state.addTypes(packedType);
     state.addOperands(operandsVector);
-    Operation *newOp = rewriter.createOperation(state);
+    Operation *newOp = rewriter.create(state);
     return rewriter.replaceOp(op, newOp->getResult(0)), success();
   }
 };
