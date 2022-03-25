@@ -60,8 +60,8 @@ linalg-conv2d-tiling-run:
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-pw-conv2d-run:
-	@${MLIR_OPT} ./pointwise_conv2d_nhwc_filter_hwcf.mlir \
+linalg-conv2d-nhwc-hwcf-pw-run:
+	@${MLIR_OPT} ./linalg-conv2d-nhwc-hwcf-pointwise.mlir \
 		-canonicalize \
 		-cse \
 		-linalg-bufferize \
@@ -87,8 +87,8 @@ pw-conv2d-run:
 		-entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-buddy-pw-conv2d-run:
-	@${BUDDY_OPT} ./pointwise_conv2d_nhwc_filter_hwcf.mlir \
+linalg-conv2d-nhwc-hwcf-pw-buddy-run:
+	@${BUDDY_OPT} ./linalg-conv2d-nhwc-hwcf-pointwise.mlir \
 		--pointwise-conv-to-gemm \
 		-canonicalize \
 		-cse \
@@ -115,13 +115,13 @@ buddy-pw-conv2d-run:
 		-entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-buddy-pw-conv2d-lower:
-	@${BUDDY_OPT} ./pointwise_conv2d_nhwc_filter_hwcf.mlir \
+linalg-conv2d-nhwc-hwcf-pointwise-lower:
+	@${BUDDY_OPT} ./linalg-conv2d-nhwc-hwcf-pointwise.mlir \
 		--pointwise-conv-to-gemm \
-		-o ./buddy_pw_log.mlir
+		-o ./log.mlir
 
 linalg-conv2d-nhwc-hwcf-run :
-	@${MLIR_OPT} ./conv2d_nhwc_hwcf.mlir \
+	@${MLIR_OPT} ./linalg-conv2d-nhwc-hwcf.mlir \
 		-linalg-bufferize \
 		-arith-bufferize \
 		-scf-bufferize \
@@ -145,7 +145,7 @@ linalg-conv2d-nhwc-hwcf-run :
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 buddy-conv2d-nhwc-hwcf-im2col-run:
-	@${BUDDY_OPT} ./conv2d_nhwc_hwcf.mlir \
+	@${BUDDY_OPT} ./linalg-conv2d-nhwc-hwcf.mlir \
 		-conv2d-to-im2col \
 		-linalg-bufferize \
 		-arith-bufferize \
@@ -169,7 +169,7 @@ buddy-conv2d-nhwc-hwcf-im2col-run:
 		-entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-buddy-conv2d-im2col-translate:
-	@${BUDDY_OPT} ./conv2d_nhwc_hwcf.mlir \
+linalg-conv2d-nhwc-hwcf-buddy-im2col-lower:
+	@${BUDDY_OPT} ./linalg-conv2d-nhwc-hwcf.mlir \
 		-conv2d-to-im2col \
-		-o ./buddy_conv2d_general_log.mlir
+		-o ./log.mlir
