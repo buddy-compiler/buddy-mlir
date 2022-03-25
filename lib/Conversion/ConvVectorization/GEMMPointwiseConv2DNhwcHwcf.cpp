@@ -52,13 +52,13 @@ public:
     Value output = op->getOperand(2);
 
     // Get shape of input and output
-    ShapedType inputShapeType = input.getType().cast<ShapedType>();
-    ShapedType filterShapeType = kernel.getType().cast<ShapedType>();
-    ShapedType outputShapeType = output.getType().cast<ShapedType>();
+    ShapedType inputShapeTy = input.getType().cast<ShapedType>();
+    ShapedType filterShapeTy = kernel.getType().cast<ShapedType>();
+    ShapedType outputShapeTy = output.getType().cast<ShapedType>();
 
-    auto inputShape = inputShapeType.getShape();
-    auto filterShape = filterShapeType.getShape();
-    auto outputShape = outputShapeType.getShape();
+    auto inputShape = inputShapeTy.getShape();
+    auto filterShape = filterShapeTy.getShape();
+    auto outputShape = outputShapeTy.getShape();
     // Assertions
     if (filterShape[0] != 1 || filterShape[1] != 1)
       return failure();
@@ -82,35 +82,34 @@ public:
     SmallVector<ReassociationIndices, 4> reassociationIndices = {{0, 1, 2},
                                                                  {3}};
 
-    auto reshapedInputType =
+    auto reshapedInputTy =
         RankedTensorType::get({inputShape[1] * inputShape[2], inputShape[3]},
-                              inputShapeType.getElementType());
-    auto reshapedFilterType = RankedTensorType::get(
-        {filterShape[2], filterShape[3]}, filterShapeType.getElementType());
+                              inputShapeTy.getElementType());
+    auto reshapedFilterTy = RankedTensorType::get(
+        {filterShape[2], filterShape[3]}, filterShapeTy.getElementType());
 
-    auto reshapedOutputType =
+    auto reshapedOutputTy =
         RankedTensorType::get({outputShape[1] * outputShape[2], outputShape[3]},
-                              outputShapeType.getElementType());
+                              outputShapeTy.getElementType());
 
     Value reshapedInput = rewriter.create<tensor::CollapseShapeOp>(
-        loc, reshapedInputType, input, reassociationIndices);
+        loc, reshapedInputTy, input, reassociationIndices);
     Value reshapedFilter = rewriter.create<tensor::CollapseShapeOp>(
-        loc, reshapedFilterType, kernel, reassociationIndices);
+        loc, reshapedFilterTy, kernel, reassociationIndices);
     Value reshapedOutput = rewriter.create<tensor::CollapseShapeOp>(
-        loc, reshapedOutputType, output, reassociationIndices);
+        loc, reshapedOutputTy, output, reassociationIndices);
 
     // Create MutmulOp
-    auto matmulResult = rewriter.create<linalg::MatmulOp>(
-        loc, reshapedOutputType, ArrayRef<Value>{reshapedInput, reshapedFilter},
+    auto matRes = rewriter.create<linalg::MatmulOp>(
+        loc, reshapedOutputTy, ArrayRef<Value>{reshapedInput, reshapedFilter},
         ArrayRef<Value>{reshapedOutput});
 
-    auto reshapedResult = rewriter.create<tensor::ExpandShapeOp>(
-        loc, outputShapeType, matmulResult.getResults()[0],
+    auto reshapedRes = rewriter.create<tensor::ExpandShapeOp>(
+        loc, outputShapeTy, matRes.getResults()[0],
         reassociationIndices);
 
     // Remove the origin convolution operation.
-    rewriter.replaceOp(op, ArrayRef<Value>{reshapedResult});
-    // rewriter.eraseOp(op);
+    rewriter.replaceOp(op, ArrayRef<Value>{reshapedRes});
     return success();
   }
 };
