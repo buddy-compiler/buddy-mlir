@@ -13,7 +13,8 @@
 
 #include "../ConvOpt/kernels.h"
 
-#include <dip.hpp>
+#include <Interface/buddy/dip/dip.h>
+#include <Interface/buddy/dip/memref.h>
 #include <iostream>
 #include <time.h>
 
@@ -97,21 +98,39 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   dip::Corr2D(input, kernel, output, x, y,
               dip::BOUNDARY_OPTION::REPLICATE_PADDING);
 
-  // Define a cv::Mat with the output of the conv2d.
-  Mat outputImage(outputRows, outputCols, CV_32FC1, output->aligned);
-
-  // Choose a PNG compression level
-  vector<int> compression_params;
-  compression_params.push_back(IMWRITE_PNG_COMPRESSION);
-  compression_params.push_back(9);
-  imwrite(argv[2], outputImage);
+  // Define a cv::Mat with the output of Corr2D.
+  Mat outputImageReplicatePadding(outputRows, outputCols, CV_32FC1,
+                                  output->aligned);
+  imwrite(argv[2], outputImageReplicatePadding);
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
-  Mat o2;
-  filter2D(image, o2, CV_8UC1, kernel1, cv::Point(x, y), 0.0,
-           cv::BORDER_REPLICATE);
+  Mat opencvConstantPadding, opencvReplicatePadding;
+  filter2D(image, opencvReplicatePadding, CV_8UC1, kernel1, cv::Point(x, y),
+           0.0, cv::BORDER_REPLICATE);
 
-  if (!testImages(o1, o2)) {
+  if (!testImages(o1, opencvReplicatePadding)) {
+    std::cout << "x, y = " << x << ", " << y << "\n";
+    return 0;
+  }
+
+  for (int i = 0; i < image.rows; i++)
+    for (int j = 0; j < image.cols; j++)
+      output->aligned[i * image.rows + j] = 0;
+
+  // Call the MLIR Corr2D function.
+  dip::Corr2D(input, kernel, output, x, y,
+              dip::BOUNDARY_OPTION::CONSTANT_PADDING, 0);
+
+  // Define a cv::Mat with the output of Corr2D.
+  Mat outputImageConstantPadding(outputRows, outputCols, CV_32FC1,
+                                 output->aligned);
+  imwrite(argv[2], outputImageConstantPadding);
+
+  Mat o2 = imread(argv[2], IMREAD_GRAYSCALE);
+  filter2D(image, opencvConstantPadding, CV_8UC1, kernel1, cv::Point(x, y), 0.0,
+           cv::BORDER_CONSTANT);
+
+  if (!testImages(o2, opencvConstantPadding)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }
