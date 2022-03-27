@@ -1,4 +1,4 @@
-//===- dip.hpp --------------------------------------------------------===//
+//===- dip.h --------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,36 +21,12 @@
 #ifndef INCLUDE_DIP
 #define INCLUDE_DIP
 
-// Define Memref Descriptor.
-typedef struct MemRef_descriptor_ *MemRef_descriptor;
-typedef struct MemRef_descriptor_ {
-  float *allocated;
-  float *aligned;
-  intptr_t offset;
-  intptr_t sizes[2];
-  intptr_t strides[2];
-} Memref;
-
-// Constructor
-MemRef_descriptor MemRef_Descriptor(float *allocated, float *aligned,
-                                    intptr_t offset, intptr_t sizes[2],
-                                    intptr_t strides[2]) {
-  MemRef_descriptor n = (MemRef_descriptor)malloc(sizeof(*n));
-  n->allocated = allocated;
-  n->aligned = aligned;
-  n->offset = offset;
-  for (int i = 0; i < 2; i++)
-    n->sizes[i] = sizes[i];
-  for (int j = 0; j < 2; j++)
-    n->strides[j] = strides[j];
-
-  return n;
-}
+#include <Interface/buddy/dip/memref.h>
 
 namespace dip {
 namespace detail {
 // Functions present inside dip::detail are not meant to be called by users
-// directly. 
+// directly.
 // Declare the Corr2D C interface.
 extern "C" {
 void _mlir_ciface_corr_2d_constant_padding(
