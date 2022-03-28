@@ -1,7 +1,7 @@
 add_custom_command(OUTPUT corr2d.o
-COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/DIPDialect/corr2d.mlir -lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}" -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm='emit-c-wrappers=1' -reconcile-unrealized-casts | 
+COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/DIPDialect/corr2d.mlir -lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}" -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-func-to-llvm='emit-c-wrappers=1' -reconcile-unrealized-casts | 
         ${LLVM_MLIR_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
-        ${LLVM_MLIR_BINARY_DIR}/llc -mtriple=x86_64-unknown-linux-gnu -mattr=${BUDDY_CONV_OPT_ATTR} --filetype=obj -o ${BUDDY_BINARY_DIR}/../examples/DIPDialect/corr2d.o
+        ${LLVM_MLIR_BINARY_DIR}/llc -mtriple=${BUDDY_OPT_TRIPLE} -mattr=${BUDDY_OPT_ATTR} --filetype=obj -o ${BUDDY_BINARY_DIR}/../examples/DIPDialect/corr2d.o
 DEPENDS buddy-opt)
 
 add_library(Corr2D STATIC corr2d.o)

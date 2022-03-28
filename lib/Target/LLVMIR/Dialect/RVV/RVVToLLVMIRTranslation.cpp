@@ -54,8 +54,9 @@ public:
 
 void buddy::registerRVVDialectTranslation(DialectRegistry &registry) {
   registry.insert<rvv::RVVDialect>();
-  registry.addDialectInterface<rvv::RVVDialect,
-                               RVVDialectLLVMIRTranslationInterface>();
+  registry.addExtension(+[](MLIRContext *ctx, rvv::RVVDialect *dialect) {
+    dialect->addInterfaces<RVVDialectLLVMIRTranslationInterface>();
+  });
 }
 
 void buddy::registerRVVDialectTranslation(MLIRContext &context) {

@@ -11,7 +11,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
-#include "mlir/Support/MlirOptMain.h"
+#include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/SourceMgr.h"
@@ -26,6 +26,7 @@
 namespace mlir {
 namespace buddy {
 void registerConvVectorizationPass();
+void registerPointwiseConvToGemmPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
 void registerLowerRVVPass();
@@ -35,6 +36,7 @@ void registerLowerRVVPass();
 int main(int argc, char **argv) {
   // Register all MLIR passes.
   mlir::registerAllPasses();
+  mlir::buddy::registerPointwiseConvToGemmPass();
   // Register Vectorization of Convolution.
   mlir::buddy::registerConvVectorizationPass();
   mlir::buddy::registerLowerBudPass();

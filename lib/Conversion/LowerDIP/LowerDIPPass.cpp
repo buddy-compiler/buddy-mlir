@@ -22,7 +22,7 @@
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
 
@@ -592,7 +592,7 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<buddy::dip::DIPDialect, StandardOpsDialect,
+    registry.insert<buddy::dip::DIPDialect, func::FuncDialect,
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
                     AffineDialect, arith::ArithmeticDialect>();
   }
@@ -608,10 +608,10 @@ void LowerDIPPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<AffineDialect, scf::SCFDialect, StandardOpsDialect,
+  target.addLegalDialect<AffineDialect, scf::SCFDialect, func::FuncDialect,
                          memref::MemRefDialect, VectorDialect,
                          arith::ArithmeticDialect>();
-  target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
+  target.addLegalOp<ModuleOp, FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);
   populateLowerDIPConversionPatterns(patterns, stride);

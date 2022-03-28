@@ -51,6 +51,12 @@ set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/include/)
 
+set(BUDDY_OPT_ATTR avx512f CACHE STRING "Target Architecture.")
+set(BUDDY_OPT_TRIPLE x86_64-unknown-linux-gnu CACHE STRING "Target Triple.")
+
+message(STATUS "Configuring Target Architecture: ${BUDDY_OPT_ATTR}")
+message(STATUS "Configuring Target Triple: ${BUDDY_OPT_TRIPLE}")
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
@@ -64,6 +70,13 @@ include_directories(${BUDDY_MAIN_INCLUDE_DIR})
 include_directories(${BUDDY_INCLUDE_DIR})
 include_directories(${BUDDY_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/Dialect)
+
+#-------------------------------------------------------------------------------
+# Hardware detection
+#-------------------------------------------------------------------------------
+
+include(${BUDDY_SOURCE_DIR}/cmake/check_simd.cmake)
+check_simd()
 
 #-------------------------------------------------------------------------------
 # Directory setup
