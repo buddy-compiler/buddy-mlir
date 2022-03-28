@@ -20,7 +20,7 @@
 
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
 
@@ -169,7 +169,7 @@ public:
     // clang-format off
     registry.insert<
         buddy::bud::BudDialect,
-        StandardOpsDialect,
+        func::FuncDialect,
         vector::VectorDialect,
         memref::MemRefDialect>();
     // clang-format on
@@ -185,11 +185,11 @@ void LowerBudPass::runOnOperation() {
   // clang-format off
   target.addLegalDialect<
       arith::ArithmeticDialect,
-      StandardOpsDialect,
+      func::FuncDialect,
       vector::VectorDialect,
       memref::MemRefDialect>();
   // clang-format on
-  target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
+  target.addLegalOp<ModuleOp, FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);
   populateLowerBudConversionPatterns(patterns);

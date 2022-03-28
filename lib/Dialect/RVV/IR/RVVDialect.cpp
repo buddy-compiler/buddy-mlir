@@ -51,65 +51,21 @@ void rvv::RVVDialect::initialize() {
 }
 
 //===----------------------------------------------------------------------===//
-// RVVLMULType
+// ScalableVectorType
 //===----------------------------------------------------------------------===//
 
-RVVLMULType RVVLMULType::getMF8(MLIRContext *ctx) {
-  return rvv::MF8Type::get(ctx);
+Type rvv::ScalableVectorType::parse(::mlir::AsmParser &odsParser) {
+  if (odsParser.parseLess()) return Type();
+  Type sizeType;
+  if (odsParser.parseType(sizeType)) return Type();
+  if (odsParser.parseComma()) return Type();
+  Type elementType;
+  if (odsParser.parseType(elementType)) return Type();
+  if (odsParser.parseGreater()) return Type();
+  return get(odsParser.getContext(), sizeType, elementType);
 }
 
-RVVLMULType RVVLMULType::getMF4(MLIRContext *ctx) {
-  return rvv::MF4Type::get(ctx);
-}
-
-RVVLMULType RVVLMULType::getMF2(MLIRContext *ctx) {
-  return rvv::MF2Type::get(ctx);
-}
-
-RVVLMULType RVVLMULType::getM1(MLIRContext *ctx) {
-  return rvv::M1Type::get(ctx);
-}
-
-RVVLMULType RVVLMULType::getM2(MLIRContext *ctx) {
-  return rvv::M2Type::get(ctx);
-}
-
-RVVLMULType RVVLMULType::getM4(MLIRContext *ctx) {
-  return rvv::M4Type::get(ctx);
-}
-
-RVVLMULType RVVLMULType::getM8(MLIRContext *ctx) {
-  return rvv::M8Type::get(ctx);
-}
-
-//===----------------------------------------------------------------------===//
-// RVVMaskType
-//===----------------------------------------------------------------------===//
-
-RVVMaskType RVVMaskType::getMask1(MLIRContext *ctx) {
-  return rvv::Mask1Type::get(ctx);
-}
-
-RVVMaskType RVVMaskType::getMask2(MLIRContext *ctx) {
-  return rvv::Mask2Type::get(ctx);
-}
-
-RVVMaskType RVVMaskType::getMask4(MLIRContext *ctx) {
-  return rvv::Mask4Type::get(ctx);
-}
-
-RVVMaskType RVVMaskType::getMask8(MLIRContext *ctx) {
-  return rvv::Mask8Type::get(ctx);
-}
-
-RVVMaskType RVVMaskType::getMask16(MLIRContext *ctx) {
-  return rvv::Mask16Type::get(ctx);
-}
-
-RVVMaskType RVVMaskType::getMask32(MLIRContext *ctx) {
-  return rvv::Mask32Type::get(ctx);
-}
-
-RVVMaskType RVVMaskType::getMask64(MLIRContext *ctx) {
-  return rvv::Mask64Type::get(ctx);
+void rvv::ScalableVectorType::print(::mlir::AsmPrinter &odsPrinter) const {
+  odsPrinter << "<" << getImpl()->sizeType << ',';
+  odsPrinter << getImpl()->elementType << '>';
 }
