@@ -124,9 +124,9 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   // Define a cv::Mat with the output of Corr2D.
   Mat outputImageConstantPadding(outputRows, outputCols, CV_32FC1,
                                  output->aligned);
-  imwrite(argv[2], outputImageConstantPadding);
+  imwrite(argv[3], outputImageConstantPadding);
 
-  Mat o2 = imread(argv[2], IMREAD_GRAYSCALE);
+  Mat o2 = imread(argv[3], IMREAD_GRAYSCALE);
   filter2D(image, opencvConstantPadding, CV_8UC1, kernel1, cv::Point(x, y), 0.0,
            cv::BORDER_CONSTANT);
 
