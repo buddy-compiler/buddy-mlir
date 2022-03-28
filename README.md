@@ -135,7 +135,7 @@ $ cd buddy-mlir/build
 $ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_DIP_OPT_STRIP_MINING=256
 $ ninja correlation2D
 $ cd bin
-$ ./correlation2D ../../examples/ConvOpt/images/YuTu.png result-dip.png
+$ ./correlation2D ../../examples/ConvOpt/images/YuTu.png result-dip-replicate-padding.png result-dip-constant-padding.png
 ```
 
 *Note: Maximum allowed value of `BUDDY_DIP_OPT_STRIP_MINING` for producing correct result is equal to image width.*
