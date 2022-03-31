@@ -1,4 +1,4 @@
-//===------- GEMMPointwiseConv.cpp - transfer Convolution to GEMM----------===//
+//===- IM2COLConv2DNhwcHwcf.cpp - transfer Convolution to GEMM by IM2COL --===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the algorithm to transfer Pointwise Convolution to GEMM.
+// This file implements the algorithm to transfer Convolution to GEMM by IM2COL.
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -35,9 +36,9 @@ using namespace vector;
 //===----------------------------------------------------------------------===//
 
 namespace {
-class GEMMPointwiseConvPattern : public ConversionPattern {
+class IM2COLConv2DNhwcHwcfPattern : public ConversionPattern {
 public:
-  explicit GEMMPointwiseConvPattern(MLIRContext *context)
+  explicit IM2COLConv2DNhwcHwcfPattern(MLIRContext *context)
       : ConversionPattern(linalg::Conv2DNhwcHwcfOp::getOperationName(), 1,
                           context) {}
 
@@ -45,12 +46,10 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
-
     // Get input, kernel and output.
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
-
     // Get shape of input and output
     ShapedType inputShapeTy = input.getType().cast<ShapedType>();
     ShapedType filterShapeTy = kernel.getType().cast<ShapedType>();
@@ -60,9 +59,6 @@ public:
     auto filterShape = filterShapeTy.getShape();
     auto outputShape = outputShapeTy.getShape();
     // Assertions
-    if (filterShape[0] != 1 || filterShape[1] != 1)
-      return failure();
-
     if (inputShape[0] != 1)
       return failure();
 
@@ -78,80 +74,124 @@ public:
         }))
       return failure();
 
-    // start arrange
-    SmallVector<ReassociationIndices, 4> reassociationIndices = {{0, 1, 2},
-                                                                 {3}};
+    // col tensor shape (n, d1, d1, k1, k2, ci)
+    SmallVector<int64_t, 4> colTensorShape = {outputShape[0], outputShape[1],
+                                              outputShape[2], filterShape[0],
+                                              filterShape[1], filterShape[2]};
 
-    auto reshapedInputTy =
-        RankedTensorType::get({inputShape[1] * inputShape[2], inputShape[3]},
-                              inputShapeTy.getElementType());
+    Value colTensor = rewriter.create<linalg::InitTensorOp>(
+        loc, colTensorShape, inputShapeTy.getElementType());
+    
+    auto n = rewriter.getAffineDimExpr(0);
+    auto d = [&](int i) { return rewriter.getAffineDimExpr(i); };
+    auto k = [&](int i) { return rewriter.getAffineDimExpr(i + 2); };
+    auto ci = rewriter.getAffineDimExpr(5);
+    auto s = [&](unsigned i) {
+      return rewriter.getAffineConstantExpr(
+          convOp.strides().getValues<int64_t>()[i]);
+    };
+
+    SmallVector<AffineExpr, 4> inputExprs = {n, d(1) * s(0) + k(1),
+                                             d(2) * s(1) + k(2), ci};
+
+    auto nloops = colTensorShape.size();  
+
+    SmallVector<StringRef, 3> loopAttrTy(nloops, "parallel");
+    
+    SmallVector<AffineMap, 4> idxMaps = {
+        AffineMap::get(nloops, 0, inputExprs, rewriter.getContext()),
+        AffineMap::getMultiDimIdentityMap(nloops, rewriter.getContext())};
+    
+    auto img2ColTensor = rewriter.create<linalg::GenericOp>(
+        loc, colTensor.getType(),
+        /*inputs=*/input, /*outputs=*/colTensor, idxMaps,
+        loopAttrTy,
+        [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange args) {
+          nestedBuilder.create<linalg::YieldOp>(nestedLoc, args[0]);
+        });
+    
+    SmallVector<ReassociationIndices> img2ColTensorReassociationIdxs = {
+        {0, 1, 2}, {3, 4, 5}};
+    
+    SmallVector<ReassociationIndices> filterAndOutputReassociationIdxs = {
+        {0, 1, 2}, {3}};
+
+    auto reshapedImg2ColTensorTy = RankedTensorType::get(
+        {outputShape[1] * outputShape[2],
+         filterShape[0] * filterShape[1] * filterShape[2]},
+        inputShapeTy.getElementType());
+    
     auto reshapedFilterTy = RankedTensorType::get(
-        {filterShape[2], filterShape[3]}, filterShapeTy.getElementType());
-
+        {filterShape[0] * filterShape[1] * filterShape[2], filterShape[3]},
+        inputShapeTy.getElementType());
+    
     auto reshapedOutputTy =
         RankedTensorType::get({outputShape[1] * outputShape[2], outputShape[3]},
                               outputShapeTy.getElementType());
-
-    Value reshapedInput = rewriter.create<tensor::CollapseShapeOp>(
-        loc, reshapedInputTy, input, reassociationIndices);
+    Value reshapedImg2ColTensor =
+        rewriter.create<tensor::CollapseShapeOp>(
+            loc, reshapedImg2ColTensorTy, img2ColTensor.getResult(0),
+            img2ColTensorReassociationIdxs);
+    
     Value reshapedFilter = rewriter.create<tensor::CollapseShapeOp>(
-        loc, reshapedFilterTy, kernel, reassociationIndices);
+        loc, reshapedFilterTy, kernel, filterAndOutputReassociationIdxs);
+    
     Value reshapedOutput = rewriter.create<tensor::CollapseShapeOp>(
-        loc, reshapedOutputTy, output, reassociationIndices);
-
-    // Create MutmulOp
+        loc, reshapedOutputTy, output, filterAndOutputReassociationIdxs);
+    
     auto matRes = rewriter.create<linalg::MatmulOp>(
-        loc, reshapedOutputTy, ArrayRef<Value>{reshapedInput, reshapedFilter},
+        loc, reshapedOutputTy,
+        ArrayRef<Value>{reshapedImg2ColTensor, reshapedFilter},
         ArrayRef<Value>{reshapedOutput});
-
+    
     auto reshapedRes = rewriter.create<tensor::ExpandShapeOp>(
         loc, outputShapeTy, matRes.getResults()[0],
-        reassociationIndices);
+        filterAndOutputReassociationIdxs);
 
-    // Remove the origin convolution operation.
     rewriter.replaceOp(op, ArrayRef<Value>{reshapedRes});
-    return success();
+    return success();                
   }
 };
 } // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
-// PointwiseConvToGemmPass
+// IM2COLConv2DPass
 //===----------------------------------------------------------------------===//
 
 namespace {
-class PointwiseConvToGemmPass
-    : public PassWrapper<PointwiseConvToGemmPass, OperationPass<ModuleOp>> {
+class IM2COLConv2DPass
+    : public PassWrapper<IM2COLConv2DPass, OperationPass<ModuleOp>> {
 public:
-  StringRef getArgument() const final { return "pointwise-conv-to-gemm"; }
+  StringRef getArgument() const final { return "conv2d-to-im2col"; }
   StringRef getDescription() const final {
-    return "Pointwise Convolution to Gemm.";
+    return "Convolution to Im2col.";
   }
-  PointwiseConvToGemmPass() = default;
-  PointwiseConvToGemmPass(const PointwiseConvToGemmPass &) {}
+  IM2COLConv2DPass() = default;
+  IM2COLConv2DPass(const IM2COLConv2DPass &) {}
 
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, tensor::TensorDialect,
+    registry.insert<linalg::LinalgDialect, tensor::TensorDialect, AffineDialect,
                     scf::SCFDialect, func::FuncDialect>();
   }
 };
 } // end anonymous namespace.
 
-void PointwiseConvToGemmPass::runOnOperation() {
-  MLIRContext *context = &getContext();
+void IM2COLConv2DPass::runOnOperation() {
+    MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
   target.addLegalDialect<arith::ArithmeticDialect, scf::SCFDialect,
                          func::FuncDialect, memref::MemRefDialect,
                          tensor::TensorDialect>();
-  target.addLegalOp<ModuleOp, FuncOp, func::ReturnOp>();
+  target.addLegalOp<ModuleOp, FuncOp, linalg::YieldOp, linalg::GenericOp, linalg::InitTensorOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp, tensor::CollapseShapeOp, linalg::MatmulOp,
                     tensor::ExpandShapeOp>();
   RewritePatternSet patterns(context);
-  patterns.add<GEMMPointwiseConvPattern>(context);
+
+  patterns.add<IM2COLConv2DNhwcHwcfPattern>(context);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
@@ -159,8 +199,8 @@ void PointwiseConvToGemmPass::runOnOperation() {
 
 namespace mlir {
 namespace buddy {
-void registerPointwiseConvToGemmPass() {
-  PassRegistration<PointwiseConvToGemmPass>();
+void registerIM2COLConv2DPass() {
+  PassRegistration<IM2COLConv2DPass>();
 }
 } // namespace buddy
 } // namespace mlir
