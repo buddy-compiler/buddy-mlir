@@ -18,15 +18,18 @@ endif
 
 tosa-resize-lower:
 	@${MLIR_OPT} ./tosa-resize.mlir \
-		-tosa-to-linalg -arith-bufferize  -tensor-bufferize -linalg-bufferize \
+		-pass-pipeline="func.func(tosa-to-linalg)" \
+		-arith-bufferize  -tensor-bufferize -linalg-bufferize \
 		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
 		-convert-scf-to-cf -convert-linalg-to-llvm  \
 		-convert-memref-to-llvm -convert-math-to-llvm  -convert-func-to-llvm \
-		-reconcile-unrealized-casts -o ./log.mlir
+		-reconcile-unrealized-casts \
+		-o ./log.mlir
 
 tosa-resize-translate:
 	@${MLIR_OPT} ./tosa-resize.mlir \
-		-tosa-to-linalg -arith-bufferize  -tensor-bufferize -linalg-bufferize \
+		-pass-pipeline="func.func(tosa-to-linalg)" \
+		-arith-bufferize  -tensor-bufferize -linalg-bufferize \
 		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
 		-convert-scf-to-cf -convert-linalg-to-llvm  \
 		-convert-memref-to-llvm -convert-math-to-llvm  -convert-func-to-llvm \
@@ -35,7 +38,8 @@ tosa-resize-translate:
 
 tosa-resize-run:
 	@${MLIR_OPT} ./tosa-resize.mlir \
-		-tosa-to-linalg -arith-bufferize  -tensor-bufferize -linalg-bufferize \
+		-pass-pipeline="func.func(tosa-to-linalg)" \
+		-arith-bufferize  -tensor-bufferize -linalg-bufferize \
 		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
 		-convert-scf-to-cf -convert-linalg-to-llvm  \
 		-convert-memref-to-llvm -convert-math-to-llvm  -convert-func-to-llvm \
