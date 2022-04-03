@@ -280,8 +280,7 @@ public:
                          llvm::cl::desc("Strip mining size."),
                          llvm::cl::init(32)};
   ListOption<int64_t> tile{*this, "tile-sizes", llvm::cl::desc("Tile sizes."),
-                           llvm::cl::ZeroOrMore,
-                           llvm::cl::MiscFlags::CommaSeparated};
+                           llvm::cl::ZeroOrMore};
 };
 } // end anonymous namespace.
 
