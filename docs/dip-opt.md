@@ -35,9 +35,8 @@ Effects of above mentioned boundary extrapolation methods are as follows :
 
 An example depicting the syntax of created API is :
  ```mlir
-   dip.corr_2d %input, %kernel, %output, %centerX, %centerY, %boundaryOption :
-               memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index,
-index
+   dip.corr_2d %input, %kernel, %output, %centerX, %centerY, %constantValue {boundary_option = "CONSTANT_PADDING"} :
+               memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index
  ```
  where :
   - input : First argument for 2D correlation.
@@ -45,7 +44,8 @@ index
   - output : Container for storing the result of 2D correlation.
   - centerX : x co-ordinate of anchor point
   - centerY : y co-ordinate of anchor point
-  - boundaryOption : Specifies desired type of boundary extrapolation.
+  - constantValue : Value of constant which is to be used in padding during `CONSTANT_PADDING` boundary extrapolation.
+  - boundaryOption : Specifies desired type of boundary extrapolation. Permissible values are `CONSTANT_PADDING` and `REPLICATE_PADDING`.
 
 #### Algorithm :
 We use a modified version of coefficient broadcasting and strip mining(CBSM)
