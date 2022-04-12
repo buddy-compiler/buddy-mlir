@@ -33,7 +33,7 @@ pool-mlir:
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 strided:
-	@${BUDDY_OPT} ./strided-pooling.mlir --pooling-vectorization \
+	@${BUDDY_OPT} ./strided.mlir --pooling-vectorization \
 		--lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
 		--convert-vector-to-llvm --convert-memref-to-llvm \
@@ -43,7 +43,27 @@ strided:
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 strided-mlir:
-	@${MLIR_OPT} ./strided-pooling.mlir -convert-linalg-to-loops \
+	@${MLIR_OPT} ./strided.mlir -convert-linalg-to-loops \
+		--lower-affine --convert-vector-to-scf \
+		--convert-scf-to-cf --tensor-bufferize \
+		--convert-vector-to-llvm --convert-memref-to-llvm \
+		--convert-arith-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+dilated:
+	@${BUDDY_OPT} ./dilated.mlir --pooling-vectorization \
+		--lower-affine --convert-vector-to-scf \
+		--convert-scf-to-cf --tensor-bufferize \
+		--convert-vector-to-llvm --convert-memref-to-llvm \
+		--convert-arith-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+dilated-mlir:
+	@${MLIR_OPT} ./dilated.mlir -convert-linalg-to-loops \
 		--lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
 		--convert-vector-to-llvm --convert-memref-to-llvm \
@@ -53,7 +73,7 @@ strided-mlir:
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 strided-dilated:
-	@${BUDDY_OPT} ./strided-dilated-pooling.mlir --pooling-vectorization \
+	@${BUDDY_OPT} ./strided-dilated.mlir --pooling-vectorization \
 		--lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
 		--convert-vector-to-llvm --convert-memref-to-llvm \
@@ -63,7 +83,7 @@ strided-dilated:
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 strided-dilated-mlir:
-	@${MLIR_OPT} ./strided-dilated-pooling.mlir -convert-linalg-to-loops \
+	@${MLIR_OPT} ./strided-dilated.mlir -convert-linalg-to-loops \
 		--lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
 		--convert-vector-to-llvm --convert-memref-to-llvm \
