@@ -1,6 +1,6 @@
 # BUDDY MLIR
 
-An MLIR-Based Ideas Landing Project.
+MLIR-Based Ideas Landing Project ([Project page](https://buddy-compiler.github.io/)).
 
 ## Getting Started
 
