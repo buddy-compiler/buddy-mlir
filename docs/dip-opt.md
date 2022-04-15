@@ -35,7 +35,7 @@ Effects of above mentioned boundary extrapolation methods are as follows :
 
 An example depicting the syntax of created API is :
  ```mlir
-   dip.corr_2d %input, %kernel, %output, %centerX, %centerY, %constantValue {boundary_option = "CONSTANT_PADDING"} :
+   dip.corr_2d boundaryOption %input, %kernel, %output, %centerX, %centerY, %constantValue :
                memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index
  ```
  where :
