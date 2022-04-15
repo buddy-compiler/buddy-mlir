@@ -27,6 +27,11 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 
+#include "DIP/DIPOpsEnums.h.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "DIP/DIPOpsAttributes.h.inc"
+
 #define GET_OP_CLASSES
 #include "DIP/DIPOps.h.inc"
 

@@ -26,6 +26,11 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
+#include "Bud/BudOpsEnums.h.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "Bud/BudOpsAttributes.h.inc"
+
 #define GET_OP_CLASSES
 #include "Bud/BudOps.h.inc"
 

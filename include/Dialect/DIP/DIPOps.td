@@ -24,18 +24,23 @@
 include "DIPDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/EnumAttr.td"
+include "mlir/IR/OpBase.td"
 
-def DIP_ConstantPadding : StrEnumAttrCase<"ConstantPadding", -1, "CONSTANT_PADDING">;
-def DIP_ReplicatePadding : StrEnumAttrCase<"ReplicatePadding", -1, "REPLICATE_PADDING">;
+def DIP_ConstantPadding : I32EnumAttrCase<"ConstantPadding", 0, "CONSTANT_PADDING">;
+def DIP_ReplicatePadding : I32EnumAttrCase<"ReplicatePadding", 1, "REPLICATE_PADDING">;
 
-def DIP_BoundaryOptionAttr : StrEnumAttr<"BoundaryOptionAttr",
+def DIP_BoundaryOption : I32EnumAttr<"BoundaryOption",
     "Specifies desired method of boundary extrapolation during image processing.",
     [
       DIP_ConstantPadding,
       DIP_ReplicatePadding
     ]>{
+  let genSpecializedAttr = 0;
   let cppNamespace = "::buddy::dip";
 }
+
+def DIP_BoundaryOptionAttr : EnumAttr<DIP_Dialect, DIP_BoundaryOption, "boundary_option">;
 
 def DIP_Corr2DOp : DIP_Op<"corr_2d">
 {
@@ -54,10 +59,11 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d">
     the extra region used for creating the boundary extrapolated output image. (aaa|abcdefg|ggg)
   For example: 
 
+  TODO: modify the doc according to the new attr.
+
   ```mlir
-    dip.corr_2d %inputImage, %kernel, %output, %centerX, %centerY, %constantValue
-                {boundary_option = "CONSTANT_PADDING"} : memref<?x?xf32>, memref<?x?xf32>,
-                memref<?x?xf32>, index, index, index
+    dip.corr_2d CONSTANT_PADDING %inputImage, %kernel, %output, %centerX, %centerY, %constantValue
+        : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index
   ```
   }];
 
@@ -71,7 +77,7 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d">
                        DIP_BoundaryOptionAttr:$boundary_option);
 
   let assemblyFormat = [{
-    $memrefI `,` $memrefK `,` $memrefCO `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+    $boundary_option $memrefI `,` $memrefK `,` $memrefCO `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
   }];
 }
 

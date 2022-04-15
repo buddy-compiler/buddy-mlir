@@ -24,6 +24,11 @@
 include "BudDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/EnumAttr.td"
+
+//===----------------------------------------------------------------------===//
+// Test constant operation.
+//===----------------------------------------------------------------------===//
 
 def Bud_TestConstantOp : Bud_Op<"test_constant", []> {
   let summary = "Test Constant Operation.";
@@ -35,6 +40,10 @@ def Bud_TestConstantOp : Bud_Op<"test_constant", []> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// Test print operation.
+//===----------------------------------------------------------------------===//
+
 def Bud_TestPrintOp : Bud_Op<"test_print", []> {
   let summary = "Test Print Operation.";
 
@@ -45,31 +54,40 @@ def Bud_TestPrintOp : Bud_Op<"test_print", []> {
   }];
 }
 
-// If the second argument is less than zero, there will be no explicit
-// discriminator values assigned to enumerators in the generated enum class.
-def Bud_ArithEnumAttrAdd : StrEnumAttrCase<"ADD", -1, "add">;
-def Bud_ArithEnumAttrSub : StrEnumAttrCase<"SUB", -1, "sub">;
+//===----------------------------------------------------------------------===//
+// Test enum attribute in the operation.
+//===----------------------------------------------------------------------===//
 
-def Bud_ArithEnumAttr : StrEnumAttr<"ArithEnumAttr",
+def Bud_TestEnumAttrOpAdd : I32EnumAttrCase<"ADD", 0, "add">;
+def Bud_TestEnumAttrOpSub : I32EnumAttrCase<"SUB", 1, "sub">;
+
+def Bud_TestEnumAttrOperation : I32EnumAttr<"TestEnumAttrOperation",
     "The arithmetic enum attribute.",
     [
-      Bud_ArithEnumAttrAdd,
-      Bud_ArithEnumAttrSub
+      Bud_TestEnumAttrOpAdd,
+      Bud_TestEnumAttrOpSub
     ]>{
+  let genSpecializedAttr = 0;
   let cppNamespace = "::buddy::bud";
 }
 
-def Bud_TestStrAttrOp : Bud_Op<"test_str_attr",
+def Bud_TestEnumAttrOperationAttr : EnumAttr<Bud_Dialect, Bud_TestEnumAttrOperation, "test_enum_attr_op">;
+
+def Bud_TestEnumAttrOp : Bud_Op<"test_enum_attr",
     [SameOperandsAndResultType]>,
     Arguments<(ins AnyInteger:$lhs, AnyInteger:$rhs,
-               OptionalAttr<Bud_ArithEnumAttr>:$arith)>,
+               Bud_TestEnumAttrOperationAttr:$arith)>,
     Results<(outs AnyInteger:$result)> {
-  let summary = "Test String Attribute.";
+  let summary = "Test Enum Attribute.";
 
   let assemblyFormat = [{
-    $lhs `,` $rhs attr-dict `:` type($result)
+    $arith $lhs `,` $rhs attr-dict `:` type($result)
   }];
 }
+
+//===----------------------------------------------------------------------===//
+// Test array attribute in the operation.
+//===----------------------------------------------------------------------===//
 
 def CoordinateArrayAttr : Confined<I64ArrayAttr, [ArrayCount<2>]>;
 

@@ -19,8 +19,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
 
@@ -80,11 +80,11 @@ public:
   }
 };
 
-class BudTestStrAttrLowering : public OpRewritePattern<bud::TestStrAttrOp> {
+class BudTestEnumAttrLowering : public OpRewritePattern<bud::TestEnumAttrOp> {
 public:
-  using OpRewritePattern<bud::TestStrAttrOp>::OpRewritePattern;
+  using OpRewritePattern<bud::TestEnumAttrOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(bud::TestStrAttrOp op,
+  LogicalResult matchAndRewrite(bud::TestEnumAttrOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
     // Get type from the origin operation.
@@ -96,19 +96,13 @@ public:
     Value rhs = op.rhs();
     Value result;
     // Lowering to different ops according to the attribute.
-    if (arithAttr) {
-      if (*arithAttr == "add")
-        // Create addi operation.
-        result = rewriter.create<arith::AddIOp>(loc, resultType, lhs, rhs);
-      if (*arithAttr == "sub")
-        // Create subi operation.
-        result = rewriter.create<arith::SubIOp>(loc, resultType, lhs, rhs);
-      rewriter.replaceOp(op, result);
-    } else {
-      // Default attribute is "add".
+    if (arithAttr == buddy::bud::TestEnumAttrOperation::ADD)
+      // Create addi operation.
       result = rewriter.create<arith::AddIOp>(loc, resultType, lhs, rhs);
-      rewriter.replaceOp(op, result);
-    }
+    if (arithAttr == buddy::bud::TestEnumAttrOperation::SUB)
+      // Create subi operation.
+      result = rewriter.create<arith::SubIOp>(loc, resultType, lhs, rhs);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -145,7 +139,7 @@ void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<
       BudTestConstantLowering,
       BudTestPrintLowering,
-      BudTestStrAttrLowering,
+      BudTestEnumAttrLowering,
       BudTestArrayAttrLowering>(patterns.getContext());
   // clang-format on
 }
