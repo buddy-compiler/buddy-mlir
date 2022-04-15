@@ -20,9 +20,9 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
 
@@ -204,7 +204,7 @@ public:
               [&](OpBuilder &builder, Location loc) {
                 // rowUp
                 if (boundaryOptionAttr ==
-                    (llvm::StringRef) "CONSTANT_PADDING") {
+                    dip::BoundaryOption::ConstantPadding) {
                   Value inputVec = builder.create<BroadcastOp>(loc, vectorTy32,
                                                                constantValue);
 
@@ -227,7 +227,7 @@ public:
                                                vectorMaskTy, leftMaskElem);
 
                         if (boundaryOptionAttr ==
-                            (llvm::StringRef) "REPLICATE_PADDING") {
+                            dip::BoundaryOption::ReplicatePadding) {
                           Value paddingVal = builder.create<memref::LoadOp>(
                               loc, input, ValueRange{c0, c0});
                           Value padding = builder.create<BroadcastOp>(
@@ -257,7 +257,7 @@ public:
                               // colMid & rowUp
                               Value inputVec;
                               if (boundaryOptionAttr ==
-                                  (llvm::StringRef) "REPLICATE_PADDING") {
+                                  dip::BoundaryOption::ReplicatePadding) {
                                 inputVec = builder.create<LoadOp>(
                                     loc, vectorTy32, input,
                                     ValueRange{c0, imCol});
@@ -279,7 +279,7 @@ public:
                                   loc, vectorMaskTy, rightMaskElem);
 
                               if (boundaryOptionAttr ==
-                                  (llvm::StringRef) "REPLICATE_PADDING") {
+                                  dip::BoundaryOption::ReplicatePadding) {
                                 Value rightRange =
                                     builder.create<SubIOp>(loc, inputCol, c1);
                                 Value paddingVal =
@@ -331,7 +331,7 @@ public:
                                                    vectorMaskTy, leftMaskElem);
 
                             if (boundaryOptionAttr ==
-                                (llvm::StringRef) "CONSTANT_PADDING") {
+                                dip::BoundaryOption::ConstantPadding) {
                               Value padding = builder.create<BroadcastOp>(
                                   loc, vectorTy32, constantValue);
 
@@ -342,7 +342,7 @@ public:
                                   ValueRange{imRow, leftPaddingOffset},
                                   leftMask, padding);
                             } else if (boundaryOptionAttr ==
-                                       (llvm::StringRef) "REPLICATE_PADDING") {
+                                       dip::BoundaryOption::ReplicatePadding) {
                               Value paddingVal = builder.create<memref::LoadOp>(
                                   loc, input, ValueRange{imRow, c0});
                               Value padding = builder.create<BroadcastOp>(
@@ -393,7 +393,7 @@ public:
                                           loc, vectorMaskTy, rightMaskElem);
 
                                   if (boundaryOptionAttr ==
-                                      (llvm::StringRef) "CONSTANT_PADDING") {
+                                      dip::BoundaryOption::ConstantPadding) {
                                     Value padding = builder.create<BroadcastOp>(
                                         loc, vectorTy32, constantValue);
 
@@ -402,8 +402,8 @@ public:
                                         ValueRange{imRow, imCol}, rightMask,
                                         padding);
                                   } else if (boundaryOptionAttr ==
-                                             (llvm::StringRef) "REPLICATE_"
-                                                               "PADDING") {
+                                             dip::BoundaryOption::
+                                                 ReplicatePadding) {
                                     Value rightRange = builder.create<SubIOp>(
                                         loc, inputCol, c1);
                                     Value paddingVal =
@@ -436,7 +436,7 @@ public:
                     [&](OpBuilder &builder, Location loc) {
                       // rowDown
                       if (boundaryOptionAttr ==
-                          (llvm::StringRef) "CONSTANT_PADDING") {
+                          dip::BoundaryOption::ConstantPadding) {
                         Value inputVec = builder.create<BroadcastOp>(
                             loc, vectorTy32, constantValue);
 
@@ -461,7 +461,7 @@ public:
                                   leftMaskElem);
 
                               if (boundaryOptionAttr ==
-                                  (llvm::StringRef) "REPLICATE_PADDING") {
+                                  dip::BoundaryOption::ReplicatePadding) {
                                 Value paddingVal =
                                     builder.create<memref::LoadOp>(
                                         loc, input, ValueRange{downRange, c0});
@@ -496,7 +496,7 @@ public:
                                     Value downRange = builder.create<SubIOp>(
                                         loc, inputRow, c1);
                                     if (boundaryOptionAttr ==
-                                        (llvm::StringRef) "REPLICATE_PADDING") {
+                                        dip::BoundaryOption::ReplicatePadding) {
                                       inputVec = builder.create<LoadOp>(
                                           loc, vectorTy32, input,
                                           ValueRange{downRange, imCol});
@@ -526,7 +526,8 @@ public:
                                         loc, inputCol, c1);
 
                                     if (boundaryOptionAttr ==
-                                        (llvm::StringRef) "REPLICATE_PADDING") {
+                                        dip::BoundaryOption::ReplicatePadding) {
+
                                       Value paddingVal =
                                           builder.create<memref::LoadOp>(
                                               loc, input,
