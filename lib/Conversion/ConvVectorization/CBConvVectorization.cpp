@@ -292,7 +292,7 @@ void ConvVectorizationPass::runOnOperation() {
   target.addLegalDialect<arith::ArithmeticDialect, AffineDialect,
                          scf::SCFDialect, func::FuncDialect,
                          memref::MemRefDialect, VectorDialect>();
-  target.addLegalOp<ModuleOp, FuncOp, func::ReturnOp>();
+  target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
