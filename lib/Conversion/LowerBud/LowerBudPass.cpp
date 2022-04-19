@@ -183,7 +183,7 @@ void LowerBudPass::runOnOperation() {
       vector::VectorDialect,
       memref::MemRefDialect>();
   // clang-format on
-  target.addLegalOp<ModuleOp, FuncOp, func::ReturnOp>();
+  target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);
   populateLowerBudConversionPatterns(patterns);

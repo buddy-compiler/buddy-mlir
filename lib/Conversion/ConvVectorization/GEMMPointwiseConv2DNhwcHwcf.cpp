@@ -133,7 +133,7 @@ void PointwiseConvToGemmPass::runOnOperation() {
   target.addLegalDialect<arith::ArithmeticDialect, scf::SCFDialect,
                          func::FuncDialect, memref::MemRefDialect,
                          tensor::TensorDialect>();
-  target.addLegalOp<ModuleOp, FuncOp, func::ReturnOp>();
+  target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp, tensor::CollapseShapeOp, linalg::MatmulOp,
                     tensor::ExpandShapeOp>();
 }
