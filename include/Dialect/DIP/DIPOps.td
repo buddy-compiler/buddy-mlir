@@ -59,8 +59,6 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d">
     the extra region used for creating the boundary extrapolated output image. (aaa|abcdefg|ggg)
   For example: 
 
-  TODO: modify the doc according to the new attr.
-
   ```mlir
     dip.corr_2d CONSTANT_PADDING %inputImage, %kernel, %output, %centerX, %centerY, %constantValue
         : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index
