@@ -18,6 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -46,7 +47,7 @@ public:
     Type resultType = op.getResult().getType();
     // Create constant operation.
     Attribute zeroAttr = rewriter.getZeroAttr(resultType);
-    Value c0 = rewriter.create<arith::ConstantOp>(loc, resultType, zeroAttr);
+    Value c0 = rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
 
     rewriter.replaceOp(op, c0);
     return success();
@@ -64,7 +65,7 @@ public:
     Type resultType = op.getResult().getType();
     // Create constant operation.
     Attribute zeroAttr = rewriter.getZeroAttr(resultType);
-    Value c0 = rewriter.create<arith::ConstantOp>(loc, resultType, zeroAttr);
+    Value c0 = rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
     // Create print operation for the scalar value.
     rewriter.create<vector::PrintOp>(loc, c0);
     VectorType vectorTy4 =
