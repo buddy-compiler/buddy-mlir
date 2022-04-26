@@ -159,7 +159,8 @@ public:
     SmallVector<Value, 8> lowerBounds(4, c0);
     SmallVector<Value, 8> uperBounds{inputRow, kernelSize, inputCol,
                                      kernelSize};
-    SmallVector<int64_t, 8> steps{1, 1, stride, 1};
+    // SmallVector<int64_t, 8> steps{1, 1, stride, 1};
+    SmallVector<Value, 8> steps{c1, c1, strideVal, c1};
 
     VectorType vectorTy32 = VectorType::get({stride}, f32);
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
@@ -176,8 +177,8 @@ public:
     Value pseudoCol = rewriter.create<AffineApplyOp>(
         loc, calcHelper, ValueRange{inputCol, kernelSize, c1});
 
-    buildAffineLoopNest(
-        rewriter, loc, lowerBounds, uperBounds, steps,
+    rewriter.create<scf::ParallelOp>(
+        loc, lowerBounds, uperBounds, steps,
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
           // Indices of current pixel with respect to pseudo image containing
           // extrapolated boundaries.
