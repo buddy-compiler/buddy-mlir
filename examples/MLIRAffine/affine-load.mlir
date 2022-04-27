@@ -17,7 +17,8 @@ func @main() {
     }
   }
   // Method three.
-  %ele = affine.load %mem[symbol(%c0) + symbol(%c1)] : memref<4xf32>
+  %idx = arith.addi %c0, %c1 : index
+  %ele = affine.load %mem[symbol(%idx)] : memref<4xf32>
   vector.print %ele : f32
   return
 }
