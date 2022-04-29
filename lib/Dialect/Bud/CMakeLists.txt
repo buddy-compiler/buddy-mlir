@@ -4,4 +4,5 @@ add_mlir_dialect_library(BuddyBud
 
   LINK_LIBS PUBLIC
   MLIRIR
+  MLIRInferTypeOpInterface
   )
