@@ -5,7 +5,7 @@ module {
                                                          [20., 21., 22., 23. , 24.],
                                                          [30., 31., 32., 33. , 34.],
                                                          [40., 41., 42., 43. , 44.]]>
-  func private @print_memref_f32(memref<*xf32>)
+  func private @printMemrefF32(memref<*xf32>)
 
   func @main() {
     %mem = memref.get_global @gv : memref<5x5xf32>
@@ -19,7 +19,7 @@ module {
 
     // Print output.
     %print_output = memref.cast %result : memref<?x?xf32, #map0> to memref<*xf32>
-    call @print_memref_f32(%print_output) : (memref<*xf32>) -> ()
+    call @printMemrefF32(%print_output) : (memref<*xf32>) -> ()
 
     return
   }
