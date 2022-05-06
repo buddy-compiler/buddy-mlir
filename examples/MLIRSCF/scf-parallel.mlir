@@ -27,7 +27,7 @@ func @main() {
     memref.store %5, %A[%i, %j] : memref<8x8xf32>
   }
 
-  call @print_memref_f32(%U): (memref<*xf32>) -> ()
+  call @printMemrefF32(%U): (memref<*xf32>) -> ()
 
   scf.parallel (%i, %j) = (%lb, %lb) to (%ub, %ub) step (%c1, %c1) {
     memref.store %c0, %A[%i, %j] : memref<8x8xf32>
@@ -44,7 +44,7 @@ func @main() {
     memref.store %5, %A[%i, %j] : memref<8x8xf32>
   }
 
-  call @print_memref_f32(%U): (memref<*xf32>) -> ()
+  call @printMemrefF32(%U): (memref<*xf32>) -> ()
 
   scf.parallel (%i, %j) = (%lb, %lb) to (%ub, %ub) step (%c1, %c1) {
     memref.store %c0, %A[%i, %j] : memref<8x8xf32>
@@ -61,11 +61,11 @@ func @main() {
     memref.store %5, %A[%i, %j] : memref<8x8xf32>
   }
 
-  call @print_memref_f32(%U): (memref<*xf32>) -> ()
+  call @printMemrefF32(%U): (memref<*xf32>) -> ()
 
   memref.dealloc %A : memref<8x8xf32>
 
   return
 }
 
-func private @print_memref_f32(memref<*xf32>) attributes { llvm.emit_c_interface }
+func private @printMemrefF32(memref<*xf32>) attributes { llvm.emit_c_interface }

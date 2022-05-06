@@ -1,6 +1,6 @@
 #map0 = affine_map<(d0, d1) -> (d0 + d1 - 1)>
 module {
-  func private @print_memref_f32(memref<*xf32>)
+  func private @printMemrefF32(memref<*xf32>)
   func private @print_flops(f64)
   func private @rtclock() -> f64
 
@@ -59,7 +59,7 @@ module {
 
     // Print output.
     %print_output = memref.cast %output : memref<?x?xf32> to memref<*xf32>
-    // call @print_memref_f32(%print_output) : (memref<*xf32>) -> ()
+    // call @printMemrefF32(%print_output) : (memref<*xf32>) -> ()
 
     // 2 * [filter size]^2 * [output size]^2.
     %flops1 = arith.muli %current_output, %current_output : index
