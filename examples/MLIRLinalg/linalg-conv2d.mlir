@@ -1,7 +1,6 @@
 #map0 = affine_map<(d0, d1) -> (d0 + d1 - 1)>
 module {
-  func private @print_memref_f32(memref<*xf32>)
-  func private @print_flops(f64)
+  func private @printMemrefF32(memref<*xf32>)
 
   func @alloc_2d_filled_f32(%arg0: index, %arg1: index, %arg2: f32) -> memref<?x?xf32> {
     %c0 = arith.constant 0 : index
@@ -44,7 +43,7 @@ module {
 
     // Print output.
     %print_output = memref.cast %output : memref<?x?xf32> to memref<*xf32>
-    call @print_memref_f32(%print_output) : (memref<*xf32>) -> ()
+    call @printMemrefF32(%print_output) : (memref<*xf32>) -> ()
 
     memref.dealloc %image : memref<?x?xf32>
     memref.dealloc %filter : memref<?x?xf32>
