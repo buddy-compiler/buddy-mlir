@@ -66,13 +66,13 @@ module {
     %flops2 = arith.muli %current_filter, %current_filter : index
     %flops3 = arith.muli %c2, %flops2 : index
     %flops4 = arith.muli %flops1, %flops3 : index
-    // Calculate GFLOPS.
+    // Calculate FLOPS.
     %num_flops = arith.muli %reps, %flops4 : index
     %num_flops_i = arith.index_cast %num_flops : index to i64
     %num_flops_f = arith.sitofp %num_flops_i : i64 to f64
     %flops = arith.divf %num_flops_f, %t : f64
-    // Print the running time.
-    call @print_flops(%flops) : (f64) -> ()
+    // Print the FLOPS.
+    vector.print %flops : f64
 
     memref.dealloc %image : memref<?x?xf32>
     memref.dealloc %filter : memref<?x?xf32>
