@@ -5,9 +5,9 @@ module {
                                                          [20., 21., 22., 23. , 24.],
                                                          [30., 31., 32., 33. , 34.],
                                                          [40., 41., 42., 43. , 44.]]>
-  func private @printMemrefF32(memref<*xf32>)
+  func.func private @printMemrefF32(memref<*xf32>)
 
-  func @main() {
+  func.func @main() {
     %mem = memref.get_global @gv : memref<5x5xf32>
 
     %offset = arith.constant 0 : index

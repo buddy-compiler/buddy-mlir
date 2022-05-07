@@ -1,7 +1,7 @@
 memref.global "private" @gv : memref<4xf32> = dense<[0. , 1. , 2. , 3. ]>
 #map0 = affine_map<(d0, d1) -> (d0 + d1)>
 
-func @main() {
+func.func @main() {
   %mem = memref.get_global @gv : memref<4xf32>
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index

@@ -1,4 +1,4 @@
-func @rvv_masked_arith(%maskedoff: !rvv.vector<!rvv.m4,i32>,
+func.func @rvv_masked_arith(%maskedoff: !rvv.vector<!rvv.m4,i32>,
                        %a: !rvv.vector<!rvv.m4,i32>,
                        %b: !rvv.vector<!rvv.m4,i32>,
                        %c: i32,

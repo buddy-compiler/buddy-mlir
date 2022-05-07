@@ -1,4 +1,4 @@
-func @rvv_memory(%v: !rvv.vector<!rvv.m4,i32>,
+func.func @rvv_memory(%v: !rvv.vector<!rvv.m4,i32>,
                  %m: memref<?xi32>,
                  %vl: i64) -> !rvv.vector<!rvv.m4,i32> {
   %c0 = arith.constant 0 : index
