@@ -6,7 +6,7 @@ memref.global "private" @input : memref<1x4x6x1xf32> =
 memref.global "private" @kernel : memref<3x3xf32> = dense<0.0>
 memref.global "private" @output : memref<1x2x4x1xf32> = dense<0.0>
 
-func @main() {
+func.func @main() {
   // input.
   %arg0 = memref.get_global @input : memref<1x4x6x1xf32>
   // kernel.

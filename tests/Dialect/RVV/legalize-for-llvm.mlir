@@ -1,6 +1,6 @@
 // RUN: buddy-opt %s -lower-rvv -convert-func-to-llvm | buddy-opt | FileCheck %s
 
-func @rvv_memory(%v: !rvv.vector<!rvv.m4,i32>,
+func.func @rvv_memory(%v: !rvv.vector<!rvv.m4,i32>,
                  %m: memref<?xi32>,
                  %vl: i64) -> !rvv.vector<!rvv.m4,i32> {
   %c0 = arith.constant 0 : index
@@ -17,7 +17,7 @@ func @rvv_memory(%v: !rvv.vector<!rvv.m4,i32>,
   return %0 : !rvv.vector<!rvv.m4,i32>
 }
 
-func @rvv_arith(%a: !rvv.vector<!rvv.m4,i32>,
+func.func @rvv_arith(%a: !rvv.vector<!rvv.m4,i32>,
                 %b: !rvv.vector<!rvv.m4,i32>,
                 %c: i32,
                 %vl: i64) -> !rvv.vector<!rvv.m4,i32> {
@@ -40,7 +40,7 @@ func @rvv_arith(%a: !rvv.vector<!rvv.m4,i32>,
   return %7 : !rvv.vector<!rvv.m4,i32>
 }
 
-func @rvv_masked_arith(%maskedoff: !rvv.vector<!rvv.m4,i32>,
+func.func @rvv_masked_arith(%maskedoff: !rvv.vector<!rvv.m4,i32>,
                        %a: !rvv.vector<!rvv.m4,i32>,
                        %b: !rvv.vector<!rvv.m4,i32>,
                        %c: i32,
