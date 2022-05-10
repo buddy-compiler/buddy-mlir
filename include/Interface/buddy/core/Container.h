@@ -31,21 +31,8 @@
 // - The storage order is NCHW.
 template <typename T, size_t N> class MemRef {
 public:
-  // Constructor from data.
-  MemRef(const T *data, intptr_t sizes[N], intptr_t offset = 0);
   // Constructor from shape.
   MemRef(intptr_t sizes[N], T init = T(0));
-  MemRef(std::vector<size_t> sizes, T init = T(0));
-  // Create a memref from an opencv image.
-  MemRef(cv::Mat image, intptr_t sizes[N],
-         IMAGE_MATRIX_OPERATION operation = IMAGE_MATRIX_OPERATION::DEFAULT);
-  // Constructor from a png image.
-  MemRef(const PNGImage &img, intptr_t sizes[N],
-         IMAGE_MATRIX_OPERATION operation = IMAGE_MATRIX_OPERATION::DEFAULT);
-  // Constructor from a vector of png images.
-  // Assume that all the images have the same shape.
-  MemRef(const std::vector<PNGImage> &imgs, intptr_t sizes[N],
-         IMAGE_MATRIX_OPERATION operation = IMAGE_MATRIX_OPERATION::DEFAULT);
   // Copy constructor.
   MemRef(const MemRef<T, N> &other);
   // Copy assignment operator.
@@ -56,10 +43,6 @@ public:
   MemRef<T, N> &operator=(MemRef<T, N> &&other) noexcept;
   // Desctrutor.
   ~MemRef();
-  // Permute the dimensions.
-  // Reorder the dimensions from {0, 1, ..., N-1} to {N-1, ..., 1, 0} when axes
-  // is empty.
-  MemRef<T, N> transpose(const std::vector<size_t> &axes = {});
   // Get the data pointer.
   T *getData() { return aligned; }
   // Get the sizes (shape).
@@ -77,7 +60,7 @@ public:
 private:
   // Set the strides.
   // Computes the strides of the transposed tensor for transpose=true.
-  void setStrides(const bool transpose = false);
+  void setStrides();
   // Compute the product of array elements.
   size_t product(intptr_t sizes[N]) const;
 
@@ -94,6 +77,6 @@ private:
   size_t size;
 };
 
-#include "Utils/Container.cpp"
+#include "Interface/core/Container.cpp"
 
 #endif // INTERFACE_BUDDY_CORE_CONTAINER

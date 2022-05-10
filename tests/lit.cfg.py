@@ -21,7 +21,7 @@ config.name = 'BUDDY'
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.mlir']
+config.suffixes = ['.mlir', '.c', '.cpp']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
@@ -55,7 +55,8 @@ llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
     'buddy-opt',
-    'buddy-translate'
+    'buddy-translate',
+    'buddy-container-test'
 ]
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)

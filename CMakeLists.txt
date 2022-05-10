@@ -70,6 +70,7 @@ include_directories(${BUDDY_MAIN_INCLUDE_DIR})
 include_directories(${BUDDY_INCLUDE_DIR})
 include_directories(${BUDDY_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/Dialect)
+include_directories(${BUDDY_SOURCE_DIR}/lib)
 
 #-------------------------------------------------------------------------------
 # Hardware detection
