@@ -58,6 +58,13 @@ MemRef<T, N>::MemRef(const MemRef<T, N> &other)
   allocated = ptr;
 }
 
+// Overloading assignment operator.
+// - Check if they are the same object.
+// - Copy `offset` and `size` directly.
+// - Elementwise copy `sizes`.
+// - Calculate the `strides`.
+// - Free the original data space to avoid memory leaks.
+// - Allocate new space and deep copy.
 template <typename T, std::size_t N>
 MemRef<T, N> &MemRef<T, N>::operator=(const MemRef<T, N> &other) {
   if (this != &other) {
@@ -67,6 +74,9 @@ MemRef<T, N> &MemRef<T, N>::operator=(const MemRef<T, N> &other) {
       this->sizes[i] = other.sizes[i];
     }
     setStrides();
+    // Free the original aligned and allocated space.
+    delete[] allocated;
+    // Allocate new space and deep copy.
     T *ptr = new T[size];
     for (size_t i = 0; i < size; i++) {
       ptr[i] = other.aligned[i];
