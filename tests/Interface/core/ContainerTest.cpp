@@ -24,21 +24,43 @@
 
 void testShapeConstructor() {
   intptr_t sizes[] = {2, 3};
-  MemRef<float, 2> testConstructor(sizes);
+  //===--------------------------------------------------------------------===//
+  // Test default shape constructor.
+  //===--------------------------------------------------------------------===//
+  MemRef<float, 2> testDefaultShapeConstructor(sizes);
   // CHECK: 0.0
-  fprintf(stderr, "%f\n", testConstructor.getData()[0]);
+  fprintf(stderr, "%f\n", testDefaultShapeConstructor.getData()[0]);
   // CHECK: 2, 3
-  fprintf(stderr, "%ld, %ld\n", testConstructor.getSizes()[0],
-          testConstructor.getSizes()[1]);
+  fprintf(stderr, "%ld, %ld\n", testDefaultShapeConstructor.getSizes()[0],
+          testDefaultShapeConstructor.getSizes()[1]);
   // CHECK: 3, 1
-  fprintf(stderr, "%ld, %ld\n", testConstructor.getStrides()[0],
-          testConstructor.getStrides()[1]);
+  fprintf(stderr, "%ld, %ld\n", testDefaultShapeConstructor.getStrides()[0],
+          testDefaultShapeConstructor.getStrides()[1]);
   // CHECK: 2
-  fprintf(stderr, "%ld\n", testConstructor.getRank());
+  fprintf(stderr, "%ld\n", testDefaultShapeConstructor.getRank());
   // CHECK: 6
-  fprintf(stderr, "%ld\n", testConstructor.getSize());
+  fprintf(stderr, "%ld\n", testDefaultShapeConstructor.getSize());
   // CHECK: 0.0
-  fprintf(stderr, "%f\n", testConstructor[3]);
+  fprintf(stderr, "%f\n", testDefaultShapeConstructor[3]);
+
+  //===--------------------------------------------------------------------===//
+  // Test default shape constructor.
+  //===--------------------------------------------------------------------===//
+  MemRef<float, 2> testCustomShapeConstructor(sizes, 5);
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testCustomShapeConstructor.getData()[0]);
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testCustomShapeConstructor[5]);
+
+  //===--------------------------------------------------------------------===//
+  // Test overloading assignment operator.
+  //===--------------------------------------------------------------------===//
+  MemRef<float, 2> testConstructorAssingnment = testDefaultShapeConstructor;
+  // CHECK: 0.0
+  fprintf(stderr, "%f\n", testConstructorAssingnment[0]);
+  testConstructorAssingnment = testCustomShapeConstructor;
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testConstructorAssingnment[0]);
 }
 
 int main() {
