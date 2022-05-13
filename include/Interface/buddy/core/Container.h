@@ -65,6 +65,9 @@ private:
   size_t product(intptr_t sizes[N]) const;
 
   // Data.
+  // The `aligned` and `allocated` members point to the same address, `aligned`
+  // member is responsible for handling data, and `allocated` member is
+  // resposible for handling the memory space.
   T *allocated;
   T *aligned;
   // Offset.
