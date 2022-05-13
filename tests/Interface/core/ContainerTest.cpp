@@ -22,7 +22,7 @@
 
 #include "Interface/buddy/core/Container.h"
 
-void testShapeConstructor() {
+int main() {
   intptr_t sizes[] = {2, 3};
   //===--------------------------------------------------------------------===//
   // Test default shape constructor.
@@ -53,17 +53,55 @@ void testShapeConstructor() {
   fprintf(stderr, "%f\n", testCustomShapeConstructor[5]);
 
   //===--------------------------------------------------------------------===//
-  // Test overloading assignment operator.
+  // Test copy constructor and copy assignment operator.
   //===--------------------------------------------------------------------===//
-  MemRef<float, 2> testConstructorAssingnment = testDefaultShapeConstructor;
-  // CHECK: 0.0
-  fprintf(stderr, "%f\n", testConstructorAssingnment[0]);
-  testConstructorAssingnment = testCustomShapeConstructor;
+  MemRef<float, 2> testCopyConstructor1(testCustomShapeConstructor);
   // CHECK: 5.0
-  fprintf(stderr, "%f\n", testConstructorAssingnment[0]);
-}
+  fprintf(stderr, "%f\n", testCopyConstructor1[0]);
+  MemRef<float, 2> testCopyConstructor2 = testCustomShapeConstructor;
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testCopyConstructor2[0]);
+  MemRef<float, 2> testCopyConstructor3 =
+      MemRef<float, 2>(testCustomShapeConstructor);
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testCopyConstructor3[0]);
+  MemRef<float, 2> *testCopyConstructor4 =
+      new MemRef<float, 2>(testCustomShapeConstructor);
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testCopyConstructor4->getData()[0]);
+  delete testCopyConstructor4;
+  MemRef<float, 2> testCopyAssingnment = testDefaultShapeConstructor;
+  testCopyAssingnment = testCustomShapeConstructor;
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testCopyAssingnment[0]);
 
-int main() {
-  testShapeConstructor();
+  //===--------------------------------------------------------------------===//
+  // Test copy constructor and copy assignment operator.
+  //===--------------------------------------------------------------------===//
+  MemRef<float, 2> tempMemRefContainer(testCustomShapeConstructor);
+  MemRef<float, 2> testMoveConstructor1(std::move(tempMemRefContainer));
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testMoveConstructor1[0]);
+  MemRef<float, 2> testMoveConstructor2 = std::move(testMoveConstructor1);
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testMoveConstructor2[0]);
+  MemRef<float, 2> testMoveAssignment(testDefaultShapeConstructor);
+  testMoveAssignment = std::move(testMoveConstructor2);
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testMoveAssignment[0]);
+
+  //===--------------------------------------------------------------------===//
+  // Test overloading bracket operator.
+  //===--------------------------------------------------------------------===//
+  MemRef<float, 2> testBracketOperator1(sizes);
+  // CHECK: 0.0
+  fprintf(stderr, "%f\n", testBracketOperator1[0]);
+  testBracketOperator1[0] = 5.0;
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testBracketOperator1[0]);
+  const MemRef<float, 2> testBracketOperator2(sizes);
+  // CHECK: 0.0
+  fprintf(stderr, "%f\n", testBracketOperator2[0]);
+
   return 0;
 }
