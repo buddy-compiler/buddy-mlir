@@ -1,6 +1,8 @@
 // Note: this example file is from upstream MLIR integration test.
 // TODO: use a new example file to show the PDL cases.
 
+// -----
+
 //===----------------------------------------------------------------------===//
 // 1-layer perceptron with split fwd/bwd operations
 //===----------------------------------------------------------------------===//
@@ -108,6 +110,8 @@ module @ir attributes { test.mlp_split } {
     return %4, %9 : tensor<f32>, tensor<20x10xf32>
   }
 }
+
+// -----
 
 //===----------------------------------------------------------------------===//
 // 2-layer perceptron with fused fwd/bwd operations
