@@ -32,6 +32,8 @@
 template <typename T, size_t N> class MemRef {
 public:
   // Constructor from shape.
+  MemRef() {};
+  // Constructor from shape.
   MemRef(intptr_t sizes[N], T init = T(0));
   // Copy constructor.
   MemRef(const MemRef<T, N> &other);
@@ -57,7 +59,7 @@ public:
   const T &operator[](size_t index) const { return aligned[index + offset]; }
   T &operator[](size_t index) { return aligned[index + offset]; }
 
-private:
+protected:
   // Set the strides.
   // Computes the strides of the transposed tensor for transpose=true.
   void setStrides();

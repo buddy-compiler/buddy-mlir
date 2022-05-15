@@ -58,6 +58,12 @@ $ cmake -G Ninja .. \
 $ ninja check-buddy
 ```
 
+If you want to add domain-specific framework support, please add the following cmake options:
+
+| Framework  | Enable Option | Other Options |
+| -------------- | ------------- | ------------- |
+| OpenCV  | `-DBUDDY_ENABLE_OPENCV=ON`  | Add `-DOpenCV_DIR=</PATH/TO/OPENCV/BUILD/>` or install OpenCV release version on your local device. |
+
 ## Dialects
 
 ### Bud Dialect

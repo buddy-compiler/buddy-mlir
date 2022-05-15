@@ -60,6 +60,7 @@ message(STATUS "Configuring Target Triple: ${BUDDY_OPT_TRIPLE}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
+set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
 # Add MLIR and LLVM headers to the include path
 include_directories(${LLVM_INCLUDE_DIRS})

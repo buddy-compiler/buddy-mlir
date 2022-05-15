@@ -14,6 +14,10 @@ set(BUDDY_TEST_DEPENDS
   buddy-container-test
   )
 
+if(BUDDY_ENABLE_OPENCV)
+  list(APPEND BUDDY_TEST_DEPENDS buddy-image-container-test)
+endif()
+
 add_lit_testsuite(check-buddy "Running the buddy regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${BUDDY_TEST_DEPENDS}

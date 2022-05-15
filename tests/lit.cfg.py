@@ -56,7 +56,10 @@ tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
     'buddy-opt',
     'buddy-translate',
-    'buddy-container-test'
+    'buddy-container-test',
 ]
+
+if config.buddy_enable_opencv == "ON":
+  tools.append('buddy-image-container-test')
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
