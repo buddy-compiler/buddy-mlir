@@ -1,9 +1,9 @@
 memref.global "private" @gv : memref<4xf32> = dense<[0. , 0. , 0. , 0. ]>
 #map0 = affine_map<(d0, d1) -> (d0 + d1)>
 
-func private @print_memref_f32(memref<*xf32>)
+func.func private @print_memref_f32(memref<*xf32>)
 
-func @main() {
+func.func @main() {
   %mem = memref.get_global @gv : memref<4xf32>
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
@@ -29,4 +29,5 @@ func @main() {
   %print_out3 = memref.cast %mem : memref<4xf32> to memref<*xf32>
   call @print_memref_f32(%print_out3) : (memref<*xf32>) -> ()
   return
+
 }
