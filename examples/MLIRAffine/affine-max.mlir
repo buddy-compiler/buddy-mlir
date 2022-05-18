@@ -4,6 +4,6 @@ func.func @main() {
   vector.print %max0 : index
   %min = affine.min affine_map<(d0) -> (0, d0)> (%c0) 
   vector.print %min : index 
-  return
+  func.return
 
 }
