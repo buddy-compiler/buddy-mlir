@@ -24,12 +24,12 @@ module {
     // Method one.
     affine.vector_store %v0, %mem[%i1, %j1] : memref<5x5xf32>, vector<2xf32>
     %print_out1 = memref.cast %mem : memref<5x5xf32> to memref<*xf32>
-    call @print_memref_f32(%print_out1) : (memref<*xf32>) -> ()
+    func.call @print_memref_f32(%print_out1) : (memref<*xf32>) -> ()
     // Method two.
     affine.vector_store %v1, %mem[%i1, %j1] : memref<5x5xf32>, vector<4xf32>
     %print_out2 = memref.cast %mem : memref<5x5xf32> to memref<*xf32>
-    call @print_memref_f32(%print_out2) : (memref<*xf32>) -> () 
-    return
+    func.call @print_memref_f32(%print_out2) : (memref<*xf32>) -> () 
+    func.return
 
     }
 }
