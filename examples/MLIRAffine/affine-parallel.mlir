@@ -18,8 +18,8 @@ module {
       affine.store %0, %mem1[%j, %i] : memref<5x2xf32>
     }
     %print_output0 = memref.cast %mem1 : memref<5x2xf32> to memref<*xf32>
-    call @print_memref_f32(%print_output0) : (memref<*xf32>) -> ()
-    return 
+    func.call @print_memref_f32(%print_output0) : (memref<*xf32>) -> ()
+    func.return 
 
     }
 }
