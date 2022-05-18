@@ -15,19 +15,19 @@ func.func @main() {
       // Method one.
       affine.store %c2,%mem[%idx0 + %idx1] : memref<4xf32>
       %print_out1 = memref.cast %mem : memref<4xf32> to  memref<*xf32>
-      call @print_memref_f32(%print_out1) : (memref<*xf32>) -> ()
+      func.call @print_memref_f32(%print_out1) : (memref<*xf32>) -> ()
       // Method two.
       %idx = affine.apply #map0(%idx0, %idx1)
       affine.store %c3, %mem[%idx] : memref<4xf32>
       %print_cout2 = memref.cast %mem : memref<4xf32> to memref<*xf32>
-      call @print_memref_f32(%print_cout2) : (memref<*xf32>) -> ()
+      func.call @print_memref_f32(%print_cout2) : (memref<*xf32>) -> ()
     }
   }
   // Method three.
   %idx = arith.addi %c0, %c1 : index
   affine.store %c4, %mem[symbol(%idx)] : memref<4xf32>
   %print_out3 = memref.cast %mem : memref<4xf32> to memref<*xf32>
-  call @print_memref_f32(%print_out3) : (memref<*xf32>) -> ()
-  return
+  func.call @print_memref_f32(%print_out3) : (memref<*xf32>) -> ()
+  func.return
 
 }
