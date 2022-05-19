@@ -1,4 +1,4 @@
-func.func private @print_memref_f32(%ptr : tensor<*xf32>)
+func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 
 func.func @main() {
   %c0 = arith.constant 0. : f32
@@ -12,7 +12,7 @@ func.func @main() {
   %c8 = arith.constant 8. : f32 
   %t0 = tensor.from_elements %c0, %c1, %c2, %c3, %c4, %c5, %c6, %c7, %c8 : tensor<3x3xf32>
   %print_out0 = tensor.cast %t0 : tensor<3x3xf32> to tensor<*xf32>
-  func.call @print_memref_f32(%print_out0) : (tensor<*xf32>) -> ()
+  func.call @printMemrefF32(%print_out0) : (tensor<*xf32>) -> ()
   func.return 
 
 }
