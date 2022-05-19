@@ -7,7 +7,7 @@ module {
                                                           [0., 0.],
                                                           [0., 0.],
                                                           [0., 0.]]>
-  func.func private @print_memref_f32(memref<*xf32>)
+  func.func private @printMemrefF32(memref<*xf32>)
 
   func.func @main() {
     %mem0 = memref.get_global @gv0 : memref<2x5xf32>
@@ -18,7 +18,7 @@ module {
       affine.store %0, %mem1[%j, %i] : memref<5x2xf32>
     }
     %print_output0 = memref.cast %mem1 : memref<5x2xf32> to memref<*xf32>
-    func.call @print_memref_f32(%print_output0) : (memref<*xf32>) -> ()
+    func.call @printMemrefF32(%print_output0) : (memref<*xf32>) -> ()
     func.return 
 
     }
