@@ -53,6 +53,7 @@ def RVV_Dialect : Dialect {
     intrinsic operations. The former is used to interoperate with higher-level 
     dialects, and the latter is responsible for mapping to LLVM IR intrinsic.
   }];
+  let useDefaultTypePrinterParser = 1;
 }
 
 //===----------------------------------------------------------------------===//
