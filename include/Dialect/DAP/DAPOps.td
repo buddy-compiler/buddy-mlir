@@ -37,28 +37,30 @@ def DAP_FormatOptionAttr : StrEnumAttr<"FormatOptionAttr",
   let cppNamespace = "::buddy::dap";
 }
 
-def DAP_FirstStep : DAP_Op<"test">
+def DAP_Fir : DAP_Op<"fir">
 {
-  let summary = [{This operation is used for learning dialect operation desiging. 
-  Just like printing "hello world" for learning programming.
-  For example: 
+  let summary = [{FIR filter, a finite impulse response (FIR) filter is a linear
+  time-invariant filter that is used to filter a signal. It is a linear
+  convolution of the input signal with a filter kernel.
 
   ```mlir
-    dap.test %inputAudio, %output, %constantValue{format_option = "MONO_FORMAT"}:
-                memref<?x?xf32>, memref<?x?xf32>, index
+    dsp.fir %input, %coefficient, %output :memref<?x?xf32>, memref<?x?xf32>, 
+            memref<?x?xf32>
   ```
   }];
 
   let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
                            [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "coefficientMemref",
+                           [MemRead]>:$memrefC,
                        Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
-                           [MemRead]>:$memrefCO,
-                       F32 : $constantValue,
-                       DAP_FormatOptionAttr:$format_option);
+                           [MemRead]>:$memrefO,
+                       DIP_BoundaryOptionAttr:$boundary_option);
 
   let assemblyFormat = [{
-    $memrefI `,` $memrefCO `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefCO) `,` type($constantValue)
+    $memrefI `,` $memrefC `,` $memrefO `,` attr-dict `:` type($memrefI) `,` type($memrefC) `,` type($memrefO) 
   }];
 }
 
 #endif // DAP_DAPOPS_TD
+     
