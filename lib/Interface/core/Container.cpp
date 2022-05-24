@@ -43,6 +43,24 @@ MemRef<T, N>::MemRef(intptr_t sizes[N], T init) {
   std::fill(aligned, aligned + size, init);
 }
 
+// MemRef Array Constructor.
+// Construct a MemRef object from the data pointer, sizes, and offset.
+// The default offset is 0.
+template <typename T, std::size_t N>
+MemRef<T, N>::MemRef(const T *data, intptr_t sizes[N], intptr_t offset) {
+  this->offset = offset;
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
+  setStrides();
+  size = product(sizes);
+  allocated = new T[size];
+  aligned = allocated;
+  for (size_t i = 0; i < size; i++) {
+    aligned[i] = data[i];
+  }
+}
+
 // Copy Constructor.
 // This constructor is used to initialize a MemRef object with another MemRef
 // object.

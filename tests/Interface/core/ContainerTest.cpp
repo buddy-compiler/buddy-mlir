@@ -53,6 +53,16 @@ int main() {
   fprintf(stderr, "%f\n", testCustomShapeConstructor[5]);
 
   //===--------------------------------------------------------------------===//
+  // Test default shape constructor.
+  //===--------------------------------------------------------------------===//
+  float data[6] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+  MemRef<float, 2> testArrayConstructor(data, sizes);
+  // CHECK: 0.0
+  fprintf(stderr, "%f\n", testArrayConstructor.getData()[0]);
+  // CHECK: 5.0
+  fprintf(stderr, "%f\n", testArrayConstructor[5]);
+
+  //===--------------------------------------------------------------------===//
   // Test copy constructor and copy assignment operator.
   //===--------------------------------------------------------------------===//
   MemRef<float, 2> testCopyConstructor1(testCustomShapeConstructor);
