@@ -44,7 +44,7 @@ int main() {
   fprintf(stderr, "%f\n", testDefaultShapeConstructor[3]);
 
   //===--------------------------------------------------------------------===//
-  // Test default shape constructor.
+  // Test custom shape constructor.
   //===--------------------------------------------------------------------===//
   MemRef<float, 2> testCustomShapeConstructor(sizes, 5);
   // CHECK: 5.0
@@ -53,7 +53,7 @@ int main() {
   fprintf(stderr, "%f\n", testCustomShapeConstructor[5]);
 
   //===--------------------------------------------------------------------===//
-  // Test default shape constructor.
+  // Test array constructor.
   //===--------------------------------------------------------------------===//
   float data[6] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
   MemRef<float, 2> testArrayConstructor(data, sizes);
@@ -86,7 +86,7 @@ int main() {
   fprintf(stderr, "%f\n", testCopyAssingnment[0]);
 
   //===--------------------------------------------------------------------===//
-  // Test copy constructor and copy assignment operator.
+  // Test move constructor and move assignment operator.
   //===--------------------------------------------------------------------===//
   MemRef<float, 2> tempMemRefContainer(testCustomShapeConstructor);
   MemRef<float, 2> testMoveConstructor1(std::move(tempMemRefContainer));
