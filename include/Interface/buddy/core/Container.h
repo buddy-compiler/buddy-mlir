@@ -31,7 +31,7 @@
 // - The storage order is NCHW.
 template <typename T, size_t N> class MemRef {
 public:
-  // Constructor from shape.
+  // Default
   MemRef(){};
   // Constructor from shape.
   MemRef(intptr_t sizes[N], T init = T(0));
