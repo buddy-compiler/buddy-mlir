@@ -32,9 +32,11 @@
 template <typename T, size_t N> class MemRef {
 public:
   // Constructor from shape.
-  MemRef() {};
+  MemRef(){};
   // Constructor from shape.
   MemRef(intptr_t sizes[N], T init = T(0));
+  // Constructor from data.
+  MemRef(const T *data, intptr_t sizes[N], intptr_t offset = 0);
   // Copy constructor.
   MemRef(const MemRef<T, N> &other);
   // Copy assignment operator.
