@@ -45,5 +45,3 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 add_executable(edge-detection edge-detection.cpp)
 add_dependencies(edge-detection buddy-opt)
 target_link_libraries(edge-detection ${OpenCV_LIBS} Conv2D)
-
-add_subdirectory(comparison)
