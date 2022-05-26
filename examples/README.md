@@ -115,7 +115,7 @@ $ ./correlation2D ../../examples/ConvOpt/images/YuTu.png result-dip-replicate-pa
 We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches. 
 For more details, please see [the benchamrk in the buddy-benchmark repo](https://github.com/buddy-compiler/buddy-benchmark#image-processing-benchmark).
 
-### Testing and Demonstrating Examples
+## Testing and Demonstrating Examples
 
 ```
 $ buddy-opt <input> -lower-bud
