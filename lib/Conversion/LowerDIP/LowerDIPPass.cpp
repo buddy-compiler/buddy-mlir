@@ -583,6 +583,7 @@ void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
 namespace {
 class LowerDIPPass : public PassWrapper<LowerDIPPass, OperationPass<ModuleOp>> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerDIPPass)
   LowerDIPPass() = default;
   LowerDIPPass(const LowerDIPPass &) {}
   explicit LowerDIPPass(int64_t strideParam) { stride = strideParam; }

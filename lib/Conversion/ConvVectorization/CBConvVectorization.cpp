@@ -257,6 +257,7 @@ namespace {
 class ConvVectorizationPass
     : public PassWrapper<ConvVectorizationPass, OperationPass<ModuleOp>> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ConvVectorizationPass)
   StringRef getArgument() const final { return "conv-vectorization"; }
   StringRef getDescription() const final {
     return "Convolution vectorization.";

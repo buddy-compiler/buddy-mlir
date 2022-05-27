@@ -152,6 +152,7 @@ void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
 namespace {
 class LowerBudPass : public PassWrapper<LowerBudPass, OperationPass<ModuleOp>> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerBudPass)
   LowerBudPass() = default;
   LowerBudPass(const LowerBudPass &) {}
 
