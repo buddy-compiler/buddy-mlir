@@ -125,6 +125,7 @@ class PointwiseConvToGemmPass
     : public PassWrapper<PointwiseConvToGemmPass,
                          OperationPass<ModuleOp>> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(PointwiseConvToGemmPass)
   StringRef getArgument() const final { return "pointwise-conv-to-gemm"; }
   StringRef getDescription() const final {
     return "Pointwise Convolution to Gemm.";

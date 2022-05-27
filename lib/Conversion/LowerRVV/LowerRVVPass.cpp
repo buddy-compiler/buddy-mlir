@@ -42,6 +42,7 @@ namespace {
 class LowerRVVToLLVMPass
     : public PassWrapper<LowerRVVToLLVMPass, OperationPass<ModuleOp>> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerRVVToLLVMPass)
   StringRef getArgument() const final { return "lower-rvv"; }
   StringRef getDescription() const final {
     return "RVV dialect lowering pass.";

@@ -257,6 +257,7 @@ namespace {
 class PoolingVectorizationPass
     : public PassWrapper<PoolingVectorizationPass, OperationPass<ModuleOp>> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(PoolingVectorizationPass)
   StringRef getArgument() const final { return "pooling-vectorization"; }
   StringRef getDescription() const final { return "Pooling vectorization."; }
   PoolingVectorizationPass() = default;
