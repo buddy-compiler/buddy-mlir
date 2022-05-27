@@ -26,8 +26,6 @@ add_custom_command(OUTPUT conv2d.o
 
 add_library(Conv2D STATIC conv2d.o)
 
-message(${BUDDY_EXAMPLES_DIR})
-
 SET_SOURCE_FILES_PROPERTIES(
   template.o
   PROPERTIES
