@@ -80,6 +80,10 @@ DIP dialect is designed for digital image processing abstraction.
 
 The buddy-opt is the driver for dialects and optimization in buddy-mlir project. 
 
+### AutoConfig Mechanism
+
+The `AutoConfig` mechanism is designed to detect the target hardware and configure the toolchain automatically.
+
 ## Examples
 
 The purpose of the examples is to give users a better understanding of how to use the passes and the interfaces in buddy-mlir. Currently, we provide three types of examples.

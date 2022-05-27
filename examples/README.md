@@ -57,7 +57,7 @@ We also provide an edge detection example to show the optimization.
 The `conv-vectorization` pass is responsible for lowering the `linalg.conv_2d` with our algorithm. And then we use `mlir-translate` and `llc` tools to generate the object file. At last, we call the MLIR convolution function in a C++ program.
 
 Please make sure OpenCV is installed to play around.
-You should specify the `<strip mining size>` (e.g. 256), `<ISA vector extension>` (e.g. avx512f), and `<target triple>` (e.g. x86_64-unknown-linux-gnu).
+This example can also show the "magic" of AutoConfig mechanism that can help you specify the `strip mining size`, `ISA SIMD/Vector extension`, and `target triple`. You 
 
 ```
 $ cd buddy-mlir/build
