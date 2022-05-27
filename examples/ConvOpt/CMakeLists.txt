@@ -6,6 +6,8 @@ elseif(HAVE_AVX2)
   set(SPLITING_SIZE 128)
 elseif(HAVE_SSE)
   set(SPLITING_SIZE 64)
+elseif(HAVE_NEON)
+  set(SPLITING_SIZE 64)
 endif()
 
 
