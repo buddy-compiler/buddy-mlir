@@ -23,4 +23,4 @@ macro(CHECK_TOOLCHAIN)
   endif()
   message(STATUS "Target Attr: ${BUDDY_OPT_ATTR}")
 
-endmacro(CHECK_SIMD)
+endmacro(CHECK_TOOLCHAIN)
