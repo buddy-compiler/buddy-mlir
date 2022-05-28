@@ -57,17 +57,16 @@ We also provide an edge detection example to show the optimization.
 The `conv-vectorization` pass is responsible for lowering the `linalg.conv_2d` with our algorithm. And then we use `mlir-translate` and `llc` tools to generate the object file. At last, we call the MLIR convolution function in a C++ program.
 
 Please make sure OpenCV is installed to play around.
-This example can also show the "magic" of AutoConfig mechanism that can help you specify the `strip mining size`, `ISA SIMD/Vector extension`, and `target triple`. You 
+
+This example can also show the "magic" of AutoConfig mechanism that can help you specify the `strip mining size`, `ISA SIMD/Vector extension`, and `target triple`. You only need to enable the `BUDDY_EXAMPLES` option and don't worry about the toolchain configuration.
 
 ```
 $ cd buddy-mlir/build
-$ cmake -G Ninja .. \
-    -DBUDDY_EXAMPLES=ON \
-    -DBUDDY_CONV_OPT_STRIP_MINING=<strip mining size> \
-    -DBUDDY_OPT_ATTR=<ISA vector extension> \
-    -DBUDDY_OPT_TRIPLE=<target triple>
+$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON
 $ ninja edge-detection
 ```
+
+Of course, you can also use your own configuration assigning values `-DBUDDY_CONV_OPT_STRIP_MINING` (e.g. 64) and `-DBUDDY_OPT_ATTR` (e.g. avx2).
 
 We provide an image at `buddy-mlir/examples/ConvOpt/images/YuTu.png`, which is the robotic lunar rover that formed part of the Chinese Chang'e 3 mission.
 
@@ -102,13 +101,17 @@ Build and run the example.
 
 *Note: Please make sure OpenCV is installed to play around.*
 
+This example can also show the "magic" of AutoConfig mechanism that can help you specify the `strip mining size`, `ISA SIMD/Vector extension`, and `target triple`. You only need to enable the `BUDDY_EXAMPLES` option and don't worry about the toolchain configuration.
+
 ```
 $ cd buddy-mlir/build
-$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_DIP_OPT_STRIP_MINING=256
+$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON
 $ ninja correlation2D
 $ cd bin
 $ ./correlation2D ../../examples/ConvOpt/images/YuTu.png result-dip-replicate-padding.png result-dip-constant-padding.png
 ```
+
+Of course, you can also use your own configuration assigning values `-DBUDDY_DIP_OPT_STRIP_MINING` (e.g. 64) and `-DBUDDY_OPT_ATTR` (e.g. avx2).
 
 *Note: Maximum allowed value of `BUDDY_DIP_OPT_STRIP_MINING` for producing correct result is equal to image width.*
 
