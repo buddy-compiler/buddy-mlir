@@ -6,7 +6,7 @@ MLIR-Based Ideas Landing Project ([Project page](https://buddy-compiler.github.i
 
 ### LLVM/MLIR Dependencies
 
-This project uses LLVM/MLIR as an external library. Please make sure [the dependencies](https://mlir.llvm.org/getting_started/) are available
+This project uses LLVM/MLIR as an external library. Please make sure [the dependencies](https://llvm.org/docs/GettingStarted.html#requirements) are available
 on your machine.
 
 ### Clone and Initialize
