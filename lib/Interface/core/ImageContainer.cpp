@@ -29,6 +29,9 @@
 // Image Constructor from OpenCV Mat.
 template <typename T, size_t N> Img<T, N>::Img(cv::Mat image) : MemRef<T, N>() {
   if (image.channels() == 1) {
+    // Delete original allocated pointer, which is allocated by the default
+    // constructor.
+    delete[] this->allocated;
     assert((N == 2) &&
            "Input image type does not match the selected dimension.");
     this->sizes[0] = image.rows;
