@@ -31,8 +31,6 @@
 // - The storage order is NCHW.
 template <typename T, size_t N> class MemRef {
 public:
-  // Default constructor.
-  MemRef();
   // Constructor from shape.
   MemRef(intptr_t sizes[N], T init = T(0));
   // Constructor from data.
@@ -62,6 +60,9 @@ public:
   T &operator[](size_t index);
 
 protected:
+  // Default constructor.
+  // This constructor is desinged for derived domain-specific constructor.
+  MemRef() {};
   // Set the strides.
   // Computes the strides of the transposed tensor for transpose=true.
   void setStrides();
