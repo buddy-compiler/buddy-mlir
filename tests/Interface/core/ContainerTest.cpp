@@ -25,17 +25,6 @@
 int main() {
   intptr_t sizes[] = {2, 3};
   //===--------------------------------------------------------------------===//
-  // Test default constructor.
-  //===--------------------------------------------------------------------===//
-  MemRef<float, 2> testDefaultConstructor;
-  // CHECK: 0, 0
-  fprintf(stderr, "%ld, %ld\n", testDefaultConstructor.getSizes()[0],
-          testDefaultConstructor.getSizes()[1]);
-  // CHECK: 2
-  fprintf(stderr, "%ld\n", testDefaultConstructor.getRank());
-  // CHECK: 0
-  fprintf(stderr, "%ld\n", testDefaultConstructor.getSize());
-  //===--------------------------------------------------------------------===//
   // Test default shape constructor.
   //===--------------------------------------------------------------------===//
   MemRef<float, 2> testDefaultShapeConstructor(sizes);

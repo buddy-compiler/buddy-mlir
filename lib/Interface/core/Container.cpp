@@ -29,19 +29,6 @@
 
 #include "Interface/buddy/core/Container.h"
 
-// MemRef Default Constructor.
-// The default constructor is desinged for derived domain-specific constructor.
-// This constructor allocate zero space to avoid the null pointer.
-template <typename T, std::size_t N> MemRef<T, N>::MemRef() {
-  for (size_t i = 0; i < N; i++) {
-    this->sizes[i] = 0;
-  }
-  setStrides();
-  size = product(sizes);
-  allocated = new T[size];
-  aligned = allocated;
-}
-
 // MemRef Shape Constructor.
 // Construct a MemRef object from the data shape and initial value.
 // The default initial value is 0.
