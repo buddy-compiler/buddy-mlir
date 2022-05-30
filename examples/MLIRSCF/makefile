@@ -55,3 +55,21 @@ scf-parallel-run:
         -reconcile-unrealized-casts |\
     ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 	    -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_ASYNC_RUNTIME}
+
+scf-for-lower:
+	@${MLIR_OPT} ./scf-for.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts -o ./log.mlir
+
+scf-for-translate:
+	@${MLIR_OPT} ./scf-for.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+scf-for-run:
+	@${MLIR_OPT} ./scf-for.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
