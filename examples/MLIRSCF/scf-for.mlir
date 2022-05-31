@@ -12,3 +12,4 @@ func.func @main() {
                   vector.print %sum : f32
                   return
 }
+
