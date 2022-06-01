@@ -26,4 +26,3 @@ func.func @main() {
     vector.print %final : f32
     return
 }
-

@@ -1,6 +1,8 @@
 func.func @main() {
   %init = arith.constant 0 : i32
   %end = arith.constant 5 : i32
+
+
   %c2_i32 = arith.constant 2 : i32
   %res = scf.while(%arg0 = %init) : (i32) -> (i32) {
        // Before Region
@@ -15,4 +17,3 @@ func.func @main() {
    vector.print %res : i32
    return 
 }
-
