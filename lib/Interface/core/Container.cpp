@@ -22,6 +22,7 @@
 #define CORE_CONTAINER_DEF
 
 #include <algorithm>
+#include <cassert>
 #include <memory>
 #include <numeric>
 #include <stdexcept>
@@ -161,6 +162,31 @@ MemRef<T, N> &MemRef<T, N>::operator=(MemRef<T, N> &&other) noexcept {
 // enough to release the space of the `allocated` pointer in the destructor.
 template <typename T, std::size_t N> MemRef<T, N>::~MemRef() {
   delete[] allocated;
+}
+
+// Get the data pointer.
+// Return the `aligned` pointer if the container data size is greater than zero.
+// If the data size is negative or zero, which means no space is allocated for
+// the container data pointer, the function does not allow to return the data
+// pointer.
+template <typename T, std::size_t N> T *MemRef<T, N>::getData() {
+  assert((size > 0) && "Invalid container data size.");
+  return aligned;
+}
+
+// Get the element at index.
+// Return the specific element if the container data size is greater than zero.
+// If the data size is negative or zero, which means no space is allocated for
+// the container data pointer, this operator does not allow to return the data
+// element.
+template <typename T, std::size_t N>
+const T &MemRef<T, N>::operator[](size_t index) const {
+  assert((size > 0) && "Invalid container data size.");
+  return aligned[index + offset];
+}
+template <typename T, std::size_t N> T &MemRef<T, N>::operator[](size_t index) {
+  assert((size > 0) && "Invalid container data size.");
+  return aligned[index + offset];
 }
 
 // Calculate the stride values for each dimension based on the sizes.

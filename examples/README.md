@@ -62,7 +62,7 @@ This example can also show the "magic" of AutoConfig mechanism that can help you
 
 ```
 $ cd buddy-mlir/build
-$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON
+$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja edge-detection
 ```
 
@@ -105,7 +105,7 @@ This example can also show the "magic" of AutoConfig mechanism that can help you
 
 ```
 $ cd buddy-mlir/build
-$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON
+$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja correlation2D
 $ cd bin
 $ ./correlation2D ../../examples/ConvOpt/images/YuTu.png result-dip-replicate-padding.png result-dip-constant-padding.png
