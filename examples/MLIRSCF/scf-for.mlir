@@ -8,10 +8,11 @@ func.func @main() {
     %t = arith.constant 5.0 : f32
 
     %sum = scf.for %iv = %lb to %ub step %step 
-                  iter_args(%sum_iter = %sum_0) ->(f32) {
+                  iter_args(%sum_iter = %sum_0) -> (f32) {
                   %1 = arith.addf %sum_iter , %t : f32
                   scf.yield %1 : f32
                   }
-                  vector.print %sum : f32
-                  return
+
+    vector.print %sum : f32
+    return
 }
