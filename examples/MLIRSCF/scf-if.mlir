@@ -1,9 +1,8 @@
 func.func @main() {
 
-  // result will be 50.0
-  //%con = arith.constant 1 : i1
-  // result will be 0.0
-  %con = arith.constant 0 : i1
+ 
+  //%con = arith.constant 1 : i1  // result will be 50.0
+  %con = arith.constant 0 : i1  // result will be 0.0
   %lb = arith.constant 0 : index
 
   %ub = arith.constant 5 : index

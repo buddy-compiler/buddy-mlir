@@ -7,7 +7,7 @@ func.func @main() {
   %res = scf.while(%arg0 = %init) : (i32) -> (i32) {
     // Before Region
     %1 = arith.addi %arg0 , %c2_i32 : i32
-    %cond = arith.cmpi slt , %arg0,%end : i32
+    %cond = arith.cmpi slt , %arg0, %end : i32
     scf.condition(%cond) %1 :i32
   } do {
       // After Region 
