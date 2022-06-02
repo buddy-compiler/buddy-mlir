@@ -55,3 +55,57 @@ scf-parallel-run:
         -reconcile-unrealized-casts |\
     ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 	    -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_ASYNC_RUNTIME}
+
+scf-for-lower:
+	@${MLIR_OPT} ./scf-for.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts -o ./log.mlir
+
+scf-for-translate:
+	@${MLIR_OPT} ./scf-for.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+scf-for-run:
+	@${MLIR_OPT} ./scf-for.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+scf-if-lower:
+	@${MLIR_OPT} ./scf-if.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts -o ./log.mlir
+
+scf-if-translate:
+	@${MLIR_OPT} ./scf-if.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+scf-if-run:
+	@${MLIR_OPT} ./scf-if.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}	
+
+scf-do-while-lower:
+	@${MLIR_OPT} ./scf-do-while.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts -o ./log.mlir
+
+scf-do-while-translate:
+	@${MLIR_OPT} ./scf-do-while.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+scf-do-while-run:
+	@${MLIR_OPT} ./scf-do-while.mlir \
+		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
