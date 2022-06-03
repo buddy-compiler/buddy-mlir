@@ -1,4 +1,4 @@
-//====- CBConvVectorization.cpp - Coefficients Broadcasting Algorithm -----===//
+//===- CBConvVectorization.cpp - Coefficients Broadcasting Algorithm ------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -257,6 +257,7 @@ namespace {
 class ConvVectorizationPass
     : public PassWrapper<ConvVectorizationPass, OperationPass<ModuleOp>> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ConvVectorizationPass)
   StringRef getArgument() const final { return "conv-vectorization"; }
   StringRef getDescription() const final {
     return "Convolution vectorization.";

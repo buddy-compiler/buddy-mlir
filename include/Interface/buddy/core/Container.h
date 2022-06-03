@@ -33,6 +33,8 @@ template <typename T, size_t N> class MemRef {
 public:
   // Constructor from shape.
   MemRef(intptr_t sizes[N], T init = T(0));
+  // Constructor from data.
+  MemRef(const T *data, intptr_t sizes[N], intptr_t offset = 0);
   // Copy constructor.
   MemRef(const MemRef<T, N> &other);
   // Copy assignment operator.
@@ -44,7 +46,7 @@ public:
   // Desctrutor.
   ~MemRef();
   // Get the data pointer.
-  T *getData() { return aligned; }
+  T *getData();
   // Get the sizes (shape).
   const intptr_t *getSizes() { return sizes; }
   // Get the strides.
@@ -54,10 +56,13 @@ public:
   // Get the size (number of elements).
   size_t getSize() const { return size; }
   // Get the element at index.
-  const T &operator[](size_t index) const { return aligned[index + offset]; }
-  T &operator[](size_t index) { return aligned[index + offset]; }
+  const T &operator[](size_t index) const;
+  T &operator[](size_t index);
 
-private:
+protected:
+  // Default constructor.
+  // This constructor is desinged for derived domain-specific constructor.
+  MemRef() {};
   // Set the strides.
   // Computes the strides of the transposed tensor for transpose=true.
   void setStrides();

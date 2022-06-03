@@ -10,6 +10,10 @@ if(POLICY CMP0077)
   cmake_policy(SET CMP0077 NEW)
 endif()
 
+if(POLICY CMP0116)
+  cmake_policy(SET CMP0116 OLD)
+endif()
+
 #-------------------------------------------------------------------------------
 # Project setup and globals
 #-------------------------------------------------------------------------------
@@ -51,15 +55,10 @@ set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/include/)
 
-set(BUDDY_OPT_ATTR avx512f CACHE STRING "Target Architecture.")
-set(BUDDY_OPT_TRIPLE x86_64-unknown-linux-gnu CACHE STRING "Target Triple.")
-
-message(STATUS "Configuring Target Architecture: ${BUDDY_OPT_ATTR}")
-message(STATUS "Configuring Target Triple: ${BUDDY_OPT_TRIPLE}")
-
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
+set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
 # Add MLIR and LLVM headers to the include path
 include_directories(${LLVM_INCLUDE_DIRS})
@@ -77,7 +76,9 @@ include_directories(${BUDDY_SOURCE_DIR}/lib)
 #-------------------------------------------------------------------------------
 
 include(${BUDDY_SOURCE_DIR}/cmake/check_simd.cmake)
+include(${BUDDY_SOURCE_DIR}/cmake/check_toolchain.cmake)
 check_simd()
+check_toolchain()
 
 #-------------------------------------------------------------------------------
 # Directory setup
