@@ -1,10 +1,10 @@
 #map0 = affine_map<(d0, d1) -> (d0 + d1 - 1)>
 module {
-  func private @print_memref_f32(memref<*xf32>)
-  func private @print_flops(f64)
-  func private @rtclock() -> f64
+  func.func private @printMemrefF32(memref<*xf32>)
+  func.func private @print_flops(f64)
+  func.func private @rtclock() -> f64
 
-  func @alloc_2d_filled_f32(%arg0: index, %arg1: index, %arg2: f32) -> memref<?x?xf32> {
+  func.func @alloc_2d_filled_f32(%arg0: index, %arg1: index, %arg2: f32) -> memref<?x?xf32> {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %0 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
@@ -16,13 +16,13 @@ module {
     return %0 : memref<?x?xf32>
   }
 
-  func @conv_2d(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>, %arg2: memref<?x?xf32>) {
+  func.func @conv_2d(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>, %arg2: memref<?x?xf32>) {
     linalg.conv_2d ins (%arg0, %arg1: memref<?x?xf32>, memref<?x?xf32>)
                   outs (%arg2: memref<?x?xf32>)
     return
   }
 
-  func @main() {
+  func.func @main() {
     %c2 = arith.constant 2 : index
     %c3 = arith.constant 3 : index
 
@@ -49,7 +49,7 @@ module {
 
     // Execute convolution for specific times.
     affine.for %arg0 = 0 to %reps {
-      call @conv_2d(%image, %filter, %output) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
+      func.call @conv_2d(%image, %filter, %output) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
     }
 
     // Record end time.
@@ -59,20 +59,20 @@ module {
 
     // Print output.
     %print_output = memref.cast %output : memref<?x?xf32> to memref<*xf32>
-    // call @print_memref_f32(%print_output) : (memref<*xf32>) -> ()
+    // call @printMemrefF32(%print_output) : (memref<*xf32>) -> ()
 
     // 2 * [filter size]^2 * [output size]^2.
     %flops1 = arith.muli %current_output, %current_output : index
     %flops2 = arith.muli %current_filter, %current_filter : index
     %flops3 = arith.muli %c2, %flops2 : index
     %flops4 = arith.muli %flops1, %flops3 : index
-    // Calculate GFLOPS.
+    // Calculate FLOPS.
     %num_flops = arith.muli %reps, %flops4 : index
     %num_flops_i = arith.index_cast %num_flops : index to i64
     %num_flops_f = arith.sitofp %num_flops_i : i64 to f64
     %flops = arith.divf %num_flops_f, %t : f64
-    // Print the running time.
-    call @print_flops(%flops) : (f64) -> ()
+    // Print the FLOPS.
+    vector.print %flops : f64
 
     memref.dealloc %image : memref<?x?xf32>
     memref.dealloc %filter : memref<?x?xf32>

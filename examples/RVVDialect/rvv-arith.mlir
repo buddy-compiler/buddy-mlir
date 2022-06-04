@@ -1,4 +1,4 @@
-func @rvv_arith(%a: !rvv.vector<!rvv.m4,i32>,
+func.func @rvv_arith(%a: !rvv.vector<!rvv.m4,i32>,
                 %b: !rvv.vector<!rvv.m4,i32>,
                 %c: i32,
                 %vl: i64) -> !rvv.vector<!rvv.m4,i32> {

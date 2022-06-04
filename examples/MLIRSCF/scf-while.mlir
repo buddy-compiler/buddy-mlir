@@ -1,4 +1,4 @@
-func @main() {
+func.func @main() {
   %init = arith.constant 0 : i32
   %end = arith.constant 5 : i32
 

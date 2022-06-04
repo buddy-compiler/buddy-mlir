@@ -1,4 +1,18 @@
-//====- edge-detection.cpp - Example of buddy-opt tool ========================//
+//====- edge-detection.cpp - Example of buddy-opt tool --------------------===//
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//===----------------------------------------------------------------------===//
 //
 // This file implements an edge detection example with linalg.conv_2d operation.
 // The linalg.conv_2d operation will be compiled into an object file with the
@@ -12,41 +26,16 @@
 #include <opencv2/imgcodecs.hpp>
 #include <time.h>
 
+#include "Interface/buddy/core/ImageContainer.h"
 #include "kernels.h"
 
 using namespace cv;
 using namespace std;
 
-// Define Memref Descriptor.
-typedef struct MemRef_descriptor_ *MemRef_descriptor;
-typedef struct MemRef_descriptor_ {
-  float *allocated;
-  float *aligned;
-  intptr_t offset;
-  intptr_t sizes[2];
-  intptr_t strides[2];
-} Memref;
-
-// Constructor
-MemRef_descriptor MemRef_Descriptor(float *allocated, float *aligned,
-                                    intptr_t offset, intptr_t sizes[2],
-                                    intptr_t strides[2]) {
-  MemRef_descriptor n = (MemRef_descriptor)malloc(sizeof(*n));
-  n->allocated = allocated;
-  n->aligned = aligned;
-  n->offset = offset;
-  for (int i = 0; i < 2; i++)
-    n->sizes[i] = sizes[i];
-  for (int j = 0; j < 2; j++)
-    n->strides[j] = strides[j];
-
-  return n;
-}
-
 // Declare the conv2d C interface.
 extern "C" {
-void _mlir_ciface_conv_2d(MemRef_descriptor input, MemRef_descriptor kernel,
-                          MemRef_descriptor output);
+void _mlir_ciface_conv_2d(Img<float, 2> *input, MemRef<float, 2> *kernel,
+                          MemRef<float, 2> *output);
 }
 
 int main(int argc, char *argv[]) {
@@ -58,65 +47,34 @@ int main(int argc, char *argv[]) {
     cout << "Could not read the image: " << argv[1] << endl;
     return 1;
   }
-
-  int inputSize = image.rows * image.cols;
-
-  // Define the input with the image.
-  float *inputAlign = (float *)malloc(inputSize * sizeof(float));
-  int k = 0;
-  for (int i = 0; i < image.rows; i++) {
-    for (int j = 0; j < image.cols; j++) {
-      float pixelValue = (float)image.at<uchar>(i, j);
-      inputAlign[k] = pixelValue;
-      k++;
-    }
-  }
+  Img<float, 2> input(image);
 
   // Define the kernel.
-  // float kernelAlign[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
   float *kernelAlign = laplacianKernelAlign;
   int kernelRows = laplacianKernelRows;
   int kernelCols = laplacianKernelCols;
+  intptr_t sizesKernel[2] = {kernelRows, kernelCols};
+  MemRef<float, 2> kernel(kernelAlign, sizesKernel);
 
   // Define the output.
   int outputRows = image.rows - kernelRows + 1;
   int outputCols = image.cols - kernelCols + 1;
-  float *outputAlign = (float *)malloc(outputRows * outputCols * sizeof(float));
-
-  // Initialize outputAlign explicitly with zeroes due to dubious behaviour of malloc()
-  for (int i = 0; i < outputRows; ++i)
-    for (int j = 0; j < outputCols; ++j)
-      outputAlign[i * outputRows + j] = 0;
-
-  // Define the allocated, sizes, and strides.
-  float *allocated = (float *)malloc(1 * sizeof(float));
-  intptr_t sizesInput[2] = {image.rows, image.cols};
-  intptr_t sizesKernel[2] = {kernelRows, kernelCols};
   intptr_t sizesOutput[2] = {outputRows, outputCols};
-  intptr_t stridesInput[2] = {image.rows, image.cols};
-  intptr_t stridesKernel[2] = {kernelRows, kernelCols};
-  intptr_t stridesOutput[2] = {outputRows, outputCols};
+  MemRef<float, 2> output(sizesOutput);
 
-  // Define memref descriptors.
-  MemRef_descriptor input =
-      MemRef_Descriptor(allocated, inputAlign, 0, sizesInput, stridesInput);
-  MemRef_descriptor kernel =
-      MemRef_Descriptor(allocated, kernelAlign, 0, sizesKernel, stridesKernel);
-  MemRef_descriptor output =
-      MemRef_Descriptor(allocated, outputAlign, 0, sizesOutput, stridesOutput);
-
-  clock_t start,end;
+  // Run the convolution and record the time.
+  clock_t start, end;
   start = clock();
 
   // Call the MLIR conv2d function.
-  _mlir_ciface_conv_2d(input, kernel, output);
+  _mlir_ciface_conv_2d(&input, &kernel, &output);
 
   end = clock();
-  cout << "Execution time: " 
-       << (double)(end - start) / CLOCKS_PER_SEC << " s" << endl;
+  cout << "Execution time: " << (double)(end - start) / CLOCKS_PER_SEC << " s"
+       << endl;
 
   // Define a cv::Mat with the output of the conv2d.
-  Mat outputImage(outputRows, outputCols, CV_32FC1, output->aligned);
+  Mat outputImage(outputRows, outputCols, CV_32FC1, output.getData());
 
   // Choose a PNG compression level
   vector<int> compression_params;
@@ -135,12 +93,6 @@ int main(int argc, char *argv[]) {
     cout << "Saved PNG file." << endl;
   else
     cout << "ERROR: Can't save PNG file." << endl;
-
-  free(inputAlign);
-  free(outputAlign);
-  free(input);
-  free(kernel);
-  free(output);
 
   return 0;
 }

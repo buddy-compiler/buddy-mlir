@@ -18,6 +18,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/OperationSupport.h"
+#include "llvm/ADT/TypeSwitch.h"
+#include "llvm/AsmParser/Parser.h"
+#include "llvm/IR/Attributes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Type.h"
+#include "llvm/Support/SourceMgr.h"
+
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
 
@@ -35,4 +48,13 @@ void DIPDialect::initialize() {
 #define GET_OP_LIST
 #include "DIP/DIPOps.cpp.inc"
       >();
+  addAttributes<
+#define GET_ATTRDEF_LIST
+#include "DIP/DIPOpsAttributes.cpp.inc"
+      >();
 }
+
+#include "DIP/DIPOpsEnums.cpp.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "DIP/DIPOpsAttributes.cpp.inc"

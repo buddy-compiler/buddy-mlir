@@ -306,7 +306,7 @@ void mlir::populateRVVLegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, OwningRewritePatternList &patterns) {
   // Populate conversion patterns.
   // Remove any RVV-specific types from function signatures and results.
-  populateFunctionOpInterfaceTypeConversionPattern<FuncOp>(patterns, converter);
+  populateFunctionOpInterfaceTypeConversionPattern<func::FuncOp>(patterns, converter);
   converter.addConversion([&converter](ScalableVectorType rvvSVType) {
     return convertScalableVectorTypeToLLVM(rvvSVType, converter);
   });
@@ -359,7 +359,7 @@ void mlir::configureRVVLegalizeForExportTarget(LLVMConversionTarget &target) {
         return true;
     return false;
   };
-  target.addDynamicallyLegalOp<FuncOp>([hasScalableVectorType](FuncOp op) {
+  target.addDynamicallyLegalOp<func::FuncOp>([hasScalableVectorType](func::FuncOp op) {
     return !hasScalableVectorType(op.getFunctionType().getInputs()) &&
            !hasScalableVectorType(op.getFunctionType().getResults());
   });

@@ -18,9 +18,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
 
@@ -46,7 +47,7 @@ public:
     Type resultType = op.getResult().getType();
     // Create constant operation.
     Attribute zeroAttr = rewriter.getZeroAttr(resultType);
-    Value c0 = rewriter.create<arith::ConstantOp>(loc, resultType, zeroAttr);
+    Value c0 = rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
 
     rewriter.replaceOp(op, c0);
     return success();
@@ -64,7 +65,7 @@ public:
     Type resultType = op.getResult().getType();
     // Create constant operation.
     Attribute zeroAttr = rewriter.getZeroAttr(resultType);
-    Value c0 = rewriter.create<arith::ConstantOp>(loc, resultType, zeroAttr);
+    Value c0 = rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
     // Create print operation for the scalar value.
     rewriter.create<vector::PrintOp>(loc, c0);
     VectorType vectorTy4 =
@@ -80,11 +81,11 @@ public:
   }
 };
 
-class BudTestStrAttrLowering : public OpRewritePattern<bud::TestStrAttrOp> {
+class BudTestEnumAttrLowering : public OpRewritePattern<bud::TestEnumAttrOp> {
 public:
-  using OpRewritePattern<bud::TestStrAttrOp>::OpRewritePattern;
+  using OpRewritePattern<bud::TestEnumAttrOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(bud::TestStrAttrOp op,
+  LogicalResult matchAndRewrite(bud::TestEnumAttrOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
     // Get type from the origin operation.
@@ -96,19 +97,13 @@ public:
     Value rhs = op.rhs();
     Value result;
     // Lowering to different ops according to the attribute.
-    if (arithAttr) {
-      if (*arithAttr == "add")
-        // Create addi operation.
-        result = rewriter.create<arith::AddIOp>(loc, resultType, lhs, rhs);
-      if (*arithAttr == "sub")
-        // Create subi operation.
-        result = rewriter.create<arith::SubIOp>(loc, resultType, lhs, rhs);
-      rewriter.replaceOp(op, result);
-    } else {
-      // Default attribute is "add".
+    if (arithAttr == buddy::bud::TestEnumAttrOperation::ADD)
+      // Create addi operation.
       result = rewriter.create<arith::AddIOp>(loc, resultType, lhs, rhs);
-      rewriter.replaceOp(op, result);
-    }
+    if (arithAttr == buddy::bud::TestEnumAttrOperation::SUB)
+      // Create subi operation.
+      result = rewriter.create<arith::SubIOp>(loc, resultType, lhs, rhs);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -145,7 +140,7 @@ void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<
       BudTestConstantLowering,
       BudTestPrintLowering,
-      BudTestStrAttrLowering,
+      BudTestEnumAttrLowering,
       BudTestArrayAttrLowering>(patterns.getContext());
   // clang-format on
 }
@@ -157,6 +152,7 @@ void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
 namespace {
 class LowerBudPass : public PassWrapper<LowerBudPass, OperationPass<ModuleOp>> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerBudPass)
   LowerBudPass() = default;
   LowerBudPass(const LowerBudPass &) {}
 
@@ -189,7 +185,7 @@ void LowerBudPass::runOnOperation() {
       vector::VectorDialect,
       memref::MemRefDialect>();
   // clang-format on
-  target.addLegalOp<ModuleOp, FuncOp, func::ReturnOp>();
+  target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);
   populateLowerBudConversionPatterns(patterns);

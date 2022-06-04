@@ -20,6 +20,7 @@
 
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -41,6 +42,7 @@ namespace {
 class LowerRVVToLLVMPass
     : public PassWrapper<LowerRVVToLLVMPass, OperationPass<ModuleOp>> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerRVVToLLVMPass)
   StringRef getArgument() const final { return "lower-rvv"; }
   StringRef getDescription() const final {
     return "RVV dialect lowering pass.";
