@@ -20,7 +20,7 @@ endif()
 
 project(buddy-mlir LANGUAGES CXX C)
   
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 #-------------------------------------------------------------------------------
@@ -79,6 +79,26 @@ include(${BUDDY_SOURCE_DIR}/cmake/check_simd.cmake)
 include(${BUDDY_SOURCE_DIR}/cmake/check_toolchain.cmake)
 check_simd()
 check_toolchain()
+
+#-------------------------------------------------------------------------------
+# Antlr Configuration
+#-------------------------------------------------------------------------------
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Antlr)
+
+# required if linking to static library
+add_definitions(-DANTLR4CPP_STATIC)
+
+# add external build for antlrcpp
+include(ExternalAntlr4Cpp)
+# add antrl4cpp artifacts to project environment
+include_directories(${ANTLR4_INCLUDE_DIRS})
+
+# set variable pointing to the antlr tool that supports C++
+# this is not required if the jar file can be found under PATH environment
+set(ANTLR_EXECUTABLE ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/antlr/antlr-4.10.1-complete.jar)
+# add macros to generate ANTLR Cpp code from grammar
+find_package(ANTLR REQUIRED)
 
 #-------------------------------------------------------------------------------
 # Directory setup
