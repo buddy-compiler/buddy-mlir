@@ -1,4 +1,4 @@
-#Convolution Optimization Tool - conv - opt
+# Convolution Optimization Tool - conv - opt
 
 ## Covolution Optimization Algorithm
 
