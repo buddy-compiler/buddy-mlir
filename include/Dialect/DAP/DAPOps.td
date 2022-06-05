@@ -24,41 +24,31 @@
 include "DAPDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/EnumAttr.td"
+include "mlir/IR/OpBase.td"
 
-def DAP_MonoFormat : StrEnumAttrCase<"MonoFormat", -1, "MONO_FORMAT">;
-def DAP_StereoFormat : StrEnumAttrCase<"StereoFormat", -1, "STEREO_FORMAT">;
 
-def DAP_FormatOptionAttr : StrEnumAttr<"FormatOptionAttr",
-    "Specifies audio format during audio processing.",
-    [
-      DAP_MonoFormat,
-      DAP_StereoFormat
-    ]>{
-  let cppNamespace = "::buddy::dap";
-}
-
-def DAP_Fir : DAP_Op<"fir">
+def DAP_FirOp : DAP_Op<"fir">
 {
   let summary = [{FIR filter, a finite impulse response (FIR) filter is a linear
   time-invariant filter that is used to filter a signal. It is a linear
   convolution of the input signal with a filter kernel.
 
   ```mlir
-    dsp.fir %input, %coefficient, %output :memref<?x?xf32>, memref<?x?xf32>, 
+    dsp.fir %input, %kernel, %output :memref<?x?xf32>, memref<?x?xf32>, 
             memref<?x?xf32>
   ```
   }];
 
   let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
                            [MemRead]>:$memrefI,
-                       Arg<AnyRankedOrUnrankedMemRef, "coefficientMemref",
-                           [MemRead]>:$memrefC,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
                        Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
-                           [MemRead]>:$memrefO,
-                       DIP_BoundaryOptionAttr:$boundary_option);
+                           [MemRead]>:$memrefO);
 
   let assemblyFormat = [{
-    $memrefI `,` $memrefC `,` $memrefO `,` attr-dict `:` type($memrefI) `,` type($memrefC) `,` type($memrefO) 
+    $memrefI `,` $memrefK `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO) 
   }];
 }
 

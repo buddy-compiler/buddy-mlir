@@ -44,4 +44,4 @@ def DAP_Dialect : Dialect {
 class DAP_Op<string mnemonic, list<Trait> traits = []> :
     Op<DAP_Dialect, mnemonic, traits>;
 
-#endif // DAP_DIPDIALECT_TD
+#endif // DAP_DAPDIALECT_TD

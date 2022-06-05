@@ -18,11 +18,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef DAP_DIPDIALECT_H
-#define DAP_DIPDIALECT_H
+#ifndef DAP_DAPDIALECT_H
+#define DAP_DAPDIALECT_H
 
 #include "mlir/IR/Dialect.h"
 
 #include "DAP/DAPOpsDialect.h.inc"
 
-#endif // DAP_DIPDIALECT_H
+#endif // DAP_DAPDIALECT_H
