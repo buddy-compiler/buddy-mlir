@@ -461,4 +461,24 @@ vector-expand-load-run:
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}		
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}	
+
+vector-compressstore-lower:
+	@${MLIR_OPT} ./vector-compressstore.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts -o ./log.mlir
+
+vector-compressstore-translate:
+	@${MLIR_OPT} ./vector-compressstore.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-compressstore-run:
+	@${MLIR_OPT} ./vector-compressstore.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}			
