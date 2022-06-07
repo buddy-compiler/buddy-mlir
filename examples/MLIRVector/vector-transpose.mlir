@@ -1,7 +1,7 @@
 func.func @main() {
   %vector_1 = arith.constant dense<[[12.,13.,24.,67.,75.],
-                                      [23.,25.,45.,67.,78.],
-                                      [67.,90.,78.,90.,91.]]> : vector<3x5xf32>
+                                    [23.,25.,45.,67.,78.],
+                                    [67.,90.,78.,90.,91.]]> : vector<3x5xf32>
 
   %vector_1_trans = vector.transpose %vector_1, [1,0] : vector<3x5xf32> to vector<5x3xf32> // Exchanges dims 0 and 1
   vector.print %vector_1_trans : vector<5x3xf32>

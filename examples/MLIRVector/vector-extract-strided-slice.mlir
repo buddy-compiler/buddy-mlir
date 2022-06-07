@@ -6,13 +6,13 @@ func.func @main() {
                               [12,167,189,119],[123,56,77,88]]]> : vector<2x4x4xi32>
 
   %1 = vector.extract_strided_slice %0 
-         {offsets = [0,0],sizes = [2,2],strides = [1,1]} : 
+         {offsets = [0,0], sizes = [2,2], strides = [1,1]} : 
          vector<2x4x4xi32> to vector<2x2x4xi32>
 
   vector.print %1 : vector<2x2x4xi32>
 
   %2 = vector.extract_strided_slice %0 
-       {offsets = [0,1], sizes = [2,2],strides = [1,1]} : 
+       {offsets = [0,1], sizes = [2,2], strides = [1,1]} : 
        vector<2x4x4xi32> to vector<2x2x4xi32>
 
   vector.print %2 : vector<2x2x4xi32>
