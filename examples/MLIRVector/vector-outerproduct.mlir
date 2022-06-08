@@ -15,7 +15,7 @@ func.func @main() {
   vector.print %4 : vector<6x3xi32>
 
   %cons = arith.constant 4 : i32
-  %5 = vector.outerproduct %0, %cons : vector<6xi32>, i32  // will give vector of same shape formula is [a,c]*d = [a*d,c*d]
+  %5 = vector.outerproduct %0, %cons : vector<6xi32>, i32  // will give vector of same shape, formula is [a,c]*d = [a*d,c*d]
   vector.print %5 : vector<6xi32>
   return
 }

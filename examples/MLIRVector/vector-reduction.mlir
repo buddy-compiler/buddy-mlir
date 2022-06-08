@@ -16,5 +16,5 @@ func.func @main() {
 
   %or = vector.reduction <or>, %0 : vector<6xi32> into i32
   vector.print %or : i32
-  return 
+  return
 }

@@ -6,5 +6,5 @@ func.func @main() {
   %2 = arith.constant dense<10.0> : vector<3x2xf32> // Create a vector of shape 3x2 with value 10.0 to test
 
   vector.print %2 : vector<3x2xf32>
-  return 
+  return
 }

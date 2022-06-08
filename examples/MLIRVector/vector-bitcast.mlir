@@ -12,4 +12,4 @@ func.func @main() {
   vector.print %v3 : vector<6xi32>
 
   return
-} 
+}

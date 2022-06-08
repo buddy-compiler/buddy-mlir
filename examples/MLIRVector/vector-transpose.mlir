@@ -19,5 +19,5 @@ func.func @main() {
   %vector_3_trans = vector.transpose %vector_3, [1, 2, 0] : vector<3x4x5xf32> to vector<4x5x3xf32>  // Changes all three dimensions
   vector.print %vector_3_trans : vector<4x5x3xf32>
 
-  return                                  
+  return
 }

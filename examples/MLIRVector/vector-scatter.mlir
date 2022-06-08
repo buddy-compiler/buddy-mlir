@@ -4,11 +4,10 @@ memref.global "private" @gv2 : memref<6xi32> = dense<[12, 45, 67, 90, 123, 131]>
 func.func private @printMemrefI32(memref<*xi32>)
 
 func.func @main() {
-
   %cons1 = arith.constant 1 : index
-  %index0 = arith.constant dense<[1, 3, 7, 9, 0, 6, 5, 4, 2, 8]> : vector<10xi32> //index vector
+  %index0 = arith.constant dense<[1, 3, 7, 9, 0, 6, 5, 4, 2, 8]> : vector<10xi32> // index vector
 
-  %mask0 = arith.constant dense<[0, 1, 0, 0, 1, 0, 1, 0, 0, 1]> : vector<10xi1> //mask vector
+  %mask0 = arith.constant dense<[0, 1, 0, 0, 1, 0, 1, 0, 0, 1]> : vector<10xi1> // mask vector
   %value0 = arith.constant dense<[122, 11, 23, 45, 67, 89, 21, 90, 88, 110]> : vector<10xi32>
 
   %base0 = memref.get_global @gv1 : memref<10xi32>

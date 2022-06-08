@@ -1,5 +1,4 @@
 func.func @main() {
-
   %0 = arith.constant dense<[[[1, 2, 3, 4], [1, 7, 8, 9],
                               [12, 11, 14, 19], [100, 101, 112, 111]],
                              [[100, 101, 109, 117], [111, 156, 167, 189],
@@ -17,5 +16,5 @@ func.func @main() {
 
   vector.print %2 : vector<2x2x4xi32>
 
-  return            
-} 
+  return
+}
