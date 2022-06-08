@@ -1,5 +1,5 @@
 func.func @main() {
-  %v0 = arith.constant dense<[10,20,56,90,12,90]> : vector<6xi32>
+  %v0 = arith.constant dense<[10, 20, 56, 90, 12, 90]> : vector<6xi32>
   vector.print %v0 : vector<6xi32>
 
   %v1 = vector.bitcast %v0 : vector<6xi32> to vector<3xi64>
