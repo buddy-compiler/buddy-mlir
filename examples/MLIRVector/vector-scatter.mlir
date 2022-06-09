@@ -11,7 +11,7 @@ func.func @main() {
   %value0 = arith.constant dense<[122, 11, 23, 45, 67, 89, 21, 90, 88, 110]> : vector<10xi32>
 
   %base0 = memref.get_global @gv1 : memref<10xi32>
-  vector.scatter %base0[%cons1][%index0], %mask0 , %value0 : 
+  vector.scatter %base0[%cons1][%index0], %mask0, %value0 : 
   memref<10xi32>, vector<10xi32>, vector<10xi1>, vector<10xi32>
 
   %res0 = memref.cast %base0 : memref<10xi32> to memref<*xi32>

@@ -22,7 +22,7 @@ func.func @main() {
           memref<6x6xi32>, vector<8xi1>, vector<8xi32> into vector<8xi32>
   vector.print %res0 : vector<8xi32>
 
-  %res1 = vector.expandload %base[%cons0, %cons0], %mask1 , %1 : 
+  %res1 = vector.expandload %base[%cons0, %cons0], %mask1, %1 : 
         memref<6x6xi32>, vector<8xi1>, vector<8xi32> into vector<8xi32>
   vector.print %res1 : vector<8xi32>
   return
