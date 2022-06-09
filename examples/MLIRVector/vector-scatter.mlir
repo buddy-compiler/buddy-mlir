@@ -29,5 +29,5 @@ func.func @main() {
 
   %res1 = memref.cast %base1 : memref<6xi32> to memref<*xi32>
   func.call @printMemrefI32(%res0) : (memref<*xi32>) -> ()
-  return 
+  return
 }

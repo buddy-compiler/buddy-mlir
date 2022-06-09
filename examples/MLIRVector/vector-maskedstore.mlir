@@ -28,5 +28,5 @@ func.func @main() {
   %print_out1 = memref.cast %base : memref<3x3x3xi32> to memref<*xi32>
   func.call @printMemrefI32(%print_out1) : (memref<*xi32>) -> ()
 
-  return 
+  return
 }

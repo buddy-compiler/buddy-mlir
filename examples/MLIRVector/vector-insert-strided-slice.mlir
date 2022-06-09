@@ -18,5 +18,5 @@ func.func @main() {
   %4 = vector.insert_strided_slice %3, %1 {offsets = [0, 0], strides = [1, 1]} : 
   vector<2x2xi32> into vector<3x3xi32>
   vector.print %4 : vector<3x3xi32>
-  return 
+  return
 }
