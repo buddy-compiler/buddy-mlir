@@ -8,7 +8,7 @@ func.func @main() {
                              [12, 65, 90],
                              [12, 54, 55]]> : vector<3x3xi32>
 
-  %2 = vector.insert_strided_slice %1, %0 {offsets=[1, 0, 0], strides = [1, 1]} : 
+  %2 = vector.insert_strided_slice %1, %0 {offsets = [1, 0, 0], strides = [1, 1]} : 
   vector<3x3xi32> into vector<4x4x4xi32>
 
   vector.print %2 : vector<4x4x4xi32>
