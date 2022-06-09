@@ -15,7 +15,7 @@ func.func @main() {
   %mask0 = arith.constant dense<[1, 0, 0, 1]> : vector<4xi1>
 
   %value0 = arith.constant dense<[111, 34, 56, 29]> : vector<4xi32>
-  vector.compressstore %base0[%cons0, %cons1] , %mask0 , %value0 : 
+  vector.compressstore %base0[%cons0, %cons1], %mask0 , %value0 : 
   memref<4x4xi32>, vector<4xi1>, vector<4xi32>
 
   %res0 = memref.cast %base0 : memref<4x4xi32> to memref<*xi32>

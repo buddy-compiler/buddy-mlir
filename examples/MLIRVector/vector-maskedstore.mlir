@@ -10,19 +10,19 @@ func.func @main() {
   %base = memref.get_global @gv : memref<3x3x3xi32> 
   %c0 = arith.constant 0 : index
 
-  %c1 = arith.constant 2 : index
-  %c2 = arith.constant 1 : index
+  %c2 = arith.constant 2 : index
+  %c1 = arith.constant 1 : index
 
   %mask1 = arith.constant dense<[1, 0, 0, 0, 0, 1, 1, 1, 1]> : vector<9xi1>
   %value1 = arith.constant dense<[35, 89, 90, 78, 67, 54, 53, 21, 90]> : vector<9xi32>
 
-  vector.maskedstore %base[%c0, %c0, %c1], %mask0, %value0
+  vector.maskedstore %base[%c0, %c0, %c2], %mask0, %value0
   :memref<3x3x3xi32>, vector<9xi1>, vector<9xi32>
 
   %print_out0 = memref.cast %base : memref<3x3x3xi32> to memref<*xi32> 
   func.call @printMemrefI32(%print_out0) : (memref<*xi32>) -> ()  
 
-  vector.maskedstore %base[%c0, %c1, %c2], %mask1, %value1
+  vector.maskedstore %base[%c0, %c2, %c1], %mask1, %value1
   :memref<3x3x3xi32>, vector<9xi1>, vector<9xi32>
 
   %print_out1 = memref.cast %base : memref<3x3x3xi32> to memref<*xi32>

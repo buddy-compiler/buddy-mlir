@@ -1,5 +1,4 @@
 func.func @main() {
-
   %mask1 = vector.constant_mask [5] : vector<10xi1>
   vector.print %mask1 : vector<10xi1>
 

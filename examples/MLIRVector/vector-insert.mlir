@@ -19,7 +19,7 @@ func.func @main() {
   vector.print %4 : vector<2x2xi32>
 
   %vec = arith.constant dense<[100, 101]> : vector<2xi32>
-  %5 = vector.insert %vec, %4[1] : vector<2xi32> into vector<2x2xi32> // Will replace [23,24] with [100,101]
+  %5 = vector.insert %vec, %4[1] : vector<2xi32> into vector<2x2xi32> // Will replace [23,24], with [100,101]
 
   vector.print %5 : vector<2x2xi32>
   return

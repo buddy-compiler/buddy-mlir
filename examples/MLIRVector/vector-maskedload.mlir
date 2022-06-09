@@ -1,7 +1,6 @@
 memref.global "private" @gv : memref<9xi32> = dense<[9, 10, 34, 45, 78, 89, 90, 12, 34]> 
 
 func.func @main() {
-
   %base = memref.get_global @gv : memref<9xi32>
   %mask = arith.constant dense<[1, 1, 1, 0, 1, 0, 0, 1, 1]> : vector<9xi1>
 
