@@ -11,9 +11,6 @@ func.func @main() {
   %c1 = arith.constant 1 : index
   %c2 = arith.constant 2 : index
   %load_vec1 = vector.load %mem[%c0, %c0] : memref<6x4xf32>, vector<[4]xf32>
-  // %load_vec2 = vector.load %mem[%c1, %c0] : memref<6x4xf32>, vector<[4]xi32>
-  // %load_vec3 = vector.load %mem[%c2, %c0] : memref<6x4xf32>, vector<[4]xi32>
-  // %res = vector.fma %load_vec1, %load_vec2, %load_vec3 : vector<16xf32>
   vector.print %load_vec1 : vector<[4]xf32>
   return
 }
