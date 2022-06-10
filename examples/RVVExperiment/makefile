@@ -126,10 +126,3 @@ vector-scalable-asm-rv:
 	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
-
-vector-scalable-run:
-	@${MLIR_OPT} ./vector-scalable.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
-		--reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
