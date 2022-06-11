@@ -50,9 +50,9 @@ func.func @main() {
     gpu.terminator
   }
 
-  call @print_memref_i32(%cast_sum) : (memref<*xi32>) -> ()
+  call @printMemrefI32(%cast_sum) : (memref<*xi32>) -> ()
 
   return
 }
 
-func.func private @print_memref_i32(memref<*xi32>)
+func.func private @printMemrefI32(memref<*xi32>)

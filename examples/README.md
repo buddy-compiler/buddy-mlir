@@ -130,3 +130,45 @@ Example:
 $ cd buddy-mlir/build/bin
 $ ./buddy-opt ../../examples/BudDialect/TestConstant.mlir --lower-bud
 ```
+
+## DSL Examples
+
+We use Antlr as the frontend framework.
+
+1. Build LLVM/MLIR with RTTI and EH enabled.
+
+```
+$ cd buddy-mlir
+$ mkdir llvm/build
+$ cd llvm/build
+$ cmake -G Ninja ../llvm \
+    -DLLVM_ENABLE_PROJECTS="mlir" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DLLVM_ENABLE_RTTI=ON \
+    -DLLVM_ENABLE_EH=ON
+$ ninja check-mlir
+```
+
+2. Build buddy-mlir with `BUDDY_DSL_EXAMPLES` enabled.
+
+```
+$ cd buddy-mlir
+$ mkdir build
+$ cd build
+$ cmake -G Ninja .. \
+    -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
+    -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DBUDDY_DSL_EXAMPLES=ON
+$ ninja
+```
+
+3. Run the example.
+
+```
+$ cd bin
+$ ./buddy-toy-dsl
+```
