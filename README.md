@@ -64,7 +64,6 @@ If you want to add domain-specific framework support, please add the following c
 | -------------- | ------------- | ------------- |
 | OpenCV  | `-DBUDDY_ENABLE_OPENCV=ON`  | Add `-DOpenCV_DIR=</PATH/TO/OPENCV/BUILD/>` or install OpenCV release version on your local device. |
 
-
 ## Dialects
 
 ### Bud Dialect
