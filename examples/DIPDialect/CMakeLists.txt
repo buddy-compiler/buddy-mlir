@@ -35,4 +35,3 @@ target_link_libraries(correlation2D ${OpenCV_LIBS} DIP)
 add_executable(rotation2D rotation2D.cpp)
 add_dependencies(rotation2D buddy-opt)
 target_link_libraries(rotation2D ${OpenCV_LIBS} DIP)
-

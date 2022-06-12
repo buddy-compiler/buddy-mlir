@@ -1020,9 +1020,10 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<buddy::dip::DIPDialect, func::FuncDialect,
-                    memref::MemRefDialect, scf::SCFDialect, VectorDialect,
-                    AffineDialect, arith::ArithmeticDialect, math::MathDialect>();
+    registry
+        .insert<buddy::dip::DIPDialect, func::FuncDialect,
+                memref::MemRefDialect, scf::SCFDialect, VectorDialect,
+                AffineDialect, arith::ArithmeticDialect, math::MathDialect>();
   }
 
   Option<int64_t> stride{*this, "DIP-strip-mining",

@@ -79,12 +79,11 @@ bool testImplementation(int argc, char *argv[]) {
   // Define memref descriptors.
   MemRef_descriptor input =
       MemRef_Descriptor(allocated, inputAlign, 0, sizesInput, stridesInput);
-  MemRef_descriptor output =
-      dip::Rotate2D(input, 45, dip::ANGLE_TYPE::DEGREE);
+  MemRef_descriptor output = dip::Rotate2D(input, 45, dip::ANGLE_TYPE::DEGREE);
 
   // Define a cv::Mat with the output of Corr2D.
   Mat outputImageRotate2D(output->sizes[0], output->sizes[1], CV_32FC1,
-                                  output->aligned);
+                          output->aligned);
   imwrite(argv[2], outputImageRotate2D);
 
   free(input);
