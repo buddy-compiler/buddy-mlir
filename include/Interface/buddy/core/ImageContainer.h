@@ -22,6 +22,7 @@
 #define INTERFACE_BUDDY_CORE_IMAGECONTAINER
 
 #include "Interface/buddy/core/Container.h"
+#include <iostream>
 #include <opencv2/opencv.hpp>
 
 // Image container.
@@ -29,7 +30,8 @@
 // - N represents the number of dimensions.
 template <typename T, size_t N> class Img : public MemRef<T, N> {
 public:
-  Img(cv::Mat image);
+  Img(const std::string &file_path); // Default image decoder.
+  Img(cv::Mat image);                // OpenCV data stracture.
 };
 
 #include "Interface/core/ImageContainer.cpp"

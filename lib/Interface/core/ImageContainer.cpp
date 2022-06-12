@@ -25,6 +25,46 @@
 
 #include "Interface/buddy/core/Container.h"
 #include "Interface/buddy/core/ImageContainer.h"
+#include "Interface/buddy/core/Mat.h"
+
+// Image Constructor from file path.
+template <typename T, size_t N>
+Img<T, N>::Img(const std::string &file_path) : MemRef<T, N>() {
+  Mat image(file_path);
+  if (image._channel == 1) {
+    assert((N == 2) &&
+           "Input image type does not match the selected dimension.");
+    this->sizes[0] = image._height;
+    this->sizes[1] = image._width;
+    this->size = image._height * image._width;
+    this->allocated = new T[this->size];
+    this->aligned = this->allocated;
+    int k = 0;
+    for (int i = 0; i < image._height; i++) {
+      for (int j = 0; j < image._width; j++) {
+        if (typeid(T) == typeid(uint8_t)) {
+          this->aligned[k] = image._data.u8 + i * image._width + j;
+        } else if (typeid(T) == typeid(int8_t)) {
+          this->aligned[k] = image._data.u8 + i * image._width + j;
+        } else if (typeid(T) == typeid(uint16_t)) {
+          this->aligned[k] = image._data.u16 + i * image._width + j;
+        } else if (typeid(T) == typeid(int16_t)) {
+          this->aligned[k] = image._data.i16 + i * image._width + j;
+        } else if (typeid(T) == typeid(uint32_t)) {
+          this->aligned[k] = image._data.u32 + i * image._width + j;
+        } else if (typeid(T) == typeid(int32_t)) {
+          this->aligned[k] = image._data.i32 + i * image._width + j;
+        } else if (typeid(T) == typeid(float)) {
+          this->aligned[k] = image._data.f32 + i * image._width + j;
+        } else if (typeid(T) == typeid(double)) {
+          this->aligned[k] = image._data.f64 + i * image._width + j;
+        }
+        k++;
+      }
+    }
+    this->setStrides();
+  }
+}
 
 // Image Constructor from OpenCV Mat.
 template <typename T, size_t N> Img<T, N>::Img(cv::Mat image) : MemRef<T, N>() {

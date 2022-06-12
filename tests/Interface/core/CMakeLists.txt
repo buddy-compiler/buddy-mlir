@@ -4,6 +4,11 @@ _add_test_executable(buddy-container-test
     Container
 )
 
+_add_test_executable(buddy-mat-test
+  MatTest.cpp
+  LINK_LIBS
+    Mat)
+
 if(BUDDY_ENABLE_OPENCV)
 find_package(OpenCV REQUIRED CONFIG)
 include_directories(${OpenCV_INCLUDE_DIRS})
