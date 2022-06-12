@@ -64,20 +64,6 @@ If you want to add domain-specific framework support, please add the following c
 | -------------- | ------------- | ------------- |
 | OpenCV  | `-DBUDDY_ENABLE_OPENCV=ON`  | Add `-DOpenCV_DIR=</PATH/TO/OPENCV/BUILD/>` or install OpenCV release version on your local device. |
 
-### Build OpenCV(Optional)
-
-If you want to install OpenCV on your local device, you can use the following configuration:
-
-```
-$ sudo apt-get install libgtk2.0-dev pkg-config  libcanberra-gtk-module
-$ git clone https://github.com/opencv/opencv.git
-$ cd opencv && mkdir build && cd build
-$ cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local ..
-$ make -j$(nproc)
-$ sudo make install
-```
-
-Also you can replace `/usr/local` with whatever path you want to use.
 
 ## Dialects
 
