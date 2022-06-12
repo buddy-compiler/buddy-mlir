@@ -79,4 +79,34 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d">
   }];
 }
 
+def DIP_Rotate2DOp : DIP_Op<"rotate_2d"> {
+  let summary = [{This operation intends to provide utility for rotating images via the DIP dialect. 
+  Image rotation has many applications such as data augmentation, alignment adjustment, etc. and 
+  can thus be used in native MLIR pipelines involving above mentioned uses. 
+
+  Standard affine rotation matrix [cosθ   sinθ] is used whenever tan(θ/2) > 8.1 for the user defined θ. 
+				                          [-sinθ  cosθ]
+  In all other cases, the 3 shear method is used to simplify calculations and minimize generated 
+  artifacts. The equivalent 3 shear matrix combination is as follows : 
+  [1  -tan(θ/2)]   *   [ 1       0]   *   [1    -tan(θ/2)]
+  [0      1    ]       [sinθ     1]       [0        1    ]
+
+  For example: 
+
+  ```mlir
+  dip.rotate_2d %inputImage, %angle, %outputImage : memref<?x?xf32>, f32, memref<?x?xf32>
+  ```
+}];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       F32 : $angle,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefO);
+
+  let assemblyFormat = [{
+    $memrefI `,` $angle `,` $memrefO attr-dict `:` type($memrefI) `,` type($angle) `,` type($memrefO)
+  }];
+}
+
 #endif // DIP_DIPOPS_TD
