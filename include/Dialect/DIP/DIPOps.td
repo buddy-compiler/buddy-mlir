@@ -84,7 +84,7 @@ def DIP_Rotate2DOp : DIP_Op<"rotate_2d"> {
   Image rotation has many applications such as data augmentation, alignment adjustment, etc. and 
   can thus be used in native MLIR pipelines involving above mentioned uses. 
 
-  Standard affine rotation matrix [cosθ   sinθ] is used whenever tan(θ/2) > 8.1 for the user defined θ. 
+  Standard affine rotation matrix [cosθ   sinθ] is used whenever |tan(θ/2)| > 8.1 for the user defined θ. 
 				                          [-sinθ  cosθ]
   In all other cases, the 3 shear method is used to simplify calculations and minimize generated 
   artifacts. The equivalent 3 shear matrix combination is as follows : 

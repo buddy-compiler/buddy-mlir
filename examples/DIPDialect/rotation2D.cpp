@@ -71,7 +71,7 @@ bool testImplementation(int argc, char *argv[]) {
     }
   }
 
-  // Define the allocated, sizes, and strides.
+  // Define allocated, sizes, and strides fields for the MemRef_descriptor.
   float *allocated = (float *)malloc(1 * sizeof(float));
   intptr_t sizesInput[2] = {image.rows, image.cols};
   intptr_t stridesInput[2] = {image.rows, image.cols};
@@ -81,7 +81,7 @@ bool testImplementation(int argc, char *argv[]) {
       MemRef_Descriptor(allocated, inputAlign, 0, sizesInput, stridesInput);
   MemRef_descriptor output = dip::Rotate2D(input, 45, dip::ANGLE_TYPE::DEGREE);
 
-  // Define a cv::Mat with the output of Corr2D.
+  // Define a cv::Mat with the output of Rotate2D.
   Mat outputImageRotate2D(output->sizes[0], output->sizes[1], CV_32FC1,
                           output->aligned);
   imwrite(argv[2], outputImageRotate2D);
