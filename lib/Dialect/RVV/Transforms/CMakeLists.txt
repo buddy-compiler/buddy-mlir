@@ -8,5 +8,5 @@ add_mlir_dialect_library(BuddyRVVTransforms
   BuddyRVV
   MLIRIR
   MLIRLLVMCommonConversion
-  MLIRLLVMIR
+  MLIRLLVMDialect
   )

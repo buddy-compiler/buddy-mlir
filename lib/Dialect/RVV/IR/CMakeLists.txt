@@ -6,5 +6,5 @@ add_mlir_dialect_library(BuddyRVV
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRLLVMIR
+  MLIRLLVMDialect
   )

@@ -9,7 +9,7 @@ add_mlir_translation_library(BuddyRVVToLLVMIRTranslation
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRLLVMIR
+  MLIRLLVMDialect
   MLIRSupport
   MLIRTargetLLVMIRExport
   BuddyRVV
