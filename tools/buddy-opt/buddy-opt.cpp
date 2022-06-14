@@ -33,6 +33,8 @@
 
 #include "Bud/BudDialect.h"
 #include "Bud/BudOps.h"
+#include "DAP/DAPDialect.h"
+#include "DAP/DAPOps.h"
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
 #include "RVV/RVVDialect.h"
@@ -44,6 +46,7 @@ void registerPointwiseConvToGemmPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
+void registerLowerDAPPass();
 void registerLowerRVVPass();
 } // namespace buddy
 } // namespace mlir
@@ -58,6 +61,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerPoolingVectorizationPass();
   mlir::buddy::registerLowerBudPass();
   mlir::buddy::registerLowerDIPPass();
+  mlir::buddy::registerLowerDAPPass();
   mlir::buddy::registerLowerRVVPass();
 
   mlir::DialectRegistry registry;
@@ -67,6 +71,7 @@ int main(int argc, char **argv) {
   // clang-format off
   registry.insert<buddy::bud::BudDialect,
                   buddy::dip::DIPDialect,
+                  buddy::dap::DAPDialect,
                   buddy::rvv::RVVDialect>();
   // clang-format on
 
