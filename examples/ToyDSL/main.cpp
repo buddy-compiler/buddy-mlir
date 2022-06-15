@@ -1,47 +1,48 @@
-//===- Main.cpp -----------------------------------------------------------===//
-//
-// This file is the DSL frontend to generate MLIR from input file.
-//
-//===----------------------------------------------------------------------===//
-
 #include <iostream>
-
-#include "TLexer.h"
-#include "TParser.h"
-#include "antlr4-runtime.h"
-
-#include "toy/Dialect.h"
-
+#include <fstream>
+#include "toyLexer.h"
+#include "toyParser.h"
+#include "Dialect.h"
+#include "mlirvisitor.h"
+#include "Passes.h"
+#include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/InitAllDialects.h"
 #include "mlir/Parser/Parser.h"
+#include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 
-using namespace antlrcpptest;
-using namespace antlr4;
-
-int main(int, const char **) {
-  // TODO: Read a input file.
-  ANTLRInputStream input(u8"a + (x * (y ? 0 : 1) + z);");
-  TLexer lexer(&input);
-  CommonTokenStream tokens(&lexer);
-
-  tokens.fill();
-  for (auto token : tokens.getTokens()) {
-    std::cout << token->toString() << std::endl;
+int main(int argc, char* argv[]) {
+  // you should input the name of the file which contains code.
+  if (argc == 2) {
+    std::fstream in(argv[1]);
+    antlr4::ANTLRInputStream input(in);
+    toyLexer lexer(&input);
+    antlr4::CommonTokenStream tokens(&lexer);
+    toyParser parser(&tokens);
+    antlr4::tree::ParseTree* tree = parser.module();
+    // load our dialect in context.
+    context.getOrLoadDialect<mlir::toy::ToyDialect>();
+    mlirvisitor visitor(argv[1]); 
+    visitor.visit(tree);
+    mlir::PassManager pm(&context);
+    // apply any generic pass manager command line options and run the pipeline.
+    mlir::applyPassManagerCLOptions(pm);
+    pm.addNestedPass<mlir::toy::FuncOp>(mlir::createCanonicalizerPass());
+    // lower toy dialect to standard dialect.
+    pm.addPass(mlir::toy::createLowerToAffinePass());
+    // lower standard dialect to llvm dialect.
+    pm.addPass(mlir::toy::createLowerToLLVMPass());
+    pm.run(visitor.theModule);
+    // dump llvm dialect.
+    visitor.theModule.dump();
   }
-
-  TParser parser(&tokens);
-  tree::ParseTree *tree = parser.main();
-
-  std::cout << tree->toStringTree(&parser) << std::endl << std::endl;
-
-  // TODO: Traverse AST to generate MLIR file.
-  mlir::MLIRContext context;
-  context.getOrLoadDialect<mlir::toy::ToyDialect>();
-  std::cout << "Is Toy Constant Operation Registered: "
-            << context.isOperationRegistered("toy.constant") << std::endl;
-
   return 0;
+
 }
+
+

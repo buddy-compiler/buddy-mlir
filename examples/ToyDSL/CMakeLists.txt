@@ -2,42 +2,70 @@
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-# Add toy definition subdirectory.
-add_subdirectory(include)
-set(LLVM_LINK_COMPONENTS
-  Support
-)
 
-# Call macro to add lexer and grammar to your build dependencies.
-antlr_target(SampleGrammarLexer TLexer.g4 LEXER
-             PACKAGE antlrcpptest)
-antlr_target(SampleGrammarParser TParser.g4 PARSER
-             PACKAGE antlrcpptest
-             DEPENDS_ANTLR SampleGrammarLexer
-             COMPILE_FLAGS -lib ${ANTLR_SampleGrammarLexer_OUTPUT_DIR})
-
-# Include generated files in project environment
-include_directories(${ANTLR_SampleGrammarLexer_OUTPUT_DIR})
-include_directories(${ANTLR_SampleGrammarParser_OUTPUT_DIR})
+antlr_target(toy toy.g4
+            VISITOR)
+include_directories(${ANTLR_toy_OUTPUT_DIR})
 
 # Include toy definition directories. 
-include_directories(include/)
+include_directories(include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/)
+include_directories(include/toy)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+
+
+# use mlirtablen to generate toycombine code.
+set(LLVM_TARGET_DEFINITIONS mlir/ToyCombine.td)
+mlir_tablegen(ToyCombine.inc -gen-rewriters)
+add_public_tablegen_target(ToyCombineIncGen)
+
+add_subdirectory(include)
 
 # Add DSL -> MLIR frontend.
-add_llvm_executable(buddy-toy-dsl main.cpp mlir/Dialect.cpp
-                    ${ANTLR_SampleGrammarLexer_CXX_OUTPUTS}
-                    ${ANTLR_SampleGrammarParser_CXX_OUTPUTS}
+add_llvm_executable(buddy-toy-dsl 
+										main.cpp 
+										mlir/Dialect.cpp
+										mlir/LowerToAffineLoops.cpp
+										mlir/LowerToLLVM.cpp
+										mlir/ToyCombine.cpp  
+                    ${ANTLR_toy_CXX_OUTPUTS}
                     DEPENDS
+										ToyCombineIncGen
                     ToyDSLOpsIncGen)
-
 llvm_update_compile_flags(buddy-toy-dsl)
-target_link_libraries(buddy-toy-dsl PRIVATE
+
+# add linklibrary.
+target_link_libraries(buddy-toy-dsl 
+  PRIVATE
   Threads::Threads
-  antlr4_static
-  MLIRAnalysis
-  MLIRIR
-  MLIRParser
-  MLIRSideEffectInterfaces
-  MLIRTransforms
+    MLIRAnalysis
+    MLIRCallInterfaces
+    MLIRCastInterfaces
+    MLIRExecutionEngine
+    MLIRIR
+    MLIRAffineDialect
+    MLIRFuncDialect
+    MLIRSCFDialect
+    MLIRLLVMToLLVMIRTranslation
+    MLIRMemRefDialect
+    MLIRParser
+    MLIRPass
+    MLIRSideEffectInterfaces
+    MLIRTargetLLVMIRExport
+    MLIRTransforms
+    MLIRSupport
+    MLIRLLVMCommonConversion
+    MLIRLLVMToLLVMIRTranslation
+    MLIRTargetLLVMIRExport
+    MLIRControlFlowToLLVM
+    MLIRFuncToLLVM
+    MLIRMemRefToLLVM
+    MLIRSCFToControlFlow
+    MLIRAffineToStandard
+    antlr4_static
+    ${dialect_libs}
+    ${conversion_libs}
 )
+
+
