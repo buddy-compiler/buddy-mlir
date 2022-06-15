@@ -12,8 +12,7 @@ include_directories(include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/)
 include_directories(include/toy)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-
-
+include_directories(${ANTLR4_INCLUDE_DIRS})
 
 # use mlirtablen to generate toycombine code.
 set(LLVM_TARGET_DEFINITIONS mlir/ToyCombine.td)
