@@ -1,10 +1,3 @@
-//===- Dialect.cpp - Toy IR Dialect registration in MLIR ------------------===//
-//
-// This file is from MLIR toy tutorial Ch-2.
-// TODO: Remove this and directly access the upstream version in the submodule.
-//
-//===----------------------------------------------------------------------===//
-
 #include "toy/Dialect.h"
 
 #include "mlir/IR/Builders.h"

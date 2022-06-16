@@ -1,14 +1,6 @@
-//===- Ops.td - Toy dialect operation definitions ----------*- tablegen -*-===//
-//
-// This file is from MLIR toy tutorial Ch-2.
-// TODO: Remove this and directly access the upstream version in the submodule.
-//
-//===----------------------------------------------------------------------===//
-
 #ifndef TOY_OPS
 #define TOY_OPS
 
-include "mlir/IR/OpBase.td"
 include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -85,7 +77,7 @@ def ConstantOp : Toy_Op<"constant", [NoSideEffect]> {
 // AddOp
 //===----------------------------------------------------------------------===//
 
-def AddOp : Toy_Op<"add"> {
+def AddOp : Toy_Op<"add", [NoSideEffect]> {
   let summary = "element-wise addition operation";
   let description = [{
     The "add" operation performs element-wise addition between two tensors.
@@ -196,7 +188,7 @@ def GenericCallOp : Toy_Op<"generic_call"> {
 // MulOp
 //===----------------------------------------------------------------------===//
 
-def MulOp : Toy_Op<"mul"> {
+def MulOp : Toy_Op<"mul", [NoSideEffect]> {
   let summary = "element-wise multiplication operation";
   let description = [{
     The "mul" operation performs element-wise multiplication between two
@@ -227,7 +219,7 @@ def PrintOp : Toy_Op<"print"> {
   }];
 
   // The print operation takes an input tensor to print.
-  let arguments = (ins F64Tensor:$input);
+  let arguments = (ins AnyTypeOf<[F64Tensor, F64MemRef]>:$input);
 
   let assemblyFormat = "$input attr-dict `:` type($input)";
 }
@@ -236,7 +228,7 @@ def PrintOp : Toy_Op<"print"> {
 // ReshapeOp
 //===----------------------------------------------------------------------===//
 
-def ReshapeOp : Toy_Op<"reshape"> {
+def ReshapeOp : Toy_Op<"reshape", [NoSideEffect]> {
   let summary = "tensor reshape operation";
   let description = [{
     Reshape operation is transforming its input tensor into a new tensor with
@@ -255,6 +247,9 @@ def ReshapeOp : Toy_Op<"reshape"> {
   let assemblyFormat = [{
     `(` $input `:` type($input) `)` attr-dict `to` type(results)
   }];
+
+  // Enable registering canonicalization patterns with this operation.
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -295,7 +290,7 @@ def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
     bool hasOperand() { return getNumOperands() != 0; }
   }];
 
-  // Invoke a static verify method to verify this return operation.
+  // Indicate that additional verification for this operation is necessary.
   let hasVerifier = 1;
 }
 
@@ -303,7 +298,7 @@ def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
 // TransposeOp
 //===----------------------------------------------------------------------===//
 
-def TransposeOp : Toy_Op<"transpose"> {
+def TransposeOp : Toy_Op<"transpose", [NoSideEffect]> {
   let summary = "transpose operation";
 
   let arguments = (ins F64Tensor:$input);
@@ -313,12 +308,15 @@ def TransposeOp : Toy_Op<"transpose"> {
     `(` $input `:` type($input) `)` attr-dict `to` type(results)
   }];
 
+  // Enable registering canonicalization patterns with this operation.
+  let hasCanonicalizer = 1;
+
   // Allow building a TransposeOp with from the input operand.
   let builders = [
     OpBuilder<(ins "Value":$input)>
   ];
 
-  // Invoke a static verify method to verify this transpose operation.
+  // Indicate that additional verification for this operation is necessary.
   let hasVerifier = 1;
 }
 
