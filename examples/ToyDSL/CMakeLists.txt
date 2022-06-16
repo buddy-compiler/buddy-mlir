@@ -25,13 +25,13 @@ add_public_tablegen_target(ToyCombineIncGen)
 # Add DSL -> MLIR frontend.
 add_llvm_executable(buddy-toy-dsl 
   main.cpp 
-	mlir/Dialect.cpp
-	mlir/LowerToAffineLoops.cpp
-	mlir/LowerToLLVM.cpp
-	mlir/ToyCombine.cpp  
+  mlir/Dialect.cpp
+  mlir/LowerToAffineLoops.cpp
+  mlir/LowerToLLVM.cpp
+  mlir/ToyCombine.cpp  
   ${ANTLR_Toy_CXX_OUTPUTS}
   DEPENDS
-	ToyCombineIncGen
+  ToyCombineIncGen
   ToyDSLOpsIncGen)
 
 llvm_update_compile_flags(buddy-toy-dsl)
