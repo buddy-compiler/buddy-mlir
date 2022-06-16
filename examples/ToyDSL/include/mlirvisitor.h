@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file is about buddy-toy-dsl how to generate mlir in buddy-mlir project.
+// This file is about buddy-toy-dsl how to generate toy dialect IR in buddy-mlir project.
 //
 //===----------------------------------------------------------------------===//
 
