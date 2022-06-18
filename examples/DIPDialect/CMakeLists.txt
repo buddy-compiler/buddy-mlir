@@ -13,7 +13,7 @@ endif()
 message(STATUS "Spliting size: ${SPLITING_SIZE}")
 
 add_custom_command(OUTPUT dip.o
-COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/DIPDialect/dip.mlir -lower-dip="DIP-strip-mining=${SPLITING_SIZE}" -arith-expand -lower-affine -convert-scf-to-cf -convert-math-to-llvm -convert-vector-to-llvm -convert-memref-to-llvm -convert-func-to-llvm='emit-c-wrappers=1' -reconcile-unrealized-casts | 
+COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/DIPDialect/dip.mlir -lower-dip="DIP-strip-mining=${SPLITING_SIZE}" -arith-expand -lower-affine -convert-scf-to-cf -convert-math-to-llvm -convert-vector-to-llvm -convert-memref-to-llvm -llvm-request-c-wrappers -convert-func-to-llvm -reconcile-unrealized-casts | 
         ${LLVM_MLIR_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
         ${LLVM_MLIR_BINARY_DIR}/llc -mtriple=${BUDDY_OPT_TRIPLE} -mattr=${BUDDY_OPT_ATTR} --filetype=obj -o ${BUDDY_BINARY_DIR}/../examples/DIPDialect/dip.o
 DEPENDS buddy-opt)
