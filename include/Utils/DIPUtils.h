@@ -22,24 +22,7 @@
 #ifndef INCLUDE_UTILS_DIPUTILS_H
 #define INCLUDE_UTILS_DIPUTILS_H
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Linalg/Transforms/Transforms.h"
-#include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Vector/IR/VectorOps.h"
-#include "mlir/Pass/Pass.h"
-
-#include "DIP/DIPDialect.h"
-#include "DIP/DIPOps.h"
 #include "Utils/Utils.h"
-#include <vector>
-
-using namespace mlir;
-using namespace buddy;
-using namespace vector;
-using namespace mlir::arith;
 
 // Calculate result of FMA and store it in output memref. This function cannot
 // handle tail processing.

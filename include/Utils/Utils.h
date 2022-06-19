@@ -21,23 +21,9 @@
 #ifndef INCLUDE_UTILS_UTILS_H
 #define INCLUDE_UTILS_UTILS_H
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Linalg/Transforms/Transforms.h"
-#include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Vector/IR/VectorOps.h"
-#include "mlir/Pass/Pass.h"
-
-#include "DIP/DIPDialect.h"
-#include "DIP/DIPOps.h"
-#include <vector>
-
 using namespace mlir;
-using namespace buddy;
+using namespace arith;
 using namespace vector;
-using namespace mlir::arith;
 
 // Create an inverted mask having all 1's shifted to right side.
 Value createInvertedMask(OpBuilder &builder, Location loc, Value strideVal,
