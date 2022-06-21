@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines DIP dialect specific utility functions for the buddy 
+// This file defines DIP dialect specific utility functions for the buddy
 // compiler ecosystem.
 //
 //===----------------------------------------------------------------------===//
@@ -36,6 +36,8 @@ void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
   builder.create<StoreOp>(loc, resVec, output, ValueRange{beginIdx, endIdx});
 }
 
+// Checks if we encountered a tail (columns remaining after processing in
+// batches of stride size).
 Value tailChecker(OpBuilder &builder, Location loc, AffineMap calcHelper,
                   Value strideVal, Value kernelSize, Value c1, Value pseudoCol,
                   Value colPivot) {
@@ -47,6 +49,7 @@ Value tailChecker(OpBuilder &builder, Location loc, AffineMap calcHelper,
   return tailCond;
 }
 
+// Creates the required mask which is to be used for tail processing.
 Value tailMaskCreator(OpBuilder &builder, Location loc, Value inputCol,
                       Value colPivot, VectorType vectorMaskTy) {
   Value extraElemCount = builder.create<SubIOp>(loc, inputCol, colPivot);
