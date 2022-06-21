@@ -44,28 +44,4 @@ void rvv::RVVDialect::initialize() {
 #define GET_OP_LIST
 #include "RVV/RVV.cpp.inc"
       >();
-  addTypes<
-#define GET_TYPEDEF_LIST
-#include "RVV/RVVTypes.cpp.inc"
-      >();
-}
-
-//===----------------------------------------------------------------------===//
-// ScalableVectorType
-//===----------------------------------------------------------------------===//
-
-Type rvv::ScalableVectorType::parse(::mlir::AsmParser &odsParser) {
-  if (odsParser.parseLess()) return Type();
-  Type sizeType;
-  if (odsParser.parseType(sizeType)) return Type();
-  if (odsParser.parseComma()) return Type();
-  Type elementType;
-  if (odsParser.parseType(elementType)) return Type();
-  if (odsParser.parseGreater()) return Type();
-  return get(odsParser.getContext(), sizeType, elementType);
-}
-
-void rvv::ScalableVectorType::print(::mlir::AsmPrinter &odsPrinter) const {
-  odsPrinter << "<" << getImpl()->sizeType << ',';
-  odsPrinter << getImpl()->elementType << '>';
 }
