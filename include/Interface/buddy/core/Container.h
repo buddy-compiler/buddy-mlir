@@ -73,8 +73,8 @@ protected:
   // The `aligned` and `allocated` members point to the same address, `aligned`
   // member is responsible for handling data, and `allocated` member is
   // resposible for handling the memory space.
-  T *allocated;
-  T *aligned;
+  T *allocated = nullptr;
+  T *aligned = nullptr;
   // Offset.
   intptr_t offset = 0;
   // Shape.
