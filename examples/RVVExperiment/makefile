@@ -12,18 +12,8 @@ RISCV_GNU_TOOLCHAIN_SYSROOT := ../../thirdparty/build-riscv-gnu-toolchain/sysroo
 QEMU := ../../thirdparty/qemu/build/riscv64-linux-user/qemu-riscv64
 LOCAL_CLANG := ../../thirdparty/build-local-clang/bin/clang
 CROSS_LLI := ../../thirdparty/build-cross-clang/bin/lli
-
 CROSS_MLIR_C_RUNNER_UTILS := ../../thirdparty/build-cross-mlir/lib/libmlir_c_runner_utils.so
-
-ifeq ($(shell uname),Linux)
-MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
-MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.so
-MTRIPLE := x86_64-unknown-linux-gnu
-else ifeq ($(shell uname),Darwin)
-MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.dylib
-MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
-MTRIPLE := x86_64-apple-darwin
-endif
+CROSS_MLIR_LIB := ../../thirdparty/build-cross-mlir/lib
 
 rvv-broadcast-lower:
 	@${MLIR_OPT} ./rvv-broadcast.mlir \
@@ -133,6 +123,12 @@ rvv-scalable-lower:
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
+rvv-scalable-translate:
+	@${MLIR_OPT} ./rvv-scalable.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
 rvv-scalable-asm-rv:
 	@${MLIR_OPT} ./rvv-scalable.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
@@ -141,6 +137,46 @@ rvv-scalable-asm-rv:
 	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
+
+rvv-scalable-run-128:
+	@${MLIR_OPT} ./rvv-scalable.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
+
+rvv-scalable-aot-128:
+	@${MLIR_OPT} ./rvv-scalable.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o -mabi=lp64d \
+		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
+		-o a.out
+	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
+
+rvv-scalable-run-256:
+	@${MLIR_OPT} ./rvv-scalable.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=256 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
+
+rvv-scalable-aot-256:
+	@${MLIR_OPT} ./rvv-scalable.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=256 --filetype=obj -o log.o
+	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o -mabi=lp64d \
+		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
+		-o a.out
+	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=256 a.out
 
 rvv-insert-extract-intrinsics-asm:
 	@${LLC} ./rvv-insert-extract-intrinsics.ll \
