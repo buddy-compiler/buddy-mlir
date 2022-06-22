@@ -13,6 +13,8 @@ QEMU := ../../thirdparty/qemu/build/riscv64-linux-user/qemu-riscv64
 LOCAL_CLANG := ../../thirdparty/build-local-clang/bin/clang
 CROSS_LLI := ../../thirdparty/build-cross-clang/bin/lli
 
+CROSS_MLIR_C_RUNNER_UTILS := ../../thirdparty/build-cross-mlir/lib/libmlir_c_runner_utils.so
+
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
 MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.so
@@ -47,8 +49,10 @@ rvv-broadcast-run:
 	@${MLIR_OPT} ./rvv-broadcast.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
 
 rvv-fma-lower:
 	@${MLIR_OPT} ./rvv-fma.mlir \
@@ -82,8 +86,10 @@ rvv-fma-run:
 	@${MLIR_OPT} ./rvv-fma.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
 
 rvv-long-lower:
 	@${MLIR_OPT} ./rvv-long.mlir \
@@ -117,8 +123,10 @@ rvv-long-run:
 	@${MLIR_OPT} ./rvv-long.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
 
 rvv-scalable-lower:
 	@${MLIR_OPT} ./rvv-scalable.mlir \

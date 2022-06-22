@@ -91,3 +91,33 @@ then
   ninja clang lli
   cd ..
 fi
+
+#-------------------------------------------------------------------------------
+# Build cross MLIR
+#-------------------------------------------------------------------------------
+
+if [ ! -d "build-cross-mlir" ]
+then
+  mkdir build-cross-mlir
+  cd build-cross-mlir
+  cmake -G Ninja ../../llvm/llvm \
+    -DLLVM_ENABLE_PROJECTS="mlir" \
+    -DLLVM_BUILD_EXAMPLES=OFF \
+    -DCMAKE_CROSSCOMPILING=True \
+    -DLLVM_TARGET_ARCH=RISCV64 \
+    -DLLVM_TARGETS_TO_BUILD=RISCV \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DLLVM_NATIVE_ARCH=RISCV \
+    -DLLVM_HOST_TRIPLE=riscv64-unknown-linux-gnu \
+    -DLLVM_DEFAULT_TARGET_TRIPLE=riscv64-unknown-linux-gnu \
+    -DCMAKE_C_COMPILER=$PWD/../build-local-clang/bin/clang \
+    -DCMAKE_CXX_COMPILER=$PWD/../build-local-clang/bin/clang++ \
+    -DCMAKE_C_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$PWD/../build-riscv-gnu-toolchain/sysroot --gcc-toolchain=$PWD/../build-riscv-gnu-toolchain" \
+    -DCMAKE_CXX_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$PWD/../build-riscv-gnu-toolchain/sysroot --gcc-toolchain=$PWD/../build-riscv-gnu-toolchain" \
+    -DMLIR_TABLEGEN=$PWD/../../llvm/build/bin/mlir-tblgen \
+    -DLLVM_TABLEGEN=$PWD/../../llvm/build/bin/llvm-tblgen \
+    -DMLIR_LINALG_ODS_YAML_GEN=$PWD/../../llvm/build/bin/mlir-linalg-ods-yaml-gen \
+    -DMLIR_PDLL_TABLEGEN=$PWD/../../llvm/build/bin/mlir-pdll
+  ninja 
+fi
