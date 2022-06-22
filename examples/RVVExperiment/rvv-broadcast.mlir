@@ -3,7 +3,7 @@ memref.global "private" @gv : memref<4x4xf32> = dense<[[0. , 1. , 2. , 3. ],
                                                        [20., 21., 22., 23.],
                                                        [30., 31., 32., 33.]]>
 
-func.func @main() {
+func.func @main() -> i32 {
   %mem = memref.get_global @gv : memref<4x4xf32>
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
@@ -17,5 +17,6 @@ func.func @main() {
   %broadcast_vec_2d = vector.broadcast %load_vec : vector<4xf32> to vector<4x4xf32>
   vector.print %broadcast_vec_2d : vector<4x4xf32>
 
-  return
+  %ret = arith.constant 0 : i32
+  return %ret : i32
 }
