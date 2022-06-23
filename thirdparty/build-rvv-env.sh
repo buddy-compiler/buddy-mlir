@@ -137,4 +137,3 @@ then
 else
   echo "mlir for riscv64 was built already"
 fi
-

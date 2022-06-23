@@ -8,7 +8,7 @@ corresponding RVV Dialect. As a target platform QEMU emulator is used.
 Before proceed any further make sure that you installed dependecies  below
 
 * [LLVM dependecies](https://llvm.org/docs/GettingStarted.html#requirements)
-* [GNU Toolchain dependecies](https://llvm.org/docs/GettingStarted.html#requirements)
+* [GNU Toolchain dependecies](https://github.com/riscv-collab/riscv-gnu-toolchain#prerequisites)
 * [QEMU dependecies](https://wiki.qemu.org/Hosts/Linux)
 
 ## Build steps
