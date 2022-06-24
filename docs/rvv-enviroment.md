@@ -1,11 +1,11 @@
-# Setting up enviroment for testing MLIR RVV dialect
+# Setting up environment for testing MLIR RVV dialect
 
-This guide will help to set up enviroment for testing RISC-V Vector Extention using buddy-mlir project and 
+This guide will help to set up environment for testing RISC-V Vector Extension using buddy-mlir project and
 corresponding RVV Dialect. As a target platform QEMU emulator is used.
 
 ## Requirements
 
-Before proceed any further make sure that you installed dependecies  below
+Before proceed any further make sure that you installed dependencies below
 
 * [LLVM dependecies](https://llvm.org/docs/GettingStarted.html#requirements)
 * [GNU Toolchain dependecies](https://github.com/riscv-collab/riscv-gnu-toolchain#prerequisites)
@@ -21,7 +21,7 @@ git submodule update --init
 ```
 > **_NOTE:_** `buddly-mlir` contains `llvm-project` as a submodule. `llvm-project` is large, so cloning will take a while 
 
-2. Run a script building enviroment
+2. Run a script building environment
 ```
 cd buddy-mlir/thirdparty
 ./build-rvv-env.sh
@@ -32,4 +32,4 @@ Detailed description of the steps can be found in [the page](https://gist.github
 
 > **_NOTE:_** By default, the script allows `make` to use all available threads for compilation. It may lead 
 to consuming a lot of memory and crashing the compiler. If you face with the issue, try to limit the number of threads 
-by passing an argument to the script. For example, `./build-rvv-env.sh 4`
+by passing a corresponding argument to the script. For example, `./build-rvv-env.sh 4`
