@@ -1,5 +1,9 @@
 #!/bin/bash
-
+num_thread=""
+if [ -n "$1" ]; then
+  num_thread="$1"
+  echo "Number of threads was set to $num_thread for make"
+fi
 #-------------------------------------------------------------------------------
 # Clone riscv-gnu-toolchain
 #-------------------------------------------------------------------------------
@@ -11,6 +15,8 @@ then
   git checkout rvv-next
   git submodule update --init --recursive
   cd ..
+else
+  echo "riscv-gnu-toolchain was cloned already"
 fi
 
 #-------------------------------------------------------------------------------
@@ -23,8 +29,10 @@ then
   mkdir build-linux
   cd build-linux
   ../configure --prefix=$PWD/../../build-riscv-gnu-toolchain
-  make linux -j
+  make linux -j $num_thread
   cd ../..
+else
+  echo "riscv-gnu-toolchain was built already"
 fi
 
 #-------------------------------------------------------------------------------
@@ -47,8 +55,10 @@ then
   mkdir build
   cd build
   ../configure
-  make -j
+  make -j $num_thread
   cd ../..
+else
+  echo "qemu was cloned and built already"
 fi
 
 #-------------------------------------------------------------------------------
@@ -65,6 +75,8 @@ then
     -DCMAKE_BUILD_TYPE=RELEASE
   ninja
   cd ..
+else
+  echo "native clang was built already"
 fi
 
 #-------------------------------------------------------------------------------
@@ -90,6 +102,8 @@ then
     -DCMAKE_BUILD_TYPE=Release
   ninja clang lli
   cd ..
+else
+  echo "clang cross-compiler for riscv64 was built already"
 fi
 
 #-------------------------------------------------------------------------------
@@ -120,4 +134,6 @@ then
     -DMLIR_LINALG_ODS_YAML_GEN=$PWD/../../llvm/build/bin/mlir-linalg-ods-yaml-gen \
     -DMLIR_PDLL_TABLEGEN=$PWD/../../llvm/build/bin/mlir-pdll
   ninja 
+else
+  echo "mlir for riscv64 was built already"
 fi
