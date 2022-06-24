@@ -44,7 +44,7 @@ public:
   // Move assignment operator.
   MemRef<T, N> &operator=(MemRef<T, N> &&other) noexcept;
   // Desctrutor.
-  ~MemRef();
+  virtual ~MemRef();
   // Get the data pointer.
   T *getData();
   // Get the sizes (shape).
@@ -61,7 +61,7 @@ public:
 
 protected:
   // Default constructor.
-  // This constructor is desinged for derived domain-specific constructor.
+  // This constructor is designed for derived domain-specific constructor.
   MemRef() {};
   // Set the strides.
   // Computes the strides of the transposed tensor for transpose=true.
