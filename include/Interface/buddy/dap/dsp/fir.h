@@ -1,0 +1,73 @@
+//===- fir.h --------------------------------------------------------------===//
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//===----------------------------------------------------------------------===//
+//
+// Header file for Fir operation and other entities in DAP dialect.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef INCLUDE_DAP_DSP_FIR
+#define INCLUDE_DAP_DSP_FIR
+
+#include "Interface/buddy/core/AudioContainer.h"
+#include "Interface/buddy/core/Container.h"
+#include "Interface/buddy/dap/dsp/window.h"
+
+namespace dap {
+namespace detail {
+// Declare the Fir C interface.
+extern "C" {
+// TODO: support both float and double.
+void _mlir_ciface_conv1d_buddy(Audio<float, 1> *inputBuddyConv1D,
+                               MemRef<float, 1> *kernelBuddyConv1D,
+                               Audio<float, 1> *outputBuddyConv1D);
+
+void _mlir_ciface_conv1d_linalg(Audio<float, 1> *inputBuddyConv1D,
+                                MemRef<float, 1> *kernelBuddyConv1D,
+                                Audio<float, 1> *outputBuddyConv1D);
+}
+} // namespace detail
+
+// type: see WINDOW_TYPE
+// len: filter length
+// cutoff: Lowpass cutoff frequency
+// args: filter-specific arguments, size is limited using WINDOW_TYPE
+template <typename T, size_t N>
+void firLowpass(MemRef<T, N> &input, WINDOW_TYPE type, size_t len, T cutoff,
+                T *args) {
+  // TODO: setup a return enum for error handling?
+  // TODO: check memref rank and apply filter onto each ranks.
+  // only N=1 is supported for now.
+
+  // TODO: check lowpass input range.
+
+  T t, h1, h2;
+  for (size_t i = 0; i <= len; ++i) {
+    t = (T)i - (T)(len - 1) / (T)2.0f;
+    h1 = sinc((T)2.0f * cutoff * t);
+    h2 = detail::_apply_window(type, i, len, args);
+    input[i] = h1 * h2;
+  }
+}
+
+template <typename T, size_t N>
+void fir(Audio<float, N> *input, MemRef<T, N> *filter, Audio<float, N> *output) {
+  if(N!=1)
+    assert(0 && "Only mono audio is supported for now.");
+  detail::_mlir_ciface_conv1d_buddy(input,filter,output);
+}
+} // namespace dap
+
+#endif // INCLUDE_DAP_DSP_FIR

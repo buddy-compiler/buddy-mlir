@@ -5,3 +5,5 @@ if(BUDDY_ENABLE_OPENCV)
   include_directories(${OpenCV_INCLUDE_DIRS})
   add_library(ImageContainer ImageContainer.cpp)
 endif()
+
+add_library(AudioContainer AudioContainer.cpp)
