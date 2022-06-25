@@ -22,9 +22,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-
-#include "Interface/buddy/dap/dap.h"
 #include "Interface/buddy/core/AudioContainer.h"
+#include "Interface/buddy/dap/dap.h"
 #include <iostream>
 
 using namespace dap;
@@ -32,12 +31,14 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
   size_t kernelSize = 1023;
-  MemRef<float,1> kernel(reinterpret_cast<intptr_t *>(&kernelSize));
-  dap::firLowpass<float,1>(kernel,dap::WINDOW_TYPE::HAMMING,1023,0.1,nullptr);
-  Audio<float,1> aud("/Users/zircon/Works/Github/buddy-mlir/tests/Interface/core/NASA_Mars.wav");
-  auto audSize=aud.getSize();
-  Audio<float,1> output(reinterpret_cast<intptr_t *>(&audSize));
-  dap::fir(&aud,&kernel,&output);
+  MemRef<float, 1> kernel(reinterpret_cast<intptr_t *>(&kernelSize));
+  dap::firLowpass<float, 1>(kernel, dap::WINDOW_TYPE::HAMMING, 1023, 0.1,
+                            nullptr);
+  Audio<float, 1> aud("/Users/zircon/Works/Github/buddy-mlir/tests/Interface/"
+                      "core/NASA_Mars.wav");
+  auto audSize = aud.getSize();
+  Audio<float, 1> output(reinterpret_cast<intptr_t *>(&audSize));
+  dap::fir(&aud, &kernel, &output);
   output.setAudioFile(&aud.getAudioFile());
   output.save("Fir_NASA_Mars.wav");
   return 0;

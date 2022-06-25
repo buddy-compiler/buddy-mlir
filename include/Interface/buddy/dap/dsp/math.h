@@ -1,4 +1,5 @@
-//===- math.h --------------------------------------------------------------===//
+//===- math.h
+//--------------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,17 +26,13 @@
 
 namespace dap {
 // Basic math functions
-  template <typename T>
-  T sinc(T x){
-    return sin(x)/x;
-  }
+template <typename T> T sinc(T x) { return sin(x) / x; }
 
-  template <typename T>
-  T besseli0(T x){
-    assert(0 && "Not implemented.");
-    // return besseli(0,x);
-    return 0;
-  }
+template <typename T> T besseli0(T x) {
+  assert(0 && "Not implemented.");
+  // return besseli(0,x);
+  return 0;
+}
 
 //  float besseli(float _nu,
 //                        float _z)

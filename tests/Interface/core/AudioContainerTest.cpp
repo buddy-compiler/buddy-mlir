@@ -27,19 +27,18 @@ using namespace std;
 
 int main() {
   // TODO: replace this path with non-absolute path
-  Audio<float,1> aud("../../../tests/Interface/core/NASA_Mars.wav");
+  Audio<float, 1> aud("../../../tests/Interface/core/NASA_Mars.wav");
   // CHECK: 2000000
   fprintf(stderr, "%zu\n", aud.getSize());
-  auto& audioFile=aud.getAudioFile();
+  auto &audioFile = aud.getAudioFile();
   // CHECK: 1
-  fprintf(stderr,"%u\n",audioFile.getNumChannels());
+  fprintf(stderr, "%u\n", audioFile.getNumChannels());
   // CHECK: 24
-  fprintf(stderr,"%u\n",audioFile.getBitDepth());
+  fprintf(stderr, "%u\n", audioFile.getBitDepth());
   // CHECK: 2000000
-  fprintf(stderr,"%u\n",audioFile.getNumSamplesPerChannel());
+  fprintf(stderr, "%u\n", audioFile.getNumSamplesPerChannel());
   // CHECK: 100000
-  fprintf(stderr,"%u\n",audioFile.getSampleRate());
-
+  fprintf(stderr, "%u\n", audioFile.getSampleRate());
 
   return 0;
 }
