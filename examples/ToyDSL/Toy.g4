@@ -7,16 +7,15 @@ module
 expression
     : Number
     | tensorLiteral
-    | identifierexpr
+    | identifierExpr
     ; 
 
-
-identifierexpr
+identifierExpr
     : Identifier
     | Identifier ParentheseOpen (expression(Comma expression)*)? ParentheseClose
     ;
 
-returnExpression 
+returnExpr
     : Return 
     | Return expression 
     ; 
@@ -26,14 +25,13 @@ tensorLiteral
     | Number 
     ;
 
-decl
+varDecl
     : Var Identifier (type)? (Equal expression)?
     ;
 
 type
-    : AngleBracketsOpen (Number (Comma Number)*)? AngleBracketsClose
+    : AngleBracketsOpen Number (Comma Number)* AngleBracketsClose
     ;
-
 
 funDefine
     : prototype block
@@ -54,15 +52,17 @@ block
     ;
 
 blockExpr
-    : decl | returnExpression | expression 
+    : varDecl | returnExpr | expression 
     ;
 
 ParentheseOpen 
     : '('
     ;
+
 ParentheseClose 
     : ')'
     ;
+
 BracketOpen 
     : '{'
     ;
@@ -70,16 +70,19 @@ BracketOpen
 BracketClose 
     : '}'
     ;
+
 SbracketOpen 
     : '['
     ;
+
 SbracketClose 
     : ']'
     ;
+
 Return
     : 'return'
     ;
-
+    
 Semicolon
     : ';'
     ;
@@ -97,7 +100,7 @@ Identifier
     ;
 
 Number
-    : [0-9]([0-9])*
+    : [0-9]+
     ;
 
 Equal
@@ -119,6 +122,7 @@ Comma
 WS
     : [ \r\n\t] -> skip
     ;
+    
 Comment 
     : '#' .*? '\n' ->skip
     ;

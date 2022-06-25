@@ -14,18 +14,15 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file is about oprimizing code and lowering code from toy dialect to 
+// This file is about oprimizing code and lowering code from toy dialect to
 // llvm dialect buddy-mlir project.
 //
 //===----------------------------------------------------------------------===//
 
-#include <iostream>
-#include <fstream>
+#include "MLIRVisitor.h"
 #include "ToyLexer.h"
 #include "ToyParser.h"
-#include "Dialect.h"
-#include "mlirvisitor.h"
-#include "Passes.h"
+#include "antlr4-common.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -36,10 +33,12 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
-#include "antlr4-common.h"
+#include "toy/Dialect.h"
+#include "toy/Passes.h"
+#include <fstream>
+#include <iostream>
 
-
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   // you should input the name of the file which contains code.
   if (argc == 2) {
     std::fstream in(argv[1]);
@@ -47,12 +46,12 @@ int main(int argc, char* argv[]) {
     ToyLexer lexer(&input);
     antlr4::CommonTokenStream tokens(&lexer);
     ToyParser parser(&tokens);
-    antlr4::tree::ParseTree* tree = parser.module();
+    antlr4::tree::ParseTree *tree = parser.module();
     // load our dialect in context.
-    context.getOrLoadDialect<mlir::toy::ToyDialect>();
-    mlirvisitor visitor(argv[1]); 
+    // context.getOrLoadDialect<mlir::toy::ToyDialect>();
+    MLIRVisitor visitor(argv[1]);
     visitor.visit(tree);
-    mlir::PassManager pm(&context);
+    mlir::PassManager pm(&visitor.context);
     // apply any generic pass manager command line options and run the pipeline.
     mlir::applyPassManagerCLOptions(pm);
     pm.addNestedPass<mlir::toy::FuncOp>(mlir::createCanonicalizerPass());
@@ -65,7 +64,4 @@ int main(int argc, char* argv[]) {
     visitor.theModule.dump();
   }
   return 0;
-
 }
-
-
