@@ -193,6 +193,7 @@ template <typename T, std::size_t N> T &MemRef<T, N>::operator[](size_t index) {
 template <typename T, std::size_t N> void MemRef<T, N>::setStrides() {
   assert((N > 0) && "Invalid container number of dims");
   strides[N - 1] = 1;
+  // TODO: Fix when N=1;
   for (int i = N - 2; i >= 0; i--) {
     strides[i] = strides[i + 1] * sizes[i + 1];
   }

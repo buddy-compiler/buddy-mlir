@@ -63,7 +63,7 @@ template <typename T> T _window_kbd(size_t i, size_t len, T beta) {
   T w0 = 0.0f;
   T w1 = 0.0f;
   T w;
-  for (auto j = 0; j <= M; j++) {
+  for (size_t j = 0; j <= M; j++) {
     // compute Kaiser window
     w = _window_kaiser(j, M + 1, beta);
 
