@@ -21,18 +21,18 @@ MLIR_VECTOR_EXAMPLES := ../MLIRVector
 all-run: $$(run-targets)
 
 rvv-broadcast-lower:
-	@${MLIR_OPT} ./rvv-broadcast.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-broadcast.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 rvv-broadcast-translate:
-	@${MLIR_OPT} ./rvv-broadcast.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-broadcast.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 rvv-broadcast-asm-rv:
-	@${MLIR_OPT} ./rvv-broadcast.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-broadcast.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
@@ -51,26 +51,18 @@ rvv-broadcast-run:
 		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
 
 rvv-fma-lower:
-	@${MLIR_OPT} ./rvv-fma.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/rvv-fma.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 rvv-fma-translate:
-	@${MLIR_OPT} ./rvv-fma.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/rvv-fma.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
-rvv-fma-asm-x86:
-	@${MLIR_OPT} ./rvv-fma.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
-		--reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir | \
-	${LLC} ${OPT_FLAG} -mtriple=x86_64-unknown-linux-gnu -mattr=+avx512f\
-		--filetype=asm -o log.s
-
 rvv-fma-asm-rv:
-	@${MLIR_OPT} ./rvv-fma.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/rvv-fma.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
@@ -89,26 +81,18 @@ rvv-fma-run:
 		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
 
 rvv-long-lower:
-	@${MLIR_OPT} ./rvv-long.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/rvv-long.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 rvv-long-translate:
-	@${MLIR_OPT} ./rvv-long.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/rvv-long.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
-rvv-long-asm-x86:
-	@${MLIR_OPT} ./rvv-long.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
-		--reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir | \
-	${LLC} ${OPT_FLAG} -mtriple=x86_64-unknown-linux-gnu -mattr=+avx512f\
-		--filetype=asm -o log.s
-
 rvv-long-asm-rv:
-	@${MLIR_OPT} ./rvv-long.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/rvv-long.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
@@ -205,6 +189,26 @@ rvv-c-setvl-run:
 		./rvv-c-setvl.c -fPIC -S -emit-llvm -o log.ll
 	@${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true \
 		${CROSS_LLI} --entry-function=main --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic log.ll
+
+rvv-transpose-lower:
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-transpose.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts -o ./log.mlir
+
+rvv-transpose-translate:
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-transpose.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+rvv-transpose-asm-rv:
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-transpose.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
+		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
+		--filetype=asm -o log.s
 
 run-targets += rvv-transpose-run
 rvv-transpose-run:
