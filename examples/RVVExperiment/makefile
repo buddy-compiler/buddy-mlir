@@ -15,6 +15,11 @@ CROSS_LLI := ../../thirdparty/build-cross-clang/bin/lli
 CROSS_MLIR_C_RUNNER_UTILS := ../../thirdparty/build-cross-mlir/lib/libmlir_c_runner_utils.so
 CROSS_MLIR_LIB := ../../thirdparty/build-cross-mlir/lib
 
+MLIR_VECTOR_EXAMPLES := ../MLIRVector
+
+.SECONDEXPANSION:
+all-run: $$(run-targets)
+
 rvv-broadcast-lower:
 	@${MLIR_OPT} ./rvv-broadcast.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
@@ -35,8 +40,9 @@ rvv-broadcast-asm-rv:
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
+run-targets += rvv-fma-run
 rvv-broadcast-run:
-	@${MLIR_OPT} ./rvv-broadcast.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-broadcast.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
@@ -72,8 +78,9 @@ rvv-fma-asm-rv:
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=256 \
 		--filetype=asm -o log.s
 
+run-targets += rvv-fma-run
 rvv-fma-run:
-	@${MLIR_OPT} ./rvv-fma.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-fma.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
@@ -109,8 +116,9 @@ rvv-long-asm-rv:
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
+run-targets += rvv-long-run
 rvv-long-run:
-	@${MLIR_OPT} ./rvv-long.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-long.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
@@ -190,9 +198,20 @@ rvv-insert-extract-intrinsics-asm-error:
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
+run-targets += rvv-c-setvl-run
 rvv-c-setvl-run:
 	@${LOCAL_CLANG} -march=rv64gcv --target=riscv64-unknown-linux-gnu \
 		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		./rvv-c-setvl.c -fPIC -S -emit-llvm -o log.ll
 	@${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true \
 		${CROSS_LLI} --entry-function=main --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic log.ll
+
+run-targets += rvv-transpose-run
+rvv-transpose-run:
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-transpose.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
