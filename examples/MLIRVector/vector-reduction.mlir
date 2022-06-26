@@ -1,4 +1,4 @@
-func.func @main() {
+func.func @main() -> i32 {
   %0 = arith.constant dense<[12, 13, 14, 15, 16, 90]> : vector<6xi32>
   vector.print %0 : vector<6xi32>
 
@@ -16,5 +16,7 @@ func.func @main() {
 
   %or = vector.reduction <or>, %0 : vector<6xi32> into i32
   vector.print %or : i32
-  return
+
+  %ret = arith.constant 0 : i32
+  return %ret : i32
 }

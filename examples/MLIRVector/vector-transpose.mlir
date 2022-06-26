@@ -1,4 +1,4 @@
-func.func @main() {
+func.func @main() -> i32 {
   %vector_1 = arith.constant dense<[[12., 13., 24., 67., 75.],
                                     [23., 25., 45., 67., 78.],
                                     [67., 90., 78., 90., 91.]]> : vector<3x5xf32>
@@ -19,5 +19,6 @@ func.func @main() {
   %vector_3_trans = vector.transpose %vector_3, [1, 2, 0] : vector<3x4x5xf32> to vector<4x5x3xf32>  // Changes all three dimensions
   vector.print %vector_3_trans : vector<4x5x3xf32>
 
-  return
+  %ret = arith.constant 0 : i32
+  return %ret : i32
 }

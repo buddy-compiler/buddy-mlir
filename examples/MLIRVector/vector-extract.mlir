@@ -1,4 +1,4 @@
-func.func @main() {
+func.func @main() -> i32 {
   %0 = arith.constant dense<[1, 2, 3, 4]> : vector<4xi32>
   vector.print %0 : vector<4xi32>
 
@@ -14,5 +14,7 @@ func.func @main() {
 
   %value2 = vector.extract %1[1, 1, 2] : vector<2x2x3xi32> // extracts 78
   vector.print %value2 : i32
-  return
+
+  %ret = arith.constant 0 : i32
+  return %ret : i32
 }

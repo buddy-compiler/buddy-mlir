@@ -1,4 +1,4 @@
-func.func @main() {
+func.func @main() -> i32 {
   %0 = arith.constant dense<[12, 11, 78, 90, 23, 56]> : vector<6xi32>
   vector.print %0 : vector<6xi32>
 
@@ -17,5 +17,7 @@ func.func @main() {
   %cons = arith.constant 4 : i32
   %5 = vector.outerproduct %0, %cons : vector<6xi32>, i32  // will give vector of same shape, formula is [a,c]*d = [a*d,c*d]
   vector.print %5 : vector<6xi32>
-  return
+
+  %ret = arith.constant 0 : i32
+  return %ret : i32
 }
