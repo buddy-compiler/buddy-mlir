@@ -5,7 +5,7 @@ memref.global "private" @gv : memref<6x6xi32> = dense<[[10, 11, 12, 34, 35, 89],
                                                        [12, 34, 43, 32, 22, 23],
                                                        [90, 91, 67, 89, 92, 57]]>
 
-func.func @main() {
+func.func @main() -> i32 {
   %cons0 = arith.constant 0 : index
   %cons2 = arith.constant 2 : index 
 
@@ -25,5 +25,7 @@ func.func @main() {
   %res1 = vector.expandload %base[%cons0, %cons0], %mask1, %1 : 
         memref<6x6xi32>, vector<8xi1>, vector<8xi32> into vector<8xi32>
   vector.print %res1 : vector<8xi32>
-  return
+
+  %ret = arith.constant 0 : i32
+  return %ret : i32
 }

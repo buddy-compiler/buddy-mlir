@@ -1,4 +1,4 @@
-func.func @main() {
+func.func @main() -> i32 {
   %0 = arith.constant dense<2.0> : vector<3x2xf32>
   vector.print %0 : vector<3x2xf32>
 
@@ -26,5 +26,6 @@ func.func @main() {
   %8 = vector.shuffle %6, %7[0, 1, 2, 3] : vector<2x2xf32>, vector<2x2xf32>
   vector.print %8 : vector<4x2xf32>
 
-  return
+  %ret = arith.constant 0 : i32
+  return %ret : i32
 }
