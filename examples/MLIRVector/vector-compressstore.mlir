@@ -7,7 +7,7 @@ memref.global "private" @gv1 : memref<8xi32> = dense<[12, 13, 14, 16, 17, 10, 45
 
 func.func private @printMemrefI32(memref<*xi32>)
 
-func.func @main() {
+func.func @main() -> i32 {
   %cons1 = arith.constant 1 : index
   %cons0 = arith.constant 0 : index
 
@@ -30,5 +30,7 @@ func.func @main() {
 
   %res1 = memref.cast %base1 : memref<8xi32> to memref<*xi32>
   func.call @printMemrefI32(%res1) : (memref<*xi32>) -> ()
-  return
+
+  %ret = arith.constant 0 : i32
+  return %ret : i32
 }
