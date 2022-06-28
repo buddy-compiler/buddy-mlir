@@ -567,7 +567,7 @@ public:
     SmallVector<Value, 8> lowerBounds2{c0, inputColMultiple};
     SmallVector<Value, 8> upperBounds2{inputRow, inputCol};
 
-    SmallVector<intptr_t, 8> steps{1, stride};
+    SmallVector<int64_t, 8> steps{1, stride};
     Value strideTailVal =
         rewriter.create<arith::SubIOp>(loc, inputCol, inputColMultiple);
 
