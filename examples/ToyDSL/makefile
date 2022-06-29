@@ -22,7 +22,7 @@ toyc-constant-run:
 	@${MLIR_TOYC} ./constant.toy -emit=jit
 
 buddy-toy-constant-create:
-	@${BUDDY_TOY_DSL} constant.toy &> constant.mlir
+	@${BUDDY_TOY_DSL} ./constant.toy &> constant.mlir
 
 buddy-toy-constant-run:
 	@${MLIR_OPT} ./constant.mlir  -reconcile-unrealized-casts | \
