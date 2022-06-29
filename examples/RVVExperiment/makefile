@@ -105,6 +105,27 @@ rvv-c-setvl-run:
 	@${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true \
 		${CROSS_LLI} --entry-function=main --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic log.ll
 
+rvv-loop-mask-asm:
+	@${MLIR_OPT} ./rvv-loop-mask.mlir \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
+		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
+		--filetype=asm -o log.s
+
+run-targets += rvv-loop-mask-run
+rvv-loop-mask-run:
+	@${MLIR_OPT} ./rvv-loop-mask.mlir \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS} --dlopen=${CROSS_MLIR_RUNNER_UTILS}
+
 ################################################################################
 # Reuse MLIR Vector Examples
 ################################################################################
