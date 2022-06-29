@@ -222,14 +222,9 @@ void shearTransformController(
   buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-        Value xLowerBoundMult =
-            builder.create<arith::DivUIOp>(loc, ivs[1], strideVal);
-        Value xLowerBound =
-            builder.create<arith::MulIOp>(loc, strideVal, xLowerBoundMult);
-
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
         Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
-        Value xVec = iotaVec(builder, loc, ctx, xLowerBound, strideVal,
+        Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal,
                              vectorTy32, c0, stride);
 
         Value yVecModified = pixelScaling(builder, loc, inputRowF32Vec, yVec,
@@ -267,14 +262,9 @@ void standardRotateController(
   buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-        Value xLowerBoundMult =
-            builder.create<arith::DivUIOp>(loc, ivs[1], strideVal);
-        Value xLowerBound =
-            builder.create<arith::MulIOp>(loc, strideVal, xLowerBoundMult);
-
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
         Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
-        Value xVec = iotaVec(builder, loc, ctx, xLowerBound, strideVal,
+        Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal,
                              vectorTy32, c0, stride);
 
         Value yVecModified = pixelScaling(builder, loc, inputRowF32Vec, yVec,
