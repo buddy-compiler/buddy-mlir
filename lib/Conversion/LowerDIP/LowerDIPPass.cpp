@@ -44,11 +44,11 @@ using namespace mlir::arith;
 
 namespace {
 
-class DIPCorr2DLowering : public OpRewritePattern<dip::Corr2DOp> {
+class DIPCorr2DOpLowering : public OpRewritePattern<dip::Corr2DOp> {
 public:
   using OpRewritePattern<dip::Corr2DOp>::OpRewritePattern;
 
-  explicit DIPCorr2DLowering(MLIRContext *context, int64_t strideParam)
+  explicit DIPCorr2DOpLowering(MLIRContext *context, int64_t strideParam)
       : OpRewritePattern(context) {
     stride = strideParam;
   }
@@ -657,7 +657,7 @@ public:
 
 void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
                                         int64_t stride) {
-  patterns.add<DIPCorr2DLowering>(patterns.getContext(), stride);
+  patterns.add<DIPCorr2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPRotate2DOpLowering>(patterns.getContext(), stride);
 }
 
