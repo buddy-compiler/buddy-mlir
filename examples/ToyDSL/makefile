@@ -1,6 +1,7 @@
 #!/bin/bash
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+BUDDY_TOY_DSL := ../../build/bin/buddy-toy-dsl
 
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
@@ -13,6 +14,9 @@ MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
 MLIR_ASYNC_RUNTIME := ./../llvm/build/lib/libmlir_async_runtime.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
+
+toy-constant-create:
+	@${BUDDY_TOY_DSL} constant.toy &> constant.mlir
 
 toy-constant-run:
 	@${MLIR_OPT} ./constant.mlir  -reconcile-unrealized-casts | \
