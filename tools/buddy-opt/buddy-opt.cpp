@@ -18,6 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Bufferization/Transforms/Passes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
@@ -50,6 +51,7 @@ void registerLowerDIPPass();
 void registerLowerDAPPass();
 void registerLowerRVVPass();
 void registerLoopOrderChangePass();
+void registerDataCopyGeneratePass();
 } // namespace buddy
 } // namespace mlir
 
@@ -68,6 +70,7 @@ int main(int argc, char **argv) {
 
   // Register GEMM Optimize Pass.
   mlir::buddy::registerLoopOrderChangePass();
+  mlir::buddy::registerDataCopyGeneratePass();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
