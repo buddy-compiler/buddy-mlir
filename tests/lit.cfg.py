@@ -45,23 +45,28 @@ config.excludes = ['Inputs', 'Examples', 'CMakeLists.txt', 'README.txt', 'LICENS
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
 
-# test_exec_root: The root path where tests should be run.
-config.test_exec_root = os.path.join(config.buddy_obj_root, 'tests')
+# tools_dir: tool directories to be used when testing
 config.buddy_tools_dir = os.path.join(config.buddy_obj_root, 'bin')
+config.qemu_tools_dir = "/home/artemy/workspace/repos/buddy-mlir/thirdparty/qemu/build/riscv64-linux-user"
 
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 
-tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
+tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir, config.qemu_tools_dir]
 tools = [
     'buddy-opt',
     'buddy-translate',
     'buddy-container-test',
     'buddy-audio-container-test',
+    'mlir-opt',
     'mlir-cpu-runner',
+    'qemu-riscv64'
 ]
 tools.extend([
     ToolSubst('%mlir_runner_utils_dir', config.mlir_runner_utils_dir, unresolved='ignore'),
+    ToolSubst('%riscv_gnu_toolchain_sysroot', config.riscv_gnu_toolchain_sysroot, unresolved='ignore'),
+    ToolSubst('%cross_mlir_runner_utils', config.cross_mlir_runner_utils, unresolved='ignore'),
+    ToolSubst('%cross_lli_bin', config.cross_lli_bin, unresolved='ignore'),
 ])
 
 if config.buddy_enable_opencv == "ON":

@@ -33,6 +33,10 @@ config.buddy_src_root = "@CMAKE_SOURCE_DIR@"
 config.buddy_obj_root = "@CMAKE_BINARY_DIR@"
 config.buddy_enable_opencv = "@BUDDY_ENABLE_OPENCV@"
 config.mlir_runner_utils_dir = "@LLVM_LIBS_DIR@"
+config.riscv_gnu_toolchain_sysroot = "@RISCV_GNU_TOOLCHAIN_SYSROOT@"
+config.cross_mlir_runner_utils = "@CROSS_MLIR_RUNNER_UTILS@"
+config.cross_lli_bin = "@CROSS_LLI_BIN@"
+config.qemu_tools_dir = "@QEMU_BINARY_DIR@"
 
 # Support substitution of the tools_dir with user parameters. This is
 # used when we can't determine the tool dir at configuration time.
