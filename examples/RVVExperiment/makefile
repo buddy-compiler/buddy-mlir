@@ -1,5 +1,6 @@
 #!/bin/bash
 BUDDY_OPT := ../../build/bin/buddy-opt
+BUDDY_TRANSLATE := ../../build/bin/buddy-translate
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
 MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
@@ -97,13 +98,48 @@ rvv-insert-extract-intrinsics-asm-error:
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
+rvv-c-setvl-translate:
+	@${LOCAL_CLANG} -march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		./rvv-c-setvl.c -fPIC -S -emit-llvm -o log.ll
+
+rvv-c-setvl-asm:
+	@${LOCAL_CLANG} -march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		./rvv-c-setvl.c -fPIC -S -o log.s
+
 run-targets += rvv-c-setvl-run
 rvv-c-setvl-run:
 	@${LOCAL_CLANG} -march=rv64gcv --target=riscv64-unknown-linux-gnu \
 		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		./rvv-c-setvl.c -fPIC -S -emit-llvm -o log.ll
-	@${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true \
+	@${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
 		${CROSS_LLI} --entry-function=main --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic log.ll
+
+rvv-setvl-translate:
+	@${BUDDY_OPT} ./rvv-setvl.mlir \
+		--lower-rvv -convert-vector-to-llvm -convert-arith-to-llvm -convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll
+
+rvv-setvl-asm:
+	@${BUDDY_OPT} ./rvv-setvl.mlir \
+		--lower-rvv -convert-vector-to-llvm -convert-arith-to-llvm -convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
+		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
+		--filetype=asm -o log.s
+
+run-targets += rvv-setvl-run
+rvv-setvl-run:
+	@${BUDDY_OPT} ./rvv-setvl.mlir \
+		--lower-rvv -convert-vector-to-llvm -convert-arith-to-llvm -convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS} --dlopen=${CROSS_MLIR_RUNNER_UTILS}
 
 rvv-loop-mask-asm:
 	@${MLIR_OPT} ./rvv-loop-mask.mlir \
