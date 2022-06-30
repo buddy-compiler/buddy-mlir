@@ -29,15 +29,22 @@
 using namespace dap;
 using namespace std;
 
+void printMemRef(MemRef<float, 1> data) {
+  for (auto i = 0; i < data.getSize(); ++i) {
+    cout << data.getData()[i] << ',';
+  }
+  cout << endl;
+}
+
 int main(int argc, char *argv[]) {
-  size_t kernelSize = 1023;
-  MemRef<float, 1> kernel(reinterpret_cast<intptr_t *>(&kernelSize));
-  dap::firLowpass<float, 1>(kernel, dap::WINDOW_TYPE::HAMMING, 1023, 0.1,
+  intptr_t kernelSize = 1000;
+  MemRef<float, 1> kernel(&kernelSize);
+  dap::firLowpass<float, 1>(kernel, dap::WINDOW_TYPE::BLACKMANHARRIS, 1000, 0.1,
                             nullptr);
-  Audio<float, 1> aud("../../../tests/Interface/"
+  Audio<float, 1> aud("../../tests/Interface/"
                       "core/NASA_Mars.wav");
-  auto audSize = aud.getSize();
-  Audio<float, 1> output(reinterpret_cast<intptr_t *>(&audSize));
+  intptr_t audSize = aud.getSize();
+  Audio<float, 1> output(&audSize);
   dap::fir(&aud, &kernel, &output);
   output.setAudioFile(&aud.getAudioFile());
   output.save("Fir_NASA_Mars.wav");

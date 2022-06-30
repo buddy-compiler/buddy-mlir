@@ -49,7 +49,7 @@ public:
     this->aligned = this->allocated;
     for (size_t i = 0; i < audioBuffer.size(); ++i) {
       for (size_t j = 0; j < audioBuffer[i].size(); ++j) {
-        this->aligned[i * this->size + j] = audioBuffer[i][j];
+        this->aligned[i * this->sizes[i] + j] = audioBuffer[i][j];
       }
     }
     this->setStrides();
@@ -65,7 +65,7 @@ public:
     for (size_t i = 0; i < this->getRank(); ++i) {
       auto &row = audioFile->samples[i];
       for (auto j = 0; j < this->sizes[i]; ++j) {
-        row[j] = this->aligned[i * this->size + j];
+        row[j] = this->aligned[i * this->sizes[i] + j];
       }
     }
     audioFile->save(path);

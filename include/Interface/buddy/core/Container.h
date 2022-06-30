@@ -44,7 +44,7 @@ public:
   // Move assignment operator.
   MemRef<T, N> &operator=(MemRef<T, N> &&other) noexcept;
   // Desctrutor.
-  virtual ~MemRef();
+  ~MemRef();
   // Get the data pointer.
   T *getData();
   // Get the sizes (shape).
