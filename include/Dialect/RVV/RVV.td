@@ -78,6 +78,39 @@ def RVVSetVlOp :
   let assemblyFormat = "$avl `,` $sew `,` $lmul attr-dict `:` type($avl)";
 }
 
+def RVVLoadOp : RVV_Op<"load">,
+    Arguments<(ins Arg<AnyMemRef, "", [MemRead]>:$base, Index:$index,
+                       Index:$length)>,
+    Results<(outs ScalableVectorOf<[AnyType]>:$result)> {
+  let summary = "Load scalable vector from memory";
+  let description = [{
+    Load a slice of memory into scalable vector with the given element length.
+  }];
+  let extraClassDeclaration = [{
+    mlir::MemRefType getMemRefType() {
+      return base().getType().cast<mlir::MemRefType>();
+    }
+  }];
+  let assemblyFormat = "$base `[` $index `]` `,` $length attr-dict `:` "
+    "type($base) `,` type($result) `,`  type($length)";
+}
+
+def RVVStoreOp : RVV_Op<"store">,
+    Arguments<(ins ScalableVectorOf<[AnyType]>:$value, Arg<AnyMemRef, "",
+                   [MemWrite]>:$base, Index:$index, Index:$length)> {
+  let summary = "Store scalable vector into memory";
+  let description = [{
+    Store the given element length of a scalable vector on a slice of memory.
+  }];
+  let extraClassDeclaration = [{
+    mlir::MemRefType getMemRefType() {
+      return base().getType().cast<mlir::MemRefType>();
+    }
+  }];
+  let assemblyFormat = "$value `,` $base `[` $index `]` `,` $length attr-dict "
+    "`:` type($value) `,` type($base) `,`  type($length)";
+}
+
 //===----------------------------------------------------------------------===//
 // RVV intrinsic operation definitions
 //===----------------------------------------------------------------------===//
@@ -91,7 +124,29 @@ class RVV_VSetVlI_IntrOp<string mnemonic, list<Trait> traits = []> :
                   /*list<Trait> traits=*/traits, 
                   /*int numResults=*/1>;
 
+class RVV_USLoad_IntrOp<string mnemonic, list<Trait> traits = []> :
+  LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect, 
+                  /*string opName=*/"intr." # mnemonic,
+                  /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
+                  /*list<int> overloadedResults=*/[0], 
+                  /*list<int> overloadedOperands=*/[2], 
+                  /*list<Trait> traits=*/traits, 
+                  /*int numResults=*/1>;
+
+class RVV_USStore_IntrOp<string mnemonic, list<Trait> traits = []> :
+  LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect, 
+                  /*string opName=*/"intr." # mnemonic,
+                  /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
+                  /*list<int> overloadedResults=*/[], 
+                  /*list<int> overloadedOperands=*/[0, 2], 
+                  /*list<Trait> traits=*/traits, 
+                  /*int numResults=*/0>;
+
 def RVVIntrSetVlIOp : RVV_VSetVlI_IntrOp<"vsetvli">,
   Arguments<(ins AnyInteger, AnyInteger, AnyInteger)>;
+def RVVIntrLoadEleOp : RVV_USLoad_IntrOp<"vle">,
+  Arguments<(ins AnyScalableVector, LLVM_AnyPointer, AnyInteger)>;
+def RVVIntrStoreEleOp : RVV_USStore_IntrOp<"vse">,
+  Arguments<(ins AnyScalableVector, LLVM_AnyPointer, AnyInteger)>;
 
 #endif // RVV_OPS

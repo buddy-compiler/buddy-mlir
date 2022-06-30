@@ -26,65 +26,55 @@ all-run: $$(run-targets)
 # RVV Specific Examples
 ################################################################################
 
-rvv-scalable-lower:
-	@${MLIR_OPT} ./rvv-scalable.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
-		--reconcile-unrealized-casts -o ./log.mlir
-
-rvv-scalable-translate:
-	@${MLIR_OPT} ./rvv-scalable.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+rvv-scalable-translate-128:
+	@${BUDDY_OPT} ./rvv-scalable.mlir \
+	    -convert-scf-to-cf \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll
 
-rvv-scalable-asm:
-	@${MLIR_OPT} ./rvv-scalable.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+rvv-scalable-asm-128:
+	@${BUDDY_OPT} ./rvv-scalable.mlir \
+	    -convert-scf-to-cf \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
 rvv-scalable-run-128:
-	@${MLIR_OPT} ./rvv-scalable.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+	@${BUDDY_OPT} ./rvv-scalable.mlir \
+		-convert-scf-to-cf \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
 	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
-		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS} --dlopen=${CROSS_MLIR_RUNNER_UTILS}
 
 rvv-scalable-aot-128:
-	@${MLIR_OPT} ./rvv-scalable.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+	@${BUDDY_OPT} ./rvv-scalable.mlir \
+		-convert-scf-to-cf \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
 	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o -mabi=lp64d \
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
 
-rvv-scalable-run-256:
-	@${MLIR_OPT} ./rvv-scalable.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+# Note: this target will trigger an error to show the limitation.
+rvv-scalable-run-256-error:
+	@${BUDDY_OPT} ./rvv-scalable.mlir \
+		-convert-scf-to-cf \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=256 \
 	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
-		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
-
-rvv-scalable-aot-256:
-	@${MLIR_OPT} ./rvv-scalable.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
-		--reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir | \
-	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=256 --filetype=obj -o log.o
-	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o -mabi=lp64d \
-		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
-		-o a.out
-	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=256 a.out
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS} --dlopen=${CROSS_MLIR_RUNNER_UTILS}
 
 rvv-insert-extract-intrinsics-asm:
 	@${LLC} ./rvv-insert-extract-intrinsics.ll \
