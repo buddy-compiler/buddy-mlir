@@ -7,6 +7,8 @@ MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
 LLC := ../../llvm/build/bin/llc
 OPT := ../../llvm/build/bin/opt
 OPT_FLAG := -O3
+MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
+MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.so
 
 RISCV_GNU_TOOLCHAIN := ../../thirdparty/build-riscv-gnu-toolchain
 RISCV_GNU_TOOLCHAIN_SYSROOT := ../../thirdparty/build-riscv-gnu-toolchain/sysroot
@@ -147,6 +149,28 @@ rvv-loop-mask-run:
 		-convert-scf-to-cf \
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS} --dlopen=${CROSS_MLIR_RUNNER_UTILS}
+
+rvv-vp-intrinsic-translate:
+	@${MLIR_OPT} ./rvv-vp-intrinsic.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--convert-func-to-llvm --reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+rvv-vp-intrinsic-run-local:
+	@${MLIR_OPT} ./rvv-vp-intrinsic.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--convert-func-to-llvm --reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+rvv-vp-intrinsic-run-error:
+	@${MLIR_OPT} ./rvv-vp-intrinsic.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
 	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
