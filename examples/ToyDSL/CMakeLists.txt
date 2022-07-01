@@ -21,12 +21,12 @@ add_subdirectory(include)
 add_llvm_executable(buddy-toy-dsl 
   main.cpp
   ../../llvm/mlir/examples/toy/Ch5/mlir/LowerToAffineLoops.cpp
-	../../llvm/mlir/examples/toy/Ch5/mlir/Dialect.cpp
-	../../llvm/mlir/examples/toy/Ch6/mlir/LowerToLLVM.cpp
-	../../llvm/mlir/examples/toy/Ch5/mlir/ToyCombine.cpp  
+  ../../llvm/mlir/examples/toy/Ch5/mlir/Dialect.cpp
+  ../../llvm/mlir/examples/toy/Ch6/mlir/LowerToLLVM.cpp
+  ../../llvm/mlir/examples/toy/Ch5/mlir/ToyCombine.cpp  
   ${ANTLR_Toy_CXX_OUTPUTS}
   DEPENDS
-	ToyCombineIncGen
+  ToyCombineIncGen
   ToyDSLOpsIncGen
   ToyShapeInferenceInterfaceIncGen)
 
@@ -63,6 +63,3 @@ target_link_libraries(buddy-toy-dsl
   antlr4_static
   ${dialect_libs}
   ${conversion_libs})
-  
-
-
