@@ -16,4 +16,3 @@ add_public_tablegen_target(ToyShapeInferenceInterfaceIncGen)
 set(LLVM_TARGET_DEFINITIONS ../../../../llvm/mlir/examples/toy/Ch5/mlir/ToyCombine.td)
 mlir_tablegen(ToyCombine.inc -gen-rewriters)
 add_public_tablegen_target(ToyCombineIncGen)
-
