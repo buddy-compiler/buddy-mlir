@@ -38,13 +38,12 @@ funDefine
     ;
 
 prototype
-    : Def Identifier ParentheseOpen declList ParentheseClose
+    : Def Identifier ParentheseOpen declList? ParentheseClose
     ;
 
 declList 
     : Identifier 
     | Identifier Comma declList
-    |
     ;
 
 block
