@@ -124,6 +124,15 @@ $ cd bin
 $ ./rotation2D ../../examples/ConvOpt/images/YuTu.png result-dip-rotate.png
 ```
 
+ - Resize example:
+```
+$ cd buddy-mlir/build
+$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
+$ ninja resize2D
+$ cd bin
+$ ./resize2D ../../examples/ConvOpt/images/YuTu.png result-dip-resize.png
+```
+
 We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches. 
 For more details, please see [the benchamrk in the buddy-benchmark repo](https://github.com/buddy-compiler/buddy-benchmark#image-processing-benchmark).
 

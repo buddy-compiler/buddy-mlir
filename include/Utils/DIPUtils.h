@@ -155,42 +155,45 @@ Value pixelScaling(OpBuilder &builder, Location loc, Value imageDImF32Vec,
   return builder.create<arith::SubFOp>(loc, interm2, c1F32Vec);
 }
 
+// Extract values present at a particular index in two vectors for using
+// those values to load an element from a memref.
+std::vector<Value> extractIndices(OpBuilder &builder, Location loc, Value xVec,
+                                  Value yVec, Value vecIndex, Value xUpperBound,
+                                  Value yUpperBound, Value c0F32) {
+  Value xPos = builder.create<vector::ExtractElementOp>(loc, xVec, vecIndex);
+  Value yPos = builder.create<vector::ExtractElementOp>(loc, yVec, vecIndex);
+
+  Value xPosBound = valBound(builder, loc, xPos, xUpperBound, c0F32);
+  Value yPosBound = valBound(builder, loc, yPos, yUpperBound, c0F32);
+
+  return {F32ToIndex(builder, loc, xPosBound),
+          F32ToIndex(builder, loc, yPosBound)};
+}
+
 // Fill appropriate pixel data in its corresponding rotated co-ordinate of
 // output image.
 void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
                 Value xVec, Value yVec, Value input, Value output, Value c0,
                 Value strideVal, Value outputRowLastElemF32,
-                Value outputColLastElemF32, Value c0F32) {
+                Value outputColLastElemF32, Value inputRowLastElemF32,
+                Value inputColLastElemF32, Value c0F32) {
   builder.create<AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), /*step*/ 1, llvm::None,
       [&](OpBuilder &builder, Location loc, ValueRange ivs,
           ValueRange iterArg) {
-        Value resXPos =
-            builder.create<vector::ExtractElementOp>(loc, resXVec, ivs[0]);
-        Value resYPos =
-            builder.create<vector::ExtractElementOp>(loc, resYVec, ivs[0]);
-
-        Value resXPosBound =
-            valBound(builder, loc, resXPos, outputColLastElemF32, c0F32);
-        Value resYPosBound =
-            valBound(builder, loc, resYPos, outputRowLastElemF32, c0F32);
-
-        Value resXPosIndex = F32ToIndex(builder, loc, resXPosBound);
-        Value resYPosIndex = F32ToIndex(builder, loc, resYPosBound);
-
-        Value xPos =
-            builder.create<vector::ExtractElementOp>(loc, xVec, ivs[0]);
-        Value yPos =
-            builder.create<vector::ExtractElementOp>(loc, yVec, ivs[0]);
-
-        Value xPosIndex = F32ToIndex(builder, loc, xPos);
-        Value yPosIndex = F32ToIndex(builder, loc, yPos);
+        std::vector<Value> origIndices =
+            extractIndices(builder, loc, xVec, yVec, ivs[0],
+                           inputRowLastElemF32, inputColLastElemF32, c0F32);
+        std::vector<Value> resIndices =
+            extractIndices(builder, loc, resXVec, resYVec, ivs[0],
+                           outputRowLastElemF32, outputColLastElemF32, c0F32);
 
         Value pixelVal = builder.create<memref::LoadOp>(
-            loc, builder.getF32Type(), input, ValueRange{xPosIndex, yPosIndex});
-        builder.create<memref::StoreOp>(loc, pixelVal, output,
-                                        ValueRange{resXPosIndex, resYPosIndex});
+            loc, builder.getF32Type(), input,
+            ValueRange{origIndices[0], origIndices[1]});
+        builder.create<memref::StoreOp>(
+            loc, pixelVal, output, ValueRange{resIndices[0], resIndices[1]});
 
         builder.create<AffineYieldOp>(loc);
       });
@@ -216,16 +219,16 @@ void shearTransformController(
     Value sinVec, Value tanVec, Value inputRowF32Vec, Value inputColF32Vec,
     Value inputCenterYF32Vec, Value inputCenterXF32Vec,
     Value outputCenterYF32Vec, Value outputCenterXF32Vec,
-    Value outputRowLastElemF32, Value outputColLastElemF32, Value c0,
-    Value c0F32, Value c1F32Vec, VectorType vectorTy32, int64_t stride,
-    FloatType f32) {
+    Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value inputRowLastElemF32, Value inputColLastElemF32, Value c0, Value c0F32,
+    Value c1F32Vec, VectorType vectorTy32, int64_t stride, FloatType f32) {
   buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
         Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
-        Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal,
-                             vectorTy32, c0, stride);
+        Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
+                             c0, stride);
 
         Value yVecModified = pixelScaling(builder, loc, inputRowF32Vec, yVec,
                                           inputCenterYF32Vec, c1F32Vec);
@@ -241,7 +244,7 @@ void shearTransformController(
 
         fillPixels(builder, loc, resXVec, resYVec, xVec, yVec, input, output,
                    c0, strideVal, outputRowLastElemF32, outputColLastElemF32,
-                   c0F32);
+                   inputRowLastElemF32, inputColLastElemF32, c0F32);
       });
 }
 
@@ -253,9 +256,9 @@ void standardRotateController(
     Value sinVec, Value angleVal, Value inputRowF32Vec, Value inputColF32Vec,
     Value inputCenterYF32Vec, Value inputCenterXF32Vec,
     Value outputCenterYF32Vec, Value outputCenterXF32Vec,
-    Value outputRowLastElemF32, Value outputColLastElemF32, Value c0,
-    Value c0F32, Value c1F32Vec, VectorType vectorTy32, int64_t stride,
-    FloatType f32) {
+    Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value inputRowLastElemF32, Value inputColLastElemF32, Value c0, Value c0F32,
+    Value c1F32Vec, VectorType vectorTy32, int64_t stride, FloatType f32) {
   Value cosVal = builder.create<math::CosOp>(loc, angleVal);
   Value cosVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, cosVal);
 
@@ -264,8 +267,8 @@ void standardRotateController(
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
         Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
-        Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal,
-                             vectorTy32, c0, stride);
+        Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
+                             c0, stride);
 
         Value yVecModified = pixelScaling(builder, loc, inputRowF32Vec, yVec,
                                           inputCenterYF32Vec, c1F32Vec);
@@ -280,9 +283,168 @@ void standardRotateController(
                                                       resIndices[1]);
 
         fillPixels(builder, loc, resXVec, resYVec, xVec, yVec, input, output,
-                   c0, strideVal, outputRowLastElemF32, outputColLastElemF32,
-                   c0F32);
+                   c0, strideVal, inputRowLastElemF32, inputColLastElemF32,
+                   outputRowLastElemF32, outputColLastElemF32, c0F32);
       });
 }
 
+// Fills pixels in bilinear interpolation fashion.
+void fillPixelsBilinearInterpolate(
+    OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
+    Value xVec_L, Value yVec_L, Value xVec_H, Value yVec_H, Value input,
+    Value output, Value c0, Value strideVal, Value xVecWeight, Value yVecWeight,
+    Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
+    Value c1F32) {
+  builder.create<AffineForOp>(
+      loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
+      builder.getDimIdentityMap(), /*step*/ 1, llvm::None,
+      [&](OpBuilder &builder, Location loc, ValueRange ivs,
+          ValueRange iterArg) {
+        std::vector<Value> resIndices =
+            extractIndices(builder, loc, resXVec, resYVec, ivs[0],
+                           outputColLastElemF32, outputRowLastElemF32, c0F32);
+
+        std::vector<Value> inputIndices_L =
+            extractIndices(builder, loc, xVec_L, yVec_L, ivs[0],
+                           inputColLastElemF32, inputRowLastElemF32, c0F32);
+        std::vector<Value> inputIndices_H =
+            extractIndices(builder, loc, xVec_H, yVec_H, ivs[0],
+                           inputColLastElemF32, inputRowLastElemF32, c0F32);
+
+        std::vector<Value> indexWeights;
+        Value xPos_temp =
+            builder.create<vector::ExtractElementOp>(loc, xVecWeight, ivs[0]);
+        Value yPos_temp =
+            builder.create<vector::ExtractElementOp>(loc, yVecWeight, ivs[0]);
+
+        indexWeights.push_back(
+            valBound(builder, loc, xPos_temp, inputColLastElemF32, c0F32));
+        indexWeights.push_back(
+            valBound(builder, loc, yPos_temp, inputRowLastElemF32, c0F32));
+
+        std::vector<Value> indexWeights_UnitComplements = {
+            builder.create<arith::SubFOp>(loc, c1F32, indexWeights[0]),
+            builder.create<arith::SubFOp>(loc, c1F32, indexWeights[1])};
+
+        Value pixelVal_a = builder.create<memref::LoadOp>(
+            loc, builder.getF32Type(), input,
+            ValueRange{inputIndices_L[0], inputIndices_L[1]});
+        Value pixelVal_b = builder.create<memref::LoadOp>(
+            loc, builder.getF32Type(), input,
+            ValueRange{inputIndices_H[0], inputIndices_L[1]});
+        Value pixelVal_c = builder.create<memref::LoadOp>(
+            loc, builder.getF32Type(), input,
+            ValueRange{inputIndices_L[0], inputIndices_H[1]});
+        Value pixelVal_d = builder.create<memref::LoadOp>(
+            loc, builder.getF32Type(), input,
+            ValueRange{inputIndices_H[0], inputIndices_H[1]});
+
+        Value weightVal1 =
+            builder.create<arith::MulFOp>(loc, indexWeights_UnitComplements[0],
+                                          indexWeights_UnitComplements[1]);
+        Value weightVal2 = builder.create<arith::MulFOp>(
+            loc, indexWeights[0], indexWeights_UnitComplements[1]);
+        Value weightVal3 = builder.create<arith::MulFOp>(
+            loc, indexWeights[1], indexWeights_UnitComplements[0]);
+        Value weightVal4 = builder.create<arith::MulFOp>(loc, indexWeights[0],
+                                                         indexWeights[1]);
+
+        Value interm1 =
+            builder.create<arith::MulFOp>(loc, pixelVal_a, weightVal1);
+        Value interm2 =
+            builder.create<arith::MulFOp>(loc, pixelVal_b, weightVal2);
+        Value interm3 =
+            builder.create<arith::MulFOp>(loc, pixelVal_c, weightVal3);
+        Value interm4 =
+            builder.create<arith::MulFOp>(loc, pixelVal_d, weightVal4);
+
+        Value pixel_interm1 =
+            builder.create<arith::AddFOp>(loc, interm1, interm2);
+        Value pixel_interm2 =
+            builder.create<arith::AddFOp>(loc, interm3, interm4);
+        Value pixel_interm3 =
+            builder.create<arith::AddFOp>(loc, pixel_interm1, pixel_interm2);
+
+        Value pixelVal = roundOff(builder, loc, pixel_interm3);
+
+        builder.create<memref::StoreOp>(
+            loc, pixelVal, output, ValueRange{resIndices[0], resIndices[1]});
+
+        builder.create<AffineYieldOp>(loc);
+      });
+}
+
+// Helper function for resizing an image using nearest neighbour interpolation
+// mechanism.
+void NearestNeighbourInterpolationResizing(
+    OpBuilder &builder, Location loc, MLIRContext *ctx,
+    SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
+    SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
+    Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
+    Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
+    int64_t stride, Value c0, Value c0F32) {
+  buildAffineLoopNest(
+      builder, loc, lowerBounds, upperBounds, steps,
+      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+        Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
+        Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
+        Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
+                             c0, stride);
+
+        Value resXVecInterm = builder.create<arith::MulFOp>(
+            loc, xVec, horizontalScalingFactorVec);
+        Value resYVecInterm =
+            builder.create<arith::MulFOp>(loc, yVec, verticalScalingFactorVec);
+
+        Value resXVec = roundOff(builder, loc, resXVecInterm);
+        Value resYVec = roundOff(builder, loc, resYVecInterm);
+
+        fillPixels(builder, loc, xVec, yVec, resXVec, resYVec, input, output,
+                   c0, strideVal, outputRowLastElemF32, outputColLastElemF32,
+                   inputRowLastElemF32, inputColLastElemF32, c0F32);
+      });
+}
+
+// Helper function for resizing an image using bilinear interpolation mechanism.
+void BilinearInterpolationResizing(
+    OpBuilder &builder, Location loc, MLIRContext *ctx,
+    SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
+    SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
+    Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
+    Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
+    int64_t stride, Value c0, Value c0F32, Value c1F32) {
+  buildAffineLoopNest(
+      builder, loc, lowerBounds, upperBounds, steps,
+      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+        Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
+        Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
+        Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
+                             c0, stride);
+
+        Value xVecInterm = builder.create<arith::MulFOp>(
+            loc, xVec, horizontalScalingFactorVec);
+        Value yVecInterm =
+            builder.create<arith::MulFOp>(loc, yVec, verticalScalingFactorVec);
+
+        Value xVecInterm_L = builder.create<math::FloorOp>(loc, xVecInterm);
+        Value xVecInterm_H = builder.create<math::CeilOp>(loc, xVecInterm);
+
+        Value yVecInterm_L = builder.create<math::FloorOp>(loc, yVecInterm);
+        Value yVecInterm_H = builder.create<math::CeilOp>(loc, yVecInterm);
+
+        Value xVecWeight =
+            builder.create<arith::SubFOp>(loc, xVecInterm, xVecInterm_L);
+        Value yVecWeight =
+            builder.create<arith::SubFOp>(loc, yVecInterm, yVecInterm_L);
+
+        fillPixelsBilinearInterpolate(
+            builder, loc, xVec, yVec, xVecInterm_L, yVecInterm_L, xVecInterm_H,
+            yVecInterm_H, input, output, c0, strideVal, xVecWeight, yVecWeight,
+            outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+            inputColLastElemF32, c0F32, c1F32);
+      });
+}
 #endif
