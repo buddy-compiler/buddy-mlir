@@ -542,7 +542,14 @@ public:
     Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
     Value outputCol = rewriter.create<memref::DimOp>(loc, output, c1);
 
-    // Obtain extreme allocatable value(s) in output for bounding purpose.
+    // Obtain extreme allocatable value(s) in input and output for bounding
+    // purpose.
+    Value inputRowLastElem = rewriter.create<arith::SubIOp>(loc, inputRow, c1);
+    Value inputRowLastElemF32 = indexToF32(rewriter, loc, inputRowLastElem);
+
+    Value inputColLastElem = rewriter.create<arith::SubIOp>(loc, inputCol, c1);
+    Value inputColLastElemF32 = indexToF32(rewriter, loc, inputColLastElem);
+
     Value outputRowLastElem =
         rewriter.create<arith::SubIOp>(loc, outputRow, c1);
     Value outputRowLastElemF32 = indexToF32(rewriter, loc, outputRowLastElem);
@@ -615,15 +622,16 @@ public:
               input, output, sinVec, tanVec, inputRowF32Vec, inputColF32Vec,
               inputCenterYF32Vec, inputCenterXF32Vec, outputCenterYF32Vec,
               outputCenterXF32Vec, outputRowLastElemF32, outputColLastElemF32,
-              c0, c0F32, c1F32Vec, vectorTy32, stride, f32);
+              inputRowLastElemF32, inputColLastElemF32, c0, c0F32, c1F32Vec,
+              vectorTy32, stride, f32);
 
           shearTransformController(
               builder, loc, ctx, lowerBounds2, upperBounds2, steps,
               strideTailVal, input, output, sinVec, tanVec, inputRowF32Vec,
               inputColF32Vec, inputCenterYF32Vec, inputCenterXF32Vec,
               outputCenterYF32Vec, outputCenterXF32Vec, outputRowLastElemF32,
-              outputColLastElemF32, c0, c0F32, c1F32Vec, vectorTy32, stride,
-              f32);
+              outputColLastElemF32, inputRowLastElemF32, inputColLastElemF32,
+              c0, c0F32, c1F32Vec, vectorTy32, stride, f32);
 
           builder.create<scf::YieldOp>(loc);
         },
@@ -633,15 +641,16 @@ public:
               input, output, sinVec, angleVal, inputRowF32Vec, inputColF32Vec,
               inputCenterYF32Vec, inputCenterXF32Vec, outputCenterYF32Vec,
               outputCenterXF32Vec, outputRowLastElemF32, outputColLastElemF32,
-              c0, c0F32, c1F32Vec, vectorTy32, stride, f32);
+              inputRowLastElemF32, inputColLastElemF32, c0, c0F32, c1F32Vec,
+              vectorTy32, stride, f32);
 
           standardRotateController(
               builder, loc, ctx, lowerBounds2, upperBounds2, steps,
               strideTailVal, input, output, sinVec, angleVal, inputRowF32Vec,
               inputColF32Vec, inputCenterYF32Vec, inputCenterXF32Vec,
               outputCenterYF32Vec, outputCenterXF32Vec, outputRowLastElemF32,
-              outputColLastElemF32, c0, c0F32, c1F32Vec, vectorTy32, stride,
-              f32);
+              outputColLastElemF32, inputRowLastElemF32, inputColLastElemF32,
+              c0, c0F32, c1F32Vec, vectorTy32, stride, f32);
 
           builder.create<scf::YieldOp>(loc);
         });
@@ -653,12 +662,125 @@ public:
 
   int64_t stride;
 };
+
+class DIPResize2DOpLowering : public OpRewritePattern<dip::Resize2DOp> {
+public:
+  using OpRewritePattern<dip::Resize2DOp>::OpRewritePattern;
+
+  explicit DIPResize2DOpLowering(MLIRContext *context, int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
+
+  LogicalResult matchAndRewrite(dip::Resize2DOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto ctx = op->getContext();
+
+    // Register operand values.
+    Value input = op->getOperand(0);
+    Value horizontalScalingFactor = op->getOperand(1);
+    Value verticalScalingFactor = op->getOperand(2);
+    Value output = op->getOperand(3);
+    auto interpolationAttr = op.interpolation_type();
+    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+
+    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c0F32 = indexToF32(rewriter, loc, c0);
+
+    Value inputRow = rewriter.create<memref::DimOp>(loc, input, c0);
+    Value inputCol = rewriter.create<memref::DimOp>(loc, input, c1);
+
+    Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
+    Value outputCol = rewriter.create<memref::DimOp>(loc, output, c1);
+
+    // Determine lower bound for second call of rotation function (this is done
+    // for efficient tail processing).
+    Value outputColStrideRatio =
+        rewriter.create<arith::DivUIOp>(loc, outputCol, strideVal);
+    Value outputColMultiple =
+        rewriter.create<arith::MulIOp>(loc, strideVal, outputColStrideRatio);
+
+    SmallVector<Value, 8> lowerBounds1{c0, c0};
+    SmallVector<Value, 8> upperBounds1{outputRow, outputColMultiple};
+
+    SmallVector<int64_t, 8> steps{1, stride};
+    Value strideTailVal =
+        rewriter.create<arith::SubIOp>(loc, outputCol, outputColMultiple);
+
+    SmallVector<Value, 8> lowerBounds2{c0, outputColMultiple};
+    SmallVector<Value, 8> upperBounds2{outputRow, outputCol};
+
+    FloatType f32 = FloatType::getF32(ctx);
+    VectorType vectorTy32 = VectorType::get({stride}, f32);
+
+    Value horizontalScalingFactorVec = rewriter.create<vector::SplatOp>(
+        loc, vectorTy32, horizontalScalingFactor);
+    Value verticalScalingFactorVec = rewriter.create<vector::SplatOp>(
+        loc, vectorTy32, verticalScalingFactor);
+
+    // Obtain extreme allocatable value(s) in input and output for bounding
+    // purpose.
+    Value inputRowLastElem = rewriter.create<arith::SubIOp>(loc, inputRow, c1);
+    Value inputRowLastElemF32 = indexToF32(rewriter, loc, inputRowLastElem);
+
+    Value inputColLastElem = rewriter.create<arith::SubIOp>(loc, inputCol, c1);
+    Value inputColLastElemF32 = indexToF32(rewriter, loc, inputColLastElem);
+
+    Value outputRowLastElem =
+        rewriter.create<arith::SubIOp>(loc, outputRow, c1);
+    Value outputRowLastElemF32 = indexToF32(rewriter, loc, outputRowLastElem);
+
+    Value outputColLastElem =
+        rewriter.create<arith::SubIOp>(loc, outputCol, c1);
+    Value outputColLastElemF32 = indexToF32(rewriter, loc, outputColLastElem);
+
+    if (interpolationAttr ==
+        dip::InterpolationType::NearestNeighbourInterpolation) {
+      NearestNeighbourInterpolationResizing(
+          rewriter, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32);
+
+      NearestNeighbourInterpolationResizing(
+          rewriter, loc, ctx, lowerBounds2, upperBounds2, steps, strideTailVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32);
+    } else if (interpolationAttr ==
+               dip::InterpolationType::BilinearInterpolation) {
+      Value c1F32 = indexToF32(rewriter, loc, c1);
+
+      BilinearInterpolationResizing(
+          rewriter, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32, c1F32);
+
+      BilinearInterpolationResizing(
+          rewriter, loc, ctx, lowerBounds2, upperBounds2, steps, strideTailVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32, c1F32);
+    }
+
+    // Remove the original resize operation.
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  int64_t stride;
+};
 } // end anonymous namespace
 
 void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
                                         int64_t stride) {
   patterns.add<DIPCorr2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPRotate2DOpLowering>(patterns.getContext(), stride);
+  patterns.add<DIPResize2DOpLowering>(patterns.getContext(), stride);
 }
 
 //===----------------------------------------------------------------------===//
