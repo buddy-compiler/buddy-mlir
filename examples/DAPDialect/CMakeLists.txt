@@ -16,6 +16,6 @@ SET_TARGET_PROPERTIES(
   PROPERTIES
   LINKER_LANGUAGE CXX)
 
-add_executable(e2eFirLowpass e2eFirLowpass.cpp)
-add_dependencies(e2eFirLowpass buddy-opt)
-target_link_libraries(e2eFirLowpass FIR)
+add_executable(FirLowpass FirLowpass.cpp)
+add_dependencies(FirLowpass buddy-opt)
+target_link_libraries(FirLowpass FIR)
