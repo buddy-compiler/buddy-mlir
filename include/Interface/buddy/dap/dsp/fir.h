@@ -21,8 +21,8 @@
 #ifndef INCLUDE_DAP_DSP_FIR
 #define INCLUDE_DAP_DSP_FIR
 
-#include "Interface/buddy/core/AudioContainer.h"
 #include "Interface/buddy/core/Container.h"
+#include "Interface/buddy/dap/AudioContainer.h"
 #include "Interface/buddy/dap/dsp/window.h"
 
 namespace dap {

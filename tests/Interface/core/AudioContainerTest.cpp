@@ -20,7 +20,7 @@
 
 // RUN: buddy-audio-container-test 2>&1 | FileCheck %s
 
-#include "Interface/buddy/core/AudioContainer.h"
+#include "Interface/buddy/dap/AudioContainer.h"
 #include <iostream>
 
 using namespace std;

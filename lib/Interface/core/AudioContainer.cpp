@@ -21,7 +21,7 @@
 #ifndef CORE_AUDIO_CONTAINER_DEF
 #define CORE_AUDIO_CONTAINER_DEF
 
-#include "Interface/buddy/core/AudioContainer.h"
+#include "Interface/buddy/dap/AudioContainer.h"
 #include "Interface/buddy/core/Container.h"
 
 // Audio MemRef Constructor from AudioFile
