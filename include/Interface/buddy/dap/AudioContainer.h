@@ -21,8 +21,8 @@
 #ifndef INTERFACE_BUDDY_CORE_AUDIOCONTAINER
 #define INTERFACE_BUDDY_CORE_AUDIOCONTAINER
 
+#include "AudioFile.h"
 #include "Interface/buddy/core/Container.h"
-#include "Interface/buddy/dap/AudioFile.h"
 
 namespace dap {
 

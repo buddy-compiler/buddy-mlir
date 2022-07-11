@@ -21,8 +21,8 @@
 #ifndef INCLUDE_DAP
 #define INCLUDE_DAP
 
+#include "AudioFile.h"
 #include "Interface/buddy/dap/AudioContainer.h"
-#include "Interface/buddy/dap/AudioFile.h"
 #include "Interface/buddy/dap/dsp/fir.h"
 
 #endif
