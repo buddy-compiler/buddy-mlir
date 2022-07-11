@@ -22,7 +22,7 @@
 #define INTERFACE_BUDDY_CORE_CONTAINER
 
 #include <memory>
-#include <stdint.h>
+#include <cstdint>
 #include <vector>
 
 // MemRef descriptor.
@@ -35,6 +35,8 @@ public:
   MemRef(intptr_t sizes[N], T init = T(0));
   // Constructor from data.
   MemRef(const T *data, intptr_t sizes[N], intptr_t offset = 0);
+  // Constructor from a unique_ptr, taking over.
+  MemRef(const std::unique_ptr<T> uptr,intptr_t sizes[N], intptr_t offset = 0);
   // Copy constructor.
   MemRef(const MemRef<T, N> &other);
   // Copy assignment operator.
