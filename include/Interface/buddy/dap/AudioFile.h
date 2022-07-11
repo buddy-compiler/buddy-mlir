@@ -135,6 +135,7 @@ public:
    * buffer.
    * @Returns true if the buffer was copied successfully.
    */
+  bool setAudioBuffer(T *newBuffer);
   bool setAudioBuffer(T *newBuffer, size_t numChannels, size_t numSamples);
 
   /** Access the 1-d array of audio samples */
@@ -159,7 +160,7 @@ public:
    *
    *      samples[channel*numSamples+sampleIndex];
    */
-  std::unique_ptr<T *> samples;
+  std::unique_ptr<T> samples;
   size_t numSamples;
   size_t numChannels;
 
@@ -334,6 +335,12 @@ template <class T> void AudioFile<T>::printSummary() const {
 }
 
 //=============================================================
+template <class T> bool AudioFile<T>::setAudioBuffer(T *newBuffer) {
+  if (!newBuffer)
+    newBuffer = new T[numChannels * numSamples];
+  samples.reset(newBuffer);
+}
+
 template <class T>
 bool AudioFile<T>::setAudioBuffer(T *newBuffer, size_t numChannels,
                                   size_t numSamples) {
@@ -348,9 +355,8 @@ bool AudioFile<T>::setAudioBuffer(T *newBuffer, size_t numChannels,
   this->numSamples = numSamples;
 }
 
-template <class T>
-T &AudioFile<T>::getSample(int channel, int sample){
-  return samples.get()[channel*numChannels+sample];
+template <class T> T &AudioFile<T>::getSample(int channel, int sample) {
+  return samples.get()[channel * numChannels + sample];
 }
 
 //=============================================================
@@ -511,11 +517,11 @@ bool AudioFile<T>::decodeWaveFile(std::vector<uint8_t> &fileData) {
 
       if (bitDepth == 8) {
         T sample = singleByteToSample(fileData[sampleIndex]);
-        getSample(channel,i)=sample;
+        getSample(channel, i) = sample;
       } else if (bitDepth == 16) {
         int16_t sampleAsInt = twoBytesToInt(fileData, sampleIndex);
         T sample = sixteenBitIntToSample(sampleAsInt);
-        getSample(channel,i)=sample;
+        getSample(channel, i) = sample;
       } else if (bitDepth == 24) {
         int32_t sampleAsInt = 0;
         sampleAsInt = (fileData[sampleIndex + 2] << 16) |
@@ -528,7 +534,7 @@ bool AudioFile<T>::decodeWaveFile(std::vector<uint8_t> &fileData) {
               ~0xFFFFFF; // so make sure sign is extended to the 32 bit float
 
         T sample = (T)sampleAsInt / (T)8388608.;
-        getSample(channel,i)=sample;
+        getSample(channel, i) = sample;
       } else if (bitDepth == 32) {
         int32_t sampleAsInt = fourBytesToInt(fileData, sampleIndex);
         T sample;
@@ -539,7 +545,7 @@ bool AudioFile<T>::decodeWaveFile(std::vector<uint8_t> &fileData) {
           sample = (T)sampleAsInt /
                    static_cast<float>(std::numeric_limits<std::int32_t>::max());
 
-        getSample(channel,i)=sample;
+        getSample(channel, i) = sample;
       } else {
         assert(false);
       }
@@ -660,12 +666,12 @@ bool AudioFile<T>::decodeAiffFile(std::vector<uint8_t> &fileData) {
       if (bitDepth == 8) {
         int8_t sampleAsSigned8Bit = (int8_t)fileData[sampleIndex];
         T sample = (T)sampleAsSigned8Bit / (T)128.;
-        getSample(channel,i)=sample;
+        getSample(channel, i) = sample;
       } else if (bitDepth == 16) {
         int16_t sampleAsInt =
             twoBytesToInt(fileData, sampleIndex, Endianness::BigEndian);
         T sample = sixteenBitIntToSample(sampleAsInt);
-        getSample(channel,i)=sample;
+        getSample(channel, i) = sample;
       } else if (bitDepth == 24) {
         int32_t sampleAsInt = 0;
         sampleAsInt = (fileData[sampleIndex] << 16) |
@@ -679,7 +685,7 @@ bool AudioFile<T>::decodeAiffFile(std::vector<uint8_t> &fileData) {
               ~0xFFFFFF; // so make sure sign is extended to the 32 bit float
 
         T sample = (T)sampleAsInt / (T)8388608.;
-        getSample(channel,i)=sample;
+        getSample(channel, i) = sample;
       } else if (bitDepth == 32) {
         int32_t sampleAsInt =
             fourBytesToInt(fileData, sampleIndex, Endianness::BigEndian);
@@ -691,7 +697,7 @@ bool AudioFile<T>::decodeAiffFile(std::vector<uint8_t> &fileData) {
           sample = (T)sampleAsInt /
                    static_cast<float>(std::numeric_limits<std::int32_t>::max());
 
-        getSample(channel,i)=sample;
+        getSample(channel, i) = sample;
       } else {
         assert(false);
       }
@@ -811,13 +817,14 @@ template <class T> bool AudioFile<T>::saveToWaveFile(std::string filePath) {
   for (int i = 0; i < getNumSamplesPerChannel(); i++) {
     for (int channel = 0; channel < getNumChannels(); channel++) {
       if (bitDepth == 8) {
-        uint8_t byte = sampleToSingleByte(getSample(channel,i));
+        uint8_t byte = sampleToSingleByte(getSample(channel, i));
         fileData.push_back(byte);
       } else if (bitDepth == 16) {
-        int16_t sampleAsInt = sampleToSixteenBitInt(getSample(channel,i));
+        int16_t sampleAsInt = sampleToSixteenBitInt(getSample(channel, i));
         addInt16ToFileData(fileData, sampleAsInt);
       } else if (bitDepth == 24) {
-        int32_t sampleAsIntAgain = (int32_t)(getSample(channel,i) * (T)8388608.);
+        int32_t sampleAsIntAgain =
+            (int32_t)(getSample(channel, i) * (T)8388608.);
 
         uint8_t bytes[3];
         bytes[2] = (uint8_t)(sampleAsIntAgain >> 16) & 0xFF;
@@ -832,9 +839,9 @@ template <class T> bool AudioFile<T>::saveToWaveFile(std::string filePath) {
 
         if (audioFormat == WavAudioFormat::IEEEFloat)
           sampleAsInt =
-              (int32_t) reinterpret_cast<int32_t &>(getSample(channel,i));
+              (int32_t) reinterpret_cast<int32_t &>(getSample(channel, i));
         else // assume PCM
-          sampleAsInt = (int32_t)(getSample(channel,i) *
+          sampleAsInt = (int32_t)(getSample(channel, i) *
                                   std::numeric_limits<int32_t>::max());
 
         addInt32ToFileData(fileData, sampleAsInt, Endianness::LittleEndian);
@@ -913,13 +920,14 @@ template <class T> bool AudioFile<T>::saveToAiffFile(std::string filePath) {
   for (int i = 0; i < getNumSamplesPerChannel(); i++) {
     for (int channel = 0; channel < getNumChannels(); channel++) {
       if (bitDepth == 8) {
-        uint8_t byte = sampleToSingleByte(getSample(channel,i));
+        uint8_t byte = sampleToSingleByte(getSample(channel, i));
         fileData.push_back(byte);
       } else if (bitDepth == 16) {
-        int16_t sampleAsInt = sampleToSixteenBitInt(getSample(channel,i));
+        int16_t sampleAsInt = sampleToSixteenBitInt(getSample(channel, i));
         addInt16ToFileData(fileData, sampleAsInt, Endianness::BigEndian);
       } else if (bitDepth == 24) {
-        int32_t sampleAsIntAgain = (int32_t)(getSample(channel,i) * (T)8388608.);
+        int32_t sampleAsIntAgain =
+            (int32_t)(getSample(channel, i) * (T)8388608.);
 
         uint8_t bytes[3];
         bytes[0] = (uint8_t)(sampleAsIntAgain >> 16) & 0xFF;
@@ -932,7 +940,7 @@ template <class T> bool AudioFile<T>::saveToAiffFile(std::string filePath) {
       } else if (bitDepth == 32) {
         // write samples as signed integers (no implementation yet for floating
         // point, but looking at WAV implementation should help)
-        int32_t sampleAsInt = (int32_t)(getSample(channel,i) *
+        int32_t sampleAsInt = (int32_t)(getSample(channel, i) *
                                         std::numeric_limits<int32_t>::max());
         addInt32ToFileData(fileData, sampleAsInt, Endianness::BigEndian);
       } else {

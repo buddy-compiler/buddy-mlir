@@ -24,6 +24,36 @@
 #include "Interface/buddy/dap/AudioContainer.h"
 #include "Interface/buddy/core/Container.h"
 
-// Audio MemRef Constructor from AudioFile
+namespace dap {
+
+template <typename T, size_t N> bool Audio<T, N>::save(std::string filename) {
+  if (!this->audioFile.samples) {
+    this->audioFile.samples.reset(this->data->release());
+  }
+  return this->audioFile.save(filename);
+}
+
+template <typename T, size_t N>
+void Audio<T, N>::fetchMetadata(const AudioFile<T> &aud) {
+  this->audioFile.setBitDepth(aud.getBitDepth());
+  this->audioFile.setSampleRate(aud.getSampleRate());
+  this->audioFile.numSamples = aud.numSamples;
+  this->audioFile.numChannels = aud.numChannels;
+  this->audioFile.setAudioBuffer(nullptr);
+}
+template <typename T, size_t N> void Audio<T, N>::moveToMemRef() {
+  intptr_t sizes[N];
+  for (int i = 0; i < N; ++i) {
+    sizes[i] = audioFile.numSamples;
+  }
+  data = new MemRef<T, N>(audioFile.samples, sizes);
+}
+template <typename T, size_t N> void Audio<T, N>::moveToAudioFile() {
+  if (data) {
+    auto temp = data->release();
+    audioFile.setAudioBuffer(temp);
+  }
+}
+} // namespace dap
 
 #endif // CORE_AUDIO_CONTAINER_DEF

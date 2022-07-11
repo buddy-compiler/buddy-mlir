@@ -1,4 +1,4 @@
-//===- e2eFirLowpass.cpp - Example of DAP fir filter ----------------------===//
+//===- FirLowpass.cpp - Example of DAP fir filter ----------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Interface/buddy/dap/AudioContainer.h"
 #include "Interface/buddy/dap/dap.h"
 #include <iostream>
 
@@ -41,11 +40,11 @@ int main(int argc, char *argv[]) {
   MemRef<float, 1> kernel(&kernelSize);
   dap::firLowpass<float, 1>(kernel, dap::WINDOW_TYPE::BLACKMANHARRIS, 1000, 0.1,
                             nullptr);
-  Audio<float, 1> aud("../../tests/Interface/core/NASA_Mars.wav");
-  intptr_t audSize = aud.getSize();
-  Audio<float, 1> output(&audSize);
-  dap::fir(&aud, &kernel, &output);
-  output.setAudioFile(&aud.getAudioFile());
-  output.save("Fir_NASA_Mars.wav");
+  auto aud = dap::Audio<float, 1>("../../tests/Interface/core/NASA_Mars.wav");
+  dap::Audio<float, 1> output;
+  output.fetchMetadata(aud.getAudioFile());
+  output.getAudioFile().setAudioBuffer(nullptr);
+  dap::fir(&aud.getMemRef(), &kernel, &output.getMemRef());
+  output.save("FIR_NASA_Mars.wav");
   return 0;
 }

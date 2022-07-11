@@ -210,7 +210,7 @@ size_t MemRef<T, N>::product(intptr_t sizes[N]) const {
   return size;
 }
 template <typename T, size_t N>
-MemRef<T, N>::MemRef(const std::unique_ptr<T> uptr, intptr_t *sizes,
+MemRef<T, N>::MemRef(std::unique_ptr<T>& uptr, intptr_t *sizes,
                      intptr_t offset) {
   if (!uptr)
     assert(0 && "Taking over an empty unique pointer.");
