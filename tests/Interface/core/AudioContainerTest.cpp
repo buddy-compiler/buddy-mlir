@@ -27,9 +27,7 @@ using namespace std;
 
 int main() {
   // TODO: replace this path with non-absolute path
-  Audio<float, 1> aud("../../../../tests/Interface/core/NASA_Mars.wav");
-  // CHECK: 2000000
-  fprintf(stderr, "%zu\n", aud.getSize());
+  dap::Audio<float, 1> aud("../../../../tests/Interface/core/NASA_Mars.wav");
   auto &audioFile = aud.getAudioFile();
   // CHECK: 1
   fprintf(stderr, "%u\n", audioFile.getNumChannels());
