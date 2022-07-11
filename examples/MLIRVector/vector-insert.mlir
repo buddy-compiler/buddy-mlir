@@ -1,4 +1,4 @@
-func.func @main() {
+func.func @main() -> i32 {
   %0 = arith.constant dense<[[[1., 9., 8.], [12., 13., 14.], [23., 45., 78.]],
                               [[12., 67., 89.], [16., 17., 10.], [15., 78., 65.]],
                               [[134., 56., 27.], [90., 87., 65.], [12., 45., 78.]]]> : vector<3x3x3xf32>
@@ -22,5 +22,7 @@ func.func @main() {
   %5 = vector.insert %vec, %4[1] : vector<2xi32> into vector<2x2xi32> // Will replace [23,24], with [100,101]
 
   vector.print %5 : vector<2x2xi32>
-  return
+
+  %ret = arith.constant 0 : i32
+  return %ret : i32
 }

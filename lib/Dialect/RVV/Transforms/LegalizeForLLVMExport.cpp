@@ -57,6 +57,69 @@ public:
   }
 };
 
+struct RVVLoadOpLowering : public ConvertOpToLLVMPattern<RVVLoadOp> {
+  using ConvertOpToLLVMPattern<RVVLoadOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(RVVLoadOp loadOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto type = loadOp.getMemRefType();
+    if (!isConvertibleAndHasIdentityMaps(type))
+      return failure();
+
+    LLVMTypeConverter converter(loadOp.getContext());
+
+    auto resultType = loadOp.result().getType();
+    Value passthru =
+        rewriter.create<LLVM::UndefOp>(loadOp.getLoc(), resultType);
+    LLVM::LLVMPointerType llvmDataTypePtr =
+        LLVM::LLVMPointerType::get(resultType);
+    Value dataPtr = getStridedElementPtr(loadOp.getLoc(), type, adaptor.base(),
+                                         adaptor.index(), rewriter);
+    Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
+        loadOp.getLoc(), llvmDataTypePtr, dataPtr);
+    Value vl = loadOp.getOperand(2);
+    Value vlCast = rewriter
+                       .create<UnrealizedConversionCastOp>(
+                           loadOp.getLoc(), rewriter.getI64Type(), vl)
+                       .getResult(0);
+    rewriter.replaceOpWithNewOp<RVVIntrLoadEleOp>(loadOp, resultType, passthru,
+                                                  bitCastedPtr, vlCast);
+    return success();
+  }
+};
+
+struct RVVStoreOpLowering : public ConvertOpToLLVMPattern<RVVStoreOp> {
+  using ConvertOpToLLVMPattern<RVVStoreOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(RVVStoreOp storeOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto type = storeOp.getMemRefType();
+    if (!isConvertibleAndHasIdentityMaps(type))
+      return failure();
+
+    LLVMTypeConverter converter(storeOp.getContext());
+
+    auto resultType = storeOp.value().getType();
+    LLVM::LLVMPointerType llvmDataTypePtr =
+        LLVM::LLVMPointerType::get(resultType);
+    ;
+    Value dataPtr = getStridedElementPtr(storeOp.getLoc(), type, adaptor.base(),
+                                         adaptor.index(), rewriter);
+    Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
+        storeOp.getLoc(), llvmDataTypePtr, dataPtr);
+    Value vl = storeOp.getOperand(3);
+    Value vlCast = rewriter
+                       .create<UnrealizedConversionCastOp>(
+                           storeOp.getLoc(), rewriter.getI64Type(), vl)
+                       .getResult(0);
+    rewriter.replaceOpWithNewOp<RVVIntrStoreEleOp>(storeOp, adaptor.value(),
+                                                   bitCastedPtr, vlCast);
+    return success();
+  }
+};
+
 using RVVSetVlOpLowering =
     OneToOneConvertToLLVMPattern<RVVSetVlOp, RVVIntrSetVlIOp>;
 
@@ -69,12 +132,18 @@ void mlir::populateRVVLegalizeForLLVMExportPatterns(
                ForwardOperands<func::ReturnOp>
                >(converter, &converter.getContext());
   patterns.add<RVVSetVlOpLowering>(converter);
+  patterns.add<RVVLoadOpLowering,
+               RVVStoreOpLowering>(converter);
   // clang-format on
 }
 
 void mlir::configureRVVLegalizeForExportTarget(LLVMConversionTarget &target) {
   // clang-format off
-  target.addLegalOp<RVVIntrSetVlIOp>();
-  target.addIllegalOp<RVVSetVlOp>();
+  target.addLegalOp<RVVIntrSetVlIOp,
+                    RVVIntrLoadEleOp,
+                    RVVIntrStoreEleOp>();
+  target.addIllegalOp<RVVSetVlOp,
+                      RVVLoadOp,
+                      RVVStoreOp>();
   // clang-format on
 }

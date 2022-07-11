@@ -36,6 +36,7 @@ option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targe
 find_package(MLIR REQUIRED CONFIG)
 
 set(LLVM_MLIR_BINARY_DIR ${MLIR_DIR}/../../../bin)
+set(LLVM_MLIR_SOURCE_DIR ${MLIR_DIR}/../../../../mlir)
 
 list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
