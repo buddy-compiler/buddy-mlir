@@ -22,7 +22,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <opencv2/imgcodecs.hpp>
 #include <opencv2/opencv.hpp>
 
 #include <Interface/buddy/dip/dip.h>
@@ -32,28 +31,6 @@
 using namespace cv;
 using namespace std;
 
-bool testImages(cv::Mat img1, cv::Mat img2) {
-  if (img1.rows != img2.rows || img1.cols != img2.cols) {
-    std::cout << "Dimensions not equal\n";
-    return 0;
-  }
-
-  for (std::ptrdiff_t i = 0; i < img1.cols; ++i) {
-    for (std::ptrdiff_t j = 0; j < img1.rows; ++j) {
-      if (img1.at<uchar>(i, j) != img2.at<uchar>(i, j)) {
-        std::cout << "Pixels not equal at : (" << i << "," << j << ")\n";
-        std::cout << (int)img1.at<uchar>(i, j) << "\n";
-        std::cout << (int)img2.at<uchar>(i, j) << "\n\n";
-
-        std::cout << img1 << "\n\n";
-        std::cout << img2 << "\n\n";
-        return 0;
-      }
-    }
-  }
-  return 1;
-}
-
 bool testImplementation(int argc, char *argv[]) {
   // Read as grayscale image.
   Mat image = imread(argv[1], IMREAD_GRAYSCALE);
@@ -61,9 +38,8 @@ bool testImplementation(int argc, char *argv[]) {
     cout << "Could not read the image: " << argv[1] << endl;
   }
 
-  int inputSize = image.rows * image.cols;
-
   // Define the input with the image.
+  int inputSize = image.rows * image.cols;
   float *inputAlign = (float *)malloc(inputSize * sizeof(float));
   for (int i = 0; i < image.rows; i++) {
     for (int j = 0; j < image.cols; j++) {
