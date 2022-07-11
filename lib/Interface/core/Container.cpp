@@ -161,7 +161,8 @@ MemRef<T, N> &MemRef<T, N>::operator=(MemRef<T, N> &&other) noexcept {
 // Note that the `allocated` and `aligned` point to the same address, so it is
 // enough to release the space of the `allocated` pointer in the destructor.
 template <typename T, std::size_t N> MemRef<T, N>::~MemRef() {
-  delete[] allocated;
+  if (allocated)
+    delete[] allocated;
 }
 
 // Get the data pointer.
@@ -207,6 +208,27 @@ size_t MemRef<T, N>::product(intptr_t sizes[N]) const {
   for (size_t i = 0; i < N; i++)
     size *= sizes[i];
   return size;
+}
+template <typename T, size_t N>
+MemRef<T, N>::MemRef(const std::unique_ptr<T> uptr, intptr_t *sizes,
+                     intptr_t offset) {
+  if (!uptr)
+    assert(0 && "Taking over an empty unique pointer.");
+  T *data = uptr.release();
+  this->aligned = data;
+  this->allocated = data;
+  this->offset = offset;
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
+  setStrides();
+  size = product(sizes);
+}
+template <typename T, size_t N> T *MemRef<T, N>::release() {
+  T *temp = aligned;
+  aligned = nullptr;
+  allocated = nullptr;
+  return temp;
 }
 
 #endif // CORE_CONTAINER_DEF
