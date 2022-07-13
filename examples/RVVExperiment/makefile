@@ -187,6 +187,14 @@ rvv-vp-intrinsic-aot:
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
 
+rvv-vp-intrinsic-aot-debug:
+	@${MLIR_OPT} ./rvv-vp-intrinsic.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--convert-func-to-llvm --reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
+		-debug-only=legalize-types > log.txt 2>&1
+
 ################################################################################
 # Reuse MLIR Vector Examples
 ################################################################################
