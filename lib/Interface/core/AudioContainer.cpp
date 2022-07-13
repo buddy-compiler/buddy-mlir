@@ -43,7 +43,7 @@ void Audio<T, N>::fetchMetadata(const AudioFile<T> &aud) {
 }
 template <typename T, size_t N> void Audio<T, N>::moveToMemRef() {
   intptr_t sizes[N];
-  for (int i = 0; i < N; ++i) {
+  for (size_t i = 0; i < N; ++i) {
     sizes[i] = audioFile.numSamples;
   }
   data = new MemRef<T, N>(audioFile.samples, sizes);

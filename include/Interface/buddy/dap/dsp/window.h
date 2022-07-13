@@ -25,6 +25,7 @@
 #include "Interface/buddy/dap/dsp/math.h"
 
 #include <cassert>
+#include <functional>
 
 // TODO: implement input checks and error handling
 
@@ -123,32 +124,32 @@ template <typename T> T _window_triangular(size_t i, size_t len, T n) {
   return 1.0 - abs(v0 / v1);
 }
 
-// TODO: performance improvement
-template <typename T>
-T _apply_window(WINDOW_TYPE type, size_t i, size_t len, T *args) {
+template <typename T> std::function<T(size_t,size_t)> _bind_window(WINDOW_TYPE type, T *args) {
+  using namespace std;
+  using namespace std::placeholders;
   switch (type) {
   case WINDOW_TYPE::HAMMING:
-    return _window_hamming<T>(i, len);
+    return bind(_window_hamming<T>, _1, _2);
   case WINDOW_TYPE::KAISER:
     if (!args)
       assert(0 && "Argument not provided.");
-    return _window_kaiser<T>(i, len, args[0]);
+    return bind(_window_kaiser<T>, _1, _2, args[0]);
   case WINDOW_TYPE::KBD:
     if (!args)
       assert(0 && "Argument not provided.");
-    return _window_kbd<T>(i, len, args[0]);
+    return bind(_window_kbd<T>, _1, _2, args[0]);
   case WINDOW_TYPE::HANN:
-    return _window_hann<T>(i, len);
+    return bind(_window_hann<T>, _1, _2);
   case WINDOW_TYPE::BLACKMANHARRIS:
-    return _window_blackmanharris<T>(i, len);
+    return bind(_window_blackmanharris<T>, _1, _2);
   case WINDOW_TYPE::BLACKMANHARRIS7:
-    return _window_blackmanharris7<T>(i, len);
+    return bind(_window_blackmanharris7<T>, _1, _2);
   case WINDOW_TYPE::FLATTOP:
-    return _window_flattop<T>(i, len);
+    return bind(_window_flattop<T>, _1, _2);
   case WINDOW_TYPE::TRIANGULAR:
     if (!args)
       assert(0 && "Argument not provided.");
-    return _window_triangular<T>(i, len, args[0]);
+    return bind(_window_triangular<T>, _1, _2, args[0]);
   }
 }
 } // namespace detail

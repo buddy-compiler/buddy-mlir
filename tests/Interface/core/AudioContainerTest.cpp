@@ -26,7 +26,6 @@
 using namespace std;
 
 int main() {
-  // TODO: replace this path with non-absolute path
   dap::Audio<float, 1> aud("../../../../tests/Interface/core/NASA_Mars.wav");
   auto &audioFile = aud.getAudioFile();
   // CHECK: 1

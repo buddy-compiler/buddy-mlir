@@ -54,10 +54,11 @@ void firLowpass(MemRef<T, N> &input, WINDOW_TYPE type, size_t len, T cutoff,
   // TODO: check lowpass input range.
 
   T t, h1, h2;
+  auto window = detail::_bind_window(type,args);
   for (size_t i = 0; i <= len; ++i) {
     t = (T)i - (T)(len - 1) / (T)2.0f;
     h1 = sinc((T)2.0f * cutoff * t);
-    h2 = detail::_apply_window(type, i, len, args);
+    h2 = window(i, len);
     input[i] = h1 * h2;
   }
 }

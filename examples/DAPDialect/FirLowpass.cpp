@@ -28,13 +28,6 @@
 using namespace dap;
 using namespace std;
 
-void printMemRef(MemRef<float, 1> data) {
-  for (auto i = 0; i < data.getSize(); ++i) {
-    cout << data.getData()[i] << ',';
-  }
-  cout << endl;
-}
-
 int main(int argc, char *argv[]) {
   intptr_t kernelSize = 1000;
   MemRef<float, 1> kernel(&kernelSize);

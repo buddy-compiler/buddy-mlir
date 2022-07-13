@@ -339,6 +339,7 @@ template <class T> bool AudioFile<T>::setAudioBuffer(T *newBuffer) {
   if (!newBuffer)
     newBuffer = new T[numChannels * numSamples];
   samples.reset(newBuffer);
+  return true;
 }
 
 template <class T>
@@ -353,6 +354,7 @@ bool AudioFile<T>::setAudioBuffer(T *newBuffer, size_t numChannels,
   samples.reset(newBuffer);
   this->numChannels = numChannels;
   this->numSamples = numSamples;
+  return true;
 }
 
 template <class T> T &AudioFile<T>::getSample(int channel, int sample) {
