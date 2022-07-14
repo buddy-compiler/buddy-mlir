@@ -68,6 +68,7 @@ include_directories(${MLIR_INCLUDE_DIRS})
 # Add BUDDY files to the include path
 include_directories(${BUDDY_MAIN_INCLUDE_DIR})
 include_directories(${BUDDY_INCLUDE_DIR})
+include_directories(${BUDDY_INCLUDE_DIR}/Interface)
 include_directories(${BUDDY_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/Dialect)
 include_directories(${BUDDY_SOURCE_DIR}/lib)
@@ -108,6 +109,7 @@ endif()
 # Directory setup
 #-------------------------------------------------------------------------------
 
+add_subdirectory(cmake)
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
