@@ -27,7 +27,7 @@
 #include <numeric>
 #include <stdexcept>
 
-#include "Interface/buddy/core/Container.h"
+#include "buddy/core/Container.h"
 
 // MemRef Shape Constructor.
 // Construct a MemRef object from the data shape and initial value.
