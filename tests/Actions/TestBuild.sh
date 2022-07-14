@@ -1,4 +1,4 @@
-if [ -z "$1"]
+if [ -z "$1" ]
 then
   llvm_build_dir="llvm/build"
 else
@@ -12,7 +12,7 @@ fi
 cd $llvm_build_dir
 # assuming if there is something in llvm_build_dir, it is a valid build,
 # so we won't build llvm
-if [ -z "$(ls -A ./)"]
+if [ -z "$(ls -A ./)" ]
 then
     cmake -G Ninja ../llvm \
         -DLLVM_ENABLE_PROJECTS="mlir" \
