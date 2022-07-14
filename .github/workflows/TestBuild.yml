@@ -22,10 +22,10 @@ jobs:
         id: llvm-build-dir
         run: |
           echo "::set-output name=commit::$(git submodule status | awk '{print $1;}')"
-      - name: Test build
-        run: bash ./tests/Actions/TestBuild.sh  llvm/build-${{ steps.llvm-build-dir.outputs.commit }}
       - name: Cache llvm build directory
         uses: actions/cache@v3
         with:
           path: llvm
           key: build-${{ steps.llvm-build-dir.outputs.commit }}
+      - name: Test build
+        run: bash ./tests/Actions/TestBuild.sh  llvm/build-${{ steps.llvm-build-dir.outputs.commit }}
