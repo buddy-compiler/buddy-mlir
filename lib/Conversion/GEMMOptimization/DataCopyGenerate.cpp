@@ -18,11 +18,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "DAP/DAPOps.h"
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/AffineMap.h"
 #include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h"
@@ -30,6 +35,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/Support/Casting.h"
 #include <algorithm>
@@ -64,30 +70,56 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<AffineDialect, func::FuncDialect>();
+    registry.insert<AffineDialect, memref::MemRefDialect, func::FuncDialect>();
   }
 };
 } // end anonymous namespace.
 
 void DataCopyGeneratePass::runOnOperation() {
   auto func = getOperation();
-  AffineForOp innermoustFor;
+  
+  AffineForOp forOpA, forOpB, forOpC;
+  func.walk([&](AffineForOp forOp){
+    switch(getNestingDepth(forOp)){
+        case 0:
+        forOpA = forOp;
+        break;
+        case 1:
+        forOpB = forOp;
+        break;
+        case 2:
+        forOpC = forOp;
+        break;
+    }   
+  }); 
 
-  func.walk<mlir::WalkOrder::PreOrder>([&](AffineForOp forOp){
-    innermoustFor = forOp;
-    return;
-  });
+  DenseSet<Operation*> copyNests;
+  llvm::SmallVector<Value, 1> fastBuf;
+  // new we find LHS, RHS memref.
+  Value lhsMemRef = func.getArgument(0); 
+  Value rhsMemRef = func.getArgument(1);
 
-  func.walk([&](AffineForOp forOp) {
-    if (getNestingDepth(forOp) == 2) {
-      DenseSet<Operation *> denseSet;
-      (void)affineDataCopyGenerate(
-          forOp, AffineCopyOptions(),
-          llvm::Optional<Value>(), denseSet);
-    }
-    return;
-  });
-  (void)loopUnrollJamByFactor(innermoustFor, 4);
+  (void)affineDataCopyGenerate(forOpA.getBody()->begin(), std::prev(forOpA.getBody()->end()), 
+          {false, 0, 0, 0, 2 * 1024 * 1024UL}, rhsMemRef, copyNests);
+
+  // auto L3rhsMemRef;
+  // 现在我们将得到一个for，我们可以walk出来开搞
+  Value L3rhsMemRef;
+  for(auto op : copyNests){
+    op->walk([&](AffineStoreOp storeOp){
+        L3rhsMemRef = storeOp.getOperand(1);
+    });
+  }
+
+  
+  copyNests.clear();
+  (void)affineDataCopyGenerate(forOpB.getBody()->begin(), std::prev(forOpB.getBody()->end()), 
+          {false, 0, 0, 0, 2 * 1024 * 1024UL}, lhsMemRef, copyNests);
+
+  copyNests.clear();
+  (void)affineDataCopyGenerate(forOpC.getBody()->begin(), std::prev(forOpC.getBody()->end()), 
+          {false, 0, 0, 0, 2 * 1024 * 1024UL}, L3rhsMemRef, copyNests);
+  
 }
 
 namespace mlir {
