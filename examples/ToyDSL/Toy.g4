@@ -12,6 +12,8 @@ expression
     : Number
     | tensorLiteral
     | identifierExpr
+    | expression Mul expression
+    | expression Add expression
     ; 
 
 identifierExpr
@@ -24,7 +26,7 @@ returnExpr
     | Return expression 
     ; 
 
-tensorLiteral returns [std::vector<double> data]
+tensorLiteral returns [std::vector<double> data, std::vector<int> dims]
     : SbracketOpen (tensorLiteral (Comma tensorLiteral)*)? SbracketClose 
       {
         // When the `]` is detected, copy the elements of `tensorDataBuffer` to `data` member.
@@ -62,14 +64,16 @@ funDefine
     : prototype block
     ;
 
-prototype
-    : Def Identifier ParentheseOpen declList ParentheseClose
+prototype returns [std::string idName]
+    : Def Identifier ParentheseOpen declList? ParentheseClose
+      {
+        $idName = $Identifier.text;
+      }
     ;
 
 declList 
     : Identifier
     | Identifier Comma declList
-    |
     ;
 
 block
@@ -120,6 +124,10 @@ Def
     : 'def'
     ;
 
+Struct 
+    : 'struct'
+    ;
+
 Identifier
     : [a-zA-Z][a-zA-Z0-9_]*
     ;
@@ -142,6 +150,14 @@ AngleBracketsClose
 
 Comma
     : ','
+    ;
+
+Add  
+    : '+'
+    ;
+
+Mul 
+    : '*'
     ;
 
 WS
