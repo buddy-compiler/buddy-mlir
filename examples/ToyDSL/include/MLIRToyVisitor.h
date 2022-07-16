@@ -98,10 +98,17 @@ private:
   std::any getTensor(ToyParser::TensorLiteralContext *ctx) {
     std::vector<int64_t> dims;
     // get dimensions.
-    dims.push_back(ctx->Comma().size() + 1);
+    dims.push_back(ctx->Comma().size()+1);
     if (ctx->tensorLiteral(0)->tensorLiteral(0)) {
-      dims.push_back(ctx->tensorLiteral(0)->Comma().size() + 1);
-    }
+      auto list = ctx->tensorLiteral(0);
+      while(list) {
+        dims.push_back(list->Comma().size() + 1);
+        if (list->tensorLiteral(0) && list->tensorLiteral(0)->Comma().size()) 
+          list = list->tensorLiteral(0);
+        else 
+          break;
+      } 
+    } 
     mlir::Type elementType = builder.getF64Type();
     auto type = getType(dims);
     auto dataType = mlir::RankedTensorType::get(dims, elementType);
