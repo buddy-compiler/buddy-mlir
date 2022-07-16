@@ -102,9 +102,6 @@ private:
     if (ctx->tensorLiteral(0)->tensorLiteral(0)) {
       dims.push_back(ctx->tensorLiteral(0)->Comma().size() + 1);
     }
-    for (auto dim : ctx->dims) {
-      std::cout << dim << std::endl;
-    }
     mlir::Type elementType = builder.getF64Type();
     auto type = getType(dims);
     auto dataType = mlir::RankedTensorType::get(dims, elementType);
