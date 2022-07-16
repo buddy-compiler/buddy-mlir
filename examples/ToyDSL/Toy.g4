@@ -26,7 +26,7 @@ returnExpr
     | Return expression 
     ; 
 
-tensorLiteral returns [std::vector<double> data, std::vector<int> dims]
+tensorLiteral returns [std::vector<double> data]
     : SbracketOpen (tensorLiteral (Comma tensorLiteral)*)? SbracketClose 
       {
         // When the `]` is detected, copy the elements of `tensorDataBuffer` to `data` member.
