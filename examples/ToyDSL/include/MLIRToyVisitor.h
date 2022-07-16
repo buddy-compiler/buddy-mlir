@@ -35,8 +35,6 @@
 #include "llvm/ADT/ScopedHashTable.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
-#include <iostream>
-#include <memory>
 
 class MLIRToyVisitor : public ToyBaseVisitor {
 public:
