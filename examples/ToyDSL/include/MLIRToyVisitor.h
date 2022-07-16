@@ -35,6 +35,8 @@
 #include "llvm/ADT/ScopedHashTable.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
+#include <iostream>
+#include <memory>
 
 class MLIRToyVisitor : public ToyBaseVisitor {
 public:
@@ -54,11 +56,9 @@ private:
   /// The builder helps create MLIR operations when traversing the AST.
   mlir::OpBuilder builder;
   /// The Symbol Table
-  /// [TODO][LOW] make the symbol table support function prototype.
   llvm::ScopedHashTable<llvm::StringRef, mlir::Value> symbolTable;
-  /// Return Status Flag
-  /// The syntax supports omitting the return expression.
-  bool returnFlag = false;
+  llvm::ScopedHashTable<llvm::StringRef, int> funSymbolTable;
+  llvm::StringMap<mlir::toy::FuncOp> functionMap;
   // Register the filename for the string attribute in MLIR location object.
   std::string fileName;
 
@@ -69,6 +69,15 @@ private:
     if (symbolTable.count(var))
       return mlir::failure();
     symbolTable.insert(var, value);
+    return mlir::success();
+  }
+  // Declear a function in the current module
+  /// - Check the parameter number of the function.
+  mlir::LogicalResult funcDeclare(llvm::StringRef functionName,
+                                  int argsNumber) {
+    if (funSymbolTable.count(functionName))
+      return mlir::failure();
+    funSymbolTable.insert(functionName, argsNumber);
     return mlir::success();
   }
 
@@ -89,12 +98,14 @@ private:
 
   // Get the tensor value from the tensor literal node.
   std::any getTensor(ToyParser::TensorLiteralContext *ctx) {
-    // [TODO][HIGH] find a better way to define the `dims`.
     std::vector<int64_t> dims;
     // get dimensions.
     dims.push_back(ctx->Comma().size() + 1);
     if (ctx->tensorLiteral(0)->tensorLiteral(0)) {
       dims.push_back(ctx->tensorLiteral(0)->Comma().size() + 1);
+    }
+    for (auto dim : ctx->dims) {
+      std::cout << dim << std::endl;
     }
     mlir::Type elementType = builder.getF64Type();
     auto type = getType(dims);
@@ -108,6 +119,28 @@ private:
     return value;
   }
 
+  virtual std::any visitModule(ToyParser::ModuleContext *ctx) override {
+    llvm::ScopedHashTableScope<llvm::StringRef, int> protoTypeSymbolTable(
+        funSymbolTable);
+    for (auto &function : ctx->funDefine()) {
+      auto protoType = function->prototype();
+      auto functionName = protoType->Identifier()->toString();
+      auto declNumber = 0;
+      if (protoType->declList()) {
+        auto list = protoType->declList();
+        while (list) {
+          declNumber++;
+          if (list->declList())
+            list = list->declList();
+          else
+            break;
+        }
+      }
+      funcDeclare(function->prototype()->idName, declNumber);
+    }
+    return visitChildren(ctx);
+  }
+
   /// Function Definition Visitor
   /// - Register the function name, argument list, and return value into the
   /// symbol table.
@@ -115,24 +148,59 @@ private:
   /// - Visit fucntion block.
   /// - Process the return operation.
   virtual std::any visitFunDefine(ToyParser::FunDefineContext *ctx) override {
-    returnFlag = false;
-    // [TODO] make the function support argument list and return value.
     llvm::ScopedHashTableScope<llvm::StringRef, mlir::Value> varScope(
         symbolTable);
     builder.setInsertionPointToEnd(theModule.getBody());
     // Visit function prototype.
-    visit(ctx->prototype());
+    mlir::toy::FuncOp function =
+        std::any_cast<mlir::toy::FuncOp>(visit(ctx->prototype()));
+    mlir::Block &entryBlock = function.front();
+
+    // Set the insertion point in the builder to the beginning of the function
+    // body, it will be used throughout the codegen to create operations in this
+    // function.
+    builder.setInsertionPointToStart(&entryBlock);
+
+    std::vector<std::string> args;
+    if (ctx->prototype()->declList()) {
+      auto list = ctx->prototype()->declList();
+      while (list->Identifier()) {
+        args.push_back(list->Identifier()->toString());
+        if (list->declList())
+          list = list->declList();
+        else
+          break;
+      }
+    }
+    // Declare all the function arguments in the symbol table.
+    llvm::ArrayRef<std::string> protoArgs = args;
+    for (auto value : llvm::zip(protoArgs, entryBlock.getArguments())) {
+      declare(std::get<0>(value), std::get<1>(value));
+    }
+
     // Visit fucntion block.
     visit(ctx->block());
     // Check the return status.
     // If there is no return expression at the end of the function, it will
     // generate a return operation automatically.
-    if (!returnFlag) {
+    mlir::toy::ReturnOp returnOp;
+    if (!entryBlock.empty())
+      returnOp = llvm::dyn_cast<mlir::toy::ReturnOp>(entryBlock.back());
+    if (!returnOp) {
       auto location =
           loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
-      builder.create<mlir::toy::ReturnOp>(location,
-                                          llvm::ArrayRef<mlir::Value>());
+      builder.create<mlir::toy::ReturnOp>(location);
+    } else if (returnOp.hasOperand()) {
+      // Otherwise, if this return operation has an operand then add a result to
+      // the function.
+      std::vector<int64_t> shape;
+      function.setType(builder.getFunctionType(
+          function.getFunctionType().getInputs(), getType(shape)));
     }
+    // If this function isn't main, then set the visibility to private.
+    if (ctx->prototype()->Identifier()->toString() != "main")
+      function.setPrivate();
+    functionMap.insert({function.getName(), function});
     return 0;
   }
 
@@ -152,26 +220,37 @@ private:
           break;
       }
     }
-
     llvm::SmallVector<mlir::Type, 4> argTypes(
         varNumber, mlir::UnrankedTensorType::get(builder.getF64Type()));
     auto funType = builder.getFunctionType(argTypes, llvm::None);
     auto func = builder.create<mlir::toy::FuncOp>(
         location, ctx->Identifier()->toString(), funType);
-    mlir::Block &entryblock = func.front();
-    builder.setInsertionPointToStart(&entryblock);
-    return 0;
+    return func;
   }
 
   /// Expression Visitor
   /// - If the expression is tensor literal, return the tensor MLIR value.
   /// - If the expression is function call or variable, visit the identifier.
+  /// - If the expression is add expression or mul expression return add or mul
+  /// value.
   virtual std::any visitExpression(ToyParser::ExpressionContext *ctx) override {
     mlir::Value value;
     if (ctx->tensorLiteral()) {
       return getTensor(ctx->tensorLiteral());
     } else if (ctx->identifierExpr()) {
       return visit(ctx->identifierExpr());
+    } else if (ctx->Add() || ctx->Mul()) {
+      // Derive the operation name from the binary operator. At the moment we
+      // only support '+' and '*'.
+      mlir::Value lhs = std::any_cast<mlir::Value>(visit(ctx->expression(0)));
+      mlir::Value rhs = std::any_cast<mlir::Value>(visit(ctx->expression(1)));
+      auto loaction =
+          loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
+      if (ctx->Add())
+        value = builder.create<mlir::toy::AddOp>(loaction, lhs, rhs);
+      else
+        value = builder.create<mlir::toy::MulOp>(loaction, lhs, rhs);
+      return value;
     }
     return value;
   }
@@ -208,6 +287,9 @@ private:
   virtual std::any
   visitIdentifierExpr(ToyParser::IdentifierExprContext *ctx) override {
     mlir::Value value;
+    auto argsNumber = 0;
+    mlir::Location location =
+        loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
     // If the identifier is a function call, visit and register all the
     // arguments. [TODO][LOW] add the semantic check (look up the symbol table)
     // for the function call.
@@ -218,18 +300,52 @@ private:
       for (auto i : ctx->expression()) {
         mlir::Value arg = std::any_cast<mlir::Value>(visit(i));
         oprands.push_back(arg);
+        argsNumber++;
       }
       // If function call is a built-in operation, create the corresponding
       // operation.
       if (ctx->Identifier()->toString() == "print") {
+        if (argsNumber != 1) {
+          mlir::emitError(location)
+              << "mismatch of function parameters 'print'";
+          return nullptr;
+        }
         auto arg = oprands[0];
         builder.create<mlir::toy::PrintOp>(location, arg);
         return 0;
+      } else if (ctx->Identifier()->toString() == "transpose") {
+        if (argsNumber != 1) {
+          mlir::emitError(location)
+              << "mlismatch of function parameters 'transpose'";
+          return nullptr;
+        }
+        auto arg = oprands[0];
+        value = builder.create<mlir::toy::TransposeOp>(location, arg);
+        return value;
+      }
+      // Otherwise this is a call to a user-defined function. Calls to
+      // user-defined functions are mapped to a custom call that takes the
+      // callee name as an attribute.
+      auto callee = functionMap.find(ctx->Identifier()->toString());
+      if (callee == functionMap.end()) {
+        mlir::emitError(location) << "error: no defined function '"
+                                  << ctx->Identifier()->toString() << "'";
+        return nullptr;
+      }
+      auto numberdecl = funSymbolTable.lookup(ctx->Identifier()->toString());
+      if (numberdecl != argsNumber) {
+        mlir::emitError(location) << "error: mismatch of function parameters '"
+                                  << ctx->Identifier()->toString() << "'";
+        return nullptr;
       }
       // If the function call cannot be mapped to the built-in operation, create
       // the GenericCallOp.
+      mlir::toy::FuncOp calledFunc = callee->second;
       value = builder.create<mlir::toy::GenericCallOp>(
-          location, ctx->Identifier()->toString(), oprands);
+          location, calledFunc.getFunctionType().getResult(0),
+          mlir::SymbolRefAttr::get(builder.getContext(),
+                                   ctx->Identifier()->toString()),
+          oprands);
       return value;
     } else {
       // If the identifier is a variable, return the MLIR value from the symbol
@@ -241,12 +357,11 @@ private:
 
   /// Return Expression Visitor
   virtual std::any visitReturnExpr(ToyParser::ReturnExprContext *ctx) override {
-    returnFlag = true;
     auto location =
         loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
     mlir::Value expr = nullptr;
     if (ctx->expression()) {
-      expr = std::any_cast<mlir::Value>(ctx->expression());
+      expr = std::any_cast<mlir::Value>(visit(ctx->expression()));
     }
     // Generate return operation based on whether the function has the return
     // value.
