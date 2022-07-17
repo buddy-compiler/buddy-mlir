@@ -21,7 +21,7 @@
 #ifndef INCLUDE_DIP
 #define INCLUDE_DIP
 
-#include <Interface/buddy/dip/memref.h>
+#include "Interface/buddy/core/ImageContainer.h"
 
 namespace dip {
 enum class BOUNDARY_OPTION { CONSTANT_PADDING, REPLICATE_PADDING };
@@ -37,45 +37,37 @@ namespace detail {
 // Declare the Corr2D C interface.
 extern "C" {
 void _mlir_ciface_corr_2d_constant_padding(
-    MemRef_descriptor input, MemRef_descriptor kernel, MemRef_descriptor output,
+    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     unsigned int centerX, unsigned int centerY, float constantValue);
 
 void _mlir_ciface_corr_2d_replicate_padding(
-    MemRef_descriptor input, MemRef_descriptor kernel, MemRef_descriptor output,
+    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     unsigned int centerX, unsigned int centerY, float constantValue);
 
-void _mlir_ciface_rotate_2d(MemRef_descriptor input, float angleValue,
-                            MemRef_descriptor output);
+void _mlir_ciface_rotate_2d(Img<float, 2> *input, float angleValue,
+                            MemRef<float, 2> *output);
 
 void _mlir_ciface_resize_2d_nearest_neighbour_interpolation(
-    MemRef_descriptor input, float horizontalScalingFactor,
-    float verticalScalingFactor, MemRef_descriptor output);
+    Img<float, 2> *input, float horizontalScalingFactor,
+    float verticalScalingFactor, MemRef<float, 2> *output);
 
 void _mlir_ciface_resize_2d_bilinear_interpolation(
-    MemRef_descriptor input, float horizontalScalingFactor,
-    float verticalScalingFactor, MemRef_descriptor output);
+    Img<float, 2> *input, float horizontalScalingFactor,
+    float verticalScalingFactor, MemRef<float, 2> *output);
 }
 
-MemRef_descriptor Resize2D_Impl(MemRef_descriptor input,
+MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input,
                                 INTERPOLATION_TYPE type,
                                 std::vector<float> scalingRatios,
                                 intptr_t outputSize[2]) {
-  float *outputAlign =
-      (float *)malloc(outputSize[0] * outputSize[1] * sizeof(float));
-  for (unsigned int i = 0; i < outputSize[0]; ++i)
-    for (unsigned int j = 0; j < outputSize[1]; ++j)
-      outputAlign[outputSize[0] * i + j] = 0;
-
-  float *allocated = (float *)malloc(sizeof(float));
-  MemRef_descriptor output =
-      MemRef_Descriptor(allocated, outputAlign, 0, outputSize, outputSize);
+  MemRef<float, 2> output(outputSize);
 
   if (type == INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION) {
     detail::_mlir_ciface_resize_2d_nearest_neighbour_interpolation(
-        input, scalingRatios[0], scalingRatios[1], output);
+        input, scalingRatios[0], scalingRatios[1], &output);
   } else if (type == INTERPOLATION_TYPE::BILINEAR_INTERPOLATION) {
     detail::_mlir_ciface_resize_2d_bilinear_interpolation(
-        input, scalingRatios[0], scalingRatios[1], output);
+        input, scalingRatios[0], scalingRatios[1], &output);
   } else {
     throw std::invalid_argument(
         "Please chose a supported type of interpolation "
@@ -86,8 +78,8 @@ MemRef_descriptor Resize2D_Impl(MemRef_descriptor input,
 }
 } // namespace detail
 
-void Corr2D(MemRef_descriptor input, MemRef_descriptor kernel,
-            MemRef_descriptor output, unsigned int centerX,
+void Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
+            MemRef<float, 2> *output, unsigned int centerX,
             unsigned int centerY, BOUNDARY_OPTION option,
             float constantValue = 0) {
   if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
@@ -99,7 +91,7 @@ void Corr2D(MemRef_descriptor input, MemRef_descriptor kernel,
   }
 }
 
-MemRef_descriptor Rotate2D(MemRef_descriptor input, float angle,
+MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
                            ANGLE_TYPE angleType) {
   float angleRad;
 
@@ -111,28 +103,20 @@ MemRef_descriptor Rotate2D(MemRef_descriptor input, float angle,
   float sinAngle = std::sin(angleRad);
   float cosAngle = std::cos(angleRad);
 
-  int outputRows = std::round(std::abs(input->sizes[0] * cosAngle) +
-                              std::abs(input->sizes[1] * sinAngle)) + 1;
-  int outputCols = std::round(std::abs(input->sizes[1] * cosAngle) +
-                              std::abs(input->sizes[0] * sinAngle)) + 1;
-  float *outputAlign = (float *)malloc(outputRows * outputCols * sizeof(float));
+  int outputRows = std::round(std::abs(input->getSizes()[0] * cosAngle) +
+                              std::abs(input->getSizes()[1] * sinAngle)) + 1;
+  int outputCols = std::round(std::abs(input->getSizes()[1] * cosAngle) +
+                              std::abs(input->getSizes()[0] * sinAngle)) + 1;
 
-  for (int i = 0; i < outputRows; ++i)
-    for (int j = 0; j < outputCols; ++j)
-      outputAlign[i * outputRows + j] = 0;
-
-  float *allocated = (float *)malloc(1 * sizeof(float));
   intptr_t sizesOutput[2] = {outputRows, outputCols};
-  intptr_t stridesOutput[2] = {outputRows, outputCols};
-  MemRef_descriptor output =
-      MemRef_Descriptor(allocated, outputAlign, 0, sizesOutput, stridesOutput);
+  MemRef<float, 2> output(sizesOutput);
 
-  detail::_mlir_ciface_rotate_2d(input, angleRad, output);
+  detail::_mlir_ciface_rotate_2d(input, angleRad, &output);
 
   return output;
 }
 
-MemRef_descriptor Resize2D(MemRef_descriptor input, INTERPOLATION_TYPE type,
+MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
                            std::vector<float> scalingRatios) {
   if (!scalingRatios[0] || !scalingRatios[1]) {
     throw std::invalid_argument(
@@ -142,13 +126,13 @@ MemRef_descriptor Resize2D(MemRef_descriptor input, INTERPOLATION_TYPE type,
   }
 
   intptr_t outputSize[2] = {
-      static_cast<unsigned int>(input->sizes[0] / scalingRatios[1]),
-      static_cast<unsigned int>(input->sizes[1] / scalingRatios[0])};
+      static_cast<unsigned int>(input->getSizes()[0] / scalingRatios[1]),
+      static_cast<unsigned int>(input->getSizes()[1] / scalingRatios[0])};
 
   return detail::Resize2D_Impl(input, type, scalingRatios, outputSize);
 }
 
-MemRef_descriptor Resize2D(MemRef_descriptor input, INTERPOLATION_TYPE type,
+MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
                            intptr_t outputSize[2]) {
   if (!outputSize[0] || !outputSize[1]) {
     throw std::invalid_argument(
@@ -156,8 +140,8 @@ MemRef_descriptor Resize2D(MemRef_descriptor input, INTERPOLATION_TYPE type,
   }
 
   std::vector<float> scalingRatios(2);
-  scalingRatios[1] = input->sizes[0] * 1.0f / outputSize[0];
-  scalingRatios[0] = input->sizes[1] * 1.0f / outputSize[1];
+  scalingRatios[1] = input->getSizes()[0] * 1.0f / outputSize[0];
+  scalingRatios[0] = input->getSizes()[1] * 1.0f / outputSize[1];
 
   return detail::Resize2D_Impl(input, type, scalingRatios, outputSize);
 }

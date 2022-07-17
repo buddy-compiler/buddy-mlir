@@ -22,11 +22,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <opencv2/imgcodecs.hpp>
 #include <opencv2/opencv.hpp>
 
+#include "Interface/buddy/core/ImageContainer.h"
 #include <Interface/buddy/dip/dip.h>
-#include <Interface/buddy/dip/memref.h>
 #include <iostream>
 
 using namespace cv;
@@ -39,23 +38,8 @@ bool testImplementation(int argc, char *argv[]) {
     cout << "Could not read the image: " << argv[1] << endl;
   }
 
-  // Define the input with the image.
-  int inputSize = image.rows * image.cols;
-  float *inputAlign = (float *)malloc(inputSize * sizeof(float));
-  for (int i = 0; i < image.rows; i++) {
-    for (int j = 0; j < image.cols; j++) {
-      inputAlign[image.rows * i + j] = (float)image.at<uchar>(i, j);
-    }
-  }
-
-  // Define allocated, sizes, and strides fields for the MemRef_descriptor.
-  float *allocated = (float *)malloc(1 * sizeof(float));
-  intptr_t sizesInput[2] = {image.rows, image.cols};
-  intptr_t stridesInput[2] = {image.rows, image.cols};
-
-  // Define memref descriptors.
-  MemRef_descriptor input =
-      MemRef_Descriptor(allocated, inputAlign, 0, sizesInput, stridesInput);
+  // Define memref container for image.
+  Img<float, 2> input(image);
 
   intptr_t outputSize[2] = {250, 250};
   std::vector<float> scalingRatios = {4, 4};
@@ -66,26 +50,23 @@ bool testImplementation(int argc, char *argv[]) {
   // Note : Both values in output image dimensions and scaling ratios must be
   // positive numbers.
 
-  MemRef_descriptor output = dip::Resize2D(
-      input, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
+  MemRef<float, 2> output = dip::Resize2D(
+      &input, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
       outputSize);
-  // MemRef_descriptor output = dip::Resize2D(
-  //     input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION, outputSize);
+  // MemRef<float, 2> output = dip::Resize2D(
+  //     &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION, outputSize);
 
-  // MemRef_descriptor output = dip::Resize2D(
-  //     input, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
+  // MemRef<float, 2> output = dip::Resize2D(
+  //     &input, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
   //     scalingRatios);
-  // MemRef_descriptor output = dip::Resize2D(
-  //     input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION, scalingRatios);
+  // MemRef<float, 2> output = dip::Resize2D(
+  //     &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION, scalingRatios);
 
   // Define cv::Mat with the output of Resize2D.
-  Mat outputImageResize2D(output->sizes[0], output->sizes[1], CV_32FC1,
-                          output->aligned);
+  Mat outputImageResize2D(output.getSizes()[0], output.getSizes()[1], CV_32FC1,
+                          output.getData());
 
   imwrite(argv[2], outputImageResize2D);
-
-  free(input);
-  free(inputAlign);
 
   return 1;
 }
