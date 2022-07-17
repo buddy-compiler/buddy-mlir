@@ -56,10 +56,9 @@ void _mlir_ciface_resize_2d_bilinear_interpolation(
     float verticalScalingFactor, MemRef<float, 2> *output);
 }
 
-MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input,
-                                INTERPOLATION_TYPE type,
-                                std::vector<float> scalingRatios,
-                                intptr_t outputSize[2]) {
+MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input, INTERPOLATION_TYPE type,
+                               std::vector<float> scalingRatios,
+                               intptr_t outputSize[2]) {
   MemRef<float, 2> output(outputSize);
 
   if (type == INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION) {
@@ -92,7 +91,7 @@ void Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
 }
 
 MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
-                           ANGLE_TYPE angleType) {
+                          ANGLE_TYPE angleType) {
   float angleRad;
 
   if (angleType == ANGLE_TYPE::DEGREE)
@@ -104,9 +103,11 @@ MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
   float cosAngle = std::cos(angleRad);
 
   int outputRows = std::round(std::abs(input->getSizes()[0] * cosAngle) +
-                              std::abs(input->getSizes()[1] * sinAngle)) + 1;
+                              std::abs(input->getSizes()[1] * sinAngle)) +
+                   1;
   int outputCols = std::round(std::abs(input->getSizes()[1] * cosAngle) +
-                              std::abs(input->getSizes()[0] * sinAngle)) + 1;
+                              std::abs(input->getSizes()[0] * sinAngle)) +
+                   1;
 
   intptr_t sizesOutput[2] = {outputRows, outputCols};
   MemRef<float, 2> output(sizesOutput);
@@ -117,7 +118,7 @@ MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
 }
 
 MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
-                           std::vector<float> scalingRatios) {
+                          std::vector<float> scalingRatios) {
   if (!scalingRatios[0] || !scalingRatios[1]) {
     throw std::invalid_argument(
         "Please enter non-zero values of scaling ratios.\n"
@@ -133,7 +134,7 @@ MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
 }
 
 MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
-                           intptr_t outputSize[2]) {
+                          intptr_t outputSize[2]) {
   if (!outputSize[0] || !outputSize[1]) {
     throw std::invalid_argument(
         "Please enter non-zero values of output dimensions.\n");

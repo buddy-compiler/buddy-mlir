@@ -60,7 +60,8 @@ bool testImplementation(int argc, char *argv[]) {
   //     &input, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
   //     scalingRatios);
   // MemRef<float, 2> output = dip::Resize2D(
-  //     &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION, scalingRatios);
+  //     &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION,
+  //     scalingRatios);
 
   // Define cv::Mat with the output of Resize2D.
   Mat outputImageResize2D(output.getSizes()[0], output.getSizes()[1], CV_32FC1,
