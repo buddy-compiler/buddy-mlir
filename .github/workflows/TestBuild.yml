@@ -3,15 +3,29 @@ name: test build process
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build:
 
     runs-on: ubuntu-latest
 
-# ToDo : Cache llvm build to reduce execution time on each run of virtual instance.
     steps:
-    - uses: actions/checkout@v2
-    - uses: seanmiddleditch/gha-setup-ninja@master
-    - name: test build
-      run: bash ./tests/Actions/TestBuild.sh
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+      - name: Set up ninja
+        uses: seanmiddleditch/gha-setup-ninja@master
+      - name: Prepare llvm build directory name
+        id: llvm-build-dir
+        run: |
+          echo "::set-output name=commit::$(git submodule status | awk '{print $1;}')"
+      - name: Cache llvm build directory
+        uses: actions/cache@v3
+        with:
+          path: llvm
+          key: build-${{ steps.llvm-build-dir.outputs.commit }}
+      - name: Test build
+        run: bash ./tests/Actions/TestBuild.sh  llvm/build-${{ steps.llvm-build-dir.outputs.commit }}
