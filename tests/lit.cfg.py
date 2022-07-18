@@ -57,6 +57,7 @@ tools = [
     'buddy-opt',
     'buddy-translate',
     'buddy-container-test',
+    'buddy-audio-container-test'
 ]
 
 if config.buddy_enable_opencv == "ON":
