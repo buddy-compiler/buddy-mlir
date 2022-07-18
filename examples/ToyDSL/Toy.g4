@@ -10,7 +10,10 @@ module
 
 expression
     : Number
-    | tensorLiteral
+    | tensorLiteral 
+      {
+        tensorDataBuffer.clear();
+      }
     | identifierExpr
     | expression Mul expression
     | expression Add expression
