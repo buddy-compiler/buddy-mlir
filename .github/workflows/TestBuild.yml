@@ -27,5 +27,7 @@ jobs:
         with:
           path: llvm
           key: build-${{ steps.llvm-build-dir.outputs.commit }}
+      - name: Build RVV enviroment
+        run: bash ./thirdparty/build-rvv-env.sh
       - name: Test build
         run: bash ./tests/Actions/TestBuild.sh  llvm/build-${{ steps.llvm-build-dir.outputs.commit }}
