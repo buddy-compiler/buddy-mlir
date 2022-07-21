@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
   string fileName = "../../tests/Interface/core/NASA_Mars.wav";
   ;
   string saveFileName = "FIR_NASA_Mars.wav";
-  if (argc == 2) {
+  if (argc >= 2) {
     fileName = argv[1];
   }
   if (argc == 3) {
