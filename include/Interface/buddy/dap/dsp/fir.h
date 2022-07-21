@@ -52,14 +52,21 @@ void firLowpass(MemRef<T, N> &input, WINDOW_TYPE type, size_t len, T cutoff,
   // only N=1 is supported for now.
 
   // TODO: check lowpass input range.
-
+  bool normalize = true;
   T t, h1, h2;
-  auto window = detail::_bind_window(type,args);
+  auto window = detail::_bind_window(type, args);
+  T sum = 0;
   for (size_t i = 0; i <= len; ++i) {
-    t = (T)i - (T)(len - 1) / (T)2.0f;
-    h1 = sinc((T)2.0f * cutoff * t);
+    t = (T)i - (T)(len - 1) / (T)2;
+    h1 = sinc((T)2 * cutoff * t);
     h2 = window(i, len);
     input[i] = h1 * h2;
+    sum += input[i];
+  }
+  if (normalize) {
+    for (size_t i = 0; i <= len; ++i) {
+      input[i] /= sum;
+    }
   }
 }
 

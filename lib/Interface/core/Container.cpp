@@ -162,7 +162,7 @@ MemRef<T, N> &MemRef<T, N>::operator=(MemRef<T, N> &&other) noexcept {
 // enough to release the space of the `allocated` pointer in the destructor.
 template <typename T, std::size_t N> MemRef<T, N>::~MemRef() {
   if (allocated)
-    delete[] allocated;
+    delete allocated;
 }
 
 // Get the data pointer.

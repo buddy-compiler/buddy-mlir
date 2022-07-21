@@ -29,15 +29,30 @@ using namespace dap;
 using namespace std;
 
 int main(int argc, char *argv[]) {
-  intptr_t kernelSize = 1000;
+  string fileName = "../../tests/Interface/core/NASA_Mars.wav";
+  ;
+  string saveFileName = "FIR_NASA_Mars.wav";
+  if (argc == 2) {
+    fileName = argv[1];
+  }
+  if (argc == 3) {
+    saveFileName = argv[2];
+  }
+  cout << "Usage: FirLowpass [loadPath] [savePath]" << endl;
+  cout << "Current specified path: \n";
+  cout << "Load: " << fileName << endl;
+  cout << "Save: " << saveFileName << endl;
+  intptr_t kernelSize = 100;
   MemRef<float, 1> kernel(&kernelSize);
-  dap::firLowpass<float, 1>(kernel, dap::WINDOW_TYPE::BLACKMANHARRIS, 1000, 0.1,
-                            nullptr);
-  auto aud = dap::Audio<float, 1>("../../tests/Interface/core/NASA_Mars.wav");
+  dap::firLowpass<float, 1>(kernel, dap::WINDOW_TYPE::BLACKMANHARRIS7,
+                            kernelSize, 0.3, nullptr);
+  auto aud = dap::Audio<float, 1>(fileName);
+  aud.getAudioFile().printSummary();
   dap::Audio<float, 1> output;
   output.fetchMetadata(aud.getAudioFile());
   output.getAudioFile().setAudioBuffer(nullptr);
   dap::fir(&aud.getMemRef(), &kernel, &output.getMemRef());
-  output.save("FIR_NASA_Mars.wav");
+  cout << "Saving file:" << endl;
+  cout << (output.save(saveFileName) ? "OK" : "NOT OK") << endl;
   return 0;
 }
