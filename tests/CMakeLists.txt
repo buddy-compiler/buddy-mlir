@@ -1,5 +1,16 @@
 add_subdirectory(Interface)
 
+set(RISCV_GNU_TOOLCHAIN_SYSROOT "${BUDDY_SOURCE_DIR}/thirdparty/build-riscv-gnu-toolchain/sysroot")
+set(QEMU_BINARY_DIR "${BUDDY_SOURCE_DIR}/thirdparty/qemu/build/riscv64-linux-user")
+set(CROSS_MLIR_RUNNER_UTILS "${BUDDY_SOURCE_DIR}/thirdparty/build-cross-mlir/lib")
+set(CROSS_LLI_BIN "${BUDDY_SOURCE_DIR}/thirdparty/build-cross-clang/bin/lli")
+
+if (NOT EXISTS ${RISCV_GNU_TOOLCHAIN_SYSROOT}
+    OR NOT EXISTS ${CROSS_MLIR_RUNNER_UTILS}
+    OR NOT EXISTS ${CROSS_LLI_BIN})
+    message(WARNING "RISC-V envinroment is not set up. RVV tests will fail."
+                    "For more info how to set up the envinroment, please refer to documention.")
+endif()
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py

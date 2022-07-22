@@ -10,7 +10,7 @@ fi
 
 if [ ! -d "riscv-gnu-toolchain" ]
 then
-  git clone git@github.com:riscv-collab/riscv-gnu-toolchain.git
+  git clone https://github.com/riscv-collab/riscv-gnu-toolchain.git
   cd riscv-gnu-toolchain
   git checkout rvv-next
   git submodule update --init --recursive
@@ -49,7 +49,7 @@ fi
 
 if [ ! -d "qemu" ]
 then
-  git clone git@github.com:sifive/qemu.git
+  git clone https://github.com/riscv-collab/riscv-gnu-toolchain.git
   cd qemu
   git checkout 856da0e94f
   mkdir build
