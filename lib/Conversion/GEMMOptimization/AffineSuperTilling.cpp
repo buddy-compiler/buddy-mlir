@@ -18,6 +18,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/Value.h"
+#include "mlir/Transforms/RegionUtils.h"
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -289,6 +291,7 @@ superTilePerfectlyNested(MutableArrayRef<AffineForOp> input,
               val.push_back(tiledLoops[newLoopIdx].getInductionVar());
           }
       }
+
       AffineMap newIV = AffineMap::get(2, 0, newMixIVExpr, b.getContext());
       AffineApplyOp applyOp = b.create<AffineApplyOp>(rootAffineForOp.getLoc(), newIV, ValueRange(val));
       oldIV.replaceAllUsesWith(applyOp);
