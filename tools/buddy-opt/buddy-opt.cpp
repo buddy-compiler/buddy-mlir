@@ -52,6 +52,8 @@ void registerLowerDAPPass();
 void registerLowerRVVPass();
 void registerLoopOrderChangePass();
 void registerDataCopyGeneratePass();
+void registerAffineSuperTillingPass();
+void registerLoopPerfectPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -71,6 +73,8 @@ int main(int argc, char **argv) {
   // Register GEMM Optimize Pass.
   mlir::buddy::registerLoopOrderChangePass();
   mlir::buddy::registerDataCopyGeneratePass();
+  mlir::buddy::registerAffineSuperTillingPass();
+  mlir::buddy::registerLoopPerfectPass();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
