@@ -55,6 +55,7 @@ set(BUDDY_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/include/)
+set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include/)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 
@@ -72,6 +73,7 @@ include_directories(${BUDDY_INCLUDE_DIR}/Interface)
 include_directories(${BUDDY_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/Dialect)
 include_directories(${BUDDY_SOURCE_DIR}/lib)
+include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
 
 #-------------------------------------------------------------------------------
 # Hardware detection
