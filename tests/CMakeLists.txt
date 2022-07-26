@@ -12,6 +12,7 @@ set(BUDDY_TEST_DEPENDS
   buddy-opt
   buddy-translate
   buddy-container-test
+  buddy-audio-container-test
   )
 
 if(BUDDY_ENABLE_OPENCV)
