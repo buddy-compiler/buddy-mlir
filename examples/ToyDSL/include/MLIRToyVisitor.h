@@ -98,23 +98,23 @@ private:
   std::any getTensor(ToyParser::TensorLiteralContext *ctx) {
     std::vector<int64_t> dims;
     // get dimensions.
-    dims.push_back(ctx->Comma().size()+1);
+    dims.push_back(ctx->Comma().size() + 1);
     if (ctx->tensorLiteral(0)->tensorLiteral(0)) {
-      auto list = ctx->tensorLiteral(0);
-      while(list) {
+      ToyParser::TensorLiteralContext *list = ctx->tensorLiteral(0);
+      while (list) {
         dims.push_back(list->Comma().size() + 1);
-        if (list->tensorLiteral(0) && list->tensorLiteral(0)->Comma().size()) 
+        if (list->tensorLiteral(0) && list->tensorLiteral(0)->Comma().size())
           list = list->tensorLiteral(0);
-        else 
+        else
           break;
-      } 
-    } 
+      }
+    }
     mlir::Type elementType = builder.getF64Type();
-    auto type = getType(dims);
+    mlir::Type type = getType(dims);
     auto dataType = mlir::RankedTensorType::get(dims, elementType);
-    auto dataAttribute =
+    mlir::DenseElementsAttr dataAttribute =
         mlir::DenseElementsAttr::get(dataType, llvm::makeArrayRef(ctx->data));
-    auto loaction =
+    mlir::Location loaction =
         loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
     mlir::Value value =
         builder.create<mlir::toy::ConstantOp>(loaction, type, dataAttribute);
@@ -125,11 +125,11 @@ private:
     llvm::ScopedHashTableScope<llvm::StringRef, int> protoTypeSymbolTable(
         funSymbolTable);
     for (auto &function : ctx->funDefine()) {
-      auto protoType = function->prototype();
-      auto functionName = protoType->Identifier()->toString();
-      auto declNumber = 0;
+      ToyParser::PrototypeContext *protoType = function->prototype();
+      std::string functionName = protoType->Identifier()->toString();
+      int declNumber = 0;
       if (protoType->declList()) {
-        auto list = protoType->declList();
+        ToyParser::DeclListContext *list = protoType->declList();
         while (list) {
           declNumber++;
           if (list->declList())
@@ -165,7 +165,7 @@ private:
 
     std::vector<std::string> args;
     if (ctx->prototype()->declList()) {
-      auto list = ctx->prototype()->declList();
+      ToyParser::DeclListContext *list = ctx->prototype()->declList();
       while (list->Identifier()) {
         args.push_back(list->Identifier()->toString());
         if (list->declList())
@@ -189,7 +189,7 @@ private:
     if (!entryBlock.empty())
       returnOp = llvm::dyn_cast<mlir::toy::ReturnOp>(entryBlock.back());
     if (!returnOp) {
-      auto location =
+      mlir::Location location =
           loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
       builder.create<mlir::toy::ReturnOp>(location);
     } else if (returnOp.hasOperand()) {
@@ -210,10 +210,10 @@ private:
   virtual std::any visitPrototype(ToyParser::PrototypeContext *ctx) override {
     mlir::Location location =
         loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
-    auto varNumber = 0;
+    int varNumber = 0;
     // Get the number of arguments.
     if (ctx->declList()) {
-      auto list = ctx->declList();
+      ToyParser::DeclListContext *list = ctx->declList();
       while (list->Identifier()) {
         varNumber++;
         if (list->declList())
@@ -224,7 +224,7 @@ private:
     }
     llvm::SmallVector<mlir::Type, 4> argTypes(
         varNumber, mlir::UnrankedTensorType::get(builder.getF64Type()));
-    auto funType = builder.getFunctionType(argTypes, llvm::None);
+    mlir::FunctionType funType = builder.getFunctionType(argTypes, llvm::None);
     auto func = builder.create<mlir::toy::FuncOp>(
         location, ctx->Identifier()->toString(), funType);
     return func;
@@ -246,7 +246,7 @@ private:
       // only support '+' and '*'.
       mlir::Value lhs = std::any_cast<mlir::Value>(visit(ctx->expression(0)));
       mlir::Value rhs = std::any_cast<mlir::Value>(visit(ctx->expression(1)));
-      auto loaction =
+      mlir::Location loaction =
           loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
       if (ctx->Add())
         value = builder.create<mlir::toy::AddOp>(loaction, lhs, rhs);
@@ -269,7 +269,7 @@ private:
       std::vector<int64_t> v0;
       auto v1 = ctx->type()->Number();
       for (auto i : v1) {
-        auto j = atoi(i->toString().c_str());
+        int64_t j = atoi(i->toString().c_str());
         v0.push_back(j);
       }
       mlir::Location location =
@@ -289,17 +289,17 @@ private:
   virtual std::any
   visitIdentifierExpr(ToyParser::IdentifierExprContext *ctx) override {
     mlir::Value value;
-    auto argsNumber = 0;
+    int argsNumber = 0;
     mlir::Location location =
         loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
     // If the identifier is a function call, visit and register all the
     // arguments. [TODO][LOW] add the semantic check (look up the symbol table)
     // for the function call.
     if (ctx->ParentheseOpen()) {
-      auto location =
+      mlir::Location location =
           loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
       llvm::SmallVector<mlir::Value, 4> oprands;
-      for (auto i : ctx->expression()) {
+      for (ToyParser::ExpressionContext *i : ctx->expression()) {
         mlir::Value arg = std::any_cast<mlir::Value>(visit(i));
         oprands.push_back(arg);
         argsNumber++;
@@ -312,7 +312,7 @@ private:
               << "mismatch of function parameters 'print'";
           return nullptr;
         }
-        auto arg = oprands[0];
+        mlir::Value arg = oprands[0];
         builder.create<mlir::toy::PrintOp>(location, arg);
         return 0;
       } else if (ctx->Identifier()->toString() == "transpose") {
@@ -321,7 +321,7 @@ private:
               << "mlismatch of function parameters 'transpose'";
           return nullptr;
         }
-        auto arg = oprands[0];
+        mlir::Value arg = oprands[0];
         value = builder.create<mlir::toy::TransposeOp>(location, arg);
         return value;
       }
@@ -334,7 +334,7 @@ private:
                                   << ctx->Identifier()->toString() << "'";
         return nullptr;
       }
-      auto numberdecl = funSymbolTable.lookup(ctx->Identifier()->toString());
+      int numberdecl = funSymbolTable.lookup(ctx->Identifier()->toString());
       if (numberdecl != argsNumber) {
         mlir::emitError(location) << "error: mismatch of function parameters '"
                                   << ctx->Identifier()->toString() << "'";
@@ -359,7 +359,7 @@ private:
 
   /// Return Expression Visitor
   virtual std::any visitReturnExpr(ToyParser::ReturnExprContext *ctx) override {
-    auto location =
+    mlir::Location location =
         loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
     mlir::Value expr = nullptr;
     if (ctx->expression()) {
