@@ -103,4 +103,19 @@ def Bud_TestArrayAttrOp : Bud_Op<"test_array_attr"> {
       "$base attr-dict `:` type($base) `,` type($result)";
 }
 
+//===----------------------------------------------------------------------===//
+// Vector Config Operation Demo
+//===----------------------------------------------------------------------===//
+
+def Bud_VectorConfigOp : Bud_Op<"vector_config"> {
+  let summary = "Vector Config Operation Demo.";
+  let arguments = (ins AnyType:$mask,
+                       AnyType:$vl
+                  );
+  let regions = (region AnyRegion:$region);
+
+  let assemblyFormat =
+      "$mask `,` $vl attr-dict `:` type($mask) `,` type($vl) $region";
+}
+
 #endif // BUD_BUDOPS_TD
