@@ -120,7 +120,9 @@ private:
         builder.create<mlir::toy::ConstantOp>(loaction, type, dataAttribute);
     return value;
   }
-
+  // Module Visitor
+  // - Visitor all function asts to get the number of function parameter.
+  // - Visitor childrens.
   virtual std::any visitModule(ToyParser::ModuleContext *ctx) override {
     llvm::ScopedHashTableScope<llvm::StringRef, int> protoTypeSymbolTable(
         funSymbolTable);
