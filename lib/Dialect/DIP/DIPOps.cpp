@@ -20,7 +20,25 @@
 
 #include "DIP/DIPOps.h"
 #include "DIP/DIPDialect.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/Support/LogicalResult.h"
 
 #define GET_OP_CLASSES
 #include "DIP/DIPOps.cpp.inc"
+
+using namespace mlir;
+
+LogicalResult buddy::dip::Corr2DOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+
+  auto inputTy = operands[0].getType();
+  inferredReturnTypes.assign({inputTy});
+  return success();
+}
+
+bool buddy::dip::Corr2DOp::isCompatibleReturnTypes(TypeRange l, TypeRange r) {
+  return true;
+}

@@ -44,6 +44,39 @@ using namespace mlir::arith;
 
 namespace {
 
+static Value allocZeroInitializedMemref(MemRefType type, Location loc,
+                                   PatternRewriter &rewriter, MLIRContext* ctx) {
+  auto alloc = rewriter.create<memref::AllocOp>(loc, type);
+
+  // Make sure to allocate at the beginning of the block.
+  auto *parentBlock = alloc->getBlock();
+  alloc->moveBefore(&parentBlock->front());
+
+  auto elemTy = type.getElementType();
+  Value initVal = {};
+  FloatType f32 = FloatType::getF32(ctx);
+  IntegerType i32 = IntegerType::get(ctx, 32);
+  if (elemTy.isF32()) {
+    initVal = rewriter.create<ConstantFloatOp>(loc, (APFloat)(float)0, f32);
+  } else if (elemTy.isInteger(32)) {
+    initVal = rewriter.create<ConstantIntOp>(loc, 0, i32);
+  }
+
+  // FIXME: better way to initialize the whole memref?
+  auto w = type.getShape()[0];
+  auto h = type.getShape()[1];
+  for (int64_t y = 0; y < h; y++) {
+      for (int x = 0; x < w; x++) {
+          Value cx = rewriter.create<ConstantIndexOp>(loc, x);
+          Value cy = rewriter.create<ConstantIndexOp>(loc, y);
+
+          rewriter.create<memref::StoreOp>(loc, initVal, alloc, ValueRange{cx, cy});
+      }
+  }
+
+  return alloc;
+}
+
 class DIPCorr2DOpLowering : public OpRewritePattern<dip::Corr2DOp> {
 public:
   using OpRewritePattern<dip::Corr2DOp>::OpRewritePattern;
@@ -56,7 +89,7 @@ public:
   LogicalResult matchAndRewrite(dip::Corr2DOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
-    auto ctx = op->getContext();
+    auto *ctx = op->getContext();
 
     // Create constant indices.
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
@@ -65,14 +98,16 @@ public:
     // Register operand values.
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
-    Value output = op->getOperand(2);
-    Value centerX = op->getOperand(3);
-    Value centerY = op->getOperand(4);
-    Value constantValue = op->getOperand(5);
+    Value centerX = op->getOperand(2);
+    Value centerY = op->getOperand(3);
+    Value constantValue = op->getOperand(4);
     auto boundaryOptionAttr = op.boundary_option();
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
-    FloatType f32 = FloatType::getF32(ctx);
+    auto memRefTy = op->getResults().front().getType().cast<MemRefType>();
+    auto output = allocZeroInitializedMemref(memRefTy, loc, rewriter, ctx);
+    auto elemTy = memRefTy.getElementType();
+
     IntegerType i1 = IntegerType::get(ctx, 1);
 
     // Create DimOp.
@@ -90,11 +125,17 @@ public:
                                      kernelSize};
     SmallVector<int64_t, 8> steps{1, 1, stride, 1};
 
-    VectorType vectorTy32 = VectorType::get({stride}, f32);
+    VectorType vectorTy32 = VectorType::get({stride}, elemTy);
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
 
-    Value zeroPaddingElem =
-        rewriter.create<ConstantFloatOp>(loc, (APFloat)(float)0, f32);
+    FloatType f32 = FloatType::getF32(ctx);
+    IntegerType i32 = IntegerType::get(ctx, 32);
+    Value zeroPaddingElem = {};
+    if (elemTy.isF32()) {
+        zeroPaddingElem = rewriter.create<ConstantFloatOp>(loc, (APFloat)(float)0, f32);
+    } else if (elemTy.isInteger(32)) {
+        zeroPaddingElem = rewriter.create<ConstantIntOp>(loc, 0, i32);
+    }
     Value zeroPadding =
         rewriter.create<BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
@@ -490,8 +531,8 @@ public:
                 builder.create<scf::YieldOp>(loc);
               });
         });
-    // Remove the origin convolution operation.
-    rewriter.eraseOp(op);
+    // replace the original op with allocated output
+    rewriter.replaceOp(op, output);
     return success();
   }
 

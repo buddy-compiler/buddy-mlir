@@ -58,40 +58,47 @@ def DIP_InterpolationType : I32EnumAttr<"InterpolationType",
 def DIP_BoundaryOptionAttr : EnumAttr<DIP_Dialect, DIP_BoundaryOption, "boundary_option">;
 def DIP_InterpolationAttr : EnumAttr<DIP_Dialect, DIP_InterpolationType, "interpolation_type">;
 
-def DIP_Corr2DOp : DIP_Op<"corr_2d">
-{
+def DIP_Corr2DOp : DIP_Op<"corr_2d",
+    [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = [{This operation is used for performing 2D correlation on an image.
-  The 2D correlation API provided by the linalg dialect is more suited for 
-  applications in which boundary extrapolation is not explicitly required.
-  Due to this, dimensions of output are always less than the input dimensions after
-  using linalg dialect's 2D correlation API.
+    The 2D correlation API provided by the linalg dialect is more suited for
+    applications in which boundary extrapolation is not explicitly required.
+    Due to this, dimensions of output are always less than the input dimensions after
+    using linalg dialect's 2D correlation API.
 
-  dip.corr_2d performs boundary extrapolation for making the size of the output image
-  equal to the size of the input image. Boundary extrapolation can be done using
-  different methods, supported options are : 
-    a. Constant Padding : Uses a constant for padding whole extra region in input image
-    for obtaining the boundary extrapolated output image. (kkk|abcdefg|kkk)
-    b. Replicate Padding : Uses last/first element of respective column/row for padding
-    the extra region used for creating the boundary extrapolated output image. (aaa|abcdefg|ggg)
-  For example: 
+    dip.corr_2d performs boundary extrapolation for making the size of the output image
+    equal to the size of the input image. Boundary extrapolation can be done using
+    different methods, supported options are:
+      a. Constant Padding : Uses a constant for padding whole extra region in input image
+      for obtaining the boundary extrapolated output image. (kkk|abcdefg|kkk)
+      b. Replicate Padding : Uses last/first element of respective column/row for padding
+      the extra region used for creating the boundary extrapolated output image. (aaa|abcdefg|ggg)
+    For example:
 
-  ```mlir
-    dip.corr_2d CONSTANT_PADDING %inputImage, %kernel, %output, %centerX, %centerY, %constantValue
-        : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index
-  ```
+    ```mlir
+      dip.corr_2d CONSTANT_PADDING %inputImage, %kernel, %output, %centerX, %centerY, %constantValue
+          : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index
+    ```
   }];
 
   let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
                            [MemRead]>:$memrefI,
                        Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
                            [MemRead]>:$memrefK,
-                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
-                           [MemRead]>:$memrefCO,
-                       Index : $centerX, Index : $centerY, F32 : $constantValue,
+                       Index : $centerX,
+                       Index : $centerY,
+                       AnyTypeOf<[AnyI32, AnyFloat]> : $constantValue,
                        DIP_BoundaryOptionAttr:$boundary_option);
+  let results = (outs AnyRankedOrUnrankedMemRef:$result);
 
   let assemblyFormat = [{
-    $boundary_option $memrefI `,` $memrefK `,` $memrefCO `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+    $boundary_option $memrefI `,` $memrefK `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($centerX) `,` type($centerY) `,` type($constantValue) `->` type($result)
+  }];
+
+  let extraClassDeclaration = [{
+    // Returns when two result types are compatible for this op; method used by
+    // InferTypeOpInterface
+    static bool isCompatibleReturnTypes(mlir::TypeRange l, mlir::TypeRange r);
   }];
 }
 

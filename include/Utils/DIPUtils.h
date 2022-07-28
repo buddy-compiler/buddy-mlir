@@ -32,7 +32,14 @@ void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
                                      Value beginIdx, Value endIdx) {
   Value outputVec = builder.create<LoadOp>(loc, vecType, output,
                                            ValueRange{beginIdx, endIdx});
-  Value resVec = builder.create<FMAOp>(loc, inputVec, kernelVec, outputVec);
+  Value resVec = {};
+  auto elemTy = vecType.getElementType();
+  if (elemTy.isF32()) {
+      resVec = builder.create<vector::FMAOp>(loc, inputVec, kernelVec, outputVec);
+  } else if (elemTy.isInteger(32)) {
+      Value mulVec = builder.create<arith::MulIOp>(loc, inputVec, kernelVec);
+      resVec = builder.create<arith::AddIOp>(loc, mulVec, outputVec);
+  }
   builder.create<StoreOp>(loc, resVec, output, ValueRange{beginIdx, endIdx});
 }
 
@@ -71,8 +78,15 @@ void calcAndStoreFMAwTailProcessing(OpBuilder &builder, Location loc,
       [&](OpBuilder &builder, Location loc) {
         Value outputVec = builder.create<LoadOp>(loc, vecType, output,
                                                  ValueRange{beginIdx, endIdx});
-        Value resVec =
-            builder.create<FMAOp>(loc, inputVec, kernelVec, outputVec);
+        Value resVec = {};
+        auto elemTy = vecType.getElementType();
+        if (elemTy.isF32()) {
+          resVec = builder.create<vector::FMAOp>(loc, inputVec, kernelVec, outputVec);
+        } else if (elemTy.isInteger(32)) {
+          Value mulVec = builder.create<arith::MulIOp>(loc, inputVec, kernelVec);
+          resVec = builder.create<arith::AddIOp>(loc, mulVec, outputVec);
+        }
+
         builder.create<StoreOp>(loc, resVec, output,
                                 ValueRange{beginIdx, endIdx});
 
@@ -84,8 +98,15 @@ void calcAndStoreFMAwTailProcessing(OpBuilder &builder, Location loc,
         Value outputVec = builder.create<MaskedLoadOp>(
             loc, vecType, output, ValueRange{beginIdx, endIdx}, extraElemMask,
             zeroPadding);
-        Value resVec =
-            builder.create<FMAOp>(loc, inputVec, kernelVec, outputVec);
+        Value resVec = {};
+        auto elemTy = vecType.getElementType();
+        if (elemTy.isF32()) {
+          resVec = builder.create<vector::FMAOp>(loc, inputVec, kernelVec, outputVec);
+        } else if (elemTy.isInteger(32)) {
+          Value mulVec = builder.create<arith::MulIOp>(loc, inputVec, kernelVec);
+          resVec = builder.create<arith::AddIOp>(loc, mulVec, outputVec);
+        }
+
         builder.create<MaskedStoreOp>(loc, output, ValueRange{beginIdx, endIdx},
                                       extraElemMask, resVec);
 
