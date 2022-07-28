@@ -179,7 +179,7 @@ rvv-vp-intrinsic-run-error:
 rvv-vp-intrinsic-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
