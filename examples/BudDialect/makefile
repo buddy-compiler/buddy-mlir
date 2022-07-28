@@ -19,4 +19,4 @@ bud-str-attr-lower:
 
 bud-vector-config-lower:
 	@${BUDDY_OPT} ./VectorConfig.mlir \
-		-o ./log.mlir
+		--lower-bud -o ./log.mlir
