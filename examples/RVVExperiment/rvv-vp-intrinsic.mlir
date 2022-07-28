@@ -35,6 +35,16 @@ func.func @main() -> i32 {
   vector.print %res : vector<8xf32>
 
   //===--------------------------------------------------------------------===//
+  // Vector Config Operation + Add Operation + Fixed Vector Type
+  //===--------------------------------------------------------------------===//
+
+  %res_vector_config = bud.vector_config %mask, %evl : vector<8xi1>, i32 {
+    %add = arith.addf %vec1, %vec2 : vector<8xf32>
+    vector.yield %add : vector<8xf32>
+  } : vector<8xf32>
+  vector.print %res_vector_config : vector<8xf32>
+
+  //===--------------------------------------------------------------------===//
   // VP Intrinsic Add Operation + Scalable Vector Type + RVV Dialect
   //===--------------------------------------------------------------------===//
   

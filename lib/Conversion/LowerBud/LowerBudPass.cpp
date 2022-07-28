@@ -21,6 +21,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
@@ -47,7 +48,8 @@ public:
     Type resultType = op.getResult().getType();
     // Create constant operation.
     Attribute zeroAttr = rewriter.getZeroAttr(resultType);
-    Value c0 = rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
+    Value c0 =
+        rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
 
     rewriter.replaceOp(op, c0);
     return success();
@@ -65,7 +67,8 @@ public:
     Type resultType = op.getResult().getType();
     // Create constant operation.
     Attribute zeroAttr = rewriter.getZeroAttr(resultType);
-    Value c0 = rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
+    Value c0 =
+        rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
     // Create print operation for the scalar value.
     rewriter.create<vector::PrintOp>(loc, c0);
     VectorType vectorTy4 =
@@ -133,6 +136,28 @@ public:
     return success();
   }
 };
+
+class BudVectorConfigLowering : public OpRewritePattern<bud::VectorConfigOp> {
+public:
+  using OpRewritePattern<bud::VectorConfigOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(bud::VectorConfigOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    mlir::Region &configRegion = op.region();
+    mlir::Block &configBlock = configRegion.front();
+    for (mlir::Operation &innerOp : configBlock.getOperations()) {
+      if (isa<arith::AddFOp>(innerOp)) {
+        Type resultType = cast<arith::AddFOp>(innerOp).getResult().getType();
+        Value result = rewriter.create<LLVM::VPFAddOp>(
+            loc, resultType, cast<arith::AddFOp>(innerOp).getLhs(),
+            cast<arith::AddFOp>(innerOp).getRhs(), op.mask(), op.vl());
+        rewriter.replaceOp(op, result);
+      }
+    }
+    return success();
+  }
+};
 } // end anonymous namespace
 
 void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
@@ -141,7 +166,8 @@ void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
       BudTestConstantLowering,
       BudTestPrintLowering,
       BudTestEnumAttrLowering,
-      BudTestArrayAttrLowering>(patterns.getContext());
+      BudTestArrayAttrLowering,
+      BudVectorConfigLowering>(patterns.getContext());
   // clang-format on
 }
 
@@ -167,7 +193,8 @@ public:
         buddy::bud::BudDialect,
         func::FuncDialect,
         vector::VectorDialect,
-        memref::MemRefDialect>();
+        memref::MemRefDialect,
+        LLVM::LLVMDialect>();
     // clang-format on
   }
 };
@@ -183,7 +210,8 @@ void LowerBudPass::runOnOperation() {
       arith::ArithmeticDialect,
       func::FuncDialect,
       vector::VectorDialect,
-      memref::MemRefDialect>();
+      memref::MemRefDialect,
+      LLVM::LLVMDialect>();
   // clang-format on
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
