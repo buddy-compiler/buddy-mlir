@@ -40,5 +40,8 @@ LogicalResult buddy::dip::Corr2DOp::inferReturnTypes(
 }
 
 bool buddy::dip::Corr2DOp::isCompatibleReturnTypes(TypeRange l, TypeRange r) {
-  return true;
+  Type lhs = l.front();
+  Type rhs = r.front();
+
+  return lhs == rhs;
 }
