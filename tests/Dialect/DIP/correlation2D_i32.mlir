@@ -25,8 +25,7 @@ func.func @main() -> i32 {
   %x = arith.constant 1 : index
   %y = arith.constant 1 : index
   %c = arith.constant 0 : i32 
-  %output_returned = dip.corr_2d CONSTANT_PADDING %input, %identity, %x, %x, %c : memref<3x3xi32>, memref<3x3xi32>, index, index, i32 -> memref<3x3xi32>
-
+  %output_returned = dip.corr_2d <CONSTANT_PADDING> %input, %identity, %x, %x, %c : memref<3x3xi32>, memref<3x3xi32>, index, index, i32 -> memref<3x3xi32>
   
   %printed_output = memref.cast %output_returned : memref<3x3xi32> to memref<*xi32>
   call @printMemrefI32(%printed_output) : (memref<*xi32>) -> ()

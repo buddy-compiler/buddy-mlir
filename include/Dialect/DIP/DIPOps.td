@@ -55,7 +55,9 @@ def DIP_InterpolationType : I32EnumAttr<"InterpolationType",
   let cppNamespace = "::buddy::dip";
 }
 
-def DIP_BoundaryOptionAttr : EnumAttr<DIP_Dialect, DIP_BoundaryOption, "boundary_option">;
+def DIP_BoundaryOptionAttr : EnumAttr<DIP_Dialect, DIP_BoundaryOption, "boundary_option"> {
+  let assemblyFormat = "`<` $value `>`";
+}
 def DIP_InterpolationAttr : EnumAttr<DIP_Dialect, DIP_InterpolationType, "interpolation_type">;
 
 def DIP_Corr2DOp : DIP_Op<"corr_2d",
