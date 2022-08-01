@@ -38,3 +38,24 @@ buddy-toy-constant-translate:
 
 buddy-toy-constant-run:
 	@${BUDDY_TOY_DSL} ./constant.toy  -emit=jit
+
+toyc-function-run:
+	@${MLIR_TOYC} ./function.toy -emit=jit
+
+buddy-toy-function-ast:
+	@${BUDDY_TOY_DSL} ./function.toy  -emit=ast
+
+buddy-toy-function-mlir:
+	@${BUDDY_TOY_DSL} ./function.toy  -emit=mlir
+
+buddy-toy-function-affine:
+	@${BUDDY_TOY_DSL} ./function.toy  -emit=mlir-affine
+
+buddy-toy-function-llvm:
+	@${BUDDY_TOY_DSL} ./function.toy  -emit=mlir-llvm
+
+buddy-toy-function-translate:
+	@${BUDDY_TOY_DSL} ./function.toy  -emit=llvm
+
+buddy-toy-function-run:
+	@${BUDDY_TOY_DSL} ./function.toy  -emit=jit
