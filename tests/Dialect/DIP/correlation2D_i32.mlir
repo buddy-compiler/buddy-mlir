@@ -16,18 +16,22 @@ memref.global "private" @global_identity : memref<3x3xi32> = dense<[[0, 0, 0],
                                                                     [0, 1, 0],
                                                                     [0, 0, 0]]>
 
+memref.global "private" @global_output : memref<3x3xi32> = dense<[[0, 0, 0],
+                                                                  [0, 0, 0],
+                                                                  [0, 0, 0]]>
 func.func private @printMemrefI32(memref<*xi32>)
 
 func.func @main() -> i32 {
   %input = memref.get_global @global_input : memref<3x3xi32>
   %identity = memref.get_global @global_identity : memref<3x3xi32>
+  %output = memref.get_global @global_output: memref<3x3xi32>
 
   %x = arith.constant 1 : index
   %y = arith.constant 1 : index
   %c = arith.constant 0 : i32 
-  %output_returned = dip.corr_2d <CONSTANT_PADDING> %input, %identity, %x, %x, %c : memref<3x3xi32>, memref<3x3xi32>, index, index, i32 -> memref<3x3xi32>
+  dip.corr_2d <CONSTANT_PADDING> %input, %identity, %output, %x, %x, %c : memref<3x3xi32>, memref<3x3xi32>, memref<3x3xi32>, index, index, i32
   
-  %printed_output = memref.cast %output_returned : memref<3x3xi32> to memref<*xi32>
+  %printed_output = memref.cast %output : memref<3x3xi32> to memref<*xi32>
   call @printMemrefI32(%printed_output) : (memref<*xi32>) -> ()
   // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 2 offset = 0 sizes = \[3, 3\] strides = \[3, 1\] data =}}
   // CHECK{LITERAL}: [[0, 1, 2],

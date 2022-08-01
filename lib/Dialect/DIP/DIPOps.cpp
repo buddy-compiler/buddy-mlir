@@ -27,21 +27,3 @@
 #define GET_OP_CLASSES
 #include "DIP/DIPOps.cpp.inc"
 
-using namespace mlir;
-
-LogicalResult buddy::dip::Corr2DOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-
-  auto inputTy = operands[0].getType();
-  inferredReturnTypes.assign({inputTy});
-  return success();
-}
-
-bool buddy::dip::Corr2DOp::isCompatibleReturnTypes(TypeRange l, TypeRange r) {
-  Type lhs = l.front();
-  Type rhs = r.front();
-
-  return lhs == rhs;
-}

@@ -16,19 +16,23 @@ memref.global "private" @global_identity : memref<3x3xf32> = dense<[[0., 0., 0.]
                                                                     [0., 1., 0.],
                                                                     [0., 0., 0.]]>
 
+memref.global "private" @global_output : memref<3x3xf32> = dense<[[0., 0., 0.],
+                                                                  [0., 0., 0.],
+                                                                  [0., 0., 0.]]>
 func.func private @printMemrefF32(memref<*xf32>)
 
 func.func @main() -> i32 {
   %input = memref.get_global @global_input : memref<3x3xf32>
   %identity = memref.get_global @global_identity : memref<3x3xf32>
+  %output = memref.get_global @global_output : memref<3x3xf32>
 
   %x = arith.constant 1 : index
   %y = arith.constant 1 : index
   %c = arith.constant 0. : f32 
-  %output_returned = dip.corr_2d <CONSTANT_PADDING> %input, %identity, %x, %x, %c : memref<3x3xf32>, memref<3x3xf32>, index, index, f32 -> memref<3x3xf32>
+  dip.corr_2d <CONSTANT_PADDING> %input, %identity, %output, %x, %x, %c : memref<3x3xf32>, memref<3x3xf32>, memref<3x3xf32>, index, index, f32
   
-  %printed_output_returned = memref.cast %output_returned : memref<3x3xf32> to memref<*xf32>
-  call @printMemrefF32(%printed_output_returned) : (memref<*xf32>) -> ()
+  %printed_output = memref.cast %output : memref<3x3xf32> to memref<*xf32>
+  call @printMemrefF32(%printed_output) : (memref<*xf32>) -> ()
   // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 2 offset = 0 sizes = \[3, 3\] strides = \[3, 1\] data =}}
   // CHECK{LITERAL}: [[0, 1, 2],
   // CHECK{LITERAL}: [10, 11, 12],

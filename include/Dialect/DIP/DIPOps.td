@@ -60,8 +60,7 @@ def DIP_BoundaryOptionAttr : EnumAttr<DIP_Dialect, DIP_BoundaryOption, "boundary
 }
 def DIP_InterpolationAttr : EnumAttr<DIP_Dialect, DIP_InterpolationType, "interpolation_type">;
 
-def DIP_Corr2DOp : DIP_Op<"corr_2d",
-    [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+def DIP_Corr2DOp : DIP_Op<"corr_2d"> {
   let summary = [{This operation is used for performing 2D correlation on an image.
     The 2D correlation API provided by the linalg dialect is more suited for
     applications in which boundary extrapolation is not explicitly required.
@@ -87,20 +86,15 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d",
                            [MemRead]>:$memrefI,
                        Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
                            [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemWrite]>:$memrefO,
                        Index : $centerX,
                        Index : $centerY,
                        AnyTypeOf<[AnyI32, AnyFloat]> : $constantValue,
                        DIP_BoundaryOptionAttr:$boundary_option);
-  let results = (outs AnyRankedOrUnrankedMemRef:$result);
 
   let assemblyFormat = [{
-    $boundary_option $memrefI `,` $memrefK `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($centerX) `,` type($centerY) `,` type($constantValue) `->` type($result)
-  }];
-
-  let extraClassDeclaration = [{
-    // Returns when two result types are compatible for this op; method used by
-    // InferTypeOpInterface
-    static bool isCompatibleReturnTypes(mlir::TypeRange l, mlir::TypeRange r);
+    $boundary_option $memrefI `,` $memrefK `,` $memrefO `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
   }];
 }
 

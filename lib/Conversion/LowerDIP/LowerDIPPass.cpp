@@ -25,6 +25,7 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/ValueRange.h"
 #include "mlir/Pass/Pass.h"
 
 #include "DIP/DIPDialect.h"
@@ -43,39 +44,6 @@ using namespace mlir::arith;
 //===----------------------------------------------------------------------===//
 
 namespace {
-
-static Value allocZeroInitializedMemref(MemRefType type, Location loc,
-                                   PatternRewriter &rewriter, MLIRContext* ctx) {
-  auto alloc = rewriter.create<memref::AllocOp>(loc, type);
-
-  // Make sure to allocate at the beginning of the block.
-  auto *parentBlock = alloc->getBlock();
-  alloc->moveBefore(&parentBlock->front());
-
-  auto elemTy = type.getElementType();
-  Value initVal = {};
-  FloatType f32 = FloatType::getF32(ctx);
-  IntegerType i32 = IntegerType::get(ctx, 32);
-  if (elemTy.isF32()) {
-    initVal = rewriter.create<ConstantFloatOp>(loc, (APFloat)(float)0, f32);
-  } else if (elemTy.isInteger(32)) {
-    initVal = rewriter.create<ConstantIntOp>(loc, 0, i32);
-  }
-
-  // FIXME: better way to initialize the whole memref?
-  auto w = type.getShape()[0];
-  auto h = type.getShape()[1];
-  for (int64_t y = 0; y < h; y++) {
-      for (int x = 0; x < w; x++) {
-          Value cx = rewriter.create<ConstantIndexOp>(loc, x);
-          Value cy = rewriter.create<ConstantIndexOp>(loc, y);
-
-          rewriter.create<memref::StoreOp>(loc, initVal, alloc, ValueRange{cx, cy});
-      }
-  }
-
-  return alloc;
-}
 
 class DIPCorr2DOpLowering : public OpRewritePattern<dip::Corr2DOp> {
 public:
@@ -98,14 +66,14 @@ public:
     // Register operand values.
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
-    Value centerX = op->getOperand(2);
-    Value centerY = op->getOperand(3);
-    Value constantValue = op->getOperand(4);
+    Value output = op->getOperand(2);
+    Value centerX = op->getOperand(3);
+    Value centerY = op->getOperand(4);
+    Value constantValue = op->getOperand(5);
     auto boundaryOptionAttr = op.boundary_option();
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
-    auto memRefTy = op->getResults().front().getType().cast<MemRefType>();
-    auto output = allocZeroInitializedMemref(memRefTy, loc, rewriter, ctx);
+    auto memRefTy = input.getType().cast<MemRefType>();
     auto elemTy = memRefTy.getElementType();
 
     IntegerType i1 = IntegerType::get(ctx, 1);
@@ -531,8 +499,8 @@ public:
                 builder.create<scf::YieldOp>(loc);
               });
         });
-    // replace the original op with allocated output
-    rewriter.replaceOp(op, output);
+
+    rewriter.eraseOp(op);
     return success();
   }
 
