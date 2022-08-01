@@ -10,8 +10,13 @@ module
 
 expression
     : Number
-    | tensorLiteral
+    | tensorLiteral 
+      {
+        tensorDataBuffer.clear();
+      }
     | identifierExpr
+    | expression Mul expression
+    | expression Add expression
     ; 
 
 identifierExpr
@@ -62,14 +67,16 @@ funDefine
     : prototype block
     ;
 
-prototype
-    : Def Identifier ParentheseOpen declList ParentheseClose
+prototype returns [std::string idName]
+    : Def Identifier ParentheseOpen declList? ParentheseClose
+      {
+        $idName = $Identifier.text;
+      }
     ;
 
 declList 
     : Identifier
     | Identifier Comma declList
-    |
     ;
 
 block
@@ -142,6 +149,14 @@ AngleBracketsClose
 
 Comma
     : ','
+    ;
+
+Add  
+    : '+'
+    ;
+
+Mul 
+    : '*'
     ;
 
 WS
