@@ -111,28 +111,30 @@ constructSuperTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
   // Bounds for tile space loops.
   SmallVector<bool, 3> needRemainCalc;
   for (unsigned i = 0; i < width; i++) {
-    // OperandRange newLbOperands = origLoops[i].getLowerBoundOperands();
-    // OperandRange newUbOperands = origLoops[i].getUpperBoundOperands();
-    assert(origLoops[i].hasConstantUpperBound());
-    
+    auto origLoop = origLoops[i];
+
     // for now we think input val is null.
     newLoops[i].setLowerBound({}, b.getConstantAffineMap(0));
     // here we should get Ceil val
-    auto upBound = origLoops[i].getConstantUpperBound();
-    
-    
-    needRemainCalc.push_back(upBound % tileCount[i]);
-
-    newLoops[i].setUpperBound({}, b.getConstantAffineMap(llvm::divideCeil(upBound, tileCount[i])));
+    if(origLoop.hasConstantUpperBound()){
+        auto upBound = origLoop.getConstantUpperBound();
+        needRemainCalc.push_back(upBound % tileCount[i]); // 这里我们要想办法将其构造为动态的
+        newLoops[i].setUpperBound({}, b.getConstantAffineMap(llvm::divideCeil(upBound, tileCount[i])));
+    } else {
+        // Dyn shape
+        auto iv = origLoop.getUpperBound().getOperand(0); // 这里我们要构造AffineMap来说明这件事
+        auto loopUppderBoundExpr = b.getAffineDimExpr(0).ceilDiv(b.getAffineConstantExpr(tileCount[i]));
+        auto ubMap = AffineMap::get(1, 0, loopUppderBoundExpr);
+        newLoops[i].setUpperBound(iv, ubMap);
+        needRemainCalc.push_back(true); // 这里我们要想办法将其构造为动态的
+    }
     tileCount[i] /= tileSizes[i][0];
-    // If the step size of original loop is x and tileSize is y then after
-    // tiling the tile space loops' step size becomes x*y.
-    // no for here step 1.
-    // newLoops[i].setStep(tileSizes[i] * origLoops[i].getStep());
   }
+
   // Bounds for intra-tile loops.
   unsigned newLoopIdx = width;
   for (unsigned i = 0; i < width; i++) {
+    auto origLoop = origLoops[i];
     for(unsigned j = 0; j < tileSizes[i].size(); j++, newLoopIdx++) {
         newLoops[newLoopIdx].setLowerBound(
                 {}, b.getConstantAffineMap(0));
@@ -144,7 +146,7 @@ constructSuperTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
         bool computeInKernel = tileSizes[i].size() - j < 2; 
 
         auto lastIV = newLoops[i].getInductionVar();
-        // auto lastSeg = newLoops[i].getConstantUpperBound();
+
         if(j != 0) {
             lastIV = newLoops[newLoopIdx - 1].getInductionVar();
             // lastSeg = tileSizes[i][j - 1];
@@ -157,17 +159,29 @@ constructSuperTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
             mapExprs.push_back(b.getAffineConstantExpr(tileSizes[i][j]));
             SmallVector<Value> inputs;
             if(needRemainCalc[i]) {
-                auto cTileSize = b.getAffineConstantExpr(tileSizes[i][j]);
-                auto d0 = b.getAffineDimExpr(0);
+               auto cTileSize = b.getAffineConstantExpr(tileSizes[i][j]);
+               auto d0 = b.getAffineDimExpr(0);
                dimNum ++;
                inputs.push_back(lastIV);
-               auto remainExpr = origLoops[i].getConstantUpperBound() - cTileSize * d0;
+               // 这里我们要转换一下
+               AffineExpr remainExpr;
+               if(origLoop.hasConstantUpperBound()){
+                   remainExpr = origLoop.getConstantUpperBound() - cTileSize * d0;
+               } else {
+                   inputs.push_back(origLoop.getUpperBound().getOperand(0));
+                   remainExpr = b.getAffineDimExpr(inputs.size() - 1) - cTileSize * d0;
+                   remainExpr.dump();
+                   dimNum ++;
+               }
                mapExprs.push_back(remainExpr);
                needRemainCalc[i] = false;
             }
             ubMap = AffineMap::get(dimNum, 0, mapExprs, b.getContext());    
             newLoops[newLoopIdx].setUpperBound(inputs, ubMap);
         } else {
+            SmallVector<Value> inputs;
+            inputs.push_back(lastIV);
+
             auto segConstExpr = b.getAffineConstantExpr(tileSizes[i][j]);
             auto lbResult = b.getAffineDimExpr(0) * segConstExpr;
             AffineMap lbMap = AffineMap::get(1, 0, lbResult, b.getContext());
@@ -175,14 +189,19 @@ constructSuperTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
             // now for ubMap
             AffineMap ubMap;
             if(needRemainCalc[i]){
-                ubMap = AffineMap::get(1, 0, {lbResult + segConstExpr, b.getAffineConstantExpr(origLoops[i].getConstantUpperBound() / tileSizes[i][j + 1])}, b.getContext());
+                if(origLoop.hasConstantUpperBound()){
+                    ubMap = AffineMap::get(inputs.size(), 0, {lbResult + segConstExpr, b.getAffineConstantExpr(origLoop.getConstantUpperBound() - tileSizes[i][j + 1])}, b.getContext());
+                } else {
+                    inputs.push_back(origLoop.getUpperBound().getOperand(0));
+                    ubMap = AffineMap::get(inputs.size(), 0, {lbResult + segConstExpr, b.getAffineDimExpr(inputs.size() - 1).floorDiv(tileSizes[i][j + 1])}, b.getContext());
+                }
                needRemainCalc[i] = false;
             } else {
-                ubMap = AffineMap::get(1, 0, lbResult + segConstExpr, b.getContext());
+                ubMap = AffineMap::get(inputs.size(), 0, lbResult + segConstExpr, b.getContext());
             }
             
             newLoops[newLoopIdx].setLowerBound(lastIV, lbMap);
-            newLoops[newLoopIdx].setUpperBound(lastIV, ubMap);
+            newLoops[newLoopIdx].setUpperBound(inputs, ubMap);
         }
     }
   }
