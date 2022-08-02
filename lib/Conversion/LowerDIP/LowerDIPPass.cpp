@@ -25,6 +25,9 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/Location.h"
+#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Pass/Pass.h"
 
@@ -44,6 +47,23 @@ using namespace mlir::arith;
 //===----------------------------------------------------------------------===//
 
 namespace {
+
+Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc, Type elemTy) {
+    Value op = {};
+    auto bitWidth = elemTy.getIntOrFloatBitWidth();
+    if (elemTy.isF32()) {
+      FloatType type = FloatType::getF32(ctx);
+      op = builder.create<ConstantFloatOp>(loc, (APFloat)(float)0, type);
+    } else if (elemTy.isF64()) {
+      FloatType type = FloatType::getF64(ctx);
+      op = builder.create<ConstantFloatOp>(loc, (APFloat)(float)0, type);
+    } else if (elemTy.isInteger(bitWidth)) {
+      IntegerType type = IntegerType::get(ctx, bitWidth);
+      op = builder.create<ConstantIntOp>(loc, 0, type);
+    }
+
+    return op;
+}
 
 class DIPCorr2DOpLowering : public OpRewritePattern<dip::Corr2DOp> {
 public:
@@ -77,12 +97,18 @@ public:
     auto kElemTy = kernel.getType().cast<MemRefType>().getElementType();
     auto outElemTy = output.getType().cast<MemRefType>().getElementType();
     auto constElemTy = constantValue.getType();
-    if (inElemTy != kElemTy || kElemTy != outElemTy || outElemTy != constElemTy) {
-        return op->emitOpError() <<  "input, kernel, output and constant must have the same element type";
+    if (inElemTy != kElemTy || kElemTy != outElemTy ||
+        outElemTy != constElemTy) {
+      return op->emitOpError() << "input, kernel, output and constant must "
+                                  "have the same element type";
     }
     // NB: we can infer element type for all operation to be the same as input
     // since we verified that the operand types are the same
     auto elemTy = inElemTy;
+    auto bitWidth = elemTy.getIntOrFloatBitWidth();
+    if (!elemTy.isF64() && !elemTy.isF32() && !elemTy.isInteger(bitWidth)) {
+      return op->emitOpError() << "supports only f32, f64 and integer types. " << elemTy << "is passed";
+    }
 
     IntegerType i1 = IntegerType::get(ctx, 1);
 
@@ -104,15 +130,7 @@ public:
     VectorType vectorTy32 = VectorType::get({stride}, elemTy);
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
 
-    FloatType f32 = FloatType::getF32(ctx);
-    IntegerType i32 = IntegerType::get(ctx, 32);
-    Value zeroPaddingElem = {};
-    // TODO: extend for other types and add a check for supported types
-    if (elemTy.isF32()) {
-        zeroPaddingElem = rewriter.create<ConstantFloatOp>(loc, (APFloat)(float)0, f32);
-    } else if (elemTy.isInteger(32)) {
-        zeroPaddingElem = rewriter.create<ConstantIntOp>(loc, 0, i32);
-    }
+    Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, elemTy);
     Value zeroPadding =
         rewriter.create<BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 

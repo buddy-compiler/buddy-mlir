@@ -90,7 +90,7 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d"> {
                            [MemRead]>:$memrefCO,
                        Index : $centerX,
                        Index : $centerY,
-                       AnyTypeOf<[AnyI32, AnyFloat]> : $constantValue,
+                       AnyTypeOf<[AnyI8, AnyI32, AnyI64, AnyFloat]> : $constantValue,
                        DIP_BoundaryOptionAttr:$boundary_option);
 
   let assemblyFormat = [{

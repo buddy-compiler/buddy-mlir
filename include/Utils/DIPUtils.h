@@ -28,9 +28,10 @@ Value insertFMAOp(OpBuilder &builder, Location loc, VectorType type,
                   Value input, Value kernel, Value output) {
   Value res = {};
   auto elemTy = type.getElementType();
-  if (elemTy.isF32()) {
+  auto bitWidth = elemTy.getIntOrFloatBitWidth();
+  if (elemTy.isF32() || elemTy.isF64()) {
       res = builder.create<vector::FMAOp>(loc, input, kernel, output);
-  } else if (elemTy.isInteger(32)) {
+  } else if (elemTy.isInteger(bitWidth)) {
       Value mul= builder.create<arith::MulIOp>(loc, input, kernel);
       res = builder.create<arith::AddIOp>(loc, mul, output);
   }
