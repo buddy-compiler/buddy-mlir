@@ -30,6 +30,11 @@ include "mlir/IR/OpBase.td"
 def DIP_ConstantPadding : I32EnumAttrCase<"ConstantPadding", 0, "CONSTANT_PADDING">;
 def DIP_ReplicatePadding : I32EnumAttrCase<"ReplicatePadding", 1, "REPLICATE_PADDING">;
 
+def DIP_NearestNeighbourInterpolation : I32EnumAttrCase<"NearestNeighbourInterpolation", 0, 
+                                        "NEAREST_NEIGHBOUR_INTERPOLATION">;
+def DIP_BilinearInterpolation : I32EnumAttrCase<"BilinearInterpolation", 1, 
+                                "BILINEAR_INTERPOLATION">;
+
 def DIP_BoundaryOption : I32EnumAttr<"BoundaryOption",
     "Specifies desired method of boundary extrapolation during image processing.",
     [
@@ -40,7 +45,18 @@ def DIP_BoundaryOption : I32EnumAttr<"BoundaryOption",
   let cppNamespace = "::buddy::dip";
 }
 
+def DIP_InterpolationType : I32EnumAttr<"InterpolationType",
+    "Specifies desired type of interpolation/extrapolation during image processing.",
+    [
+      DIP_NearestNeighbourInterpolation, 
+      DIP_BilinearInterpolation
+    ]>{
+  let genSpecializedAttr = 0;
+  let cppNamespace = "::buddy::dip";
+}
+
 def DIP_BoundaryOptionAttr : EnumAttr<DIP_Dialect, DIP_BoundaryOption, "boundary_option">;
+def DIP_InterpolationAttr : EnumAttr<DIP_Dialect, DIP_InterpolationType, "interpolation_type">;
 
 def DIP_Corr2DOp : DIP_Op<"corr_2d">
 {
@@ -106,6 +122,47 @@ def DIP_Rotate2DOp : DIP_Op<"rotate_2d"> {
 
   let assemblyFormat = [{
     $memrefI `,` $angle `,` $memrefO attr-dict `:` type($memrefI) `,` type($angle) `,` type($memrefO)
+  }];
+}
+
+def DIP_Resize2DOp : DIP_Op<"resize_2d">
+{
+  let summary = [{
+    This operation intends to provide a utility for resizing images using the DIP dialect. 
+    Image resizing has many applications such as data augmentation, dimension adjustment in ML 
+    models, etc. and can thus be used in native MLIR pipelines catering to above mentioned 
+    use-cases.
+
+    As of now, two different mechanisms for pixel interpolation are provided namely nearest 
+    neighbour interpolation and bilinear interpolation. The user can specify the desired type of 
+    interpolation via an attribute provided as argument to the operation. The operation also 
+    expects scaling ratios (Input image dimension / Output image dimension) for both dimensions 
+    of input and output images as arguments. 
+
+    The operation is flexible for its use with images of different sizes without necessarily 
+    lowering it every time for each new image (Refer to the example provided in examples 
+    directory for the DIP dialect).
+
+    Syntax : 
+
+    ```mlir
+    dip.resize_2d INTERPOLATION_TYPE %inputImage, %horizontal_scaling_factor, %vertical_scaling_factor, %outputImage : memref<?x?xf32>, f32, f32, memref<?x?xf32>
+    ```
+
+    where ```INTERPOLATION_TYPE``` can be ```NEAREST_NEIGHBOUR_INTERPOLATION``` or 
+    ```BILINEAR_INTERPOLATION```.
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI, 
+                       F32 : $horizontal_scaling_factor, 
+                       F32 : $vertical_scaling_factor, 
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefO, 
+                       DIP_InterpolationAttr:$interpolation_type);
+
+  let assemblyFormat = [{
+     $interpolation_type $memrefI `,` $horizontal_scaling_factor `,` $vertical_scaling_factor `,` $memrefO attr-dict `:` type($memrefI) `,` type($horizontal_scaling_factor) `,` type($vertical_scaling_factor) `,` type($memrefO)
   }];
 }
 

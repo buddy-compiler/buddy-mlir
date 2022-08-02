@@ -22,37 +22,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <opencv2/imgcodecs.hpp>
 #include <opencv2/opencv.hpp>
 
+#include "Interface/buddy/core/ImageContainer.h"
 #include <Interface/buddy/dip/dip.h>
-#include <Interface/buddy/dip/memref.h>
 #include <iostream>
 
 using namespace cv;
 using namespace std;
-
-bool testImages(cv::Mat img1, cv::Mat img2) {
-  if (img1.rows != img2.rows || img1.cols != img2.cols) {
-    std::cout << "Dimensions not equal\n";
-    return 0;
-  }
-
-  for (std::ptrdiff_t i = 0; i < img1.cols; ++i) {
-    for (std::ptrdiff_t j = 0; j < img1.rows; ++j) {
-      if (img1.at<uchar>(i, j) != img2.at<uchar>(i, j)) {
-        std::cout << "Pixels not equal at : (" << i << "," << j << ")\n";
-        std::cout << (int)img1.at<uchar>(i, j) << "\n";
-        std::cout << (int)img2.at<uchar>(i, j) << "\n\n";
-
-        std::cout << img1 << "\n\n";
-        std::cout << img2 << "\n\n";
-        return 0;
-      }
-    }
-  }
-  return 1;
-}
 
 bool testImplementation(int argc, char *argv[]) {
   // Read as grayscale image.
@@ -61,33 +38,14 @@ bool testImplementation(int argc, char *argv[]) {
     cout << "Could not read the image: " << argv[1] << endl;
   }
 
-  int inputSize = image.rows * image.cols;
-
-  // Define the input with the image.
-  float *inputAlign = (float *)malloc(inputSize * sizeof(float));
-  for (int i = 0; i < image.rows; i++) {
-    for (int j = 0; j < image.cols; j++) {
-      inputAlign[image.rows * i + j] = (float)image.at<uchar>(i, j);
-    }
-  }
-
-  // Define allocated, sizes, and strides fields for the MemRef_descriptor.
-  float *allocated = (float *)malloc(1 * sizeof(float));
-  intptr_t sizesInput[2] = {image.rows, image.cols};
-  intptr_t stridesInput[2] = {image.rows, image.cols};
-
-  // Define memref descriptors.
-  MemRef_descriptor input =
-      MemRef_Descriptor(allocated, inputAlign, 0, sizesInput, stridesInput);
-  MemRef_descriptor output = dip::Rotate2D(input, 45, dip::ANGLE_TYPE::DEGREE);
+  // Define memref containers.
+  Img<float, 2> input(image);
+  MemRef<float, 2> output = dip::Rotate2D(&input, 45, dip::ANGLE_TYPE::DEGREE);
 
   // Define a cv::Mat with the output of Rotate2D.
-  Mat outputImageRotate2D(output->sizes[0], output->sizes[1], CV_32FC1,
-                          output->aligned);
+  Mat outputImageRotate2D(output.getSizes()[0], output.getSizes()[1], CV_32FC1,
+                          output.getData());
   imwrite(argv[2], outputImageRotate2D);
-
-  free(input);
-  free(inputAlign);
 
   return 1;
 }

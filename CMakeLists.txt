@@ -36,6 +36,7 @@ option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targe
 find_package(MLIR REQUIRED CONFIG)
 
 set(LLVM_MLIR_BINARY_DIR ${MLIR_DIR}/../../../bin)
+set(LLVM_MLIR_SOURCE_DIR ${MLIR_DIR}/../../../../mlir)
 
 list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
@@ -54,6 +55,7 @@ set(BUDDY_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/include/)
+set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include/)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 
@@ -67,9 +69,11 @@ include_directories(${MLIR_INCLUDE_DIRS})
 # Add BUDDY files to the include path
 include_directories(${BUDDY_MAIN_INCLUDE_DIR})
 include_directories(${BUDDY_INCLUDE_DIR})
+include_directories(${BUDDY_INCLUDE_DIR}/Interface)
 include_directories(${BUDDY_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/Dialect)
 include_directories(${BUDDY_SOURCE_DIR}/lib)
+include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
 
 #-------------------------------------------------------------------------------
 # Hardware detection
@@ -107,6 +111,7 @@ endif()
 # Directory setup
 #-------------------------------------------------------------------------------
 
+add_subdirectory(cmake)
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)

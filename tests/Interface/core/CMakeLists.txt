@@ -13,3 +13,9 @@ _add_test_executable(buddy-image-container-test
     ${OpenCV_LIBS}
 )
 endif()
+
+_add_test_executable(buddy-audio-container-test
+  AudioContainerTest.cpp
+  LINK_LIBS
+  Container AudioContainer
+)

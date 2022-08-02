@@ -124,8 +124,40 @@ $ cd bin
 $ ./rotation2D ../../examples/ConvOpt/images/YuTu.png result-dip-rotate.png
 ```
 
+ - Resize example:
+```
+$ cd buddy-mlir/build
+$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
+$ ninja resize2D
+$ cd bin
+$ ./resize2D ../../examples/ConvOpt/images/YuTu.png result-dip-resize.png
+```
+
 We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches. 
 For more details, please see [the benchamrk in the buddy-benchmark repo](https://github.com/buddy-compiler/buddy-benchmark#image-processing-benchmark).
+
+### Digital Audio Processing Examples
+
+- Fir Lowpass example:
+
+Build and run the example.
+
+*Note: No external library required.*
+
+This example shows how FIR is acheived using our library and MLIR-based convolution method. It uses basic lowering pipelines so performance is poor by default. Different windows could be applied and cutoff frequency could be altered. The result could be saved to any specified destination available, or saved to current working directory by default. Notice that you must specify input file first than the output destination could be specified.
+
+```
+$ cd buddy-mlir/build
+$ cmake -G Ninja .. \
+    -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
+    -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE
+$ ninja firLowpass
+$ cd bin
+$ ./firLowpass [input_file] [output_dest]
+```
+Specify nothing to process default NASA audio.
 
 ## Testing and Demonstrating Examples
 
@@ -152,6 +184,7 @@ $ mkdir llvm/build
 $ cd llvm/build
 $ cmake -G Ninja ../llvm \
     -DLLVM_ENABLE_PROJECTS="mlir" \
+    -DLLVM_BUILD_EXAMPLES=ON \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
