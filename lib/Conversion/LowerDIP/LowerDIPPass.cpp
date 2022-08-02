@@ -508,7 +508,7 @@ public:
                 builder.create<scf::YieldOp>(loc);
               });
         });
-
+    // Remove the origin convolution operation.
     rewriter.eraseOp(op);
     return success();
   }

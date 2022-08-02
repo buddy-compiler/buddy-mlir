@@ -20,9 +20,7 @@
 
 #include "DIP/DIPOps.h"
 #include "DIP/DIPDialect.h"
-#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/Support/LogicalResult.h"
 
 #define GET_OP_CLASSES
 #include "DIP/DIPOps.cpp.inc"

@@ -87,14 +87,14 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d"> {
                        Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
                            [MemRead]>:$memrefK,
                        Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
-                           [MemWrite]>:$memrefO,
+                           [MemRead]>:$memrefCO,
                        Index : $centerX,
                        Index : $centerY,
                        AnyTypeOf<[AnyI32, AnyFloat]> : $constantValue,
                        DIP_BoundaryOptionAttr:$boundary_option);
 
   let assemblyFormat = [{
-    $boundary_option $memrefI `,` $memrefK `,` $memrefO `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+    $boundary_option $memrefI `,` $memrefK `,` $memrefCO `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
   }];
 }
 

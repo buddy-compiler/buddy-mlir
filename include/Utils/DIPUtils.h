@@ -24,6 +24,20 @@
 
 #include "Utils/Utils.h"
 
+Value insertFMAOp(OpBuilder &builder, Location loc, VectorType type,
+                  Value input, Value kernel, Value output) {
+  Value res = {};
+  auto elemTy = type.getElementType();
+  if (elemTy.isF32()) {
+      res = builder.create<vector::FMAOp>(loc, input, kernel, output);
+  } else if (elemTy.isInteger(32)) {
+      Value mul= builder.create<arith::MulIOp>(loc, input, kernel);
+      res = builder.create<arith::AddIOp>(loc, mul, output);
+  }
+
+  return res;
+}
+
 // Calculate result of FMA and store it in output memref. This function cannot
 // handle tail processing.
 void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
@@ -32,14 +46,7 @@ void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
                                      Value beginIdx, Value endIdx) {
   Value outputVec = builder.create<LoadOp>(loc, vecType, output,
                                            ValueRange{beginIdx, endIdx});
-  Value resVec = {};
-  auto elemTy = vecType.getElementType();
-  if (elemTy.isF32()) {
-      resVec = builder.create<vector::FMAOp>(loc, inputVec, kernelVec, outputVec);
-  } else if (elemTy.isInteger(32)) {
-      Value mulVec = builder.create<arith::MulIOp>(loc, inputVec, kernelVec);
-      resVec = builder.create<arith::AddIOp>(loc, mulVec, outputVec);
-  }
+  Value resVec = insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
   builder.create<StoreOp>(loc, resVec, output, ValueRange{beginIdx, endIdx});
 }
 
@@ -78,15 +85,7 @@ void calcAndStoreFMAwTailProcessing(OpBuilder &builder, Location loc,
       [&](OpBuilder &builder, Location loc) {
         Value outputVec = builder.create<LoadOp>(loc, vecType, output,
                                                  ValueRange{beginIdx, endIdx});
-        Value resVec = {};
-        auto elemTy = vecType.getElementType();
-        if (elemTy.isF32()) {
-          resVec = builder.create<vector::FMAOp>(loc, inputVec, kernelVec, outputVec);
-        } else if (elemTy.isInteger(32)) {
-          Value mulVec = builder.create<arith::MulIOp>(loc, inputVec, kernelVec);
-          resVec = builder.create<arith::AddIOp>(loc, mulVec, outputVec);
-        }
-
+        Value resVec = insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
         builder.create<StoreOp>(loc, resVec, output,
                                 ValueRange{beginIdx, endIdx});
 
@@ -98,15 +97,7 @@ void calcAndStoreFMAwTailProcessing(OpBuilder &builder, Location loc,
         Value outputVec = builder.create<MaskedLoadOp>(
             loc, vecType, output, ValueRange{beginIdx, endIdx}, extraElemMask,
             zeroPadding);
-        Value resVec = {};
-        auto elemTy = vecType.getElementType();
-        if (elemTy.isF32()) {
-          resVec = builder.create<vector::FMAOp>(loc, inputVec, kernelVec, outputVec);
-        } else if (elemTy.isInteger(32)) {
-          Value mulVec = builder.create<arith::MulIOp>(loc, inputVec, kernelVec);
-          resVec = builder.create<arith::AddIOp>(loc, mulVec, outputVec);
-        }
-
+        Value resVec = insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
         builder.create<MaskedStoreOp>(loc, output, ValueRange{beginIdx, endIdx},
                                       extraElemMask, resVec);
 
