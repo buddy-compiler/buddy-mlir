@@ -30,6 +30,7 @@ enum class INTERPOLATION_TYPE {
   NEAREST_NEIGHBOUR_INTERPOLATION,
   BILINEAR_INTERPOLATION
 };
+enum class STRUCTURING_TYPE {FLAT, NONFLAT};
 
 namespace detail {
 // Functions present inside dip::detail are not meant to be called by users
@@ -54,6 +55,23 @@ void _mlir_ciface_resize_2d_nearest_neighbour_interpolation(
 void _mlir_ciface_resize_2d_bilinear_interpolation(
     Img<float, 2> *input, float horizontalScalingFactor,
     float verticalScalingFactor, MemRef<float, 2> *output);
+
+void _mlir_ciface_erosion_2d_constant_padding_flat(
+    Img<float,2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, 
+    unsigned int centerX, unsigned int centerY, float constantValue);   
+
+void _mlir_ciface_erosion_2d_replicate_padding_flat(
+    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    unsigned int centerX, unsigned int centerY, float constantValue);
+
+void _mlir_ciface_erosion_2d_constant_padding_non_flat(
+  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, 
+    unsigned int centerX, unsigned int centerY, float constantValue); 
+
+void _mlir_ciface_erosion_2d_replicate_padding_non_flat(
+  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, 
+    unsigned int centerX, unsigned int centerY, float constantValue);  
+
 }
 
 MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input, INTERPOLATION_TYPE type,
@@ -146,5 +164,22 @@ MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
 
   return detail::Resize2D_Impl(input, type, scalingRatios, outputSize);
 }
+void Erosion2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option,STRUCTURING_TYPE type, float constantValue = 0)
+{
+   if(option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::FLAT )
+   {
+   detail::_mlir_ciface_erosion_2d_constant_padding_flat(input, kernel, output, centerX, centerY, constantValue);
+   }
+   else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::FLAT){
+    detail::_mlir_ciface_erosion_2d_replicate_padding_non_flat(input, kernel, output, centerX, centerY, 0);
+   }
+    else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::NONFLAT){
+   detail::_mlir_ciface_erosion_2d_replicate_padding_non_flat(input, kernel, output, centerX, centerY, 0);
+   }
+ else if (option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::NONFLAT){
+  detail::_mlir_ciface_erosion_2d_constant_padding_non_flat(input, kernel, output, centerX, centerY, constantValue);
+   }
+}
+
 } // namespace dip
 #endif
