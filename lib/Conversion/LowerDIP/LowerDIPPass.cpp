@@ -51,12 +51,10 @@ namespace {
 Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc, Type elemTy) {
     Value op = {};
     auto bitWidth = elemTy.getIntOrFloatBitWidth();
-    if (elemTy.isF32()) {
-      FloatType type = FloatType::getF32(ctx);
-      op = builder.create<ConstantFloatOp>(loc, (APFloat)(float)0, type);
-    } else if (elemTy.isF64()) {
-      FloatType type = FloatType::getF64(ctx);
-      op = builder.create<ConstantFloatOp>(loc, (APFloat)(float)0, type);
+    if (elemTy.isF32() || elemTy.isF64()) {
+      FloatType type = elemTy.isF32() ? FloatType::getF32(ctx) : FloatType::getF64(ctx);
+      auto zero = APFloat::getZero(type.getFloatSemantics());
+      op = builder.create<ConstantFloatOp>(loc, zero, type);
     } else if (elemTy.isInteger(bitWidth)) {
       IntegerType type = IntegerType::get(ctx, bitWidth);
       op = builder.create<ConstantIntOp>(loc, 0, type);
