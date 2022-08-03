@@ -24,4 +24,3 @@
 
 #define GET_OP_CLASSES
 #include "DIP/DIPOps.cpp.inc"
-

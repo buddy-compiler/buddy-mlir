@@ -48,19 +48,21 @@ using namespace mlir::arith;
 
 namespace {
 
-Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc, Type elemTy) {
-    Value op = {};
-    auto bitWidth = elemTy.getIntOrFloatBitWidth();
-    if (elemTy.isF32() || elemTy.isF64()) {
-      FloatType type = elemTy.isF32() ? FloatType::getF32(ctx) : FloatType::getF64(ctx);
-      auto zero = APFloat::getZero(type.getFloatSemantics());
-      op = builder.create<ConstantFloatOp>(loc, zero, type);
-    } else if (elemTy.isInteger(bitWidth)) {
-      IntegerType type = IntegerType::get(ctx, bitWidth);
-      op = builder.create<ConstantIntOp>(loc, 0, type);
-    }
+Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
+                           Type elemTy) {
+  Value op = {};
+  auto bitWidth = elemTy.getIntOrFloatBitWidth();
+  if (elemTy.isF32() || elemTy.isF64()) {
+    FloatType type =
+        elemTy.isF32() ? FloatType::getF32(ctx) : FloatType::getF64(ctx);
+    auto zero = APFloat::getZero(type.getFloatSemantics());
+    op = builder.create<ConstantFloatOp>(loc, zero, type);
+  } else if (elemTy.isInteger(bitWidth)) {
+    IntegerType type = IntegerType::get(ctx, bitWidth);
+    op = builder.create<ConstantIntOp>(loc, 0, type);
+  }
 
-    return op;
+  return op;
 }
 
 class DIPCorr2DOpLowering : public OpRewritePattern<dip::Corr2DOp> {
@@ -105,7 +107,8 @@ public:
     auto elemTy = inElemTy;
     auto bitWidth = elemTy.getIntOrFloatBitWidth();
     if (!elemTy.isF64() && !elemTy.isF32() && !elemTy.isInteger(bitWidth)) {
-      return op->emitOpError() << "supports only f32, f64 and integer types. " << elemTy << "is passed";
+      return op->emitOpError() << "supports only f32, f64 and integer types. "
+                               << elemTy << "is passed";
     }
 
     IntegerType i1 = IntegerType::get(ctx, 1);
