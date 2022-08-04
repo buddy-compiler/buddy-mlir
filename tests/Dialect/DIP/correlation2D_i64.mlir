@@ -27,10 +27,10 @@ func.func @main() -> i32 {
   %identity = memref.get_global @global_identity : memref<3x3xi64>
   %output = memref.get_global @global_output: memref<3x3xi64>
 
-  %x = arith.constant 1 : index
-  %y = arith.constant 1 : index
+  %kernelAnchorX = arith.constant 1 : index
+  %kernelAnchorY = arith.constant 1 : index
   %c = arith.constant 0 : i64 
-  dip.corr_2d <CONSTANT_PADDING> %input, %identity, %output, %x, %x, %c : memref<3x3xi64>, memref<3x3xi64>, memref<3x3xi64>, index, index, i64
+  dip.corr_2d <CONSTANT_PADDING> %input, %identity, %output, %kernelAnchorX, %kernelAnchorY, %c : memref<3x3xi64>, memref<3x3xi64>, memref<3x3xi64>, index, index, i64
   
   %printed_output = memref.cast %output : memref<3x3xi64> to memref<*xi64>
   call @printMemrefI64(%printed_output) : (memref<*xi64>) -> ()

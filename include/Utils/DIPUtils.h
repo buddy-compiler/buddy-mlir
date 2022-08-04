@@ -24,6 +24,29 @@
 
 #include "Utils/Utils.h"
 
+// Inserts a constant op with a value 0 into a location `loc` based a type `type`
+// Supported types: f32, f64, integer types
+Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
+                           Type elemTy) {
+  Value op = {};
+  auto bitWidth = elemTy.getIntOrFloatBitWidth();
+  if (elemTy.isF32() || elemTy.isF64()) {
+    FloatType type =
+        elemTy.isF32() ? FloatType::getF32(ctx) : FloatType::getF64(ctx);
+    auto zero = APFloat::getZero(type.getFloatSemantics());
+    op = builder.create<ConstantFloatOp>(loc, zero, type);
+  } else if (elemTy.isInteger(bitWidth)) {
+    IntegerType type = IntegerType::get(ctx, bitWidth);
+    op = builder.create<ConstantIntOp>(loc, 0, type);
+  }
+
+  return op;
+}
+
+// Inserts FMA operation into a given location `loc` based on a type `type`.
+// Note: FMA is done by Multiply and Add for integer types, because there is no
+// a dedicated FMA operation
+// Supported types: f32, f64, integer types
 Value insertFMAOp(OpBuilder &builder, Location loc, VectorType type,
                   Value inputVec, Value kernelVec, Value outputVec) {
   Value res = {};
