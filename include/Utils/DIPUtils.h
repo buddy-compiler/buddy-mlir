@@ -24,8 +24,8 @@
 
 #include "Utils/Utils.h"
 
-// Inserts a constant op with a value 0 into a location `loc` based a type `type`
-// Supported types: f32, f64, integer types
+// Inserts a constant op with value 0 into a location `loc` based on type
+// `type`. Supported types are : f32, f64, integer types
 Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
                            Type elemTy) {
   Value op = {};
@@ -43,9 +43,9 @@ Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
   return op;
 }
 
-// Inserts FMA operation into a given location `loc` based on a type `type`.
+// Inserts FMA operation into a given location `loc` based on type `type`.
 // Note: FMA is done by Multiply and Add for integer types, because there is no
-// a dedicated FMA operation
+// dedicated FMA operation for them.
 // Supported types: f32, f64, integer types
 Value insertFMAOp(OpBuilder &builder, Location loc, VectorType type,
                   Value inputVec, Value kernelVec, Value outputVec) {

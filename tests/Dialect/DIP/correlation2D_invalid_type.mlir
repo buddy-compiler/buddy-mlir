@@ -8,7 +8,6 @@ memref.global "private" @global_input_f32 : memref<3x3xf32> = dense<[[0. , 1. , 
                                                                      [10., 11., 12.],
                                                                      [20., 21., 22.]]>
 
-
 memref.global "private" @global_identity_f32 : memref<3x3xf32> = dense<[[0., 0., 0.],
                                                                         [0., 1., 0.],
                                                                         [0., 0., 0.]]>
@@ -20,7 +19,6 @@ memref.global "private" @global_output_f32 : memref<3x3xf32> = dense<[[0., 0., 0
 memref.global "private" @global_input_i32 : memref<3x3xi32> = dense<[[0 , 1 , 2 ],
                                                                      [10, 11, 12],
                                                                      [20, 21, 22]]>
-
 
 memref.global "private" @global_identity_i32 : memref<3x3xi32> = dense<[[0, 0, 0],
                                                                         [0, 1, 0],

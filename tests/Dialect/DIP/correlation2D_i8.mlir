@@ -11,7 +11,6 @@ memref.global "private" @global_input : memref<3x3xi8> = dense<[[97, 97, 97],
                                                                 [97, 97, 97],
                                                                 [97, 97, 97]]>
 
-
 memref.global "private" @global_identity : memref<3x3xi8> = dense<[[0, 0, 0],
                                                                    [0, 1, 0],
                                                                    [0, 0, 0]]>
