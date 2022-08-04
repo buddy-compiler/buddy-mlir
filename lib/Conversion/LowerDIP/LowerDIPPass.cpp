@@ -48,23 +48,6 @@ using namespace mlir::arith;
 
 namespace {
 
-Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
-                           Type elemTy) {
-  Value op = {};
-  auto bitWidth = elemTy.getIntOrFloatBitWidth();
-  if (elemTy.isF32() || elemTy.isF64()) {
-    FloatType type =
-        elemTy.isF32() ? FloatType::getF32(ctx) : FloatType::getF64(ctx);
-    auto zero = APFloat::getZero(type.getFloatSemantics());
-    op = builder.create<ConstantFloatOp>(loc, zero, type);
-  } else if (elemTy.isInteger(bitWidth)) {
-    IntegerType type = IntegerType::get(ctx, bitWidth);
-    op = builder.create<ConstantIntOp>(loc, 0, type);
-  }
-
-  return op;
-}
-
 class DIPCorr2DOpLowering : public OpRewritePattern<dip::Corr2DOp> {
 public:
   using OpRewritePattern<dip::Corr2DOp>::OpRewritePattern;
