@@ -43,3 +43,8 @@ target_link_libraries(resize2D ${OpenCV_LIBS} DIP)
 add_executable(erosion2D erosion2D.cpp)
 add_dependencies(erosion2D buddy-opt)
 target_link_libraries(erosion2D ${OpenCV_LIBS} DIP)
+
+add_executable(dilation2D dilation2D.cpp)
+add_dependencies(dilation2D buddy-opt)
+target_link_libraries(dilation2D ${OpenCV_LIBS} DIP)
+

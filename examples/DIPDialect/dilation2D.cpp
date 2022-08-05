@@ -37,8 +37,8 @@ bool testImages(cv::Mat img1, cv::Mat img2) {
         std::cout << (int)img1.at<uchar>(i, j) << "\n";
         std::cout << (int)img2.at<uchar>(i, j) << "\n\n";
 
-       std::cout << img1 << "\n\n";
-       std::cout << img2 << "\n\n";
+      //  std::cout << img1 << "\n\n";
+       // std::cout << img2 << "\n\n";
         return 0;
       }
     }
@@ -81,7 +81,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
 
   // Call the MLIR Erosion2D function.
-  dip::Erosion2D(&input, &kernel, &output1, x, y,
+  dip::Dilation2D(&input, &kernel, &output1, x, y,
               dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
 
   // Define a cv::Mat with the output of Erosion2D.
@@ -91,7 +91,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
   Mat opencvConstantPaddingflat, opencvReplicatePaddingflat, opencvConstantPaddingnonflat, opencvReplicatePaddingnonflat;
-  erode(image, opencvReplicatePaddingflat, kernel1, cv::Point(x,y), 1, cv::BORDER_CONSTANT, 0);
+  dilate(image, opencvReplicatePaddingflat, kernel1, cv::Point(x,y), 1, cv::BORDER_CONSTANT, 0);
   imwrite(argv[3], opencvReplicatePaddingflat);
 
   if (!testImages(o1, opencvReplicatePaddingflat)) {
@@ -101,7 +101,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
 
   // Call the MLIR Erosion2D function.
-dip::Erosion2D(&input, &kernel, &output2, x, y,
+ dip::Erosion2D(&input, &kernel, &output2, x, y,
               dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::FLAT,0.0);
 
   // Define a cv::Mat with the output of Erosion2D.

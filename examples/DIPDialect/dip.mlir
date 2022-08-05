@@ -52,3 +52,28 @@ func.func @erosion_2d_replicate_padding_non_flat(%inputImage : memref<?x?xf32>, 
   dip.erosion_2d REPLICATE_PADDING %inputImage, NONFLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
   return 
 }
+
+func.func @dilation_2d_constant_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
+{
+  dip.dilation_2d CONSTANT_PADDING %inputImage, FLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  return
+}
+
+func.func @dilation_2d_replicate_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
+{
+  dip.dilation_2d REPLICATE_PADDING %inputImage, FLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  return 
+}
+ 
+func.func @dilation_2d_constant_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
+{
+  dip.dilation_2d CONSTANT_PADDING %inputImage, NONFLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  return 
+}
+
+func.func @dilation_2d_replicate_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
+{
+  dip.dilation_2d REPLICATE_PADDING %inputImage, NONFLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  return 
+}
+
