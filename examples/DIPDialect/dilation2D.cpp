@@ -12,6 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+//===----------------------------------------------------------------------===//
+//
+// This file implements  2D dilation examples with dip.dilation_2d operation.
+// The dip.dilation_2d operation will be compiled into an object file with the
+// buddy-opt tool.
+// This file will be linked with the object file to generate the executable
+// file.
+//
+//===----------------------------------------------------------------------===//
 
 #include <opencv2/opencv.hpp>
 
@@ -73,10 +82,6 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   MemRef<float, 2> output3(sizesOutput);
   MemRef<float, 2> output4(sizesOutput);
 
-
-
-
-
   Mat kernel1 = Mat(3, 3, CV_32FC1, laplacianKernelAlign);
 
 
@@ -90,6 +95,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   imwrite(argv[2], outputImageReplicatePadding_flat);
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
+  // cv::Mat to store output of the permutations of dilation op
   Mat opencvConstantPaddingflat, opencvReplicatePaddingflat, opencvConstantPaddingnonflat, opencvReplicatePaddingnonflat;
   dilate(image, opencvReplicatePaddingflat, kernel1, cv::Point(x,y), 1, cv::BORDER_CONSTANT, 0);
   imwrite(argv[3], opencvReplicatePaddingflat);
@@ -102,7 +108,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
   // Call the MLIR Dilation2D function.
  dip::Dilation2D(&input, &kernel, &output2, x, y,
-              dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::FLAT,0.0);
+              dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::FLAT,0.0);
 
   // Define a cv::Mat with the output of Dilation2D.
   Mat outputImageConstantPadding_flat(sizesOutput[0], sizesOutput[1], CV_32FC1,
@@ -110,7 +116,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   imwrite(argv[4], outputImageConstantPadding_flat);
 
   Mat o2 = imread(argv[4], IMREAD_GRAYSCALE);
- dilate(image, opencvConstantPaddingflat, kernel1, cv::Point(x, y), 1, cv::BORDER_CONSTANT, 0.0);
+ dilate(image, opencvConstantPaddingflat, kernel1, cv::Point(x, y), 1, cv::BORDER_REPLICATE, 0.0);
  imwrite(argv[5], opencvReplicatePaddingflat);
 
   if (!testImages(o2, opencvConstantPaddingflat)) {

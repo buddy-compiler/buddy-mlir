@@ -451,7 +451,7 @@ void BilinearInterpolationResizing(
 // Function that compares input and output memrefs and stores minimum values in the output memref. 
 // This function can handle only flat structuring elements.
 
- void compAndStorewTailProcessingFlat(OpBuilder &builder, Location loc,
+ void compAndStorewTailProcessingFlaterosion(OpBuilder &builder, Location loc,
                                     VectorType vecType, Value inputVec,
                                     Value kernelVec, Value output,
                                     Value beginIdx, Value endIdx,
@@ -510,7 +510,7 @@ builder.create<scf::IfOp>(
 // Function that compares input and output memrefs and stores minimum values in the output memref. 
 // This function can handle only non-flat structuring elements.
 
-void compAndStorewTailProcessingNonFlat(OpBuilder &builder, Location loc,
+void compAndStorewTailProcessingNonFlaterosion(OpBuilder &builder, Location loc,
                                     VectorType vecType, Value inputVec,
                                     Value kernelVec, Value output,
                                     Value beginIdx, Value endIdx,
@@ -569,6 +569,8 @@ builder.create<StoreOp>(loc, OUTPUTVEC, output,ValueRange{beginIdx, endIdx});
       }); 
 }
 
+// This function compares values in input and output memref and stores the maximum of the 
+//values in the output memref.
 
  void compAndStorewTailProcessingFlatdilation(OpBuilder &builder, Location loc,
                                     VectorType vecType, Value inputVec,

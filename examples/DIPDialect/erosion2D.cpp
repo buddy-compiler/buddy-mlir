@@ -12,6 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+//===----------------------------------------------------------------------===//
+//
+// This file implements a 2D erosion examples with dip.corr_2d operation.
+// The dip.erosion_2d operation will be compiled into an object file with the
+// buddy-opt tool.
+// This file will be linked with the object file to generate the executable
+// file.
+//
+//===----------------------------------------------------------------------===//
+
 
 #include <opencv2/opencv.hpp>
 
@@ -72,10 +82,6 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   MemRef<float, 2> output2(sizesOutput);
   MemRef<float, 2> output3(sizesOutput);
   MemRef<float, 2> output4(sizesOutput);
-
-
-
-
 
   Mat kernel1 = Mat(3, 3, CV_32FC1, laplacianKernelAlign);
 

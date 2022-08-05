@@ -849,9 +849,6 @@ public:
                                 ValueRange{ivs1[0], ivs1[1]});
         });
         
-
-        
-
     AffineExpr a, b, c;
     bindDims(ctx, a, b, c);
     AffineMap calcHelper = AffineMap::get(3, 0, {a + b - c}, ctx);
@@ -895,16 +892,17 @@ public:
                                   kernelSize, c1, pseudoCol, ivs[2]);
                  if(structuringElementAttr == dip::StructuringType::FlatElement){
                     
-                   compAndStorewTailProcessingFlat(
+                   compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);}
-                                                   if(structuringElementAttr == dip::StructuringType::NonFlatElement){
-                                                compAndStorewTailProcessingNonFlat(
-                                  builder, loc, vectorTy32, inputVec, kernelVec,
-                                  output, ivs[0], ivs[2], tailCond, zeroPadding, Paddingvec,
-                                  inputCol, vectorMaskTy);
+                                                   if(structuringElementAttr == 
+                                                    dip::StructuringType::NonFlatElement){
+                    compAndStorewTailProcessingNonFlaterosion(
+                                        builder, loc, vectorTy32, inputVec, kernelVec,
+                                        output, ivs[0], ivs[2], tailCond, zeroPadding, Paddingvec,
+                                        inputCol, vectorMaskTy);
                                                   }
                 } else {
                   Value colLeftCond = builder.create<CmpIOp>(
@@ -939,13 +937,13 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                         if(structuringElementAttr == dip::StructuringType::FlatElement) {
-                        compAndStorewTailProcessingFlat(
+                        compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);}
                             if (structuringElementAttr == dip::StructuringType::NonFlatElement){
-                                compAndStorewTailProcessingNonFlat(
+                                compAndStorewTailProcessingNonFlaterosion(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2], tailCond, zeroPadding, Paddingvec,
                                   inputCol, vectorMaskTy);
@@ -973,13 +971,13 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                               if(structuringElementAttr == dip::StructuringType::FlatElement){
-                               compAndStorewTailProcessingFlat(
+                               compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);}
                                    if (structuringElementAttr == dip::StructuringType::NonFlatElement){
-                              compAndStorewTailProcessingNonFlat(
+                              compAndStorewTailProcessingNonFlaterosion(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2], tailCond, zeroPadding,Paddingvec,
                                   inputCol, vectorMaskTy);
@@ -1015,12 +1013,12 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                                   if(structuringElementAttr == dip::StructuringType::FlatElement){
-                              compAndStorewTailProcessingFlat(
+                              compAndStorewTailProcessingFlaterosion(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2], tailCond, Paddingvec,zeroPadding,
                                   inputCol, vectorMaskTy);}
                                   if (structuringElementAttr == dip::StructuringType::NonFlatElement){
-                                compAndStorewTailProcessingNonFlat(
+                                compAndStorewTailProcessingNonFlaterosion(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2], tailCond, zeroPadding,Paddingvec,
                                   inputCol, vectorMaskTy);
@@ -1085,13 +1083,13 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                             if(structuringElementAttr == dip::StructuringType::FlatElement) {
-                             compAndStorewTailProcessingFlat(
+                             compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);}
                                  if (structuringElementAttr == dip::StructuringType::NonFlatElement){
-                                    compAndStorewTailProcessingNonFlat(
+                                    compAndStorewTailProcessingNonFlaterosion(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2], tailCond, zeroPadding,Paddingvec,
                                   inputCol, vectorMaskTy);
@@ -1116,13 +1114,13 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                                       if(structuringElementAttr == dip::StructuringType::FlatElement){
-                                  compAndStorewTailProcessingFlat(
+                                  compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond,Paddingvec, zeroPadding, inputCol,
                                         vectorMaskTy);}
                                        if (structuringElementAttr == dip::StructuringType::NonFlatElement){
-                                           compAndStorewTailProcessingNonFlat(
+                                           compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond,zeroPadding,Paddingvec, inputCol,
@@ -1172,13 +1170,13 @@ public:
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs[2]);
                                       if(structuringElementAttr == dip::StructuringType::FlatElement) {
-                                  compAndStorewTailProcessingFlat(
+                                  compAndStorewTailProcessingFlaterosion(
                                       builder, loc, vectorTy32, inputVec,
                                       kernelVec, output, ivs[0], ivs[2],
                                       tailCond, Paddingvec,zeroPadding, inputCol,
                                       vectorMaskTy);}
                                       if (structuringElementAttr == dip::StructuringType::NonFlatElement)
-                                      { compAndStorewTailProcessingNonFlat(
+                                      { compAndStorewTailProcessingNonFlaterosion(
                                       builder, loc, vectorTy32, inputVec,
                                       kernelVec, output, ivs[0], ivs[2],
                                       tailCond, zeroPadding,Paddingvec, inputCol,
@@ -1202,13 +1200,13 @@ public:
 
                             if(structuringElementAttr == dip::StructuringType::FlatElement){
 
-                        compAndStorewTailProcessingFlat(
+                        compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);}
                              if (structuringElementAttr == dip::StructuringType::NonFlatElement){
-                               compAndStorewTailProcessingNonFlat(
+                               compAndStorewTailProcessingNonFlaterosion(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2], tailCond, zeroPadding,Paddingvec,
                                   inputCol, vectorMaskTy);
@@ -1250,14 +1248,14 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                               if(structuringElementAttr == dip::StructuringType::FlatElement){
-                               compAndStorewTailProcessingFlat(
+                               compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);}
                                    if (structuringElementAttr == dip::StructuringType::NonFlatElement)
                                   {
-                                     compAndStorewTailProcessingNonFlat(
+                                     compAndStorewTailProcessingNonFlaterosion(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2], tailCond, zeroPadding,Paddingvec,
                                   inputCol, vectorMaskTy);
@@ -1288,14 +1286,14 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                                     if(structuringElementAttr == dip::StructuringType::FlatElement){
-                                    compAndStorewTailProcessingFlat(
+                                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);}
                                          if (structuringElementAttr == dip::StructuringType::NonFlatElement)
                                         {
-                                             compAndStorewTailProcessingNonFlat(
+                                             compAndStorewTailProcessingNonFlaterosion(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2], tailCond, zeroPadding,Paddingvec,
                                   inputCol, vectorMaskTy);
@@ -1342,14 +1340,14 @@ public:
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs[2]);
                                         if(structuringElementAttr == dip::StructuringType::FlatElement){
-                                    compAndStorewTailProcessingFlat(
+                                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);}
                                          if (structuringElementAttr == dip::StructuringType::NonFlatElement)
                                         {
-                                              compAndStorewTailProcessingNonFlat(
+                                              compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, zeroPadding,Paddingvec, inputCol,
@@ -1450,9 +1448,6 @@ public:
              builder.create<StoreOp>(loc, PaddingElement, output,
                                 ValueRange{ivs1[0], ivs1[1]});
         });
-        
-
-        
 
     AffineExpr a, b, c;
     bindDims(ctx, a, b, c);

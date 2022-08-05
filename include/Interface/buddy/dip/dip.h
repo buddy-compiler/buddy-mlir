@@ -200,18 +200,18 @@ void Erosion2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> 
 void Dilation2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, STRUCTURING_TYPE type, float constantValue = 0)
 {
   if(option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::FLAT )
-   {
+  {
    detail::_mlir_ciface_dilation_2d_constant_padding_flat(input, kernel, output, centerX, centerY, constantValue);
-   }
-   else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::FLAT){
+  }
+  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::FLAT){
     detail::_mlir_ciface_dilation_2d_replicate_padding_non_flat(input, kernel, output, centerX, centerY, 0);
-   }
-    else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::NONFLAT){
+  }
+  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::NONFLAT){
    detail::_mlir_ciface_dilation_2d_replicate_padding_non_flat(input, kernel, output, centerX, centerY, 0);
-   }
+  }
  else if (option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::NONFLAT){
   detail::_mlir_ciface_dilation_2d_constant_padding_non_flat(input, kernel, output, centerX, centerY, constantValue);
-   }
+  }
 }
 
 } // namespace dip
