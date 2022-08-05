@@ -24,8 +24,15 @@
 #include "Interface/buddy/core/ImageContainer.h"
 
 namespace dip {
+// Availale types of boundary extrapolation techniques provided in DIP dialect.
 enum class BOUNDARY_OPTION { CONSTANT_PADDING, REPLICATE_PADDING };
+
+// Available ways of specifying angles in image processing operations provided
+// by the DIP dialect.
 enum class ANGLE_TYPE { DEGREE, RADIAN };
+
+// Available ways of interpolation techniques in image processing operations
+// provided by the DIP dialect.
 enum class INTERPOLATION_TYPE {
   NEAREST_NEIGHBOUR_INTERPOLATION,
   BILINEAR_INTERPOLATION
@@ -34,6 +41,7 @@ enum class INTERPOLATION_TYPE {
 namespace detail {
 // Functions present inside dip::detail are not meant to be called by users
 // directly.
+
 // Declare the Corr2D C interface.
 extern "C" {
 void _mlir_ciface_corr_2d_constant_padding(
@@ -44,9 +52,11 @@ void _mlir_ciface_corr_2d_replicate_padding(
     Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     unsigned int centerX, unsigned int centerY, float constantValue);
 
+// Declare the Rotate2D C interface.
 void _mlir_ciface_rotate_2d(Img<float, 2> *input, float angleValue,
                             MemRef<float, 2> *output);
 
+// Declare the Resize2D C interface.
 void _mlir_ciface_resize_2d_nearest_neighbour_interpolation(
     Img<float, 2> *input, float horizontalScalingFactor,
     float verticalScalingFactor, MemRef<float, 2> *output);
@@ -56,6 +66,7 @@ void _mlir_ciface_resize_2d_bilinear_interpolation(
     float verticalScalingFactor, MemRef<float, 2> *output);
 }
 
+// Helper function for applying 2D resize operation on images.
 MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input, INTERPOLATION_TYPE type,
                                std::vector<float> scalingRatios,
                                intptr_t outputSize[2]) {
@@ -77,6 +88,7 @@ MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input, INTERPOLATION_TYPE type,
 }
 } // namespace detail
 
+// User interface for 2D Correlation.
 void Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
             MemRef<float, 2> *output, unsigned int centerX,
             unsigned int centerY, BOUNDARY_OPTION option,
@@ -90,6 +102,7 @@ void Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
   }
 }
 
+// User interface for 2D Rotation.
 MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
                           ANGLE_TYPE angleType) {
   float angleRad;
@@ -117,6 +130,7 @@ MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
   return output;
 }
 
+// User interface for 2D Resize.
 MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
                           std::vector<float> scalingRatios) {
   if (!scalingRatios[0] || !scalingRatios[1]) {
@@ -133,6 +147,7 @@ MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
   return detail::Resize2D_Impl(input, type, scalingRatios, outputSize);
 }
 
+// User interface for 2D Resize.
 MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
                           intptr_t outputSize[2]) {
   if (!outputSize[0] || !outputSize[1]) {
