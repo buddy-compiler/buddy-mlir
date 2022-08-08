@@ -57,8 +57,12 @@ tools = [
     'buddy-opt',
     'buddy-translate',
     'buddy-container-test',
-    'buddy-audio-container-test'
+    'buddy-audio-container-test',
+    'mlir-cpu-runner',
 ]
+tools.extend([
+    ToolSubst('%mlir_runner_utils_dir', config.mlir_runner_utils_dir, unresolved='ignore'),
+])
 
 if config.buddy_enable_opencv == "ON":
   tools.append('buddy-image-container-test')

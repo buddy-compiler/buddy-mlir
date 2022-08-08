@@ -25,6 +25,10 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/Location.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/ValueRange.h"
 #include "mlir/Pass/Pass.h"
 
 #include "DIP/DIPDialect.h"
@@ -56,7 +60,7 @@ public:
   LogicalResult matchAndRewrite(dip::Corr2DOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
-    auto ctx = op->getContext();
+    auto *ctx = op->getContext();
 
     // Create constant indices.
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
@@ -72,7 +76,24 @@ public:
     auto boundaryOptionAttr = op.boundary_option();
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
-    FloatType f32 = FloatType::getF32(ctx);
+    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto kElemTy = kernel.getType().cast<MemRefType>().getElementType();
+    auto outElemTy = output.getType().cast<MemRefType>().getElementType();
+    auto constElemTy = constantValue.getType();
+    if (inElemTy != kElemTy || kElemTy != outElemTy ||
+        outElemTy != constElemTy) {
+      return op->emitOpError() << "input, kernel, output and constant must "
+                                  "have the same element type";
+    }
+    // NB: we can infer element type for all operation to be the same as input
+    // since we verified that the operand types are the same
+    auto elemTy = inElemTy;
+    auto bitWidth = elemTy.getIntOrFloatBitWidth();
+    if (!elemTy.isF64() && !elemTy.isF32() && !elemTy.isInteger(bitWidth)) {
+      return op->emitOpError() << "supports only f32, f64 and integer types. "
+                               << elemTy << "is passed";
+    }
+
     IntegerType i1 = IntegerType::get(ctx, 1);
 
     // Create DimOp.
@@ -90,11 +111,10 @@ public:
                                      kernelSize};
     SmallVector<int64_t, 8> steps{1, 1, stride, 1};
 
-    VectorType vectorTy32 = VectorType::get({stride}, f32);
+    VectorType vectorTy32 = VectorType::get({stride}, elemTy);
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
 
-    Value zeroPaddingElem =
-        rewriter.create<ConstantFloatOp>(loc, (APFloat)(float)0, f32);
+    Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, elemTy);
     Value zeroPadding =
         rewriter.create<BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 

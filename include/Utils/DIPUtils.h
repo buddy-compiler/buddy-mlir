@@ -24,6 +24,44 @@
 
 #include "Utils/Utils.h"
 
+// Inserts a constant op with value 0 into a location `loc` based on type
+// `type`. Supported types are : f32, f64, integer types
+Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
+                           Type elemTy) {
+  Value op = {};
+  auto bitWidth = elemTy.getIntOrFloatBitWidth();
+  if (elemTy.isF32() || elemTy.isF64()) {
+    FloatType type =
+        elemTy.isF32() ? FloatType::getF32(ctx) : FloatType::getF64(ctx);
+    auto zero = APFloat::getZero(type.getFloatSemantics());
+    op = builder.create<ConstantFloatOp>(loc, zero, type);
+  } else if (elemTy.isInteger(bitWidth)) {
+    IntegerType type = IntegerType::get(ctx, bitWidth);
+    op = builder.create<ConstantIntOp>(loc, 0, type);
+  }
+
+  return op;
+}
+
+// Inserts FMA operation into a given location `loc` based on type `type`.
+// Note: FMA is done by Multiply and Add for integer types, because there is no
+// dedicated FMA operation for them.
+// Supported types: f32, f64, integer types
+Value insertFMAOp(OpBuilder &builder, Location loc, VectorType type,
+                  Value inputVec, Value kernelVec, Value outputVec) {
+  Value res = {};
+  auto elemTy = type.getElementType();
+  auto bitWidth = elemTy.getIntOrFloatBitWidth();
+  if (elemTy.isF32() || elemTy.isF64()) {
+    res = builder.create<vector::FMAOp>(loc, inputVec, kernelVec, outputVec);
+  } else if (elemTy.isInteger(bitWidth)) {
+    Value mul = builder.create<arith::MulIOp>(loc, inputVec, kernelVec);
+    res = builder.create<arith::AddIOp>(loc, mul, outputVec);
+  }
+
+  return res;
+}
+
 // Calculate result of FMA and store it in output memref. This function cannot
 // handle tail processing.
 void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
@@ -32,7 +70,8 @@ void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
                                      Value beginIdx, Value endIdx) {
   Value outputVec = builder.create<LoadOp>(loc, vecType, output,
                                            ValueRange{beginIdx, endIdx});
-  Value resVec = builder.create<FMAOp>(loc, inputVec, kernelVec, outputVec);
+  Value resVec =
+      insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
   builder.create<StoreOp>(loc, resVec, output, ValueRange{beginIdx, endIdx});
 }
 
@@ -72,7 +111,7 @@ void calcAndStoreFMAwTailProcessing(OpBuilder &builder, Location loc,
         Value outputVec = builder.create<LoadOp>(loc, vecType, output,
                                                  ValueRange{beginIdx, endIdx});
         Value resVec =
-            builder.create<FMAOp>(loc, inputVec, kernelVec, outputVec);
+            insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
         builder.create<StoreOp>(loc, resVec, output,
                                 ValueRange{beginIdx, endIdx});
 
@@ -85,7 +124,7 @@ void calcAndStoreFMAwTailProcessing(OpBuilder &builder, Location loc,
             loc, vecType, output, ValueRange{beginIdx, endIdx}, extraElemMask,
             zeroPadding);
         Value resVec =
-            builder.create<FMAOp>(loc, inputVec, kernelVec, outputVec);
+            insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
         builder.create<MaskedStoreOp>(loc, output, ValueRange{beginIdx, endIdx},
                                       extraElemMask, resVec);
 
