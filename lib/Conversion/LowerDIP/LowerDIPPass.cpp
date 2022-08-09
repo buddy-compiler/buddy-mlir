@@ -629,7 +629,7 @@ public:
     // Determine the condition for chosing ideal rotation strategy.
     Value tanBound =
         rewriter.create<ConstantFloatOp>(loc, (llvm::APFloat)8.10f, f32);
-    Value tanValAbs = rewriter.create<math::AbsOp>(loc, tanVal);
+    Value tanValAbs = rewriter.create<math::AbsFOp>(loc, tanVal);
     Value transformCond = rewriter.create<arith::CmpFOp>(
         loc, CmpFPredicate::OGT, tanBound, tanValAbs);
 
