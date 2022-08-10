@@ -280,6 +280,7 @@ rvv-long-run:
 
 rvv-transpose-asm:
 	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-transpose.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
