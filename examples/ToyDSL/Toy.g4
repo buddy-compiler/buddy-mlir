@@ -61,11 +61,11 @@ varDecl returns [std::string idName]
       }
     | Identifier Identifier (Equal expression)?
       {
-          $idName = $Identifier.text;
+        $idName = $Identifier.text;
       }
     | Identifier 
       {
-          $idName = $Identifier.text;
+        $idName = $Identifier.text;
       }
     ;
 
