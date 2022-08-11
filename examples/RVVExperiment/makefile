@@ -155,17 +155,21 @@ rvv-loop-mask-run:
 		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS} --dlopen=${CROSS_MLIR_RUNNER_UTILS}
 
 rvv-vp-intrinsic-translate:
-	@${MLIR_OPT} ./rvv-vp-intrinsic.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+	@${BUDDY_OPT} ./rvv-vp-intrinsic.mlir \
+		--convert-scf-to-cf \
+		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll
 
-rvv-vp-intrinsic-run-local:
-	@${MLIR_OPT} ./rvv-vp-intrinsic.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+rvv-vp-intrinsic-asm:
+	@${BUDDY_OPT} ./rvv-vp-intrinsic.mlir \
+		--convert-scf-to-cf \
+		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
+		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
+		--filetype=asm -o log.s
 
 rvv-vp-intrinsic-run-error:
 	@${MLIR_OPT} ./rvv-vp-intrinsic.mlir \
