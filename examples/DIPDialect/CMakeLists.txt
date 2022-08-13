@@ -48,3 +48,6 @@ add_executable(dilation2D dilation2D.cpp)
 add_dependencies(dilation2D buddy-opt)
 target_link_libraries(dilation2D ${OpenCV_LIBS} DIP)
 
+add_executable(opening2D opening2D.cpp)
+add_dependencies(opening2D buddy-opt)
+target_link_libraries(opening2D ${OpenCV_LIBS} DIP)

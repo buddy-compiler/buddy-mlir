@@ -46,8 +46,8 @@ bool testImages(cv::Mat img1, cv::Mat img2) {
         std::cout << (int)img1.at<uchar>(i, j) << "\n";
         std::cout << (int)img2.at<uchar>(i, j) << "\n\n";
 
-      //  std::cout << img1 << "\n\n";
-       // std::cout << img2 << "\n\n";
+      std::cout << img1 << "\n\n";
+       std::cout << img2 << "\n\n";
         return 0;
       }
     }
@@ -63,6 +63,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
     cout << "Could not read the image: " << argv[1] << endl;
   }
 
+std::cout<<image<<std::endl;
 
   // Define the kernel.
   float *kernelAlign = laplacianKernelAlign;
@@ -87,7 +88,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
   // Call the MLIR Dilation2D function.
   dip::Dilation2D(&input, &kernel, &output1, x, y,
-              dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
+              dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
 
   // Define a cv::Mat with the output of Dilation2D.
   Mat outputImageReplicatePadding_flat(sizesOutput[0], sizesOutput[1], CV_32FC1,
@@ -97,7 +98,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
   // cv::Mat to store output of the permutations of dilation op
   Mat opencvConstantPaddingflat, opencvReplicatePaddingflat, opencvConstantPaddingnonflat, opencvReplicatePaddingnonflat;
-  dilate(image, opencvReplicatePaddingflat, kernel1, cv::Point(x,y), 1, cv::BORDER_CONSTANT, 0);
+  dilate(image, opencvReplicatePaddingflat, kernel1, cv::Point(x,y), 1, cv::BORDER_REPLICATE, 0);
   imwrite(argv[3], opencvReplicatePaddingflat);
 
   if (!testImages(o1, opencvReplicatePaddingflat)) {
@@ -120,35 +121,6 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
  imwrite(argv[5], opencvReplicatePaddingflat);
 
   if (!testImages(o2, opencvConstantPaddingflat)) {
-    std::cout << "x, y = " << x << ", " << y << "\n";
-    return 0;
-  }
-
-
-dip::Dilation2D(&input, &kernel, &output3, x, y,
-            dip::BOUNDARY_OPTION::CONSTANT_PADDING, dip::STRUCTURING_TYPE::NONFLAT,1.0);
-    Mat outputImageConstantPadding_nonflat(sizesOutput[0], sizesOutput[1], CV_32FC1,
-                                 output3.getData());
-                                 imwrite(argv[6], outputImageConstantPadding_nonflat);
-                                 Mat o3 = imread(argv[6], IMREAD_GRAYSCALE);
-          dilate(image, opencvConstantPaddingnonflat, kernel1, cv::Point(x, y), 1, cv::BORDER_CONSTANT, 0.0);
-           imwrite(argv[7], opencvReplicatePaddingflat);
-             if (!testImages(o3, opencvConstantPaddingnonflat)) {
-    std::cout << "x, y = " << x << ", " << y << "\n";
-    return 0;
-  }
-
-
-dip::Dilation2D(&input, &kernel, &output4, x, y,
-            dip::BOUNDARY_OPTION::REPLICATE_PADDING, dip::STRUCTURING_TYPE::NONFLAT,1.0);
-    Mat outputImageReplicatePadding_nonflat(sizesOutput[0], sizesOutput[1], CV_32FC1,
-                                 output4.getData());
-                                 imwrite(argv[8], outputImageReplicatePadding_nonflat);
-                                 Mat o4 = imread(argv[8], IMREAD_GRAYSCALE);
-          
-dilate(image, opencvReplicatePaddingnonflat, kernel1, cv::Point(x, y), 1, cv::BORDER_REPLICATE, 0.0);
-imwrite(argv[9], opencvReplicatePaddingnonflat);
-             if (!testImages(o4, opencvReplicatePaddingnonflat)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }

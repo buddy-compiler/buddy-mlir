@@ -1,4 +1,4 @@
-//===- erosion2D.cpp - Example of buddy-opt tool ----------------------===//
+//===- dilation2D.cpp - Example of buddy-opt tool ----------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,14 +14,13 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements a 2D erosion examples with dip.corr_2d operation.
-// The dip.erosion_2d operation will be compiled into an object file with the
+// This file implements  2D opening examples with dip.opening_2d operation.
+// The dip.dilation_2d operation will be compiled into an object file with the
 // buddy-opt tool.
 // This file will be linked with the object file to generate the executable
 // file.
 //
 //===----------------------------------------------------------------------===//
-
 
 #include <opencv2/opencv.hpp>
 
@@ -34,7 +33,7 @@
 using namespace cv;
 using namespace std;
 
-bool testImages(cv::Mat img1, cv::Mat img2) {
+bool testImages(cv::Mat img1, cv::Mat img2) { 
   if (img1.rows != img2.rows || img1.cols != img2.cols) {
     std::cout << "Dimensions not equal\n";
     return 0;
@@ -57,9 +56,9 @@ bool testImages(cv::Mat img1, cv::Mat img2) {
 }
 
 bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
-                        std::ptrdiff_t y, std::ptrdiff_t boundaryOption) {
-  // Read as grayscale image.
-  Mat image = imread(argv[1], IMREAD_GRAYSCALE);
+                        std::ptrdiff_t y, std::ptrdiff_t boundaryOption) 
+                        {
+                           Mat image = imread(argv[1], IMREAD_GRAYSCALE);
   if (image.empty()) {
     cout << "Could not read the image: " << argv[1] << endl;
   }
@@ -78,59 +77,33 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
     // Define memref containers.
   Img<float, 2> input(image);
   MemRef<float, 2> kernel(kernelAlign, sizesKernel);
-  MemRef<float, 2> output1(sizesOutput);
-  MemRef<float, 2> output2(sizesOutput);
-  MemRef<float, 2> output3(sizesOutput);
-  MemRef<float, 2> output4(sizesOutput);
+  MemRef<float, 2> output(sizesOutput);
+
 
   Mat kernel1 = Mat(3, 3, CV_32FC1, laplacianKernelAlign);
 
-
-  // Call the MLIR Erosion2D function.
-  dip::Erosion2D(&input, &kernel, &output1, x, y,
-              dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
-
-  // Define a cv::Mat with the output of Erosion2D.
-  Mat outputImageReplicatePadding_flat(sizesOutput[0], sizesOutput[1], CV_32FC1,
-                                  output1.getData());
+  dip::Opening2D(&input, &kernel, &output, x, y,
+              dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
+   Mat outputImageReplicatePadding_flat(sizesOutput[0], sizesOutput[1], CV_32FC1,
+                                  output.getData());
   imwrite(argv[2], outputImageReplicatePadding_flat);
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
+  // cv::Mat to store output of the permutations of dilation op
   Mat opencvConstantPaddingflat, opencvReplicatePaddingflat, opencvConstantPaddingnonflat, opencvReplicatePaddingnonflat;
-  erode(image, opencvReplicatePaddingflat, kernel1, cv::Point(x,y), 1, cv::BORDER_REPLICATE,0.0);
+  morphologyEx(image, opencvReplicatePaddingflat,2, kernel1, cv::Point(x,y), 1, cv::BORDER_CONSTANT, 0);
   imwrite(argv[3], opencvReplicatePaddingflat);
 
   if (!testImages(o1, opencvReplicatePaddingflat)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }
-
-
-  // Call the MLIR Erosion2D function.
-dip::Erosion2D(&input, &kernel, &output2, x, y,
-              dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::FLAT,0.0);
-
-  // Define a cv::Mat with the output of Erosion2D.
-  Mat outputImageConstantPadding_flat(sizesOutput[0], sizesOutput[1], CV_32FC1,
-                                 output2.getData());
-  imwrite(argv[4], outputImageConstantPadding_flat);
-
-  Mat o2 = imread(argv[4], IMREAD_GRAYSCALE);
- erode(image, opencvConstantPaddingflat, kernel1, cv::Point(x, y), 1, cv::BORDER_CONSTANT, 0.0);
- imwrite(argv[5], opencvReplicatePaddingflat);
-
-  if (!testImages(o2, opencvConstantPaddingflat)) {
-    std::cout << "x, y = " << x << ", " << y << "\n";
-    return 0;
-  }
-
-
-  return 1;
-}
+return 1;
+                       }
 
 int main(int argc, char *argv[]) {
   std::ptrdiff_t x = 1;
   std::ptrdiff_t y =1;
- testImplementation(argc, argv, x, y, 0);
+testImplementation(argc, argv, x, y, 0);
   return 0;
 }
