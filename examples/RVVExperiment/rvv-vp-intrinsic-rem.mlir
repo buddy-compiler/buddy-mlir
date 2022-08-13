@@ -19,19 +19,19 @@ func.func @main() -> i32 {
   // VP Intrinsic FRem Operation + Fixed Vector Type
   //===--------------------------------------------------------------------===//
 
-//   // Mask-Driven Error
-//   %vec1 = vector.load %mem_f32[%c0] : memref<20xf32>, vector<8xf32>
-//   %vec2 = vector.load %mem_f32[%c10] : memref<20xf32>, vector<8xf32>
-//   %res_frem_mask_driven = "llvm.intr.vp.frem" (%vec2, %vec1, %mask6, %evl8) :
-//          (vector<8xf32>, vector<8xf32>, vector<8xi1>, i32) -> vector<8xf32>
-//   vector.print %res_frem_mask_driven : vector<8xf32>
+  // Mask-Driven Error
+  %vec1 = vector.load %mem_f32[%c0] : memref<20xf32>, vector<8xf32>
+  %vec2 = vector.load %mem_f32[%c10] : memref<20xf32>, vector<8xf32>
+  %res_frem_mask_driven = "llvm.intr.vp.frem" (%vec2, %vec1, %mask6, %evl8) :
+         (vector<8xf32>, vector<8xf32>, vector<8xi1>, i32) -> vector<8xf32>
+  vector.print %res_frem_mask_driven : vector<8xf32>
 
-//   // EVL-Driven Error
-//   %vec3 = vector.load %mem_f32[%c0] : memref<20xf32>, vector<8xf32>
-//   %vec4 = vector.load %mem_f32[%c10] : memref<20xf32>, vector<8xf32>
-//   %res_frem_evl_driven = "llvm.intr.vp.frem" (%vec4, %vec3, %mask8, %evl6) :
-//          (vector<8xf32>, vector<8xf32>, vector<8xi1>, i32) -> vector<8xf32>
-//   vector.print %res_frem_evl_driven : vector<8xf32>
+  // EVL-Driven Error
+  %vec3 = vector.load %mem_f32[%c0] : memref<20xf32>, vector<8xf32>
+  %vec4 = vector.load %mem_f32[%c10] : memref<20xf32>, vector<8xf32>
+  %res_frem_evl_driven = "llvm.intr.vp.frem" (%vec4, %vec3, %mask8, %evl6) :
+         (vector<8xf32>, vector<8xf32>, vector<8xi1>, i32) -> vector<8xf32>
+  vector.print %res_frem_evl_driven : vector<8xf32>
 
   //===--------------------------------------------------------------------===//
   // VP Intrinsic SRem Operation + Fixed Vector Type
