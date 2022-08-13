@@ -56,33 +56,33 @@ func.func @main() -> i32 {
   // VP Intrinsic Reduce Mul Operation + Fixed Vector Type
   //===--------------------------------------------------------------------===//
 
-  // Mask-Driven Error
-  %vec9 = vector.load %mem_i32[%c0] : memref<20xi32>, vector<8xi32>
-  %res_reduce_mul_mask_driven = "llvm.intr.vp.reduce.mul" (%c1_i32, %vec9, %mask6, %evl8) :
-         (i32, vector<8xi32>, vector<8xi1>, i32) -> i32
-  vector.print %res_reduce_mul_mask_driven : i32
+//   // Mask-Driven Error
+//   %vec9 = vector.load %mem_i32[%c0] : memref<20xi32>, vector<8xi32>
+//   %res_reduce_mul_mask_driven = "llvm.intr.vp.reduce.mul" (%c1_i32, %vec9, %mask6, %evl8) :
+//          (i32, vector<8xi32>, vector<8xi1>, i32) -> i32
+//   vector.print %res_reduce_mul_mask_driven : i32
 
-  // EVL-Driven Error
-  %vec10 = vector.load %mem_i32[%c0] : memref<20xi32>, vector<8xi32>
-  %res_reduce_mul_evl_driven = "llvm.intr.vp.reduce.mul" (%c1_i32, %vec10, %mask8, %evl6) :
-         (i32, vector<8xi32>, vector<8xi1>, i32) -> i32
-  vector.print %res_reduce_mul_evl_driven : i32
+//   // EVL-Driven Error
+//   %vec10 = vector.load %mem_i32[%c0] : memref<20xi32>, vector<8xi32>
+//   %res_reduce_mul_evl_driven = "llvm.intr.vp.reduce.mul" (%c1_i32, %vec10, %mask8, %evl6) :
+//          (i32, vector<8xi32>, vector<8xi1>, i32) -> i32
+//   vector.print %res_reduce_mul_evl_driven : i32
 
   //===--------------------------------------------------------------------===//
   // VP Intrinsic Reduce FMul Operation + Fixed Vector Type
   //===--------------------------------------------------------------------===//
 
-  // Mask-Driven Error
-  %vec11 = vector.load %mem_f32[%c0] : memref<20xf32>, vector<8xf32>
-  %res_reduce_fmul_mask_driven = "llvm.intr.vp.reduce.fmul" (%c1_f32, %vec11, %mask6, %evl8) :
-         (f32, vector<8xf32>, vector<8xi1>, i32) -> f32
-  vector.print %res_reduce_fmul_mask_driven : f32
+//   // Mask-Driven Error
+//   %vec11 = vector.load %mem_f32[%c0] : memref<20xf32>, vector<8xf32>
+//   %res_reduce_fmul_mask_driven = "llvm.intr.vp.reduce.fmul" (%c1_f32, %vec11, %mask6, %evl8) :
+//          (f32, vector<8xf32>, vector<8xi1>, i32) -> f32
+//   vector.print %res_reduce_fmul_mask_driven : f32
 
-  // EVL-Driven Error
-  %vec12 = vector.load %mem_f32[%c0] : memref<20xf32>, vector<8xf32>
-  %res_reduce_fmul_evl_driven = "llvm.intr.vp.reduce.fmul" (%c1_f32, %vec12, %mask8, %evl6) :
-         (f32, vector<8xf32>, vector<8xi1>, i32) -> f32
-  vector.print %res_reduce_fmul_evl_driven : f32
+//   // EVL-Driven Error
+//   %vec12 = vector.load %mem_f32[%c0] : memref<20xf32>, vector<8xf32>
+//   %res_reduce_fmul_evl_driven = "llvm.intr.vp.reduce.fmul" (%c1_f32, %vec12, %mask8, %evl6) :
+//          (f32, vector<8xf32>, vector<8xi1>, i32) -> f32
+//   vector.print %res_reduce_fmul_evl_driven : f32
 
   %ret = arith.constant 0 : i32
   return %ret : i32

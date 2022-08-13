@@ -25,11 +25,6 @@ linalg-conv2d-lower:
 		-convert-func-to-llvm -reconcile-unrealized-casts \
 		-o ./log.mlir
 
-linalg-conv2d-test:
-	@${MLIR_OPT} ./linalg-conv2d.mlir \
-		-convert-linalg-to-affine-loops -affine-loop-normalize -affine-super-vectorize="virtual-vector-size=4,8,8" \
-		-o ./log.mlir
-
 linalg-conv2d-translate:
 	@${MLIR_OPT} ./linalg-conv2d.mlir \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
