@@ -89,7 +89,7 @@ def Bud_TestEnumAttrOp : Bud_Op<"test_enum_attr",
 // Test array attribute in the operation.
 //===----------------------------------------------------------------------===//
 
-def CoordinateArrayAttr : Confined<I64ArrayAttr, [ArrayCount<2>]>;
+def CoordinateArrayAttr : ConfinedAttr<I64ArrayAttr, [ArrayCount<2>]>;
 
 def Bud_TestArrayAttrOp : Bud_Op<"test_array_attr"> {
   let summary = "Test Array Attribute.";
