@@ -54,21 +54,28 @@ private:
   /// The builder helps create MLIR operations when traversing the AST.
   mlir::OpBuilder builder;
   /// The Symbol Table
-  llvm::ScopedHashTable<llvm::StringRef, mlir::Value> symbolTable;
+  llvm::ScopedHashTable<llvm::StringRef,
+                        std::pair<mlir::Value, ToyParser::VarDeclContext *>>
+      symbolTable;
   llvm::ScopedHashTable<llvm::StringRef, int> funSymbolTable;
   llvm::StringMap<mlir::toy::FuncOp> functionMap;
+  /// A mapping for named structTypeMap to the underlying MLIR type.
+  llvm::StringMap<mlir::Type> structTypeMap;
+  /// A mapping for named structCtxMap to the underlying the original AST node.
+  llvm::StringMap<ToyParser::StructDefineContext *> structCtxMap;
   // Register the filename for the string attribute in MLIR location object.
   std::string fileName;
-
   /// Declare a variable in the current scope
   /// - Check if the variable is already registered.
   /// -  Register variable in the symbol table.
-  mlir::LogicalResult declare(llvm::StringRef var, mlir::Value value) {
+  mlir::LogicalResult declare(llvm::StringRef var, mlir::Value value,
+                              ToyParser::VarDeclContext *ctx) {
     if (symbolTable.count(var))
       return mlir::failure();
-    symbolTable.insert(var, value);
+    symbolTable.insert(var, {value, ctx});
     return mlir::success();
   }
+
   // Declear a function in the current module
   /// - Check the parameter number of the function.
   mlir::LogicalResult funcDeclare(llvm::StringRef functionName,
@@ -92,6 +99,16 @@ private:
     if (shape.empty())
       return mlir::UnrankedTensorType::get(builder.getF64Type());
     return mlir::RankedTensorType::get(shape, builder.getF64Type());
+  }
+  /// Get the structType from structTypeMap.
+  mlir::Type getType(std::string typeName, mlir::Location location) {
+    auto it = structTypeMap.find(typeName);
+    if (it == structTypeMap.end()) {
+      mlir::emitError(location)
+          << "error: unknown struct type '" << typeName << "'";
+      return nullptr;
+    }
+    return it->second;
   }
 
   // Get the tensor value from the tensor literal node.
@@ -120,6 +137,71 @@ private:
         builder.create<mlir::toy::ConstantOp>(loaction, type, dataAttribute);
     return value;
   }
+  // Emit a constant for a literal/constant array.
+  mlir::DenseElementsAttr
+  getConstantAttr(ToyParser::TensorLiteralContext *ctx) {
+    std::vector<int64_t> dims;
+    // get dimensions.
+    dims.push_back(ctx->Comma().size() + 1);
+    if (ctx->tensorLiteral(0)->tensorLiteral(0)) {
+      ToyParser::TensorLiteralContext *list = ctx->tensorLiteral(0);
+      while (list) {
+        dims.push_back(list->Comma().size() + 1);
+        if (list->tensorLiteral(0) && list->tensorLiteral(0)->Comma().size())
+          list = list->tensorLiteral(0);
+        else
+          break;
+      }
+    }
+    mlir::Type elementType = builder.getF64Type();
+    mlir::Type type = getType(dims);
+    auto dataType = mlir::RankedTensorType::get(dims, elementType);
+    return mlir::DenseElementsAttr::get(dataType,
+                                        llvm::makeArrayRef(ctx->data));
+  }
+
+  // Emit a number literal.
+  mlir::DenseElementsAttr getConstantAttr(antlr4::tree::TerminalNode *node) {
+    mlir::Type elementType = builder.getF64Type();
+    auto dataType = mlir::RankedTensorType::get({}, elementType);
+    double number = std::stod(node->toString());
+    return mlir::DenseElementsAttr::get(dataType, llvm::makeArrayRef(number));
+  }
+
+  /// Emit a constant for a struct literal. It will be emitted as an array of
+  /// other literals in an Attribute attached to a `toy.struct_constant`
+  /// operation. This function returns the generated constant, along with the
+  /// corresponding struct type.
+  std::pair<mlir::ArrayAttr, mlir::Type>
+  getConstantAttr(ToyParser::StructLiteralContext *ctx) {
+    std::vector<mlir::Attribute> attrElements;
+    std::vector<mlir::Type> typeElements;
+    for (ToyParser::StructLiteralContext *structContext :
+         ctx->structLiteral()) {
+      if (structContext->BracketOpen()) {
+        auto attrTypePair = getConstantAttr(structContext);
+        attrElements.push_back(attrTypePair.first);
+        typeElements.push_back(attrTypePair.second);
+      }
+    }
+    for (ToyParser::LiteralListContext *tensor : ctx->literalList()) {
+      if (tensor->tensorLiteral()) {
+        if (tensor->tensorLiteral()->Number()) {
+          attrElements.push_back(
+              getConstantAttr(tensor->tensorLiteral()->Number()));
+          typeElements.push_back(getType(llvm::None));
+        } else {
+          attrElements.push_back(getConstantAttr(tensor->tensorLiteral()));
+          typeElements.push_back(getType(llvm::None));
+        }
+      }
+    }
+
+    mlir::ArrayAttr dataAttr = builder.getArrayAttr(attrElements);
+    mlir::Type dataType = mlir::toy::StructType::get(typeElements);
+    return std::make_pair(dataAttr, dataType);
+  }
+
   // Module Visitor
   // - Visitor all function asts to get the number of function parameter.
   // - Visitor childrens.
@@ -152,8 +234,9 @@ private:
   /// - Visit fucntion block.
   /// - Process the return operation.
   virtual std::any visitFunDefine(ToyParser::FunDefineContext *ctx) override {
-    llvm::ScopedHashTableScope<llvm::StringRef, mlir::Value> varScope(
-        symbolTable);
+    llvm::ScopedHashTableScope<
+        llvm::StringRef, std::pair<mlir::Value, ToyParser::VarDeclContext *>>
+        varScope(symbolTable);
     builder.setInsertionPointToEnd(theModule.getBody());
     // Visit function prototype.
     mlir::toy::FuncOp function =
@@ -166,10 +249,12 @@ private:
     builder.setInsertionPointToStart(&entryBlock);
 
     std::vector<std::string> args;
+    std::vector<ToyParser::VarDeclContext *> varDecls;
     if (ctx->prototype()->declList()) {
       ToyParser::DeclListContext *list = ctx->prototype()->declList();
-      while (list->Identifier()) {
-        args.push_back(list->Identifier()->toString());
+      while (list->varDecl()) {
+        args.push_back(list->varDecl()->idName);
+        varDecls.push_back(list->varDecl());
         if (list->declList())
           list = list->declList();
         else
@@ -178,8 +263,10 @@ private:
     }
     // Declare all the function arguments in the symbol table.
     llvm::ArrayRef<std::string> protoArgs = args;
-    for (auto value : llvm::zip(protoArgs, entryBlock.getArguments())) {
-      declare(std::get<0>(value), std::get<1>(value));
+    llvm::ArrayRef<ToyParser::VarDeclContext *> protoVarDecls = varDecls;
+    for (auto value :
+         llvm::zip(protoArgs, entryBlock.getArguments(), protoVarDecls)) {
+      declare(std::get<0>(value), std::get<1>(value), std::get<2>(value));
     }
 
     // Visit fucntion block.
@@ -212,24 +299,86 @@ private:
   virtual std::any visitPrototype(ToyParser::PrototypeContext *ctx) override {
     mlir::Location location =
         loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
-    int varNumber = 0;
-    // Get the number of arguments.
+    llvm::SmallVector<mlir::Type, 4> argTypes;
+    /// Get parameter types.
     if (ctx->declList()) {
       ToyParser::DeclListContext *list = ctx->declList();
-      while (list->Identifier()) {
-        varNumber++;
+      ;
+      while (list->varDecl()) {
+        /// If the parameter type is the struct type.
+        if (list->varDecl()->Identifier().size() == 2) {
+          mlir::Location location =
+              loc(list->varDecl()->start->getLine(),
+                  list->varDecl()->start->getCharPositionInLine());
+          mlir::Type type =
+              getType(list->varDecl()->Identifier(0)->toString(), location);
+          argTypes.push_back(type);
+        } else {
+          mlir::Type type = getType({});
+          argTypes.push_back(type);
+        }
         if (list->declList())
           list = list->declList();
         else
           break;
       }
     }
-    llvm::SmallVector<mlir::Type, 4> argTypes(
-        varNumber, mlir::UnrankedTensorType::get(builder.getF64Type()));
-    mlir::FunctionType funType = builder.getFunctionType(argTypes, llvm::None);
+    auto funType = builder.getFunctionType(argTypes, llvm::None);
     auto func = builder.create<mlir::toy::FuncOp>(
         location, ctx->Identifier()->toString(), funType);
     return func;
+  }
+  /// Build a struct value.
+  virtual std::any
+  visitStructLiteral(ToyParser::StructLiteralContext *ctx) override {
+    mlir::ArrayAttr dataAttr;
+    mlir::Type dataType;
+    std::tie(dataAttr, dataType) = getConstantAttr(ctx);
+    mlir::Location location =
+        loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
+    mlir::Value value = builder.create<mlir::toy::StructConstantOp>(
+        location, dataType, dataAttr);
+    return value;
+  }
+
+  /// Return the structDefineContext that is the result of the given expression,
+  /// or null if it cannot be inferred.
+  ToyParser::StructDefineContext *
+  getStructFor(ToyParser::ExpressionContext *ctx) {
+    std::string structName;
+    if (ctx->Dot()) {
+      std::string memberName =
+          ctx->expression(1)->identifierExpr()->Identifier()->toString();
+      auto parentCtx = getStructFor(ctx->expression(0));
+      for (ToyParser::VarDeclContext *varDecl : parentCtx->varDecl()) {
+        if (varDecl->idName == memberName) {
+          structName = varDecl->Identifier(0)->toString();
+          break;
+        }
+      }
+    } else {
+      ToyParser::VarDeclContext *varDecl =
+          symbolTable.lookup(ctx->identifierExpr()->Identifier()->toString())
+              .second;
+      structName = varDecl->Identifier(0)->toString();
+    }
+    return structCtxMap.lookup(structName);
+  }
+  /// Return the numeric member index of the given struct access expression.
+  llvm::Optional<size_t> getMemberIndex(ToyParser::ExpressionContext *ctx) {
+    int accessIndex = 0;
+    // Lookup the struct node for the LHS.
+    ToyParser::StructDefineContext *parentCtx =
+        getStructFor(ctx->expression(0));
+    // Get the name from the RHS.
+    std::string memberName =
+        ctx->expression(1)->identifierExpr()->Identifier()->toString();
+    for (ToyParser::VarDeclContext *vardecl : parentCtx->varDecl()) {
+      if (vardecl->idName == memberName)
+        break;
+      accessIndex++;
+    }
+    return accessIndex;
   }
 
   /// Expression Visitor
@@ -255,6 +404,25 @@ private:
       else
         value = builder.create<mlir::toy::MulOp>(loaction, lhs, rhs);
       return value;
+    } else if (ctx->Number()) {
+      mlir::Location location =
+          loc(ctx->Number()->getSymbol()->getLine(),
+              ctx->Number()->getSymbol()->getCharPositionInLine());
+      double number = std::stod(ctx->Number()->toString());
+      value = builder.create<mlir::toy::ConstantOp>(location, number);
+      return value;
+    } else if (ctx->structLiteral()) {
+      // Get struct value.
+      return visit(ctx->structLiteral());
+    } else if (ctx->Dot()) {
+      // Access the struct member.
+      value = std::any_cast<mlir::Value>(visit(ctx->expression(0)));
+      mlir::Location location =
+          loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
+      llvm::Optional<size_t> accessIndex = getMemberIndex(ctx);
+      value = builder.create<mlir::toy::StructAccessOp>(location, value,
+                                                        *accessIndex);
+      return value;
     }
     return value;
   }
@@ -275,13 +443,13 @@ private:
         v0.push_back(j);
       }
       mlir::Location location =
-          loc(ctx->Identifier()->getSymbol()->getLine(),
-              ctx->Identifier()->getSymbol()->getCharPositionInLine());
+          loc(ctx->Identifier(0)->getSymbol()->getLine(),
+              ctx->Identifier(0)->getSymbol()->getCharPositionInLine());
       value =
           builder.create<mlir::toy::ReshapeOp>(location, getType(v0), value);
     }
     // Register the variable into the symbol table.
-    mlir::failed(declare(ctx->idName, value));
+    mlir::failed(declare(ctx->idName, value, ctx));
     return 0;
   }
 
@@ -292,8 +460,6 @@ private:
   visitIdentifierExpr(ToyParser::IdentifierExprContext *ctx) override {
     mlir::Value value;
     int argsNumber = 0;
-    mlir::Location location =
-        loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
     // If the identifier is a function call, visit and register all the
     // arguments. [TODO][LOW] add the semantic check (look up the symbol table)
     // for the function call.
@@ -354,8 +520,8 @@ private:
     } else {
       // If the identifier is a variable, return the MLIR value from the symbol
       // table.
-      value = symbolTable.lookup(ctx->Identifier()->toString());
-      return value;
+      auto value = symbolTable.lookup(ctx->Identifier()->toString());
+      return value.first;
     }
   }
 
@@ -372,6 +538,26 @@ private:
     builder.create<mlir::toy::ReturnOp>(location,
                                         expr ? llvm::makeArrayRef(expr)
                                              : llvm::ArrayRef<mlir::Value>());
+    return 0;
+  }
+  // Make the struct type store in the map.
+  virtual std::any
+  visitStructDefine(ToyParser::StructDefineContext *ctx) override {
+    std::vector<mlir::Type> elementTypes;
+    for (ToyParser::VarDeclContext *variable : ctx->varDecl()) {
+      mlir::Type type;
+      if (variable->Identifier(1)) {
+        mlir::Location location = loc(variable->start->getLine(),
+                                      variable->start->getCharPositionInLine());
+        type = getType(variable->Identifier(0)->toString(), location);
+      } else {
+        type = getType({});
+      }
+      elementTypes.push_back(type);
+    }
+    structTypeMap.try_emplace(ctx->Identifier()->toString(),
+                              mlir::toy::StructType::get(elementTypes));
+    structCtxMap.try_emplace(ctx->Identifier()->toString(), ctx);
     return 0;
   }
 };

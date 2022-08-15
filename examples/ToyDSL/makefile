@@ -59,3 +59,24 @@ buddy-toy-function-translate:
 
 buddy-toy-function-run:
 	@${BUDDY_TOY_DSL} ./function.toy  -emit=jit
+
+toyc-struct-run:
+	@${MLIR_TOYC} ./struct.toy -emit=jit
+
+buddy-toy-struct-ast:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=ast
+
+buddy-toy-struct-mlir:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=mlir
+
+buddy-toy-struct-affine:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=mlir-affine
+
+buddy-toy-struct-llvm:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=mlir-llvm
+
+buddy-toy-struct-translate:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=llvm
+
+buddy-toy-struct-run:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=jit
