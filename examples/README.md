@@ -210,7 +210,11 @@ $ ninja
 
 3. Run the example.
 
+For example, you can run the example of constant printing through makefile target `buddy-toy-constant-run`:
+
 ```
-$ cd bin
-$ ./buddy-toy-dsl
+$ cd buddy-mlir/examples/ToyDSL
+$ make buddy-toy-constant-run
 ```
+
+All Toy DSL executable targets can be found in the `buddy-mlir/examples/ToyDSL/makefile`.

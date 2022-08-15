@@ -4,7 +4,7 @@ MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
 MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
 MLIR_TOYC := ../../llvm/build/bin/toyc-ch7
-BUDDY_TOY_DSL := ../../build-dsl/bin/buddy-toy-dsl
+BUDDY_TOY_DSL := ../../build/bin/buddy-toy-dsl
 
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
