@@ -283,7 +283,7 @@ void Closing2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> 
   }
   else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::FLAT)
   {
-   detail::_mlir_ciface_closing_2d_replicate_padding_non_flat(input, kernel, output, &output1, centerX, centerY, 0);
+   detail::_mlir_ciface_closing_2d_replicate_padding_flat(input, kernel, output, &output1, centerX, centerY, 0);
   }
   else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::NONFLAT){
   detail::_mlir_ciface_closing_2d_replicate_padding_non_flat(input, kernel, output, &output1, centerX, centerY, 0);
