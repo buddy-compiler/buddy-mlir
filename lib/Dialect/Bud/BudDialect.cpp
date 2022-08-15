@@ -30,6 +30,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/SourceMgr.h"
+#include "mlir/Transforms/InliningUtils.h"
 
 #include "Bud/BudDialect.h"
 #include "Bud/BudOps.h"
@@ -38,6 +39,28 @@ using namespace mlir;
 using namespace buddy::bud;
 
 #include "Bud/BudOpsDialect.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// BudDialect Interfaces
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct BudInlinerInterface : public DialectInlinerInterface {
+  using DialectInlinerInterface::DialectInlinerInterface;
+  // We don't have any special restrictions on what can be inlined into
+  // destination regions (e.g. while/conditional bodies). Always allow it.
+  bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
+                       BlockAndValueMapping &valueMapping) const final {
+    return true;
+  }
+  // Operations in bud dialect are always legal to inline since they are
+  // pure.
+  bool isLegalToInline(Operation *, Region *, bool,
+                       BlockAndValueMapping &) const final {
+    return true;
+  }
+};
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // Bud dialect.
@@ -52,6 +75,7 @@ void BudDialect::initialize() {
 #define GET_ATTRDEF_LIST
 #include "Bud/BudOpsAttributes.cpp.inc"
       >();
+  addInterfaces<BudInlinerInterface>();
 }
 
 #include "Bud/BudOpsEnums.cpp.inc"
