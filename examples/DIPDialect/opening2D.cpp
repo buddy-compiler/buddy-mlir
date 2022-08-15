@@ -77,27 +77,54 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
     // Define memref containers.
   Img<float, 2> input(image);
   MemRef<float, 2> kernel(kernelAlign, sizesKernel);
-  MemRef<float, 2> output(sizesOutput);
+  MemRef<float, 2> output1(sizesOutput);
+  MemRef<float, 2> output2(sizesOutput);
+  MemRef<float, 2> output3(sizesOutput);
+  MemRef<float, 2> output4(sizesOutput);
 
 
-  Mat kernel1 = Mat(3, 3, CV_32FC1, laplacianKernelAlign);
+  cv::Mat kernel1 = Mat(3, 3, CV_32FC1, laplacianKernelAlign);
 
-  dip::Opening2D(&input, &kernel, &output, x, y,
-              dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
+  dip::Opening2D(&input, &kernel, &output1, x, y,
+              dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
    Mat outputImageReplicatePadding_flat(sizesOutput[0], sizesOutput[1], CV_32FC1,
-                                  output.getData());
+                                  output1.getData());
   imwrite(argv[2], outputImageReplicatePadding_flat);
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
   // cv::Mat to store output of the permutations of dilation op
   Mat opencvConstantPaddingflat, opencvReplicatePaddingflat, opencvConstantPaddingnonflat, opencvReplicatePaddingnonflat;
-  morphologyEx(image, opencvReplicatePaddingflat,2, kernel1, cv::Point(x,y), 1, cv::BORDER_CONSTANT, 0);
+  morphologyEx(image, opencvReplicatePaddingflat,2, kernel1, cv::Point(x,y), 1, 1, 0);
   imwrite(argv[3], opencvReplicatePaddingflat);
 
   if (!testImages(o1, opencvReplicatePaddingflat)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }
+dip::Opening2D(&input, &kernel, &output2, x, y,
+              dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::FLAT,0.0);
+
+  // Define a cv::Mat with the output of Dilation2D.
+  Mat outputImageConstantPaddingflat(sizesOutput[0], sizesOutput[1], CV_32FC1,
+                                 output2.getData());
+  imwrite(argv[4], outputImageConstantPaddingflat);
+
+  Mat o2 = imread(argv[4], IMREAD_GRAYSCALE);
+ morphologyEx(image, opencvConstantPaddingflat, 2, kernel1, cv::Point(x, y), 1, 0, 0.0);
+ imwrite(argv[5], opencvConstantPaddingflat);
+
+  if (!testImages(o2, opencvConstantPaddingflat)) {
+    std::cout << "x, y = " << x << ", " << y << "\n";
+    return 0;
+  }
+dip::Opening2D(&input, &kernel, &output3, x, y, dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::NONFLAT, 0.0);
+Mat outputImageReplicatePadding_nonflat(sizesOutput[0], sizesOutput[1], CV_32FC1, output3.getData());
+
+imwrite(argv[6], outputImageReplicatePadding_nonflat);
+
+dip::Opening2D(&input, &kernel, &output4, x, y, dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::NONFLAT, 0.0);
+Mat outputImageConstantPadding_nonflat(sizesOutput[0], sizesOutput[1], CV_32FC1, output4.getData());
+imwrite(argv[7], outputImageConstantPadding_nonflat);
 return 1;
                        }
 

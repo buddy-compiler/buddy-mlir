@@ -244,4 +244,26 @@ def DIP_Opening2DOp : DIP_Op<"opening_2d"> {
 }
 
 
+def DIP_Closing2DOp : DIP_Op<"closing_2d"> {
+  let summary = [{This operation aims to provide utility to perform Closing on a 2d single channel image .}];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCO,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputinterMemref",
+                           [MemRead]>:$memrefCOI,    
+                       Index : $centerX, Index : $centerY, F32 : $constantValue,
+                       DIP_BoundaryOptionAttr:$boundary_option,
+                       DIP_StructuringTypeAttr:$structuring_type);
+ 
+  
+  let assemblyFormat = [{
+    $boundary_option $memrefI `,` $structuring_type  $memrefK `,` $memrefCO `,` $memrefCOI `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+  }];                     
+}
+
+
 #endif // DIP_DIPOPS_TD

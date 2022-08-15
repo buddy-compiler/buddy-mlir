@@ -891,12 +891,19 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                 
-                    
+                    if(structuringElementAttr == dip::StructuringType::FlatElement){
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
                 } else {
                   Value colLeftCond = builder.create<CmpIOp>(
                       loc, CmpIPredicate::slt, currCol, centerX);
@@ -929,11 +936,19 @@ public:
                          Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                        compAndStorewTailProcessingFlaterosion(
+                        if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
                          
 
                         builder.create<scf::YieldOp>(loc);
@@ -958,11 +973,19 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                               
-                               compAndStorewTailProcessingFlaterosion(
+                                if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
                                  
 
                               builder.create<scf::YieldOp>(loc);
@@ -995,10 +1018,19 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
             
-                              compAndStorewTailProcessingFlaterosion(
-                                  builder, loc, vectorTy32, inputVec, kernelVec,
-                                  output, ivs[0], ivs[2], tailCond, Paddingvec,zeroPadding,
-                                  inputCol, vectorMaskTy);
+                               if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);
+                                        }
                               
 
                               builder.create<scf::YieldOp>(loc);
@@ -1059,11 +1091,19 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                             compAndStorewTailProcessingFlaterosion(
+                              if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
 
                             builder.create<scf::YieldOp>(loc);
                           },
@@ -1083,11 +1123,19 @@ public:
                                        Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                                  compAndStorewTailProcessingFlaterosion(
+                                  if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
-                                        tailCond,Paddingvec, zeroPadding, inputCol,
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
 
                                   builder.create<scf::YieldOp>(loc);
                                 },
@@ -1132,11 +1180,19 @@ public:
                                   Value tailCond = tailChecker(
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs[2]);
-                                  compAndStorewTailProcessingFlaterosion(
-                                      builder, loc, vectorTy32, inputVec,
-                                      kernelVec, output, ivs[0], ivs[2],
-                                      tailCond, Paddingvec,zeroPadding, inputCol,
-                                      vectorMaskTy);
+                                   if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);
+                                        }
 
                                   builder.create<scf::YieldOp>(loc);
                                 });
@@ -1155,11 +1211,19 @@ public:
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
 
-                        compAndStorewTailProcessingFlaterosion(
+                         if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
                       } else {
                         Value colLeftCond = builder.create<CmpIOp>(
                             loc, CmpIPredicate::slt, currCol, centerX);
@@ -1196,11 +1260,19 @@ public:
                                Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                               compAndStorewTailProcessingFlaterosion(
+                                if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
 
                               builder.create<scf::YieldOp>(loc);
                             },
@@ -1227,11 +1299,19 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
-                                    compAndStorewTailProcessingFlaterosion(
+                                    if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
 
                                     builder.create<scf::YieldOp>(loc);
                                   },
@@ -1274,11 +1354,19 @@ public:
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs[2]);
 
-                                    compAndStorewTailProcessingFlaterosion(
+                                    if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
                                      
 
                                     builder.create<scf::YieldOp>(loc);
@@ -1418,11 +1506,19 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                     
+                    if(structuringElementAttr == dip::StructuringType::FlatElement){
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
                 } else {
                   Value colLeftCond = builder.create<CmpIOp>(
                       loc, CmpIPredicate::slt, currCol, centerX);
@@ -1455,12 +1551,19 @@ public:
                          Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                        compAndStorewTailProcessingFlatdilation(
+                         if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-
+                                        }
                         builder.create<scf::YieldOp>(loc);
                       },
                       [&](OpBuilder &builder, Location loc) {
@@ -1482,11 +1585,19 @@ public:
                                Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                               compAndStorewTailProcessingFlatdilation(
+                                if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
 
                               builder.create<scf::YieldOp>(loc);
                             },
@@ -1518,10 +1629,19 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
-                              compAndStorewTailProcessingFlatdilation(
-                                  builder, loc, vectorTy32, inputVec, kernelVec,
-                                  output, ivs[0], ivs[2], tailCond, Paddingvec,zeroPadding,
-                                  inputCol, vectorMaskTy);
+                               if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);
+                                        }
 
 
                               builder.create<scf::YieldOp>(loc);
@@ -1582,11 +1702,19 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                             compAndStorewTailProcessingFlatdilation(
+                              if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
                             builder.create<scf::YieldOp>(loc);
                           },
                           [&](OpBuilder &builder, Location loc) {
@@ -1606,11 +1734,19 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                                     
-                                  compAndStorewTailProcessingFlatdilation(
+                                 if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
-                                        tailCond,Paddingvec, zeroPadding, inputCol,
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
+                                        }
 
 
                                   builder.create<scf::YieldOp>(loc);
@@ -1657,12 +1793,19 @@ public:
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs[2]);
                                     
-                                  compAndStorewTailProcessingFlatdilation(
-                                      builder, loc, vectorTy32, inputVec,
-                                      kernelVec, output, ivs[0], ivs[2],
-                                      tailCond, Paddingvec,zeroPadding, inputCol,
-                                      vectorMaskTy);
-                                      
+                                   if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);
+                                        }
 
                                   builder.create<scf::YieldOp>(loc);
                                 });
@@ -1681,13 +1824,19 @@ public:
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
                           
-
-                        compAndStorewTailProcessingFlatdilation(
+                        if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                            
+                                        }
                       } else {
                         Value colLeftCond = builder.create<CmpIOp>(
                             loc, CmpIPredicate::slt, currCol, centerX);
@@ -1725,12 +1874,19 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
  
-                               compAndStorewTailProcessingFlatdilation(
+                                if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                   
+                                        }
 
                               builder.create<scf::YieldOp>(loc);
                             },
@@ -1757,12 +1913,19 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                                    
-                                    compAndStorewTailProcessingFlatdilation(
+                                     if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                        
+                                        }
 
                                     builder.create<scf::YieldOp>(loc);
                                   },
@@ -1804,12 +1967,19 @@ public:
                                     Value tailCond = tailChecker(
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs[2]);
-                                    compAndStorewTailProcessingFlatdilation(
+                                    if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-
+                                        }
                                     builder.create<scf::YieldOp>(loc);
                                   });
                               builder.create<scf::YieldOp>(loc);
@@ -1946,13 +2116,20 @@ public:
                                                                 Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                    
+                
+                    if(structuringElementAttr == dip::StructuringType::FlatElement){
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                              
+                                        }
                 } else {
                   Value colLeftCond = builder.create<CmpIOp>(
                       loc, CmpIPredicate::slt, currCol, centerX);
@@ -1985,13 +2162,20 @@ public:
                          Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                     
-                        compAndStorewTailProcessingFlaterosion(
+                        if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-            
+                                        }
+                         
 
                         builder.create<scf::YieldOp>(loc);
                       },
@@ -2015,12 +2199,20 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                               
-                               compAndStorewTailProcessingFlaterosion(
+                                if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                               
+                                        }
+                                 
 
                               builder.create<scf::YieldOp>(loc);
                             },
@@ -2051,12 +2243,21 @@ public:
                               Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                            
-                              compAndStorewTailProcessingFlaterosion(
-                                  builder, loc, vectorTy32, inputVec, kernelVec,
-                                  output1, ivs[0], ivs[2], tailCond, Paddingvec,zeroPadding,
-                                  inputCol, vectorMaskTy);
-                                  
+            
+                               if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);
+                                        }
+                              
 
                               builder.create<scf::YieldOp>(loc);
                             });
@@ -2116,13 +2317,19 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                       
-                             compAndStorewTailProcessingFlaterosion(
+                              if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                
+                                        }
 
                             builder.create<scf::YieldOp>(loc);
                           },
@@ -2142,13 +2349,19 @@ public:
                                        Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                                    
-                                  compAndStorewTailProcessingFlaterosion(
+                                  if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
-                                        tailCond,Paddingvec, zeroPadding, inputCol,
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                       
+                                        }
 
                                   builder.create<scf::YieldOp>(loc);
                                 },
@@ -2193,13 +2406,19 @@ public:
                                   Value tailCond = tailChecker(
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs[2]);
-                                 
-                                  compAndStorewTailProcessingFlaterosion(
-                                      builder, loc, vectorTy32, inputVec,
-                                      kernelVec, output1, ivs[0], ivs[2],
-                                      tailCond, Paddingvec,zeroPadding, inputCol,
-                                      vectorMaskTy);
-                                     
+                                   if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);
+                                        }
 
                                   builder.create<scf::YieldOp>(loc);
                                 });
@@ -2217,14 +2436,20 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
-                            if(structuringElementAttr == dip::StructuringType::FlatElement){
 
-                        compAndStorewTailProcessingFlaterosion(
+                         if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);}
-                            
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);
+                                        }
                       } else {
                         Value colLeftCond = builder.create<CmpIOp>(
                             loc, CmpIPredicate::slt, currCol, centerX);
@@ -2261,13 +2486,19 @@ public:
                                Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                              
-                               compAndStorewTailProcessingFlaterosion(
+                                if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                   
+                                        }
 
                               builder.create<scf::YieldOp>(loc);
                             },
@@ -2293,13 +2524,20 @@ public:
                                      Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                                
-                                    compAndStorewTailProcessingFlaterosion(
+
+                                    if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                        
+                                        }
 
                                     builder.create<scf::YieldOp>(loc);
                                   },
@@ -2341,13 +2579,21 @@ public:
                                     Value tailCond = tailChecker(
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs[2]);
-                                        
-                                    compAndStorewTailProcessingFlaterosion(
+
+                                    if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlaterosion(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output1, ivs[0], ivs[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                        
+                                        }
+                                     
 
                                     builder.create<scf::YieldOp>(loc);
                                   });
@@ -2359,6 +2605,7 @@ public:
                 builder.create<scf::YieldOp>(loc);
               });
         });
+
         Value inputRow1 = rewriter.create<memref::DimOp>(loc,output1, c0);
     Value inputCol1 = rewriter.create<memref::DimOp>(loc, output1, c1);
     Value outputrow1 = rewriter.create<memref::DimOp>(loc, output, c0);
@@ -2428,14 +2675,20 @@ public:
                                                                 Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
-                 
                     
+                    if(structuringElementAttr == dip::StructuringType::FlatElement){
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol1,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol1,
                                         vectorMaskTy);
-                                                  
+                                        }
                 } else {
                   Value colLeftCond = builder.create<CmpIOp>(
                       loc, CmpIPredicate::slt, currCol, centerX);
@@ -2468,13 +2721,19 @@ public:
                          Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
-                        compAndStorewTailProcessingFlatdilation(
+                         if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol1,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol1,
                                         vectorMaskTy);
-                            
-
+                                        }
                         builder.create<scf::YieldOp>(loc);
                       },
                       [&](OpBuilder &builder, Location loc) {
@@ -2496,13 +2755,19 @@ public:
                                Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
-                              
-                               compAndStorewTailProcessingFlatdilation(
+                                if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol1,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol1,
                                         vectorMaskTy);
-                                  
+                                        }
 
                               builder.create<scf::YieldOp>(loc);
                             },
@@ -2533,12 +2798,21 @@ public:
                               Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
-                                  
-                              compAndStorewTailProcessingFlatdilation(
-                                  builder, loc, vectorTy32, inputVec, kernelVec,
-                                  output, ivs2[0], ivs2[2], tailCond, Paddingvec,zeroPadding,
-                                  inputCol1, vectorMaskTy);
-                                  
+
+                               if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol1,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol1,
+                                        vectorMaskTy);
+                                        }
+
 
                               builder.create<scf::YieldOp>(loc);
                             });
@@ -2584,7 +2858,7 @@ public:
                             }  if (boundaryOptionAttr ==
                                        dip::BoundaryOption::ReplicatePadding) {
                               Value paddingVal = builder.create<memref::LoadOp>(
-                                  loc, output, ValueRange{imRow, c0});
+                                  loc, output1, ValueRange{imRow, c0});
                               Value padding = builder.create<BroadcastOp>(
                                   loc, vectorTy32, paddingVal);
 
@@ -2597,15 +2871,20 @@ public:
                             }
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol1, ivs2[2]);
-                            
-                             compAndStorewTailProcessingFlatdilation(
+                                  kernelSize, c1, pseudoCol, ivs2[2]);
+                              if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
-                                        tailCond, Paddingvec,zeroPadding, inputCol1,
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                 
-
+                                        }
                             builder.create<scf::YieldOp>(loc);
                           },
                           [&](OpBuilder &builder, Location loc) {
@@ -2624,13 +2903,22 @@ public:
                                        Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
-                                      if(structuringElementAttr == dip::StructuringType::FlatElement)
-                                  compAndStorewTailProcessingFlatdilation(
+                                    
+                                 if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
-                                        tailCond,Paddingvec, zeroPadding, inputCol1,
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                       
+                                        }
+
+
                                   builder.create<scf::YieldOp>(loc);
                                 },
                                 [&](OpBuilder &builder, Location loc) {
@@ -2658,7 +2946,7 @@ public:
                                              dip::BoundaryOption::
                                                  ReplicatePadding) {
                                     Value rightRange = builder.create<SubIOp>(
-                                        loc, inputCol1, c1);
+                                        loc, inputCol, c1);
                                     Value paddingVal =
                                         builder.create<memref::LoadOp>(
                                             loc, output1,
@@ -2673,14 +2961,21 @@ public:
                                   }
                                   Value tailCond = tailChecker(
                                       builder, loc, calcHelper, strideVal,
-                                      kernelSize, c1, pseudoCol1, ivs2[2]);
+                                      kernelSize, c1, pseudoCol, ivs2[2]);
                                     
-                                  compAndStorewTailProcessingFlatdilation(
-                                      builder, loc, vectorTy32, inputVec,
-                                      kernelVec, output, ivs2[0], ivs2[2],
-                                      tailCond, Paddingvec,zeroPadding, inputCol1,
-                                      vectorMaskTy);
-                                      
+                                   if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);
+                                        }
 
                                   builder.create<scf::YieldOp>(loc);
                                 });
@@ -2696,16 +2991,22 @@ public:
                             loc, vectorTy32, constantValue);
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol1, ivs2[2]);
+                                  kernelSize, c1, pseudoCol, ivs2[2]);
 
-                        
-
-                        compAndStorewTailProcessingFlatdilation(
+                          
+                        if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
-                                        tailCond, Paddingvec,zeroPadding, inputCol1,
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                           
+                                        }
                       } else {
                         Value colLeftCond = builder.create<CmpIOp>(
                             loc, CmpIPredicate::slt, currCol, centerX);
@@ -2716,7 +3017,7 @@ public:
                               // colLeft & rowDown
                               Value inputVec;
                               Value downRange =
-                                  builder.create<SubIOp>(loc, inputRow1, c1);
+                                  builder.create<SubIOp>(loc, inputRow, c1);
                               Value leftMaskElem =
                                   builder.create<SubIOp>(loc, centerX, currCol);
                               Value leftMask = createInvertedMask(
@@ -2727,7 +3028,7 @@ public:
                                   dip::BoundaryOption::ReplicatePadding) {
                                 Value paddingVal =
                                     builder.create<memref::LoadOp>(
-                                        loc, output1, ValueRange{downRange, c0});
+                                        loc, input, ValueRange{downRange, c0});
                                 Value padding = builder.create<BroadcastOp>(
                                     loc, vectorTy32, paddingVal);
 
@@ -2741,14 +3042,21 @@ public:
                               }
                                Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol1, ivs2[2]);
-                              
-                               compAndStorewTailProcessingFlatdilation(
+                                  kernelSize, c1, pseudoCol, ivs2[2]);
+ 
+                                if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
-                                        tailCond, Paddingvec,zeroPadding, inputCol1,
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                 
+                                        }
 
                               builder.create<scf::YieldOp>(loc);
                             },
@@ -2764,7 +3072,7 @@ public:
                                     // colMid & rowDown
                                     Value inputVec;
                                     Value downRange = builder.create<SubIOp>(
-                                        loc, inputRow1, c1);
+                                        loc, inputRow, c1);
                                     if (boundaryOptionAttr ==
                                         dip::BoundaryOption::ReplicatePadding) {
                                       inputVec = builder.create<LoadOp>(
@@ -2773,14 +3081,21 @@ public:
                                     }
                                      Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol1, ivs2[2]);
-                            
-                                    compAndStorewTailProcessingFlatdilation(
+                                  kernelSize, c1, pseudoCol, ivs2[2]);
+                                   
+                                     if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
-                                        tailCond, Paddingvec,zeroPadding, inputCol1,
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                        
+                                        }
 
                                     builder.create<scf::YieldOp>(loc);
                                   },
@@ -2798,9 +3113,9 @@ public:
                                             loc, vectorMaskTy, rightMaskElem);
 
                                     Value downRange = builder.create<SubIOp>(
-                                        loc, inputRow1, c1);
+                                        loc, inputRow, c1);
                                     Value rightRange = builder.create<SubIOp>(
-                                        loc, inputCol1, c1);
+                                        loc, inputCol, c1);
 
                                     if (boundaryOptionAttr ==
                                         dip::BoundaryOption::ReplicatePadding) {
@@ -2821,15 +3136,20 @@ public:
                                     }
                                     Value tailCond = tailChecker(
                                         builder, loc, calcHelper, strideVal,
-                                        kernelSize, c1, pseudoCol1, ivs2[2]);
-                                
-                                    compAndStorewTailProcessingFlatdilation(
+                                        kernelSize, c1, pseudoCol, ivs2[2]);
+                                    if(structuringElementAttr == dip::StructuringType::FlatElement){
+                   compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
-                                        tailCond, Paddingvec,zeroPadding, inputCol1,
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
+                                        vectorMaskTy);}
+                                        else if (structuringElementAttr == dip::StructuringType::NonFlatElement){
+                                            compAndStorewTailProcessingNonFlatdilation(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs2[0], ivs2[2],
+                                        tailCond, Paddingvec,zeroPadding, inputCol,
                                         vectorMaskTy);
-                                         
-
+                                        }
                                     builder.create<scf::YieldOp>(loc);
                                   });
                               builder.create<scf::YieldOp>(loc);
@@ -2851,6 +3171,8 @@ private:
 
 
 };
+
+
 } // end anonymous namespace
 
 void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
@@ -2861,6 +3183,7 @@ void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
   patterns.add<DIPErosion2DOpLowering>(patterns.getContext(),stride);
   patterns.add<DIPDilation2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPOpening2DOpLowering>(patterns.getContext(),stride);
+  
 }
 
 //===----------------------------------------------------------------------===//
