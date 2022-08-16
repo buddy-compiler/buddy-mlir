@@ -90,11 +90,10 @@ public:
                                << elemTy << "is passed";
     }
 
-    traverseImagewBoundaryExtrapolation(rewriter, loc, ctx, input, kernel, output, centerX, 
-                                        centerY, constantValue, strideVal, elemTy, 
-                                        boundaryOptionAttr, stride, 
-                                        &calcAndStoreFMAwTailProcessing, 
-                                        &calcAndStoreFMAwoTailProcessing);
+    traverseImagewBoundaryExtrapolation(
+        rewriter, loc, ctx, input, kernel, output, centerX, centerY,
+        constantValue, strideVal, elemTy, boundaryOptionAttr, stride,
+        &calcAndStoreFMAwTailProcessing, &calcAndStoreFMAwoTailProcessing);
     // Remove the origin convolution operation.
     rewriter.eraseOp(op);
     return success();

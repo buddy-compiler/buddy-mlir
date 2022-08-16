@@ -487,76 +487,74 @@ void BilinearInterpolationResizing(
       });
 }
 
-void traverseImagewBoundaryExtrapolation(OpBuilder &rewriter, Location loc, MLIRContext *ctx, 
-                                         Value input, Value kernel, Value output, Value centerX, 
-                                         Value centerY, Value constantValue, Value strideVal, 
-                                         Type elemTy, buddy::dip::BoundaryOption boundaryOptionAttr, 
-                                         int64_t stride, 
-                                         void (*wTailProcessingFunc)(OpBuilder&, Location, 
-                                         VectorType, Value, Value, Value, Value, Value, Value, 
-                                         Value, Value, VectorType), 
-                                         void (*woTailProcessingFunc)(OpBuilder&, Location, 
-                                         VectorType, Value, Value, Value, Value, Value))
-{
-    // Create constant indices.
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+void traverseImagewBoundaryExtrapolation(
+    OpBuilder &rewriter, Location loc, MLIRContext *ctx, Value input,
+    Value kernel, Value output, Value centerX, Value centerY,
+    Value constantValue, Value strideVal, Type elemTy,
+    buddy::dip::BoundaryOption boundaryOptionAttr, int64_t stride,
+    void (*wTailProcessingFunc)(OpBuilder &, Location, VectorType, Value, Value,
+                                Value, Value, Value, Value, Value, Value,
+                                VectorType),
+    void (*woTailProcessingFunc)(OpBuilder &, Location, VectorType, Value,
+                                 Value, Value, Value, Value)) {
+  // Create constant indices.
+  Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
+  Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
 
-    IntegerType i1 = IntegerType::get(ctx, 1);
+  IntegerType i1 = IntegerType::get(ctx, 1);
 
-    // Create DimOp.
-    Value inputRow = rewriter.create<memref::DimOp>(loc, input, c0);
-    Value inputCol = rewriter.create<memref::DimOp>(loc, input, c1);
-    Value kernelSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
+  // Create DimOp.
+  Value inputRow = rewriter.create<memref::DimOp>(loc, input, c0);
+  Value inputCol = rewriter.create<memref::DimOp>(loc, input, c1);
+  Value kernelSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
 
-    // Variables used for detecting rowMid, rowDown, colMid and colRight
-    // regions.
-    Value rowMidHelper = rewriter.create<AddIOp>(loc, inputRow, centerY);
-    Value colMidHelper = rewriter.create<AddIOp>(loc, inputCol, centerX);
+  // Variables used for detecting rowMid, rowDown, colMid and colRight
+  // regions.
+  Value rowMidHelper = rewriter.create<AddIOp>(loc, inputRow, centerY);
+  Value colMidHelper = rewriter.create<AddIOp>(loc, inputCol, centerX);
 
-    SmallVector<Value, 8> lowerBounds(4, c0);
-    SmallVector<Value, 8> uperBounds{inputRow, kernelSize, inputCol,
-                                     kernelSize};
-    SmallVector<int64_t, 8> steps{1, 1, stride, 1};
+  SmallVector<Value, 8> lowerBounds(4, c0);
+  SmallVector<Value, 8> uperBounds{inputRow, kernelSize, inputCol, kernelSize};
+  SmallVector<int64_t, 8> steps{1, 1, stride, 1};
 
-    VectorType vectorTy32 = VectorType::get({stride}, elemTy);
-    VectorType vectorMaskTy = VectorType::get({stride}, i1);
+  VectorType vectorTy32 = VectorType::get({stride}, elemTy);
+  VectorType vectorMaskTy = VectorType::get({stride}, i1);
 
-    Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, elemTy);
-    Value zeroPadding =
-        rewriter.create<BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
+  Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, elemTy);
+  Value zeroPadding =
+      rewriter.create<BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
-    AffineExpr a, b, c;
-    bindDims(ctx, a, b, c);
-    AffineMap calcHelper = AffineMap::get(3, 0, {a + b - c}, ctx);
+  AffineExpr a, b, c;
+  bindDims(ctx, a, b, c);
+  AffineMap calcHelper = AffineMap::get(3, 0, {a + b - c}, ctx);
 
-    Value pseudoCol = rewriter.create<AffineApplyOp>(
-        loc, calcHelper, ValueRange{inputCol, kernelSize, c1});
+  Value pseudoCol = rewriter.create<AffineApplyOp>(
+      loc, calcHelper, ValueRange{inputCol, kernelSize, c1});
 
-    buildAffineLoopNest(
-        rewriter, loc, lowerBounds, uperBounds, steps,
-        [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-          // Indices of current pixel with respect to pseudo image containing
-          // extrapolated boundaries.
-          Value currRow = builder.create<AddIOp>(loc, ivs[0], ivs[1]);
-          Value currCol = builder.create<AddIOp>(loc, ivs[2], ivs[3]);
+  buildAffineLoopNest(
+      rewriter, loc, lowerBounds, uperBounds, steps,
+      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+        // Indices of current pixel with respect to pseudo image containing
+        // extrapolated boundaries.
+        Value currRow = builder.create<AddIOp>(loc, ivs[0], ivs[1]);
+        Value currCol = builder.create<AddIOp>(loc, ivs[2], ivs[3]);
 
-          Value kernelValue = builder.create<memref::LoadOp>(
-              loc, kernel, ValueRange{ivs[1], ivs[3]});
-          Value kernelVec =
-              builder.create<BroadcastOp>(loc, vectorTy32, kernelValue);
+        Value kernelValue = builder.create<memref::LoadOp>(
+            loc, kernel, ValueRange{ivs[1], ivs[3]});
+        Value kernelVec =
+            builder.create<BroadcastOp>(loc, vectorTy32, kernelValue);
 
-          // Pixel indices with respect to the actual image.
-          Value imRow = builder.create<SubIOp>(loc, currRow, centerY);
-          Value imCol = builder.create<SubIOp>(loc, currCol, centerX);
+        // Pixel indices with respect to the actual image.
+        Value imRow = builder.create<SubIOp>(loc, currRow, centerY);
+        Value imCol = builder.create<SubIOp>(loc, currCol, centerX);
 
-          // Index of pixel used for determining right region.
-          Value colLastElem = builder.create<AddIOp>(loc, currCol, strideVal);
+        // Index of pixel used for determining right region.
+        Value colLastElem = builder.create<AddIOp>(loc, currCol, strideVal);
 
-          Value rowUpCond =
-              builder.create<CmpIOp>(loc, CmpIPredicate::slt, currRow, centerY);
+        Value rowUpCond =
+            builder.create<CmpIOp>(loc, CmpIPredicate::slt, currRow, centerY);
 
-          builder.create<scf::IfOp>(
+        builder.create<scf::IfOp>(
               loc, rowUpCond,
               [&](OpBuilder &builder, Location loc) {
                 // rowUp
@@ -917,7 +915,7 @@ void traverseImagewBoundaryExtrapolation(OpBuilder &rewriter, Location loc, MLIR
                     });
                 builder.create<scf::YieldOp>(loc);
               });
-        });
+      });
 }
 
 #endif
