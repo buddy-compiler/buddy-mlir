@@ -178,10 +178,11 @@ rvv-vp-intrinsic-asm:
 		--filetype=asm -o log.s
 
 rvv-vp-intrinsic-run-error:
-	@${MLIR_OPT} ./rvv-vp-intrinsic.mlir \
-		--convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+	@${BUDDY_OPT} ./rvv-vp-intrinsic.mlir \
+		--convert-scf-to-cf \
+		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
 	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
 		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS} --dlopen=${CROSS_MLIR_RUNNER_UTILS}
