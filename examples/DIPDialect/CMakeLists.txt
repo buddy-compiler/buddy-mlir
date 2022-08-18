@@ -60,3 +60,7 @@ add_executable(tophat2D tophat2D.cpp)
 add_dependencies(tophat2D buddy-opt)
 target_link_libraries(tophat2D ${OpenCV_LIBS} DIP)
 
+add_executable(bottomhat2D bottomhat2D.cpp)
+add_dependencies(bottomhat2D buddy-opt)
+target_link_libraries(bottomhat2D ${OpenCV_LIBS} DIP)
+

@@ -85,8 +85,8 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
  cv::Mat kernel1 = Mat(3, 3, CV_32FC1, laplacianKernelAlign);
 
-  dip::TopHat2D(&input, &kernel, &output1, x, y,
-              dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
+  dip::BottomHat2D(&input, &kernel, &output1, x, y,
+              dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
    Mat outputImageReplicatePadding_flat(sizesOutput[0], sizesOutput[1], CV_32FC1,
                                   output1.getData());
   imwrite(argv[2], outputImageReplicatePadding_flat);
@@ -94,7 +94,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
   // cv::Mat to store output of the permutations of dilation op
   Mat opencvConstantPaddingflat, opencvReplicatePaddingflat, opencvConstantPaddingnonflat, opencvReplicatePaddingnonflat;
-  morphologyEx(image, opencvReplicatePaddingflat,5, kernel1, cv::Point(x,y), 1, 1, 0);
+  morphologyEx(image, opencvReplicatePaddingflat,6, kernel1, cv::Point(x,y), 1, 0, 0);
   imwrite(argv[3], opencvReplicatePaddingflat);
 
   if (!testImages(o1, opencvReplicatePaddingflat)) {
