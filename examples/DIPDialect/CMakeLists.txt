@@ -55,3 +55,8 @@ target_link_libraries(opening2D ${OpenCV_LIBS} DIP)
 add_executable(closing2D closing2D.cpp)
 add_dependencies(closing2D buddy-opt)
 target_link_libraries(closing2D ${OpenCV_LIBS} DIP)
+
+add_executable(tophat2D tophat2D.cpp)
+add_dependencies(tophat2D buddy-opt)
+target_link_libraries(tophat2D ${OpenCV_LIBS} DIP)
+
