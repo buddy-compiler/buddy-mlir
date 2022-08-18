@@ -67,12 +67,16 @@ class DAPBiquadLowering : public OpRewritePattern<dap::BiquadOp> {
 public:
   using OpRewritePattern<dap::BiquadOp>::OpRewritePattern;
 
-  explicit DAPBiquadLowering(MLIRContext *context) : OpRewritePattern(context) {}
+  explicit DAPBiquadLowering(MLIRContext *context, int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
 
-  LogicalResult matchAndRewrite(dap::BiquadOp op, PatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(dap::BiquadOp op,
+                                PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     auto ctx = op->getContext();
-    
+
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
@@ -84,74 +88,92 @@ public:
     Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
     Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
 
-    Value b0 = rewriter.create<memref:: LoadOp>(loc, kernel, ValueRange{c0});
-    Value b1 = rewriter.create<memref:: LoadOp>(loc, kernel, ValueRange{c1});
-    Value b2 = rewriter.create<memref:: LoadOp>(loc, kernel, ValueRange{c2});
-    Value a0 = rewriter.create<memref:: LoadOp>(loc, kernel, ValueRange{c3});
-    Value a1 = rewriter.create<memref:: LoadOp>(loc, kernel, ValueRange{c4});
-    Value a2 = rewriter.create<memref:: LoadOp>(loc, kernel, ValueRange{c5});
+    Value b0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c0});
+    Value b1 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c1});
+    Value b2 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c2});
+    Value a0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c3});
+    Value a1 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c4});
+    Value a2 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c5});
 
-    Value N = rewriter.create<memref:: DimOp>(loc, input, c0);
+    Value N = rewriter.create<memref::DimOp>(loc, input, c0);
+
+    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
     FloatType f32 = FloatType::getF32(ctx);
-    
+
     Value z1 = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
     Value z2 = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
 
-    SmallVector<Value, 8> lowerBound{c0};
-    SmallVector<Value, 8> upperBound{N};
-    SmallVector<int64_t, 8> steps{1};
+    VectorType vectorTy32 = VectorType::get({stride}, f32);
 
-    // mlir::buildAffineLoopNest(
-    //   rewriter, loc, lowerBound, upperBound, steps,
-    //   [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-    //     Value in = builder.create<memref::LoadOp>(loc, input, ValueRange{ivs[0]});
-    //     Value t0 = builder.create<MulFOp>(loc, b0, in);
-    //     Value opt = builder.create<AddFOp>(loc, t0, z1);
+    Value x0 = rewriter.create<memref::LoadOp>(loc, input, ValueRange{c0});
+    Value x = rewriter.create<MulFOp>(loc, b0, x0);
+    rewriter.create<memref::StoreOp>(loc, x, output, ValueRange{c0});
 
-    //     Value t1 = builder.create<MulFOp>(loc, b1, in);
-    //     Value t2 = builder.create<MulFOp>(loc, a1, opt);
-    //     Value t3 = builder.create<SubFOp>(loc, t1, t2);
-    //     z1 = builder.create<AddFOp>(loc, z2, t3);
+    Value x1 = rewriter.create<memref::LoadOp>(loc, input, ValueRange{c1});
+    Value x2 = rewriter.create<MulFOp>(loc, b0, x1);
+    Value x3 = rewriter.create<MulFOp>(loc, b1, x0);
+    Value x4 = rewriter.create<AddFOp>(loc, x2, x3);
+    rewriter.create<memref::StoreOp>(loc, x4, output, ValueRange{c1});
 
-    //     Value t4 = builder.create<MulFOp>(loc, b2, in);
-    //     Value t5 = builder.create<MulFOp>(loc, a2, opt);
-    //     z2 = builder.create<SubFOp>(loc, t4, t5);
+    Value m1 = rewriter.create<LoadOp>(loc, vectorTy32, input, ValueRange{c0});
+    Value m2 = rewriter.create<LoadOp>(loc, vectorTy32, input, ValueRange{c1});
 
-    //     builder.create<memref::StoreOp>(loc, opt, output, ValueRange{ivs[0]});
-        
-    //   });
-   
-    mlir::scf::buildLoopNest(rewriter, loc, ValueRange(c0),ValueRange(N),ValueRange(c1), ValueRange{z1, z2},
-      [&](OpBuilder &builder, Location loc, ValueRange ivs, ValueRange ivc) -> scf::ValueVector {
-      Value in = builder.create<memref::LoadOp>(loc, input, ValueRange{ivs[0]});
-      Value t0 = builder.create<MulFOp>(loc, b0, in);
-      Value opt = builder.create<AddFOp>(loc, t0, ivc[0]);
+    Value Vecb0 = rewriter.create<BroadcastOp>(loc, vectorTy32, b0);
+    Value Vecb1 = rewriter.create<BroadcastOp>(loc, vectorTy32, b1);
+    Value Vecb2 = rewriter.create<BroadcastOp>(loc, vectorTy32, b2);
 
-      Value t1 = builder.create<MulFOp>(loc, b1, in);
-      Value t2 = builder.create<MulFOp>(loc, a1, opt);
-      Value t3 = builder.create<SubFOp>(loc, t1, t2);
-      Value z1_next = builder.create<AddFOp>(loc, ivc[1], t3);
+    mlir::scf::buildLoopNest(
+        rewriter, loc, ValueRange{c2}, ValueRange{N}, ValueRange{strideVal},
+        ValueRange{m1, m2},
+        [&](OpBuilder &builder, Location loc, ValueRange ivs,
+            ValueRange iargs) -> scf::ValueVector {
+          Value idx0 = ivs[0];
+          Value inputVec0 =
+              builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx0});
 
-      Value t4 = builder.create<MulFOp>(loc, b2, in);
-      Value t5 = builder.create<MulFOp>(loc, a2, opt);
-      Value z2_next = builder.create<SubFOp>(loc, t4, t5);
+          Value outputVec =
+              builder.create<LoadOp>(loc, vectorTy32, output, ValueRange{idx0});
+          Value resVec0 =
+              builder.create<FMAOp>(loc, inputVec0, Vecb0, outputVec);
+          Value resVec1 = builder.create<FMAOp>(loc, iargs[1], Vecb1, resVec0);
+          Value resVec2 = builder.create<FMAOp>(loc, iargs[0], Vecb2, resVec1);
+          builder.create<StoreOp>(loc, resVec2, output, ValueRange{ivs[0]});
 
-      builder.create<memref::StoreOp>(loc, opt, output, ValueRange{ivs[0]});
-      return std::vector<Value>{z1_next, z2_next};
-    });
-    
+          return std::vector<Value>{iargs[1], inputVec0};
+        });
+
+    mlir::scf::buildLoopNest(
+        rewriter, loc, ValueRange(c0), ValueRange(N), ValueRange(c1),
+        ValueRange{z1, z2},
+        [&](OpBuilder &builder, Location loc, ValueRange ivs,
+            ValueRange iargs) -> scf::ValueVector {
+          Value x =
+              builder.create<memref::LoadOp>(loc, output, ValueRange(ivs[0]));
+          Value t1 = builder.create<MulFOp>(loc, a1, iargs[1]);
+          Value t2 = builder.create<MulFOp>(loc, a2, iargs[0]);
+          Value y = builder.create<AddFOp>(loc, t1, t2);
+          Value opt = builder.create<SubFOp>(loc, x, y);
+
+          builder.create<memref::StoreOp>(loc, opt, output, ValueRange{ivs[0]});
+
+          return std::vector<Value>{iargs[1], opt};
+        });
 
     rewriter.eraseOp(op);
     return success();
-  } 
+  }
+
+private:
+  int64_t stride;
 };
 
 } // end anonymous namespace
 
-void populateLowerDAPConversionPatterns(RewritePatternSet &patterns) {
+void populateLowerDAPConversionPatterns(RewritePatternSet &patterns,
+                                        int64_t stride) {
   patterns.add<DAPFirLowering>(patterns.getContext());
-  patterns.add<DAPBiquadLowering>(patterns.getContext());
+  patterns.add<DAPBiquadLowering>(patterns.getContext(), stride);
 }
 
 //===----------------------------------------------------------------------===//
@@ -164,6 +186,7 @@ public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerDAPPass)
   LowerDAPPass() = default;
   LowerDAPPass(const LowerDAPPass &) {}
+  explicit LowerDAPPass(int64_t strideParam) { stride = strideParam; }
 
   StringRef getArgument() const final { return "lower-dap"; }
   StringRef getDescription() const final { return "Lower DAP Dialect."; }
@@ -175,6 +198,10 @@ public:
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
                     AffineDialect, arith::ArithmeticDialect>();
   }
+
+  Option<int64_t> stride{*this, "DAP-strip-mining",
+                         llvm::cl::desc("Strip mining size."),
+                         llvm::cl::init(32)};
 };
 } // end anonymous namespace.
 
@@ -189,7 +216,7 @@ void LowerDAPPass::runOnOperation() {
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);
-  populateLowerDAPConversionPatterns(patterns);
+  populateLowerDAPConversionPatterns(patterns, stride);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
