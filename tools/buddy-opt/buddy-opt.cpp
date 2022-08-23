@@ -55,6 +55,7 @@ void registerDataCopyGeneratePass();
 void registerAffineSuperTillingPass();
 void registerLoopPerfectPass();
 void registerEliminatePass();
+void registerGEMMVectorizationPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -77,6 +78,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerAffineSuperTillingPass();
   mlir::buddy::registerLoopPerfectPass();
   mlir::buddy::registerEliminatePass();
+  mlir::buddy::registerGEMMVectorizationPass();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
