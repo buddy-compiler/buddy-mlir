@@ -50,7 +50,13 @@ int main(int argc, char *argv[]) {
   dap::Audio<float, 1> output;
   output.fetchMetadata(aud.getAudioFile());
   output.getAudioFile().setAudioBuffer(nullptr);
-  dap::biquad(&aud.getMemRef(), &kernel, &output.getMemRef());
+  auto x = output.getMemRef();
+  dap::biquad(&aud.getMemRef(), &kernel, &x);
+
+  auto y = x.getData();
+  for(int i=0; i<6; i++){
+    std::cout<<y[i]<<"\n";
+  }
 
   cout << "Saving file:" << endl;
   cout << (output.save(saveFileName) ? "OK" : "NOT OK") << endl;
