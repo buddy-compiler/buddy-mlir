@@ -4,7 +4,7 @@ MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
 MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
 MLIR_TOYC := ../../llvm/build/bin/toyc-ch7
-BUDDY_TOY_DSL := ../../build-dsl/bin/buddy-toy-dsl
+BUDDY_TOY_DSL := ../../build/bin/buddy-toy-dsl
 
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
@@ -59,3 +59,24 @@ buddy-toy-function-translate:
 
 buddy-toy-function-run:
 	@${BUDDY_TOY_DSL} ./function.toy  -emit=jit
+
+toyc-struct-run:
+	@${MLIR_TOYC} ./struct.toy -emit=jit
+
+buddy-toy-struct-ast:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=ast
+
+buddy-toy-struct-mlir:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=mlir
+
+buddy-toy-struct-affine:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=mlir-affine
+
+buddy-toy-struct-llvm:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=mlir-llvm
+
+buddy-toy-struct-translate:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=llvm
+
+buddy-toy-struct-run:
+	@${BUDDY_TOY_DSL} ./struct.toy  -emit=jit
