@@ -158,7 +158,7 @@ constructSuperTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
             SmallVector<AffineExpr, 2> mapExprs;
             mapExprs.push_back(b.getAffineConstantExpr(tileSizes[i][j]));
             SmallVector<Value> inputs;
-            if(needRemainCalc[i]) {
+            if(needRemainCalc[i] && tileSizes[i][j] != 1) {
                auto cTileSize = b.getAffineConstantExpr(tileSizes[i][j]);
                auto d0 = b.getAffineDimExpr(0);
                dimNum ++;
@@ -170,7 +170,6 @@ constructSuperTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
                } else {
                    inputs.push_back(origLoop.getUpperBound().getOperand(0));
                    remainExpr = b.getAffineDimExpr(inputs.size() - 1) - cTileSize * d0;
-                   remainExpr.dump();
                    dimNum ++;
                }
                mapExprs.push_back(remainExpr);
@@ -313,6 +312,7 @@ superTilePerfectlyNested(MutableArrayRef<AffineForOp> input,
 
       AffineMap newIV = AffineMap::get(2, 0, newMixIVExpr, b.getContext());
       AffineApplyOp applyOp = b.create<AffineApplyOp>(rootAffineForOp.getLoc(), newIV, ValueRange(val));
+
       oldIV.replaceAllUsesWith(applyOp);
     }
 
