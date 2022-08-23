@@ -4,4 +4,5 @@ add_mlir_library(GEMMOptimization
   AffineSuperTilling.cpp
   LoopPerfect.cpp
   Eliminate.cpp
+  GEMMOptimize.cpp
   )
