@@ -24,6 +24,10 @@
 
 #include "Utils/Utils.h"
 
+// Specify operation names which will be used for performing operation specific
+// tasks inside generic utility functions.
+enum class DIP_OP { CORRELATION_2D };
+
 // Inserts a constant op with value 0 into a location `loc` based on type
 // `type`. Supported types are : f32, f64, integer types
 Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
@@ -491,12 +495,7 @@ void traverseImagewBoundaryExtrapolation(
     OpBuilder &rewriter, Location loc, MLIRContext *ctx, Value input,
     Value kernel, Value output, Value centerX, Value centerY,
     Value constantValue, Value strideVal, Type elemTy,
-    buddy::dip::BoundaryOption boundaryOptionAttr, int64_t stride,
-    void (*wTailProcessingFunc)(OpBuilder &, Location, VectorType, Value, Value,
-                                Value, Value, Value, Value, Value, Value,
-                                VectorType),
-    void (*woTailProcessingFunc)(OpBuilder &, Location, VectorType, Value,
-                                 Value, Value, Value, Value)) {
+    buddy::dip::BoundaryOption boundaryOptionAttr, int64_t stride, DIP_OP op) {
   // Create constant indices.
   Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
   Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
@@ -555,130 +554,280 @@ void traverseImagewBoundaryExtrapolation(
             builder.create<CmpIOp>(loc, CmpIPredicate::slt, currRow, centerY);
 
         builder.create<scf::IfOp>(
-              loc, rowUpCond,
-              [&](OpBuilder &builder, Location loc) {
-                // rowUp
-                if (boundaryOptionAttr ==
-                    buddy::dip::BoundaryOption::ConstantPadding) {
-                  Value inputVec = builder.create<BroadcastOp>(loc, vectorTy32,
-                                                               constantValue);
+            loc, rowUpCond,
+            [&](OpBuilder &builder, Location loc) {
+              // rowUp
+              if (boundaryOptionAttr ==
+                  buddy::dip::BoundaryOption::ConstantPadding) {
+                Value inputVec =
+                    builder.create<BroadcastOp>(loc, vectorTy32, constantValue);
 
-                  woTailProcessingFunc(builder, loc, vectorTy32,
+                if (op == DIP_OP::CORRELATION_2D) {
+                  calcAndStoreFMAwoTailProcessing(builder, loc, vectorTy32,
                                                   inputVec, kernelVec, output,
                                                   ivs[0], ivs[2]);
-                } else {
-                  Value colLeftCond = builder.create<CmpIOp>(
-                      loc, CmpIPredicate::slt, currCol, centerX);
+                }
+              } else {
+                Value colLeftCond = builder.create<CmpIOp>(
+                    loc, CmpIPredicate::slt, currCol, centerX);
 
-                  builder.create<scf::IfOp>(
-                      loc, colLeftCond,
-                      [&](OpBuilder &builder, Location loc) {
-                        // colLeft & rowUp
-                        Value inputVec;
-                        Value leftMaskElem =
-                            builder.create<SubIOp>(loc, centerX, currCol);
-                        Value leftMask =
-                            createInvertedMask(builder, loc, strideVal,
-                                               vectorMaskTy, leftMaskElem);
+                builder.create<scf::IfOp>(
+                    loc, colLeftCond,
+                    [&](OpBuilder &builder, Location loc) {
+                      // colLeft & rowUp
+                      Value inputVec;
+                      Value leftMaskElem =
+                          builder.create<SubIOp>(loc, centerX, currCol);
+                      Value leftMask = createInvertedMask(
+                          builder, loc, strideVal, vectorMaskTy, leftMaskElem);
 
-                        if (boundaryOptionAttr ==
-                            buddy::dip::BoundaryOption::ReplicatePadding) {
-                          Value paddingVal = builder.create<memref::LoadOp>(
-                              loc, input, ValueRange{c0, c0});
-                          Value padding = builder.create<BroadcastOp>(
-                              loc, vectorTy32, paddingVal);
+                      if (boundaryOptionAttr ==
+                          buddy::dip::BoundaryOption::ReplicatePadding) {
+                        Value paddingVal = builder.create<memref::LoadOp>(
+                            loc, input, ValueRange{c0, c0});
+                        Value padding = builder.create<BroadcastOp>(
+                            loc, vectorTy32, paddingVal);
 
-                          Value leftPaddingOffset =
-                              builder.create<SubIOp>(loc, c0, leftMaskElem);
-                          inputVec = builder.create<vector::MaskedLoadOp>(
-                              loc, vectorTy32, input,
-                              ValueRange{c0, leftPaddingOffset}, leftMask,
-                              padding);
-                        }
-                        woTailProcessingFunc(
+                        Value leftPaddingOffset =
+                            builder.create<SubIOp>(loc, c0, leftMaskElem);
+                        inputVec = builder.create<vector::MaskedLoadOp>(
+                            loc, vectorTy32, input,
+                            ValueRange{c0, leftPaddingOffset}, leftMask,
+                            padding);
+                      }
+
+                      if (op == DIP_OP::CORRELATION_2D) {
+                        calcAndStoreFMAwoTailProcessing(
                             builder, loc, vectorTy32, inputVec, kernelVec,
                             output, ivs[0], ivs[2]);
+                      }
 
-                        builder.create<scf::YieldOp>(loc);
-                      },
-                      [&](OpBuilder &builder, Location loc) {
-                        // (colMid or colRight) & rowUp
-                        Value colMidCond = builder.create<CmpIOp>(
-                            loc, CmpIPredicate::sle, colLastElem, colMidHelper);
+                      builder.create<scf::YieldOp>(loc);
+                    },
+                    [&](OpBuilder &builder, Location loc) {
+                      // (colMid or colRight) & rowUp
+                      Value colMidCond = builder.create<CmpIOp>(
+                          loc, CmpIPredicate::sle, colLastElem, colMidHelper);
 
-                        builder.create<scf::IfOp>(
-                            loc, colMidCond,
-                            [&](OpBuilder &builder, Location loc) {
-                              // colMid & rowUp
-                              Value inputVec;
-                              if (boundaryOptionAttr ==
-                                  buddy::dip::BoundaryOption::ReplicatePadding) {
-                                inputVec = builder.create<LoadOp>(
-                                    loc, vectorTy32, input,
-                                    ValueRange{c0, imCol});
-                              }
-                              woTailProcessingFunc(
+                      builder.create<scf::IfOp>(
+                          loc, colMidCond,
+                          [&](OpBuilder &builder, Location loc) {
+                            // colMid & rowUp
+                            Value inputVec;
+                            if (boundaryOptionAttr ==
+                                buddy::dip::BoundaryOption::ReplicatePadding) {
+                              inputVec =
+                                  builder.create<LoadOp>(loc, vectorTy32, input,
+                                                         ValueRange{c0, imCol});
+                            }
+
+                            if (op == DIP_OP::CORRELATION_2D) {
+                              calcAndStoreFMAwoTailProcessing(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2]);
+                            }
 
-                              builder.create<scf::YieldOp>(loc);
-                            },
-                            [&](OpBuilder &builder, Location loc) {
-                              // colRight & rowUp
-                              Value inputVec;
-                              Value rightMaskHelper = builder.create<SubIOp>(
-                                  loc, colLastElem, colMidHelper);
-                              Value rightMaskElem = builder.create<SubIOp>(
-                                  loc, strideVal, rightMaskHelper);
-                              Value rightMask = builder.create<CreateMaskOp>(
-                                  loc, vectorMaskTy, rightMaskElem);
+                            builder.create<scf::YieldOp>(loc);
+                          },
+                          [&](OpBuilder &builder, Location loc) {
+                            // colRight & rowUp
+                            Value inputVec;
+                            Value rightMaskHelper = builder.create<SubIOp>(
+                                loc, colLastElem, colMidHelper);
+                            Value rightMaskElem = builder.create<SubIOp>(
+                                loc, strideVal, rightMaskHelper);
+                            Value rightMask = builder.create<CreateMaskOp>(
+                                loc, vectorMaskTy, rightMaskElem);
 
-                              if (boundaryOptionAttr ==
-                                  buddy::dip::BoundaryOption::ReplicatePadding) {
-                                Value rightRange =
-                                    builder.create<SubIOp>(loc, inputCol, c1);
-                                Value paddingVal =
-                                    builder.create<memref::LoadOp>(
-                                        loc, input, ValueRange{c0, rightRange});
-                                Value padding = builder.create<BroadcastOp>(
-                                    loc, vectorTy32, paddingVal);
+                            if (boundaryOptionAttr ==
+                                buddy::dip::BoundaryOption::ReplicatePadding) {
+                              Value rightRange =
+                                  builder.create<SubIOp>(loc, inputCol, c1);
+                              Value paddingVal = builder.create<memref::LoadOp>(
+                                  loc, input, ValueRange{c0, rightRange});
+                              Value padding = builder.create<BroadcastOp>(
+                                  loc, vectorTy32, paddingVal);
 
-                                inputVec = builder.create<MaskedLoadOp>(
-                                    loc, vectorTy32, input,
-                                    ValueRange{c0, imCol}, rightMask, padding);
-                              }
-                              Value tailCond = tailChecker(
-                                  builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol, ivs[2]);
-                              wTailProcessingFunc(
+                              inputVec = builder.create<MaskedLoadOp>(
+                                  loc, vectorTy32, input, ValueRange{c0, imCol},
+                                  rightMask, padding);
+                            }
+                            Value tailCond =
+                                tailChecker(builder, loc, calcHelper, strideVal,
+                                            kernelSize, c1, pseudoCol, ivs[2]);
+
+                            if (op == DIP_OP::CORRELATION_2D) {
+                              calcAndStoreFMAwTailProcessing(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2], tailCond, zeroPadding,
                                   inputCol, vectorMaskTy);
+                            }
 
-                              builder.create<scf::YieldOp>(loc);
-                            });
-                        builder.create<scf::YieldOp>(loc);
-                      });
-                }
-                builder.create<scf::YieldOp>(loc);
-              },
-              [&](OpBuilder &builder, Location loc) {
-                // rowMid or rowDown
-                Value rowMidCond = builder.create<CmpIOp>(
-                    loc, CmpIPredicate::slt, currRow, rowMidHelper);
+                            builder.create<scf::YieldOp>(loc);
+                          });
+                      builder.create<scf::YieldOp>(loc);
+                    });
+              }
+              builder.create<scf::YieldOp>(loc);
+            },
+            [&](OpBuilder &builder, Location loc) {
+              // rowMid or rowDown
+              Value rowMidCond = builder.create<CmpIOp>(loc, CmpIPredicate::slt,
+                                                        currRow, rowMidHelper);
 
-                builder.create<scf::IfOp>(
-                    loc, rowMidCond,
-                    [&](OpBuilder &builder, Location loc) {
-                      // rowMid
+              builder.create<scf::IfOp>(
+                  loc, rowMidCond,
+                  [&](OpBuilder &builder, Location loc) {
+                    // rowMid
+                    Value colLeftCond = builder.create<CmpIOp>(
+                        loc, CmpIPredicate::slt, currCol, centerX);
+
+                    builder.create<scf::IfOp>(
+                        loc, colLeftCond,
+                        [&](OpBuilder &builder, Location loc) {
+                          // colLeft & rowMid
+                          Value inputVec;
+                          Value leftMaskElem =
+                              builder.create<SubIOp>(loc, centerX, currCol);
+                          Value leftMask =
+                              createInvertedMask(builder, loc, strideVal,
+                                                 vectorMaskTy, leftMaskElem);
+
+                          if (boundaryOptionAttr ==
+                              buddy::dip::BoundaryOption::ConstantPadding) {
+                            Value padding = builder.create<BroadcastOp>(
+                                loc, vectorTy32, constantValue);
+
+                            Value leftPaddingOffset =
+                                builder.create<SubIOp>(loc, c0, leftMaskElem);
+                            inputVec = builder.create<MaskedLoadOp>(
+                                loc, vectorTy32, input,
+                                ValueRange{imRow, leftPaddingOffset}, leftMask,
+                                padding);
+                          } else if (boundaryOptionAttr ==
+                                     buddy::dip::BoundaryOption::
+                                         ReplicatePadding) {
+                            Value paddingVal = builder.create<memref::LoadOp>(
+                                loc, input, ValueRange{imRow, c0});
+                            Value padding = builder.create<BroadcastOp>(
+                                loc, vectorTy32, paddingVal);
+
+                            Value leftPaddingOffset =
+                                builder.create<SubIOp>(loc, c0, leftMaskElem);
+                            inputVec = builder.create<MaskedLoadOp>(
+                                loc, vectorTy32, input,
+                                ValueRange{imRow, leftPaddingOffset}, leftMask,
+                                padding);
+                          }
+
+                          if (op == DIP_OP::CORRELATION_2D) {
+                            calcAndStoreFMAwoTailProcessing(
+                                builder, loc, vectorTy32, inputVec, kernelVec,
+                                output, ivs[0], ivs[2]);
+                          }
+
+                          builder.create<scf::YieldOp>(loc);
+                        },
+                        [&](OpBuilder &builder, Location loc) {
+                          // (colMid or colRight) & rowMid
+                          Value colMidCond =
+                              builder.create<CmpIOp>(loc, CmpIPredicate::sle,
+                                                     colLastElem, colMidHelper);
+
+                          builder.create<scf::IfOp>(
+                              loc, colMidCond,
+                              [&](OpBuilder &builder, Location loc) {
+                                // colMid & rowMid
+                                Value inputVec = builder.create<LoadOp>(
+                                    loc, vectorTy32, input,
+                                    ValueRange{imRow, imCol});
+
+                                if (op == DIP_OP::CORRELATION_2D) {
+                                  calcAndStoreFMAwoTailProcessing(
+                                      builder, loc, vectorTy32, inputVec,
+                                      kernelVec, output, ivs[0], ivs[2]);
+                                }
+
+                                builder.create<scf::YieldOp>(loc);
+                              },
+                              [&](OpBuilder &builder, Location loc) {
+                                // colRight & rowMid
+                                Value inputVec;
+                                Value rightMaskHelper = builder.create<SubIOp>(
+                                    loc, colLastElem, colMidHelper);
+                                Value rightMaskElem = builder.create<SubIOp>(
+                                    loc, strideVal, rightMaskHelper);
+                                Value rightMask = builder.create<CreateMaskOp>(
+                                    loc, vectorMaskTy, rightMaskElem);
+
+                                if (boundaryOptionAttr ==
+                                    buddy::dip::BoundaryOption::
+                                        ConstantPadding) {
+                                  Value padding = builder.create<BroadcastOp>(
+                                      loc, vectorTy32, constantValue);
+
+                                  inputVec = builder.create<MaskedLoadOp>(
+                                      loc, vectorTy32, input,
+                                      ValueRange{imRow, imCol}, rightMask,
+                                      padding);
+                                } else if (boundaryOptionAttr ==
+                                           buddy::dip::BoundaryOption::
+                                               ReplicatePadding) {
+                                  Value rightRange =
+                                      builder.create<SubIOp>(loc, inputCol, c1);
+                                  Value paddingVal =
+                                      builder.create<memref::LoadOp>(
+                                          loc, input,
+                                          ValueRange{imRow, rightRange});
+                                  Value padding = builder.create<BroadcastOp>(
+                                      loc, vectorTy32, paddingVal);
+
+                                  inputVec = builder.create<MaskedLoadOp>(
+                                      loc, vectorTy32, input,
+                                      ValueRange{imRow, imCol}, rightMask,
+                                      padding);
+                                }
+                                Value tailCond = tailChecker(
+                                    builder, loc, calcHelper, strideVal,
+                                    kernelSize, c1, pseudoCol, ivs[2]);
+
+                                if (op == DIP_OP::CORRELATION_2D) {
+                                  calcAndStoreFMAwTailProcessing(
+                                      builder, loc, vectorTy32, inputVec,
+                                      kernelVec, output, ivs[0], ivs[2],
+                                      tailCond, zeroPadding, inputCol,
+                                      vectorMaskTy);
+                                }
+
+                                builder.create<scf::YieldOp>(loc);
+                              });
+                          builder.create<scf::YieldOp>(loc);
+                        });
+                    builder.create<scf::YieldOp>(loc);
+                  },
+                  [&](OpBuilder &builder, Location loc) {
+                    // rowDown
+                    if (boundaryOptionAttr ==
+                        buddy::dip::BoundaryOption::ConstantPadding) {
+                      Value inputVec = builder.create<BroadcastOp>(
+                          loc, vectorTy32, constantValue);
+
+                      if (op == DIP_OP::CORRELATION_2D) {
+                        calcAndStoreFMAwoTailProcessing(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2]);
+                      }
+                    } else {
                       Value colLeftCond = builder.create<CmpIOp>(
                           loc, CmpIPredicate::slt, currCol, centerX);
 
                       builder.create<scf::IfOp>(
                           loc, colLeftCond,
                           [&](OpBuilder &builder, Location loc) {
-                            // colLeft & rowMid
+                            // colLeft & rowDown
                             Value inputVec;
+                            Value downRange =
+                                builder.create<SubIOp>(loc, inputRow, c1);
                             Value leftMaskElem =
                                 builder.create<SubIOp>(loc, centerX, currCol);
                             Value leftMask =
@@ -686,20 +835,9 @@ void traverseImagewBoundaryExtrapolation(
                                                    vectorMaskTy, leftMaskElem);
 
                             if (boundaryOptionAttr ==
-                                buddy::dip::BoundaryOption::ConstantPadding) {
-                              Value padding = builder.create<BroadcastOp>(
-                                  loc, vectorTy32, constantValue);
-
-                              Value leftPaddingOffset =
-                                  builder.create<SubIOp>(loc, c0, leftMaskElem);
-                              inputVec = builder.create<MaskedLoadOp>(
-                                  loc, vectorTy32, input,
-                                  ValueRange{imRow, leftPaddingOffset},
-                                  leftMask, padding);
-                            } else if (boundaryOptionAttr ==
-                                       buddy::dip::BoundaryOption::ReplicatePadding) {
+                                buddy::dip::BoundaryOption::ReplicatePadding) {
                               Value paddingVal = builder.create<memref::LoadOp>(
-                                  loc, input, ValueRange{imRow, c0});
+                                  loc, input, ValueRange{downRange, c0});
                               Value padding = builder.create<BroadcastOp>(
                                   loc, vectorTy32, paddingVal);
 
@@ -707,17 +845,20 @@ void traverseImagewBoundaryExtrapolation(
                                   builder.create<SubIOp>(loc, c0, leftMaskElem);
                               inputVec = builder.create<MaskedLoadOp>(
                                   loc, vectorTy32, input,
-                                  ValueRange{imRow, leftPaddingOffset},
+                                  ValueRange{downRange, leftPaddingOffset},
                                   leftMask, padding);
                             }
-                            woTailProcessingFunc(
-                                builder, loc, vectorTy32, inputVec, kernelVec,
-                                output, ivs[0], ivs[2]);
+
+                            if (op == DIP_OP::CORRELATION_2D) {
+                              calcAndStoreFMAwoTailProcessing(
+                                  builder, loc, vectorTy32, inputVec, kernelVec,
+                                  output, ivs[0], ivs[2]);
+                            }
 
                             builder.create<scf::YieldOp>(loc);
                           },
                           [&](OpBuilder &builder, Location loc) {
-                            // (colMid or colRight) & rowMid
+                            // (colMid or colRight) & rowDown
                             Value colMidCond = builder.create<CmpIOp>(
                                 loc, CmpIPredicate::sle, colLastElem,
                                 colMidHelper);
@@ -725,18 +866,28 @@ void traverseImagewBoundaryExtrapolation(
                             builder.create<scf::IfOp>(
                                 loc, colMidCond,
                                 [&](OpBuilder &builder, Location loc) {
-                                  // colMid & rowMid
-                                  Value inputVec = builder.create<LoadOp>(
-                                      loc, vectorTy32, input,
-                                      ValueRange{imRow, imCol});
-                                  woTailProcessingFunc(
-                                      builder, loc, vectorTy32, inputVec,
-                                      kernelVec, output, ivs[0], ivs[2]);
+                                  // colMid & rowDown
+                                  Value inputVec;
+                                  Value downRange =
+                                      builder.create<SubIOp>(loc, inputRow, c1);
+                                  if (boundaryOptionAttr ==
+                                      buddy::dip::BoundaryOption::
+                                          ReplicatePadding) {
+                                    inputVec = builder.create<LoadOp>(
+                                        loc, vectorTy32, input,
+                                        ValueRange{downRange, imCol});
+                                  }
+
+                                  if (op == DIP_OP::CORRELATION_2D) {
+                                    calcAndStoreFMAwoTailProcessing(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2]);
+                                  }
 
                                   builder.create<scf::YieldOp>(loc);
                                 },
                                 [&](OpBuilder &builder, Location loc) {
-                                  // colRight & rowMid
+                                  // colRight & rowDown
                                   Value inputVec;
                                   Value rightMaskHelper =
                                       builder.create<SubIOp>(loc, colLastElem,
@@ -747,174 +898,49 @@ void traverseImagewBoundaryExtrapolation(
                                       builder.create<CreateMaskOp>(
                                           loc, vectorMaskTy, rightMaskElem);
 
-                                  if (boundaryOptionAttr ==
-                                      buddy::dip::BoundaryOption::ConstantPadding) {
-                                    Value padding = builder.create<BroadcastOp>(
-                                        loc, vectorTy32, constantValue);
+                                  Value downRange =
+                                      builder.create<SubIOp>(loc, inputRow, c1);
+                                  Value rightRange =
+                                      builder.create<SubIOp>(loc, inputCol, c1);
 
-                                    inputVec = builder.create<MaskedLoadOp>(
-                                        loc, vectorTy32, input,
-                                        ValueRange{imRow, imCol}, rightMask,
-                                        padding);
-                                  } else if (boundaryOptionAttr ==
-                                             buddy::dip::BoundaryOption::
-                                                 ReplicatePadding) {
-                                    Value rightRange = builder.create<SubIOp>(
-                                        loc, inputCol, c1);
+                                  if (boundaryOptionAttr ==
+                                      buddy::dip::BoundaryOption::
+                                          ReplicatePadding) {
+
                                     Value paddingVal =
                                         builder.create<memref::LoadOp>(
                                             loc, input,
-                                            ValueRange{imRow, rightRange});
-                                    Value padding = builder.create<BroadcastOp>(
-                                        loc, vectorTy32, paddingVal);
+                                            ValueRange{downRange, rightRange});
+                                    Value padding =
+                                        builder.create<vector::BroadcastOp>(
+                                            loc, vectorTy32, paddingVal);
 
                                     inputVec = builder.create<MaskedLoadOp>(
                                         loc, vectorTy32, input,
-                                        ValueRange{imRow, imCol}, rightMask,
+                                        ValueRange{downRange, imCol}, rightMask,
                                         padding);
                                   }
                                   Value tailCond = tailChecker(
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs[2]);
-                                  wTailProcessingFunc(
-                                      builder, loc, vectorTy32, inputVec,
-                                      kernelVec, output, ivs[0], ivs[2],
-                                      tailCond, zeroPadding, inputCol,
-                                      vectorMaskTy);
+
+                                  if (op == DIP_OP::CORRELATION_2D) {
+                                    calcAndStoreFMAwTailProcessing(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, zeroPadding, inputCol,
+                                        vectorMaskTy);
+                                  }
 
                                   builder.create<scf::YieldOp>(loc);
                                 });
                             builder.create<scf::YieldOp>(loc);
                           });
-                      builder.create<scf::YieldOp>(loc);
-                    },
-                    [&](OpBuilder &builder, Location loc) {
-                      // rowDown
-                      if (boundaryOptionAttr ==
-                          buddy::dip::BoundaryOption::ConstantPadding) {
-                        Value inputVec = builder.create<BroadcastOp>(
-                            loc, vectorTy32, constantValue);
-
-                        woTailProcessingFunc(
-                            builder, loc, vectorTy32, inputVec, kernelVec,
-                            output, ivs[0], ivs[2]);
-                      } else {
-                        Value colLeftCond = builder.create<CmpIOp>(
-                            loc, CmpIPredicate::slt, currCol, centerX);
-
-                        builder.create<scf::IfOp>(
-                            loc, colLeftCond,
-                            [&](OpBuilder &builder, Location loc) {
-                              // colLeft & rowDown
-                              Value inputVec;
-                              Value downRange =
-                                  builder.create<SubIOp>(loc, inputRow, c1);
-                              Value leftMaskElem =
-                                  builder.create<SubIOp>(loc, centerX, currCol);
-                              Value leftMask = createInvertedMask(
-                                  builder, loc, strideVal, vectorMaskTy,
-                                  leftMaskElem);
-
-                              if (boundaryOptionAttr ==
-                                  buddy::dip::BoundaryOption::ReplicatePadding) {
-                                Value paddingVal =
-                                    builder.create<memref::LoadOp>(
-                                        loc, input, ValueRange{downRange, c0});
-                                Value padding = builder.create<BroadcastOp>(
-                                    loc, vectorTy32, paddingVal);
-
-                                Value leftPaddingOffset =
-                                    builder.create<SubIOp>(loc, c0,
-                                                           leftMaskElem);
-                                inputVec = builder.create<MaskedLoadOp>(
-                                    loc, vectorTy32, input,
-                                    ValueRange{downRange, leftPaddingOffset},
-                                    leftMask, padding);
-                              }
-                              woTailProcessingFunc(
-                                  builder, loc, vectorTy32, inputVec, kernelVec,
-                                  output, ivs[0], ivs[2]);
-
-                              builder.create<scf::YieldOp>(loc);
-                            },
-                            [&](OpBuilder &builder, Location loc) {
-                              // (colMid or colRight) & rowDown
-                              Value colMidCond = builder.create<CmpIOp>(
-                                  loc, CmpIPredicate::sle, colLastElem,
-                                  colMidHelper);
-
-                              builder.create<scf::IfOp>(
-                                  loc, colMidCond,
-                                  [&](OpBuilder &builder, Location loc) {
-                                    // colMid & rowDown
-                                    Value inputVec;
-                                    Value downRange = builder.create<SubIOp>(
-                                        loc, inputRow, c1);
-                                    if (boundaryOptionAttr ==
-                                        buddy::dip::BoundaryOption::ReplicatePadding) {
-                                      inputVec = builder.create<LoadOp>(
-                                          loc, vectorTy32, input,
-                                          ValueRange{downRange, imCol});
-                                    }
-                                    woTailProcessingFunc(
-                                        builder, loc, vectorTy32, inputVec,
-                                        kernelVec, output, ivs[0], ivs[2]);
-
-                                    builder.create<scf::YieldOp>(loc);
-                                  },
-                                  [&](OpBuilder &builder, Location loc) {
-                                    // colRight & rowDown
-                                    Value inputVec;
-                                    Value rightMaskHelper =
-                                        builder.create<SubIOp>(loc, colLastElem,
-                                                               colMidHelper);
-                                    Value rightMaskElem =
-                                        builder.create<SubIOp>(loc, strideVal,
-                                                               rightMaskHelper);
-                                    Value rightMask =
-                                        builder.create<CreateMaskOp>(
-                                            loc, vectorMaskTy, rightMaskElem);
-
-                                    Value downRange = builder.create<SubIOp>(
-                                        loc, inputRow, c1);
-                                    Value rightRange = builder.create<SubIOp>(
-                                        loc, inputCol, c1);
-
-                                    if (boundaryOptionAttr ==
-                                        buddy::dip::BoundaryOption::ReplicatePadding) {
-
-                                      Value paddingVal =
-                                          builder.create<memref::LoadOp>(
-                                              loc, input,
-                                              ValueRange{downRange,
-                                                         rightRange});
-                                      Value padding =
-                                          builder.create<vector::BroadcastOp>(
-                                              loc, vectorTy32, paddingVal);
-
-                                      inputVec = builder.create<MaskedLoadOp>(
-                                          loc, vectorTy32, input,
-                                          ValueRange{downRange, imCol},
-                                          rightMask, padding);
-                                    }
-                                    Value tailCond = tailChecker(
-                                        builder, loc, calcHelper, strideVal,
-                                        kernelSize, c1, pseudoCol, ivs[2]);
-                                    wTailProcessingFunc(
-                                        builder, loc, vectorTy32, inputVec,
-                                        kernelVec, output, ivs[0], ivs[2],
-                                        tailCond, zeroPadding, inputCol,
-                                        vectorMaskTy);
-
-                                    builder.create<scf::YieldOp>(loc);
-                                  });
-                              builder.create<scf::YieldOp>(loc);
-                            });
-                      }
-                      builder.create<scf::YieldOp>(loc);
-                    });
-                builder.create<scf::YieldOp>(loc);
-              });
+                    }
+                    builder.create<scf::YieldOp>(loc);
+                  });
+              builder.create<scf::YieldOp>(loc);
+            });
       });
 }
 
