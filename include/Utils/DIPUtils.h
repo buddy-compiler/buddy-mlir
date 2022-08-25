@@ -24,6 +24,10 @@
 
 #include "Utils/Utils.h"
 
+// Specify operation names which will be used for performing operation specific
+// tasks inside generic utility functions.
+enum class DIP_OP { CORRELATION_2D };
+
 // Inserts a constant op with value 0 into a location `loc` based on type
 // `type`. Supported types are : f32, f64, integer types
 Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
@@ -486,4 +490,458 @@ void BilinearInterpolationResizing(
             inputColLastElemF32, c0F32, c1F32);
       });
 }
+
+void traverseImagewBoundaryExtrapolation(
+    OpBuilder &rewriter, Location loc, MLIRContext *ctx, Value input,
+    Value kernel, Value output, Value centerX, Value centerY,
+    Value constantValue, Value strideVal, Type elemTy,
+    buddy::dip::BoundaryOption boundaryOptionAttr, int64_t stride, DIP_OP op) {
+  // Create constant indices.
+  Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
+  Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+
+  IntegerType i1 = IntegerType::get(ctx, 1);
+
+  // Create DimOp.
+  Value inputRow = rewriter.create<memref::DimOp>(loc, input, c0);
+  Value inputCol = rewriter.create<memref::DimOp>(loc, input, c1);
+  Value kernelSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
+
+  // Variables used for detecting rowMid, rowDown, colMid and colRight
+  // regions.
+  Value rowMidHelper = rewriter.create<AddIOp>(loc, inputRow, centerY);
+  Value colMidHelper = rewriter.create<AddIOp>(loc, inputCol, centerX);
+
+  SmallVector<Value, 8> lowerBounds(4, c0);
+  SmallVector<Value, 8> uperBounds{inputRow, kernelSize, inputCol, kernelSize};
+  SmallVector<int64_t, 8> steps{1, 1, stride, 1};
+
+  VectorType vectorTy32 = VectorType::get({stride}, elemTy);
+  VectorType vectorMaskTy = VectorType::get({stride}, i1);
+
+  Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, elemTy);
+  Value zeroPadding =
+      rewriter.create<BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
+
+  AffineExpr a, b, c;
+  bindDims(ctx, a, b, c);
+  AffineMap calcHelper = AffineMap::get(3, 0, {a + b - c}, ctx);
+
+  Value pseudoCol = rewriter.create<AffineApplyOp>(
+      loc, calcHelper, ValueRange{inputCol, kernelSize, c1});
+
+  buildAffineLoopNest(
+      rewriter, loc, lowerBounds, uperBounds, steps,
+      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+        // Indices of current pixel with respect to pseudo image containing
+        // extrapolated boundaries.
+        Value currRow = builder.create<AddIOp>(loc, ivs[0], ivs[1]);
+        Value currCol = builder.create<AddIOp>(loc, ivs[2], ivs[3]);
+
+        Value kernelValue = builder.create<memref::LoadOp>(
+            loc, kernel, ValueRange{ivs[1], ivs[3]});
+        Value kernelVec =
+            builder.create<BroadcastOp>(loc, vectorTy32, kernelValue);
+
+        // Pixel indices with respect to the actual image.
+        Value imRow = builder.create<SubIOp>(loc, currRow, centerY);
+        Value imCol = builder.create<SubIOp>(loc, currCol, centerX);
+
+        // Index of pixel used for determining right region.
+        Value colLastElem = builder.create<AddIOp>(loc, currCol, strideVal);
+
+        Value rowUpCond =
+            builder.create<CmpIOp>(loc, CmpIPredicate::slt, currRow, centerY);
+
+        builder.create<scf::IfOp>(
+            loc, rowUpCond,
+            [&](OpBuilder &builder, Location loc) {
+              // rowUp
+              if (boundaryOptionAttr ==
+                  buddy::dip::BoundaryOption::ConstantPadding) {
+                Value inputVec =
+                    builder.create<BroadcastOp>(loc, vectorTy32, constantValue);
+
+                if (op == DIP_OP::CORRELATION_2D) {
+                  calcAndStoreFMAwoTailProcessing(builder, loc, vectorTy32,
+                                                  inputVec, kernelVec, output,
+                                                  ivs[0], ivs[2]);
+                }
+              } else {
+                Value colLeftCond = builder.create<CmpIOp>(
+                    loc, CmpIPredicate::slt, currCol, centerX);
+
+                builder.create<scf::IfOp>(
+                    loc, colLeftCond,
+                    [&](OpBuilder &builder, Location loc) {
+                      // colLeft & rowUp
+                      Value inputVec;
+                      Value leftMaskElem =
+                          builder.create<SubIOp>(loc, centerX, currCol);
+                      Value leftMask = createInvertedMask(
+                          builder, loc, strideVal, vectorMaskTy, leftMaskElem);
+
+                      if (boundaryOptionAttr ==
+                          buddy::dip::BoundaryOption::ReplicatePadding) {
+                        Value paddingVal = builder.create<memref::LoadOp>(
+                            loc, input, ValueRange{c0, c0});
+                        Value padding = builder.create<BroadcastOp>(
+                            loc, vectorTy32, paddingVal);
+
+                        Value leftPaddingOffset =
+                            builder.create<SubIOp>(loc, c0, leftMaskElem);
+                        inputVec = builder.create<vector::MaskedLoadOp>(
+                            loc, vectorTy32, input,
+                            ValueRange{c0, leftPaddingOffset}, leftMask,
+                            padding);
+                      }
+
+                      if (op == DIP_OP::CORRELATION_2D) {
+                        calcAndStoreFMAwoTailProcessing(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2]);
+                      }
+
+                      builder.create<scf::YieldOp>(loc);
+                    },
+                    [&](OpBuilder &builder, Location loc) {
+                      // (colMid or colRight) & rowUp
+                      Value colMidCond = builder.create<CmpIOp>(
+                          loc, CmpIPredicate::sle, colLastElem, colMidHelper);
+
+                      builder.create<scf::IfOp>(
+                          loc, colMidCond,
+                          [&](OpBuilder &builder, Location loc) {
+                            // colMid & rowUp
+                            Value inputVec;
+                            if (boundaryOptionAttr ==
+                                buddy::dip::BoundaryOption::ReplicatePadding) {
+                              inputVec =
+                                  builder.create<LoadOp>(loc, vectorTy32, input,
+                                                         ValueRange{c0, imCol});
+                            }
+
+                            if (op == DIP_OP::CORRELATION_2D) {
+                              calcAndStoreFMAwoTailProcessing(
+                                  builder, loc, vectorTy32, inputVec, kernelVec,
+                                  output, ivs[0], ivs[2]);
+                            }
+
+                            builder.create<scf::YieldOp>(loc);
+                          },
+                          [&](OpBuilder &builder, Location loc) {
+                            // colRight & rowUp
+                            Value inputVec;
+                            Value rightMaskHelper = builder.create<SubIOp>(
+                                loc, colLastElem, colMidHelper);
+                            Value rightMaskElem = builder.create<SubIOp>(
+                                loc, strideVal, rightMaskHelper);
+                            Value rightMask = builder.create<CreateMaskOp>(
+                                loc, vectorMaskTy, rightMaskElem);
+
+                            if (boundaryOptionAttr ==
+                                buddy::dip::BoundaryOption::ReplicatePadding) {
+                              Value rightRange =
+                                  builder.create<SubIOp>(loc, inputCol, c1);
+                              Value paddingVal = builder.create<memref::LoadOp>(
+                                  loc, input, ValueRange{c0, rightRange});
+                              Value padding = builder.create<BroadcastOp>(
+                                  loc, vectorTy32, paddingVal);
+
+                              inputVec = builder.create<MaskedLoadOp>(
+                                  loc, vectorTy32, input, ValueRange{c0, imCol},
+                                  rightMask, padding);
+                            }
+                            Value tailCond =
+                                tailChecker(builder, loc, calcHelper, strideVal,
+                                            kernelSize, c1, pseudoCol, ivs[2]);
+
+                            if (op == DIP_OP::CORRELATION_2D) {
+                              calcAndStoreFMAwTailProcessing(
+                                  builder, loc, vectorTy32, inputVec, kernelVec,
+                                  output, ivs[0], ivs[2], tailCond, zeroPadding,
+                                  inputCol, vectorMaskTy);
+                            }
+
+                            builder.create<scf::YieldOp>(loc);
+                          });
+                      builder.create<scf::YieldOp>(loc);
+                    });
+              }
+              builder.create<scf::YieldOp>(loc);
+            },
+            [&](OpBuilder &builder, Location loc) {
+              // rowMid or rowDown
+              Value rowMidCond = builder.create<CmpIOp>(loc, CmpIPredicate::slt,
+                                                        currRow, rowMidHelper);
+
+              builder.create<scf::IfOp>(
+                  loc, rowMidCond,
+                  [&](OpBuilder &builder, Location loc) {
+                    // rowMid
+                    Value colLeftCond = builder.create<CmpIOp>(
+                        loc, CmpIPredicate::slt, currCol, centerX);
+
+                    builder.create<scf::IfOp>(
+                        loc, colLeftCond,
+                        [&](OpBuilder &builder, Location loc) {
+                          // colLeft & rowMid
+                          Value inputVec;
+                          Value leftMaskElem =
+                              builder.create<SubIOp>(loc, centerX, currCol);
+                          Value leftMask =
+                              createInvertedMask(builder, loc, strideVal,
+                                                 vectorMaskTy, leftMaskElem);
+
+                          if (boundaryOptionAttr ==
+                              buddy::dip::BoundaryOption::ConstantPadding) {
+                            Value padding = builder.create<BroadcastOp>(
+                                loc, vectorTy32, constantValue);
+
+                            Value leftPaddingOffset =
+                                builder.create<SubIOp>(loc, c0, leftMaskElem);
+                            inputVec = builder.create<MaskedLoadOp>(
+                                loc, vectorTy32, input,
+                                ValueRange{imRow, leftPaddingOffset}, leftMask,
+                                padding);
+                          } else if (boundaryOptionAttr ==
+                                     buddy::dip::BoundaryOption::
+                                         ReplicatePadding) {
+                            Value paddingVal = builder.create<memref::LoadOp>(
+                                loc, input, ValueRange{imRow, c0});
+                            Value padding = builder.create<BroadcastOp>(
+                                loc, vectorTy32, paddingVal);
+
+                            Value leftPaddingOffset =
+                                builder.create<SubIOp>(loc, c0, leftMaskElem);
+                            inputVec = builder.create<MaskedLoadOp>(
+                                loc, vectorTy32, input,
+                                ValueRange{imRow, leftPaddingOffset}, leftMask,
+                                padding);
+                          }
+
+                          if (op == DIP_OP::CORRELATION_2D) {
+                            calcAndStoreFMAwoTailProcessing(
+                                builder, loc, vectorTy32, inputVec, kernelVec,
+                                output, ivs[0], ivs[2]);
+                          }
+
+                          builder.create<scf::YieldOp>(loc);
+                        },
+                        [&](OpBuilder &builder, Location loc) {
+                          // (colMid or colRight) & rowMid
+                          Value colMidCond =
+                              builder.create<CmpIOp>(loc, CmpIPredicate::sle,
+                                                     colLastElem, colMidHelper);
+
+                          builder.create<scf::IfOp>(
+                              loc, colMidCond,
+                              [&](OpBuilder &builder, Location loc) {
+                                // colMid & rowMid
+                                Value inputVec = builder.create<LoadOp>(
+                                    loc, vectorTy32, input,
+                                    ValueRange{imRow, imCol});
+
+                                if (op == DIP_OP::CORRELATION_2D) {
+                                  calcAndStoreFMAwoTailProcessing(
+                                      builder, loc, vectorTy32, inputVec,
+                                      kernelVec, output, ivs[0], ivs[2]);
+                                }
+
+                                builder.create<scf::YieldOp>(loc);
+                              },
+                              [&](OpBuilder &builder, Location loc) {
+                                // colRight & rowMid
+                                Value inputVec;
+                                Value rightMaskHelper = builder.create<SubIOp>(
+                                    loc, colLastElem, colMidHelper);
+                                Value rightMaskElem = builder.create<SubIOp>(
+                                    loc, strideVal, rightMaskHelper);
+                                Value rightMask = builder.create<CreateMaskOp>(
+                                    loc, vectorMaskTy, rightMaskElem);
+
+                                if (boundaryOptionAttr ==
+                                    buddy::dip::BoundaryOption::
+                                        ConstantPadding) {
+                                  Value padding = builder.create<BroadcastOp>(
+                                      loc, vectorTy32, constantValue);
+
+                                  inputVec = builder.create<MaskedLoadOp>(
+                                      loc, vectorTy32, input,
+                                      ValueRange{imRow, imCol}, rightMask,
+                                      padding);
+                                } else if (boundaryOptionAttr ==
+                                           buddy::dip::BoundaryOption::
+                                               ReplicatePadding) {
+                                  Value rightRange =
+                                      builder.create<SubIOp>(loc, inputCol, c1);
+                                  Value paddingVal =
+                                      builder.create<memref::LoadOp>(
+                                          loc, input,
+                                          ValueRange{imRow, rightRange});
+                                  Value padding = builder.create<BroadcastOp>(
+                                      loc, vectorTy32, paddingVal);
+
+                                  inputVec = builder.create<MaskedLoadOp>(
+                                      loc, vectorTy32, input,
+                                      ValueRange{imRow, imCol}, rightMask,
+                                      padding);
+                                }
+                                Value tailCond = tailChecker(
+                                    builder, loc, calcHelper, strideVal,
+                                    kernelSize, c1, pseudoCol, ivs[2]);
+
+                                if (op == DIP_OP::CORRELATION_2D) {
+                                  calcAndStoreFMAwTailProcessing(
+                                      builder, loc, vectorTy32, inputVec,
+                                      kernelVec, output, ivs[0], ivs[2],
+                                      tailCond, zeroPadding, inputCol,
+                                      vectorMaskTy);
+                                }
+
+                                builder.create<scf::YieldOp>(loc);
+                              });
+                          builder.create<scf::YieldOp>(loc);
+                        });
+                    builder.create<scf::YieldOp>(loc);
+                  },
+                  [&](OpBuilder &builder, Location loc) {
+                    // rowDown
+                    if (boundaryOptionAttr ==
+                        buddy::dip::BoundaryOption::ConstantPadding) {
+                      Value inputVec = builder.create<BroadcastOp>(
+                          loc, vectorTy32, constantValue);
+
+                      if (op == DIP_OP::CORRELATION_2D) {
+                        calcAndStoreFMAwoTailProcessing(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2]);
+                      }
+                    } else {
+                      Value colLeftCond = builder.create<CmpIOp>(
+                          loc, CmpIPredicate::slt, currCol, centerX);
+
+                      builder.create<scf::IfOp>(
+                          loc, colLeftCond,
+                          [&](OpBuilder &builder, Location loc) {
+                            // colLeft & rowDown
+                            Value inputVec;
+                            Value downRange =
+                                builder.create<SubIOp>(loc, inputRow, c1);
+                            Value leftMaskElem =
+                                builder.create<SubIOp>(loc, centerX, currCol);
+                            Value leftMask =
+                                createInvertedMask(builder, loc, strideVal,
+                                                   vectorMaskTy, leftMaskElem);
+
+                            if (boundaryOptionAttr ==
+                                buddy::dip::BoundaryOption::ReplicatePadding) {
+                              Value paddingVal = builder.create<memref::LoadOp>(
+                                  loc, input, ValueRange{downRange, c0});
+                              Value padding = builder.create<BroadcastOp>(
+                                  loc, vectorTy32, paddingVal);
+
+                              Value leftPaddingOffset =
+                                  builder.create<SubIOp>(loc, c0, leftMaskElem);
+                              inputVec = builder.create<MaskedLoadOp>(
+                                  loc, vectorTy32, input,
+                                  ValueRange{downRange, leftPaddingOffset},
+                                  leftMask, padding);
+                            }
+
+                            if (op == DIP_OP::CORRELATION_2D) {
+                              calcAndStoreFMAwoTailProcessing(
+                                  builder, loc, vectorTy32, inputVec, kernelVec,
+                                  output, ivs[0], ivs[2]);
+                            }
+
+                            builder.create<scf::YieldOp>(loc);
+                          },
+                          [&](OpBuilder &builder, Location loc) {
+                            // (colMid or colRight) & rowDown
+                            Value colMidCond = builder.create<CmpIOp>(
+                                loc, CmpIPredicate::sle, colLastElem,
+                                colMidHelper);
+
+                            builder.create<scf::IfOp>(
+                                loc, colMidCond,
+                                [&](OpBuilder &builder, Location loc) {
+                                  // colMid & rowDown
+                                  Value inputVec;
+                                  Value downRange =
+                                      builder.create<SubIOp>(loc, inputRow, c1);
+                                  if (boundaryOptionAttr ==
+                                      buddy::dip::BoundaryOption::
+                                          ReplicatePadding) {
+                                    inputVec = builder.create<LoadOp>(
+                                        loc, vectorTy32, input,
+                                        ValueRange{downRange, imCol});
+                                  }
+
+                                  if (op == DIP_OP::CORRELATION_2D) {
+                                    calcAndStoreFMAwoTailProcessing(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2]);
+                                  }
+
+                                  builder.create<scf::YieldOp>(loc);
+                                },
+                                [&](OpBuilder &builder, Location loc) {
+                                  // colRight & rowDown
+                                  Value inputVec;
+                                  Value rightMaskHelper =
+                                      builder.create<SubIOp>(loc, colLastElem,
+                                                             colMidHelper);
+                                  Value rightMaskElem = builder.create<SubIOp>(
+                                      loc, strideVal, rightMaskHelper);
+                                  Value rightMask =
+                                      builder.create<CreateMaskOp>(
+                                          loc, vectorMaskTy, rightMaskElem);
+
+                                  Value downRange =
+                                      builder.create<SubIOp>(loc, inputRow, c1);
+                                  Value rightRange =
+                                      builder.create<SubIOp>(loc, inputCol, c1);
+
+                                  if (boundaryOptionAttr ==
+                                      buddy::dip::BoundaryOption::
+                                          ReplicatePadding) {
+
+                                    Value paddingVal =
+                                        builder.create<memref::LoadOp>(
+                                            loc, input,
+                                            ValueRange{downRange, rightRange});
+                                    Value padding =
+                                        builder.create<vector::BroadcastOp>(
+                                            loc, vectorTy32, paddingVal);
+
+                                    inputVec = builder.create<MaskedLoadOp>(
+                                        loc, vectorTy32, input,
+                                        ValueRange{downRange, imCol}, rightMask,
+                                        padding);
+                                  }
+                                  Value tailCond = tailChecker(
+                                      builder, loc, calcHelper, strideVal,
+                                      kernelSize, c1, pseudoCol, ivs[2]);
+
+                                  if (op == DIP_OP::CORRELATION_2D) {
+                                    calcAndStoreFMAwTailProcessing(
+                                        builder, loc, vectorTy32, inputVec,
+                                        kernelVec, output, ivs[0], ivs[2],
+                                        tailCond, zeroPadding, inputCol,
+                                        vectorMaskTy);
+                                  }
+
+                                  builder.create<scf::YieldOp>(loc);
+                                });
+                            builder.create<scf::YieldOp>(loc);
+                          });
+                    }
+                    builder.create<scf::YieldOp>(loc);
+                  });
+              builder.create<scf::YieldOp>(loc);
+            });
+      });
+}
+
 #endif
