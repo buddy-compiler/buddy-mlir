@@ -510,64 +510,7 @@ builder.create<scf::IfOp>(
 // Function that compares input and output memrefs and stores minimum values in the output memref. 
 // This function can handle only non-flat structuring elements.
 
-void compAndStorewTailProcessingNonFlaterosion(OpBuilder &builder, Location loc,
-                                    VectorType vecType, Value inputVec,
-                                    Value kernelVec, Value output,
-                                    Value beginIdx, Value endIdx,
-                                    Value tailCond, Value zeroPadding, Value Paddingvec,
-                                    Value inputCol, VectorType vectorMaskTy) {
-builder.create<scf::IfOp>(
-      loc, tailCond,
-      [&](OpBuilder &builder, Location loc) { 
-        Value outputVec = builder.create<LoadOp>(loc, vecType, output,
-                                                 ValueRange{beginIdx, endIdx});
-                                                 Value MasskVec = builder.create<CmpFOp>(loc,CmpFPredicate::OGT,outputVec,Paddingvec);   
 
-                                        
-
-        Value InputVec = builder.create<SubFOp>(loc,inputVec,kernelVec); 
-
-          Value OUTPUTVEC = builder.create<MaskedLoadOp>(loc,vecType, output,ValueRange{beginIdx,endIdx},MasskVec,InputVec);                                      
-
-builder.create<StoreOp>(loc, OUTPUTVEC, output,ValueRange{beginIdx, endIdx});                                    
-
-        Value compvec = builder.create<CmpFOp>(loc,CmpFPredicate::OGE,
-                                               InputVec,OUTPUTVEC);
-  
-  Value resVec = builder.create<MaskedLoadOp>(loc,vecType,output,
-                                              ValueRange{beginIdx, endIdx},compvec,InputVec);
-
-       builder.create<StoreOp>(loc, resVec, output,
-                                ValueRange{beginIdx, endIdx});
-
-        builder.create<scf::YieldOp>(loc);
-      },
-      [&](OpBuilder &builder, Location loc) {
-        Value extraElemMask =
-            tailMaskCreator(builder, loc, inputCol, endIdx, vectorMaskTy);
-
-        Value outputVec = builder.create<MaskedLoadOp>(loc, vecType, output, 
-                                                      ValueRange{beginIdx, endIdx}, 
-                                                      extraElemMask,zeroPadding);
-                                                        Value MasskVec = builder.create<CmpFOp>(loc,CmpFPredicate::OGT,outputVec,Paddingvec);   
- 
-  
-
-        Value InputVec = builder.create<SubFOp>(loc,inputVec,kernelVec);
-         Value OUTPUTVEC = builder.create<MaskedLoadOp>(loc,vecType, output,ValueRange{beginIdx,endIdx},MasskVec,InputVec); 
-
-        Value compvec = builder.create<CmpFOp>(loc,CmpFPredicate::OGE,InputVec,OUTPUTVEC);
-
-  builder.create<MaskedStoreOp>(loc, output,ValueRange{beginIdx, endIdx},extraElemMask, OUTPUTVEC);
-  
-     Value resVec = builder.create<MaskedLoadOp>(loc,vecType,output,ValueRange{beginIdx, endIdx},compvec,InputVec);
-
-        builder.create<MaskedStoreOp>(loc, output, ValueRange{beginIdx, endIdx},
-                                      extraElemMask, resVec);
-
-        builder.create<scf::YieldOp>(loc);
-      }); 
-}
 
 // This function compares values in input and output memref and stores the maximum of the 
 //values in the output memref.
@@ -631,64 +574,7 @@ builder.create<scf::IfOp>(
 // Function that compares input and output memrefs and stores minimum values in the output memref. 
 // This function can handle only non-flat structuring elements.
 
-void compAndStorewTailProcessingNonFlatdilation(OpBuilder &builder, Location loc,
-                                    VectorType vecType, Value inputVec,
-                                    Value kernelVec, Value output,
-                                    Value beginIdx, Value endIdx,
-                                    Value tailCond, Value zeroPadding, Value Paddingvec,
-                                    Value inputCol, VectorType vectorMaskTy) {
-builder.create<scf::IfOp>(
-      loc, tailCond,
-      [&](OpBuilder &builder, Location loc) { 
-        Value outputVec = builder.create<LoadOp>(loc, vecType, output,
-                                                 ValueRange{beginIdx, endIdx});
-                                                 Value MasskVec = builder.create<CmpFOp>(loc,CmpFPredicate::OGT,outputVec,Paddingvec);   
 
-                                        
-
-        Value InputVec = builder.create<AddFOp>(loc,inputVec,kernelVec); 
-
-          Value OUTPUTVEC = builder.create<MaskedLoadOp>(loc,vecType, output,ValueRange{beginIdx,endIdx},MasskVec,InputVec);                                      
-
-builder.create<StoreOp>(loc, OUTPUTVEC, output,ValueRange{beginIdx, endIdx});                                    
-
-        Value compvec = builder.create<CmpFOp>(loc,CmpFPredicate::OLE,
-                                               InputVec,OUTPUTVEC);
-  
-  Value resVec = builder.create<MaskedLoadOp>(loc,vecType,output,
-                                              ValueRange{beginIdx, endIdx},compvec,InputVec);
-
-       builder.create<StoreOp>(loc, resVec, output,
-                                ValueRange{beginIdx, endIdx});
-
-        builder.create<scf::YieldOp>(loc);
-      },
-      [&](OpBuilder &builder, Location loc) {
-        Value extraElemMask =
-            tailMaskCreator(builder, loc, inputCol, endIdx, vectorMaskTy);
-
-        Value outputVec = builder.create<MaskedLoadOp>(loc, vecType, output, 
-                                                      ValueRange{beginIdx, endIdx}, 
-                                                      extraElemMask,zeroPadding);
-                                                        Value MasskVec = builder.create<CmpFOp>(loc,CmpFPredicate::OGT,outputVec,Paddingvec);   
- 
-  
-
-        Value InputVec = builder.create<AddFOp>(loc,inputVec,kernelVec);
-         Value OUTPUTVEC = builder.create<MaskedLoadOp>(loc,vecType, output,ValueRange{beginIdx,endIdx},MasskVec,InputVec); 
-
-        Value compvec = builder.create<CmpFOp>(loc,CmpFPredicate::OLE,InputVec,OUTPUTVEC);
-
-  builder.create<MaskedStoreOp>(loc, output,ValueRange{beginIdx, endIdx},extraElemMask, OUTPUTVEC);
-  
-     Value resVec = builder.create<MaskedLoadOp>(loc,vecType,output,ValueRange{beginIdx, endIdx},compvec,InputVec);
-
-        builder.create<MaskedStoreOp>(loc, output, ValueRange{beginIdx, endIdx},
-                                      extraElemMask, resVec);
-
-        builder.create<scf::YieldOp>(loc);
-      }); 
-}
 
 
 #endif

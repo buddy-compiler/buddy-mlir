@@ -30,7 +30,6 @@ enum class INTERPOLATION_TYPE {
   NEAREST_NEIGHBOUR_INTERPOLATION,
   BILINEAR_INTERPOLATION
 };
-enum class STRUCTURING_TYPE {FLAT, NONFLAT};
 
 namespace detail {
 // Functions present inside dip::detail are not meant to be called by users
@@ -56,103 +55,53 @@ void _mlir_ciface_resize_2d_bilinear_interpolation(
     Img<float, 2> *input, float horizontalScalingFactor,
     float verticalScalingFactor, MemRef<float, 2> *output);
 
-void _mlir_ciface_erosion_2d_constant_padding_flat(
+void _mlir_ciface_erosion_2d_constant_padding(
     Img<float,2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, 
     unsigned int centerX, unsigned int centerY, float constantValue);   
 
-void _mlir_ciface_erosion_2d_replicate_padding_flat(
+void _mlir_ciface_erosion_2d_replicate_padding(
     Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     unsigned int centerX, unsigned int centerY, float constantValue);
-
-void _mlir_ciface_erosion_2d_constant_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, 
-    unsigned int centerX, unsigned int centerY, float constantValue); 
-
-void _mlir_ciface_erosion_2d_replicate_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, 
-    unsigned int centerX, unsigned int centerY, float constantValue);  
-
-void _mlir_ciface_dilation_2d_constant_padding_flat(
+  
+void _mlir_ciface_dilation_2d_constant_padding(
     Img<float,2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, 
     unsigned int centerX, unsigned int centerY, float constantValue);   
 
-void _mlir_ciface_dilation_2d_replicate_padding_flat(
+void _mlir_ciface_dilation_2d_replicate_padding(
     Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     unsigned int centerX, unsigned int centerY, float constantValue);
-
-void _mlir_ciface_dilation_2d_constant_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, 
-    unsigned int centerX, unsigned int centerY, float constantValue); 
-
-void _mlir_ciface_dilation_2d_replicate_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, 
-    unsigned int centerX, unsigned int centerY, float constantValue);  
-
-void _mlir_ciface_opening_2d_constant_padding_flat(
+ 
+void _mlir_ciface_opening_2d_constant_padding(
     Img<float,2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,MemRef<float, 2> *output1, 
     unsigned int centerX, unsigned int centerY, float constantValue);   
 
-void _mlir_ciface_opening_2d_replicate_padding_flat(
+void _mlir_ciface_opening_2d_replicate_padding(
     Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,MemRef<float, 2> *output1,
     unsigned int centerX, unsigned int centerY, float constantValue);
 
-void _mlir_ciface_opening_2d_constant_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, MemRef<float, 2> *output1,
-    unsigned int centerX, unsigned int centerY, float constantValue); 
-
-void _mlir_ciface_opening_2d_replicate_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, MemRef<float, 2> *output1, 
-    unsigned int centerX, unsigned int centerY, float constantValue);  
-
-void _mlir_ciface_closing_2d_constant_padding_flat(
+void _mlir_ciface_closing_2d_constant_padding(
     Img<float,2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,MemRef<float, 2> *output1, 
     unsigned int centerX, unsigned int centerY, float constantValue);   
 
-void _mlir_ciface_closing_2d_replicate_padding_flat(
+void _mlir_ciface_closing_2d_replicate_padding(
     Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,MemRef<float, 2> *output1,
     unsigned int centerX, unsigned int centerY, float constantValue);
-
-void _mlir_ciface_closing_2d_constant_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, MemRef<float, 2> *output1,
-    unsigned int centerX, unsigned int centerY, float constantValue); 
-
-void _mlir_ciface_closing_2d_replicate_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, MemRef<float, 2> *output1, 
-    unsigned int centerX, unsigned int centerY, float constantValue);     
-
-void _mlir_ciface_tophat_2d_constant_padding_flat(
+    
+void _mlir_ciface_tophat_2d_constant_padding(
     Img<float,2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,MemRef<float, 2> *output1,MemRef<float, 2> *output2, 
     unsigned int centerX, unsigned int centerY, float constantValue);   
 
-void _mlir_ciface_tophat_2d_replicate_padding_flat(
+void _mlir_ciface_tophat_2d_replicate_padding(
     Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,MemRef<float, 2> *output1,MemRef<float, 2>*output2,
     unsigned int centerX, unsigned int centerY, float constantValue);
 
-void _mlir_ciface_tophat_2d_constant_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, MemRef<float, 2> *output1,MemRef<float, 2>*output2,
-    unsigned int centerX, unsigned int centerY, float constantValue); 
-
-void _mlir_ciface_tophat_2d_replicate_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, MemRef<float, 2> *output1, MemRef<float, 2>*output2,
-    unsigned int centerX, unsigned int centerY, float constantValue);      
-
-
-void _mlir_ciface_bottomhat_2d_constant_padding_flat(
+void _mlir_ciface_bottomhat_2d_constant_padding(
     Img<float,2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,MemRef<float, 2> *output1,MemRef<float, 2> *output2, 
     unsigned int centerX, unsigned int centerY, float constantValue);   
 
-void _mlir_ciface_bottomhat_2d_replicate_padding_flat(
+void _mlir_ciface_bottomhat_2d_replicate_padding(
     Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,MemRef<float, 2> *output1,MemRef<float, 2>*output2,
     unsigned int centerX, unsigned int centerY, float constantValue);
-
-void _mlir_ciface_bottomhat_2d_constant_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, MemRef<float, 2> *output1,MemRef<float, 2>*output2,
-    unsigned int centerX, unsigned int centerY, float constantValue); 
-
-void _mlir_ciface_bottomhat_2d_replicate_padding_non_flat(
-  Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, MemRef<float, 2> *output1, MemRef<float, 2>*output2,
-    unsigned int centerX, unsigned int centerY, float constantValue);  
-
 }
 
 MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input, INTERPOLATION_TYPE type,
@@ -245,89 +194,63 @@ MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
 
   return detail::Resize2D_Impl(input, type, scalingRatios, outputSize);
 }
-void Erosion2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option,STRUCTURING_TYPE type, float constantValue = 0)
+void Erosion2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, float constantValue = 0)
 {
-   if(option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::FLAT )
+   if(option == BOUNDARY_OPTION::CONSTANT_PADDING)
    {
-   detail::_mlir_ciface_erosion_2d_constant_padding_flat(input, kernel, output, centerX, centerY, constantValue);
+   detail::_mlir_ciface_erosion_2d_constant_padding(input, kernel, output, centerX, centerY, constantValue);
    }
-   else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::FLAT){
-    detail::_mlir_ciface_erosion_2d_replicate_padding_flat(input, kernel, output, centerX, centerY, 0);
-   }
-    else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-   detail::_mlir_ciface_erosion_2d_replicate_padding_non_flat(input, kernel, output, centerX, centerY, 0);
-   }
- else if (option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-  detail::_mlir_ciface_erosion_2d_constant_padding_non_flat(input, kernel, output, centerX, centerY, constantValue);
+   else if (option == BOUNDARY_OPTION::REPLICATE_PADDING){
+    detail::_mlir_ciface_erosion_2d_replicate_padding(input, kernel, output, centerX, centerY, 0);
    }
 }
 
-void Dilation2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, STRUCTURING_TYPE type, float constantValue = 0)
+void Dilation2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, float constantValue = 0)
 {
-  if(option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::FLAT )
+  if(option == BOUNDARY_OPTION::CONSTANT_PADDING)
   {
-   detail::_mlir_ciface_dilation_2d_constant_padding_flat(input, kernel, output, centerX, centerY, constantValue);
+   detail::_mlir_ciface_dilation_2d_constant_padding(input, kernel, output, centerX, centerY, constantValue);
   }
-  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::FLAT){
-    detail::_mlir_ciface_dilation_2d_replicate_padding_flat(input, kernel, output, centerX, centerY, 0);
-  }
-  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-   detail::_mlir_ciface_dilation_2d_replicate_padding_non_flat(input, kernel, output, centerX, centerY, 0);
-  }
- else if (option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-  detail::_mlir_ciface_dilation_2d_constant_padding_non_flat(input, kernel, output, centerX, centerY, constantValue);
+  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING){
+    detail::_mlir_ciface_dilation_2d_replicate_padding(input, kernel, output, centerX, centerY, 0);
   }
 }
 
-void Opening2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option,STRUCTURING_TYPE type, float constantValue = 0)
+void Opening2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, float constantValue = 0)
 {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
 
   intptr_t sizesOutput[2] = {outputRows, outputCols};
   MemRef<float, 2> output1(sizesOutput);
- if(option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::FLAT )
+ if(option == BOUNDARY_OPTION::CONSTANT_PADDING)
   {
-  detail::_mlir_ciface_opening_2d_constant_padding_flat(input, kernel, output, &output1, centerX, centerY, constantValue);
+  detail::_mlir_ciface_opening_2d_constant_padding(input, kernel, output, &output1, centerX, centerY, constantValue);
   }
-  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::FLAT)
+  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING)
   {
-   detail::_mlir_ciface_opening_2d_replicate_padding_flat(input, kernel, output, &output1, centerX, centerY, 0);
+   detail::_mlir_ciface_opening_2d_replicate_padding(input, kernel, output, &output1, centerX, centerY, 0);
   }
-  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-  detail::_mlir_ciface_opening_2d_replicate_padding_non_flat(input, kernel, output, &output1, centerX, centerY, 0);
-  }
- else if (option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-  detail::_mlir_ciface_opening_2d_constant_padding_non_flat(input, kernel, output, &output1, centerX, centerY, constantValue);
-  }
-
 }
 
-void Closing2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option,STRUCTURING_TYPE type, float constantValue = 0)
+void Closing2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, float constantValue = 0)
 {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
 
   intptr_t sizesOutput[2] = {outputRows, outputCols};
   MemRef<float, 2> output1(sizesOutput);
- if(option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::FLAT )
+ if(option == BOUNDARY_OPTION::CONSTANT_PADDING)
   {
-  detail::_mlir_ciface_closing_2d_constant_padding_flat(input, kernel, output, &output1, centerX, centerY, constantValue);
+  detail::_mlir_ciface_closing_2d_constant_padding(input, kernel, output, &output1, centerX, centerY, constantValue);
   }
-  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::FLAT)
+  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING)
   {
-   detail::_mlir_ciface_closing_2d_replicate_padding_flat(input, kernel, output, &output1, centerX, centerY, 0);
+   detail::_mlir_ciface_closing_2d_replicate_padding(input, kernel, output, &output1, centerX, centerY, 0);
   }
-  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-  detail::_mlir_ciface_closing_2d_replicate_padding_non_flat(input, kernel, output, &output1, centerX, centerY, 0);
-  }
- else if (option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-  detail::_mlir_ciface_closing_2d_constant_padding_non_flat(input, kernel, output, &output1, centerX, centerY, constantValue);
-  }
-
 }
 
-void TopHat2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, STRUCTURING_TYPE type, float constantValue = 0 )
+void TopHat2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, float constantValue = 0 )
 {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
@@ -335,23 +258,17 @@ void TopHat2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *
   intptr_t sizesOutput[2] = {outputRows, outputCols};
   MemRef<float, 2> output1(sizesOutput);
   MemRef<float, 2> output2(sizesOutput);
- if(option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::FLAT )
+ if(option == BOUNDARY_OPTION::CONSTANT_PADDING)
   {
-  detail::_mlir_ciface_tophat_2d_constant_padding_flat(input, kernel, output, &output1,&output2, centerX, centerY, constantValue);
+  detail::_mlir_ciface_tophat_2d_constant_padding(input, kernel, output, &output1,&output2, centerX, centerY, constantValue);
   }
-  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::FLAT)
+  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING)
   {
-   detail::_mlir_ciface_tophat_2d_replicate_padding_flat(input, kernel, output, &output1, &output2, centerX, centerY, 0);
-  }
-  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-  detail::_mlir_ciface_tophat_2d_replicate_padding_non_flat(input, kernel, output, &output1, &output2, centerX, centerY, 0);
-  }
- else if (option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-  detail::_mlir_ciface_tophat_2d_constant_padding_non_flat(input, kernel, output, &output1, &output2, centerX, centerY, constantValue);
+   detail::_mlir_ciface_tophat_2d_replicate_padding(input, kernel, output, &output1, &output2, centerX, centerY, 0);
   }
 }
 
-void BottomHat2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, STRUCTURING_TYPE type, float constantValue = 0 )
+void BottomHat2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option,float constantValue = 0 )
 {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
@@ -359,19 +276,13 @@ void BottomHat2D(Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2
   intptr_t sizesOutput[2] = {outputRows, outputCols};
   MemRef<float, 2> output1(sizesOutput);
   MemRef<float, 2> output2(sizesOutput);
- if(option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::FLAT )
+ if(option == BOUNDARY_OPTION::CONSTANT_PADDING)
   {
-  detail::_mlir_ciface_bottomhat_2d_constant_padding_flat(input, kernel, output, &output1,&output2, centerX, centerY, constantValue);
+  detail::_mlir_ciface_bottomhat_2d_constant_padding(input, kernel, output, &output1,&output2, centerX, centerY, constantValue);
   }
-  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::FLAT)
+  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING)
   {
-   detail::_mlir_ciface_bottomhat_2d_replicate_padding_flat(input, kernel, output, &output1, &output2, centerX, centerY, 0);
-  }
-  else if (option == BOUNDARY_OPTION::REPLICATE_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-  detail::_mlir_ciface_bottomhat_2d_replicate_padding_non_flat(input, kernel, output, &output1, &output2, centerX, centerY, 0);
-  }
- else if (option == BOUNDARY_OPTION::CONSTANT_PADDING && type == STRUCTURING_TYPE::NONFLAT){
-  detail::_mlir_ciface_bottomhat_2d_constant_padding_non_flat(input, kernel, output, &output1, &output2, centerX, centerY, constantValue);
+   detail::_mlir_ciface_bottomhat_2d_replicate_padding(input, kernel, output, &output1, &output2, centerX, centerY, 0);
   }
 }
 

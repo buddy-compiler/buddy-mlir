@@ -166,23 +166,6 @@ def DIP_Resize2DOp : DIP_Op<"resize_2d">
   }];
 }
 
-def DIP_FlatElement : I32EnumAttrCase<"FlatElement", 0, "FLAT">;
-def DIP_NonFlatElement : I32EnumAttrCase<"NonFlatElement", 1,"NONFLAT">;
-
-def DIP_StructuringType : I32EnumAttr<"StructuringType",
-    "Specifies desired structuring element type for morphological operations .",
-    [
-      DIP_FlatElement,
-      DIP_NonFlatElement
-    ]>{
-  let genSpecializedAttr = 0;
-  let cppNamespace = "::buddy::dip";
-}
-
-def DIP_StructuringTypeAttr : EnumAttr<DIP_Dialect, DIP_StructuringType, "structuring_type">;
-
-
-
 
 def DIP_Erosion2DOp : DIP_Op<"erosion_2d"> {
   let summary = [{This operation aims to provide utility to perform Erosion on a 2d single channel image .}];
@@ -194,12 +177,11 @@ def DIP_Erosion2DOp : DIP_Op<"erosion_2d"> {
                        Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
                            [MemRead]>:$memrefCO,
                        Index : $centerX, Index : $centerY, F32 : $constantValue,
-                       DIP_BoundaryOptionAttr:$boundary_option,
-                       DIP_StructuringTypeAttr:$structuring_type);
+                       DIP_BoundaryOptionAttr:$boundary_option);
 
   
   let assemblyFormat = [{
-    $boundary_option $memrefI `,` $structuring_type  $memrefK `,` $memrefCO `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+    $boundary_option $memrefI `,`  $memrefK `,` $memrefCO `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
   }];                     
 }
 
@@ -213,12 +195,11 @@ def DIP_Dilation2DOp : DIP_Op<"dilation_2d"> {
                        Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
                            [MemRead]>:$memrefCO,
                        Index : $centerX, Index : $centerY, F32 : $constantValue,
-                       DIP_BoundaryOptionAttr:$boundary_option,
-                       DIP_StructuringTypeAttr:$structuring_type);
+                       DIP_BoundaryOptionAttr:$boundary_option);
 
   
   let assemblyFormat = [{
-    $boundary_option $memrefI `,` $structuring_type  $memrefK `,` $memrefCO `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+    $boundary_option $memrefI `,` $memrefK `,` $memrefCO `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
   }];                     
 }
 
@@ -234,12 +215,11 @@ def DIP_Opening2DOp : DIP_Op<"opening_2d"> {
                        Arg<AnyRankedOrUnrankedMemRef, "outputinterMemref",
                            [MemRead]>:$memrefCOI,    
                        Index : $centerX, Index : $centerY, F32 : $constantValue,
-                       DIP_BoundaryOptionAttr:$boundary_option,
-                       DIP_StructuringTypeAttr:$structuring_type);
+                       DIP_BoundaryOptionAttr:$boundary_option);
 
   
   let assemblyFormat = [{
-    $boundary_option $memrefI `,` $structuring_type  $memrefK `,` $memrefCO `,` $memrefCOI `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+    $boundary_option $memrefI `,` $memrefK `,` $memrefCO `,` $memrefCOI `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
   }];                     
 }
 
@@ -256,12 +236,11 @@ def DIP_Closing2DOp : DIP_Op<"closing_2d"> {
                        Arg<AnyRankedOrUnrankedMemRef, "outputinterMemref",
                            [MemRead]>:$memrefCOI,    
                        Index : $centerX, Index : $centerY, F32 : $constantValue,
-                       DIP_BoundaryOptionAttr:$boundary_option,
-                       DIP_StructuringTypeAttr:$structuring_type);
+                       DIP_BoundaryOptionAttr:$boundary_option);
  
   
   let assemblyFormat = [{
-    $boundary_option $memrefI `,` $structuring_type  $memrefK `,` $memrefCO `,` $memrefCOI `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+    $boundary_option $memrefI `,`  $memrefK `,` $memrefCO `,` $memrefCOI `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
   }];                     
 }
 
@@ -279,12 +258,11 @@ def DIP_TopHat2DOp : DIP_Op<"tophat_2d"> {
                        Arg<AnyRankedOrUnrankedMemRef, "outputinterrMemref" ,
                            [MemRead]>:$memrefCOII,       
                        Index : $centerX, Index : $centerY, F32 : $constantValue,
-                       DIP_BoundaryOptionAttr:$boundary_option,
-                       DIP_StructuringTypeAttr:$structuring_type);
+                       DIP_BoundaryOptionAttr:$boundary_option);
  
   
   let assemblyFormat = [{
-    $boundary_option $memrefI `,` $structuring_type  $memrefK `,` $memrefCO `,` $memrefCOI `,` $memrefCOII `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($memrefCOII) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+    $boundary_option $memrefI `,`  $memrefK `,` $memrefCO `,` $memrefCOI `,` $memrefCOII `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($memrefCOII) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
   }];                     
 }
 
@@ -302,12 +280,11 @@ def DIP_BottomHat2DOp : DIP_Op<"bottomhat_2d"> {
                        Arg<AnyRankedOrUnrankedMemRef, "outputinterrMemref" ,
                            [MemRead]>:$memrefCOII,       
                        Index : $centerX, Index : $centerY, F32 : $constantValue,
-                       DIP_BoundaryOptionAttr:$boundary_option,
-                       DIP_StructuringTypeAttr:$structuring_type);
+                       DIP_BoundaryOptionAttr:$boundary_option);
  
   
   let assemblyFormat = [{
-    $boundary_option $memrefI `,` $structuring_type  $memrefK `,` $memrefCO `,` $memrefCOI `,` $memrefCOII `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($memrefCOII) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+    $boundary_option $memrefI `,` $memrefK `,` $memrefCO `,` $memrefCOI `,` $memrefCOII `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($memrefCOII) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
   }];                     
 }
 

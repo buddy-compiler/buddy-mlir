@@ -86,14 +86,14 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
  cv::Mat kernel1 = Mat(3, 3, CV_32FC1, laplacianKernelAlign);
 
   dip::TopHat2D(&input, &kernel, &output1, x, y,
-              dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
+              dip::BOUNDARY_OPTION::REPLICATE_PADDING,0);
    Mat outputImageReplicatePadding_flat(sizesOutput[0], sizesOutput[1], CV_32FC1,
                                   output1.getData());
   imwrite(argv[2], outputImageReplicatePadding_flat);
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
   // cv::Mat to store output of the permutations of dilation op
-  Mat opencvConstantPaddingflat, opencvReplicatePaddingflat, opencvConstantPaddingnonflat, opencvReplicatePaddingnonflat;
+  Mat opencvConstantPaddingflat, opencvReplicatePaddingflat;
   morphologyEx(image, opencvReplicatePaddingflat,5, kernel1, cv::Point(x,y), 1, 1, 0);
   imwrite(argv[3], opencvReplicatePaddingflat);
 
@@ -101,8 +101,8 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }
-dip::TopHat2D(&input, &kernel, &output2, x, y,
-              dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::FLAT,0.0);
+/*dip::TopHat2D(&input, &kernel, &output2, x, y,
+              dip::BOUNDARY_OPTION::CONSTANT_PADDING,0.0);
 
   // Define a cv::Mat with the output of Dilation2D.
   Mat outputImageConstantPaddingflat(sizesOutput[0], sizesOutput[1], CV_32FC1,
@@ -116,15 +116,8 @@ dip::TopHat2D(&input, &kernel, &output2, x, y,
   if (!testImages(o2, opencvConstantPaddingflat)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
-  }
-dip::TopHat2D(&input, &kernel, &output3, x, y, dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::NONFLAT, 0.0);*
-Mat outputImageReplicatePadding_nonflat(sizesOutput[0], sizesOutput[1], CV_32FC1, output3.getData());
+  }*/
 
-imwrite(argv[6], outputImageReplicatePadding_nonflat);
-
-dip::TopHat2D(&input, &kernel, &output4, x, y, dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::NONFLAT, 0.0);
-Mat outputImageConstantPadding_nonflat(sizesOutput[0], sizesOutput[1], CV_32FC1, output4.getData());
-imwrite(argv[7], outputImageConstantPadding_nonflat);
 return 1;
                        }
 

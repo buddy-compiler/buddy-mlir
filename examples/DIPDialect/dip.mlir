@@ -29,149 +29,85 @@ func.func @resize_2d_bilinear_interpolation(%inputImage : memref<?x?xf32>, %hori
 }
 
 
-func.func @erosion_2d_constant_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
+func.func @erosion_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
 {
-  dip.erosion_2d CONSTANT_PADDING %inputImage, FLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  dip.erosion_2d CONSTANT_PADDING %inputImage,  %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
   return
 }
 
-func.func @erosion_2d_replicate_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
+func.func @erosion_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
 {
-  dip.erosion_2d REPLICATE_PADDING %inputImage, FLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  dip.erosion_2d REPLICATE_PADDING %inputImage, %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
   return 
 }
  
-func.func @erosion_2d_constant_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
-{
-  dip.erosion_2d CONSTANT_PADDING %inputImage, NONFLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
-  return 
-}
 
-func.func @erosion_2d_replicate_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
+func.func @dilation_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
 {
-  dip.erosion_2d REPLICATE_PADDING %inputImage, NONFLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
-  return 
-}
-
-func.func @dilation_2d_constant_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
-{
-  dip.dilation_2d CONSTANT_PADDING %inputImage, FLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  dip.dilation_2d CONSTANT_PADDING %inputImage,  %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
   return
 }
 
-func.func @dilation_2d_replicate_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
+func.func @dilation_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
 {
-  dip.dilation_2d REPLICATE_PADDING %inputImage, FLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  dip.dilation_2d REPLICATE_PADDING %inputImage,  %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
   return 
 }
  
-func.func @dilation_2d_constant_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
-{
-  dip.dilation_2d CONSTANT_PADDING %inputImage, NONFLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
-  return 
-}
 
-func.func @dilation_2d_replicate_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
+func.func @opening_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
 {
-  dip.dilation_2d REPLICATE_PADDING %inputImage, NONFLAT %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
-  return 
-}
-
-func.func @opening_2d_constant_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
-{
-  dip.opening_2d CONSTANT_PADDING %inputImage, FLAT %kernel, %outputImage, %outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  dip.opening_2d CONSTANT_PADDING %inputImage,  %kernel, %outputImage, %outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
   return
 }
 
-func.func @opening_2d_replicate_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
+func.func @opening_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
 {
-  dip.opening_2d REPLICATE_PADDING %inputImage, FLAT %kernel, %outputImage, %outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
+  dip.opening_2d REPLICATE_PADDING %inputImage,  %kernel, %outputImage, %outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
   return 
 }
  
-func.func @opening_2d_constant_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1  : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
-{
-  dip.opening_2d CONSTANT_PADDING %inputImage, NONFLAT %kernel, %outputImage,%outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
-  return 
-}
 
-func.func @opening_2d_replicate_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
+func.func @closing_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
 {
-  dip.opening_2d REPLICATE_PADDING %inputImage, NONFLAT %kernel, %outputImage,%outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
-  return 
-}
-
-func.func @closing_2d_constant_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
-{
-  dip.closing_2d CONSTANT_PADDING %inputImage, FLAT %kernel, %outputImage, %outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  dip.closing_2d CONSTANT_PADDING %inputImage,  %kernel, %outputImage, %outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
   return
 }
 
-func.func @closing_2d_replicate_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
+func.func @closing_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
 {
-  dip.closing_2d REPLICATE_PADDING %inputImage, FLAT %kernel, %outputImage, %outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
+  dip.closing_2d REPLICATE_PADDING %inputImage,  %kernel, %outputImage, %outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
   return 
 }
  
-func.func @closing_2d_constant_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1  : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
-{
-  dip.closing_2d CONSTANT_PADDING %inputImage, NONFLAT %kernel, %outputImage,%outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
-  return 
-}
 
-func.func @closing_2d_replicate_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
+func.func @tophat_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
 {
-  dip.closing_2d REPLICATE_PADDING %inputImage, NONFLAT %kernel, %outputImage,%outputImage1, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
-  return 
-}
-
-func.func @tophat_2d_constant_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
-{
-  dip.tophat_2d CONSTANT_PADDING %inputImage, FLAT %kernel, %outputImage, %outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
+  dip.tophat_2d CONSTANT_PADDING %inputImage,  %kernel, %outputImage, %outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
   return
 }
 
-func.func @tophat_2d_replicate_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
+func.func @tophat_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
 {
-  dip.tophat_2d REPLICATE_PADDING %inputImage, FLAT %kernel, %outputImage, %outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>,memref<?x?xf32>, index, index, f32
+  dip.tophat_2d REPLICATE_PADDING %inputImage,  %kernel, %outputImage, %outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>,memref<?x?xf32>, index, index, f32
   return 
 }
  
-func.func @tophat_2d_constant_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1  : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
-{
-  dip.tophat_2d CONSTANT_PADDING %inputImage, NONFLAT %kernel, %outputImage,%outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>,memref<?x?xf32>, index, index, f32
-  return 
-}
 
-func.func @tophat_2d_replicate_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
+func.func @bottomhat_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
 {
-  dip.tophat_2d REPLICATE_PADDING %inputImage, NONFLAT %kernel, %outputImage,%outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>,memref<?x?xf32>, index, index, f32
-  return 
-}
-
-func.func @bottomhat_2d_constant_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue: f32)
-{
-  dip.bottomhat_2d CONSTANT_PADDING %inputImage, FLAT %kernel, %outputImage, %outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
+  dip.bottomhat_2d CONSTANT_PADDING %inputImage,  %kernel, %outputImage, %outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, index, index, f32
   return
 }
 
-func.func @bottomhat_2d_replicate_padding_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
+func.func @bottomhat_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
 {
-  dip.bottomhat_2d REPLICATE_PADDING %inputImage, FLAT %kernel, %outputImage, %outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>,memref<?x?xf32>, index, index, f32
+  dip.bottomhat_2d REPLICATE_PADDING %inputImage,  %kernel, %outputImage, %outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>,memref<?x?xf32>, index, index, f32
   return 
 }
  
-func.func @bottomhat_2d_constant_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1  : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
-{
-  dip.bottomhat_2d CONSTANT_PADDING %inputImage, NONFLAT %kernel, %outputImage,%outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>,memref<?x?xf32>, index, index, f32
-  return 
-}
 
-func.func @bottomhat_2d_replicate_padding_non_flat(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) 
-{
-  dip.bottomhat_2d REPLICATE_PADDING %inputImage, NONFLAT %kernel, %outputImage,%outputImage1,%outputImage2, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>,memref<?x?xf32>, index, index, f32
-  return 
-}
+
 
 
 

@@ -88,7 +88,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
   // Call the MLIR Erosion2D function.
   dip::Erosion2D(&input, &kernel, &output1, x, y,
-              dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
+              dip::BOUNDARY_OPTION::REPLICATE_PADDING,0);
 
   // Define a cv::Mat with the output of Erosion2D.
   Mat outputImageReplicatePadding_flat(sizesOutput[0], sizesOutput[1], CV_32FC1,
@@ -108,7 +108,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
   // Call the MLIR Erosion2D function.
 /*dip::Erosion2D(&input, &kernel, &output2, x, y,
-              dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::FLAT,0.0);
+              dip::BOUNDARY_OPTION::CONSTANT_PADDING,0.0);
 
   // Define a cv::Mat with the output of Erosion2D.
   Mat outputImageConstantPadding_flat(sizesOutput[0], sizesOutput[1], CV_32FC1,
