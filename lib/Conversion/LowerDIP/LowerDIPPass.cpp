@@ -930,7 +930,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                     
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -960,8 +960,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                               
-                        
-                   compAndStorewTailProcessingFlaterosion(
+                       
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -999,7 +999,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
             
-                               
+                             
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
@@ -1066,8 +1066,8 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                        
-                   compAndStorewTailProcessingFlaterosion(
+                    
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1093,7 +1093,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                             
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1143,7 +1143,7 @@ public:
                                   Value tailCond = tailChecker(
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs[2]);
-                                
+                               
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
@@ -1169,7 +1169,7 @@ public:
 
 
                          
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1212,7 +1212,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                     
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1244,8 +1244,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
-                                
-                   compAndStorewTailProcessingFlaterosion(
+                            
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1294,7 +1294,7 @@ public:
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs[2]);
 
-                            
+                          
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
@@ -1439,7 +1439,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                     
-            
+        
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
@@ -1479,7 +1479,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                         
-                   compAndStorewTailProcessingFlatdilation(
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1507,7 +1507,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                         
-                   compAndStorewTailProcessingFlatdilation(
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1544,7 +1544,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
-                               
+                             
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
@@ -1611,8 +1611,8 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                            
-                   compAndStorewTailProcessingFlatdilation(
+                        
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1637,8 +1637,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                                     
-                                 
-                   compAndStorewTailProcessingFlatdilation(
+                                
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1690,7 +1690,7 @@ public:
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs[2]);
                                     
-                                
+                               
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
@@ -1716,7 +1716,7 @@ public:
 
                           
                 
-                   compAndStorewTailProcessingFlatdilation(
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1759,8 +1759,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
  
-                                
-                   compAndStorewTailProcessingFlatdilation(
+                               
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1792,8 +1792,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                                    
-                                
-                   compAndStorewTailProcessingFlatdilation(
+                               
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -1840,7 +1840,7 @@ public:
                                     Value tailCond = tailChecker(
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs[2]);
-                                    
+                                
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2],
@@ -1983,7 +1983,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                 
-                
+            
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -2023,7 +2023,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                         
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -2054,7 +2054,7 @@ public:
                                   kernelSize, c1, pseudoCol, ivs[2]);
                               
                         
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -2092,7 +2092,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
             
-                            
+                         
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -2160,7 +2160,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                               
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -2186,7 +2186,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                             
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -2236,7 +2236,7 @@ public:
                                   Value tailCond = tailChecker(
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs[2]);
-                                   
+                                 
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -2262,8 +2262,8 @@ public:
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
 
-                    
-                   compAndStorewTailProcessingFlaterosion(
+                
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -2306,7 +2306,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                         
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -2338,8 +2338,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
-                                
-                   compAndStorewTailProcessingFlaterosion(
+                          
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -2387,7 +2387,7 @@ public:
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs[2]);
 
-                                    
+                                  
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -2477,7 +2477,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
                     
-                    
+                
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
@@ -2516,8 +2516,8 @@ public:
                          Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
-                        
-                   compAndStorewTailProcessingFlatdilation(
+                
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol1,
@@ -2544,8 +2544,8 @@ public:
                                Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
-                            
-                   compAndStorewTailProcessingFlatdilation(
+                      
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol1,
@@ -2649,8 +2649,8 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs2[2]);
-                            
-                   compAndStorewTailProcessingFlatdilation(
+                        
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -2675,8 +2675,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
                                     
-                                 
-                   compAndStorewTailProcessingFlatdilation(
+                          
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -2728,7 +2728,7 @@ public:
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs2[2]);
                                     
-                                
+                         
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
@@ -2753,8 +2753,8 @@ public:
                                   kernelSize, c1, pseudoCol, ivs2[2]);
 
                           
-                        
-                   compAndStorewTailProcessingFlatdilation(
+                    
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -2797,8 +2797,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs2[2]);
  
-                        
-                   compAndStorewTailProcessingFlatdilation(
+                    
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -2830,8 +2830,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs2[2]);
                                    
-                                
-                   compAndStorewTailProcessingFlatdilation(
+                               
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3062,8 +3062,8 @@ public:
                          Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                    
-                   compAndStorewTailProcessingFlatdilation(
+                
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3093,8 +3093,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                               
-                
-                   compAndStorewTailProcessingFlatdilation(
+            
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3132,7 +3132,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
             
-                            
+                          
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -3199,8 +3199,8 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                              
-                   compAndStorewTailProcessingFlatdilation(
+                         
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3225,8 +3225,8 @@ public:
                                        Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                            
-                   compAndStorewTailProcessingFlatdilation(
+                       
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3276,7 +3276,7 @@ public:
                                   Value tailCond = tailChecker(
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs[2]);
-                                
+                      
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -3301,8 +3301,8 @@ public:
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
 
-                    
-                   compAndStorewTailProcessingFlatdilation(
+                
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3344,8 +3344,8 @@ public:
                                Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                        
-                   compAndStorewTailProcessingFlatdilation(
+        
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3377,8 +3377,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
-                                
-                   compAndStorewTailProcessingFlatdilation(
+             
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3426,7 +3426,7 @@ public:
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs[2]);
 
-                                    
+                           
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -3516,7 +3516,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
                     
-                    
+            
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
@@ -3555,8 +3555,8 @@ public:
                          Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
-                        
-                   compAndStorewTailProcessingFlaterosion(
+            
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol1,
@@ -3583,8 +3583,8 @@ public:
                                Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
-                    
-                   compAndStorewTailProcessingFlaterosion(
+            
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol1,
@@ -3622,7 +3622,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
 
-                            
+            
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
@@ -3689,8 +3689,8 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs2[2]);
-                
-                   compAndStorewTailProcessingFlaterosion(
+            
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3715,8 +3715,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
                                     
-                                 
-                   compAndStorewTailProcessingFlaterosion(
+                         
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3768,7 +3768,7 @@ public:
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs2[2]);
                                     
-                                   
+                       
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
@@ -3793,8 +3793,8 @@ public:
                                   kernelSize, c1, pseudoCol, ivs2[2]);
 
                           
-                
-                   compAndStorewTailProcessingFlaterosion(
+        
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3837,8 +3837,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs2[2]);
  
-                        
-                   compAndStorewTailProcessingFlaterosion(
+        
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3870,8 +3870,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs2[2]);
                                    
-                                
-                   compAndStorewTailProcessingFlaterosion(
+                   
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -3918,7 +3918,7 @@ public:
                                     Value tailCond = tailChecker(
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs2[2]);
-                            
+                      
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs2[0], ivs2[2],
@@ -4065,7 +4065,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                 
-                
+            
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -4104,8 +4104,8 @@ public:
                          Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                    
-                   compAndStorewTailProcessingFlaterosion(
+                
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4135,8 +4135,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                               
-                
-                   compAndStorewTailProcessingFlaterosion(
+            
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4173,7 +4173,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
             
-                               
+                       
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -4240,8 +4240,8 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                            
-                   compAndStorewTailProcessingFlaterosion(
+                  
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4266,8 +4266,8 @@ public:
                                        Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                        
-                   compAndStorewTailProcessingFlaterosion(
+            
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4317,7 +4317,7 @@ public:
                                   Value tailCond = tailChecker(
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs[2]);
-                                
+            
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -4343,7 +4343,7 @@ public:
 
 
             
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4385,8 +4385,8 @@ public:
                                Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                    
-                   compAndStorewTailProcessingFlaterosion(
+                
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4418,8 +4418,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
-                                    
-                   compAndStorewTailProcessingFlaterosion(
+                                
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4558,7 +4558,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
                     
-                
+            
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
@@ -4597,8 +4597,8 @@ public:
                          Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
-                         
-                   compAndStorewTailProcessingFlatdilation(
+                        
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol1,
@@ -4626,7 +4626,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
                         
-                   compAndStorewTailProcessingFlatdilation(
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol1,
@@ -4663,7 +4663,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
 
-                               
+                              
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
@@ -4730,8 +4730,8 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs2[2]);
-                        
-                   compAndStorewTailProcessingFlatdilation(
+                    
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4756,8 +4756,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
                                     
-                            
-                   compAndStorewTailProcessingFlatdilation(
+                        
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4809,7 +4809,7 @@ public:
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs2[2]);
                                     
-                                   
+                               
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
@@ -4835,7 +4835,7 @@ public:
 
                           
                         
-                   compAndStorewTailProcessingFlatdilation(
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4879,7 +4879,7 @@ public:
                                   kernelSize, c1, pseudoCol, ivs2[2]);
  
                         
-                   compAndStorewTailProcessingFlatdilation(
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4910,9 +4910,8 @@ public:
                                      Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs2[2]);
-                                   
-                                     
-                   compAndStorewTailProcessingFlatdilation(
+                                          
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -4959,7 +4958,7 @@ public:
                                     Value tailCond = tailChecker(
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs2[2]);
-                        
+                    
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
@@ -5160,7 +5159,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                     
-                   compAndStorewTailProcessingFlatdilation(
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -5190,8 +5189,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
                               
-                    
-                   compAndStorewTailProcessingFlatdilation(
+                
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -5296,8 +5295,8 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                            
-                   compAndStorewTailProcessingFlatdilation(
+                         
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -5322,8 +5321,8 @@ public:
                                        Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                        
-                   compAndStorewTailProcessingFlatdilation(
+                    
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -5373,7 +5372,7 @@ public:
                                   Value tailCond = tailChecker(
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs[2]);
-                                   
+                             
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -5398,8 +5397,7 @@ public:
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
 
-                         
-                   compAndStorewTailProcessingFlatdilation(
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -5441,8 +5439,8 @@ public:
                                Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
-                            
-                   compAndStorewTailProcessingFlatdilation(
+                          
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -5474,8 +5472,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs[2]);
 
-                            
-                   compAndStorewTailProcessingFlatdilation(
+                          
+                   compAndStorewoTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -5523,7 +5521,7 @@ public:
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs[2]);
 
-                                
+                        
                    compAndStorewTailProcessingFlatdilation(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output1, ivs[0], ivs[2],
@@ -5614,7 +5612,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
                     
-            
+        
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
@@ -5654,7 +5652,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
                 
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol1,
@@ -5681,8 +5679,8 @@ public:
                                Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
-                                
-                   compAndStorewTailProcessingFlaterosion(
+                           
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol1,
@@ -5719,7 +5717,7 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
 
-                               
+                           
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
@@ -5786,8 +5784,8 @@ public:
                              Value tailCond = tailChecker(
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs2[2]);
-                            
-                   compAndStorewTailProcessingFlaterosion(
+                        
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -5812,8 +5810,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol1, ivs2[2]);
                                     
-                                 
-                   compAndStorewTailProcessingFlaterosion(
+                                
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -5865,7 +5863,7 @@ public:
                                       builder, loc, calcHelper, strideVal,
                                       kernelSize, c1, pseudoCol, ivs2[2]);
                                     
-                                
+                            
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
@@ -5891,7 +5889,7 @@ public:
 
                           
                         
-                   compAndStorewTailProcessingFlaterosion(
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -5934,8 +5932,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs2[2]);
  
-                                
-                   compAndStorewTailProcessingFlaterosion(
+                               
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -5967,8 +5965,8 @@ public:
                                   builder, loc, calcHelper, strideVal,
                                   kernelSize, c1, pseudoCol, ivs2[2]);
                                    
-                                     
-                   compAndStorewTailProcessingFlaterosion(
+                               
+                   compAndStorewoTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],
                                         tailCond, Paddingvec,zeroPadding, inputCol,
@@ -6015,7 +6013,7 @@ public:
                                     Value tailCond = tailChecker(
                                         builder, loc, calcHelper, strideVal,
                                         kernelSize, c1, pseudoCol, ivs2[2]);
-                                
+                              
                    compAndStorewTailProcessingFlaterosion(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output2, ivs2[0], ivs2[2],

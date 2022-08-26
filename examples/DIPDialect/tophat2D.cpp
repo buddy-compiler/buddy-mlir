@@ -101,7 +101,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }
-/*dip::TopHat2D(&input, &kernel, &output2, x, y,
+dip::TopHat2D(&input, &kernel, &output2, x, y,
               dip::BOUNDARY_OPTION::CONSTANT_PADDING,0.0);
 
   // Define a cv::Mat with the output of Dilation2D.
@@ -110,13 +110,13 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   imwrite(argv[4], outputImageConstantPaddingflat);
 
   Mat o2 = imread(argv[4], IMREAD_GRAYSCALE);
- morphologyEx(image, opencvConstantPaddingflat, 3, kernel1, cv::Point(x, y), 1, 0, 0.0);
+ morphologyEx(image, opencvConstantPaddingflat, 5, kernel1, cv::Point(x, y), 1, 0, 0.0);
  imwrite(argv[5], opencvConstantPaddingflat);
 
   if (!testImages(o2, opencvConstantPaddingflat)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
-  }*/
+  }
 
 return 1;
                        }

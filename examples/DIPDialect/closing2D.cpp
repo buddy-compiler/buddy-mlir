@@ -117,14 +117,6 @@ dip::Closing2D(&input, &kernel, &output2, x, y,
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }
-dip::Closing2D(&input, &kernel, &output3, x, y, dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::NONFLAT, 0.0);
-Mat outputImageReplicatePadding_nonflat(sizesOutput[0], sizesOutput[1], CV_32FC1, output3.getData());
-
-imwrite(argv[6], outputImageReplicatePadding_nonflat);
-
-dip::Closing2D(&input, &kernel, &output4, x, y, dip::BOUNDARY_OPTION::CONSTANT_PADDING,dip::STRUCTURING_TYPE::NONFLAT, 0.0);
-Mat outputImageConstantPadding_nonflat(sizesOutput[0], sizesOutput[1], CV_32FC1, output4.getData());
-imwrite(argv[7], outputImageConstantPadding_nonflat);
 return 1;
                        }
 

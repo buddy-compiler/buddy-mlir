@@ -107,7 +107,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
 
   // Call the MLIR Erosion2D function.
-/*dip::Erosion2D(&input, &kernel, &output2, x, y,
+dip::Erosion2D(&input, &kernel, &output2, x, y,
               dip::BOUNDARY_OPTION::CONSTANT_PADDING,0.0);
 
   // Define a cv::Mat with the output of Erosion2D.
@@ -122,7 +122,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   if (!testImages(o2, opencvConstantPaddingflat)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
-  }*/
+  }
 
 
   return 1;

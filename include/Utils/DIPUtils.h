@@ -451,6 +451,35 @@ void BilinearInterpolationResizing(
 // Function that compares input and output memrefs and stores minimum values in the output memref. 
 // This function can handle only flat structuring elements.
 
+void compAndStorewoTailProcessingFlaterosion(OpBuilder &builder, Location loc,
+                                    VectorType vecType, Value inputVec,
+                                    Value kernelVec, Value output,
+                                    Value beginIdx, Value endIdx,
+                                    Value tailCond,Value Paddingvec, Value zeroPadding,
+                                    Value inputCol, VectorType vectorMaskTy) {
+
+     Value outputVec = builder.create<LoadOp>(loc, vecType, output,
+                                                 ValueRange{beginIdx, endIdx});
+       Value MassskVec = builder.create<CmpFOp>(loc,CmpFPredicate::OGT,outputVec,Paddingvec);
+      Value OUTPUTVEC = builder.create<MaskedLoadOp>(loc,vecType,output,ValueRange{beginIdx,endIdx},MassskVec, inputVec); 
+    
+  
+
+        Value compvec = builder.create<CmpFOp>(loc,CmpFPredicate::OGE,
+                                               inputVec,OUTPUTVEC);
+
+                                              builder.create<StoreOp>(loc, OUTPUTVEC, output,ValueRange{beginIdx, endIdx});
+
+  
+  Value resVec = builder.create<MaskedLoadOp>(loc,vecType,output,
+                                              ValueRange{beginIdx, endIdx},compvec,inputVec);
+
+     builder.create<StoreOp>(loc, resVec, output,
+                                ValueRange{beginIdx, endIdx});
+
+    
+}          
+
  void compAndStorewTailProcessingFlaterosion(OpBuilder &builder, Location loc,
                                     VectorType vecType, Value inputVec,
                                     Value kernelVec, Value output,
@@ -514,6 +543,35 @@ builder.create<scf::IfOp>(
 
 // This function compares values in input and output memref and stores the maximum of the 
 //values in the output memref.
+
+void compAndStorewoTailProcessingFlatdilation(OpBuilder &builder, Location loc,
+                                    VectorType vecType, Value inputVec,
+                                    Value kernelVec, Value output,
+                                    Value beginIdx, Value endIdx,
+                                    Value tailCond,Value Paddingvec, Value zeroPadding,
+                                    Value inputCol, VectorType vectorMaskTy) {
+
+     Value outputVec = builder.create<LoadOp>(loc, vecType, output,
+                                                 ValueRange{beginIdx, endIdx});
+       Value MassskVec = builder.create<CmpFOp>(loc,CmpFPredicate::OGT,outputVec,Paddingvec);
+      Value OUTPUTVEC = builder.create<MaskedLoadOp>(loc,vecType,output,ValueRange{beginIdx,endIdx},MassskVec, inputVec); 
+    
+  
+
+        Value compvec = builder.create<CmpFOp>(loc,CmpFPredicate::OLE,
+                                               inputVec,OUTPUTVEC);
+
+                                              builder.create<StoreOp>(loc, OUTPUTVEC, output,ValueRange{beginIdx, endIdx});
+
+  
+  Value resVec = builder.create<MaskedLoadOp>(loc,vecType,output,
+                                              ValueRange{beginIdx, endIdx},compvec,inputVec);
+
+     builder.create<StoreOp>(loc, resVec, output,
+                                ValueRange{beginIdx, endIdx});
+
+   
+}          
 
  void compAndStorewTailProcessingFlatdilation(OpBuilder &builder, Location loc,
                                     VectorType vecType, Value inputVec,

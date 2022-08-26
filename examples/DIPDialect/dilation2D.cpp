@@ -88,7 +88,7 @@ std::cout<<image<<std::endl;
 
   // Call the MLIR Dilation2D function.
   dip::Dilation2D(&input, &kernel, &output1, x, y,
-              dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::FLAT,0);
+              dip::BOUNDARY_OPTION::REPLICATE_PADDING,0);
 
   // Define a cv::Mat with the output of Dilation2D.
   Mat outputImageReplicatePadding_flat(sizesOutput[0], sizesOutput[1], CV_32FC1,
@@ -108,7 +108,7 @@ std::cout<<image<<std::endl;
 
 
   // Call the MLIR Dilation2D function.
- dip::Dilation2D(&input, &kernel, &output2, x, y,
+ /*dip::Dilation2D(&input, &kernel, &output2, x, y,
               dip::BOUNDARY_OPTION::REPLICATE_PADDING,dip::STRUCTURING_TYPE::FLAT,0.0);
 
   // Define a cv::Mat with the output of Dilation2D.
@@ -123,7 +123,7 @@ std::cout<<image<<std::endl;
   if (!testImages(o2, opencvConstantPaddingflat)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
-  }
+  }*/
 
   return 1;
 }
