@@ -165,8 +165,8 @@ vector-transpose-translate:
 run-targets += vector-transpose-run
 vector-transpose-run:
 	@${MLIR_OPT} ./vector-transpose.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
-		-split-input-file -verify-diagnostics \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}

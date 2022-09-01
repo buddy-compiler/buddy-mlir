@@ -108,7 +108,7 @@ $ cd buddy-mlir/build
 $ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja correlation2D
 $ cd bin
-$ ./correlation2D ../../examples/ConvOpt/images/YuTu.png result-dip-replicate-padding.png result-dip-constant-padding.png
+$ ./correlation2D ../../examples/ConvOpt/images/YuTu.png result-dip-corr2d-replicate-padding.png result-dip-corr2d-constant-padding.png
 ```
 
 Of course, you can also use your own configuration assigning values `-DBUDDY_DIP_OPT_STRIP_MINING` (e.g. 64) and `-DBUDDY_OPT_ATTR` (e.g. avx2).
@@ -210,7 +210,11 @@ $ ninja
 
 3. Run the example.
 
+For example, you can run the example of constant printing through makefile target `buddy-toy-constant-run`:
+
 ```
-$ cd bin
-$ ./buddy-toy-dsl
+$ cd buddy-mlir/examples/ToyDSL
+$ make buddy-toy-constant-run
 ```
+
+All Toy DSL executable targets can be found in the `buddy-mlir/examples/ToyDSL/makefile`.

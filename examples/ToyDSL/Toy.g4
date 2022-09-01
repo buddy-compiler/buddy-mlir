@@ -5,7 +5,7 @@ grammar Toy;
 }
 
 module 
-    : funDefine+
+    : structDefine* funDefine+
     ;
 
 expression
@@ -17,6 +17,8 @@ expression
     | identifierExpr
     | expression Mul expression
     | expression Add expression
+    | expression Dot expression
+    | structLiteral
     ; 
 
 identifierExpr
@@ -57,6 +59,14 @@ varDecl returns [std::string idName]
         if ($Equal)
           tensorDataBuffer.clear();
       }
+    | Identifier Identifier (Equal expression)?
+      {
+        $idName = $Identifier.text;
+      }
+    | Identifier 
+      {
+        $idName = $Identifier.text;
+      }
     ;
 
 type
@@ -75,8 +85,8 @@ prototype returns [std::string idName]
     ;
 
 declList 
-    : Identifier
-    | Identifier Comma declList
+    : varDecl
+    | varDecl Comma declList
     ;
 
 block
@@ -85,6 +95,23 @@ block
 
 blockExpr
     : varDecl | returnExpr | expression 
+    ;
+
+literalList
+    : tensorLiteral
+      {
+        tensorDataBuffer.clear();
+      } 
+    | tensorLiteral Comma literalList
+    ;
+
+structLiteral 
+    :  
+    | BracketOpen (structLiteral | literalList) (Comma (structLiteral| literalList))* BracketClose    
+    ;
+
+structDefine
+    : Struct Identifier BracketOpen (varDecl Semicolon)* BracketClose 
     ;
 
 ParentheseOpen 
@@ -127,6 +154,10 @@ Def
     : 'def'
     ;
 
+Struct 
+    : 'struct'
+    ;
+
 Identifier
     : [a-zA-Z][a-zA-Z0-9_]*
     ;
@@ -157,6 +188,10 @@ Add
 
 Mul 
     : '*'
+    ;
+
+Dot 
+    : '.'
     ;
 
 WS

@@ -35,6 +35,7 @@ def DIP_Dialect : Dialect {
     of developing a MLIR backend for performing image processing operations 
     such as 2D Correlation, Morphological processing, etc.
   }];
+  let useDefaultAttributePrinterParser = 1;
   let cppNamespace = "::buddy::dip";
 }
 
