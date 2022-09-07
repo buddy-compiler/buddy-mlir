@@ -69,7 +69,7 @@ public:
     Value centerX = op->getOperand(3);
     Value centerY = op->getOperand(4);
     Value constantValue = op->getOperand(5);
-    dip::BoundaryOption boundaryOptionAttr = op.boundary_option();
+    dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
@@ -286,7 +286,7 @@ public:
     Value horizontalScalingFactor = op->getOperand(1);
     Value verticalScalingFactor = op->getOperand(2);
     Value output = op->getOperand(3);
-    auto interpolationAttr = op.interpolation_type();
+    auto interpolationAttr = op.getInterpolationType();
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
