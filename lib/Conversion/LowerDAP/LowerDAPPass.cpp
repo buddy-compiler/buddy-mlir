@@ -116,44 +116,21 @@ public:
     Value x4 = rewriter.create<AddFOp>(loc, x2, x3);
     rewriter.create<memref::StoreOp>(loc, x4, output, ValueRange{c1});
 
-    Value m1 = rewriter.create<LoadOp>(loc, vectorTy32, input, ValueRange{c0});
-    Value m2 = rewriter.create<LoadOp>(loc, vectorTy32, input, ValueRange{c1});
-
     Value Vecb0 = rewriter.create<BroadcastOp>(loc, vectorTy32, b0);
     Value Vecb1 = rewriter.create<BroadcastOp>(loc, vectorTy32, b1);
     Value Vecb2 = rewriter.create<BroadcastOp>(loc, vectorTy32, b2);
 
-    // mlir::scf::buildLoopNest(
-    //     rewriter, loc, ValueRange{c2}, ValueRange{N}, ValueRange{strideVal},
-    //     ValueRange{m1, m2},
-    //     [&](OpBuilder &builder, Location loc, ValueRange ivs,
-    //         ValueRange iargs) -> scf::ValueVector {
-    //       Value idx0 = ivs[0];
-    //       Value inputVec0 =
-    //           builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx0});
-
-    //       Value outputVec =
-    //           builder.create<LoadOp>(loc, vectorTy32, output, ValueRange{idx0});
-    //       Value resVec0 =
-    //           builder.create<FMAOp>(loc, inputVec0, Vecb0, outputVec);
-    //       Value resVec1 = builder.create<FMAOp>(loc, iargs[1], Vecb1, resVec0);
-    //       Value resVec2 = builder.create<FMAOp>(loc, iargs[0], Vecb2, resVec1);
-    //       builder.create<StoreOp>(loc, resVec2, output, ValueRange{ivs[0]});
-
-    //       return std::vector<Value>{iargs[1], inputVec0};
-    //     });
-     rewriter.create<scf::ParallelOp>(
-        loc, ValueRange{c2}, ValueRange{N}, ValueRange{strideVal},
+    mlir::scf::buildLoopNest(
+        rewriter, loc, ValueRange{c2}, ValueRange{N}, ValueRange{strideVal},
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
           Value idx0 = ivs[0];
           Value idx1 = builder.create<SubIOp>(loc, idx0, c1);
           Value idx2 = builder.create<SubIOp>(loc, idx0, c2);
+
           Value inputVec0 =
               builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx0});
-          Value inputVec1 =
-              builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx1});
-          Value inputVec2 =
-              builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx2});
+          Value inputVec1 = builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx1});
+          Value inputVec2 = builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx2});
 
           Value outputVec =
               builder.create<LoadOp>(loc, vectorTy32, output, ValueRange{idx0});
@@ -161,8 +138,7 @@ public:
               builder.create<FMAOp>(loc, inputVec0, Vecb0, outputVec);
           Value resVec1 = builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
           Value resVec2 = builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
-          builder.create<StoreOp>(loc, resVec2, output, ValueRange{ivs[0]});
-
+          builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
         });
 
     mlir::scf::buildLoopNest(
