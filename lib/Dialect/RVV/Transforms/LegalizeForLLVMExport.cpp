@@ -69,13 +69,13 @@ struct RVVLoadOpLowering : public ConvertOpToLLVMPattern<RVVLoadOp> {
 
     LLVMTypeConverter converter(loadOp.getContext());
 
-    auto resultType = loadOp.result().getType();
+    auto resultType = loadOp.getResult().getType();
     Value passthru =
         rewriter.create<LLVM::UndefOp>(loadOp.getLoc(), resultType);
     LLVM::LLVMPointerType llvmDataTypePtr =
         LLVM::LLVMPointerType::get(resultType);
-    Value dataPtr = getStridedElementPtr(loadOp.getLoc(), type, adaptor.base(),
-                                         adaptor.index(), rewriter);
+    Value dataPtr = getStridedElementPtr(
+        loadOp.getLoc(), type, adaptor.getBase(), adaptor.getIndex(), rewriter);
     Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
         loadOp.getLoc(), llvmDataTypePtr, dataPtr);
     Value vl = loadOp.getOperand(2);
@@ -101,12 +101,13 @@ struct RVVStoreOpLowering : public ConvertOpToLLVMPattern<RVVStoreOp> {
 
     LLVMTypeConverter converter(storeOp.getContext());
 
-    auto resultType = storeOp.value().getType();
+    auto resultType = storeOp.getValue().getType();
     LLVM::LLVMPointerType llvmDataTypePtr =
         LLVM::LLVMPointerType::get(resultType);
     ;
-    Value dataPtr = getStridedElementPtr(storeOp.getLoc(), type, adaptor.base(),
-                                         adaptor.index(), rewriter);
+    Value dataPtr =
+        getStridedElementPtr(storeOp.getLoc(), type, adaptor.getBase(),
+                             adaptor.getIndex(), rewriter);
     Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
         storeOp.getLoc(), llvmDataTypePtr, dataPtr);
     Value vl = storeOp.getOperand(3);
@@ -114,7 +115,7 @@ struct RVVStoreOpLowering : public ConvertOpToLLVMPattern<RVVStoreOp> {
                        .create<UnrealizedConversionCastOp>(
                            storeOp.getLoc(), rewriter.getI64Type(), vl)
                        .getResult(0);
-    rewriter.replaceOpWithNewOp<RVVIntrStoreEleOp>(storeOp, adaptor.value(),
+    rewriter.replaceOpWithNewOp<RVVIntrStoreEleOp>(storeOp, adaptor.getValue(),
                                                    bitCastedPtr, vlCast);
     return success();
   }
