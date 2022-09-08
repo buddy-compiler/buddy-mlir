@@ -10,7 +10,6 @@ opinterface ShapeInferenceOpInterface
   ]
   ;
 
-
 dialect Toy_Dialect 
   : name = "toy" 
   : cppNamespace = "mlir::toy"
@@ -166,7 +165,6 @@ op TransposeOp
   ]
   : hasVerifier = 1
   ;
-
 
 rule module 
    : funDefine 
