@@ -1,4 +1,4 @@
-//====- buddy-opt.cpp - The driver of buddy-mlir --------------------------===//
+//====- AST.h - The include of buddy-frontendgen --------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
