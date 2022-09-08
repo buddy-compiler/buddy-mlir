@@ -71,7 +71,6 @@ SbracketOpen
   : '['
   ;
 
-
 ParentheseClose
   : ')'
   ;
