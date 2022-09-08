@@ -1,0 +1,10 @@
+#ifndef DIAG
+#define DIAG(ID, Level, Msg)
+#endif
+DIAG(err_expected, Error, "expected {0} but found {1}")
+DIAG(err_no_mnemonic, Warning, "you should indicate mnemonic.") 
+DIAG(err_not_supported_element, Error, "the {0} is not supported." )
+DIAG(err_no_name, Error, "opinterface should indicate the interface name.")
+DIAG(err_only_supported_builder, Error, "we are only support builder")
+DIAG(err_builder_fail,Error, "builder indicate failed.")
+#undef DIAG

@@ -1,0 +1,24 @@
+#ifndef terminator
+#define terminator(NAME)
+#endif
+
+terminator(Var, 'var')
+terminator(Add, 'add')
+terminator(Sub, 'sub')
+terminator(Def, 'def')
+terminator(Return, 'return')
+terminator(ParentheseOpen, '(')
+terminator(ParentheseClose, ')')
+terminator(Comma, ',')
+terminator(BracketOpen, '{')
+terminator(BracketClose, '}')
+terminator(SbracketOpen, '[')
+terminator(SbracketClose, ']')
+terminator(Semi, ';')
+terminator(AngleBracketOpen, '<')
+terminator(AngleBracketClose, '>')
+terminator(Identifier, [a-zA-Z][a-zA-Z0-9_]*)
+terminator(Number, [0-9]+)
+terminator(Equal, '=')
+
+#undef terminator
