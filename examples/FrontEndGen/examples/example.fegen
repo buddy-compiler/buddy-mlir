@@ -1,0 +1,233 @@
+opinterface ShapeInferenceOpInterface
+  : name = "ShapeInference"
+  : description = [{
+    Interface to access a registered method to infer the return types for an
+    operation that can be used during type inference.
+  }]
+  : methods = [
+    InterfaceMethod<"Infer and set the output shape for the current operation.",
+                    "void", "inferShapes">
+  ]
+  ;
+
+
+dialect Toy_Dialect 
+  : name = "toy" 
+  : cppNamespace = "mlir::toy"
+  : emitAccessorPrefix = kEmitAccessorPrefix_Prefixed
+  ;
+
+op ConstantOp 
+  : mnemonic = "constant" 
+  : traits = [NoSideEffect]
+  : summary = "consant" 
+  : arguments = (ins F64ElementsAttr : $value)
+  : results = (outs F64Tensor)
+  : hasCustomAssemblyFormat = 1 
+  : builders = [
+    OpBuilder<(ins "DenseElementsAttr" : $value),
+    [{ build($_builder, $_state, value.getType(), value); }]>, 
+    OpBuilder<(ins "double":$value)>]
+  : hasVerifier = 1
+  ;
+
+op AddOp 
+  : mnemonic = "add"
+  : traits = [ NoSideEffect, DeclareOpInterfaceMethods<ShapeInferenceOpInterface> ]
+  : arguments = (ins F64Tensor : $lhs, F64Tensor: $rhs)
+  : results = (outs F64Tensor)
+  : hasCustomAssemblyFormat = 1 
+  : builders = [OpBuilder<(ins "Value" : $lhs, "Value" : $rhs)>]
+  ;
+
+op CastOp 
+  : mnemonic = "cast"
+  : traits = [
+    DeclareOpInterfaceMethods<CastOpInterface>,
+    DeclareOpInterfaceMethods<ShapeInferenceOpInterface>,
+    NoSideEffect,
+    SameOperandsAndResultShape]
+  : summary = "shape cast operation"
+  : arguments = (ins F64Tensor:$input)
+  : results = (outs F64Tensor:$output)
+  : assemblyFormat = "$input attr-dict `:` type($input) `to` type($output)"
+  ;
+
+op FuncOp
+  : mnemonic = "func"
+  : traits = [
+    DeclareOpInterfaceMethods<CallableOpInterface>, FunctionOpInterface,
+    IsolatedFromAbove, Symbol
+  ]
+  : summary = "user defined function operation"
+  : description = [{
+    The "toy.func" operation represents a user defined function. These are
+    callable SSA-region operations that contain toy computations.
+
+    Example:
+
+    ```mlir
+    toy.func @main() {
+      %0 = toy.constant dense<5.500000e+00> : tensor<f64>
+      %1 = toy.reshape(%0 : tensor<f64>) to tensor<2x2xf64>
+      toy.print %1 : tensor<2x2xf64>
+      toy.return
+    }
+    ```
+  }]
+  : arguments = (ins
+    SymbolNameAttr:$sym_name,
+    TypeAttrOf<FunctionType>:$function_type
+  )
+  : regions = (region AnyRegion:$body)
+  : builders = [OpBuilder<(ins
+    "StringRef":$name, "FunctionType":$type,
+    CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>]
+  : extraClassDeclaration = [{
+    //===------------------------------------------------------------------===//
+    // FunctionOpInterface Methods
+    //===------------------------------------------------------------------===//
+
+    /// Returns the argument types of this function.
+    ArrayRef<Type> getArgumentTypes() { return getFunctionType().getInputs(); }
+
+    /// Returns the result types of this function.
+    ArrayRef<Type> getResultTypes() { return getFunctionType().getResults(); }
+  }]
+   : hasCustomAssemblyFormat = 1
+   : skipDefaultBuilders = 1
+   ;
+
+op MulOp 
+  : mnemonic = "mul"
+  : traits = [NoSideEffect, DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]
+  : summary = "element-wise multiplication operation"
+  : arguments = (ins F64Tensor:$lhs, F64Tensor:$rhs)
+  : results = (outs F64Tensor)
+  : hasCustomAssemblyFormat = 1
+  : builders = [
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs)>
+  ]
+  ;
+
+op PrintOp
+  : mnemonic = "print"
+  : arguments = (ins AnyTypeOf<[F64Tensor, F64MemRef]>:$input)
+  : assemblyFormat = "$input attr-dict `:` type($input)"
+  ;
+
+op ReshapeOp 
+    : mnemonic = "reshape" 
+    : traits = [NoSideEffect]
+    : arguments = (ins F64Tensor : $input)
+    : results = (outs StaticShapeTensorOf<[F64]>)
+    : hasCanonicalizer = 1 
+    : assemblyFormat = [{
+    `(` $input `:` type($input) `)` attr-dict `to` type(results)
+    }]
+    ;
+
+op ReturnOp
+  : mnemonic = "return"
+  : traits = [NoSideEffect, HasParent<"FuncOp">, Terminator]
+  : arguments = (ins Variadic<F64Tensor>:$input)
+  : assemblyFormat = "($input^ `:` type($input))? attr-dict "
+  : builders = [
+    OpBuilder<(ins), [{ build($_builder, $_state, llvm::None); }]>
+  ]
+  : extraClassDeclaration = [{
+    bool hasOperand() { return getNumOperands() != 0; }
+  }]
+  : hasVerifier = 1
+  ;
+
+op GenericCallOp
+  : mnemonic = "generic_call"
+  : traits = [DeclareOpInterfaceMethods<CallOpInterface>]
+  : summary = "generic call operation"
+  : arguments = (ins FlatSymbolRefAttr:$callee, Variadic<F64Tensor>:$inputs)
+  : results = (outs F64Tensor)
+  : assemblyFormat = [{
+    $callee `(` $inputs `)` attr-dict `:` functional-type($inputs, results)
+  }]
+  : builders = [
+    OpBuilder<(ins "StringRef":$callee, "ArrayRef<Value>":$arguments)>
+  ]
+  ;
+
+op TransposeOp
+  : mnemonic = "transpose"
+  : traits = [NoSideEffect, DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]
+  : arguments = (ins F64Tensor:$input)
+  : results = (outs F64Tensor)
+  : hasCanonicalizer = 1
+  : builders = [
+    OpBuilder<(ins "Value":$input)>
+  ]
+  : hasVerifier = 1
+  ;
+
+
+rule module 
+   : funDefine 
+   ;
+
+rule expression 
+  : Number 
+  : tensorLiteral 
+  : identifierExpr 
+  : expression Add expression 
+  ;
+
+rule returnExpr 
+  : Return expression? 
+  ;
+
+rule identifierExpr 
+  : Identifier
+  : Identifier ParentheseOpen (expression (Comma expression) *)? ParentheseClose {
+    builder = GenericCallOp_1, PrintOp_0
+  }
+  ;
+
+rule tensorLiteral 
+  : SbracketOpen ( tensorLiteral ( Comma tensorLiteral ) *) ? SbracketClose 
+  : Number 
+  ;
+
+rule varDecl 
+  : Var Identifier (type) ? (Equal expression) ? {
+    builder = ReshapeOp_0 
+  }
+  ;
+
+rule type 
+  : AngleBracketOpen Number(Comma Number) * AngleBracketClose
+  ;
+
+rule funDefine 
+  : prototype block {
+    builder = ReturnOp_1  
+  }
+  ;
+
+rule prototype 
+  : Def Identifier ParentheseOpen declList ? ParentheseClose {
+    builder = FuncOp_0  
+  }
+  ;
+
+rule declList 
+  : Identifier 
+  : Identifier Comma declList
+  ;
+
+rule block 
+  : BracketOpen(blockExpr Semi) * BracketClose
+  ;
+
+rule blockExpr 
+  : varDecl
+  : returnExpr 
+  : expression
+  ;
