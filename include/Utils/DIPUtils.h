@@ -607,7 +607,7 @@ void traverseImagewBoundaryExtrapolation(
                     [&](OpBuilder &builder, Location loc) {
                       // (colMid or colRight) & rowUp
                       Value colMidCond = builder.create<CmpIOp>(
-                          loc, CmpIPredicate::sle, colLastElem, colMidHelper);
+                          loc, CmpIPredicate::slt, colLastElem, colMidHelper);
 
                       builder.create<scf::IfOp>(
                           loc, colMidCond,
@@ -731,7 +731,7 @@ void traverseImagewBoundaryExtrapolation(
                         [&](OpBuilder &builder, Location loc) {
                           // (colMid or colRight) & rowMid
                           Value colMidCond =
-                              builder.create<CmpIOp>(loc, CmpIPredicate::sle,
+                              builder.create<CmpIOp>(loc, CmpIPredicate::slt,
                                                      colLastElem, colMidHelper);
 
                           builder.create<scf::IfOp>(
@@ -860,7 +860,7 @@ void traverseImagewBoundaryExtrapolation(
                           [&](OpBuilder &builder, Location loc) {
                             // (colMid or colRight) & rowDown
                             Value colMidCond = builder.create<CmpIOp>(
-                                loc, CmpIPredicate::sle, colLastElem,
+                                loc, CmpIPredicate::slt, colLastElem,
                                 colMidHelper);
 
                             builder.create<scf::IfOp>(
