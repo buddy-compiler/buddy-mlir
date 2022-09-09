@@ -77,18 +77,18 @@ public:
     ShapedType inputTy = input.getType().cast<ShapedType>();
     
     Type elemTy = inputTy.getElementType();
-    Type vecTy = VectorType::get(16, elemTy);
+    VectorType vecTy = VectorType::get(strip, elemTy);
 
     // Dims
     Value a = rewriter.create<memref::DimOp>(loc, input, 0);
-    Value b = rewriter.create<memref::DimOp>(loc, filter, 1);
-    Value d = rewriter.create<memref::DimOp>(loc, output, 3);
-    Value c = rewriter.create<memref::DimOp>(loc, output, 2);
+    Value b = rewriter.create<memref::DimOp>(loc, input, 1);
+    Value d = rewriter.create<memref::DimOp>(loc, input, 3);
+    Value c = rewriter.create<memref::DimOp>(loc, input, 2);
     Value e = rewriter.create<memref::DimOp>(loc, input, 1);
     Value f = rewriter.create<memref::DimOp>(loc, filter, 2);
     Value g = rewriter.create<memref::DimOp>(loc, filter, 3);
 
-    // memref<1xvector<16xf32>>
+    // memref<1xvector<stripxf32>>
     MemRefType bufferTy = MemRefType::get(1, vecTy);
     Value buffer = rewriter.create<memref::AllocOp>(loc, bufferTy);
 
@@ -104,19 +104,19 @@ public:
 	    builder.create<memref::StoreOp>(loc, t, buffer, c0);
             buildAffineLoopNest(rewriter, loc, c0, e, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
               Value ivE = ivRange.front();
-              buildAffineLoopNest(rewriter, loc, c0, f, 2, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+              buildAffineLoopNest(rewriter, loc, c0, f, kernelM, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
 	        Value ivF = ivRange.front();
-                buildAffineLoopNest(rewriter, loc, c0, g, 2 * 16, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+                buildAffineLoopNest(rewriter, loc, c0, g, kernelN * strip, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
 	          Value ivG = ivRange.front();
 
 		  SmallVector<Value> iList;
 		  SmallVector<Value> fList;
-		  for(int i = 0; i < 2; ++ i){
-		    Value rowInput = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + i + d1), ValueRange{ivC, ivF});
+		  for(int i = 0; i < kernelM; ++ i){
+		    Value rowInput = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + i + d1), ValueRange{ivC, ivF});
 		    Value rowFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + i), ivF);
-		    for(int j = 0; j < 2; ++ j){
-		      Value columnInput = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + d1 + j * 16), ValueRange{ivD, ivG});
-		      Value columnFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + j * 16), ivG);
+		    for(int j = 0; j < kernelN; ++ j){
+		      Value columnInput = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1 + j * strip), ValueRange{ivD, ivG});
+		      Value columnFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + j * strip), ivG);
 
 			Value i = builder.create<TransferReadOp>(loc, vecTy, input, ValueRange{ivA, ivE, rowInput, columnInput});
 			Value f = builder.create<TransferReadOp>(loc, vecTy, filter, ValueRange{ivB, ivE, rowFilter, columnFilter});
@@ -125,26 +125,27 @@ public:
 			fList.push_back(f);
 		    }
 		  }
-		  Value lastResult = builder.create<memref::LoadOp>(loc, buffer, 0);
-		  for(int i = 0; i < 2; ++ i){
-		    for(int j = 0; j < 2; ++ j){
+		  Value lastResult = builder.create<memref::LoadOp>(loc, buffer, c0);
+		  for(int i = 0; i < kernelM; ++ i){
+		    for(int j = 0; j < kernelN; ++ j){
                       lastResult = builder.create<vector::FMAOp>(loc, vecTy, iList[i * 2 + j], fList[i * 2 + j], lastResult);
 		    }
 		  }
-		  builder.create<memref::StoreOp>(loc, lastResult, buffer, 0);
+		  builder.create<memref::StoreOp>(loc, lastResult, buffer, c0);
 		});
 	      });
 	    });
-	    Value reduceVec = builder.create<memref::LoadOp>(loc, buffer, 0);
+	    Value reduceVec = builder.create<memref::LoadOp>(loc, buffer, c0);
 	    Value reducedRes = builder.create<vector::ReductionOp>(loc, vector::CombiningKind::ADD, reduceVec);
 	    builder.create<memref::StoreOp>(loc, reducedRes, output, ValueRange{ivA, ivB, ivC, ivD});
+
 	    // Now handle tail issue.
             buildAffineLoopNest(rewriter, loc, c0, e, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
               Value ivE = ivRange.front();
-	      Value remainStart = rewriter.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 - d0 % 2), f);
+	      Value remainStart = rewriter.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 - d0 % kernelM), f);
               buildAffineLoopNest(rewriter, loc, remainStart, f, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
 	        Value ivF = ivRange.front();
-	        Value remainStart = rewriter.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 - d0 % 32), g);
+	        Value remainStart = rewriter.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 - d0 % (kernelN * strip)), g);
                 buildAffineLoopNest(rewriter, loc, remainStart, g, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
 	          Value ivG = ivRange.front();
 		  Value fixedRow = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1), ValueRange{ivC, ivF});
@@ -200,16 +201,16 @@ public:
                     VectorDialect>();
   }
 
-  Option<int64_t> strip{*this, "strip-mining",
-                        llvm::cl::desc("Strip mining size."),
+  Option<int64_t> strip{*this, "vec-size",
+                        llvm::cl::desc("Vector size using in kernel."),
                         llvm::cl::init(16)};
   
   Option<int64_t> kernelM{*this, "kernel-m",
-                        llvm::cl::desc("Strip mining size."),
+                        llvm::cl::desc("Specify how many rows kernel will contain."),
                         llvm::cl::init(4)};
 
   Option<int64_t> kernelN{*this, "kernel-n",
-                        llvm::cl::desc("Strip mining size."),
+                        llvm::cl::desc("Specify how many columns kernel will cantain."),
                         llvm::cl::init(2)};
 };
 } // end anonymous namespace.
