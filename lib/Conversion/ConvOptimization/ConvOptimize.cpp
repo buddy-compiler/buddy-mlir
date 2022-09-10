@@ -66,6 +66,7 @@ public:
 
     // Some constant we need.
     const Value c0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+    const Value cf0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getF32FloatAttr(0.));
     const AffineMap mapBroadcast = AffineMap::get(4, 0, rewriter.getAffineConstantExpr(0));
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
@@ -80,10 +81,10 @@ public:
     VectorType vecTy = VectorType::get(strip, elemTy);
 
     // Dims
-    Value a = rewriter.create<memref::DimOp>(loc, input, 0);
-    Value b = rewriter.create<memref::DimOp>(loc, input, 1);
-    Value d = rewriter.create<memref::DimOp>(loc, input, 3);
-    Value c = rewriter.create<memref::DimOp>(loc, input, 2);
+    Value a = rewriter.create<memref::DimOp>(loc, output, 0);
+    Value b = rewriter.create<memref::DimOp>(loc, output, 1);
+    Value d = rewriter.create<memref::DimOp>(loc, output, 3);
+    Value c = rewriter.create<memref::DimOp>(loc, output, 2);
     Value e = rewriter.create<memref::DimOp>(loc, input, 1);
     Value f = rewriter.create<memref::DimOp>(loc, filter, 2);
     Value g = rewriter.create<memref::DimOp>(loc, filter, 3);
@@ -99,8 +100,9 @@ public:
         buildAffineLoopNest(rewriter, loc, c0, d, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
           Value ivD = ivRange.front();
           buildAffineLoopNest(rewriter, loc, c0, c, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+
             Value ivC = ivRange.front();
-	    Value t = builder.create<TransferReadOp>(loc, vecTy, input, ValueRange{ivA, ivB, ivC, ivD}, mapBroadcast);
+	    Value t = builder.create<SplatOp>(loc, vecTy, cf0);
 	    builder.create<memref::StoreOp>(loc, t, buffer, c0);
             buildAffineLoopNest(rewriter, loc, c0, e, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
               Value ivE = ivRange.front();
@@ -128,16 +130,21 @@ public:
 		  Value lastResult = builder.create<memref::LoadOp>(loc, buffer, c0);
 		  for(int i = 0; i < kernelM; ++ i){
 		    for(int j = 0; j < kernelN; ++ j){
-                      lastResult = builder.create<vector::FMAOp>(loc, vecTy, iList[i * 2 + j], fList[i * 2 + j], lastResult);
+                      lastResult = builder.create<vector::FMAOp>(loc, vecTy, iList[i * kernelN + j], fList[i * kernelN + j], lastResult);
 		    }
 		  }
+
 		  builder.create<memref::StoreOp>(loc, lastResult, buffer, c0);
+
 		});
 	      });
 	    });
+
 	    Value reduceVec = builder.create<memref::LoadOp>(loc, buffer, c0);
 	    Value reducedRes = builder.create<vector::ReductionOp>(loc, vector::CombiningKind::ADD, reduceVec);
-	    builder.create<memref::StoreOp>(loc, reducedRes, output, ValueRange{ivA, ivB, ivC, ivD});
+	    Value bias = builder.create<memref::LoadOp>(loc, output, ValueRange{ivA, ivB, ivC, ivD});
+	    Value addRes = builder.create<arith::AddFOp>(loc, bias, reducedRes);
+	    builder.create<memref::StoreOp>(loc, addRes, output, ValueRange{ivA, ivB, ivC, ivD});
 
 	    // Now handle tail issue.
             buildAffineLoopNest(rewriter, loc, c0, e, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
