@@ -36,6 +36,7 @@
 #include <mlir/IR/Operation.h>
 #include <mlir/IR/TypeUtilities.h>
 #include <mlir/IR/Value.h>
+#include <mlir/IR/IntegerSet.h>
 #include <mlir/Pass/Pass.h>
 
 using namespace mlir;
@@ -66,10 +67,16 @@ public:
 
     // Some constant we need.
     const Value c0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+    const Value cM = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(kernelM));
+    const Value cN = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(kernelN));
+    const Value cStrip = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(strip));
     const Value cf0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getF32FloatAttr(0.));
-    const AffineMap mapBroadcast = AffineMap::get(4, 0, rewriter.getAffineConstantExpr(0));
+    // const AffineMap mapBroadcast = AffineMap::get(4, 0, rewriter.getAffineConstantExpr(0));
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
+    const AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
+    const AffineExpr s1 = rewriter.getAffineSymbolExpr(1);
+    const AffineExpr s2 = rewriter.getAffineSymbolExpr(2);
 
     Value input = op->getOperand(0);
     Value filter = op->getOperand(1);
@@ -111,6 +118,10 @@ public:
                 buildAffineLoopNest(rewriter, loc, c0, g, kernelN * strip, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
 	          Value ivG = ivRange.front();
 
+		  // Check if date fulfill minimal kernel size.
+		  auto kernelCheckIf = builder.create<AffineIfOp>(loc, mlir::IntegerSet::get(2, 3, {d0 - s0, d1 - s1 * s2}, {false, false}), ValueRange{f, g, cM, cN, cStrip}, false);
+		  builder.setInsertionPointToStart(kernelCheckIf.getThenBlock());
+
 		  SmallVector<Value> iList;
 		  SmallVector<Value> fList;
 		  for(int i = 0; i < kernelM; ++ i){
@@ -149,12 +160,16 @@ public:
 	    // Now handle tail issue.
             buildAffineLoopNest(rewriter, loc, c0, e, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
               Value ivE = ivRange.front();
-	      Value remainStart = rewriter.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 - d0 % kernelM), f);
-              buildAffineLoopNest(rewriter, loc, remainStart, f, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+              buildAffineLoopNest(rewriter, loc, c0, f, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
 	        Value ivF = ivRange.front();
-	        Value remainStart = rewriter.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 - d0 % (kernelN * strip)), g);
-                buildAffineLoopNest(rewriter, loc, remainStart, g, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+                buildAffineLoopNest(rewriter, loc, c0, g, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+	          // Value remainStart = rewriter.create<AffineApplyOp>(loc, AffineMap::get(0, 0, d0 - d0 % kernelM), f);
+	          // Value remainStart = rewriter.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 - d0 % (kernelN * strip)), g);
 	          Value ivG = ivRange.front();
+
+		  auto isInKernelIfOp = rewriter.create<AffineIfOp>(loc, IntegerSet::get(2, 2, { -d0 + (s0 - s0 % kernelM - 1), -d1 + (s1 - s1 % (kernelN * strip) - 1)}, {false, false}), ValueRange{ivF, ivG, f, g}, true);
+		  rewriter.setInsertionPointToStart(isInKernelIfOp.getElseBlock());
+
 		  Value fixedRow = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1), ValueRange{ivC, ivF});
 		  Value fixedColumn = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1), ValueRange{ivD, ivG});
 		  Value i = rewriter.create<memref::LoadOp>(loc, input, ValueRange{ivA, ivE, fixedRow, fixedColumn});
