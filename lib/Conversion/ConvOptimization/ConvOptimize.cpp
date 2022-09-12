@@ -113,14 +113,13 @@ public:
 	    builder.create<memref::StoreOp>(loc, t, buffer, c0);
             buildAffineLoopNest(rewriter, loc, c0, e, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
               Value ivE = ivRange.front();
-              buildAffineLoopNest(rewriter, loc, c0, f, kernelM, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+	      
+	      Value fixed = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0.ceilDiv(kernelM) * kernelM), ValueRange{f});
+
+              buildAffineLoopNest(rewriter, loc, c0, fixed, kernelM, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
 	        Value ivF = ivRange.front();
                 buildAffineLoopNest(rewriter, loc, c0, g, kernelN * strip, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
 	          Value ivG = ivRange.front();
-
-		  // Check if date fulfill minimal kernel size.
-		  auto kernelCheckIf = builder.create<AffineIfOp>(loc, mlir::IntegerSet::get(2, 3, {d0 - s0, d1 - s1 * s2}, {false, false}), ValueRange{f, g, cM, cN, cStrip}, false);
-		  builder.setInsertionPointToStart(kernelCheckIf.getThenBlock());
 
 		  SmallVector<Value> iList;
 		  SmallVector<Value> fList;
@@ -132,10 +131,21 @@ public:
 		      Value columnFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + j * strip), ivG);
 
 			Value i = builder.create<TransferReadOp>(loc, vecTy, input, ValueRange{ivA, ivE, rowInput, columnInput});
-			Value f = builder.create<TransferReadOp>(loc, vecTy, filter, ValueRange{ivB, ivE, rowFilter, columnFilter});
+
+		      	auto protectedF = builder.create<AffineIfOp>(loc, vecTy, IntegerSet::get(1, 1, {s0 - 1 - d0}, {false}), ValueRange{rowFilter, f}, true);
+
+			// if row in range, read normally.
+			auto thenBuilder = protectedF.getThenBodyBuilder();
+			Value normalReadVec = thenBuilder.create<TransferReadOp>(loc, vecTy, filter, ValueRange{ivB, ivE, rowFilter, columnFilter});
+			thenBuilder.create<AffineYieldOp>(loc, normalReadVec);
+
+			// if row out of range, give back a empty vector.
+			auto elseBuilder = protectedF.getElseBodyBuilder();
+			Value emptyVec = elseBuilder.create<SplatOp>(loc, vecTy, cf0);
+			elseBuilder.create<AffineYieldOp>(loc, emptyVec);
 
 			iList.push_back(i);
-			fList.push_back(f);
+			fList.push_back(protectedF->getOpResult(0));
 		    }
 		  }
 		  Value lastResult = builder.create<memref::LoadOp>(loc, buffer, c0);
@@ -156,31 +166,6 @@ public:
 	    Value bias = builder.create<memref::LoadOp>(loc, output, ValueRange{ivA, ivB, ivC, ivD});
 	    Value addRes = builder.create<arith::AddFOp>(loc, bias, reducedRes);
 	    builder.create<memref::StoreOp>(loc, addRes, output, ValueRange{ivA, ivB, ivC, ivD});
-
-	    // Now handle tail issue.
-            buildAffineLoopNest(rewriter, loc, c0, e, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
-              Value ivE = ivRange.front();
-              buildAffineLoopNest(rewriter, loc, c0, f, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
-	        Value ivF = ivRange.front();
-                buildAffineLoopNest(rewriter, loc, c0, g, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
-	          // Value remainStart = rewriter.create<AffineApplyOp>(loc, AffineMap::get(0, 0, d0 - d0 % kernelM), f);
-	          // Value remainStart = rewriter.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 - d0 % (kernelN * strip)), g);
-	          Value ivG = ivRange.front();
-
-		  auto isInKernelIfOp = rewriter.create<AffineIfOp>(loc, IntegerSet::get(2, 2, { -d0 + (s0 - s0 % kernelM - 1), -d1 + (s1 - s1 % (kernelN * strip) - 1)}, {false, false}), ValueRange{ivF, ivG, f, g}, true);
-		  rewriter.setInsertionPointToStart(isInKernelIfOp.getElseBlock());
-
-		  Value fixedRow = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1), ValueRange{ivC, ivF});
-		  Value fixedColumn = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1), ValueRange{ivD, ivG});
-		  Value i = rewriter.create<memref::LoadOp>(loc, input, ValueRange{ivA, ivE, fixedRow, fixedColumn});
-		  Value f = rewriter.create<memref::LoadOp>(loc, filter, ValueRange{ivB, ivE, ivF, ivG});
-		  Value o = rewriter.create<memref::LoadOp>(loc, output, ValueRange{ivA, ivB, ivC, ivD});
-		  Value ITimesF = rewriter.create<arith::MulFOp>(loc, i, f);
-		  Value res = rewriter.create<arith::AddFOp>(loc, ITimesF, o);
-		  rewriter.create<memref::StoreOp>(loc, res, output, ValueRange{ivA, ivB, ivC, ivD});
-		});
-	      });
-	    });
           });
         });
       });
