@@ -39,12 +39,9 @@ add_custom_command(OUTPUT buddy-iir.o
   COMMAND ${BUDDY_BINARY_DIR}/buddy-opt
   ${BUDDY_EXAMPLES_DIR}/DAPDialect/iir.mlir
   -lower-dap="DAP-strip-mining=${SPLITING_SIZE}" -convert-linalg-to-affine-loops
-  -lower-affine
-  -convert-scf-to-cf -convert-vector-to-llvm 
-  --llvm-request-c-wrappers
-  -convert-arith-to-llvm
-  -convert-memref-to-llvm -convert-func-to-llvm
-  -reconcile-unrealized-casts |
+  -lower-affine -convert-scf-to-cf -convert-vector-to-llvm 
+  --llvm-request-c-wrappers -convert-arith-to-llvm
+  -convert-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts |
   ${LLVM_MLIR_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
   ${LLVM_MLIR_BINARY_DIR}/llc -mtriple=${BUDDY_OPT_TRIPLE} -mattr=${BUDDY_OPT_ATTR} 
   --filetype=obj -o ${BUDDY_BINARY_DIR}/../examples/DAPDialect/buddy-iir.o
@@ -56,3 +53,7 @@ SET_TARGET_PROPERTIES(
   IIR
   PROPERTIES
   LINKER_LANGUAGE CXX)
+
+  add_executable(iirLowpass iirLowpass.cpp)
+  add_dependencies(iirLowpass buddy-opt)
+  target_link_libraries(iirLowpass IIR)

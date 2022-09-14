@@ -98,6 +98,7 @@ public:
 
     Value zr = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
 
+    // loop over every row in SOS matrix
     rewriter.create<scf::ForOp>(
         loc, c0, filterSize, c1, ValueRange{llvm::None},
         [&](OpBuilder &builder, Location loc, ValueRange ivs,
@@ -134,6 +135,9 @@ public:
           Value Vecb1 = builder.create<BroadcastOp>(loc, vectorTy32, b1);
           Value Vecb2 = builder.create<BroadcastOp>(loc, vectorTy32, b2);
 
+          // A biquad filter expression:
+          // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
+          // FIR part
           builder.create<scf::ForOp>(
               loc, c2, N, strideVal, ValueRange{llvm::None},
               [&](OpBuilder &builder, Location loc, Value iv,
@@ -162,6 +166,7 @@ public:
                 builder.create<scf::YieldOp>(loc, llvm::None);
               });
 
+          // IIR part
           builder.create<scf::ForOp>(
               loc, c0, N, c1, ValueRange{z1, z2},
               [&](OpBuilder &builder, Location loc, Value iv,
