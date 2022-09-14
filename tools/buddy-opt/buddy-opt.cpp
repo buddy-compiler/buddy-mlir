@@ -50,12 +50,7 @@ void registerLowerBudPass();
 void registerLowerDIPPass();
 void registerLowerDAPPass();
 void registerLowerRVVPass();
-void registerLoopOrderChangePass();
-void registerDataCopyGeneratePass();
-void registerAffineSuperTillingPass();
-void registerLoopPerfectPass();
-void registerEliminatePass();
-void registerGEMMVectorizationPass();
+void registerMatMulOptimizePass();
 void registerConvOptimizePass();
 } // namespace buddy
 } // namespace mlir
@@ -74,12 +69,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerRVVPass();
 
   // Register Several Optimize Pass.
-  mlir::buddy::registerLoopOrderChangePass();
-  mlir::buddy::registerDataCopyGeneratePass();
-  mlir::buddy::registerAffineSuperTillingPass();
-  mlir::buddy::registerLoopPerfectPass();
-  mlir::buddy::registerEliminatePass();
-  mlir::buddy::registerGEMMVectorizationPass();
+  mlir::buddy::registerMatMulOptimizePass();
   mlir::buddy::registerConvOptimizePass();
 
   mlir::DialectRegistry registry;
