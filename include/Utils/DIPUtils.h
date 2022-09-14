@@ -28,8 +28,16 @@
 // tasks inside generic utility functions.
 enum class DIP_OP { CORRELATION_2D };
 
+// Specify error codes specific to DIP dialect which might be used for exiting
+// from lowering passes with appropriate messages.
+enum class DIP_ERROR {
+  INCONSISTENT_INPUT_KERNEL_OUTPUT_TYPES,
+  UNSUPPORTED_TYPE,
+  NO_ERROR
+};
+
 // Inserts a constant op with value 0 into a location `loc` based on type
-// `type`. Supported types are : f32, f64, integer types
+// `type`. Supported types are : f32, f64, integer types.
 Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
                            Type elemTy) {
   Value op = {};
@@ -45,6 +53,28 @@ Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
   }
 
   return op;
+}
+
+// Function for applying type check mechanisms for all DIP dialect operations.
+template <typename DIPOP>
+auto checkDIPCommonTypes(DIPOP op, Value input, Value kernel, Value output,
+                         Value constantVal) {
+  auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+  auto kElemTy = kernel.getType().cast<MemRefType>().getElementType();
+  auto outElemTy = output.getType().cast<MemRefType>().getElementType();
+  auto constElemTy = constantVal.getType();
+  if (inElemTy != kElemTy || kElemTy != outElemTy || outElemTy != constElemTy) {
+    return DIP_ERROR::INCONSISTENT_INPUT_KERNEL_OUTPUT_TYPES;
+  }
+
+  // NB: we can infer element type for all related memrefs to be the same as
+  // input since we verified that the operand types are the same.
+  auto bitWidth = inElemTy.getIntOrFloatBitWidth();
+  if (!inElemTy.isF64() && !inElemTy.isF32() && !inElemTy.isInteger(bitWidth)) {
+    return DIP_ERROR::UNSUPPORTED_TYPE;
+  }
+
+  return DIP_ERROR::NO_ERROR;
 }
 
 // Inserts FMA operation into a given location `loc` based on type `type`.
