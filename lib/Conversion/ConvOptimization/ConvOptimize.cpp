@@ -52,10 +52,10 @@ namespace {
 class ConvOptimizePattern : public ConversionPattern {
 public:
   explicit ConvOptimizePattern(MLIRContext *context,
-                                                int64_t stripParam, int64_t kernelMParam, int64_t kernelNParam)
+                                                int64_t vecSizeParam, int64_t kernelMParam, int64_t kernelNParam)
       : ConversionPattern(linalg::Conv2DNchwFchwOp::getOperationName(), 1,
                           context) {
-    strip = stripParam;
+    vecSize = vecSizeParam;
     kernelM = kernelMParam;
     kernelN = kernelNParam;
   }
@@ -67,16 +67,11 @@ public:
 
     // Some constant we need.
     const Value c0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
-    const Value cM = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(kernelM));
-    const Value cN = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(kernelN));
-    const Value cStrip = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(strip));
     const Value cf0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getF32FloatAttr(0.));
-    // const AffineMap mapBroadcast = AffineMap::get(4, 0, rewriter.getAffineConstantExpr(0));
+
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
     const AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
-    const AffineExpr s1 = rewriter.getAffineSymbolExpr(1);
-    const AffineExpr s2 = rewriter.getAffineSymbolExpr(2);
 
     Value input = op->getOperand(0);
     Value filter = op->getOperand(1);
@@ -85,7 +80,7 @@ public:
     ShapedType inputTy = input.getType().cast<ShapedType>();
     
     Type elemTy = inputTy.getElementType();
-    VectorType vecTy = VectorType::get(strip, elemTy);
+    VectorType vecTy = VectorType::get(vecSize, elemTy);
 
     // Dims
     Value a = rewriter.create<memref::DimOp>(loc, output, 0);
@@ -96,15 +91,15 @@ public:
     Value f = rewriter.create<memref::DimOp>(loc, filter, 2);
     Value g = rewriter.create<memref::DimOp>(loc, filter, 3);
 
-    // memref<1xvector<stripxf32>>
+    // memref<1xvector<vecsize x elemTy>>
     MemRefType bufferTy = MemRefType::get(1, vecTy);
     Value buffer = rewriter.create<memref::AllocOp>(loc, bufferTy);
 
-    buildAffineLoopNest(rewriter, loc, c0, a, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+    buildAffineLoopNest(rewriter, loc, c0, a, 1, [&]([[maybe_unused]] OpBuilder& builder, Location loc, ValueRange ivRange){
       Value ivA = ivRange.front();
-      buildAffineLoopNest(rewriter, loc, c0, b, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+      buildAffineLoopNest(rewriter, loc, c0, b, 1, [&]([[maybe_unused]] OpBuilder& builder, Location loc, ValueRange ivRange){
         Value ivB = ivRange.front();
-        buildAffineLoopNest(rewriter, loc, c0, d, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+        buildAffineLoopNest(rewriter, loc, c0, d, 1, [&]([[maybe_unused]] OpBuilder& builder, Location loc, ValueRange ivRange){
           Value ivD = ivRange.front();
           buildAffineLoopNest(rewriter, loc, c0, c, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
 
@@ -116,9 +111,9 @@ public:
 	      
 	      Value fixed = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0.ceilDiv(kernelM) * kernelM), ValueRange{f});
 
-              buildAffineLoopNest(rewriter, loc, c0, fixed, kernelM, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+              buildAffineLoopNest(rewriter, loc, c0, fixed, kernelM, [&]([[maybe_unused]] OpBuilder& builder, Location loc, ValueRange ivRange){
 	        Value ivF = ivRange.front();
-                buildAffineLoopNest(rewriter, loc, c0, g, kernelN * strip, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+                buildAffineLoopNest(rewriter, loc, c0, g, kernelN * vecSize, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
 	          Value ivG = ivRange.front();
 
 		  SmallVector<Value> iList;
@@ -127,8 +122,8 @@ public:
 		    Value rowInput = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + i + d1), ValueRange{ivC, ivF});
 		    Value rowFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + i), ivF);
 		    for(int j = 0; j < kernelN; ++ j){
-		      Value columnInput = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1 + j * strip), ValueRange{ivD, ivG});
-		      Value columnFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + j * strip), ivG);
+		      Value columnInput = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1 + j * vecSize), ValueRange{ivD, ivG});
+		      Value columnFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + j * vecSize), ivG);
 
 			Value i = builder.create<TransferReadOp>(loc, vecTy, input, ValueRange{ivA, ivE, rowInput, columnInput});
 
@@ -178,7 +173,7 @@ public:
   }
 
 private:
-  int64_t strip;
+  int64_t vecSize;
   int64_t kernelM;
   int64_t kernelN;
 };
@@ -188,18 +183,16 @@ private:
 // ConvOptimizePass
 //===----------------------------------------------------------------------===//
 
-/// This is a partial lowering linalg pooling operations to mixture of
-/// Affine + Vector operations.
 namespace {
 class ConvOptimizePass
     : public PassWrapper<ConvOptimizePass, OperationPass<ModuleOp>> {
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ConvOptimizePass)
   StringRef getArgument() const final { return "conv-optimize"; }
-  StringRef getDescription() const final { return "Conv vectorization."; }
+  StringRef getDescription() const final { return "Conv optimize."; }
   ConvOptimizePass() = default;
   ConvOptimizePass(const ConvOptimizePass &) {}
-  explicit ConvOptimizePass(int64_t stripParam, int64_t kernelMParam, int64_t kernelNParam) { strip = stripParam; kernelM = kernelMParam; kernelN = kernelNParam; }
+  explicit ConvOptimizePass(int64_t vecSizeParam, int64_t kernelMParam, int64_t kernelNParam) { vecSize = vecSizeParam; kernelM = kernelMParam; kernelN = kernelNParam; }
 
   void runOnOperation() override;
 
@@ -208,7 +201,7 @@ public:
                     VectorDialect>();
   }
 
-  Option<int64_t> strip{*this, "vec-size",
+  Option<int64_t> vecSize{*this, "vec-size",
                         llvm::cl::desc("Vector size using in kernel."),
                         llvm::cl::init(16)};
   
@@ -234,7 +227,7 @@ void ConvOptimizePass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<ConvOptimizePattern>(context, strip, kernelM, kernelN);
+  patterns.add<ConvOptimizePattern>(context, vecSize, kernelM, kernelN);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
