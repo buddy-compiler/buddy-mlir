@@ -94,10 +94,10 @@ public:
     // Get type from the origin operation.
     Type resultType = op.getResult().getType();
     // Get the attribute.
-    auto arithAttr = op.arith();
+    auto arithAttr = op.getArith();
     // Get the lhs and rhs.
-    Value lhs = op.lhs();
-    Value rhs = op.rhs();
+    Value lhs = op.getLhs();
+    Value rhs = op.getRhs();
     Value result;
     // Lowering to different ops according to the attribute.
     if (arithAttr == buddy::bud::TestEnumAttrOperation::ADD)
@@ -119,7 +119,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
     // Get the attribute and the value.
-    ArrayAttr coordinateAttr = op.coordinate();
+    ArrayAttr coordinateAttr = op.getCoordinate();
     int64_t valX = coordinateAttr[0].cast<IntegerAttr>().getInt();
     int64_t valY = coordinateAttr[1].cast<IntegerAttr>().getInt();
     // Get the index attribute and constant value.
@@ -129,7 +129,7 @@ public:
     Value idxY = rewriter.create<arith::ConstantOp>(loc, attrY);
     SmallVector<Value, 2> memrefIdx = {idxX, idxY};
     // Get base memref.
-    Value memref = op.base();
+    Value memref = op.getBase();
     // Create memref load operation.
     Value result = rewriter.create<memref::LoadOp>(loc, memref, memrefIdx);
     rewriter.replaceOp(op, result);
@@ -144,14 +144,14 @@ public:
   LogicalResult matchAndRewrite(bud::VectorConfigOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
-    mlir::Region &configRegion = op.region();
+    mlir::Region &configRegion = op.getRegion();
     mlir::Block &configBlock = configRegion.front();
     for (mlir::Operation &innerOp : configBlock.getOperations()) {
       if (isa<arith::AddFOp>(innerOp)) {
         Type resultType = cast<arith::AddFOp>(innerOp).getResult().getType();
         Value result = rewriter.create<LLVM::VPFAddOp>(
             loc, resultType, cast<arith::AddFOp>(innerOp).getLhs(),
-            cast<arith::AddFOp>(innerOp).getRhs(), op.mask(), op.vl());
+            cast<arith::AddFOp>(innerOp).getRhs(), op.getMask(), op.getVl());
         rewriter.replaceOp(op, result);
       }
     }
