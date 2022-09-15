@@ -120,17 +120,22 @@ public:
     Value Vecb1 = rewriter.create<BroadcastOp>(loc, vectorTy32, b1);
     Value Vecb2 = rewriter.create<BroadcastOp>(loc, vectorTy32, b2);
 
-    mlir::scf::buildLoopNest(
-        rewriter, loc, ValueRange{c2}, ValueRange{N}, ValueRange{strideVal},
-        [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-          Value idx0 = ivs[0];
+    // A biquad filter expression:
+    // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
+    // FIR part
+    rewriter.create<scf::ForOp>(
+        loc, c2, N, strideVal, ValueRange{llvm::None},
+        [&](OpBuilder &builder, Location loc, Value ivs, ValueRange iargs) {
+          Value idx0 = ivs;
           Value idx1 = builder.create<SubIOp>(loc, idx0, c1);
           Value idx2 = builder.create<SubIOp>(loc, idx0, c2);
 
           Value inputVec0 =
               builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx0});
-          Value inputVec1 = builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx1});
-          Value inputVec2 = builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx2});
+          Value inputVec1 =
+              builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx1});
+          Value inputVec2 =
+              builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx2});
 
           Value outputVec =
               builder.create<LoadOp>(loc, vectorTy32, output, ValueRange{idx0});
@@ -139,23 +144,23 @@ public:
           Value resVec1 = builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
           Value resVec2 = builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
           builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
+          builder.create<scf::YieldOp>(loc, llvm::None);
         });
 
-    mlir::scf::buildLoopNest(
-        rewriter, loc, ValueRange(c0), ValueRange(N), ValueRange(c1),
-        ValueRange{z1, z2},
-        [&](OpBuilder &builder, Location loc, ValueRange ivs,
-            ValueRange iargs) -> scf::ValueVector {
+    // IIR part
+    rewriter.create<scf::ForOp>(
+        loc, c0, N, c1, ValueRange{z1, z2},
+        [&](OpBuilder &builder, Location loc, Value ivs, ValueRange iargs) {
           Value x =
-              builder.create<memref::LoadOp>(loc, output, ValueRange(ivs[0]));
+              builder.create<memref::LoadOp>(loc, output, ValueRange(ivs));
           Value t1 = builder.create<MulFOp>(loc, a1, iargs[1]);
           Value t2 = builder.create<MulFOp>(loc, a2, iargs[0]);
           Value y = builder.create<AddFOp>(loc, t1, t2);
           Value opt = builder.create<SubFOp>(loc, x, y);
 
-          builder.create<memref::StoreOp>(loc, opt, output, ValueRange{ivs[0]});
+          builder.create<memref::StoreOp>(loc, opt, output, ValueRange{ivs});
 
-          return std::vector<Value>{iargs[1], opt};
+          builder.create<scf::YieldOp>(loc, std::vector<Value>{iargs[1], opt});
         });
 
     rewriter.eraseOp(op);

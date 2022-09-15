@@ -35,8 +35,11 @@ void _mlir_ciface_buddy_biquad(MemRef<float, 1> *input,
 }
 } // namespace detail
 
+// frequency: Normalized frequency (frequency_Hz / samplerate_Hz)
+// Q: Q-factor
 template <typename T, size_t N>
 void biquadLowpass(MemRef<T, N> &input, T frequency, T Q) {
+
   const T K = tan(M_PIf32 * frequency);
   const T K2 = K * K;
   const T norm = 1 / (1 + K / Q + K2);

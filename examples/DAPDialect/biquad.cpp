@@ -1,4 +1,4 @@
-//===- biquad.cpp - Example of DAP fir filter ----------------------===//
+//===- biquad.cpp - Example of DAP Iir filter ----------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,13 +50,8 @@ int main(int argc, char *argv[]) {
   dap::Audio<float, 1> output;
   output.fetchMetadata(aud.getAudioFile());
   output.getAudioFile().setAudioBuffer(nullptr);
-  auto x = output.getMemRef();
-  dap::biquad(&aud.getMemRef(), &kernel, &x);
 
-  auto y = x.getData();
-  for(int i=0; i<6; i++){
-    std::cout<<y[i]<<"\n";
-  }
+  dap::biquad(&aud.getMemRef(), &kernel, &x);
 
   cout << "Saving file:" << endl;
   cout << (output.save(saveFileName) ? "OK" : "NOT OK") << endl;
