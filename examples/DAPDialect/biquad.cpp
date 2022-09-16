@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
   if (argc == 3) {
     saveFileName = argv[2];
   }
-  cout << "Usage: FirLowpass [loadPath] [savePath]" << endl;
+  cout << "Usage: BiquadLowpass [loadPath] [savePath]" << endl;
   cout << "Current specified path: \n";
   cout << "Load: " << fileName << endl;
   cout << "Save: " << saveFileName << endl;
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
   output.fetchMetadata(aud.getAudioFile());
   output.getAudioFile().setAudioBuffer(nullptr);
 
-  dap::biquad(&aud.getMemRef(), &kernel, &x);
+  dap::biquad(&aud.getMemRef(), &kernel, &output.getMemRef());
 
   cout << "Saving file:" << endl;
   cout << (output.save(saveFileName) ? "OK" : "NOT OK") << endl;
