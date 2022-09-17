@@ -1,47 +1,47 @@
-module {
-  func.func private @printMemrefF32(memref<*xf32>)
+module{
+    func.func private @printMemrefF32(memref<*xf32>)
 
-  func.func @alloc_2d_filled_f32(%arg0: index, %arg1: index, %arg2: f32) -> memref<?x?xf32> {
-    %c0 = arith.constant 0 : index
-    %c1 = arith.constant 1 : index
-    %0 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
-    scf.for %arg3 = %c0 to %arg0 step %c1 {
-      scf.for %arg4 = %c0 to %arg1 step %c1 {
-        memref.store %arg2, %0[%arg3, %arg4] : memref<?x?xf32>
-      }
+    func.func @matmul(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
+      linalg.matmul 
+        ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
+       outs(%c:memref<?x?xf32>)
+      return
     }
-    return %0 : memref<?x?xf32>
-  }
 
-  func.func @matmul(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>, %arg2: memref<?x?xf32>) {
-    linalg.matmul ins (%arg0, %arg1: memref<?x?xf32>, memref<?x?xf32>)
-                  outs (%arg2: memref<?x?xf32>)
-    return
-  }
+    func.func @main(){
+       // Set up dims.
+       %cM = arith.constant 4 : index
+       %cN = arith.constant 4 : index
+       %cK = arith.constant 4 : index
 
-  func.func @main() {
-    %c2 = arith.constant 2 : index
-    %c3 = arith.constant 3 : index
-    %c5 = arith.constant 5 : index
+       // Set Init Value.
+       %cf1 = arith.constant 1.0 : f32
 
-    // Initial data of input and output.
-    %cst = arith.constant 1.000000e+00 : f32
-    %cst_0 = arith.constant 0.000000e+00 : f32
+       %A = memref.alloc(%cM, %cK) : memref<?x?xf32>
+       %B = memref.alloc(%cK, %cN) : memref<?x?xf32>
+       %C = memref.alloc(%cM, %cN) : memref<?x?xf32>
 
-    %input1 = call @alloc_2d_filled_f32(%c5, %c3, %cst) : (index, index, f32) -> memref<?x?xf32>
-    %input2 = call @alloc_2d_filled_f32(%c3, %c2, %cst) : (index, index, f32) -> memref<?x?xf32>
-    %output = call @alloc_2d_filled_f32(%c5, %c2, %cst_0) : (index, index, f32) -> memref<?x?xf32>
+       linalg.fill
+        ins(%cf1 : f32)
+       outs(%A:memref<?x?xf32>)
 
-    call @matmul(%input1, %input2, %output) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
+       linalg.fill
+        ins(%cf1 : f32)
+       outs(%B:memref<?x?xf32>)
 
-    // Print output.
-    %print_output = memref.cast %output : memref<?x?xf32> to memref<*xf32>
-    call @printMemrefF32(%print_output) : (memref<*xf32>) -> ()
+       linalg.fill
+        ins(%cf1 : f32)
+       outs(%C:memref<?x?xf32>)
 
-    memref.dealloc %input1 : memref<?x?xf32>
-    memref.dealloc %input2 : memref<?x?xf32>
-    memref.dealloc %output : memref<?x?xf32>
+       call @matmul(%A, %B, %C) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
 
-    return
-  }
+       // Print output.
+       %print_C = memref.cast %C : memref<?x?xf32> to memref<*xf32>
+       call @printMemrefF32(%print_C) : (memref<*xf32>) -> ()
+
+       memref.dealloc %C : memref<?x?xf32>
+       memref.dealloc %B : memref<?x?xf32>
+       memref.dealloc %A : memref<?x?xf32>
+       return 
+    }
 }
