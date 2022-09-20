@@ -1,0 +1,21 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/sen/buddy4/llvm/llvm/include",
+                "/home/sen/buddy4/tools/buddy-frontendgen/include",
+                "/home/sen/buddy4/llvm/build/include",
+                "/home/sen/buddy4/llvm/mlir/include",
+                "/home/sen/buddy4/llvm/mlir/examples/toy/Ch6/include",
+                "/home/sen/buddy4/tools/buddy-frontendgen/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c17",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}

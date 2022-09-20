@@ -7,3 +7,8 @@ endif()
 if(BUDDY_DSL_EXAMPLES)
   add_subdirectory(ToyDSL)
 endif()
+
+if(BUDDY_FEGEN_EXAMPLES)
+  add_subdirectory(FrontEndGen)
+endif()
+
