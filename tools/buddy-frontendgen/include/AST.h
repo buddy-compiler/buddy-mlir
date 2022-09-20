@@ -105,7 +105,8 @@ public:
 class Dialect {
   llvm::StringRef defName;
   llvm::StringRef name;
-  llvm::StringRef cppNamespace; 
+  llvm::StringRef cppNamespace;
+
 public:
   Dialect() {}
   llvm::StringRef getName() { return name; }

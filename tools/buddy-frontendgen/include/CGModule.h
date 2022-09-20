@@ -58,7 +58,7 @@ public:
   void emitGrammar(llvm::StringRef grammarName);
   void emitTerminators();
   void emitCustomTerminators();
-  void emitWSAndComment(); 
+  void emitWSAndComment();
   void emitIncludes(llvm::StringRef grammarName);
   void emitMLIRVisitor(llvm::StringRef grammarName);
   void emitClass(llvm::StringRef grammarName);

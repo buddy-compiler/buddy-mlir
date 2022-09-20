@@ -118,7 +118,6 @@ void CGModule::emitWSAndComment() {
   os << "Identifier\n  : [a-zA-Z][a-zA-Z0-9_]*\n  ;\n\n";
   os << "WS\n  : [ \\r\\n\\t] -> skip\n  ;\n\n";
   os << "Comment\n  : '#' .*? \'\\n\' ->skip\n  ;\n";
-  
 }
 
 void CGModule::emitMLIRVisitor(llvm::StringRef grammarName) {

@@ -48,7 +48,7 @@ public:
   void parserTerminator(GeneratorAndOthers *generatorAndOthers);
   void parserPBExpression(GeneratorAndOthers *generatorAndOthers);
   void parserDialect(Dialect *&dialect, llvm::StringRef defName);
-  bool parserOp(std::vector<Op *> &ops, llvm::StringRef opName); 
+  bool parserOp(std::vector<Op *> &ops, llvm::StringRef opName);
   void parserCurlyBracketOpen(GeneratorAndOthers *generatorAndOthers);
   void parserDAG(DAG *&dag);
   void parserBuilders(std::vector<Builder *> &builders);

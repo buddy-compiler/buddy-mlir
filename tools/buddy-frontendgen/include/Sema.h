@@ -25,10 +25,10 @@ public:
   void actOnModule(Module *module, std::vector<Rule *> &rules,
                    Dialect *&dialect, std::vector<Op *> &ops);
   void actOnRule(Rule *rule, std::vector<GeneratorAndOthers *> &generators);
-  void actOnDialect(Dialect *dialect, llvm::StringRef defName,llvm::StringRef name,
-                    llvm::StringRef cppNamespace);
-  void actOnOps(std::vector<Op *> &ops, llvm::StringRef opName,
-                DAG *arguments, DAG *results, std::vector<Builder *> &builder);
+  void actOnDialect(Dialect *dialect, llvm::StringRef defName,
+                    llvm::StringRef name, llvm::StringRef cppNamespace);
+  void actOnOps(std::vector<Op *> &ops, llvm::StringRef opName, DAG *arguments,
+                DAG *results, std::vector<Builder *> &builder);
   void actOnDag(DAG *&arguments, DAG &dag);
 };
 } // namespace frontendgen

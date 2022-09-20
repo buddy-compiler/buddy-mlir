@@ -33,8 +33,7 @@ void Sema::actOnRule(Rule *rule,
 
 /// Set Dialect's nodes.
 void Sema::actOnDialect(Dialect *dialect, llvm::StringRef defName,
-                        llvm::StringRef name,
-                        llvm::StringRef cppNamespace) {
+                        llvm::StringRef name, llvm::StringRef cppNamespace) {
   dialect->setDefName(defName);
   dialect->setName(name);
   dialect->setCppNamespace(cppNamespace);
@@ -42,7 +41,8 @@ void Sema::actOnDialect(Dialect *dialect, llvm::StringRef defName,
 
 /// Make a op and make it in the ops.
 void Sema::actOnOps(std::vector<Op *> &ops, llvm::StringRef opName,
-                    DAG *arguments, DAG *results, std::vector<Builder *> &builders) {
+                    DAG *arguments, DAG *results,
+                    std::vector<Builder *> &builders) {
   Op *op = new Op();
   op->setOpName(opName);
   op->setArguments(arguments);
