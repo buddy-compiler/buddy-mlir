@@ -449,7 +449,7 @@ rvv-vp-intrinsic-memory-scalable-aot:
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
 
-rvv-vp-intrinsic-fma-scalable-aot-error:
+rvv-vp-intrinsic-fma-scalable-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-fma-scalable.mlir \
 		-convert-scf-to-cf \
 		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \

@@ -21,31 +21,30 @@ func.func @main() -> i32 {
   %c1 = arith.constant 1 : index
   %c6 = arith.constant 6 : index
   %c10 = arith.constant 10 : index
-  %mask6 = arith.constant dense<[1, 1, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
-  %evl8 = arith.constant 8 : i32
-  %mask8 = arith.constant dense<[1, 1, 1, 1, 1, 1, 1, 1]> : vector<8xi1>
-  %evl6 = arith.constant 6 : i32
-  %c1_i32 = arith.constant 1 : i32
 
   // Configure the register.
   // SEW = 32
   %sew = arith.constant 2 : index
   // LMUL = 2
   %lmul = arith.constant 1 : index
-  // AVL = 10
-  %avl = arith.constant 10 : index
+  // AVL = 6
+  %avl = arith.constant 6 : index
 
   // Load vl elements.
   %vl = rvv.setvl %avl, %sew, %lmul : index
+  %vl_i32 = arith.index_cast %vl : index to i32
   %load_vec1 = rvv.load %mem_f32[%c0], %vl : memref<20xf32>, vector<[4]xf32>, index
   %load_vec2 = rvv.load %mem_f32[%c10], %vl : memref<20xf32>, vector<[4]xf32>, index
+
+  // Create the mask.
+  %mask_scalable = vector.create_mask %vl : vector<[4]xi1>
 
   //===--------------------------------------------------------------------===//
   // VP Intrinsic FMA F32 Operation + Scalable Vector Type
   //===--------------------------------------------------------------------===//
 
-  %res_fma_evl_driven = "llvm.intr.vp.fma" (%load_vec1, %load_vec2, %load_vec2, %mask8, %evl6) :
-         (vector<[4]xf32>, vector<[4]xf32>, vector<[4]xf32>, vector<8xi1>, i32) -> vector<[4]xf32>
+  %res_fma_evl_driven = "llvm.intr.vp.fma" (%load_vec1, %load_vec2, %load_vec2, %mask_scalable, %vl_i32) :
+         (vector<[4]xf32>, vector<[4]xf32>, vector<[4]xf32>, vector<[4]xi1>, i32) -> vector<[4]xf32>
   
   %res = call @alloc_mem() : () -> memref<20xf32>
   rvv.store %res_fma_evl_driven, %res[%c0], %vl : vector<[4]xf32>, memref<20xf32>, index
