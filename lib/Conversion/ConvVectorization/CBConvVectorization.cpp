@@ -290,7 +290,7 @@ void ConvVectorizationPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<arith::ArithmeticDialect, AffineDialect,
+  target.addLegalDialect<arith::ArithDialect, AffineDialect,
                          scf::SCFDialect, func::FuncDialect,
                          memref::MemRefDialect, VectorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();

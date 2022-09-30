@@ -86,7 +86,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<buddy::dap::DAPDialect, func::FuncDialect,
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
-                    AffineDialect, arith::ArithmeticDialect>();
+                    AffineDialect, arith::ArithDialect>();
   }
 };
 } // end anonymous namespace.
@@ -98,7 +98,7 @@ void LowerDAPPass::runOnOperation() {
   ConversionTarget target(*context);
   target.addLegalDialect<AffineDialect, scf::SCFDialect, func::FuncDialect,
                          memref::MemRefDialect, VectorDialect,
-                         arith::ArithmeticDialect, linalg::LinalgDialect>();
+                         arith::ArithDialect, linalg::LinalgDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);

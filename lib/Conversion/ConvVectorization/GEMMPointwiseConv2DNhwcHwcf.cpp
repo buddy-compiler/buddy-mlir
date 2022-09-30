@@ -18,7 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -146,7 +146,7 @@ void PointwiseConvToGemmPass::runOnOperation() {
   MLIRContext *context = &getContext();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<arith::ArithmeticDialect, scf::SCFDialect,
+  target.addLegalDialect<arith::ArithDialect, scf::SCFDialect,
                          func::FuncDialect, memref::MemRefDialect,
                          tensor::TensorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
