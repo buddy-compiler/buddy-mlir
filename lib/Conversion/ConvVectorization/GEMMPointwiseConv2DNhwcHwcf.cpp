@@ -68,12 +68,12 @@ public:
 
     auto convOp = dyn_cast<linalg::Conv2DNhwcHwcfOp>(op);
 
-    if (!llvm::all_of(convOp.strides(), [](APInt element) {
+    if (!llvm::all_of(convOp.getStrides(), [](APInt element) {
           return element.getSExtValue() == 1;
         }))
       return failure();
 
-    if (!llvm::all_of(convOp.dilations(), [](APInt element) {
+    if (!llvm::all_of(convOp.getDilations(), [](APInt element) {
           return element.getSExtValue() == 1;
         }))
       return failure();
