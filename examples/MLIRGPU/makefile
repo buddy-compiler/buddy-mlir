@@ -30,3 +30,13 @@ gpu-all-reduce-and-run:
 		-gpu-to-llvm | \
 	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
 
+gpu-mma-lower:
+	@${MLIR_OPT} gpu-mma.mlir -gpu-kernel-outlining \
+		-pass-pipeline='gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin{chip=sm_70})' \
+		--convert-scf-to-cf -gpu-to-llvm -o log.mlir
+
+gpu-mma-run:
+	@${MLIR_OPT} gpu-mma.mlir -gpu-kernel-outlining \
+		-pass-pipeline='gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin{chip=sm_70})' \
+		--convert-scf-to-cf -gpu-to-llvm | \
+	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
