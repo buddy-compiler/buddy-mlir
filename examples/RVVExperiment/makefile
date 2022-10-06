@@ -581,6 +581,19 @@ rvv-vp-intrinsic-mul-scalable-aot:
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
 
+rvv-vp-intrinsic-or-scalable-aot:
+	@${BUDDY_OPT} ./rvv-vp-intrinsic-or-scalable.mlir \
+		-convert-scf-to-cf \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o -mabi=lp64d \
+		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
+		-o a.out
+	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
+
+
 ################################################################################
 # Reuse MLIR Vector Examples
 ################################################################################
