@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file is the dialects and oprimization driver of buddy-mlir project.
+// This file is the dialects and optimization driver of buddy-mlir project.
 //
 //===----------------------------------------------------------------------===//
 

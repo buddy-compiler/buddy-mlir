@@ -73,26 +73,20 @@ public:
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    auto kElemTy = kernel.getType().cast<MemRefType>().getElementType();
-    auto outElemTy = output.getType().cast<MemRefType>().getElementType();
-    auto constElemTy = constantValue.getType();
-    if (inElemTy != kElemTy || kElemTy != outElemTy ||
-        outElemTy != constElemTy) {
+    DIP_ERROR error = checkDIPCommonTypes<dip::Corr2DOp>(op, input, kernel,
+                                                         output, constantValue);
+
+    if (error == DIP_ERROR::INCONSISTENT_INPUT_KERNEL_OUTPUT_TYPES) {
       return op->emitOpError() << "input, kernel, output and constant must "
                                   "have the same element type";
-    }
-    // NB: we can infer element type for all operation to be the same as input
-    // since we verified that the operand types are the same
-    auto elemTy = inElemTy;
-    auto bitWidth = elemTy.getIntOrFloatBitWidth();
-    if (!elemTy.isF64() && !elemTy.isF32() && !elemTy.isInteger(bitWidth)) {
+    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
-                               << elemTy << "is passed";
+                               << inElemTy << "is passed";
     }
 
     traverseImagewBoundaryExtrapolation(rewriter, loc, ctx, input, kernel,
                                         output, centerX, centerY, constantValue,
-                                        strideVal, elemTy, boundaryOptionAttr,
+                                        strideVal, inElemTy, boundaryOptionAttr,
                                         stride, DIP_OP::CORRELATION_2D);
     // Remove the origin convolution operation.
     rewriter.eraseOp(op);
@@ -408,7 +402,7 @@ public:
     registry
         .insert<buddy::dip::DIPDialect, func::FuncDialect,
                 memref::MemRefDialect, scf::SCFDialect, VectorDialect,
-                AffineDialect, arith::ArithmeticDialect, math::MathDialect>();
+                AffineDialect, arith::ArithDialect, math::MathDialect>();
   }
 
   Option<int64_t> stride{*this, "DIP-strip-mining",
@@ -424,7 +418,7 @@ void LowerDIPPass::runOnOperation() {
   ConversionTarget target(*context);
   target.addLegalDialect<AffineDialect, scf::SCFDialect, func::FuncDialect,
                          memref::MemRefDialect, VectorDialect,
-                         arith::ArithmeticDialect, math::MathDialect>();
+                         arith::ArithDialect, math::MathDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);
