@@ -21,3 +21,4 @@ func.func @main() -> (i32) {
   vector.print %v3 : vector<3x3xf32>
   return %c0 : i32
 }
+

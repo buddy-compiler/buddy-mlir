@@ -51,3 +51,4 @@ func.func @main() {
   return 
 }
 func.func private @printMemrefI32(%ptr : memref<*xi32>)
+

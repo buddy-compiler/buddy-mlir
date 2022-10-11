@@ -21,3 +21,4 @@ func.func @main() -> (i32) {
   vector.print %v3 : vector<5x5xf32>
   return  %cst0 : i32
 }
+
