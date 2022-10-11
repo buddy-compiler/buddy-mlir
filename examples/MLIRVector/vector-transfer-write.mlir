@@ -22,4 +22,4 @@ func.func @main() -> (i32) {
   return %c0 : i32
 }
 
-func.func private @printMemrefF32(memref<*xf32>) 
+func.func private @printMemrefF32(memref<*xf32>)
