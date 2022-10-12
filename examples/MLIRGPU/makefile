@@ -78,4 +78,5 @@ vector-to-gpu-run:
 	convert-gpu-to-nvvm,gpu-to-cubin{chip=sm_70})" -convert-scf-to-cf -gpu-to-llvm \
 	-canonicalize | \
 	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME} \
-	-shared-libs=${MLIR_ASYNC_RUNTIME} 
+	-shared-libs=${MLIR_ASYNC_RUNTIME}
+
