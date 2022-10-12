@@ -17,7 +17,7 @@ func.func @main() -> (i32) {
                               [0., 0., 0.], 
                               [0., 0., 0.]]> : vector<3x3xf32>
 
-  %v3 = vector.contract {indexing_maps = [#map0, #map1, #map2], iterator_types = ["parallel", "reduction", "parallel"], kind = #vector.kind<add>} %v0, %v1, %v2 : vector<3x4xf32>, vector<4x3xf32> into vector<3x3xf32>
+  %v3 = vector.contract {indexing_maps = [#map0, #map1, #map2], iterator_types = ["parallel", "reduction", "parallel"]} %v0, %v1, %v2 : vector<3x4xf32>, vector<4x3xf32> into vector<3x3xf32>
   vector.print %v3 : vector<3x3xf32>
   return %c0 : i32
 }

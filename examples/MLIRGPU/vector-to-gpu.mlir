@@ -43,7 +43,7 @@ module attributes {gpu.container_module} {
         %arg_v0 = vector.transfer_read %arg0[%c0, %c0], %f0 : memref<16x16xf16>, vector<16x16xf16>
         %arg_v1 = vector.transfer_read %arg1[%c0, %c0], %f0 : memref<16x16xf16>, vector<16x16xf16>
         %arg_v2 = vector.transfer_read %arg2[%c0, %c0], %f0f32 : memref<16x16xf32>, vector<16x16xf32>
-        %result = vector.contract {indexing_maps = [#map0, #map1, #map2], iterator_types = ["parallel", "parallel", "reduction"], kind = #vector.kind<add>} %arg_v0, %arg_v1, %arg_v2 : vector<16x16xf16>, vector<16x16xf16> into vector<16x16xf32>
+        %result = vector.contract {indexing_maps = [#map0, #map1, #map2], iterator_types = ["parallel", "parallel", "reduction"]} %arg_v0, %arg_v1, %arg_v2 : vector<16x16xf16>, vector<16x16xf16> into vector<16x16xf32>
         vector.transfer_write %result, %arg2[%c0, %c0] : vector<16x16xf32>, memref<16x16xf32>
         gpu.return
       }
