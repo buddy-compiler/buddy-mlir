@@ -99,7 +99,8 @@ then
     -DCLANG_TABLEGEN=$PWD/../build-local-clang/bin/clang-tblgen \
     -DLLVM_DEFAULT_TARGET_TRIPLE=riscv64-unknown-linux-gnu \
     -DLLVM_TARGET_ARCH=RISCV64 \
-    -DCMAKE_BUILD_TYPE=Release
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_ENABLE_ZSTD=Off
   ninja clang lli
   cd ..
 else
@@ -132,8 +133,9 @@ then
     -DMLIR_TABLEGEN=$PWD/../../llvm/build/bin/mlir-tblgen \
     -DLLVM_TABLEGEN=$PWD/../../llvm/build/bin/llvm-tblgen \
     -DMLIR_LINALG_ODS_YAML_GEN=$PWD/../../llvm/build/bin/mlir-linalg-ods-yaml-gen \
-    -DMLIR_PDLL_TABLEGEN=$PWD/../../llvm/build/bin/mlir-pdll
-  ninja 
+    -DMLIR_PDLL_TABLEGEN=$PWD/../../llvm/build/bin/mlir-pdll \
+    -DLLVM_ENABLE_ZSTD=Off
+  ninja
 else
   echo "mlir for riscv64 was built already"
 fi
