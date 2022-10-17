@@ -93,10 +93,8 @@ public:
     Value K = rewriter.create<memref::DimOp>(loc, A, 1);
 
     // build loop body
-    Value loopJUb = rewriter.create<AffineApplyOp>(
-        loc, AffineMap::get(0, 1, s0 - kNLen + 1), N);
     buildAffineLoopNest(
-        rewriter, loc, {c0}, {loopJUb}, kNLen,
+        rewriter, loc, {c0}, {N}, kNLen,
         [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
           auto ivJ = ivRange.front();
           buildAffineLoopNest(
