@@ -222,7 +222,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<buddy::dap::DAPDialect, func::FuncDialect,
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
-                    AffineDialect, arith::ArithmeticDialect>();
+                    AffineDialect, arith::ArithDialect>();
   }
   Option<int64_t> stride{*this, "DAP-strip-mining",
                          llvm::cl::desc("Strip mining size."),
@@ -237,7 +237,7 @@ void LowerDAPPass::runOnOperation() {
   ConversionTarget target(*context);
   target.addLegalDialect<AffineDialect, scf::SCFDialect, func::FuncDialect,
                          memref::MemRefDialect, VectorDialect,
-                         arith::ArithmeticDialect, linalg::LinalgDialect>();
+                         arith::ArithDialect, linalg::LinalgDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);

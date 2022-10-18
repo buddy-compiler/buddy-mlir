@@ -18,18 +18,18 @@ $ cd buddy-mlir
 $ git submodule update --init
 ```
 
-### Build and Test LLVM/MLIR
+### Build and Test LLVM/MLIR/CLANG
 
 ```
 $ cd buddy-mlir
 $ mkdir llvm/build
 $ cd llvm/build
 $ cmake -G Ninja ../llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir" \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
-$ ninja check-mlir
+$ ninja check-mlir check-clang
 ```
 
 If your target machine includes a Nvidia GPU, you can use the following configuration:
