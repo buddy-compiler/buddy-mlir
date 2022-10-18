@@ -155,7 +155,8 @@ linalg-conv2d_nchw_fchw-optimize-translate:
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 linalg-conv2d_nchw_fchw-optimize-run:
-	@${BUDDY_OPT} log.mlir ${MLIR_OPT_OPTIONS} \
+	@${BUDDY_OPT} ./linalg-conv2d_nchw_fchw.mlir ${MLIR_OPT_OPTIONS} \
+		--conv-optimize="kernel-m=2 kernel-n=3 vec-size=16" \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
