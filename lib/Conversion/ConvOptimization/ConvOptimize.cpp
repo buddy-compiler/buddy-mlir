@@ -20,7 +20,6 @@
 #include <iostream>
 
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/Linalg/IR/Linalg.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
@@ -221,7 +220,7 @@ void ConvOptimizePass::runOnOperation() {
 
   ConversionTarget target(*context);
   target
-      .addLegalDialect<arith::ArithmeticDialect, AffineDialect, scf::SCFDialect,
+      .addLegalDialect<arith::ArithDialect, AffineDialect, scf::SCFDialect,
                        memref::MemRefDialect, VectorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
