@@ -1,5 +1,4 @@
-//===- iir_design.h
-//-------------------------------------------------------------===//
+//===- iir_design.h -------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Header file for Iir filter design operations and other entities in
+// Header file for IIR filter design operations and other entities in
 // DAP dialect.
 //
 //===----------------------------------------------------------------------===//

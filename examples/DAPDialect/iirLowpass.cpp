@@ -1,4 +1,4 @@
-//===- IirLowpass.cpp - Example of DAP iir filter ----------------------===//
+//===- iirLowpass.cpp - Example of DAP iir filter -------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
   string fileName = "../../tests/Interface/core/NASA_Mars.wav";
-  ;
   string saveFileName = "IIR_NASA_Mars.wav";
   if (argc >= 2) {
     fileName = argv[1];
