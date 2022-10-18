@@ -30,7 +30,7 @@ namespace detail {
 // Declare the Fir C interface.
 extern "C" {
 // TODO: support both float and double.
-void _mlir_ciface_MLIR_iir(MemRef<float, 1> *inputBuddyConv1D,
+void _mlir_ciface_mlir_iir(MemRef<float, 1> *inputBuddyConv1D,
                            MemRef<float, 2> *kernelBuddyConv1D,
                            MemRef<float, 1> *outputBuddyConv1D);
 
