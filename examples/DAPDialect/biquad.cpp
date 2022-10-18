@@ -30,7 +30,6 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
   string fileName = "../../tests/Interface/core/NASA_Mars.wav";
-  ;
   string saveFileName = "BIQUAD_NASA_Mars.wav";
   if (argc >= 2) {
     fileName = argv[1];
