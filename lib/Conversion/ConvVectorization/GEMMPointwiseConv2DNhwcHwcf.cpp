@@ -18,7 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -68,12 +68,12 @@ public:
 
     auto convOp = dyn_cast<linalg::Conv2DNhwcHwcfOp>(op);
 
-    if (!llvm::all_of(convOp.strides(), [](APInt element) {
+    if (!llvm::all_of(convOp.getStrides(), [](APInt element) {
           return element.getSExtValue() == 1;
         }))
       return failure();
 
-    if (!llvm::all_of(convOp.dilations(), [](APInt element) {
+    if (!llvm::all_of(convOp.getDilations(), [](APInt element) {
           return element.getSExtValue() == 1;
         }))
       return failure();
@@ -146,7 +146,7 @@ void PointwiseConvToGemmPass::runOnOperation() {
   MLIRContext *context = &getContext();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<arith::ArithmeticDialect, scf::SCFDialect,
+  target.addLegalDialect<arith::ArithDialect, scf::SCFDialect,
                          func::FuncDialect, memref::MemRefDialect,
                          tensor::TensorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();

@@ -18,7 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -207,7 +207,7 @@ void LowerBudPass::runOnOperation() {
   ConversionTarget target(*context);
   // clang-format off
   target.addLegalDialect<
-      arith::ArithmeticDialect,
+      arith::ArithDialect,
       func::FuncDialect,
       vector::VectorDialect,
       memref::MemRefDialect,

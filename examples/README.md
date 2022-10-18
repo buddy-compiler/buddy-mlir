@@ -74,7 +74,7 @@ You can detect the edge of the image with `edge-detection`.
 
 ```
 $ cd bin
-$ ./edge-detection ../../examples/ConvOpt/images/YuTu.png result.png
+$ ./edge-detection ../../examples/ConvOpt/images/YuTu.png
 ```
 
 We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches. 

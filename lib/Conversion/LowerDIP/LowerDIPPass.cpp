@@ -402,7 +402,7 @@ public:
     registry
         .insert<buddy::dip::DIPDialect, func::FuncDialect,
                 memref::MemRefDialect, scf::SCFDialect, VectorDialect,
-                AffineDialect, arith::ArithmeticDialect, math::MathDialect>();
+                AffineDialect, arith::ArithDialect, math::MathDialect>();
   }
 
   Option<int64_t> stride{*this, "DIP-strip-mining",
@@ -418,7 +418,7 @@ void LowerDIPPass::runOnOperation() {
   ConversionTarget target(*context);
   target.addLegalDialect<AffineDialect, scf::SCFDialect, func::FuncDialect,
                          memref::MemRefDialect, VectorDialect,
-                         arith::ArithmeticDialect, math::MathDialect>();
+                         arith::ArithDialect, math::MathDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);
