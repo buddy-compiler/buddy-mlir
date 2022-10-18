@@ -1,5 +1,4 @@
-
-//===- BuddyBiquad.mlir ---------------------------------------------------===//
+//===- biquad.mlir --------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-func.func @MLIR_biquad(%in : memref<?xf32>, %filter : memref<?xf32>, %out : memref<?xf32>){
+func.func @mlir_biquad(%in : memref<?xf32>, %filter : memref<?xf32>, %out : memref<?xf32>){
   %c0 = arith.constant 0 : index
   %N = memref.dim %in, %c0 : memref<?xf32>
   %b0 = affine.load %filter[0] : memref<?xf32>
