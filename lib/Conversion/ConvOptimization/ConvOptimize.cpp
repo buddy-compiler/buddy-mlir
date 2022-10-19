@@ -1,4 +1,4 @@
-//====- ConvOptimize.cpp ----------------------------------------===//
+//====- ConvOptimize.cpp --------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the conv optimize.
+// This file implements the Conv optimize.
 //
 //===----------------------------------------------------------------------===//
 #include <iostream>
@@ -32,10 +32,10 @@
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinTypes.h>
 #include <mlir/IR/Dialect.h>
+#include <mlir/IR/IntegerSet.h>
 #include <mlir/IR/Operation.h>
 #include <mlir/IR/TypeUtilities.h>
 #include <mlir/IR/Value.h>
-#include <mlir/IR/IntegerSet.h>
 #include <mlir/Pass/Pass.h>
 
 using namespace mlir;
@@ -47,21 +47,16 @@ using namespace vector;
 
 namespace {
 
-// PoolingNhwcSum vectorization pattern
 class ConvOptimizePattern : public ConversionPattern {
 public:
-  explicit ConvOptimizePattern(MLIRContext *context,
-                                                int64_t vecSizeParam, int64_t kernelMParam, int64_t kernelNParam)
-      : ConversionPattern(linalg::Conv2DNchwFchwOp::getOperationName(), 1,
-                          context) {
+  explicit ConvOptimizePattern(MLIRContext *context, int64_t vecSizeParam, int64_t kernelMParam, int64_t kernelNParam)
+      : ConversionPattern(linalg::Conv2DNchwFchwOp::getOperationName(), 1, context) {
     vecSize = vecSizeParam;
     kernelM = kernelMParam;
     kernelN = kernelNParam;
   }
 
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
-                  ConversionPatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/, ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
 
     // Some constant we need.
@@ -77,15 +72,15 @@ public:
     Value output = op->getOperand(2);
 
     ShapedType inputTy = input.getType().cast<ShapedType>();
-    
+
     Type elemTy = inputTy.getElementType();
     VectorType vecTy = VectorType::get(vecSize, elemTy);
 
     // Dims
     Value a = rewriter.create<memref::DimOp>(loc, output, 0);
     Value b = rewriter.create<memref::DimOp>(loc, output, 1);
-    Value d = rewriter.create<memref::DimOp>(loc, output, 3);
     Value c = rewriter.create<memref::DimOp>(loc, output, 2);
+    Value d = rewriter.create<memref::DimOp>(loc, output, 3);
     Value e = rewriter.create<memref::DimOp>(loc, input, 1);
     Value f = rewriter.create<memref::DimOp>(loc, filter, 2);
     Value g = rewriter.create<memref::DimOp>(loc, filter, 3);
@@ -94,72 +89,72 @@ public:
     MemRefType bufferTy = MemRefType::get(1, vecTy);
     Value buffer = rewriter.create<memref::AllocOp>(loc, bufferTy);
 
-    buildAffineLoopNest(rewriter, loc, c0, a, 1, [&]([[maybe_unused]] OpBuilder& builder, Location loc, ValueRange ivRange){
+    // Step 1: Create outer most loops.
+    buildAffineLoopNest(rewriter, loc, c0, a, 1, [&](OpBuilder &, Location loc, ValueRange ivRange) {
       Value ivA = ivRange.front();
-      buildAffineLoopNest(rewriter, loc, c0, b, 1, [&]([[maybe_unused]] OpBuilder& builder, Location loc, ValueRange ivRange){
+      buildAffineLoopNest(rewriter, loc, c0, b, 1, [&](OpBuilder &, Location loc, ValueRange ivRange) {
         Value ivB = ivRange.front();
-        buildAffineLoopNest(rewriter, loc, c0, d, 1, [&]([[maybe_unused]] OpBuilder& builder, Location loc, ValueRange ivRange){
+        buildAffineLoopNest(rewriter, loc, c0, d, 1, [&](OpBuilder &, Location loc, ValueRange ivRange) {
           Value ivD = ivRange.front();
-          buildAffineLoopNest(rewriter, loc, c0, c, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
-
+          buildAffineLoopNest(rewriter, loc, c0, c, 1, [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
             Value ivC = ivRange.front();
-	    Value t = builder.create<SplatOp>(loc, vecTy, cf0);
-	    builder.create<memref::StoreOp>(loc, t, buffer, c0);
-            buildAffineLoopNest(rewriter, loc, c0, e, 1, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
+            Value t = builder.create<SplatOp>(loc, vecTy, cf0);
+            builder.create<memref::StoreOp>(loc, t, buffer, c0);
+            buildAffineLoopNest(rewriter, loc, c0, e, 1, [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
               Value ivE = ivRange.front();
-	      
-	      Value fixed = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0.ceilDiv(kernelM) * kernelM), ValueRange{f});
 
-              buildAffineLoopNest(rewriter, loc, c0, fixed, kernelM, [&]([[maybe_unused]] OpBuilder& builder, Location loc, ValueRange ivRange){
-	        Value ivF = ivRange.front();
-                buildAffineLoopNest(rewriter, loc, c0, g, kernelN * vecSize, [&](OpBuilder& builder, Location loc, ValueRange ivRange){
-	          Value ivG = ivRange.front();
+              Value fixed = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0.ceilDiv(kernelM) * kernelM), ValueRange{f});
 
-		  SmallVector<Value> iList;
-		  SmallVector<Value> fList;
-		  for(int i = 0; i < kernelM; ++ i){
-		    Value rowInput = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + i + d1), ValueRange{ivC, ivF});
-		    Value rowFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + i), ivF);
-		    for(int j = 0; j < kernelN; ++ j){
-		      Value columnInput = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1 + j * vecSize), ValueRange{ivD, ivG});
-		      Value columnFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + j * vecSize), ivG);
+              buildAffineLoopNest(rewriter, loc, c0, fixed, kernelM, [&]([[maybe_unused]] OpBuilder &builder, Location loc, ValueRange ivRange) {
+                Value ivF = ivRange.front();
+                buildAffineLoopNest(rewriter, loc, c0, g, kernelN * vecSize, [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
+                  Value ivG = ivRange.front();
 
-			Value i = builder.create<TransferReadOp>(loc, vecTy, input, ValueRange{ivA, ivE, rowInput, columnInput});
+                  SmallVector<Value> iList;
+                  SmallVector<Value> fList;
+                  for (int i = 0; i < kernelM; ++i) {
+                    Value rowInput = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + i + d1), ValueRange{ivC, ivF});
+                    Value rowFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + i), ivF);
+                    for (int j = 0; j < kernelN; ++j) {
+                      Value columnInput = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1 + j * vecSize), ValueRange{ivD, ivG});
+                      Value columnFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + j * vecSize), ivG);
 
-		      	auto protectedF = builder.create<AffineIfOp>(loc, vecTy, IntegerSet::get(1, 1, {s0 - 1 - d0}, {false}), ValueRange{rowFilter, f}, true);
+                      Value i = builder.create<TransferReadOp>(loc, vecTy, input, ValueRange{ivA, ivE, rowInput, columnInput});
 
-			// if row in range, read normally.
-			auto thenBuilder = protectedF.getThenBodyBuilder();
-			Value normalReadVec = thenBuilder.create<TransferReadOp>(loc, vecTy, filter, ValueRange{ivB, ivE, rowFilter, columnFilter});
-			thenBuilder.create<AffineYieldOp>(loc, normalReadVec);
+                      auto protectedF =
+                          builder.create<AffineIfOp>(loc, vecTy, IntegerSet::get(1, 1, {s0 - 1 - d0}, {false}), ValueRange{rowFilter, f}, true);
 
-			// if row out of range, give back a empty vector.
-			auto elseBuilder = protectedF.getElseBodyBuilder();
-			Value emptyVec = elseBuilder.create<SplatOp>(loc, vecTy, cf0);
-			elseBuilder.create<AffineYieldOp>(loc, emptyVec);
+                      // if row in range, read normally.
+                      auto thenBuilder = protectedF.getThenBodyBuilder();
+                      Value normalReadVec = thenBuilder.create<TransferReadOp>(loc, vecTy, filter, ValueRange{ivB, ivE, rowFilter, columnFilter});
+                      thenBuilder.create<AffineYieldOp>(loc, normalReadVec);
 
-			iList.push_back(i);
-			fList.push_back(protectedF->getOpResult(0));
-		    }
-		  }
-		  Value lastResult = builder.create<memref::LoadOp>(loc, buffer, c0);
-		  for(int i = 0; i < kernelM; ++ i){
-		    for(int j = 0; j < kernelN; ++ j){
+                      // if row out of range, give back a empty vector.
+                      auto elseBuilder = protectedF.getElseBodyBuilder();
+                      Value emptyVec = elseBuilder.create<SplatOp>(loc, vecTy, cf0);
+                      elseBuilder.create<AffineYieldOp>(loc, emptyVec);
+
+                      iList.push_back(i);
+                      fList.push_back(protectedF->getOpResult(0));
+                    }
+                  }
+                  Value lastResult = builder.create<memref::LoadOp>(loc, buffer, c0);
+                  for (int i = 0; i < kernelM; ++i) {
+                    for (int j = 0; j < kernelN; ++j) {
                       lastResult = builder.create<vector::FMAOp>(loc, vecTy, iList[i * kernelN + j], fList[i * kernelN + j], lastResult);
-		    }
-		  }
+                    }
+                  }
 
-		  builder.create<memref::StoreOp>(loc, lastResult, buffer, c0);
+                  builder.create<memref::StoreOp>(loc, lastResult, buffer, c0);
+                });
+              });
+            });
 
-		});
-	      });
-	    });
-
-	    Value reduceVec = builder.create<memref::LoadOp>(loc, buffer, c0);
-	    Value reducedRes = builder.create<vector::ReductionOp>(loc, vector::CombiningKind::ADD, reduceVec);
-	    Value bias = builder.create<memref::LoadOp>(loc, output, ValueRange{ivA, ivB, ivC, ivD});
-	    Value addRes = builder.create<arith::AddFOp>(loc, bias, reducedRes);
-	    builder.create<memref::StoreOp>(loc, addRes, output, ValueRange{ivA, ivB, ivC, ivD});
+            Value reduceVec = builder.create<memref::LoadOp>(loc, buffer, c0);
+            Value reducedRes = builder.create<vector::ReductionOp>(loc, vector::CombiningKind::ADD, reduceVec);
+            Value bias = builder.create<memref::LoadOp>(loc, output, ValueRange{ivA, ivB, ivC, ivD});
+            Value addRes = builder.create<arith::AddFOp>(loc, bias, reducedRes);
+            builder.create<memref::StoreOp>(loc, addRes, output, ValueRange{ivA, ivB, ivC, ivD});
           });
         });
       });
@@ -183,34 +178,30 @@ private:
 //===----------------------------------------------------------------------===//
 
 namespace {
-class ConvOptimizePass
-    : public PassWrapper<ConvOptimizePass, OperationPass<ModuleOp>> {
+class ConvOptimizePass : public PassWrapper<ConvOptimizePass, OperationPass<ModuleOp>> {
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ConvOptimizePass)
   StringRef getArgument() const final { return "conv-optimize"; }
   StringRef getDescription() const final { return "Conv optimize."; }
   ConvOptimizePass() = default;
   ConvOptimizePass(const ConvOptimizePass &) {}
-  explicit ConvOptimizePass(int64_t vecSizeParam, int64_t kernelMParam, int64_t kernelNParam) { vecSize = vecSizeParam; kernelM = kernelMParam; kernelN = kernelNParam; }
+  explicit ConvOptimizePass(int64_t vecSizeParam, int64_t kernelMParam, int64_t kernelNParam) {
+    vecSize = vecSizeParam;
+    kernelM = kernelMParam;
+    kernelN = kernelNParam;
+  }
 
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, scf::SCFDialect, AffineDialect,
-                    VectorDialect>();
+    registry.insert<linalg::LinalgDialect, scf::SCFDialect, AffineDialect, VectorDialect>();
   }
 
-  Option<int64_t> vecSize{*this, "vec-size",
-                        llvm::cl::desc("Vector size using in kernel."),
-                        llvm::cl::init(16)};
-  
-  Option<int64_t> kernelM{*this, "kernel-m",
-                        llvm::cl::desc("Specify how many rows kernel will contain."),
-                        llvm::cl::init(4)};
+  Option<int64_t> vecSize{*this, "vec-size", llvm::cl::desc("Vector size using in kernel."), llvm::cl::init(16)};
 
-  Option<int64_t> kernelN{*this, "kernel-n",
-                        llvm::cl::desc("Specify how many columns kernel will cantain."),
-                        llvm::cl::init(2)};
+  Option<int64_t> kernelM{*this, "kernel-m", llvm::cl::desc("Specify how many rows kernel will contain."), llvm::cl::init(4)};
+
+  Option<int64_t> kernelN{*this, "kernel-n", llvm::cl::desc("Specify how many columns kernel will cantain."), llvm::cl::init(2)};
 };
 } // end anonymous namespace.
 
@@ -219,9 +210,7 @@ void ConvOptimizePass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target
-      .addLegalDialect<arith::ArithDialect, AffineDialect, scf::SCFDialect,
-                       memref::MemRefDialect, VectorDialect>();
+  target.addLegalDialect<arith::ArithDialect, AffineDialect, scf::SCFDialect, memref::MemRefDialect, VectorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
 
@@ -234,8 +223,6 @@ void ConvOptimizePass::runOnOperation() {
 
 namespace mlir {
 namespace buddy {
-void registerConvOptimizePass() {
-  PassRegistration<ConvOptimizePass>();
-}
+void registerConvOptimizePass() { PassRegistration<ConvOptimizePass>(); }
 } // namespace buddy
 } // namespace mlir
