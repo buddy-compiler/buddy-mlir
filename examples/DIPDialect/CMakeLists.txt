@@ -25,8 +25,10 @@ DIP
 PROPERTIES
 LINKER_LANGUAGE C)
 
-find_package(OpenCV REQUIRED CONFIG)
-include_directories(${OpenCV_INCLUDE_DIRS})
+if(BUDDY_ENABLE_OPENCV)
+  find_package(OpenCV REQUIRED CONFIG)
+  include_directories(${OpenCV_INCLUDE_DIRS})
+endif()
 
 add_executable(correlation2D correlation2D.cpp)
 add_dependencies(correlation2D buddy-opt)

@@ -39,8 +39,10 @@ SET_TARGET_PROPERTIES(
   PROPERTIES
   LINKER_LANGUAGE C)
 
-find_package(OpenCV REQUIRED CONFIG)
-include_directories(${OpenCV_INCLUDE_DIRS})
+if(BUDDY_ENABLE_OPENCV)
+  find_package(OpenCV REQUIRED CONFIG)
+  include_directories(${OpenCV_INCLUDE_DIRS})
+endif()
 
 add_executable(edge-detection edge-detection.cpp)
 add_dependencies(edge-detection buddy-opt)
