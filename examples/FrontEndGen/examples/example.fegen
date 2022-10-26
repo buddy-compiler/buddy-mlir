@@ -47,9 +47,9 @@ op PrintOp
   ;
 
 op ReshapeOp 
-    : arguments = (ins F64Tensor : $input)
-    : results = (outs StaticShapeTensorOf<[F64]>)
-    ;
+  : arguments = (ins F64Tensor : $input)
+  : results = (outs StaticShapeTensorOf<[F64]>)
+  ;
 
 op ReturnOp
   : arguments = (ins Variadic<F64Tensor>:$input)
@@ -76,8 +76,8 @@ op TransposeOp
 
 
 rule module 
-   : funDefine 
-   ;
+  : funDefine 
+  ;
 
 rule expression 
   : Number 
