@@ -80,3 +80,4 @@ buddy-toy-struct-translate:
 
 buddy-toy-struct-run:
 	@${BUDDY_TOY_DSL} ./struct.toy  -emit=jit
+

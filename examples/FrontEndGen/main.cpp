@@ -284,3 +284,4 @@ int main(int argc, char *argv[]) {
   llvm::errs() << "No action specified (parsing only?), use -emit=<action>\n";
   return -1;
 }
+

@@ -78,3 +78,4 @@ target_link_libraries(buddy-frontendgen-dsl
   antlr4_static
   ${dialect_libs}
   ${conversion_libs})
+

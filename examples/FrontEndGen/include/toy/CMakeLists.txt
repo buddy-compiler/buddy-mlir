@@ -11,3 +11,4 @@ set(LLVM_TARGET_DEFINITIONS ${LLVM_MLIR_SOURCE_DIR}/examples/toy/Ch7/include/toy
 mlir_tablegen(ShapeInferenceOpInterfaces.h.inc -gen-op-interface-decls)
 mlir_tablegen(ShapeInferenceOpInterfaces.cpp.inc -gen-op-interface-defs)
 add_public_tablegen_target(FEGENToyShapeInferenceInterfaceIncGen)
+
