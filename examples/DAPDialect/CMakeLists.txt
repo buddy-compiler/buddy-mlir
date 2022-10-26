@@ -1,5 +1,5 @@
-if (${BUDDY_DIP_OPT_STRIP_MINING})
-  set(SPLITING_SIZE ${BUDDY_DIP_OPT_STRIP_MINING})
+if (${BUDDY_DAP_OPT_VECTOR_SPLITTING})
+  set(SPLITING_SIZE ${BUDDY_DAP_OPT_VECTOR_SPLITTING})
 elseif(HAVE_AVX512)
   set(SPLITING_SIZE 256)
 elseif(HAVE_AVX2)
@@ -35,7 +35,7 @@ target_link_libraries(firLowpass FIR)
 add_custom_command(OUTPUT buddy-biquad.o
   COMMAND ${BUDDY_BINARY_DIR}/buddy-opt
   ${BUDDY_EXAMPLES_DIR}/DAPDialect/biquad.mlir
-  -lower-dap="DAP-strip-mining=${SPLITING_SIZE}" -convert-linalg-to-affine-loops
+  -lower-dap="DAP-vector-splitting=${SPLITING_SIZE}" -convert-linalg-to-affine-loops
   -lower-affine
   -convert-scf-to-cf -convert-vector-to-llvm 
   --llvm-request-c-wrappers
