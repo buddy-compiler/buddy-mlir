@@ -224,8 +224,8 @@ public:
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
                     AffineDialect, arith::ArithDialect>();
   }
-  Option<int64_t> stride{*this, "DAP-strip-mining",
-                         llvm::cl::desc("Strip mining size."),
+  Option<int64_t> stride{*this, "DAP-vector-splitting",
+                         llvm::cl::desc("Vector splitting size."),
                          llvm::cl::init(32)};
 };
 } // end anonymous namespace.

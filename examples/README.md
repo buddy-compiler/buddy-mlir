@@ -173,11 +173,14 @@ $ cmake -G Ninja .. \
     -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
     -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DBUDDY_EXAMPLES=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
 $ ninja iirLowpass
 $ cd bin
 $ ./iirLowpass [input_file] [output_dest]
 ```
+You can also use your own configuration assigning values `-DBUDDY_DAP_OPT_VECTOR_SPLITTING` (e.g. 64) and `-DBUDDY_OPT_ATTR` (e.g. avx2).
+
 Specify nothing to process default NASA audio.
 
 ## Testing and Demonstrating Examples
