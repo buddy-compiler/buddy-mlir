@@ -96,6 +96,21 @@ scf-parallel-aot:
 		-o a.out
 	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out
 
+scf-parallel-single-aot:
+	@${MLIR_OPT} ./scf-parallel.mlir \
+		-arith-expand \
+        -convert-scf-to-cf \
+        -convert-memref-to-llvm \
+        -convert-func-to-llvm \
+        -reconcile-unrealized-casts |\
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${CLANG} ${OPT_FLAG} log.ll \
+		-L ${MLIR_LIB} \
+		-L ${BUDDY_LIB} \
+		-lmlir_runner_utils -lmlir_c_runner_utils \
+		-o a.out
+	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out
+
 scf-for-lower:
 	@${MLIR_OPT} ./scf-for.mlir \
 		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \

@@ -36,8 +36,8 @@ If your target machine includes a Nvidia GPU, you can use the following configur
 
 ```
 $ cmake -G Ninja ../llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir" \
-    -DLLVM_TARGETS_TO_BUILD="host;NVPTX" \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV;NVPTX" \
     -DMLIR_ENABLE_CUDA_RUNNER=ON \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
