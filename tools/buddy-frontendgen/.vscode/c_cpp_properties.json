@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/sen/buddypr/tools/buddy-frontendgen/include",
+                "/home/sen/buddy4/llvm/llvm/include",
+                "/home/sen/buddy4/llvm/build/include/llvm",
+                "/home/sen/buddy4/llvm/build/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c17",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}
