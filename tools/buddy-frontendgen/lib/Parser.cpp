@@ -396,9 +396,10 @@ void Parser::parserCode(llvm::StringRef &code) {
 
 void Parser::parserCArg(llvm::StringRef &operand, llvm::StringRef &value) {
   advance();
+  consumeNoAdvance(tokenKinds::angleBracketOpen);
   operand = lexer.getMarkContent("\"", "\"");
   advance();
   value = lexer.getMarkContent("\"", "\"");
   advance();
-  advance();
+  consume(tokenKinds::angleBracketClose);
 }
