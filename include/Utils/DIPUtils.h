@@ -555,6 +555,21 @@ void BilinearInterpolationResizing(
       });
 }
 
+// Function to test whether a value is equivalent to zero or not.
+Value zeroCond(OpBuilder &builder, Location loc, Type elemType,
+               Value value, Value zeroElem) {
+  Value cond;
+  auto bitWidth = elemType.getIntOrFloatBitWidth();
+  if (elemType.isF32() || elemType.isF64()) {
+    cond = builder.create<CmpFOp>(loc, CmpFPredicate::ONE, value,
+                                  zeroElem);
+  } else if (elemType.isInteger(bitWidth)) {
+    cond = builder.create<CmpIOp>(loc, CmpIPredicate::ne, value,
+                                  zeroElem);
+  }
+  return cond;
+}
+
 void traverseImagewBoundaryExtrapolation(
     OpBuilder &rewriter, Location loc, MLIRContext *ctx, Value input,
     Value kernel, Value output, Value centerX, Value centerY,
@@ -617,9 +632,13 @@ void traverseImagewBoundaryExtrapolation(
         Value rowUpCond =
             builder.create<CmpIOp>(loc, CmpIPredicate::slt, currRow, centerY);
 
-        builder.create<scf::IfOp>(
-            loc, rowUpCond,
+        // Condition to check if the kernel value is a non-zero number.
+        Value kernelNonZeroCond = zeroCond(builder, loc, elemTy, kernelValue, zeroPaddingElem);
+        builder.create<scf::IfOp>(loc, kernelNonZeroCond, 
             [&](OpBuilder &builder, Location loc) {
+          builder.create<scf::IfOp>(
+              loc, rowUpCond,
+              [&](OpBuilder &builder, Location loc) {
               // rowUp
               if (boundaryOptionAttr ==
                   buddy::dip::BoundaryOption::ConstantPadding) {
@@ -734,7 +753,7 @@ void traverseImagewBoundaryExtrapolation(
               }
               builder.create<scf::YieldOp>(loc);
             },
-            [&](OpBuilder &builder, Location loc) {
+              [&](OpBuilder &builder, Location loc) {
               // rowMid or rowDown
               Value rowMidCond = builder.create<CmpIOp>(loc, CmpIPredicate::slt,
                                                         currRow, rowMidHelper);
@@ -1004,7 +1023,11 @@ void traverseImagewBoundaryExtrapolation(
                     builder.create<scf::YieldOp>(loc);
                   });
               builder.create<scf::YieldOp>(loc);
-            });
+              });
+
+          builder.create<scf::YieldOp>(loc);
+        });
+
       });
 }
 
