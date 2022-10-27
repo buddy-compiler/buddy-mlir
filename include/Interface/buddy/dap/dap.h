@@ -23,6 +23,7 @@
 
 #include "AudioFile.h"
 #include "Interface/buddy/dap/AudioContainer.h"
+#include "Interface/buddy/dap/dsp/biquad.h"
 #include "Interface/buddy/dap/dsp/fir.h"
 
 #endif

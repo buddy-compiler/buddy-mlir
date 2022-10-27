@@ -41,12 +41,12 @@ linalg-conv2d-run:
 
 linalg-conv2d-tiling-lower:
 	@${MLIR_OPT} ./linalg-conv2d.mlir \
-		-linalg-tile="tile-sizes=4,4,2,2" \
+		-test-transform-dialect-interpreter \
 		-o ./log.mlir
 
 linalg-conv2d-tiling-translate:
 	@${MLIR_OPT} ./linalg-conv2d.mlir \
-		-linalg-tile="tile-sizes=4,4,2,2" \
+		-test-transform-dialect-interpreter \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
@@ -54,7 +54,7 @@ linalg-conv2d-tiling-translate:
 
 linalg-conv2d-tiling-run:
 	@${MLIR_OPT} linalg-conv2d.mlir ${MLIR_OPT_OPTIONS} \
-		-linalg-tile="tile-sizes=4,4,2,2" \
+		-test-transform-dialect-interpreter \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
@@ -76,6 +76,27 @@ linalg-generic-translate:
 
 linalg-generic-run:
 	@${MLIR_OPT} linalg-generic.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+linalg-matmul-lower:
+	@${MLIR_OPT} linalg-matmul.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts \
+		-o ./log.mlir
+
+linalg-matmul-translate:
+	@${MLIR_OPT} linalg-matmul.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+linalg-matmul-run:
+	@${MLIR_OPT} linalg-matmul.mlir ${MLIR_OPT_OPTIONS} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \

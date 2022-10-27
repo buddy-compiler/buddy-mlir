@@ -73,26 +73,20 @@ public:
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    auto kElemTy = kernel.getType().cast<MemRefType>().getElementType();
-    auto outElemTy = output.getType().cast<MemRefType>().getElementType();
-    auto constElemTy = constantValue.getType();
-    if (inElemTy != kElemTy || kElemTy != outElemTy ||
-        outElemTy != constElemTy) {
+    DIP_ERROR error = checkDIPCommonTypes<dip::Corr2DOp>(op, 4, input, kernel,
+                                                         output, constantValue);
+
+    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError() << "input, kernel, output and constant must "
                                   "have the same element type";
-    }
-    // NB: we can infer element type for all operation to be the same as input
-    // since we verified that the operand types are the same
-    auto elemTy = inElemTy;
-    auto bitWidth = elemTy.getIntOrFloatBitWidth();
-    if (!elemTy.isF64() && !elemTy.isF32() && !elemTy.isInteger(bitWidth)) {
+    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
-                               << elemTy << "is passed";
+                               << inElemTy << "is passed";
     }
 
     traverseImagewBoundaryExtrapolation(rewriter, loc, ctx, input, kernel,
                                         output, centerX, centerY, constantValue,
-                                        strideVal, elemTy, boundaryOptionAttr,
+                                        strideVal, inElemTy, boundaryOptionAttr,
                                         stride, DIP_OP::CORRELATION_2D);
     // Remove the origin convolution operation.
     rewriter.eraseOp(op);
@@ -121,6 +115,18 @@ public:
     Value input = op->getOperand(0);
     Value angleVal = op->getOperand(1);
     Value output = op->getOperand(2);
+
+    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    DIP_ERROR error =
+        checkDIPCommonTypes<dip::Rotate2DOp>(op, 2, input, output);
+
+    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+      return op->emitOpError()
+             << "input, and output must have the same element type";
+    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+      return op->emitOpError() << "supports only f32, f64 and integer types. "
+                               << inElemTy << "is passed";
+    }
 
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
     FloatType f32 = FloatType::getF32(ctx);
@@ -289,6 +295,18 @@ public:
     auto interpolationAttr = op.getInterpolationType();
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
+    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    DIP_ERROR error =
+        checkDIPCommonTypes<dip::Resize2DOp>(op, 2, input, output);
+
+    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+      return op->emitOpError()
+             << "input, and output must have the same element type";
+    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+      return op->emitOpError() << "supports only f32, f64 and integer types. "
+                               << inElemTy << "is passed";
+    }
+
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
     Value c0F32 = indexToF32(rewriter, loc, c0);
@@ -405,10 +423,9 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry
-        .insert<buddy::dip::DIPDialect, func::FuncDialect,
-                memref::MemRefDialect, scf::SCFDialect, VectorDialect,
-                AffineDialect, arith::ArithmeticDialect, math::MathDialect>();
+    registry.insert<buddy::dip::DIPDialect, func::FuncDialect,
+                    memref::MemRefDialect, scf::SCFDialect, VectorDialect,
+                    AffineDialect, arith::ArithDialect, math::MathDialect>();
   }
 
   Option<int64_t> stride{*this, "DIP-strip-mining",
@@ -424,7 +441,7 @@ void LowerDIPPass::runOnOperation() {
   ConversionTarget target(*context);
   target.addLegalDialect<AffineDialect, scf::SCFDialect, func::FuncDialect,
                          memref::MemRefDialect, VectorDialect,
-                         arith::ArithmeticDialect, math::MathDialect>();
+                         arith::ArithDialect, math::MathDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);

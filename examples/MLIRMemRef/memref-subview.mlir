@@ -17,9 +17,13 @@ module {
     %result = memref.subview %mem[%offset, %offset] [%sub_size, %sub_size] [%stride, %stride]
         : memref<5x5xf32> to memref<?x?xf32, #map0>
 
+    %result_reduce = memref.subview %mem[0, 0][1, 3][1, 1]: memref<5x5xf32> to memref<3xf32, strided<[1]>>
+
     // Print output.
     %print_output = memref.cast %result : memref<?x?xf32, #map0> to memref<*xf32>
     call @printMemrefF32(%print_output) : (memref<*xf32>) -> ()
+    %print_output_reduce = memref.cast %result_reduce : memref<3xf32, strided<[1]>> to memref<*xf32>
+    call @printMemrefF32(%print_output_reduce) : (memref<*xf32>) -> ()
 
     return
   }
