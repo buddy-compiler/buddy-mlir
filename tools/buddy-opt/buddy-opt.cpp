@@ -38,6 +38,8 @@
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
 #include "RVV/RVVDialect.h"
+#include "VectorExp/VectorExpDialect.h"
+#include "VectorExp/VectorExpOps.h"
 
 namespace mlir {
 namespace buddy {
@@ -48,6 +50,7 @@ void registerLowerBudPass();
 void registerLowerDIPPass();
 void registerLowerDAPPass();
 void registerLowerRVVPass();
+void registerLowerVectorExpPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -63,6 +66,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerDIPPass();
   mlir::buddy::registerLowerDAPPass();
   mlir::buddy::registerLowerRVVPass();
+  mlir::buddy::registerLowerVectorExpPass();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
@@ -72,7 +76,8 @@ int main(int argc, char **argv) {
   registry.insert<buddy::bud::BudDialect,
                   buddy::dip::DIPDialect,
                   buddy::dap::DAPDialect,
-                  buddy::rvv::RVVDialect>();
+                  buddy::rvv::RVVDialect,
+                  buddy::vector_exp::VectorExpDialect>();
   // clang-format on
 
   return mlir::failed(

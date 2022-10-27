@@ -1,4 +1,4 @@
-//===- dap.h --------------------------------------------------------------===//
+//===- VectorExpOps.h - Vector Experiment Dialect Ops -----------*- C++ -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,17 +14,20 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Header file for DAP dialect specific operations and other entities.
+// This is the header file for operations in vector experiment dialect. 
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_DAP
-#define INCLUDE_DAP
+#ifndef VECTOREXP_VECTOREXPOPS_H
+#define VECTOREXP_VECTOREXPOPS_H
 
-#include "AudioFile.h"
-#include "Interface/buddy/dap/AudioContainer.h"
-#include "Interface/buddy/dap/dsp/biquad.h"
-#include "Interface/buddy/dap/dsp/fir.h"
-#include "Interface/buddy/dap/dsp/iir.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Dialect.h"
+#include "mlir/IR/OpDefinition.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 
-#endif
+#define GET_OP_CLASSES
+#include "VectorExp/VectorExpOps.h.inc"
+
+#endif // VECTOREXP_VECTOREXPOPS_H

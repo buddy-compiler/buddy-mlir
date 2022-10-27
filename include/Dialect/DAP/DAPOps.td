@@ -50,6 +50,28 @@ def DAP_FirOp : DAP_Op<"fir"> {
   }];
 }
 
+def DAP_BiquadOp : DAP_Op<"biquad">
+{
+  let summary = [{Biquad filter, a infinite impulse response (IIR) filter.
+
+  ```mlir
+    dap.biquad %input, %kernel, %output :memref<?x?xf32>, memref<?x?xf32>, 
+            memref<?x?xf32>
+  ```
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefO);
+
+  let assemblyFormat = [{
+    $memrefI `,` $memrefK `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO) 
+  }];
+}
+
 def DAP_IirOp : DAP_Op<"iir"> {
   let summary = [{IIR filter, a infinite impulse response (IIR), Unlike FIR filters, 
   they have a feedback(a recursive part of a filter).
