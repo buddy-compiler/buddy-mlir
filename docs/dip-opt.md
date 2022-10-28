@@ -110,9 +110,9 @@ anchor point positioning) for two dimensional correlation between a 5x5 image
 and a 3x3 kernel
 ![](./Images/AnchorPointAndBoundaryExtrapolation.png)
 
-### 2. 2D Erosion(erosion_2d)
+### 2 Morphological Operations 
 
-dip.erosion_2d performs boundary extrapolation for making the size of output image
+All the Morphological Tranformations perform boundary extrapolation for making the size of output image
 equal to the size of input image and then uses coefficient broadcasting and
 strip mining(CBSM) approach for performing erosion.
 
@@ -124,8 +124,13 @@ image for obtaining the boundary extrapolated output image. (kkk|abcdefg|kkk)
 padding the extra region used for creating the boundary extrapolated output
 image. (aaa|abcdefg|ggg)
 
-The approach is similar to 2d correlation except the minimum element in the input image in the rectangular region of the kernel
-is filled.
+The Algorithm used is similar to that of correlation_2d.
+
+The approach is similar to 2d correlation except the minimum or maximum element(for erosion and dilation respectively) in the input image in the rectangular region of the kernel is filled.
+
+#### 1 . 2D Erosion(erosion_2d) 
+
+erosion_2d follows an approach similar to correlation_2d except the minimum element in the input image present in the rectangular region of the kernel is filled in the output image.
 
 An example depicting the syntax of created API is :
  ```mlir
@@ -142,22 +147,9 @@ An example depicting the syntax of created API is :
   - copymemref : Intermidiate memref to reinitialize the output container after every iteration.
   - boundaryOption : Specifies desired type of boundary extrapolation. Permissible values are `CONSTANT_PADDING` and `REPLICATE_PADDING`.
 
-### 2. 2D Dilation(dilation_2d)
+#### 2 . 2D Dilation(dilation_2d) 
 
-dip.dilation_2d performs boundary extrapolation for making the size of output image
-equal to the size of input image and then uses coefficient broadcasting and
-strip mining(CBSM) approach for performing erosion.
-
-Boundary extrapolation can be done using
-different methods, supported options are :
- - Constant Padding : Uses a constant for padding whole extra region in input
-image for obtaining the boundary extrapolated output image. (kkk|abcdefg|kkk)
- - Replicate Padding : Uses last/first element of respective column/row for
-padding the extra region used for creating the boundary extrapolated output
-image. (aaa|abcdefg|ggg)
-
-The approch is similar to 2D correlation except instead of FmaOp we use CmpIOp to get the maximum element in the rectangular region
-of the kernel as the result.
+dilation_2d follows an approach similar to correlation_2d except the maximum element in the input image present in the rectangular region of the kernel is filled in the output image.
 
 An example depicting the syntax of created API is :
  ```mlir
@@ -174,23 +166,12 @@ An example depicting the syntax of created API is :
   - copymemref : Intermidiate memref to reinitialize the output container after every iteration.
   - boundaryOption : Specifies desired type of boundary extrapolation. Permissible values are `CONSTANT_PADDING` and `REPLICATE_PADDING`.
 
-### 3. 2D Opening(opening_2d)
+  #### 3 . 2D Opening(opening_2d)
 
-dip.opening_2d performs boundary extrapolation for making the size of output image
-equal to the size of input image and then uses coefficient broadcasting and
-strip mining(CBSM) approach for performing erosion.
+  Opening transformation is defined as performing erosion followed by dilation on an input image.
+  opening(input) = dilation(erosion)
 
-Boundary extrapolation can be done using
-different methods, supported options are :
- - Constant Padding : Uses a constant for padding whole extra region in input
-image for obtaining the boundary extrapolated output image. (kkk|abcdefg|kkk)
- - Replicate Padding : Uses last/first element of respective column/row for
-padding the extra region used for creating the boundary extrapolated output
-image. (aaa|abcdefg|ggg)
-
-opening(image) = dilation(erosion(image))
-
-An example depicting the syntax of created API is :
+  An example depicting the syntax of created API is :
  ```mlir
    dip.opening_2d boundaryOption %input, %kernel, %output, %output1, %centerX, %centerY, %constantValue, %copymemref, %copymemref1 :
                memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<3x3xf32>, index, index, index, memref<3x3xf32>, memref<3x3xf32>
@@ -207,22 +188,12 @@ An example depicting the syntax of created API is :
   - copymemref1 : INtermidiate memref to reinitialize the output container after every iteration.(used in dilation sub-part)
   - boundaryOption : Specifies desired type of boundary extrapolation. Permissible values are `CONSTANT_PADDING` and `REPLICATE_PADDING`.
 
-### 4. 2D Closing(closing_2d)
+  #### 4 . 2D Closing(closing_2d)
 
-dip.closing_2d performs boundary extrapolation for making the size of output image
-equal to the size of input image and then uses coefficient broadcasting and
-strip mining(CBSM) approach for performing erosion.
+  Closing transformation is defined as performing dilation followed by erosion on an input image.
+  closing(image) = erosion(dilation(image))
 
-Boundary extrapolation can be done using
-different methods, supported options are :
- - Constant Padding : Uses a constant for padding whole extra region in input
-image for obtaining the boundary extrapolated output image. (kkk|abcdefg|kkk)
- - Replicate Padding : Uses last/first element of respective column/row for
-padding the extra region used for creating the boundary extrapolated output
-image. (aaa|abcdefg|ggg)
-
-closing(image) = erosion(dilation(image))
-
+  
 An example depicting the syntax of created API is :
  ```mlir
    dip.closing_2d boundaryOption %input, %kernel, %output, %output1, %centerX, %centerY, %constantValue, %copymemref, %copymemref1 :
@@ -240,23 +211,13 @@ An example depicting the syntax of created API is :
   - copymemref1 : INtermidiate memref to reinitialize the output container after every iteration.(used in erosion sub-part)
   - boundaryOption : Specifies desired type of boundary extrapolation. Permissible values are `CONSTANT_PADDING` and `REPLICATE_PADDING`.
 
-### 5. 2D TopHat(tophat_2d)
+  #### 5 . 2D TopHat(tophat_2d)
 
-dip.tophat_2d performs boundary extrapolation for making the size of output image
-equal to the size of input image and then uses coefficient broadcasting and
-strip mining(CBSM) approach for performing erosion.
+  TopHat transformation is defined as subtracting the opening of an image from the image itself.
 
-Boundary extrapolation can be done using
-different methods, supported options are :
- - Constant Padding : Uses a constant for padding whole extra region in input
-image for obtaining the boundary extrapolated output image. (kkk|abcdefg|kkk)
- - Replicate Padding : Uses last/first element of respective column/row for
-padding the extra region used for creating the boundary extrapolated output
-image. (aaa|abcdefg|ggg)
+  tophat(image) = image - opening(image)
 
-tophat(image) = image - opening(image)
-
-An example depicting the syntax of created API is :
+  An example depicting the syntax of created API is :
  ```mlir
    dip.tophat_2d boundaryOption %input, %kernel, %output, %output1, %output2, %centerX, %centerY, %constantValue, %copymemref, %copymemref1 :
                memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<3x3xf32>, memref<3x3xf32>, index, index, index, memref<3x3xf32>, memref<3x3xf32>
@@ -274,24 +235,12 @@ An example depicting the syntax of created API is :
   - copymemref1 : INtermidiate memref to reinitialize the output container after every iteration.(used in dilation sub-part)
   - boundaryOption : Specifies desired type of boundary extrapolation. Permissible values are `CONSTANT_PADDING` and `REPLICATE_PADDING`.
 
+  #### 6 . 2D BottomHat(bottomhat_2d) 
 
-### 6. 2D BottomHat(tophat_2d)
+  BottomHat transformation is defined as subtracting the input image from the closing of the image.
+  bottomhat(image) = closing(image) - image
 
-dip.bottomhat_2d performs boundary extrapolation for making the size of output image
-equal to the size of input image and then uses coefficient broadcasting and
-strip mining(CBSM) approach for performing erosion.
-
-Boundary extrapolation can be done using
-different methods, supported options are :
- - Constant Padding : Uses a constant for padding whole extra region in input
-image for obtaining the boundary extrapolated output image. (kkk|abcdefg|kkk)
- - Replicate Padding : Uses last/first element of respective column/row for
-padding the extra region used for creating the boundary extrapolated output
-image. (aaa|abcdefg|ggg)
-
-bottomhat(image) = closing(image) - image
-
-An example depicting the syntax of created API is :
+  An example depicting the syntax of created API is :
  ```mlir
    dip.bottomhat_2d boundaryOption %input, %kernel, %output, %output1, %output2, %centerX, %centerY, %constantValue, %copymemref, %copymemref1 :
                memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<3x3xf32>, memref<3x3xf32>, index, index, index, memref<3x3xf32>, memref<3x3xf32>
@@ -309,23 +258,13 @@ An example depicting the syntax of created API is :
   - copymemref1 : INtermidiate memref to reinitialize the output container after every iteration.(used in erosion sub-part)
   - boundaryOption : Specifies desired type of boundary extrapolation. Permissible values are `CONSTANT_PADDING` and `REPLICATE_PADDING`.
 
-### 7. 2D MorphGrad(morphgrad_2d)
+  #### 7. 2D MorphGrad(morphgrad_2d)
 
-dip.morphgrad_2d performs boundary extrapolation for making the size of output image
-equal to the size of input image and then uses coefficient broadcasting and
-strip mining(CBSM) approach for performing erosion.
+  MorphGrad Trabsformation is defined as subtracting erosion of an image from the dilation of an image.
 
-Boundary extrapolation can be done using
-different methods, supported options are :
- - Constant Padding : Uses a constant for padding whole extra region in input
-image for obtaining the boundary extrapolated output image. (kkk|abcdefg|kkk)
- - Replicate Padding : Uses last/first element of respective column/row for
-padding the extra region used for creating the boundary extrapolated output
-image. (aaa|abcdefg|ggg)
+  morphgrad(image) = dilation(image) - erosion(image)
 
-Morph_grad = dilation(input) - erosion(input)
-
-An example depicting the syntax of created API is :
+  An example depicting the syntax of created API is :
  ```mlir
    dip.morphgrad_2d boundaryOption %input, %kernel, %output, %output1, %output2, %centerX, %centerY, %constantValue, %copymemref, %copymemref1 :
                memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<3x3xf32>, memref<3x3xf32>, index, index, index, memref<3x3xf32>, memref<3x3xf32>
