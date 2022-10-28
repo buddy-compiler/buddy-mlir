@@ -7,6 +7,6 @@ frontendgen-emit-ast:
 frontendgen-emit-antlr:
 	@${BUDDY_FRONTEND_GEN} -f ./example.fegen -emit=antlr -g Toy
 
-frontendgen-emit-visiror:
+frontendgen-emit-visitor:
 	@${BUDDY_FRONTEND_GEN} -f ./example.fegen -emit=visitor -g Toy
 
