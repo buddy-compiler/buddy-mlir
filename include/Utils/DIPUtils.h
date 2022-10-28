@@ -22,6 +22,8 @@
 #ifndef INCLUDE_UTILS_DIPUTILS_H
 #define INCLUDE_UTILS_DIPUTILS_H
 
+#include <stdarg.h>
+
 #include "Utils/Utils.h"
 
 // Specify operation names which will be used for performing operation specific
@@ -30,11 +32,7 @@ enum class DIP_OP { CORRELATION_2D };
 
 // Specify error codes specific to DIP dialect which might be used for exiting
 // from lowering passes with appropriate messages.
-enum class DIP_ERROR {
-  INCONSISTENT_INPUT_KERNEL_OUTPUT_TYPES,
-  UNSUPPORTED_TYPE,
-  NO_ERROR
-};
+enum class DIP_ERROR { INCONSISTENT_TYPES, UNSUPPORTED_TYPE, NO_ERROR };
 
 // Inserts a constant op with value 0 into a location `loc` based on type
 // `type`. Supported types are : f32, f64, integer types.
@@ -57,23 +55,59 @@ Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
 
 // Function for applying type check mechanisms for all DIP dialect operations.
 template <typename DIPOP>
-auto checkDIPCommonTypes(DIPOP op, Value input, Value kernel, Value output,
-                         Value constantVal) {
-  auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-  auto kElemTy = kernel.getType().cast<MemRefType>().getElementType();
-  auto outElemTy = output.getType().cast<MemRefType>().getElementType();
-  auto constElemTy = constantVal.getType();
-  if (inElemTy != kElemTy || kElemTy != outElemTy || outElemTy != constElemTy) {
-    return DIP_ERROR::INCONSISTENT_INPUT_KERNEL_OUTPUT_TYPES;
-  }
+auto checkDIPCommonTypes(DIPOP op, size_t numArgs, ...) {
+  if (op->getName().stripDialect() == "corr_2d") {
+    // Define variable arguments list.
+    va_list vaList;
 
-  // NB: we can infer element type for all related memrefs to be the same as
-  // input since we verified that the operand types are the same.
-  auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-  if (!inElemTy.isF64() && !inElemTy.isF32() && !inElemTy.isInteger(bitWidth)) {
-    return DIP_ERROR::UNSUPPORTED_TYPE;
-  }
+    // Specify total number of arguments to be accessed using the variable
+    // arguments list.
+    va_start(vaList, numArgs);
 
+    auto inElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto kElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto constElemTy = va_arg(vaList, Value).getType();
+    if (inElemTy != kElemTy || kElemTy != outElemTy ||
+        outElemTy != constElemTy) {
+      return DIP_ERROR::INCONSISTENT_TYPES;
+    }
+
+    // NB: we can infer element type for all related memrefs to be the same as
+    // input since we verified that the operand types are the same.
+    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
+    if (!inElemTy.isF64() && !inElemTy.isF32() &&
+        !inElemTy.isInteger(bitWidth)) {
+      return DIP_ERROR::UNSUPPORTED_TYPE;
+    }
+  } else if (op->getName().stripDialect() == "rotate_2d" ||
+             op->getName().stripDialect() == "resize_2d") {
+    // Define variable arguments list.
+    va_list vaList;
+
+    // Specify total number of arguments to be accessed using the variable
+    // arguments list.
+    va_start(vaList, numArgs);
+
+    auto inElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    if (inElemTy != outElemTy) {
+      return DIP_ERROR::INCONSISTENT_TYPES;
+    }
+
+    // NB: we can infer element type for all related memrefs to be the same as
+    // input since we verified that the operand types are the same.
+    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
+    if (!inElemTy.isF64() && !inElemTy.isF32() &&
+        !inElemTy.isInteger(bitWidth)) {
+      return DIP_ERROR::UNSUPPORTED_TYPE;
+    }
+  }
   return DIP_ERROR::NO_ERROR;
 }
 
@@ -521,6 +555,21 @@ void BilinearInterpolationResizing(
       });
 }
 
+// Function to test whether a value is equivalent to zero or not.
+Value zeroCond(OpBuilder &builder, Location loc, Type elemType,
+               Value value, Value zeroElem) {
+  Value cond;
+  auto bitWidth = elemType.getIntOrFloatBitWidth();
+  if (elemType.isF32() || elemType.isF64()) {
+    cond = builder.create<CmpFOp>(loc, CmpFPredicate::ONE, value,
+                                  zeroElem);
+  } else if (elemType.isInteger(bitWidth)) {
+    cond = builder.create<CmpIOp>(loc, CmpIPredicate::ne, value,
+                                  zeroElem);
+  }
+  return cond;
+}
+
 void traverseImagewBoundaryExtrapolation(
     OpBuilder &rewriter, Location loc, MLIRContext *ctx, Value input,
     Value kernel, Value output, Value centerX, Value centerY,
@@ -583,9 +632,13 @@ void traverseImagewBoundaryExtrapolation(
         Value rowUpCond =
             builder.create<CmpIOp>(loc, CmpIPredicate::slt, currRow, centerY);
 
-        builder.create<scf::IfOp>(
-            loc, rowUpCond,
+        // Condition to check if the kernel value is a non-zero number.
+        Value kernelNonZeroCond = zeroCond(builder, loc, elemTy, kernelValue, zeroPaddingElem);
+        builder.create<scf::IfOp>(loc, kernelNonZeroCond, 
             [&](OpBuilder &builder, Location loc) {
+          builder.create<scf::IfOp>(
+              loc, rowUpCond,
+              [&](OpBuilder &builder, Location loc) {
               // rowUp
               if (boundaryOptionAttr ==
                   buddy::dip::BoundaryOption::ConstantPadding) {
@@ -700,7 +753,7 @@ void traverseImagewBoundaryExtrapolation(
               }
               builder.create<scf::YieldOp>(loc);
             },
-            [&](OpBuilder &builder, Location loc) {
+              [&](OpBuilder &builder, Location loc) {
               // rowMid or rowDown
               Value rowMidCond = builder.create<CmpIOp>(loc, CmpIPredicate::slt,
                                                         currRow, rowMidHelper);
@@ -970,7 +1023,11 @@ void traverseImagewBoundaryExtrapolation(
                     builder.create<scf::YieldOp>(loc);
                   });
               builder.create<scf::YieldOp>(loc);
-            });
+              });
+
+          builder.create<scf::YieldOp>(loc);
+        });
+
       });
 }
 

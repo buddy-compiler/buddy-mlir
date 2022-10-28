@@ -21,4 +21,6 @@ target_link_libraries(buddy-opt
   LowerRVVPass
   MatMulOptimization
   ConvOptimization
+  VectorExp
+  LowerVectorExpPass
   )

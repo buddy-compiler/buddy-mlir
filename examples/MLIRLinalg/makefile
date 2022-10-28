@@ -41,12 +41,12 @@ linalg-conv2d-run:
 
 linalg-conv2d-tiling-lower:
 	@${MLIR_OPT} ./linalg-conv2d.mlir \
-		-linalg-tile="tile-sizes=4,4,2,2" \
+		-test-transform-dialect-interpreter \
 		-o ./log.mlir
 
 linalg-conv2d-tiling-translate:
 	@${MLIR_OPT} ./linalg-conv2d.mlir \
-		-linalg-tile="tile-sizes=4,4,2,2" \
+		-test-transform-dialect-interpreter \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
@@ -54,7 +54,7 @@ linalg-conv2d-tiling-translate:
 
 linalg-conv2d-tiling-run:
 	@${MLIR_OPT} linalg-conv2d.mlir ${MLIR_OPT_OPTIONS} \
-		-linalg-tile="tile-sizes=4,4,2,2" \
+		-test-transform-dialect-interpreter \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \

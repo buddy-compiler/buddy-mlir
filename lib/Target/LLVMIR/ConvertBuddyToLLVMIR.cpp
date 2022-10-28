@@ -33,7 +33,7 @@ using namespace mlir;
 namespace buddy {
 void registerBuddyToLLVMIRTranslation() {
   TranslateFromMLIRRegistration registration(
-      "buddy-to-llvmir",
+      "buddy-to-llvmir", "translate MLIR from buddy toolchain to LLVM IR",
       [](ModuleOp module, raw_ostream &output) {
         llvm::LLVMContext llvmContext;
         auto llvmModule = translateModuleToLLVMIR(module, llvmContext);

@@ -1,3 +1,6 @@
 log.mlir
 log.ll
 log.s
+log*
+core
+a.out
