@@ -711,7 +711,6 @@ void calcAndStorewoTailProcessingMorph(OpBuilder &builder, Location loc,
                                        Value inputCol, VectorType vectorMaskTy,
                                        Type elemTy, Value kernelValue,
                                        Value zeroPaddingElem, DIP_OP op) {
-
     Value outputVec = builder.create<LoadOp>(loc, vecType, output,
                                              ValueRange{beginIdx, endIdx});
     Value compVec = {};
@@ -738,7 +737,6 @@ void calcAndStorewTailProcessingMorph(
     Value zeroPadding, Value inputCol,
     VectorType vectorMaskTy, Type elemTy, Value kernelValue,
     Value zeroPaddingElem, DIP_OP op) {
-
     builder.create<scf::IfOp>(
         loc, tailCond,
         [&](OpBuilder &builder, Location loc) {
@@ -865,29 +863,23 @@ void traverseImagewBoundaryExtrapolation(
                   buddy::dip::BoundaryOption::ConstantPadding) {
                 Value inputVec =
                     builder.create<BroadcastOp>(loc, vectorTy32, constantValue);
-
-                Value tailCond =
-                      tailChecker(builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol, ivs[2]);
                 if (op == DIP_OP::CORRELATION_2D) {
                   calcAndStoreFMAwoTailProcessing(builder, loc, vectorTy32,
                                                   inputVec, kernelVec, output,
                                                   ivs[0], ivs[2]);
-                } else if (op == DIP_OP::DILATION_2D) {
-
-                  calcAndStorewTailProcessingMorph(
-                      builder, loc, vectorTy32, inputVec, kernelVec, output,
-                      ivs[0], ivs[2], tailCond, zeroPadding,
-                      inputCol, vectorMaskTy, elemTy, kernelValue,
-                      zeroPaddingElem, DIP_OP::DILATION_2D);
                 } else if (op == DIP_OP::EROSION_2D) {
-
-                  calcAndStorewTailProcessingMorph(
-                      builder, loc, vectorTy32, inputVec, kernelVec, output,
-                      ivs[0], ivs[2], tailCond, zeroPadding,
-                      inputCol, vectorMaskTy, elemTy, kernelValue,
-                      zeroPaddingElem, DIP_OP::EROSION_2D);
-                }
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::EROSION_2D);
+                      } else if (op == DIP_OP::DILATION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::DILATION_2D);
+                      }
               } else {
                 Value colLeftCond = builder.create<CmpIOp>(
                     loc, CmpIPredicate::slt, currCol, centerX);
@@ -1006,14 +998,12 @@ void traverseImagewBoundaryExtrapolation(
                                   output, ivs[0], ivs[2], tailCond, zeroPadding,
                                   inputCol, vectorMaskTy);
                             } else if (op == DIP_OP::DILATION_2D) {
-
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
                       ivs[0], ivs[2], tailCond, zeroPadding,
                       inputCol, vectorMaskTy, elemTy, kernelValue,
                       zeroPaddingElem, DIP_OP::DILATION_2D);
                 } else if (op == DIP_OP::EROSION_2D) {
-
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
                       ivs[0], ivs[2], tailCond, zeroPadding,
@@ -1180,14 +1170,12 @@ void traverseImagewBoundaryExtrapolation(
                                       tailCond, zeroPadding, inputCol,
                                       vectorMaskTy);
                                 } else if (op == DIP_OP::DILATION_2D) {
-
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
                       ivs[0], ivs[2], tailCond, zeroPadding,
                       inputCol, vectorMaskTy, elemTy, kernelValue,
                       zeroPaddingElem, DIP_OP::DILATION_2D);
                 } else if (op == DIP_OP::EROSION_2D) {
-
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
                       ivs[0], ivs[2], tailCond, zeroPadding,
@@ -1362,14 +1350,12 @@ void traverseImagewBoundaryExtrapolation(
                                         tailCond, zeroPadding, inputCol,
                                         vectorMaskTy);
                                   } else if (op == DIP_OP::DILATION_2D) {
-
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
                       ivs[0], ivs[2], tailCond, zeroPadding,
                       inputCol, vectorMaskTy, elemTy, kernelValue,
                       zeroPaddingElem, DIP_OP::DILATION_2D);
                 } else if (op == DIP_OP::EROSION_2D) {
-                  
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
                       ivs[0], ivs[2], tailCond, zeroPadding,
