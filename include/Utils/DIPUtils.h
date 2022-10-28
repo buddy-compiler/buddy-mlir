@@ -866,14 +866,14 @@ void traverseImagewBoundaryExtrapolation(
                 Value inputVec =
                     builder.create<BroadcastOp>(loc, vectorTy32, constantValue);
 
+                Value tailCond =
+                      tailChecker(builder, loc, calcHelper, strideVal,
+                                  kernelSize, c1, pseudoCol, ivs[2]);
                 if (op == DIP_OP::CORRELATION_2D) {
                   calcAndStoreFMAwoTailProcessing(builder, loc, vectorTy32,
                                                   inputVec, kernelVec, output,
                                                   ivs[0], ivs[2]);
                 } else if (op == DIP_OP::DILATION_2D) {
-                  Value tailCond =
-                      tailChecker(builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol, ivs[2]);
 
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
@@ -881,9 +881,6 @@ void traverseImagewBoundaryExtrapolation(
                       inputCol, vectorMaskTy, elemTy, kernelValue,
                       zeroPaddingElem, DIP_OP::DILATION_2D);
                 } else if (op == DIP_OP::EROSION_2D) {
-                  Value tailCond =
-                      tailChecker(builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol, ivs[2]);
 
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
@@ -1009,9 +1006,6 @@ void traverseImagewBoundaryExtrapolation(
                                   output, ivs[0], ivs[2], tailCond, zeroPadding,
                                   inputCol, vectorMaskTy);
                             } else if (op == DIP_OP::DILATION_2D) {
-                  Value tailCond =
-                      tailChecker(builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol, ivs[2]);
 
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
@@ -1019,9 +1013,6 @@ void traverseImagewBoundaryExtrapolation(
                       inputCol, vectorMaskTy, elemTy, kernelValue,
                       zeroPaddingElem, DIP_OP::DILATION_2D);
                 } else if (op == DIP_OP::EROSION_2D) {
-                  Value tailCond =
-                      tailChecker(builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol, ivs[2]);
 
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
@@ -1189,9 +1180,6 @@ void traverseImagewBoundaryExtrapolation(
                                       tailCond, zeroPadding, inputCol,
                                       vectorMaskTy);
                                 } else if (op == DIP_OP::DILATION_2D) {
-                  Value tailCond =
-                      tailChecker(builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol, ivs[2]);
 
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
@@ -1199,9 +1187,6 @@ void traverseImagewBoundaryExtrapolation(
                       inputCol, vectorMaskTy, elemTy, kernelValue,
                       zeroPaddingElem, DIP_OP::DILATION_2D);
                 } else if (op == DIP_OP::EROSION_2D) {
-                  Value tailCond =
-                      tailChecker(builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol, ivs[2]);
 
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
@@ -1377,9 +1362,6 @@ void traverseImagewBoundaryExtrapolation(
                                         tailCond, zeroPadding, inputCol,
                                         vectorMaskTy);
                                   } else if (op == DIP_OP::DILATION_2D) {
-                  Value tailCond =
-                      tailChecker(builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol, ivs[2]);
 
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
@@ -1387,10 +1369,7 @@ void traverseImagewBoundaryExtrapolation(
                       inputCol, vectorMaskTy, elemTy, kernelValue,
                       zeroPaddingElem, DIP_OP::DILATION_2D);
                 } else if (op == DIP_OP::EROSION_2D) {
-                  Value tailCond =
-                      tailChecker(builder, loc, calcHelper, strideVal,
-                                  kernelSize, c1, pseudoCol, ivs[2]);
-
+                  
                   calcAndStorewTailProcessingMorph(
                       builder, loc, vectorTy32, inputVec, kernelVec, output,
                       ivs[0], ivs[2], tailCond, zeroPadding,
