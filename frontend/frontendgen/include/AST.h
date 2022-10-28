@@ -38,7 +38,7 @@ protected:
 public:
   virtual ~AntlrBase(){};
   AntlrBase(llvm::StringRef name, llvm::SMLoc loc, baseKind kind)
-      : name(name), loc(loc), kind(kind) {}
+      : kind(kind), name(name), loc(loc) {}
   llvm::StringRef getName() { return name; }
   llvm::SMLoc getLoc() { return loc; }
   baseKind getKind() const { return kind; }

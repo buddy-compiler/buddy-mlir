@@ -115,7 +115,6 @@ void Parser::parserRules(Rule *rule) {
   std::vector<GeneratorAndOthers *> generators;
   while (token.getKind() != tokenKinds::semi &&
          token.getKind() == tokenKinds::colon) {
-    int builderIdx = -1;
     advance();
     GeneratorAndOthers *generatorAndOthers = new GeneratorAndOthers();
     parserGenerator(generatorAndOthers);
@@ -250,7 +249,6 @@ void Parser::parserDialect(Dialect *&dialect, llvm::StringRef defName) {
 
 /// Parser op keyword and fill all information in the ops.
 bool Parser::parserOp(std::vector<Op *> &ops, llvm::StringRef opName) {
-  llvm::SMLoc loc = token.getLocation();
   DAG *arguments = nullptr;
   DAG *results = nullptr;
   std::vector<Builder *> builders;

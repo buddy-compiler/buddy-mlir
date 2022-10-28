@@ -49,7 +49,7 @@ class CGModule {
 
 public:
   CGModule(Module *module, llvm::raw_fd_ostream &os, Terminators &terminators)
-      : module(module), os(os), terminators(terminators) {}
+      : terminators(terminators), module(module), os(os) {}
   void emitAST();
   void emitAntlr(llvm::StringRef grammarName);
   void emit(const std::vector<Rule *> &rules);

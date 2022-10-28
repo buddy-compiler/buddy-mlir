@@ -243,9 +243,9 @@ void CGModule::emitOp(Op *op, int index) {
         }
       } else if (resOperands[index].startswith("AnyTypeOf")) {
         llvm::StringRef operand = resOperands[index];
-        int start = operand.find('[') + 1;
-        int end = operand.find(']');
-        int cur = start;
+        uint start = operand.find('[') + 1;
+        uint end = operand.find(']');
+        uint cur = start;
         if (start == std::string::npos || end == std::string::npos) {
           return;
         }
@@ -293,9 +293,9 @@ void CGModule::emitOp(Op *op, int index) {
         }
       } else if (argOperands[index].startswith("AnyTypeOf")) {
         llvm::StringRef operand = argOperands[index];
-        int start = operand.find('[') + 1;
-        int end = operand.find(']');
-        int cur = start;
+        uint start = operand.find('[') + 1;
+        uint end = operand.find(']');
+        uint cur = start;
         if (start == std::string::npos || end == std::string::npos) {
           return;
         }
