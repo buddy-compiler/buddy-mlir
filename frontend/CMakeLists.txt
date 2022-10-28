@@ -1,2 +1,1 @@
-add_subdirectory(frontendgen)
-
+add_subdirectory(FrontendGen)
