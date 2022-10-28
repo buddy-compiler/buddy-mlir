@@ -222,7 +222,7 @@ $ ./buddy-opt ../../examples/BudDialect/TestConstant.mlir --lower-bud
 
 ## DSL Examples
 
-We use Antlr as the frontend framework.
+We use Antlr as the frontend framework. Please make sure Java is installed in your environment. You can check it with `$ java -version`.
 
 1. Build LLVM/MLIR with RTTI and EH enabled.
 
