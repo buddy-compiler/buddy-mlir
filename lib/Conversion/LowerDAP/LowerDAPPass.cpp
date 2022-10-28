@@ -171,12 +171,145 @@ private:
   int64_t stride;
 };
 
+class DAPIirLowering : public OpRewritePattern<dap::IirOp> {
+public:
+  using OpRewritePattern<dap::IirOp>::OpRewritePattern;
+
+  explicit DAPIirLowering(MLIRContext *context, int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
+
+  LogicalResult matchAndRewrite(dap::IirOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto ctx = op->getContext();
+
+    Value input = op->getOperand(0);
+    Value kernel = op->getOperand(1);
+    Value output = op->getOperand(2);
+
+    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
+    Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
+    Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
+    Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
+
+    Value N = rewriter.create<memref::DimOp>(loc, input, c0);
+    Value filterSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
+    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+
+    FloatType f32 = FloatType::getF32(ctx);
+
+    VectorType vectorTy32 = VectorType::get({stride}, f32);
+
+    Value zr = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+
+    // loop over every row in SOS matrix
+    rewriter.create<scf::ForOp>(
+        loc, c0, filterSize, c1, ValueRange{llvm::None},
+        [&](OpBuilder &builder, Location loc, ValueRange ivs,
+            ValueRange iargs) {
+          Value b0 = builder.create<memref::LoadOp>(loc, kernel,
+                                                    ValueRange{ivs[0], c0});
+          Value b1 = builder.create<memref::LoadOp>(loc, kernel,
+                                                    ValueRange{ivs[0], c1});
+          Value b2 = builder.create<memref::LoadOp>(loc, kernel,
+                                                    ValueRange{ivs[0], c2});
+          Value a0 = builder.create<memref::LoadOp>(loc, kernel,
+                                                    ValueRange{ivs[0], c3});
+          Value a1 = builder.create<memref::LoadOp>(loc, kernel,
+                                                    ValueRange{ivs[0], c4});
+          Value a2 = builder.create<memref::LoadOp>(loc, kernel,
+                                                    ValueRange{ivs[0], c5});
+
+          Value z1 =
+              builder.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+          Value z2 =
+              builder.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+
+          Value x0 = builder.create<memref::LoadOp>(loc, input, ValueRange{c0});
+          Value temp = builder.create<MulFOp>(loc, b0, x0);
+          builder.create<memref::StoreOp>(loc, temp, output, ValueRange{c0});
+
+          Value x1 = builder.create<memref::LoadOp>(loc, input, ValueRange{c1});
+          Value temp0 = builder.create<MulFOp>(loc, b0, x1);
+          Value temp1 = builder.create<MulFOp>(loc, b1, x0);
+          Value temp2 = builder.create<AddFOp>(loc, temp0, temp1);
+          builder.create<memref::StoreOp>(loc, temp2, output, ValueRange{c1});
+
+          Value Vecb0 = builder.create<BroadcastOp>(loc, vectorTy32, b0);
+          Value Vecb1 = builder.create<BroadcastOp>(loc, vectorTy32, b1);
+          Value Vecb2 = builder.create<BroadcastOp>(loc, vectorTy32, b2);
+
+          // A biquad filter expression:
+          // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
+          // FIR part
+          builder.create<scf::ForOp>(
+              loc, c2, N, strideVal, ValueRange{llvm::None},
+              [&](OpBuilder &builder, Location loc, Value iv,
+                  ValueRange itrargs) {
+                Value idx0 = iv;
+                Value idx1 = builder.create<SubIOp>(loc, idx0, c1);
+                Value idx2 = builder.create<SubIOp>(loc, idx0, c2);
+
+                Value inputVec0 = builder.create<LoadOp>(loc, vectorTy32, input,
+                                                         ValueRange{idx0});
+                Value inputVec1 = builder.create<LoadOp>(loc, vectorTy32, input,
+                                                         ValueRange{idx1});
+                Value inputVec2 = builder.create<LoadOp>(loc, vectorTy32, input,
+                                                         ValueRange{idx2});
+
+                Value outputVec =
+                    rewriter.create<BroadcastOp>(loc, vectorTy32, zr);
+                Value resVec0 =
+                    builder.create<FMAOp>(loc, inputVec0, Vecb0, outputVec);
+                Value resVec1 =
+                    builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
+                Value resVec2 =
+                    builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
+                builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
+
+                builder.create<scf::YieldOp>(loc, llvm::None);
+              });
+
+          // IIR part
+          builder.create<scf::ForOp>(
+              loc, c0, N, c1, ValueRange{z1, z2},
+              [&](OpBuilder &builder, Location loc, Value iv,
+                  ValueRange itrargs) {
+                Value x =
+                    builder.create<memref::LoadOp>(loc, output, ValueRange{iv});
+                Value t1 = builder.create<MulFOp>(loc, a1, itrargs[1]);
+                Value t2 = builder.create<MulFOp>(loc, a2, itrargs[0]);
+                Value y = builder.create<AddFOp>(loc, t1, t2);
+                Value opt = builder.create<SubFOp>(loc, x, y);
+
+                builder.create<memref::StoreOp>(loc, opt, output,
+                                                ValueRange{iv});
+                builder.create<scf::YieldOp>(
+                    loc, std::vector<Value>{itrargs[1], opt});
+              });
+          builder.create<memref::CopyOp>(loc, output, input);
+          builder.create<scf::YieldOp>(loc, llvm::None);
+        });
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  int64_t stride;
+};
+
 } // end anonymous namespace
 
 void populateLowerDAPConversionPatterns(RewritePatternSet &patterns,
                                         int64_t stride) {
   patterns.add<DAPFirLowering>(patterns.getContext());
   patterns.add<DAPBiquadLowering>(patterns.getContext(), stride);
+  patterns.add<DAPIirLowering>(patterns.getContext(), stride);
 }
 
 //===----------------------------------------------------------------------===//
@@ -201,7 +334,6 @@ public:
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
                     AffineDialect, arith::ArithDialect>();
   }
-
   Option<int64_t> stride{*this, "DAP-vector-splitting",
                          llvm::cl::desc("Vector splitting size."),
                          llvm::cl::init(32)};

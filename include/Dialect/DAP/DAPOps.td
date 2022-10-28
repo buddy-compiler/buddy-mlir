@@ -27,9 +27,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 
-
-def DAP_FirOp : DAP_Op<"fir">
-{
+def DAP_FirOp : DAP_Op<"fir"> {
   let summary = [{FIR filter, a finite impulse response (FIR) filter is a linear
   time-invariant filter that is used to filter a signal. It is a linear
   convolution of the input signal with a filter kernel.
@@ -59,6 +57,28 @@ def DAP_BiquadOp : DAP_Op<"biquad">
   ```mlir
     dap.biquad %input, %kernel, %output :memref<?x?xf32>, memref<?x?xf32>, 
             memref<?x?xf32>
+  ```
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefO);
+
+  let assemblyFormat = [{
+    $memrefI `,` $memrefK `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO) 
+  }];
+}
+
+def DAP_IirOp : DAP_Op<"iir"> {
+  let summary = [{IIR filter, a infinite impulse response (IIR), Unlike FIR filters, 
+  they have a feedback(a recursive part of a filter).
+
+  ```mlir
+    dsp.iir %input, %kernel, %output :memref<?xf32>, memref<?x?xf32>, 
+            memref<?xf32>
   ```
   }];
 
