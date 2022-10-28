@@ -1,4 +1,4 @@
-//====---------------------- buddy-frontendgen.cpp -----------------------===//
+//====- frontendgen.cpp -------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file is the driver of buddy-frontendgen project.
+// This file is the driver of frontendgen project.
 //
 //===----------------------------------------------------------------------===//
 
