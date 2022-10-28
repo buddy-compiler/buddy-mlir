@@ -41,3 +41,7 @@ target_link_libraries(rotation2D ${OpenCV_LIBS} DIP)
 add_executable(resize2D resize2D.cpp)
 add_dependencies(resize2D buddy-opt)
 target_link_libraries(resize2D ${OpenCV_LIBS} DIP)
+
+add_executable(morph2D morph2D.cpp)
+add_dependencies(morph2D buddy-opt)
+target_link_libraries(morph2D ${OpenCV_LIBS} DIP)

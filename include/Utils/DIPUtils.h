@@ -28,7 +28,7 @@
 
 // Specify operation names which will be used for performing operation specific
 // tasks inside generic utility functions.
-enum class DIP_OP { CORRELATION_2D };
+enum class DIP_OP { CORRELATION_2D, EROSION_2D, DILATION_2D };
 
 // Specify error codes specific to DIP dialect which might be used for exiting
 // from lowering passes with appropriate messages.
@@ -97,6 +97,111 @@ auto checkDIPCommonTypes(DIPOP op, size_t numArgs, ...) {
     auto outElemTy =
         va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
     if (inElemTy != outElemTy) {
+      return DIP_ERROR::INCONSISTENT_TYPES;
+    }
+
+    // NB: we can infer element type for all related memrefs to be the same as
+    // input since we verified that the operand types are the same.
+    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
+    if (!inElemTy.isF64() && !inElemTy.isF32() &&
+        !inElemTy.isInteger(bitWidth)) {
+      return DIP_ERROR::UNSUPPORTED_TYPE;
+    }
+  } else if (op->getName().stripDialect() == "erosion_2d" ||
+             op->getName().stripDialect() == "dilation_2d") {
+    // Define variable arguments list.
+    va_list vaList;
+
+    // Specify total number of arguments to be accessed using the variable
+    // arguments list.
+    va_start(vaList, numArgs);
+
+    auto inElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto kElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto copyElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto constElemTy = va_arg(vaList, Value).getType();
+    if (inElemTy != kElemTy || kElemTy != outElemTy ||
+        outElemTy != copyElemTy || copyElemTy != constElemTy) {
+      return DIP_ERROR::INCONSISTENT_TYPES;
+    }
+
+    // NB: we can infer element type for all related memrefs to be the same as
+    // input since we verified that the operand types are the same.
+    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
+    if (!inElemTy.isF64() && !inElemTy.isF32() &&
+        !inElemTy.isInteger(bitWidth)) {
+      return DIP_ERROR::UNSUPPORTED_TYPE;
+    }
+  } else if (op->getName().stripDialect() == "opening_2d" ||
+             op->getName().stripDialect() == "closing_2d") {
+    // Define variable arguments list.
+    va_list vaList;
+
+    // Specify total number of arguments to be accessed using the variable
+    // arguments list.
+    va_start(vaList, numArgs);
+
+    auto inElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto kElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy1 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto copyElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto copyElemTy1 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto constElemTy = va_arg(vaList, Value).getType();
+    if (inElemTy != kElemTy || kElemTy != outElemTy ||
+        outElemTy != outElemTy1 || outElemTy1 != copyElemTy ||
+        copyElemTy != copyElemTy1 || copyElemTy1 != constElemTy) {
+      return DIP_ERROR::INCONSISTENT_TYPES;
+    }
+
+    // NB: we can infer element type for all related memrefs to be the same as
+    // input since we verified that the operand types are the same.
+    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
+    if (!inElemTy.isF64() && !inElemTy.isF32() &&
+        !inElemTy.isInteger(bitWidth)) {
+      return DIP_ERROR::UNSUPPORTED_TYPE;
+    }
+  } else if (op->getName().stripDialect() == "tophat_2d" ||
+             op->getName().stripDialect() == "bottomhat_2d" ||
+             op->getName().stripDialect() == "morphgrad_2d") {
+    va_list vaList;
+
+    // Specify total number of arguments to be accessed using the variable
+    // arguments list.
+    va_start(vaList, numArgs);
+
+    auto inElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto kElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy1 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy2 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto inElemTy1 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto copyElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto copyElemTy1 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto constElemTy = va_arg(vaList, Value).getType();
+    if (inElemTy != kElemTy || kElemTy != outElemTy ||
+        outElemTy != outElemTy1 || outElemTy1 != outElemTy2 ||
+        outElemTy2 != inElemTy1 || inElemTy1 != copyElemTy ||
+        copyElemTy != copyElemTy1 || copyElemTy1 != constElemTy) {
       return DIP_ERROR::INCONSISTENT_TYPES;
     }
 
@@ -570,6 +675,122 @@ Value zeroCond(OpBuilder &builder, Location loc, Type elemType,
   return cond;
 }
 
+// Util function for morphological transformations ; compares two vectors and
+// returns a mask
+Value createCompVecMorph(OpBuilder &builder, Location loc, VectorType type,
+                         Value inputVec, Value outputVec, DIP_OP op) {
+  Value compVec = {};
+  auto elemTy = type.getElementType();
+  auto bitWidth = elemTy.getIntOrFloatBitWidth();
+  if (elemTy.isF32() || elemTy.isF64()) {
+    if (op == DIP_OP::EROSION_2D) {
+      compVec =
+          builder.create<CmpFOp>(loc, CmpFPredicate::OGE, inputVec, outputVec);
+    } else if (op == DIP_OP::DILATION_2D) {
+      compVec =
+          builder.create<CmpFOp>(loc, CmpFPredicate::OLE, inputVec, outputVec);
+    }
+  } else if (elemTy.isInteger(bitWidth)) {
+    if (op == DIP_OP::EROSION_2D) {
+      compVec =
+          builder.create<CmpIOp>(loc, CmpIPredicate::sge, inputVec, outputVec);
+    } else if (op == DIP_OP::DILATION_2D) {
+      compVec =
+          builder.create<CmpIOp>(loc, CmpIPredicate::sle, inputVec, outputVec);
+    }
+  }
+  return compVec;
+}
+
+// Utility function for morphological operations ; cannot handle tail processing
+void calcAndStorewoTailProcessingMorph(OpBuilder &builder, Location loc,
+                                       VectorType vecType, Value inputVec,
+                                       Value kernelVec, Value output,
+                                       Value beginIdx, Value endIdx,
+                                       Value zeroPadding,
+                                       Value inputCol, VectorType vectorMaskTy,
+                                       Type elemTy, Value kernelValue,
+                                       Value zeroPaddingElem, DIP_OP op) {
+
+    Value outputVec = builder.create<LoadOp>(loc, vecType, output,
+                                             ValueRange{beginIdx, endIdx});
+    Value compVec = {};
+    if (op == DIP_OP::EROSION_2D) {
+      compVec = createCompVecMorph(builder, loc, vecType, inputVec, outputVec,
+                                   DIP_OP::EROSION_2D);
+    } else if (op == DIP_OP::DILATION_2D) {
+      compVec = createCompVecMorph(builder, loc, vecType, inputVec, outputVec,
+                                   DIP_OP::DILATION_2D);
+    }
+
+    Value resVec = builder.create<MaskedLoadOp>(
+        loc, vecType, output, ValueRange{beginIdx, endIdx}, compVec, inputVec);
+
+    builder.create<StoreOp>(loc, resVec, output, ValueRange{beginIdx, endIdx});
+
+}
+
+// Utility function for morphological transformations, can handle tail
+// processing
+void calcAndStorewTailProcessingMorph(
+    OpBuilder &builder, Location loc, VectorType vecType, Value inputVec,
+    Value kernelVec, Value output, Value beginIdx, Value endIdx, Value tailCond,
+    Value zeroPadding, Value inputCol,
+    VectorType vectorMaskTy, Type elemTy, Value kernelValue,
+    Value zeroPaddingElem, DIP_OP op) {
+
+    builder.create<scf::IfOp>(
+        loc, tailCond,
+        [&](OpBuilder &builder, Location loc) {
+          Value outputVec = builder.create<LoadOp>(
+              loc, vecType, output, ValueRange{beginIdx, endIdx});
+
+          Value compVec = {};
+          if (op == DIP_OP::EROSION_2D) {
+            compVec = createCompVecMorph(builder, loc, vecType, inputVec,
+                                         outputVec, DIP_OP::EROSION_2D);
+          } else if (op == DIP_OP::DILATION_2D) {
+            compVec = createCompVecMorph(builder, loc, vecType, inputVec,
+                                         outputVec, DIP_OP::DILATION_2D);
+          }
+
+          Value resVec = builder.create<MaskedLoadOp>(
+              loc, vecType, output, ValueRange{beginIdx, endIdx}, compVec,
+              inputVec);
+
+          builder.create<StoreOp>(loc, resVec, output,
+                                  ValueRange{beginIdx, endIdx});
+
+          builder.create<scf::YieldOp>(loc);
+        },
+        [&](OpBuilder &builder, Location loc) {
+          Value extraElemMask =
+              tailMaskCreator(builder, loc, inputCol, endIdx, vectorMaskTy);
+
+          Value outputVec = builder.create<MaskedLoadOp>(
+              loc, vecType, output, ValueRange{beginIdx, endIdx}, extraElemMask,
+              zeroPadding);
+
+          Value compVec;
+          if (op == DIP_OP::EROSION_2D) {
+            compVec = createCompVecMorph(builder, loc, vecType, inputVec,
+                                         outputVec, DIP_OP::EROSION_2D);
+          } else if (op == DIP_OP::DILATION_2D) {
+            compVec = createCompVecMorph(builder, loc, vecType, inputVec,
+                                         outputVec, DIP_OP::DILATION_2D);
+          }
+
+          Value resVec = builder.create<MaskedLoadOp>(
+              loc, vecType, output, ValueRange{beginIdx, endIdx}, compVec,
+              inputVec);
+
+          builder.create<MaskedStoreOp>(
+              loc, output, ValueRange{beginIdx, endIdx}, extraElemMask, resVec);
+
+          builder.create<scf::YieldOp>(loc);
+        });
+}
+
 void traverseImagewBoundaryExtrapolation(
     OpBuilder &rewriter, Location loc, MLIRContext *ctx, Value input,
     Value kernel, Value output, Value centerX, Value centerY,
@@ -649,6 +870,26 @@ void traverseImagewBoundaryExtrapolation(
                   calcAndStoreFMAwoTailProcessing(builder, loc, vectorTy32,
                                                   inputVec, kernelVec, output,
                                                   ivs[0], ivs[2]);
+                } else if (op == DIP_OP::DILATION_2D) {
+                  Value tailCond =
+                      tailChecker(builder, loc, calcHelper, strideVal,
+                                  kernelSize, c1, pseudoCol, ivs[2]);
+
+                  calcAndStorewTailProcessingMorph(
+                      builder, loc, vectorTy32, inputVec, kernelVec, output,
+                      ivs[0], ivs[2], tailCond, zeroPadding,
+                      inputCol, vectorMaskTy, elemTy, kernelValue,
+                      zeroPaddingElem, DIP_OP::DILATION_2D);
+                } else if (op == DIP_OP::EROSION_2D) {
+                  Value tailCond =
+                      tailChecker(builder, loc, calcHelper, strideVal,
+                                  kernelSize, c1, pseudoCol, ivs[2]);
+
+                  calcAndStorewTailProcessingMorph(
+                      builder, loc, vectorTy32, inputVec, kernelVec, output,
+                      ivs[0], ivs[2], tailCond, zeroPadding,
+                      inputCol, vectorMaskTy, elemTy, kernelValue,
+                      zeroPaddingElem, DIP_OP::EROSION_2D);
                 }
               } else {
                 Value colLeftCond = builder.create<CmpIOp>(
@@ -683,6 +924,18 @@ void traverseImagewBoundaryExtrapolation(
                         calcAndStoreFMAwoTailProcessing(
                             builder, loc, vectorTy32, inputVec, kernelVec,
                             output, ivs[0], ivs[2]);
+                      } else if (op == DIP_OP::EROSION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::EROSION_2D);
+                      } else if (op == DIP_OP::DILATION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::DILATION_2D);
                       }
 
                       builder.create<scf::YieldOp>(loc);
@@ -708,8 +961,19 @@ void traverseImagewBoundaryExtrapolation(
                               calcAndStoreFMAwoTailProcessing(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2]);
-                            }
-
+                            } else if (op == DIP_OP::EROSION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::EROSION_2D);
+                      } else if (op == DIP_OP::DILATION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::DILATION_2D);
+                      }
                             builder.create<scf::YieldOp>(loc);
                           },
                           [&](OpBuilder &builder, Location loc) {
@@ -744,7 +1008,27 @@ void traverseImagewBoundaryExtrapolation(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2], tailCond, zeroPadding,
                                   inputCol, vectorMaskTy);
-                            }
+                            } else if (op == DIP_OP::DILATION_2D) {
+                  Value tailCond =
+                      tailChecker(builder, loc, calcHelper, strideVal,
+                                  kernelSize, c1, pseudoCol, ivs[2]);
+
+                  calcAndStorewTailProcessingMorph(
+                      builder, loc, vectorTy32, inputVec, kernelVec, output,
+                      ivs[0], ivs[2], tailCond, zeroPadding,
+                      inputCol, vectorMaskTy, elemTy, kernelValue,
+                      zeroPaddingElem, DIP_OP::DILATION_2D);
+                } else if (op == DIP_OP::EROSION_2D) {
+                  Value tailCond =
+                      tailChecker(builder, loc, calcHelper, strideVal,
+                                  kernelSize, c1, pseudoCol, ivs[2]);
+
+                  calcAndStorewTailProcessingMorph(
+                      builder, loc, vectorTy32, inputVec, kernelVec, output,
+                      ivs[0], ivs[2], tailCond, zeroPadding,
+                      inputCol, vectorMaskTy, elemTy, kernelValue,
+                      zeroPaddingElem, DIP_OP::EROSION_2D);
+                }
 
                             builder.create<scf::YieldOp>(loc);
                           });
@@ -807,7 +1091,19 @@ void traverseImagewBoundaryExtrapolation(
                             calcAndStoreFMAwoTailProcessing(
                                 builder, loc, vectorTy32, inputVec, kernelVec,
                                 output, ivs[0], ivs[2]);
-                          }
+                          } else if (op == DIP_OP::EROSION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::EROSION_2D);
+                      } else if (op == DIP_OP::DILATION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::DILATION_2D);
+                      }
 
                           builder.create<scf::YieldOp>(loc);
                         },
@@ -829,7 +1125,19 @@ void traverseImagewBoundaryExtrapolation(
                                   calcAndStoreFMAwoTailProcessing(
                                       builder, loc, vectorTy32, inputVec,
                                       kernelVec, output, ivs[0], ivs[2]);
-                                }
+                                } else if (op == DIP_OP::EROSION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::EROSION_2D);
+                      } else if (op == DIP_OP::DILATION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::DILATION_2D);
+                      }
 
                                 builder.create<scf::YieldOp>(loc);
                               },
@@ -880,8 +1188,27 @@ void traverseImagewBoundaryExtrapolation(
                                       kernelVec, output, ivs[0], ivs[2],
                                       tailCond, zeroPadding, inputCol,
                                       vectorMaskTy);
-                                }
+                                } else if (op == DIP_OP::DILATION_2D) {
+                  Value tailCond =
+                      tailChecker(builder, loc, calcHelper, strideVal,
+                                  kernelSize, c1, pseudoCol, ivs[2]);
 
+                  calcAndStorewTailProcessingMorph(
+                      builder, loc, vectorTy32, inputVec, kernelVec, output,
+                      ivs[0], ivs[2], tailCond, zeroPadding,
+                      inputCol, vectorMaskTy, elemTy, kernelValue,
+                      zeroPaddingElem, DIP_OP::DILATION_2D);
+                } else if (op == DIP_OP::EROSION_2D) {
+                  Value tailCond =
+                      tailChecker(builder, loc, calcHelper, strideVal,
+                                  kernelSize, c1, pseudoCol, ivs[2]);
+
+                  calcAndStorewTailProcessingMorph(
+                      builder, loc, vectorTy32, inputVec, kernelVec, output,
+                      ivs[0], ivs[2], tailCond, zeroPadding,
+                      inputCol, vectorMaskTy, elemTy, kernelValue,
+                      zeroPaddingElem, DIP_OP::EROSION_2D);
+                }
                                 builder.create<scf::YieldOp>(loc);
                               });
                           builder.create<scf::YieldOp>(loc);
@@ -899,6 +1226,18 @@ void traverseImagewBoundaryExtrapolation(
                         calcAndStoreFMAwoTailProcessing(
                             builder, loc, vectorTy32, inputVec, kernelVec,
                             output, ivs[0], ivs[2]);
+                      } else if (op == DIP_OP::EROSION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::EROSION_2D);
+                      } else if (op == DIP_OP::DILATION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::DILATION_2D);
                       }
                     } else {
                       Value colLeftCond = builder.create<CmpIOp>(
@@ -936,7 +1275,19 @@ void traverseImagewBoundaryExtrapolation(
                               calcAndStoreFMAwoTailProcessing(
                                   builder, loc, vectorTy32, inputVec, kernelVec,
                                   output, ivs[0], ivs[2]);
-                            }
+                            } else if (op == DIP_OP::EROSION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::EROSION_2D);
+                      } else if (op == DIP_OP::DILATION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::DILATION_2D);
+                      }
 
                             builder.create<scf::YieldOp>(loc);
                           },
@@ -965,7 +1316,19 @@ void traverseImagewBoundaryExtrapolation(
                                     calcAndStoreFMAwoTailProcessing(
                                         builder, loc, vectorTy32, inputVec,
                                         kernelVec, output, ivs[0], ivs[2]);
-                                  }
+                                  } else if (op == DIP_OP::EROSION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::EROSION_2D);
+                      } else if (op == DIP_OP::DILATION_2D) {
+                        calcAndStorewoTailProcessingMorph(
+                            builder, loc, vectorTy32, inputVec, kernelVec,
+                            output, ivs[0], ivs[2], zeroPadding,
+                            inputCol, vectorMaskTy, elemTy, kernelValue,
+                            zeroPaddingElem, DIP_OP::DILATION_2D);
+                      }
 
                                   builder.create<scf::YieldOp>(loc);
                                 },
@@ -1013,8 +1376,27 @@ void traverseImagewBoundaryExtrapolation(
                                         kernelVec, output, ivs[0], ivs[2],
                                         tailCond, zeroPadding, inputCol,
                                         vectorMaskTy);
-                                  }
+                                  } else if (op == DIP_OP::DILATION_2D) {
+                  Value tailCond =
+                      tailChecker(builder, loc, calcHelper, strideVal,
+                                  kernelSize, c1, pseudoCol, ivs[2]);
 
+                  calcAndStorewTailProcessingMorph(
+                      builder, loc, vectorTy32, inputVec, kernelVec, output,
+                      ivs[0], ivs[2], tailCond, zeroPadding,
+                      inputCol, vectorMaskTy, elemTy, kernelValue,
+                      zeroPaddingElem, DIP_OP::DILATION_2D);
+                } else if (op == DIP_OP::EROSION_2D) {
+                  Value tailCond =
+                      tailChecker(builder, loc, calcHelper, strideVal,
+                                  kernelSize, c1, pseudoCol, ivs[2]);
+
+                  calcAndStorewTailProcessingMorph(
+                      builder, loc, vectorTy32, inputVec, kernelVec, output,
+                      ivs[0], ivs[2], tailCond, zeroPadding,
+                      inputCol, vectorMaskTy, elemTy, kernelValue,
+                      zeroPaddingElem, DIP_OP::EROSION_2D);
+                }
                                   builder.create<scf::YieldOp>(loc);
                                 });
                             builder.create<scf::YieldOp>(loc);

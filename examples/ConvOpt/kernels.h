@@ -63,12 +63,34 @@ float laplacianKernelAlign[9] = {1, 1, 1, 1, -8, 1, 1, 1, 1};
 int laplacianKernelRows = 3;
 int laplacianKernelCols = 3;
 
-float logKernelAlign[25] = {0, 0, 1, 0, 0, 
+float logKernelAlign[25] = {0, 0, 1, 0, 0,
                             0, 1, 2, 1, 0,
                             1, 2, -16, 2, 1,
                             0, 1, 2, 1, 0,
                             0, 0, 1, 0, 0};
 int logKernelRows = 5;
 int logKernelCols = 5;
+
+float crossKernelAlign[25] = {0,0,1,0,0,0,0,1,0,0,1,1,1,1,1,0,0,1,0,0,0,0,1,0,0};
+int crossKernelRows = 5;
+int crossKernelCols = 5;
+
+float crossKernelAlign3x3[9] = {0,1,0,1,1,1,0,1,0};
+int crossKernelRows3x3 = 3;
+int crossKernelCols3x3 = 3;
+
+float ellipseKernelAlign7x7[49] = {0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0};
+int ellipseKernelRows7x7 = 7;
+int ellipseKernelCols7x7 = 7;
+
+float numcrossKernelAlign3x3[9] = {0,2,0,2,2,2,0,2,0};
+uint8_t numcrossKernelAlignInt3x3[9] = {0,2,0,2,2,2,0,2,0};
+int numKernelAlignRows3x3 = 3;
+int numKernelAlignCols3x3 = 3;
+
+float numFlatKernelAlign4x4[16] = {100,10,11,111,78,89,90,11,9,90,75,80,81,82,99,111};
+uint8_t numFlatKernelAlignInt4x4[16] = {100,10,11,111,78,89,90,11,9,90,75,80,81,82,99,111};
+int numFlatKernelAlignRows4x4 = 4;
+int numFlatKernelAlignCols4x4 = 4;
 
 #endif

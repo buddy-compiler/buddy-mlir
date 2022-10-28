@@ -133,6 +133,15 @@ $ cd bin
 $ ./resize2D ../../examples/ConvOpt/images/YuTu.png result-dip-resize.png
 ```
 
+- Morphological Operations example:
+```
+$ cd buddy-mlir/build
+$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
+$ ninja morph2D
+$ cd bin
+$ ./morph2D ../../examples/ConvOpt/images/YuTu.png result-dip-erosionconstant.png result-dip-erosionreplicate.png result-dip-dilationconstant.png result-dip-dilationreplicate.png result-dip-openingconstant.png result-dip-openingreplicate.png result-dip-closingconstant.png result-dip-closingreplicate.png result-dip-tophatconstant.png result-dip-tophatreplicate.png result-dip-bottomhatconstant.png result-dip-bottomhatreplicate.png result-dip result-dip-morphgradconstant.png result-dip-morphgradreplicate.png
+```
+
 We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches. 
 For more details, please see [the benchamrk in the buddy-benchmark repo](https://github.com/buddy-compiler/buddy-benchmark#image-processing-benchmark).
 
