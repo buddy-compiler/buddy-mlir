@@ -169,7 +169,7 @@ An example depicting the syntax of created API is :
   #### 3 . 2D Opening(opening_2d)
 
   Opening transformation is defined as performing erosion followed by dilation on an input image.
-  opening(input) = dilation(erosion)
+  opening(input) = dilation(erosion(image))
 
   An example depicting the syntax of created API is :
  ```mlir
