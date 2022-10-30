@@ -1,4 +1,4 @@
-//====- MatMulOptimize.cpp ----------------------------------------===//
+//===- MatMulOptimize.cpp -------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,21 +17,10 @@
 // This file implements the matmul optimization.
 //
 //===----------------------------------------------------------------------===//
-#include <iostream>
 
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
-#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
-#include <mlir/Dialect/Linalg/IR/Linalg.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
-#include <mlir/Dialect/MemRef/IR/MemRef.h>
-#include <mlir/Dialect/SCF/IR/SCF.h>
-#include <mlir/Dialect/Shape/IR/Shape.h>
-#include <mlir/Dialect/Tensor/IR/Tensor.h>
-#include <mlir/Dialect/Vector/IR/VectorOps.h>
-#include <mlir/Dialect/Vector/Transforms/VectorTransforms.h>
-#include <mlir/IR/BuiltinAttributes.h>
-#include <mlir/IR/BuiltinTypes.h>
 #include <mlir/IR/Dialect.h>
 #include <mlir/IR/Operation.h>
 #include <mlir/IR/TypeUtilities.h>
