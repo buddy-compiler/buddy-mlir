@@ -30,9 +30,9 @@ include "mlir/IR/OpBase.td"
 def DIP_ConstantPadding : I32EnumAttrCase<"ConstantPadding", 0, "CONSTANT_PADDING">;
 def DIP_ReplicatePadding : I32EnumAttrCase<"ReplicatePadding", 1, "REPLICATE_PADDING">;
 
-def DIP_NearestNeighbourInterpolation : I32EnumAttrCase<"NearestNeighbourInterpolation", 0, 
+def DIP_NearestNeighbourInterpolation : I32EnumAttrCase<"NearestNeighbourInterpolation", 0,
                                         "NEAREST_NEIGHBOUR_INTERPOLATION">;
-def DIP_BilinearInterpolation : I32EnumAttrCase<"BilinearInterpolation", 1, 
+def DIP_BilinearInterpolation : I32EnumAttrCase<"BilinearInterpolation", 1,
                                 "BILINEAR_INTERPOLATION">;
 
 def DIP_BoundaryOption : I32EnumAttr<"BoundaryOption",
@@ -48,7 +48,7 @@ def DIP_BoundaryOption : I32EnumAttr<"BoundaryOption",
 def DIP_InterpolationType : I32EnumAttr<"InterpolationType",
     "Specifies desired type of interpolation/extrapolation during image processing.",
     [
-      DIP_NearestNeighbourInterpolation, 
+      DIP_NearestNeighbourInterpolation,
       DIP_BilinearInterpolation
     ]>{
   let genSpecializedAttr = 0;
@@ -99,18 +99,18 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d"> {
 }
 
 def DIP_Rotate2DOp : DIP_Op<"rotate_2d"> {
-  let summary = [{This operation intends to provide utility for rotating images via the DIP dialect. 
-  Image rotation has many applications such as data augmentation, alignment adjustment, etc. and 
-  can thus be used in native MLIR pipelines involving above mentioned uses. 
+  let summary = [{This operation intends to provide utility for rotating images via the DIP dialect.
+  Image rotation has many applications such as data augmentation, alignment adjustment, etc. and
+  can thus be used in native MLIR pipelines involving above mentioned uses.
 
-  Standard affine rotation matrix [cosθ   sinθ] is used whenever |tan(θ/2)| > 8.1 for the user defined θ. 
+  Standard affine rotation matrix [cosθ   sinθ] is used whenever |tan(θ/2)| > 8.1 for the user defined θ.
 				                          [-sinθ  cosθ]
-  In all other cases, the 3 shear method is used to simplify calculations and minimize generated 
-  artifacts. The equivalent 3 shear matrix combination is as follows : 
+  In all other cases, the 3 shear method is used to simplify calculations and minimize generated
+  artifacts. The equivalent 3 shear matrix combination is as follows :
   [1  -tan(θ/2)]   *   [ 1       0]   *   [1    -tan(θ/2)]
   [0      1    ]       [sinθ     1]       [0        1    ]
 
-  For example: 
+  For example:
 
   ```mlir
   dip.rotate_2d %inputImage, %angle, %outputImage : memref<?x?xf32>, f32, memref<?x?xf32>
@@ -131,41 +131,234 @@ def DIP_Rotate2DOp : DIP_Op<"rotate_2d"> {
 def DIP_Resize2DOp : DIP_Op<"resize_2d">
 {
   let summary = [{
-    This operation intends to provide a utility for resizing images using the DIP dialect. 
-    Image resizing has many applications such as data augmentation, dimension adjustment in ML 
-    models, etc. and can thus be used in native MLIR pipelines catering to above mentioned 
+    This operation intends to provide a utility for resizing images using the DIP dialect.
+    Image resizing has many applications such as data augmentation, dimension adjustment in ML
+    models, etc. and can thus be used in native MLIR pipelines catering to above mentioned
     use-cases.
 
-    As of now, two different mechanisms for pixel interpolation are provided namely nearest 
-    neighbour interpolation and bilinear interpolation. The user can specify the desired type of 
-    interpolation via an attribute provided as argument to the operation. The operation also 
-    expects scaling ratios (Input image dimension / Output image dimension) for both dimensions 
-    of input and output images as arguments. 
+    As of now, two different mechanisms for pixel interpolation are provided namely nearest
+    neighbour interpolation and bilinear interpolation. The user can specify the desired type of
+    interpolation via an attribute provided as argument to the operation. The operation also
+    expects scaling ratios (Input image dimension / Output image dimension) for both dimensions
+    of input and output images as arguments.
 
-    The operation is flexible for its use with images of different sizes without necessarily 
-    lowering it every time for each new image (Refer to the example provided in examples 
+    The operation is flexible for its use with images of different sizes without necessarily
+    lowering it every time for each new image (Refer to the example provided in examples
     directory for the DIP dialect).
 
-    Syntax : 
+    Syntax :
 
     ```mlir
     dip.resize_2d INTERPOLATION_TYPE %inputImage, %horizontal_scaling_factor, %vertical_scaling_factor, %outputImage : memref<?x?xf32>, f32, f32, memref<?x?xf32>
     ```
 
-    where ```INTERPOLATION_TYPE``` can be ```NEAREST_NEIGHBOUR_INTERPOLATION``` or 
+    where ```INTERPOLATION_TYPE``` can be ```NEAREST_NEIGHBOUR_INTERPOLATION``` or
     ```BILINEAR_INTERPOLATION```.
   }];
 
   let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
-                           [MemRead]>:$memrefI, 
-                       F32 : $horizontal_scaling_factor, 
-                       F32 : $vertical_scaling_factor, 
+                           [MemRead]>:$memrefI,
+                       F32 : $horizontal_scaling_factor,
+                       F32 : $vertical_scaling_factor,
                        Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
-                           [MemRead]>:$memrefO, 
+                           [MemRead]>:$memrefO,
                        DIP_InterpolationAttr:$interpolation_type);
 
   let assemblyFormat = [{
      $interpolation_type $memrefI `,` $horizontal_scaling_factor `,` $vertical_scaling_factor `,` $memrefO attr-dict `:` type($memrefI) `,` type($horizontal_scaling_factor) `,` type($vertical_scaling_factor) `,` type($memrefO)
+  }];
+}
+
+def DIP_Erosion2DOp : DIP_Op<"erosion_2d"> {
+  let summary = [{This operation aims to provide utility to perform Erosion on
+                      a 2d single channel image.}];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCO,
+                       Arg<AnyRankedOrUnrankedMemRef, "copyMemref",
+                           [MemRead]>:$memrefCopy,
+                       Index : $centerX,
+                       Index : $centerY,
+                       Index : $iterations,
+                       AnyTypeOf<[AnyI8, AnyI32, AnyI64, AnyFloat]> : $constantValue,
+                       DIP_BoundaryOptionAttr:$boundary_option);
+
+  let assemblyFormat = [{
+    $boundary_option $memrefI `,`  $memrefK `,` $memrefCO `,` $memrefCopy `,` $centerX `,` $centerY `,`$iterations `,` $constantValue  attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCopy) `,` type($centerX) `,` type($centerY) `,`type($iterations) `,` type($constantValue)
+  }];
+}
+
+def DIP_Dilation2DOp : DIP_Op<"dilation_2d"> {
+  let summary = [{This operation aims to provide utility to perform Dilation on
+                      a 2d single channel image.}];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCO,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCopy,
+                       Index : $centerX,
+                       Index : $centerY,
+                       Index : $iterations,
+                       AnyTypeOf<[AnyI8, AnyI32, AnyI64, AnyFloat]> : $constantValue,
+                       DIP_BoundaryOptionAttr:$boundary_option);
+
+  let assemblyFormat = [{
+    $boundary_option $memrefI `,` $memrefK `,` $memrefCO `,` $memrefCopy `,` $centerX `,` $centerY `,` $iterations `,` $constantValue  attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCopy) `,` type($centerX) `,` type($centerY) `,` type($iterations) `,` type($constantValue)
+  }];
+}
+
+def DIP_Opening2DOp : DIP_Op<"opening_2d"> {
+  let summary = [{This operation aims to provide utility to perform Opening on
+                      a 2d single channel image.}];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCO,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputinterMemref",
+                           [MemRead]>:$memrefCOI,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemrefcopy",
+                           [MemRead]>:$memrefCopy,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCopyone,
+                       Index : $centerX,
+                       Index : $centerY,
+                       Index : $iterations,
+                       AnyTypeOf<[AnyI8, AnyI32, AnyI64, AnyFloat]> : $constantValue,
+                       DIP_BoundaryOptionAttr:$boundary_option);
+
+  let assemblyFormat = [{
+    $boundary_option $memrefI `,` $memrefK `,` $memrefCO `,` $memrefCOI `,` $memrefCopy `,` $memrefCopyone `,` $centerX `,` $centerY `,` $iterations `,` $constantValue  attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($memrefCopy) `,` type($memrefCopyone) `,` type($centerX) `,` type($centerY) `,` type($iterations) `,` type($constantValue)
+  }];
+}
+
+def DIP_Closing2DOp : DIP_Op<"closing_2d"> {
+  let summary = [{This operation aims to provide utility to perform Closing transformation on
+                      a 2d single channel image.}];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCO,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputinterMemref",
+                           [MemRead]>:$memrefCOI,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemrefcopy",
+                           [MemRead]>:$memrefCopy,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCopyone,
+                       Index : $centerX,
+                       Index : $centerY,
+                       Index : $iterations,
+                       AnyTypeOf<[AnyI8, AnyI32, AnyI64, AnyFloat]> : $constantValue,
+                       DIP_BoundaryOptionAttr:$boundary_option);
+
+  let assemblyFormat = [{
+    $boundary_option $memrefI `,`  $memrefK `,` $memrefCO `,` $memrefCOI `,` $memrefCopy `,` $memrefCopyone `,` $centerX `,` $centerY `,` $iterations `,` $constantValue  attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($memrefCopy) `,` type($memrefCopyone) `,` type($centerX) `,` type($centerY) `,` type($iterations) `,` type($constantValue)
+  }];
+}
+
+def DIP_TopHat2DOp : DIP_Op<"tophat_2d"> {
+  let summary = [{This operation aims to provide utility to perform tophat operation on
+                      a 2d single channel image.}];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCO,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputinterMemref",
+                           [MemRead]>:$memrefCOI,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputinterrMemref" ,
+                           [MemRead]>:$memrefCOII,
+                       Arg<AnyRankedOrUnrankedMemRef, "inputinterMemref",
+                           [MemRead]>:$memrefIR,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemrefcopy",
+                           [MemRead]>:$memrefCopy,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCopyone,
+                       Index : $centerX,
+                       Index : $centerY,
+                       Index : $iterations,
+                       AnyTypeOf<[AnyI8, AnyI32, AnyI64, AnyFloat]> : $constantValue,
+                       DIP_BoundaryOptionAttr:$boundary_option);
+
+  let assemblyFormat = [{
+    $boundary_option $memrefI  `,`  $memrefK `,` $memrefCO `,` $memrefCOI `,` $memrefCOII `,` $memrefIR `,` $memrefCopy `,` $memrefCopyone `,` $centerX `,` $centerY `,` $iterations `,` $constantValue   attr-dict `:` type($memrefI) `,` type($memrefK)  `,` type($memrefCO) `,` type($memrefCOI)   `,` type($memrefCOII) `,` type($memrefIR) `,` type($memrefCopy) `,` type($memrefCopyone) `,` type($centerX) `,` type($centerY) `,` type($iterations) `,` type($constantValue)
+  }];
+}
+
+def DIP_BottomHat2DOp : DIP_Op<"bottomhat_2d"> {
+  let summary = [{This operation aims to provide utility to perform Bottomhat operation on
+                      a 2d single channel image.}];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCO,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputinterMemref",
+                           [MemRead]>:$memrefCOI,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputinterrMemref" ,
+                           [MemRead]>:$memrefCOII,
+                       Arg<AnyRankedOrUnrankedMemRef, "inputMemrefinter",
+                           [MemRead]>:$memrefIR,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemrefcopy",
+                           [MemRead]>:$memrefCopy,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCopyone,
+                       Index : $centerX,
+                       Index : $centerY,
+                       Index : $iterations,
+                       AnyTypeOf<[AnyI8, AnyI32, AnyI64, AnyFloat]> : $constantValue,
+                       DIP_BoundaryOptionAttr:$boundary_option);
+
+  let assemblyFormat = [{
+    $boundary_option $memrefI  `,` $memrefK `,` $memrefCO `,` $memrefCOI `,` $memrefCOII `,` $memrefIR `,` $memrefCopy `,` $memrefCopyone `,` $centerX `,` $centerY `,` $iterations `,` $constantValue  attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($memrefCOII) `,`type($memrefIR) `,` type($memrefCopy) `,` type($memrefCopyone) `,` type($centerX) `,` type($centerY) `,`type($iterations) `,` type($constantValue)
+  }];
+}
+
+def DIP_MorphGrad2DOp : DIP_Op<"morphgrad_2d"> {
+  let summary = [{This operation aims to provide utility to perform Morphological Gradient transformation on
+                      a 2d single channel image.}];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCO,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputinterMemref",
+                           [MemRead]>:$memrefCOI,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputinterMemref1",
+                           [MemRead]>:$memrefCOII,
+                       Arg<AnyRankedOrUnrankedMemRef, "inputMemrefinter",
+                           [MemRead]>:$memrefIR,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemrefcopy",
+                           [MemRead]>:$memrefCopy,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCopyone,
+                       Index : $centerX,
+                       Index : $centerY,
+                       Index : $iterations,
+                       AnyTypeOf<[AnyI8, AnyI32, AnyI64, AnyFloat]> : $constantValue,
+                       DIP_BoundaryOptionAttr:$boundary_option);
+
+  let assemblyFormat = [{
+    $boundary_option $memrefI `,`  $memrefK `,` $memrefCO `,` $memrefCOI `,` $memrefCOII `,` $memrefIR `,` $memrefCopy `,` $memrefCopyone `,` $centerX `,` $centerY `,` $iterations `,` $constantValue  attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($memrefCOI) `,` type($memrefCOII) `,` type($memrefIR) `,` type($memrefCopy) `,` type($memrefCopyone) `,` type($centerX) `,` type($centerY) `,` type($iterations) `,` type($constantValue)
   }];
 }
 
