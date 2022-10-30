@@ -84,9 +84,6 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   MemRef<float, 2> output9(sizesOutput);
   MemRef<float, 2> output10(sizesOutput);
   MemRef<float, 2> output11(sizesOutput);
-  MemRef<float, 2> output12(sizesOutput);
-  MemRef<float, 2> output13(sizesOutput);
-  MemRef<float, 2> output14(sizesOutput);
 
   // kernel for morphological transformations.
   Mat kernel1 = cv::getStructuringElement(MORPH_ELLIPSE, Size(3, 3));

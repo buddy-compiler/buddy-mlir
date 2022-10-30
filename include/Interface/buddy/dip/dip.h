@@ -335,22 +335,16 @@ void TopHat2D(Img<float, 2> input, MemRef<float, 2> *kernel,
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
   intptr_t sizesOutput[2] = {outputRows, outputCols};
-  if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
-    Img<float, 2> inputconstant = input;
-     MemRef<float, 2> output1constant(sizesOutput);
-  MemRef<float, 2> output2constant(sizesOutput);
-  MemRef<float, 2> input1constant(sizesOutput);
-  MemRef<float, 2> copymemrefconstant(sizesOutput, 256.f);
-  MemRef<float, 2> copymemref1constant(sizesOutput, -1.f);
-    detail::_mlir_ciface_tophat_2d_constant_padding(
-        inputconstant, kernel, output, &output1constant, &output2constant, &input1constant, &copymemrefconstant,
-        &copymemref1constant, centerX, centerY, iterations, constantValue);
-  } else if (option == BOUNDARY_OPTION::REPLICATE_PADDING) {
-      MemRef<float, 2> output1(sizesOutput);
+  MemRef<float, 2> output1(sizesOutput);
   MemRef<float, 2> output2(sizesOutput);
   MemRef<float, 2> input1(sizesOutput);
   MemRef<float, 2> copymemref(sizesOutput, 256.f);
   MemRef<float, 2> copymemref1(sizesOutput, -1.f);
+  if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
+    detail::_mlir_ciface_tophat_2d_constant_padding(
+        input, kernel, output, &output1, &output2, &input1, &copymemref,
+        &copymemref1, centerX, centerY, iterations, constantValue);
+  } else if (option == BOUNDARY_OPTION::REPLICATE_PADDING) {
     detail::_mlir_ciface_tophat_2d_replicate_padding(
         input, kernel, output, &output1, &output2, &input1, &copymemref,
         &copymemref1, centerX, centerY, iterations, 0);
@@ -364,22 +358,16 @@ void BottomHat2D(Img<float, 2> input, MemRef<float, 2> *kernel,
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
   intptr_t sizesOutput[2] = {outputRows, outputCols};
-  if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
-  Img<float, 2> inputconstantbottom = input;  
-  MemRef<float, 2> output1constantbottom(sizesOutput);
-  MemRef<float, 2> output2constantbottom(sizesOutput);
-  MemRef<float, 2> input1constantbottom(sizesOutput);
-  MemRef<float, 2> copymemrefconstantbottom(sizesOutput, -1.f);
-  MemRef<float, 2> copymemref1constantbottom(sizesOutput, 256.f);
-    detail::_mlir_ciface_bottomhat_2d_constant_padding(
-        inputconstantbottom, kernel, output, &output1constantbottom, &output2constantbottom, &input1constantbottom, &copymemref1constantbottom,
-        &copymemref1constantbottom, centerX, centerY, iterations, constantValue);
-  } else if (option == BOUNDARY_OPTION::REPLICATE_PADDING) {
-      MemRef<float, 2> output1(sizesOutput);
+  MemRef<float, 2> output1(sizesOutput);
   MemRef<float, 2> output2(sizesOutput);
   MemRef<float, 2> input1(sizesOutput);
   MemRef<float, 2> copymemref(sizesOutput, -1.f);
   MemRef<float, 2> copymemref1(sizesOutput, 256.f);
+  if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
+    detail::_mlir_ciface_bottomhat_2d_constant_padding(
+        input, kernel, output, &output1, &output2, &input1, &copymemref,
+        &copymemref1, centerX, centerY, iterations, constantValue);
+  } else if (option == BOUNDARY_OPTION::REPLICATE_PADDING) {
     detail::_mlir_ciface_bottomhat_2d_replicate_padding(
         input, kernel, output, &output1, &output2, &input1, &copymemref,
         &copymemref1, centerX, centerY, iterations, 0);
