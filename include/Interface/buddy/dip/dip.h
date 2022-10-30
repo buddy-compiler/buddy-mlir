@@ -66,88 +66,88 @@ void _mlir_ciface_resize_2d_bilinear_interpolation(
     float verticalScalingFactor, MemRef<float, 2> *output);
 
 void _mlir_ciface_erosion_2d_constant_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *copymemref, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_erosion_2d_replicate_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *copymemref, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_dilation_2d_constant_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *copymemref, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_dilation_2d_replicate_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *copymemref, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_opening_2d_constant_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *output1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_opening_2d_replicate_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *output1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_closing_2d_constant_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *output1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_closing_2d_replicate_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *output1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_tophat_2d_constant_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *output1, MemRef<float, 2> *output2,
     MemRef<float, 2> *input1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_tophat_2d_replicate_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *output1, MemRef<float, 2> *output2,
     MemRef<float, 2> *input1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_bottomhat_2d_constant_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *output1, MemRef<float, 2> *output2,
     MemRef<float, 2> *input1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_bottomhat_2d_replicate_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *output1, MemRef<float, 2> *output2,
     MemRef<float, 2> *input1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_morphgrad_2d_constant_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *output1, MemRef<float, 2> *output2,
-    MemRef<float, 2> input1, MemRef<float, 2> *copymemref,
+    MemRef<float, 2> *input1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 
 void _mlir_ciface_morphgrad_2d_replicate_padding(
-    Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
+    Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *output1, MemRef<float, 2> *output2,
-    MemRef<float, 2> input1, MemRef<float, 2> *copymemref,
+    MemRef<float, 2> *input1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
 }
@@ -247,7 +247,7 @@ MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
 
   return detail::Resize2D_Impl(input, type, scalingRatios, outputSize);
 }
-void Erosion2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
+void Erosion2D(Img<float, 2> input, MemRef<float, 2> *kernel,
                MemRef<float, 2> *output, unsigned int centerX,
                unsigned int centerY, unsigned int iterations,
                BOUNDARY_OPTION option, float constantValue = 0) {
@@ -266,7 +266,7 @@ void Erosion2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
   }
 }
 
-void Dilation2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
+void Dilation2D(Img<float, 2> input, MemRef<float, 2> *kernel,
                 MemRef<float, 2> *output, unsigned int centerX,
                 unsigned int centerY, unsigned int iterations,
                 BOUNDARY_OPTION option, float constantValue = 0) {
@@ -284,7 +284,7 @@ void Dilation2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
   }
 }
 
-void Opening2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
+void Opening2D(Img<float, 2> input, MemRef<float, 2> *kernel,
                MemRef<float, 2> *output, unsigned int centerX,
                unsigned int centerY, unsigned int iterations,
                BOUNDARY_OPTION option, float constantValue = 0) {
@@ -306,7 +306,7 @@ void Opening2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
   }
 }
 
-void Closing2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
+void Closing2D(Img<float, 2> input, MemRef<float, 2> *kernel,
                MemRef<float, 2> *output, unsigned int centerX,
                unsigned int centerY, unsigned int iterations,
                BOUNDARY_OPTION option, float constantValue = 0) {
@@ -328,53 +328,65 @@ void Closing2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
   }
 }
 
-void TopHat2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
+void TopHat2D(Img<float, 2> input, MemRef<float, 2> *kernel,
               MemRef<float, 2> *output, unsigned int centerX,
               unsigned int centerY, unsigned int iterations,
               BOUNDARY_OPTION option, float constantValue = 0) {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
   intptr_t sizesOutput[2] = {outputRows, outputCols};
-  MemRef<float, 2> output1(sizesOutput);
+  if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
+    Img<float, 2> inputconstant = input;
+     MemRef<float, 2> output1constant(sizesOutput);
+  MemRef<float, 2> output2constant(sizesOutput);
+  MemRef<float, 2> input1constant(sizesOutput);
+  MemRef<float, 2> copymemrefconstant(sizesOutput, 256.f);
+  MemRef<float, 2> copymemref1constant(sizesOutput, -1.f);
+    detail::_mlir_ciface_tophat_2d_constant_padding(
+        inputconstant, kernel, output, &output1constant, &output2constant, &input1constant, &copymemrefconstant,
+        &copymemref1constant, centerX, centerY, iterations, constantValue);
+  } else if (option == BOUNDARY_OPTION::REPLICATE_PADDING) {
+      MemRef<float, 2> output1(sizesOutput);
   MemRef<float, 2> output2(sizesOutput);
   MemRef<float, 2> input1(sizesOutput);
   MemRef<float, 2> copymemref(sizesOutput, 256.f);
   MemRef<float, 2> copymemref1(sizesOutput, -1.f);
-  if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
-    detail::_mlir_ciface_tophat_2d_constant_padding(
-        input, kernel, output, &output1, &output2, &input1, &copymemref,
-        &copymemref1, centerX, centerY, iterations, constantValue);
-  } else if (option == BOUNDARY_OPTION::REPLICATE_PADDING) {
     detail::_mlir_ciface_tophat_2d_replicate_padding(
         input, kernel, output, &output1, &output2, &input1, &copymemref,
         &copymemref1, centerX, centerY, iterations, 0);
   }
 }
 
-void BottomHat2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
+void BottomHat2D(Img<float, 2> input, MemRef<float, 2> *kernel,
                  MemRef<float, 2> *output, unsigned int centerX,
                  unsigned int centerY, unsigned int iterations,
                  BOUNDARY_OPTION option, float constantValue = 0) {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
   intptr_t sizesOutput[2] = {outputRows, outputCols};
-  MemRef<float, 2> output1(sizesOutput);
+  if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
+  Img<float, 2> inputconstantbottom = input;  
+  MemRef<float, 2> output1constantbottom(sizesOutput);
+  MemRef<float, 2> output2constantbottom(sizesOutput);
+  MemRef<float, 2> input1constantbottom(sizesOutput);
+  MemRef<float, 2> copymemrefconstantbottom(sizesOutput, -1.f);
+  MemRef<float, 2> copymemref1constantbottom(sizesOutput, 256.f);
+    detail::_mlir_ciface_bottomhat_2d_constant_padding(
+        inputconstantbottom, kernel, output, &output1constantbottom, &output2constantbottom, &input1constantbottom, &copymemref1constantbottom,
+        &copymemref1constantbottom, centerX, centerY, iterations, constantValue);
+  } else if (option == BOUNDARY_OPTION::REPLICATE_PADDING) {
+      MemRef<float, 2> output1(sizesOutput);
   MemRef<float, 2> output2(sizesOutput);
   MemRef<float, 2> input1(sizesOutput);
   MemRef<float, 2> copymemref(sizesOutput, -1.f);
   MemRef<float, 2> copymemref1(sizesOutput, 256.f);
-  if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
-    detail::_mlir_ciface_bottomhat_2d_constant_padding(
-        input, kernel, output, &output1, &output2, &input1, &copymemref,
-        &copymemref1, centerX, centerY, iterations, constantValue);
-  } else if (option == BOUNDARY_OPTION::REPLICATE_PADDING) {
     detail::_mlir_ciface_bottomhat_2d_replicate_padding(
         input, kernel, output, &output1, &output2, &input1, &copymemref,
         &copymemref1, centerX, centerY, iterations, 0);
   }
 }
 
-void MorphGrad2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
+void MorphGrad2D(Img<float, 2> input, MemRef<float, 2> *kernel,
                  MemRef<float, 2> *output, unsigned int centerX,
                  unsigned int centerY, unsigned int iterations,
                  BOUNDARY_OPTION option, float constantValue = 0) {
@@ -388,11 +400,11 @@ void MorphGrad2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
   MemRef<float, 2> copymemref1(sizesOutput, 256.f);
   if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
     detail::_mlir_ciface_morphgrad_2d_constant_padding(
-        input, kernel, output, &output1, &output2, input1, &copymemref,
+        input, kernel, output, &output1, &output2, &input1, &copymemref,
         &copymemref1, centerX, centerY, iterations, constantValue);
   } else if (option == BOUNDARY_OPTION::REPLICATE_PADDING) {
     detail::_mlir_ciface_morphgrad_2d_replicate_padding(
-        input, kernel, output, &output1, &output2, input1, &copymemref,
+        input, kernel, output, &output1, &output2, &input1, &copymemref,
         &copymemref1, centerX, centerY, iterations, 0);
   }
 }
