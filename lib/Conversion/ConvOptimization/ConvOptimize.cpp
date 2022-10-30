@@ -17,25 +17,11 @@
 // This file implements the Conv optimize.
 //
 //===----------------------------------------------------------------------===//
-#include <iostream>
 
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
-#include <mlir/Dialect/Linalg/IR/Linalg.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
-#include <mlir/Dialect/MemRef/IR/MemRef.h>
-#include <mlir/Dialect/SCF/IR/SCF.h>
-#include <mlir/Dialect/Shape/IR/Shape.h>
-#include <mlir/Dialect/Tensor/IR/Tensor.h>
-#include <mlir/Dialect/Vector/IR/VectorOps.h>
-#include <mlir/Dialect/Vector/Transforms/VectorTransforms.h>
-#include <mlir/IR/BuiltinAttributes.h>
-#include <mlir/IR/BuiltinTypes.h>
-#include <mlir/IR/Dialect.h>
 #include <mlir/IR/IntegerSet.h>
-#include <mlir/IR/Operation.h>
-#include <mlir/IR/TypeUtilities.h>
-#include <mlir/IR/Value.h>
 #include <mlir/Pass/Pass.h>
 
 using namespace mlir;
