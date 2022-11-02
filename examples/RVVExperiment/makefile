@@ -210,7 +210,7 @@ rvv-vp-intrinsic-aot-debug:
 rvv-vp-intrinsic-sh-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-sh.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -222,7 +222,7 @@ rvv-vp-intrinsic-sh-aot:
 rvv-vp-intrinsic-add-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-add.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -234,7 +234,7 @@ rvv-vp-intrinsic-add-aot:
 rvv-vp-intrinsic-and-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-and.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -246,7 +246,7 @@ rvv-vp-intrinsic-and-aot:
 rvv-vp-intrinsic-div-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-div.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -258,7 +258,7 @@ rvv-vp-intrinsic-div-aot:
 rvv-vp-intrinsic-mul-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-mul.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -270,7 +270,7 @@ rvv-vp-intrinsic-mul-aot:
 rvv-vp-intrinsic-sub-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-sub.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -282,7 +282,7 @@ rvv-vp-intrinsic-sub-aot:
 rvv-vp-intrinsic-fneg-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-fneg.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -294,7 +294,7 @@ rvv-vp-intrinsic-fneg-aot:
 rvv-vp-intrinsic-ext-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-ext.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -306,7 +306,7 @@ rvv-vp-intrinsic-ext-aot:
 rvv-vp-intrinsic-to-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-to.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -318,7 +318,7 @@ rvv-vp-intrinsic-to-aot:
 rvv-vp-intrinsic-trunc-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-trunc.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -330,7 +330,7 @@ rvv-vp-intrinsic-trunc-aot:
 rvv-vp-intrinsic-rem-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-rem.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -342,7 +342,7 @@ rvv-vp-intrinsic-rem-aot:
 rvv-vp-intrinsic-fma-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-fma.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -354,7 +354,7 @@ rvv-vp-intrinsic-fma-aot:
 rvv-vp-intrinsic-merge-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-merge.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -366,7 +366,7 @@ rvv-vp-intrinsic-merge-aot:
 rvv-vp-intrinsic-select-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-select.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -378,7 +378,7 @@ rvv-vp-intrinsic-select-aot:
 rvv-vp-intrinsic-or-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-or.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -390,7 +390,7 @@ rvv-vp-intrinsic-or-aot:
 rvv-vp-intrinsic-xor-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-xor.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -402,7 +402,7 @@ rvv-vp-intrinsic-xor-aot:
 rvv-vp-intrinsic-max-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-max.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -414,7 +414,7 @@ rvv-vp-intrinsic-max-aot:
 rvv-vp-intrinsic-min-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-min.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -426,7 +426,7 @@ rvv-vp-intrinsic-min-aot:
 rvv-vp-intrinsic-memory-aot:
 	@${BUDDY_OPT} rvv-vp-intrinsic-memory.mlir \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
-		--lower-rvv --lower-bud \
+		--lower-rvv \
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
@@ -439,7 +439,7 @@ rvv-vp-intrinsic-memory-aot:
 rvv-vp-intrinsic-memory-scalable-aot:
 	@${BUDDY_OPT} rvv-vp-intrinsic-memory-scalable.mlir \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
-		--lower-rvv --lower-bud \
+		--lower-rvv \
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
