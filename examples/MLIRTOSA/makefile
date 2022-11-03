@@ -18,32 +18,53 @@ endif
 
 tosa-resize-lower:
 	@${MLIR_OPT} ./tosa-resize.mlir \
-		-pass-pipeline="func.func(tosa-to-linalg)" \
-		-arith-bufferize  -tensor-bufferize -linalg-bufferize \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
-		-convert-scf-to-cf -convert-linalg-to-llvm  \
-		-convert-memref-to-llvm -convert-math-to-llvm  -convert-func-to-llvm \
-		-reconcile-unrealized-casts \
+		-pass-pipeline="builtin.module( \
+			func.func(tosa-to-linalg), \
+			arith-bufferize, \
+			func.func(tensor-bufferize, linalg-bufferize), \
+			func-bufferize, \
+			func.func(buffer-deallocation, convert-linalg-to-loops), \
+			convert-scf-to-cf, \
+			convert-linalg-to-llvm, \
+			convert-memref-to-llvm, \
+			convert-math-to-llvm, \
+			convert-func-to-llvm, \
+			reconcile-unrealized-casts \
+		)" \
 		-o ./log.mlir
 
 tosa-resize-translate:
 	@${MLIR_OPT} ./tosa-resize.mlir \
-		-pass-pipeline="func.func(tosa-to-linalg)" \
-		-arith-bufferize  -tensor-bufferize -linalg-bufferize \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
-		-convert-scf-to-cf -convert-linalg-to-llvm  \
-		-convert-memref-to-llvm -convert-math-to-llvm  -convert-func-to-llvm \
-		-reconcile-unrealized-casts | \
+		-pass-pipeline="builtin.module( \
+			func.func(tosa-to-linalg), \
+			arith-bufferize, \
+			func.func(tensor-bufferize, linalg-bufferize), \
+			func-bufferize, \
+			func.func(buffer-deallocation, convert-linalg-to-loops), \
+			convert-scf-to-cf, \
+			convert-linalg-to-llvm, \
+			convert-memref-to-llvm, \
+			convert-math-to-llvm, \
+			convert-func-to-llvm, \
+			reconcile-unrealized-casts \
+		)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 tosa-resize-run:
 	@${MLIR_OPT} ./tosa-resize.mlir \
-		-pass-pipeline="func.func(tosa-to-linalg)" \
-		-arith-bufferize  -tensor-bufferize -linalg-bufferize \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
-		-convert-scf-to-cf -convert-linalg-to-llvm  \
-		-convert-memref-to-llvm -convert-math-to-llvm  -convert-func-to-llvm \
-		-reconcile-unrealized-casts | \
+		-pass-pipeline="builtin.module( \
+			func.func(tosa-to-linalg), \
+			arith-bufferize, \
+			func.func(tensor-bufferize, linalg-bufferize), \
+			func-bufferize, \
+			func.func(buffer-deallocation, convert-linalg-to-loops), \
+			convert-scf-to-cf, \
+			convert-linalg-to-llvm, \
+			convert-memref-to-llvm, \
+			convert-math-to-llvm, \
+			convert-func-to-llvm, \
+			reconcile-unrealized-casts \
+		)" | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
