@@ -20,10 +20,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
 
@@ -84,8 +84,8 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
               // Broadcast element of the kernel.
               Value kernelValue = builder.create<AffineVectorLoadOp>(
                   loc, vectorTy1, kernel, ValueRange{ivs[1], ivs[2]});
-              Value kernelVector =
-                  builder.create<BroadcastOp>(loc, vectorTy32, kernelValue);
+              Value kernelVector = builder.create<vector::BroadcastOp>(
+                  loc, vectorTy32, kernelValue);
               // Load input vector from memref.
               AffineExpr m, n, k, j;
               bindDims(ctx, m, n, k, j);
@@ -200,7 +200,7 @@ void populateCBTilingPattern(Operation *op, ArrayRef<int64_t> tileSizes,
         Value kernelValue = builder.create<AffineVectorLoadOp>(
             loc, vectorTy1, kernel, ValueRange{ivs[0], ivs[1]});
         Value kernelVector =
-            builder.create<BroadcastOp>(loc, vectorTy32, kernelValue);
+            builder.create<vector::BroadcastOp>(loc, vectorTy32, kernelValue);
         // Load input and output as 2D vector.
         Value inputVector = builder.create<TransferReadOp>(
             loc, vectorTy32, input, ValueRange{ivs[0], ivs[1]}, f0);
@@ -290,9 +290,9 @@ void ConvVectorizationPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<arith::ArithDialect, AffineDialect,
-                         scf::SCFDialect, func::FuncDialect,
-                         memref::MemRefDialect, VectorDialect>();
+  target.addLegalDialect<arith::ArithDialect, AffineDialect, scf::SCFDialect,
+                         func::FuncDialect, memref::MemRefDialect,
+                         VectorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
 

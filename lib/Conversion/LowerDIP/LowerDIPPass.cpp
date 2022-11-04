@@ -826,7 +826,7 @@ public:
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
     Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
     Value zeroPaddingVec =
-        rewriter.create<BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
+        rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
     if (inElemTy.isF32() || inElemTy.isF64()) {
       buildAffineLoopNest(
@@ -1023,7 +1023,7 @@ public:
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
     Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
     Value zeroPaddingVec =
-        rewriter.create<BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
+        rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
     if (inElemTy.isF32() || inElemTy.isF64()) {
       buildAffineLoopNest(
@@ -1216,7 +1216,7 @@ public:
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
     Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
     Value zeroPaddingVec =
-        rewriter.create<BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
+        rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
     if (inElemTy.isF32() || inElemTy.isF64()) {
       buildAffineLoopNest(

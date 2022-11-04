@@ -812,7 +812,7 @@ void traverseImagewBoundaryExtrapolation(
 
   Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, elemTy);
   Value zeroPadding =
-      rewriter.create<BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
+      rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
   AffineExpr a, b, c;
   bindDims(ctx, a, b, c);
@@ -832,7 +832,7 @@ void traverseImagewBoundaryExtrapolation(
         Value kernelValue = builder.create<memref::LoadOp>(
             loc, kernel, ValueRange{ivs[1], ivs[3]});
         Value kernelVec =
-            builder.create<BroadcastOp>(loc, vectorTy32, kernelValue);
+            builder.create<vector::BroadcastOp>(loc, vectorTy32, kernelValue);
 
         // Pixel indices with respect to the actual image.
         Value imRow = builder.create<SubIOp>(loc, currRow, centerY);
@@ -855,7 +855,7 @@ void traverseImagewBoundaryExtrapolation(
                     // rowUp
                     if (boundaryOptionAttr ==
                         buddy::dip::BoundaryOption::ConstantPadding) {
-                      Value inputVec = builder.create<BroadcastOp>(
+                      Value inputVec = builder.create<vector::BroadcastOp>(
                           loc, vectorTy32, constantValue);
                       if (op == DIP_OP::CORRELATION_2D) {
                         calcAndStoreFMAwoTailProcessing(
@@ -901,7 +901,7 @@ void traverseImagewBoundaryExtrapolation(
                                 buddy::dip::BoundaryOption::ReplicatePadding) {
                               Value paddingVal = builder.create<memref::LoadOp>(
                                   loc, input, ValueRange{c0, c0});
-                              Value padding = builder.create<BroadcastOp>(
+                              Value padding = builder.create<vector::BroadcastOp>(
                                   loc, vectorTy32, paddingVal);
 
                               Value leftPaddingOffset =
@@ -993,8 +993,9 @@ void traverseImagewBoundaryExtrapolation(
                                         builder.create<memref::LoadOp>(
                                             loc, input,
                                             ValueRange{c0, rightRange});
-                                    Value padding = builder.create<BroadcastOp>(
-                                        loc, vectorTy32, paddingVal);
+                                    Value padding = 
+                                        builder.create<vector::BroadcastOp>(
+                                            loc, vectorTy32, paddingVal);
 
                                     inputVec = builder.create<MaskedLoadOp>(
                                         loc, vectorTy32, input,
@@ -1060,8 +1061,9 @@ void traverseImagewBoundaryExtrapolation(
                                 if (boundaryOptionAttr ==
                                     buddy::dip::BoundaryOption::
                                         ConstantPadding) {
-                                  Value padding = builder.create<BroadcastOp>(
-                                      loc, vectorTy32, constantValue);
+                                  Value padding = 
+                                      builder.create<vector::BroadcastOp>(
+                                          loc, vectorTy32, constantValue);
 
                                   Value leftPaddingOffset =
                                       builder.create<SubIOp>(loc, c0,
@@ -1076,8 +1078,9 @@ void traverseImagewBoundaryExtrapolation(
                                   Value paddingVal =
                                       builder.create<memref::LoadOp>(
                                           loc, input, ValueRange{imRow, c0});
-                                  Value padding = builder.create<BroadcastOp>(
-                                      loc, vectorTy32, paddingVal);
+                                  Value padding = 
+                                      builder.create<vector::BroadcastOp>(
+                                          loc, vectorTy32, paddingVal);
 
                                   Value leftPaddingOffset =
                                       builder.create<SubIOp>(loc, c0,
@@ -1165,7 +1168,7 @@ void traverseImagewBoundaryExtrapolation(
                                           buddy::dip::BoundaryOption::
                                               ConstantPadding) {
                                         Value padding =
-                                            builder.create<BroadcastOp>(
+                                            builder.create<vector::BroadcastOp>(
                                                 loc, vectorTy32, constantValue);
 
                                         inputVec = builder.create<MaskedLoadOp>(
@@ -1183,7 +1186,7 @@ void traverseImagewBoundaryExtrapolation(
                                                 loc, input,
                                                 ValueRange{imRow, rightRange});
                                         Value padding =
-                                            builder.create<BroadcastOp>(
+                                            builder.create<vector::BroadcastOp>(
                                                 loc, vectorTy32, paddingVal);
 
                                         inputVec = builder.create<MaskedLoadOp>(
@@ -1228,7 +1231,7 @@ void traverseImagewBoundaryExtrapolation(
                           // rowDown
                           if (boundaryOptionAttr ==
                               buddy::dip::BoundaryOption::ConstantPadding) {
-                            Value inputVec = builder.create<BroadcastOp>(
+                            Value inputVec = builder.create<vector::BroadcastOp>(
                                 loc, vectorTy32, constantValue);
 
                             if (op == DIP_OP::CORRELATION_2D) {
@@ -1272,8 +1275,9 @@ void traverseImagewBoundaryExtrapolation(
                                         builder.create<memref::LoadOp>(
                                             loc, input,
                                             ValueRange{downRange, c0});
-                                    Value padding = builder.create<BroadcastOp>(
-                                        loc, vectorTy32, paddingVal);
+                                    Value padding = 
+                                        builder.create<vector::BroadcastOp>(
+                                            loc, vectorTy32, paddingVal);
 
                                     Value leftPaddingOffset =
                                         builder.create<SubIOp>(loc, c0,

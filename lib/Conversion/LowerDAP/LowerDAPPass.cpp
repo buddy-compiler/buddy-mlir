@@ -116,9 +116,9 @@ public:
     Value x4 = rewriter.create<AddFOp>(loc, x2, x3);
     rewriter.create<memref::StoreOp>(loc, x4, output, ValueRange{c1});
 
-    Value Vecb0 = rewriter.create<BroadcastOp>(loc, vectorTy32, b0);
-    Value Vecb1 = rewriter.create<BroadcastOp>(loc, vectorTy32, b1);
-    Value Vecb2 = rewriter.create<BroadcastOp>(loc, vectorTy32, b2);
+    Value Vecb0 = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, b0);
+    Value Vecb1 = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, b1);
+    Value Vecb2 = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, b2);
 
     // A biquad filter expression:
     // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
@@ -239,9 +239,12 @@ public:
           Value temp2 = builder.create<AddFOp>(loc, temp0, temp1);
           builder.create<memref::StoreOp>(loc, temp2, output, ValueRange{c1});
 
-          Value Vecb0 = builder.create<BroadcastOp>(loc, vectorTy32, b0);
-          Value Vecb1 = builder.create<BroadcastOp>(loc, vectorTy32, b1);
-          Value Vecb2 = builder.create<BroadcastOp>(loc, vectorTy32, b2);
+          Value Vecb0 =
+              builder.create<vector::BroadcastOp>(loc, vectorTy32, b0);
+          Value Vecb1 =
+              builder.create<vector::BroadcastOp>(loc, vectorTy32, b1);
+          Value Vecb2 =
+              builder.create<vector::BroadcastOp>(loc, vectorTy32, b2);
 
           // A biquad filter expression:
           // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
@@ -262,7 +265,7 @@ public:
                                                          ValueRange{idx2});
 
                 Value outputVec =
-                    rewriter.create<BroadcastOp>(loc, vectorTy32, zr);
+                    rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zr);
                 Value resVec0 =
                     builder.create<FMAOp>(loc, inputVec0, Vecb0, outputVec);
                 Value resVec1 =
