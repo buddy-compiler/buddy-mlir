@@ -23,9 +23,12 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
+
+#include "Utils/Utils.h"
 
 using namespace mlir;
 using namespace vector;
@@ -44,7 +47,6 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
   // Get i1 as the element type for mask vector.
   IntegerType i1 = IntegerType::get(ctx, 1);
   // Define `*Type`.
-  VectorType vectorTy1 = mlir::VectorType::get({1}, f32);
   VectorType vectorTy32 = mlir::VectorType::get({stride}, f32);
   VectorType vectorMaskTy = VectorType::get({stride}, i1);
   // Create constant index.
@@ -82,77 +84,88 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
                 ValueRange itrArgs) {
               // Vectorize the kernel.
               // Broadcast element of the kernel.
-              Value kernelValue = builder.create<AffineVectorLoadOp>(
-                  loc, vectorTy1, kernel, ValueRange{ivs[1], ivs[2]});
-              Value kernelVector = builder.create<vector::BroadcastOp>(
-                  loc, vectorTy32, kernelValue);
-              // Load input vector from memref.
-              AffineExpr m, n, k, j;
-              bindDims(ctx, m, n, k, j);
-              AffineMap inputVectorMap = AffineMap::get(
-                  /*dimCount=*/4, /*symbolCount=*/0, {m + n, k + j * stride},
-                  ctx);
-              // Calculate the tail.
-              Value currCol =
-                  nestedBuilder.create<arith::MulIOp>(loc, iv, cStride);
-              Value tail =
-                  nestedBuilder.create<arith::SubIOp>(loc, outputCol, currCol);
-              Value tailCond = rewriter.create<arith::CmpIOp>(
-                  loc, arith::CmpIPredicate::sge, tail, cStride);
-              // If the current column does not reach the tail.
+              Value kernelValue = builder.create<memref::LoadOp>(
+                  loc, kernel, ValueRange{ivs[1], ivs[2]});
+              Value kernelNonZeroCond = zeroCond(builder, loc, f32, kernelValue,
+                                                 indexToF32(builder, loc, c0));
               builder.create<scf::IfOp>(
-                  loc, tailCond,
+                  loc, kernelNonZeroCond,
                   [&](OpBuilder &builder, Location loc) {
-                    Value inputVector =
-                        nestedBuilder.create<AffineVectorLoadOp>(
-                            loc, vectorTy32, input, inputVectorMap,
-                            ValueRange{ivs[0], ivs[1], ivs[2], iv});
-                    // Define AffineMap.
-                    // The `outputVector` and `resultVector` share the same
-                    // AffineMap.
-                    AffineExpr x, y;
-                    bindDims(ctx, x, y);
-                    AffineMap outputVectorMap = AffineMap::get(
-                        /*dimCount=*/2, /*symbolCount=*/0, {x, y * stride},
-                        ctx);
-                    Value outputVector =
-                        nestedBuilder.create<AffineVectorLoadOp>(
-                            loc, vectorTy32, output, outputVectorMap,
-                            ValueRange{ivs[0], iv});
-                    // FMA = Fused Multiply + Add
-                    Value resultVector = nestedBuilder.create<FMAOp>(
-                        loc, inputVector, kernelVector, outputVector);
-                    nestedBuilder.create<AffineVectorStoreOp>(
-                        loc, resultVector, output, outputVectorMap,
-                        ValueRange{ivs[0], iv});
-                    builder.create<scf::YieldOp>(loc);
-                  },
-                  // The else branch (the current column reaches the tail).
-                  [&](OpBuilder &builder, Location loc) {
-                    // Create mask according to the tail.
-                    Value tailMask =
-                        builder.create<CreateMaskOp>(loc, vectorMaskTy, tail);
-                    // Calculate the index of the input and output.
-                    Value inputRow = nestedBuilder.create<arith::AddIOp>(
-                        loc, ivs[0], ivs[1]);
-                    Value outputCol =
+                    Value kernelVector = builder.create<vector::BroadcastOp>(
+                        loc, vectorTy32, kernelValue);
+                    // Load input vector from memref.
+                    AffineExpr m, n, k, j;
+                    bindDims(ctx, m, n, k, j);
+                    AffineMap inputVectorMap = AffineMap::get(
+                        /*dimCount=*/4, /*symbolCount=*/0,
+                        {m + n, k + j * stride}, ctx);
+                    // Calculate the tail.
+                    Value currCol =
                         nestedBuilder.create<arith::MulIOp>(loc, iv, cStride);
-                    Value inputCol = nestedBuilder.create<arith::AddIOp>(
-                        loc, ivs[2], outputCol);
-                    // Masked load input and output.
-                    Value maskedInputVec = builder.create<MaskedLoadOp>(
-                        loc, vectorTy32, input, ValueRange{inputRow, inputCol},
-                        tailMask, passThroughVec);
-                    Value maskedOutputVec = builder.create<MaskedLoadOp>(
-                        loc, vectorTy32, output, ValueRange{ivs[0], outputCol},
-                        tailMask, passThroughVec);
-                    // FMA.
-                    Value resultVec = builder.create<FMAOp>(
-                        loc, maskedInputVec, kernelVector, maskedOutputVec);
-                    // Masked store the result to output.
-                    builder.create<MaskedStoreOp>(loc, output,
-                                                  ValueRange{ivs[0], outputCol},
-                                                  tailMask, resultVec);
+                    Value tail = nestedBuilder.create<arith::SubIOp>(
+                        loc, outputCol, currCol);
+                    Value tailCond = rewriter.create<arith::CmpIOp>(
+                        loc, arith::CmpIPredicate::sge, tail, cStride);
+                    // If the current column does not reach the tail.
+                    builder.create<scf::IfOp>(
+                        loc, tailCond,
+                        [&](OpBuilder &builder, Location loc) {
+                          Value inputVector =
+                              nestedBuilder.create<AffineVectorLoadOp>(
+                                  loc, vectorTy32, input, inputVectorMap,
+                                  ValueRange{ivs[0], ivs[1], ivs[2], iv});
+                          // Define AffineMap.
+                          // The `outputVector` and `resultVector` share the
+                          // same AffineMap.
+                          AffineExpr x, y;
+                          bindDims(ctx, x, y);
+                          AffineMap outputVectorMap = AffineMap::get(
+                              /*dimCount=*/2, /*symbolCount=*/0,
+                              {x, y * stride}, ctx);
+                          Value outputVector =
+                              nestedBuilder.create<AffineVectorLoadOp>(
+                                  loc, vectorTy32, output, outputVectorMap,
+                                  ValueRange{ivs[0], iv});
+                          // FMA = Fused Multiply + Add
+                          Value resultVector = nestedBuilder.create<FMAOp>(
+                              loc, inputVector, kernelVector, outputVector);
+                          nestedBuilder.create<AffineVectorStoreOp>(
+                              loc, resultVector, output, outputVectorMap,
+                              ValueRange{ivs[0], iv});
+                          builder.create<scf::YieldOp>(loc);
+                        },
+                        // The else branch (the current column reaches the
+                        // tail).
+                        [&](OpBuilder &builder, Location loc) {
+                          // Create mask according to the tail.
+                          Value tailMask = builder.create<CreateMaskOp>(
+                              loc, vectorMaskTy, tail);
+                          // Calculate the index of the input and output.
+                          Value inputRow = nestedBuilder.create<arith::AddIOp>(
+                              loc, ivs[0], ivs[1]);
+                          Value outputCol = nestedBuilder.create<arith::MulIOp>(
+                              loc, iv, cStride);
+                          Value inputCol = nestedBuilder.create<arith::AddIOp>(
+                              loc, ivs[2], outputCol);
+                          // Masked load input and output.
+                          Value maskedInputVec = builder.create<MaskedLoadOp>(
+                              loc, vectorTy32, input,
+                              ValueRange{inputRow, inputCol}, tailMask,
+                              passThroughVec);
+                          Value maskedOutputVec = builder.create<MaskedLoadOp>(
+                              loc, vectorTy32, output,
+                              ValueRange{ivs[0], outputCol}, tailMask,
+                              passThroughVec);
+                          // FMA.
+                          Value resultVec = builder.create<FMAOp>(
+                              loc, maskedInputVec, kernelVector,
+                              maskedOutputVec);
+                          // Masked store the result to output.
+                          builder.create<MaskedStoreOp>(
+                              loc, output, ValueRange{ivs[0], outputCol},
+                              tailMask, resultVec);
+                          builder.create<scf::YieldOp>(loc);
+                        });
                     builder.create<scf::YieldOp>(loc);
                   });
               nestedBuilder.create<AffineYieldOp>(nestedLoc);
@@ -292,7 +305,7 @@ void ConvVectorizationPass::runOnOperation() {
   ConversionTarget target(*context);
   target.addLegalDialect<arith::ArithDialect, AffineDialect, scf::SCFDialect,
                          func::FuncDialect, memref::MemRefDialect,
-                         VectorDialect>();
+                         VectorDialect, math::MathDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
 

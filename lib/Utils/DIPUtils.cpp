@@ -652,19 +652,6 @@ void BilinearInterpolationResizing(
       });
 }
 
-// Function to test whether a value is equivalent to zero or not.
-Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
-               Value zeroElem) {
-  Value cond;
-  auto bitWidth = elemType.getIntOrFloatBitWidth();
-  if (elemType.isF32() || elemType.isF64()) {
-    cond = builder.create<CmpFOp>(loc, CmpFPredicate::ONE, value, zeroElem);
-  } else if (elemType.isInteger(bitWidth)) {
-    cond = builder.create<CmpIOp>(loc, CmpIPredicate::ne, value, zeroElem);
-  }
-  return cond;
-}
-
 // Util function for morphological transformations ; compares two vectors and
 // returns a mask
 Value createCompVecMorph(OpBuilder &builder, Location loc, VectorType type,
