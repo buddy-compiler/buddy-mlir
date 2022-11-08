@@ -22,12 +22,25 @@
 #ifndef UTILS_DIPUTILS_DEF
 #define UTILS_DIPUTILS_DEF
 
-#include <stdarg.h>
+#include <mlir/Dialect/Affine/IR/AffineOps.h>
+#include <mlir/Dialect/Affine/IR/AffineValueMap.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
+#include <mlir/Dialect/Math/IR/Math.h>
+#include <mlir/Dialect/MemRef/IR/MemRef.h>
+#include <mlir/Dialect/SCF/IR/SCF.h>
+#include <mlir/Dialect/Vector/IR/VectorOps.h>
+#include <mlir/IR/MLIRContext.h>
+#include <mlir/IR/Value.h>
 
+#include "DIP/DIPDialect.h"
+#include "DIP/DIPOps.h"
 #include "Utils/DIPUtils.h"
+#include "Utils/Utils.h"
 
 using namespace mlir;
-using namespace mlir::detail;
+
+namespace buddy {
+namespace dip {
 
 // Inserts a constant op with value 0 into a location `loc` based on type
 // `type`. Supported types are : f32, f64, integer types.
@@ -39,176 +52,13 @@ Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
     FloatType type =
         elemTy.isF32() ? FloatType::getF32(ctx) : FloatType::getF64(ctx);
     auto zero = APFloat::getZero(type.getFloatSemantics());
-    op = builder.create<ConstantFloatOp>(loc, zero, type);
+    op = builder.create<arith::ConstantFloatOp>(loc, zero, type);
   } else if (elemTy.isInteger(bitWidth)) {
     IntegerType type = IntegerType::get(ctx, bitWidth);
-    op = builder.create<ConstantIntOp>(loc, 0, type);
+    op = builder.create<arith::ConstantIntOp>(loc, 0, type);
   }
 
   return op;
-}
-
-// Function for applying type check mechanisms for all DIP dialect operations.
-template <typename DIPOP>
-auto checkDIPCommonTypes(DIPOP op, size_t numArgs, ...) {
-  if (op->getName().stripDialect() == "corr_2d") {
-    // Define variable arguments list.
-    va_list vaList;
-
-    // Specify total number of arguments to be accessed using the variable
-    // arguments list.
-    va_start(vaList, numArgs);
-
-    auto inElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto kElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto constElemTy = va_arg(vaList, Value).getType();
-    if (inElemTy != kElemTy || kElemTy != outElemTy ||
-        outElemTy != constElemTy) {
-      return DIP_ERROR::INCONSISTENT_TYPES;
-    }
-
-    // NB: we can infer element type for all related memrefs to be the same as
-    // input since we verified that the operand types are the same.
-    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    if (!inElemTy.isF64() && !inElemTy.isF32() &&
-        !inElemTy.isInteger(bitWidth)) {
-      return DIP_ERROR::UNSUPPORTED_TYPE;
-    }
-  } else if (op->getName().stripDialect() == "rotate_2d" ||
-             op->getName().stripDialect() == "resize_2d") {
-    // Define variable arguments list.
-    va_list vaList;
-
-    // Specify total number of arguments to be accessed using the variable
-    // arguments list.
-    va_start(vaList, numArgs);
-
-    auto inElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    if (inElemTy != outElemTy) {
-      return DIP_ERROR::INCONSISTENT_TYPES;
-    }
-
-    // NB: we can infer element type for all related memrefs to be the same as
-    // input since we verified that the operand types are the same.
-    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    if (!inElemTy.isF64() && !inElemTy.isF32() &&
-        !inElemTy.isInteger(bitWidth)) {
-      return DIP_ERROR::UNSUPPORTED_TYPE;
-    }
-  } else if (op->getName().stripDialect() == "erosion_2d" ||
-             op->getName().stripDialect() == "dilation_2d") {
-    // Define variable arguments list.
-    va_list vaList;
-
-    // Specify total number of arguments to be accessed using the variable
-    // arguments list.
-    va_start(vaList, numArgs);
-
-    auto inElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto kElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto copyElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto constElemTy = va_arg(vaList, Value).getType();
-    if (inElemTy != kElemTy || kElemTy != outElemTy ||
-        outElemTy != copyElemTy || copyElemTy != constElemTy) {
-      return DIP_ERROR::INCONSISTENT_TYPES;
-    }
-
-    // NB: we can infer element type for all related memrefs to be the same as
-    // input since we verified that the operand types are the same.
-    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    if (!inElemTy.isF64() && !inElemTy.isF32() &&
-        !inElemTy.isInteger(bitWidth)) {
-      return DIP_ERROR::UNSUPPORTED_TYPE;
-    }
-  } else if (op->getName().stripDialect() == "opening_2d" ||
-             op->getName().stripDialect() == "closing_2d") {
-    // Define variable arguments list.
-    va_list vaList;
-
-    // Specify total number of arguments to be accessed using the variable
-    // arguments list.
-    va_start(vaList, numArgs);
-
-    auto inElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto kElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy1 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto copyElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto copyElemTy1 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto constElemTy = va_arg(vaList, Value).getType();
-    if (inElemTy != kElemTy || kElemTy != outElemTy ||
-        outElemTy != outElemTy1 || outElemTy1 != copyElemTy ||
-        copyElemTy != copyElemTy1 || copyElemTy1 != constElemTy) {
-      return DIP_ERROR::INCONSISTENT_TYPES;
-    }
-
-    // NB: we can infer element type for all related memrefs to be the same as
-    // input since we verified that the operand types are the same.
-    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    if (!inElemTy.isF64() && !inElemTy.isF32() &&
-        !inElemTy.isInteger(bitWidth)) {
-      return DIP_ERROR::UNSUPPORTED_TYPE;
-    }
-  } else if (op->getName().stripDialect() == "tophat_2d" ||
-             op->getName().stripDialect() == "bottomhat_2d" ||
-             op->getName().stripDialect() == "morphgrad_2d") {
-    va_list vaList;
-
-    // Specify total number of arguments to be accessed using the variable
-    // arguments list.
-    va_start(vaList, numArgs);
-
-    auto inElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto kElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy1 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy2 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto inElemTy1 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto copyElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto copyElemTy1 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto constElemTy = va_arg(vaList, Value).getType();
-    if (inElemTy != kElemTy || kElemTy != outElemTy ||
-        outElemTy != outElemTy1 || outElemTy1 != outElemTy2 ||
-        outElemTy2 != inElemTy1 || inElemTy1 != copyElemTy ||
-        copyElemTy != copyElemTy1 || copyElemTy1 != constElemTy) {
-      return DIP_ERROR::INCONSISTENT_TYPES;
-    }
-
-    // NB: we can infer element type for all related memrefs to be the same as
-    // input since we verified that the operand types are the same.
-    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    if (!inElemTy.isF64() && !inElemTy.isF32() &&
-        !inElemTy.isInteger(bitWidth)) {
-      return DIP_ERROR::UNSUPPORTED_TYPE;
-    }
-  }
-  return DIP_ERROR::NO_ERROR;
 }
 
 // Inserts FMA operation into a given location `loc` based on type `type`.
@@ -236,11 +86,12 @@ void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
                                      VectorType vecType, Value inputVec,
                                      Value kernelVec, Value output,
                                      Value beginIdx, Value endIdx) {
-  Value outputVec = builder.create<LoadOp>(loc, vecType, output,
-                                           ValueRange{beginIdx, endIdx});
+  Value outputVec = builder.create<vector::LoadOp>(
+      loc, vecType, output, ValueRange{beginIdx, endIdx});
   Value resVec =
       insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
-  builder.create<StoreOp>(loc, resVec, output, ValueRange{beginIdx, endIdx});
+  builder.create<vector::StoreOp>(loc, resVec, output,
+                                  ValueRange{beginIdx, endIdx});
 }
 
 // Checks if we encountered a tail (columns remaining after processing in
@@ -250,18 +101,19 @@ Value tailChecker(OpBuilder &builder, Location loc, AffineMap calcHelper,
                   Value colPivot) {
   Value tailChecker = builder.create<AffineApplyOp>(
       loc, calcHelper, ValueRange{strideVal, kernelSize, c1});
-  Value colEndDistance = builder.create<SubIOp>(loc, pseudoCol, colPivot);
-  Value tailCond = builder.create<CmpIOp>(loc, CmpIPredicate::sge,
-                                          colEndDistance, tailChecker);
+  Value colEndDistance =
+      builder.create<arith::SubIOp>(loc, pseudoCol, colPivot);
+  Value tailCond = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
+                                                 colEndDistance, tailChecker);
   return tailCond;
 }
 
 // Creates the required mask which is to be used for tail processing.
 Value tailMaskCreator(OpBuilder &builder, Location loc, Value inputCol,
                       Value colPivot, VectorType vectorMaskTy) {
-  Value extraElemCount = builder.create<SubIOp>(loc, inputCol, colPivot);
+  Value extraElemCount = builder.create<arith::SubIOp>(loc, inputCol, colPivot);
   Value tailMask =
-      builder.create<CreateMaskOp>(loc, vectorMaskTy, extraElemCount);
+      builder.create<vector::CreateMaskOp>(loc, vectorMaskTy, extraElemCount);
   return tailMask;
 }
 
@@ -276,25 +128,25 @@ void calcAndStoreFMAwTailProcessing(OpBuilder &builder, Location loc,
   builder.create<scf::IfOp>(
       loc, tailCond,
       [&](OpBuilder &builder, Location loc) {
-        Value outputVec = builder.create<LoadOp>(loc, vecType, output,
-                                                 ValueRange{beginIdx, endIdx});
+        Value outputVec = builder.create<vector::LoadOp>(
+            loc, vecType, output, ValueRange{beginIdx, endIdx});
         Value resVec =
             insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
-        builder.create<StoreOp>(loc, resVec, output,
-                                ValueRange{beginIdx, endIdx});
+        builder.create<vector::StoreOp>(loc, resVec, output,
+                                        ValueRange{beginIdx, endIdx});
 
         builder.create<scf::YieldOp>(loc);
       },
       [&](OpBuilder &builder, Location loc) {
         Value extraElemMask =
             tailMaskCreator(builder, loc, inputCol, endIdx, vectorMaskTy);
-        Value outputVec = builder.create<MaskedLoadOp>(
+        Value outputVec = builder.create<vector::MaskedLoadOp>(
             loc, vecType, output, ValueRange{beginIdx, endIdx}, extraElemMask,
             zeroPadding);
         Value resVec =
             insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
-        builder.create<MaskedStoreOp>(loc, output, ValueRange{beginIdx, endIdx},
-                                      extraElemMask, resVec);
+        builder.create<vector::MaskedStoreOp>(
+            loc, output, ValueRange{beginIdx, endIdx}, extraElemMask, resVec);
 
         builder.create<scf::YieldOp>(loc);
       });
@@ -338,10 +190,10 @@ std::vector<Value> standardRotate(OpBuilder &builder, Location loc,
 // Get center co-ordinates w.r.t given dimension.
 Value getCenter(OpBuilder &builder, Location loc, MLIRContext *ctx, Value dim) {
   Value dimF32 = indexToF32(builder, loc, dim);
-  Value c1f = builder.create<ConstantFloatOp>(loc, (llvm::APFloat)1.0f,
-                                              builder.getF32Type());
-  Value c2f = builder.create<ConstantFloatOp>(loc, (llvm::APFloat)2.0f,
-                                              builder.getF32Type());
+  Value c1f = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)1.0f,
+                                                     builder.getF32Type());
+  Value c2f = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)2.0f,
+                                                     builder.getF32Type());
 
   Value temp1 = builder.create<arith::AddFOp>(loc, dimF32, c1f);
   Value temp2 = builder.create<arith::DivFOp>(loc, temp1, c2f);
@@ -408,8 +260,8 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
 
 // Calculate tan(angle / 2) where angle is a function parameter.
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal) {
-  Value c2F32 = builder.create<ConstantFloatOp>(loc, (llvm::APFloat)2.0f,
-                                                builder.getF32Type());
+  Value c2F32 = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)2.0f,
+                                                       builder.getF32Type());
   Value angleVal_2 = builder.create<arith::DivFOp>(loc, angleVal, c2F32);
 
   Value sinVal = builder.create<math::SinOp>(loc, angleVal_2);
@@ -661,9 +513,11 @@ Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
   Value cond;
   auto bitWidth = elemType.getIntOrFloatBitWidth();
   if (elemType.isF32() || elemType.isF64()) {
-    cond = builder.create<CmpFOp>(loc, CmpFPredicate::ONE, value, zeroElem);
+    cond = builder.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ONE, value,
+                                         zeroElem);
   } else if (elemType.isInteger(bitWidth)) {
-    cond = builder.create<CmpIOp>(loc, CmpIPredicate::ne, value, zeroElem);
+    cond = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, value,
+                                         zeroElem);
   }
   return cond;
 }
@@ -677,19 +531,19 @@ Value createCompVecMorph(OpBuilder &builder, Location loc, VectorType type,
   auto bitWidth = elemTy.getIntOrFloatBitWidth();
   if (elemTy.isF32() || elemTy.isF64()) {
     if (op == DIP_OP::EROSION_2D) {
-      compVec =
-          builder.create<CmpFOp>(loc, CmpFPredicate::OGE, inputVec, outputVec);
+      compVec = builder.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OGE,
+                                              inputVec, outputVec);
     } else if (op == DIP_OP::DILATION_2D) {
-      compVec =
-          builder.create<CmpFOp>(loc, CmpFPredicate::OLE, inputVec, outputVec);
+      compVec = builder.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OLE,
+                                              inputVec, outputVec);
     }
   } else if (elemTy.isInteger(bitWidth)) {
     if (op == DIP_OP::EROSION_2D) {
-      compVec =
-          builder.create<CmpIOp>(loc, CmpIPredicate::sge, inputVec, outputVec);
+      compVec = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
+                                              inputVec, outputVec);
     } else if (op == DIP_OP::DILATION_2D) {
-      compVec =
-          builder.create<CmpIOp>(loc, CmpIPredicate::sle, inputVec, outputVec);
+      compVec = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sle,
+                                              inputVec, outputVec);
     }
   }
   return compVec;
@@ -701,8 +555,8 @@ void calcAndStorewoTailProcessingMorph(
     Value kernelVec, Value output, Value beginIdx, Value endIdx,
     Value zeroPadding, Value inputCol, VectorType vectorMaskTy, Type elemTy,
     Value kernelValue, Value zeroPaddingElem, DIP_OP op) {
-  Value outputVec = builder.create<LoadOp>(loc, vecType, output,
-                                           ValueRange{beginIdx, endIdx});
+  Value outputVec = builder.create<vector::LoadOp>(
+      loc, vecType, output, ValueRange{beginIdx, endIdx});
   Value compVec = {};
   if (op == DIP_OP::EROSION_2D) {
     compVec = createCompVecMorph(builder, loc, vecType, inputVec, outputVec,
@@ -712,10 +566,11 @@ void calcAndStorewoTailProcessingMorph(
                                  DIP_OP::DILATION_2D);
   }
 
-  Value resVec = builder.create<MaskedLoadOp>(
+  Value resVec = builder.create<vector::MaskedLoadOp>(
       loc, vecType, output, ValueRange{beginIdx, endIdx}, compVec, inputVec);
 
-  builder.create<StoreOp>(loc, resVec, output, ValueRange{beginIdx, endIdx});
+  builder.create<vector::StoreOp>(loc, resVec, output,
+                                  ValueRange{beginIdx, endIdx});
 }
 
 // Utility function for morphological transformations, can handle tail
@@ -728,8 +583,8 @@ void calcAndStorewTailProcessingMorph(
   builder.create<scf::IfOp>(
       loc, tailCond,
       [&](OpBuilder &builder, Location loc) {
-        Value outputVec = builder.create<LoadOp>(loc, vecType, output,
-                                                 ValueRange{beginIdx, endIdx});
+        Value outputVec = builder.create<vector::LoadOp>(
+            loc, vecType, output, ValueRange{beginIdx, endIdx});
 
         Value compVec = {};
         if (op == DIP_OP::EROSION_2D) {
@@ -740,12 +595,12 @@ void calcAndStorewTailProcessingMorph(
                                        outputVec, DIP_OP::DILATION_2D);
         }
 
-        Value resVec = builder.create<MaskedLoadOp>(
+        Value resVec = builder.create<vector::MaskedLoadOp>(
             loc, vecType, output, ValueRange{beginIdx, endIdx}, compVec,
             inputVec);
 
-        builder.create<StoreOp>(loc, resVec, output,
-                                ValueRange{beginIdx, endIdx});
+        builder.create<vector::StoreOp>(loc, resVec, output,
+                                        ValueRange{beginIdx, endIdx});
 
         builder.create<scf::YieldOp>(loc);
       },
@@ -753,7 +608,7 @@ void calcAndStorewTailProcessingMorph(
         Value extraElemMask =
             tailMaskCreator(builder, loc, inputCol, endIdx, vectorMaskTy);
 
-        Value outputVec = builder.create<MaskedLoadOp>(
+        Value outputVec = builder.create<vector::MaskedLoadOp>(
             loc, vecType, output, ValueRange{beginIdx, endIdx}, extraElemMask,
             zeroPadding);
 
@@ -766,12 +621,12 @@ void calcAndStorewTailProcessingMorph(
                                        outputVec, DIP_OP::DILATION_2D);
         }
 
-        Value resVec = builder.create<MaskedLoadOp>(
+        Value resVec = builder.create<vector::MaskedLoadOp>(
             loc, vecType, output, ValueRange{beginIdx, endIdx}, compVec,
             inputVec);
 
-        builder.create<MaskedStoreOp>(loc, output, ValueRange{beginIdx, endIdx},
-                                      extraElemMask, resVec);
+        builder.create<vector::MaskedStoreOp>(
+            loc, output, ValueRange{beginIdx, endIdx}, extraElemMask, resVec);
 
         builder.create<scf::YieldOp>(loc);
       });
@@ -783,8 +638,8 @@ void traverseImagewBoundaryExtrapolation(
     Value constantValue, Value strideVal, Type elemTy,
     buddy::dip::BoundaryOption boundaryOptionAttr, int64_t stride, DIP_OP op) {
   // Create constant indices.
-  Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-  Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+  Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+  Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
   IntegerType i1 = IntegerType::get(ctx, 1);
 
@@ -795,8 +650,8 @@ void traverseImagewBoundaryExtrapolation(
 
   // Variables used for detecting rowMid, rowDown, colMid and colRight
   // regions.
-  Value rowMidHelper = rewriter.create<AddIOp>(loc, inputRow, centerY);
-  Value colMidHelper = rewriter.create<AddIOp>(loc, inputCol, centerX);
+  Value rowMidHelper = rewriter.create<arith::AddIOp>(loc, inputRow, centerY);
+  Value colMidHelper = rewriter.create<arith::AddIOp>(loc, inputCol, centerX);
 
   SmallVector<Value, 8> lowerBounds(4, c0);
   SmallVector<Value, 8> uperBounds{inputRow, kernelSize, inputCol, kernelSize};
@@ -807,7 +662,7 @@ void traverseImagewBoundaryExtrapolation(
 
   Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, elemTy);
   Value zeroPadding =
-      rewriter.create<BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
+      rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
   AffineExpr a, b, c;
   bindDims(ctx, a, b, c);
@@ -821,23 +676,24 @@ void traverseImagewBoundaryExtrapolation(
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         // Indices of current pixel with respect to pseudo image containing
         // extrapolated boundaries.
-        Value currRow = builder.create<AddIOp>(loc, ivs[0], ivs[1]);
-        Value currCol = builder.create<AddIOp>(loc, ivs[2], ivs[3]);
+        Value currRow = builder.create<arith::AddIOp>(loc, ivs[0], ivs[1]);
+        Value currCol = builder.create<arith::AddIOp>(loc, ivs[2], ivs[3]);
 
         Value kernelValue = builder.create<memref::LoadOp>(
             loc, kernel, ValueRange{ivs[1], ivs[3]});
         Value kernelVec =
-            builder.create<BroadcastOp>(loc, vectorTy32, kernelValue);
+            builder.create<vector::BroadcastOp>(loc, vectorTy32, kernelValue);
 
         // Pixel indices with respect to the actual image.
-        Value imRow = builder.create<SubIOp>(loc, currRow, centerY);
-        Value imCol = builder.create<SubIOp>(loc, currCol, centerX);
+        Value imRow = builder.create<arith::SubIOp>(loc, currRow, centerY);
+        Value imCol = builder.create<arith::SubIOp>(loc, currCol, centerX);
 
         // Index of pixel used for determining right region.
-        Value colLastElem = builder.create<AddIOp>(loc, currCol, strideVal);
+        Value colLastElem =
+            builder.create<arith::AddIOp>(loc, currCol, strideVal);
 
-        Value rowUpCond =
-            builder.create<CmpIOp>(loc, CmpIPredicate::slt, currRow, centerY);
+        Value rowUpCond = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::slt, currRow, centerY);
 
         // Condition to check if the kernel value is a non-zero number.
         Value kernelNonZeroCond =
@@ -850,7 +706,7 @@ void traverseImagewBoundaryExtrapolation(
                     // rowUp
                     if (boundaryOptionAttr ==
                         buddy::dip::BoundaryOption::ConstantPadding) {
-                      Value inputVec = builder.create<BroadcastOp>(
+                      Value inputVec = builder.create<vector::BroadcastOp>(
                           loc, vectorTy32, constantValue);
                       if (op == DIP_OP::CORRELATION_2D) {
                         calcAndStoreFMAwoTailProcessing(
@@ -878,16 +734,16 @@ void traverseImagewBoundaryExtrapolation(
                             zeroPaddingElem, DIP_OP::EROSION_2D);
                       }
                     } else {
-                      Value colLeftCond = builder.create<CmpIOp>(
-                          loc, CmpIPredicate::slt, currCol, centerX);
+                      Value colLeftCond = builder.create<arith::CmpIOp>(
+                          loc, arith::CmpIPredicate::slt, currCol, centerX);
 
                       builder.create<scf::IfOp>(
                           loc, colLeftCond,
                           [&](OpBuilder &builder, Location loc) {
                             // colLeft & rowUp
                             Value inputVec;
-                            Value leftMaskElem =
-                                builder.create<SubIOp>(loc, centerX, currCol);
+                            Value leftMaskElem = builder.create<arith::SubIOp>(
+                                loc, centerX, currCol);
                             Value leftMask =
                                 createInvertedMask(builder, loc, strideVal,
                                                    vectorMaskTy, leftMaskElem);
@@ -896,11 +752,13 @@ void traverseImagewBoundaryExtrapolation(
                                 buddy::dip::BoundaryOption::ReplicatePadding) {
                               Value paddingVal = builder.create<memref::LoadOp>(
                                   loc, input, ValueRange{c0, c0});
-                              Value padding = builder.create<BroadcastOp>(
-                                  loc, vectorTy32, paddingVal);
+                              Value padding =
+                                  builder.create<vector::BroadcastOp>(
+                                      loc, vectorTy32, paddingVal);
 
                               Value leftPaddingOffset =
-                                  builder.create<SubIOp>(loc, c0, leftMaskElem);
+                                  builder.create<arith::SubIOp>(loc, c0,
+                                                                leftMaskElem);
                               inputVec = builder.create<vector::MaskedLoadOp>(
                                   loc, vectorTy32, input,
                                   ValueRange{c0, leftPaddingOffset}, leftMask,
@@ -929,8 +787,8 @@ void traverseImagewBoundaryExtrapolation(
                           },
                           [&](OpBuilder &builder, Location loc) {
                             // (colMid or colRight) & rowUp
-                            Value colMidCond = builder.create<CmpIOp>(
-                                loc, CmpIPredicate::slt, colLastElem,
+                            Value colMidCond = builder.create<arith::CmpIOp>(
+                                loc, arith::CmpIPredicate::slt, colLastElem,
                                 colMidHelper);
 
                             builder.create<scf::IfOp>(
@@ -941,7 +799,7 @@ void traverseImagewBoundaryExtrapolation(
                                   if (boundaryOptionAttr ==
                                       buddy::dip::BoundaryOption::
                                           ReplicatePadding) {
-                                    inputVec = builder.create<LoadOp>(
+                                    inputVec = builder.create<vector::LoadOp>(
                                         loc, vectorTy32, input,
                                         ValueRange{c0, imCol});
                                   }
@@ -971,30 +829,34 @@ void traverseImagewBoundaryExtrapolation(
                                   // colRight & rowUp
                                   Value inputVec;
                                   Value rightMaskHelper =
-                                      builder.create<SubIOp>(loc, colLastElem,
-                                                             colMidHelper);
-                                  Value rightMaskElem = builder.create<SubIOp>(
-                                      loc, strideVal, rightMaskHelper);
+                                      builder.create<arith::SubIOp>(
+                                          loc, colLastElem, colMidHelper);
+                                  Value rightMaskElem =
+                                      builder.create<arith::SubIOp>(
+                                          loc, strideVal, rightMaskHelper);
                                   Value rightMask =
-                                      builder.create<CreateMaskOp>(
+                                      builder.create<vector::CreateMaskOp>(
                                           loc, vectorMaskTy, rightMaskElem);
 
                                   if (boundaryOptionAttr ==
                                       buddy::dip::BoundaryOption::
                                           ReplicatePadding) {
-                                    Value rightRange = builder.create<SubIOp>(
-                                        loc, inputCol, c1);
+                                    Value rightRange =
+                                        builder.create<arith::SubIOp>(
+                                            loc, inputCol, c1);
                                     Value paddingVal =
                                         builder.create<memref::LoadOp>(
                                             loc, input,
                                             ValueRange{c0, rightRange});
-                                    Value padding = builder.create<BroadcastOp>(
-                                        loc, vectorTy32, paddingVal);
+                                    Value padding =
+                                        builder.create<vector::BroadcastOp>(
+                                            loc, vectorTy32, paddingVal);
 
-                                    inputVec = builder.create<MaskedLoadOp>(
-                                        loc, vectorTy32, input,
-                                        ValueRange{c0, imCol}, rightMask,
-                                        padding);
+                                    inputVec =
+                                        builder.create<vector::MaskedLoadOp>(
+                                            loc, vectorTy32, input,
+                                            ValueRange{c0, imCol}, rightMask,
+                                            padding);
                                   }
                                   Value tailCond = tailChecker(
                                       builder, loc, calcHelper, strideVal,
@@ -1031,23 +893,24 @@ void traverseImagewBoundaryExtrapolation(
                   },
                   [&](OpBuilder &builder, Location loc) {
                     // rowMid or rowDown
-                    Value rowMidCond = builder.create<CmpIOp>(
-                        loc, CmpIPredicate::slt, currRow, rowMidHelper);
+                    Value rowMidCond = builder.create<arith::CmpIOp>(
+                        loc, arith::CmpIPredicate::slt, currRow, rowMidHelper);
 
                     builder.create<scf::IfOp>(
                         loc, rowMidCond,
                         [&](OpBuilder &builder, Location loc) {
                           // rowMid
-                          Value colLeftCond = builder.create<CmpIOp>(
-                              loc, CmpIPredicate::slt, currCol, centerX);
+                          Value colLeftCond = builder.create<arith::CmpIOp>(
+                              loc, arith::CmpIPredicate::slt, currCol, centerX);
 
                           builder.create<scf::IfOp>(
                               loc, colLeftCond,
                               [&](OpBuilder &builder, Location loc) {
                                 // colLeft & rowMid
                                 Value inputVec;
-                                Value leftMaskElem = builder.create<SubIOp>(
-                                    loc, centerX, currCol);
+                                Value leftMaskElem =
+                                    builder.create<arith::SubIOp>(loc, centerX,
+                                                                  currCol);
                                 Value leftMask = createInvertedMask(
                                     builder, loc, strideVal, vectorMaskTy,
                                     leftMaskElem);
@@ -1055,32 +918,36 @@ void traverseImagewBoundaryExtrapolation(
                                 if (boundaryOptionAttr ==
                                     buddy::dip::BoundaryOption::
                                         ConstantPadding) {
-                                  Value padding = builder.create<BroadcastOp>(
-                                      loc, vectorTy32, constantValue);
+                                  Value padding =
+                                      builder.create<vector::BroadcastOp>(
+                                          loc, vectorTy32, constantValue);
 
                                   Value leftPaddingOffset =
-                                      builder.create<SubIOp>(loc, c0,
-                                                             leftMaskElem);
-                                  inputVec = builder.create<MaskedLoadOp>(
-                                      loc, vectorTy32, input,
-                                      ValueRange{imRow, leftPaddingOffset},
-                                      leftMask, padding);
+                                      builder.create<arith::SubIOp>(
+                                          loc, c0, leftMaskElem);
+                                  inputVec =
+                                      builder.create<vector::MaskedLoadOp>(
+                                          loc, vectorTy32, input,
+                                          ValueRange{imRow, leftPaddingOffset},
+                                          leftMask, padding);
                                 } else if (boundaryOptionAttr ==
                                            buddy::dip::BoundaryOption::
                                                ReplicatePadding) {
                                   Value paddingVal =
                                       builder.create<memref::LoadOp>(
                                           loc, input, ValueRange{imRow, c0});
-                                  Value padding = builder.create<BroadcastOp>(
-                                      loc, vectorTy32, paddingVal);
+                                  Value padding =
+                                      builder.create<vector::BroadcastOp>(
+                                          loc, vectorTy32, paddingVal);
 
                                   Value leftPaddingOffset =
-                                      builder.create<SubIOp>(loc, c0,
-                                                             leftMaskElem);
-                                  inputVec = builder.create<MaskedLoadOp>(
-                                      loc, vectorTy32, input,
-                                      ValueRange{imRow, leftPaddingOffset},
-                                      leftMask, padding);
+                                      builder.create<arith::SubIOp>(
+                                          loc, c0, leftMaskElem);
+                                  inputVec =
+                                      builder.create<vector::MaskedLoadOp>(
+                                          loc, vectorTy32, input,
+                                          ValueRange{imRow, leftPaddingOffset},
+                                          leftMask, padding);
                                 }
 
                                 if (op == DIP_OP::CORRELATION_2D) {
@@ -1107,17 +974,19 @@ void traverseImagewBoundaryExtrapolation(
                               },
                               [&](OpBuilder &builder, Location loc) {
                                 // (colMid or colRight) & rowMid
-                                Value colMidCond = builder.create<CmpIOp>(
-                                    loc, CmpIPredicate::slt, colLastElem,
-                                    colMidHelper);
+                                Value colMidCond =
+                                    builder.create<arith::CmpIOp>(
+                                        loc, arith::CmpIPredicate::slt,
+                                        colLastElem, colMidHelper);
 
                                 builder.create<scf::IfOp>(
                                     loc, colMidCond,
                                     [&](OpBuilder &builder, Location loc) {
                                       // colMid & rowMid
-                                      Value inputVec = builder.create<LoadOp>(
-                                          loc, vectorTy32, input,
-                                          ValueRange{imRow, imCol});
+                                      Value inputVec =
+                                          builder.create<vector::LoadOp>(
+                                              loc, vectorTy32, input,
+                                              ValueRange{imRow, imCol});
 
                                       if (op == DIP_OP::CORRELATION_2D) {
                                         calcAndStoreFMAwoTailProcessing(
@@ -1147,44 +1016,48 @@ void traverseImagewBoundaryExtrapolation(
                                       // colRight & rowMid
                                       Value inputVec;
                                       Value rightMaskHelper =
-                                          builder.create<SubIOp>(
+                                          builder.create<arith::SubIOp>(
                                               loc, colLastElem, colMidHelper);
                                       Value rightMaskElem =
-                                          builder.create<SubIOp>(
+                                          builder.create<arith::SubIOp>(
                                               loc, strideVal, rightMaskHelper);
                                       Value rightMask =
-                                          builder.create<CreateMaskOp>(
+                                          builder.create<vector::CreateMaskOp>(
                                               loc, vectorMaskTy, rightMaskElem);
 
                                       if (boundaryOptionAttr ==
                                           buddy::dip::BoundaryOption::
                                               ConstantPadding) {
                                         Value padding =
-                                            builder.create<BroadcastOp>(
+                                            builder.create<vector::BroadcastOp>(
                                                 loc, vectorTy32, constantValue);
 
-                                        inputVec = builder.create<MaskedLoadOp>(
-                                            loc, vectorTy32, input,
-                                            ValueRange{imRow, imCol}, rightMask,
-                                            padding);
+                                        inputVec =
+                                            builder
+                                                .create<vector::MaskedLoadOp>(
+                                                    loc, vectorTy32, input,
+                                                    ValueRange{imRow, imCol},
+                                                    rightMask, padding);
                                       } else if (boundaryOptionAttr ==
                                                  buddy::dip::BoundaryOption::
                                                      ReplicatePadding) {
                                         Value rightRange =
-                                            builder.create<SubIOp>(
+                                            builder.create<arith::SubIOp>(
                                                 loc, inputCol, c1);
                                         Value paddingVal =
                                             builder.create<memref::LoadOp>(
                                                 loc, input,
                                                 ValueRange{imRow, rightRange});
                                         Value padding =
-                                            builder.create<BroadcastOp>(
+                                            builder.create<vector::BroadcastOp>(
                                                 loc, vectorTy32, paddingVal);
 
-                                        inputVec = builder.create<MaskedLoadOp>(
-                                            loc, vectorTy32, input,
-                                            ValueRange{imRow, imCol}, rightMask,
-                                            padding);
+                                        inputVec =
+                                            builder
+                                                .create<vector::MaskedLoadOp>(
+                                                    loc, vectorTy32, input,
+                                                    ValueRange{imRow, imCol},
+                                                    rightMask, padding);
                                       }
                                       Value tailCond = tailChecker(
                                           builder, loc, calcHelper, strideVal,
@@ -1223,8 +1096,9 @@ void traverseImagewBoundaryExtrapolation(
                           // rowDown
                           if (boundaryOptionAttr ==
                               buddy::dip::BoundaryOption::ConstantPadding) {
-                            Value inputVec = builder.create<BroadcastOp>(
-                                loc, vectorTy32, constantValue);
+                            Value inputVec =
+                                builder.create<vector::BroadcastOp>(
+                                    loc, vectorTy32, constantValue);
 
                             if (op == DIP_OP::CORRELATION_2D) {
                               calcAndStoreFMAwoTailProcessing(
@@ -1244,8 +1118,9 @@ void traverseImagewBoundaryExtrapolation(
                                   zeroPaddingElem, DIP_OP::DILATION_2D);
                             }
                           } else {
-                            Value colLeftCond = builder.create<CmpIOp>(
-                                loc, CmpIPredicate::slt, currCol, centerX);
+                            Value colLeftCond = builder.create<arith::CmpIOp>(
+                                loc, arith::CmpIPredicate::slt, currCol,
+                                centerX);
 
                             builder.create<scf::IfOp>(
                                 loc, colLeftCond,
@@ -1253,9 +1128,11 @@ void traverseImagewBoundaryExtrapolation(
                                   // colLeft & rowDown
                                   Value inputVec;
                                   Value downRange =
-                                      builder.create<SubIOp>(loc, inputRow, c1);
-                                  Value leftMaskElem = builder.create<SubIOp>(
-                                      loc, centerX, currCol);
+                                      builder.create<arith::SubIOp>(
+                                          loc, inputRow, c1);
+                                  Value leftMaskElem =
+                                      builder.create<arith::SubIOp>(
+                                          loc, centerX, currCol);
                                   Value leftMask = createInvertedMask(
                                       builder, loc, strideVal, vectorMaskTy,
                                       leftMaskElem);
@@ -1267,17 +1144,19 @@ void traverseImagewBoundaryExtrapolation(
                                         builder.create<memref::LoadOp>(
                                             loc, input,
                                             ValueRange{downRange, c0});
-                                    Value padding = builder.create<BroadcastOp>(
-                                        loc, vectorTy32, paddingVal);
+                                    Value padding =
+                                        builder.create<vector::BroadcastOp>(
+                                            loc, vectorTy32, paddingVal);
 
                                     Value leftPaddingOffset =
-                                        builder.create<SubIOp>(loc, c0,
-                                                               leftMaskElem);
-                                    inputVec = builder.create<MaskedLoadOp>(
-                                        loc, vectorTy32, input,
-                                        ValueRange{downRange,
-                                                   leftPaddingOffset},
-                                        leftMask, padding);
+                                        builder.create<arith::SubIOp>(
+                                            loc, c0, leftMaskElem);
+                                    inputVec =
+                                        builder.create<vector::MaskedLoadOp>(
+                                            loc, vectorTy32, input,
+                                            ValueRange{downRange,
+                                                       leftPaddingOffset},
+                                            leftMask, padding);
                                   }
 
                                   if (op == DIP_OP::CORRELATION_2D) {
@@ -1304,9 +1183,10 @@ void traverseImagewBoundaryExtrapolation(
                                 },
                                 [&](OpBuilder &builder, Location loc) {
                                   // (colMid or colRight) & rowDown
-                                  Value colMidCond = builder.create<CmpIOp>(
-                                      loc, CmpIPredicate::slt, colLastElem,
-                                      colMidHelper);
+                                  Value colMidCond =
+                                      builder.create<arith::CmpIOp>(
+                                          loc, arith::CmpIPredicate::slt,
+                                          colLastElem, colMidHelper);
 
                                   builder.create<scf::IfOp>(
                                       loc, colMidCond,
@@ -1314,14 +1194,15 @@ void traverseImagewBoundaryExtrapolation(
                                         // colMid & rowDown
                                         Value inputVec;
                                         Value downRange =
-                                            builder.create<SubIOp>(
+                                            builder.create<arith::SubIOp>(
                                                 loc, inputRow, c1);
                                         if (boundaryOptionAttr ==
                                             buddy::dip::BoundaryOption::
                                                 ReplicatePadding) {
-                                          inputVec = builder.create<LoadOp>(
-                                              loc, vectorTy32, input,
-                                              ValueRange{downRange, imCol});
+                                          inputVec =
+                                              builder.create<vector::LoadOp>(
+                                                  loc, vectorTy32, input,
+                                                  ValueRange{downRange, imCol});
                                         }
 
                                         if (op == DIP_OP::CORRELATION_2D) {
@@ -1353,22 +1234,23 @@ void traverseImagewBoundaryExtrapolation(
                                         // colRight & rowDown
                                         Value inputVec;
                                         Value rightMaskHelper =
-                                            builder.create<SubIOp>(
+                                            builder.create<arith::SubIOp>(
                                                 loc, colLastElem, colMidHelper);
                                         Value rightMaskElem =
-                                            builder.create<SubIOp>(
+                                            builder.create<arith::SubIOp>(
                                                 loc, strideVal,
                                                 rightMaskHelper);
                                         Value rightMask =
-                                            builder.create<CreateMaskOp>(
-                                                loc, vectorMaskTy,
-                                                rightMaskElem);
+                                            builder
+                                                .create<vector::CreateMaskOp>(
+                                                    loc, vectorMaskTy,
+                                                    rightMaskElem);
 
                                         Value downRange =
-                                            builder.create<SubIOp>(
+                                            builder.create<arith::SubIOp>(
                                                 loc, inputRow, c1);
                                         Value rightRange =
-                                            builder.create<SubIOp>(
+                                            builder.create<arith::SubIOp>(
                                                 loc, inputCol, c1);
 
                                         if (boundaryOptionAttr ==
@@ -1387,10 +1269,12 @@ void traverseImagewBoundaryExtrapolation(
                                                       paddingVal);
 
                                           inputVec =
-                                              builder.create<MaskedLoadOp>(
-                                                  loc, vectorTy32, input,
-                                                  ValueRange{downRange, imCol},
-                                                  rightMask, padding);
+                                              builder
+                                                  .create<vector::MaskedLoadOp>(
+                                                      loc, vectorTy32, input,
+                                                      ValueRange{downRange,
+                                                                 imCol},
+                                                      rightMask, padding);
                                         }
                                         Value tailCond = tailChecker(
                                             builder, loc, calcHelper, strideVal,
@@ -1436,5 +1320,8 @@ void traverseImagewBoundaryExtrapolation(
             });
       });
 }
+
+} // namespace dip
+} // namespace buddy
 
 #endif // UTILS_DIPUTILS_DEF

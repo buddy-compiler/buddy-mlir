@@ -23,6 +23,12 @@
 #define INCLUDE_UTILS_DIPUTILS_H
 
 #include "Utils/Utils.h"
+#include <stdarg.h>
+
+using namespace mlir;
+
+namespace buddy {
+namespace dip {
 
 // Specify operation names which will be used for performing operation specific
 // tasks inside generic utility functions.
@@ -36,10 +42,6 @@ enum class DIP_ERROR { INCONSISTENT_TYPES, UNSUPPORTED_TYPE, NO_ERROR };
 // `type`. Supported types are : f32, f64, integer types.
 Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
                            Type elemTy);
-
-// Function for applying type check mechanisms for all DIP dialect operations.
-template <typename DIPOP>
-auto checkDIPCommonTypes(DIPOP op, size_t numArgs, ...);
 
 // Inserts FMA operation into a given location `loc` based on type `type`.
 // Note: FMA is done by Multiply and Add for integer types, because there is no
@@ -193,6 +195,170 @@ void traverseImagewBoundaryExtrapolation(
     Value constantValue, Value strideVal, Type elemTy,
     buddy::dip::BoundaryOption boundaryOptionAttr, int64_t stride, DIP_OP op);
 
-#include "Utils/DIPUtils.cpp"
+// Function for applying type check mechanisms for all DIP dialect operations.
+template <typename DIPOP>
+DIP_ERROR checkDIPCommonTypes(DIPOP op, size_t numArgs, ...) {
+  if (op->getName().stripDialect() == "corr_2d") {
+    // Define variable arguments list.
+    va_list vaList;
+
+    // Specify total number of arguments to be accessed using the variable
+    // arguments list.
+    va_start(vaList, numArgs);
+
+    auto inElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto kElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto constElemTy = va_arg(vaList, Value).getType();
+    if (inElemTy != kElemTy || kElemTy != outElemTy ||
+        outElemTy != constElemTy) {
+      return DIP_ERROR::INCONSISTENT_TYPES;
+    }
+
+    // NB: we can infer element type for all related memrefs to be the same as
+    // input since we verified that the operand types are the same.
+    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
+    if (!inElemTy.isF64() && !inElemTy.isF32() &&
+        !inElemTy.isInteger(bitWidth)) {
+      return DIP_ERROR::UNSUPPORTED_TYPE;
+    }
+  } else if (op->getName().stripDialect() == "rotate_2d" ||
+             op->getName().stripDialect() == "resize_2d") {
+    // Define variable arguments list.
+    va_list vaList;
+
+    // Specify total number of arguments to be accessed using the variable
+    // arguments list.
+    va_start(vaList, numArgs);
+
+    auto inElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    if (inElemTy != outElemTy) {
+      return DIP_ERROR::INCONSISTENT_TYPES;
+    }
+
+    // NB: we can infer element type for all related memrefs to be the same as
+    // input since we verified that the operand types are the same.
+    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
+    if (!inElemTy.isF64() && !inElemTy.isF32() &&
+        !inElemTy.isInteger(bitWidth)) {
+      return DIP_ERROR::UNSUPPORTED_TYPE;
+    }
+  } else if (op->getName().stripDialect() == "erosion_2d" ||
+             op->getName().stripDialect() == "dilation_2d") {
+    // Define variable arguments list.
+    va_list vaList;
+
+    // Specify total number of arguments to be accessed using the variable
+    // arguments list.
+    va_start(vaList, numArgs);
+
+    auto inElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto kElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto copyElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto constElemTy = va_arg(vaList, Value).getType();
+    if (inElemTy != kElemTy || kElemTy != outElemTy ||
+        outElemTy != copyElemTy || copyElemTy != constElemTy) {
+      return DIP_ERROR::INCONSISTENT_TYPES;
+    }
+
+    // NB: we can infer element type for all related memrefs to be the same as
+    // input since we verified that the operand types are the same.
+    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
+    if (!inElemTy.isF64() && !inElemTy.isF32() &&
+        !inElemTy.isInteger(bitWidth)) {
+      return DIP_ERROR::UNSUPPORTED_TYPE;
+    }
+  } else if (op->getName().stripDialect() == "opening_2d" ||
+             op->getName().stripDialect() == "closing_2d") {
+    // Define variable arguments list.
+    va_list vaList;
+
+    // Specify total number of arguments to be accessed using the variable
+    // arguments list.
+    va_start(vaList, numArgs);
+
+    auto inElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto kElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy1 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto copyElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto copyElemTy1 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto constElemTy = va_arg(vaList, Value).getType();
+    if (inElemTy != kElemTy || kElemTy != outElemTy ||
+        outElemTy != outElemTy1 || outElemTy1 != copyElemTy ||
+        copyElemTy != copyElemTy1 || copyElemTy1 != constElemTy) {
+      return DIP_ERROR::INCONSISTENT_TYPES;
+    }
+
+    // NB: we can infer element type for all related memrefs to be the same as
+    // input since we verified that the operand types are the same.
+    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
+    if (!inElemTy.isF64() && !inElemTy.isF32() &&
+        !inElemTy.isInteger(bitWidth)) {
+      return DIP_ERROR::UNSUPPORTED_TYPE;
+    }
+  } else if (op->getName().stripDialect() == "tophat_2d" ||
+             op->getName().stripDialect() == "bottomhat_2d" ||
+             op->getName().stripDialect() == "morphgrad_2d") {
+    va_list vaList;
+
+    // Specify total number of arguments to be accessed using the variable
+    // arguments list.
+    va_start(vaList, numArgs);
+
+    auto inElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto kElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy1 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto outElemTy2 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto inElemTy1 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto copyElemTy =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto copyElemTy1 =
+        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
+    auto constElemTy = va_arg(vaList, Value).getType();
+    if (inElemTy != kElemTy || kElemTy != outElemTy ||
+        outElemTy != outElemTy1 || outElemTy1 != outElemTy2 ||
+        outElemTy2 != inElemTy1 || inElemTy1 != copyElemTy ||
+        copyElemTy != copyElemTy1 || copyElemTy1 != constElemTy) {
+      return DIP_ERROR::INCONSISTENT_TYPES;
+    }
+
+    // NB: we can infer element type for all related memrefs to be the same as
+    // input since we verified that the operand types are the same.
+    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
+    if (!inElemTy.isF64() && !inElemTy.isF32() &&
+        !inElemTy.isInteger(bitWidth)) {
+      return DIP_ERROR::UNSUPPORTED_TYPE;
+    }
+  }
+  return DIP_ERROR::NO_ERROR;
+}
+
+} // namespace dip
+} // namespace buddy
 
 #endif // INCLUDE_UTILS_DIPUTILS_H

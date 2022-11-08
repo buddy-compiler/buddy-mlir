@@ -18,29 +18,27 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Linalg/Transforms/Transforms.h"
-#include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Vector/IR/VectorOps.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/Location.h"
-#include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/ValueRange.h"
-#include "mlir/Pass/Pass.h"
+#include <mlir/Dialect/Affine/IR/AffineOps.h>
+#include <mlir/Dialect/Bufferization/Transforms/Bufferize.h>
+#include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/Dialect/Linalg/Transforms/Transforms.h>
+#include <mlir/Dialect/Math/IR/Math.h>
+#include <mlir/Dialect/MemRef/IR/MemRef.h>
+#include <mlir/Dialect/Vector/IR/VectorOps.h>
+#include <mlir/IR/Builders.h>
+#include <mlir/IR/Location.h>
+#include <mlir/IR/MLIRContext.h>
+#include <mlir/IR/ValueRange.h>
+#include <mlir/Pass/Pass.h>
+#include <vector>
 
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
 #include "Utils/DIPUtils.h"
 #include "Utils/Utils.h"
-#include <vector>
 
 using namespace mlir;
 using namespace buddy;
-using namespace vector;
-using namespace mlir::arith;
 
 //===----------------------------------------------------------------------===//
 // Rewrite Pattern
@@ -70,16 +68,16 @@ public:
     Value centerY = op->getOperand(4);
     Value constantValue = op->getOperand(5);
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
-    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    DIP_ERROR error = checkDIPCommonTypes<dip::Corr2DOp>(op, 4, input, kernel,
-                                                         output, constantValue);
+    dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Corr2DOp>(
+        op, 4, input, kernel, output, constantValue);
 
-    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError() << "input, kernel, output and constant must "
                                   "have the same element type";
-    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
     }
@@ -87,7 +85,7 @@ public:
     traverseImagewBoundaryExtrapolation(rewriter, loc, ctx, input, kernel,
                                         output, centerX, centerY, constantValue,
                                         strideVal, inElemTy, boundaryOptionAttr,
-                                        stride, DIP_OP::CORRELATION_2D);
+                                        stride, dip::DIP_OP::CORRELATION_2D);
     // Remove the origin convolution operation.
     rewriter.eraseOp(op);
     return success();
@@ -117,24 +115,24 @@ public:
     Value output = op->getOperand(2);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    DIP_ERROR error =
-        checkDIPCommonTypes<dip::Rotate2DOp>(op, 2, input, output);
+    dip::DIP_ERROR error =
+        dip::checkDIPCommonTypes<dip::Rotate2DOp>(op, 2, input, output);
 
-    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
              << "input, and output must have the same element type";
-    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
     }
 
-    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
     FloatType f32 = FloatType::getF32(ctx);
     VectorType vectorTy32 = VectorType::get({stride}, f32);
 
     // Create constant indices.
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
     Value c0F32 = indexToF32(rewriter, loc, c0);
     Value c1F32 = indexToF32(rewriter, loc, c1);
@@ -189,8 +187,8 @@ public:
         rewriter.create<arith::SubIOp>(loc, inputCol, inputColMultiple);
 
     // Get input image center.
-    Value inputCenterY = getCenter(rewriter, loc, ctx, inputRow);
-    Value inputCenterX = getCenter(rewriter, loc, ctx, inputCol);
+    Value inputCenterY = dip::getCenter(rewriter, loc, ctx, inputRow);
+    Value inputCenterX = dip::getCenter(rewriter, loc, ctx, inputCol);
 
     Value inputCenterYF32Vec =
         castAndExpand(rewriter, loc, inputCenterY, vectorTy32);
@@ -198,8 +196,8 @@ public:
         castAndExpand(rewriter, loc, inputCenterX, vectorTy32);
 
     // Get output image center.
-    Value outputCenterY = getCenter(rewriter, loc, ctx, outputRow);
-    Value outputCenterX = getCenter(rewriter, loc, ctx, outputCol);
+    Value outputCenterY = dip::getCenter(rewriter, loc, ctx, outputRow);
+    Value outputCenterX = dip::getCenter(rewriter, loc, ctx, outputCol);
 
     Value outputCenterYF32Vec =
         castAndExpand(rewriter, loc, outputCenterY, vectorTy32);
@@ -212,22 +210,22 @@ public:
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, sinVal);
 
     // Get tan(angle / 2) which will be used in further calculations.
-    Value tanVal = customTanVal(rewriter, loc, angleVal);
+    Value tanVal = dip::customTanVal(rewriter, loc, angleVal);
     Value tanVec =
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, tanVal);
 
     // Determine the condition for chosing ideal rotation strategy.
     Value tanBound =
-        rewriter.create<ConstantFloatOp>(loc, (llvm::APFloat)8.10f, f32);
+        rewriter.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)8.10f, f32);
     Value tanValAbs = rewriter.create<math::AbsFOp>(loc, tanVal);
     Value transformCond = rewriter.create<arith::CmpFOp>(
-        loc, CmpFPredicate::OGT, tanBound, tanValAbs);
+        loc, arith::CmpFPredicate::OGT, tanBound, tanValAbs);
 
     // For both rotation strategies, tail processing is handled in second call.
     rewriter.create<scf::IfOp>(
         loc, transformCond,
         [&](OpBuilder &builder, Location loc) {
-          shearTransformController(
+          dip::shearTransformController(
               builder, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
               input, output, sinVec, tanVec, inputRowF32Vec, inputColF32Vec,
               inputCenterYF32Vec, inputCenterXF32Vec, outputCenterYF32Vec,
@@ -235,7 +233,7 @@ public:
               inputRowLastElemF32, inputColLastElemF32, c0, c0F32, c1F32Vec,
               vectorTy32, stride, f32);
 
-          shearTransformController(
+          dip::shearTransformController(
               builder, loc, ctx, lowerBounds2, upperBounds2, steps,
               strideTailVal, input, output, sinVec, tanVec, inputRowF32Vec,
               inputColF32Vec, inputCenterYF32Vec, inputCenterXF32Vec,
@@ -246,7 +244,7 @@ public:
           builder.create<scf::YieldOp>(loc);
         },
         [&](OpBuilder &builder, Location loc) {
-          standardRotateController(
+          dip::standardRotateController(
               builder, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
               input, output, sinVec, angleVal, inputRowF32Vec, inputColF32Vec,
               inputCenterYF32Vec, inputCenterXF32Vec, outputCenterYF32Vec,
@@ -254,7 +252,7 @@ public:
               inputRowLastElemF32, inputColLastElemF32, c0, c0F32, c1F32Vec,
               vectorTy32, stride, f32);
 
-          standardRotateController(
+          dip::standardRotateController(
               builder, loc, ctx, lowerBounds2, upperBounds2, steps,
               strideTailVal, input, output, sinVec, angleVal, inputRowF32Vec,
               inputColF32Vec, inputCenterYF32Vec, inputCenterXF32Vec,
@@ -293,22 +291,22 @@ public:
     Value verticalScalingFactor = op->getOperand(2);
     Value output = op->getOperand(3);
     auto interpolationAttr = op.getInterpolationType();
-    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    DIP_ERROR error =
-        checkDIPCommonTypes<dip::Resize2DOp>(op, 2, input, output);
+    dip::DIP_ERROR error =
+        dip::checkDIPCommonTypes<dip::Resize2DOp>(op, 2, input, output);
 
-    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
              << "input, and output must have the same element type";
-    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
     }
 
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     Value c0F32 = indexToF32(rewriter, loc, c0);
 
     Value inputRow = rewriter.create<memref::DimOp>(loc, input, c0);
@@ -360,13 +358,13 @@ public:
 
     if (interpolationAttr ==
         dip::InterpolationType::NearestNeighbourInterpolation) {
-      NearestNeighbourInterpolationResizing(
+      dip::NearestNeighbourInterpolationResizing(
           rewriter, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
           input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
           outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
           inputColLastElemF32, vectorTy32, stride, c0, c0F32);
 
-      NearestNeighbourInterpolationResizing(
+      dip::NearestNeighbourInterpolationResizing(
           rewriter, loc, ctx, lowerBounds2, upperBounds2, steps, strideTailVal,
           input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
           outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
@@ -375,13 +373,13 @@ public:
                dip::InterpolationType::BilinearInterpolation) {
       Value c1F32 = indexToF32(rewriter, loc, c1);
 
-      BilinearInterpolationResizing(
+      dip::BilinearInterpolationResizing(
           rewriter, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
           input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
           outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
           inputColLastElemF32, vectorTy32, stride, c0, c0F32, c1F32);
 
-      BilinearInterpolationResizing(
+      dip::BilinearInterpolationResizing(
           rewriter, loc, ctx, lowerBounds2, upperBounds2, steps, strideTailVal,
           input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
           outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
@@ -421,23 +419,23 @@ public:
     Value iterations = op->getOperand(6);
     Value constantValue = op->getOperand(7);
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
-    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    DIP_ERROR error = checkDIPCommonTypes<dip::Erosion2DOp>(
+    dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Erosion2DOp>(
         op, 5, input, kernel, output, copymemref, constantValue);
 
-    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
              << "input, kernel, output, copymemref and constant must "
                 "have the same element type";
-    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
     }
 
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
     rewriter.create<AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
@@ -445,7 +443,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output, input);
@@ -455,7 +454,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, input, kernel, output, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::EROSION_2D);
+              dip::DIP_OP::EROSION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -493,22 +492,22 @@ public:
     Value iterations = op->getOperand(6);
     Value constantValue = op->getOperand(7);
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
-    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    DIP_ERROR error = checkDIPCommonTypes<dip::Dilation2DOp>(
+    dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Dilation2DOp>(
         op, 5, input, kernel, output, copymemref, constantValue);
 
-    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
              << "input, kernel, output, copymemref and constant must "
                 "have the same element type";
-    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
     }
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
     rewriter.create<AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
@@ -516,7 +515,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output, input);
@@ -526,7 +526,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, input, kernel, output, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::DILATION_2D);
+              dip::DIP_OP::DILATION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -565,23 +565,23 @@ public:
     Value iterations = op->getOperand(8);
     Value constantValue = op->getOperand(9);
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
-    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    DIP_ERROR error = checkDIPCommonTypes<dip::Opening2DOp>(
+    dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Opening2DOp>(
         op, 7, input, kernel, output, output1, copymemref, copymemref1,
         constantValue);
 
-    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError() << "input, kernel, output, output1, copymemref, "
                                   "copymemref1 and constant must "
                                   "have the same element type";
-    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
     }
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
     rewriter.create<AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
@@ -589,7 +589,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output1, input);
@@ -599,7 +600,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, input, kernel, output1, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::EROSION_2D);
+              dip::DIP_OP::EROSION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -609,7 +610,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output, output1);
@@ -619,7 +621,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, output1, kernel, output, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::DILATION_2D);
+              dip::DIP_OP::DILATION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -658,23 +660,23 @@ public:
     Value iterations = op->getOperand(8);
     Value constantValue = op->getOperand(9);
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
-    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    DIP_ERROR error = checkDIPCommonTypes<dip::Closing2DOp>(
+    dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Closing2DOp>(
         op, 7, input, kernel, output, output1, copymemref, copymemref1,
         constantValue);
 
-    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError() << "input, kernel, output, output1, copymemref, "
                                   "copymemref1 and constant must "
                                   "have the same element type";
-    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
     }
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
     rewriter.create<AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
@@ -682,7 +684,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output1, input);
@@ -692,7 +695,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, input, kernel, output1, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::DILATION_2D);
+              dip::DIP_OP::DILATION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -702,7 +705,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output, output1);
@@ -712,7 +716,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, output1, kernel, output, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::EROSION_2D);
+              dip::DIP_OP::EROSION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -740,8 +744,8 @@ public:
     auto *ctx = op->getContext();
 
     // Create constant indices.
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
     // Register operand values.
     Value input = op->getOperand(0);
@@ -757,20 +761,20 @@ public:
     Value iterations = op->getOperand(10);
     Value constantValue = op->getOperand(11);
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
-    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    DIP_ERROR error = checkDIPCommonTypes<dip::TopHat2DOp>(
+    dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::TopHat2DOp>(
         op, 9, input, kernel, output, output1, output2, input1, copymemref,
         copymemref1, constantValue);
 
-    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
              << "input, kernel, output, output1, output2, input1, copymemref, "
                 "copymemref1 and constant must "
                 "have the same element type";
-    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
     }
@@ -781,7 +785,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output1, input1);
@@ -791,7 +796,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, input1, kernel, output1, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::EROSION_2D);
+              dip::DIP_OP::EROSION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -801,7 +806,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output2, output1);
@@ -811,7 +817,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, output1, kernel, output2, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::DILATION_2D);
+              dip::DIP_OP::DILATION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -824,7 +830,8 @@ public:
     VectorType vectorTy32 = VectorType::get({stride}, inElemTy);
     IntegerType i1 = IntegerType::get(ctx, 1);
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
-    Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
+    Value zeroPaddingElem =
+        dip::insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
     Value zeroPaddingVec =
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
@@ -832,38 +839,41 @@ public:
       buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
-            Value pseudoCol = builder.create<AddIOp>(loc, ivs4[1], strideVal);
-            Value pseudoCol1 = builder.create<SubIOp>(loc, pseudoCol, c1);
-            Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sgt,
-                                                pseudoCol1, outputCol);
+            Value pseudoCol =
+                builder.create<arith::AddIOp>(loc, ivs4[1], strideVal);
+            Value pseudoCol1 =
+                builder.create<arith::SubIOp>(loc, pseudoCol, c1);
+            Value cond = builder.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::sgt, pseudoCol1, outputCol);
             builder.create<scf::IfOp>(
                 loc, cond,
                 [&](OpBuilder &builder, Location loc) {
                   Value res =
-                      builder.create<SubIOp>(loc, pseudoCol1, outputCol);
-                  Value maskVal = builder.create<SubIOp>(loc, strideVal, res);
-                  Value maskVec =
-                      builder.create<CreateMaskOp>(loc, vectorMaskTy, maskVal);
-                  Value ou1 = builder.create<MaskedLoadOp>(
+                      builder.create<arith::SubIOp>(loc, pseudoCol1, outputCol);
+                  Value maskVal =
+                      builder.create<arith::SubIOp>(loc, strideVal, res);
+                  Value maskVec = builder.create<vector::CreateMaskOp>(
+                      loc, vectorMaskTy, maskVal);
+                  Value ou1 = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value ou2 = builder.create<MaskedLoadOp>(
+                  Value ou2 = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, input, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value resVec = builder.create<SubFOp>(loc, ou2, ou1);
-                  builder.create<MaskedStoreOp>(loc, output,
-                                                ValueRange{ivs4[0], ivs4[1]},
-                                                maskVec, resVec);
+                  Value resVec = builder.create<arith::SubFOp>(loc, ou2, ou1);
+                  builder.create<vector::MaskedStoreOp>(
+                      loc, output, ValueRange{ivs4[0], ivs4[1]}, maskVec,
+                      resVec);
                   builder.create<scf::YieldOp>(loc);
                 },
                 [&](OpBuilder &builder, Location loc) {
-                  Value ou1 = builder.create<LoadOp>(
+                  Value ou1 = builder.create<vector::LoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]});
-                  Value ou2 = builder.create<LoadOp>(
+                  Value ou2 = builder.create<vector::LoadOp>(
                       loc, vectorTy32, input, ValueRange{ivs4[0], ivs4[1]});
-                  Value resVec = builder.create<SubFOp>(loc, ou2, ou1);
-                  builder.create<StoreOp>(loc, resVec, output,
-                                          ValueRange{ivs4[0], ivs4[1]});
+                  Value resVec = builder.create<arith::SubFOp>(loc, ou2, ou1);
+                  builder.create<vector::StoreOp>(loc, resVec, output,
+                                                  ValueRange{ivs4[0], ivs4[1]});
                   builder.create<scf::YieldOp>(loc);
                 });
           }
@@ -873,38 +883,41 @@ public:
       buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
-            Value pseudoCol = builder.create<AddIOp>(loc, ivs4[1], strideVal);
-            Value pseudoCol1 = builder.create<SubIOp>(loc, pseudoCol, c1);
-            Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sgt,
-                                                pseudoCol1, outputCol);
+            Value pseudoCol =
+                builder.create<arith::AddIOp>(loc, ivs4[1], strideVal);
+            Value pseudoCol1 =
+                builder.create<arith::SubIOp>(loc, pseudoCol, c1);
+            Value cond = builder.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::sgt, pseudoCol1, outputCol);
             builder.create<scf::IfOp>(
                 loc, cond,
                 [&](OpBuilder &builder, Location loc) {
                   Value res =
-                      builder.create<SubIOp>(loc, pseudoCol1, outputCol);
-                  Value maskVal = builder.create<SubIOp>(loc, strideVal, res);
-                  Value maskVec =
-                      builder.create<CreateMaskOp>(loc, vectorMaskTy, maskVal);
-                  Value ou1 = builder.create<MaskedLoadOp>(
+                      builder.create<arith::SubIOp>(loc, pseudoCol1, outputCol);
+                  Value maskVal =
+                      builder.create<arith::SubIOp>(loc, strideVal, res);
+                  Value maskVec = builder.create<vector::CreateMaskOp>(
+                      loc, vectorMaskTy, maskVal);
+                  Value ou1 = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, output1, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value ou2 = builder.create<MaskedLoadOp>(
+                  Value ou2 = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value resVec = builder.create<SubIOp>(loc, ou1, ou2);
-                  builder.create<MaskedStoreOp>(loc, output,
-                                                ValueRange{ivs4[0], ivs4[1]},
-                                                maskVec, resVec);
+                  Value resVec = builder.create<arith::SubIOp>(loc, ou1, ou2);
+                  builder.create<vector::MaskedStoreOp>(
+                      loc, output, ValueRange{ivs4[0], ivs4[1]}, maskVec,
+                      resVec);
                   builder.create<scf::YieldOp>(loc);
                 },
                 [&](OpBuilder &builder, Location loc) {
-                  Value ou1 = builder.create<LoadOp>(
+                  Value ou1 = builder.create<vector::LoadOp>(
                       loc, vectorTy32, output1, ValueRange{ivs4[0], ivs4[1]});
-                  Value ou2 = builder.create<LoadOp>(
+                  Value ou2 = builder.create<vector::LoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]});
-                  Value resVec = builder.create<SubIOp>(loc, ou1, ou2);
-                  builder.create<StoreOp>(loc, resVec, output,
-                                          ValueRange{ivs4[0], ivs4[1]});
+                  Value resVec = builder.create<arith::SubIOp>(loc, ou1, ou2);
+                  builder.create<vector::StoreOp>(loc, resVec, output,
+                                                  ValueRange{ivs4[0], ivs4[1]});
                   builder.create<scf::YieldOp>(loc);
                 });
           }
@@ -936,8 +949,8 @@ public:
     auto *ctx = op->getContext();
 
     // Create constant indices.
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
     // Register operand values.
     Value input = op->getOperand(0);
@@ -953,20 +966,20 @@ public:
     Value iterations = op->getOperand(10);
     Value constantValue = op->getOperand(11);
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
-    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    DIP_ERROR error = checkDIPCommonTypes<dip::BottomHat2DOp>(
+    dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::BottomHat2DOp>(
         op, 9, input, kernel, output, output1, output2, input1, copymemref,
         copymemref1, constantValue);
 
-    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
              << "input, kernel, output, output1, output2, input1, copymemref, "
                 "copymemref1 and constant must "
                 "have the same element type";
-    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
     }
@@ -977,7 +990,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output1, input1);
@@ -987,7 +1001,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, input1, kernel, output1, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::DILATION_2D);
+              dip::DIP_OP::DILATION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -997,7 +1011,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output2, output1);
@@ -1007,7 +1022,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, output1, kernel, output2, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::EROSION_2D);
+              dip::DIP_OP::EROSION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -1021,7 +1036,8 @@ public:
     VectorType vectorTy32 = VectorType::get({stride}, inElemTy);
     IntegerType i1 = IntegerType::get(ctx, 1);
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
-    Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
+    Value zeroPaddingElem =
+        dip::insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
     Value zeroPaddingVec =
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
@@ -1029,38 +1045,41 @@ public:
       buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
-            Value pseudoCol = builder.create<AddIOp>(loc, ivs4[1], strideVal);
-            Value pseudoCol1 = builder.create<SubIOp>(loc, pseudoCol, c1);
-            Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sgt,
-                                                pseudoCol1, outputCol);
+            Value pseudoCol =
+                builder.create<arith::AddIOp>(loc, ivs4[1], strideVal);
+            Value pseudoCol1 =
+                builder.create<arith::SubIOp>(loc, pseudoCol, c1);
+            Value cond = builder.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::sgt, pseudoCol1, outputCol);
             builder.create<scf::IfOp>(
                 loc, cond,
                 [&](OpBuilder &builder, Location loc) {
                   Value res =
-                      builder.create<SubIOp>(loc, pseudoCol1, outputCol);
-                  Value maskVal = builder.create<SubIOp>(loc, strideVal, res);
-                  Value maskVec =
-                      builder.create<CreateMaskOp>(loc, vectorMaskTy, maskVal);
-                  Value ou = builder.create<MaskedLoadOp>(
+                      builder.create<arith::SubIOp>(loc, pseudoCol1, outputCol);
+                  Value maskVal =
+                      builder.create<arith::SubIOp>(loc, strideVal, res);
+                  Value maskVec = builder.create<vector::CreateMaskOp>(
+                      loc, vectorMaskTy, maskVal);
+                  Value ou = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value in = builder.create<MaskedLoadOp>(
+                  Value in = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, input, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value resVec = builder.create<SubFOp>(loc, ou, in);
-                  builder.create<MaskedStoreOp>(loc, output,
-                                                ValueRange{ivs4[0], ivs4[1]},
-                                                maskVec, resVec);
+                  Value resVec = builder.create<arith::SubFOp>(loc, ou, in);
+                  builder.create<vector::MaskedStoreOp>(
+                      loc, output, ValueRange{ivs4[0], ivs4[1]}, maskVec,
+                      resVec);
                   builder.create<scf::YieldOp>(loc);
                 },
                 [&](OpBuilder &builder, Location loc) {
-                  Value ou = builder.create<LoadOp>(
+                  Value ou = builder.create<vector::LoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]});
-                  Value in = builder.create<LoadOp>(
+                  Value in = builder.create<vector::LoadOp>(
                       loc, vectorTy32, input, ValueRange{ivs4[0], ivs4[1]});
-                  Value resVec = builder.create<SubFOp>(loc, ou, in);
-                  builder.create<StoreOp>(loc, resVec, output,
-                                          ValueRange{ivs4[0], ivs4[1]});
+                  Value resVec = builder.create<arith::SubFOp>(loc, ou, in);
+                  builder.create<vector::StoreOp>(loc, resVec, output,
+                                                  ValueRange{ivs4[0], ivs4[1]});
                   builder.create<scf::YieldOp>(loc);
                 });
           }
@@ -1070,38 +1089,41 @@ public:
       buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
-            Value pseudoCol = builder.create<AddIOp>(loc, ivs4[1], strideVal);
-            Value pseudoCol1 = builder.create<SubIOp>(loc, pseudoCol, c1);
-            Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sgt,
-                                                pseudoCol1, outputCol);
+            Value pseudoCol =
+                builder.create<arith::AddIOp>(loc, ivs4[1], strideVal);
+            Value pseudoCol1 =
+                builder.create<arith::SubIOp>(loc, pseudoCol, c1);
+            Value cond = builder.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::sgt, pseudoCol1, outputCol);
             builder.create<scf::IfOp>(
                 loc, cond,
                 [&](OpBuilder &builder, Location loc) {
                   Value res =
-                      builder.create<SubIOp>(loc, pseudoCol1, outputCol);
-                  Value maskVal = builder.create<SubIOp>(loc, strideVal, res);
-                  Value maskVec =
-                      builder.create<CreateMaskOp>(loc, vectorMaskTy, maskVal);
-                  Value ou = builder.create<MaskedLoadOp>(
+                      builder.create<arith::SubIOp>(loc, pseudoCol1, outputCol);
+                  Value maskVal =
+                      builder.create<arith::SubIOp>(loc, strideVal, res);
+                  Value maskVec = builder.create<vector::CreateMaskOp>(
+                      loc, vectorMaskTy, maskVal);
+                  Value ou = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value in = builder.create<MaskedLoadOp>(
+                  Value in = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, input, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value resVec = builder.create<SubIOp>(loc, ou, in);
-                  builder.create<MaskedStoreOp>(loc, output,
-                                                ValueRange{ivs4[0], ivs4[1]},
-                                                maskVec, resVec);
+                  Value resVec = builder.create<arith::SubIOp>(loc, ou, in);
+                  builder.create<vector::MaskedStoreOp>(
+                      loc, output, ValueRange{ivs4[0], ivs4[1]}, maskVec,
+                      resVec);
                   builder.create<scf::YieldOp>(loc);
                 },
                 [&](OpBuilder &builder, Location loc) {
-                  Value ou = builder.create<LoadOp>(
+                  Value ou = builder.create<vector::LoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]});
-                  Value in = builder.create<LoadOp>(
+                  Value in = builder.create<vector::LoadOp>(
                       loc, vectorTy32, input, ValueRange{ivs4[0], ivs4[1]});
-                  Value resVec = builder.create<SubIOp>(loc, ou, in);
-                  builder.create<StoreOp>(loc, resVec, output,
-                                          ValueRange{ivs4[0], ivs4[1]});
+                  Value resVec = builder.create<arith::SubIOp>(loc, ou, in);
+                  builder.create<vector::StoreOp>(loc, resVec, output,
+                                                  ValueRange{ivs4[0], ivs4[1]});
                   builder.create<scf::YieldOp>(loc);
                 });
           });
@@ -1143,25 +1165,25 @@ public:
     Value iterations = op->getOperand(10);
     Value constantValue = op->getOperand(11);
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
-    Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    DIP_ERROR error = checkDIPCommonTypes<dip::MorphGrad2DOp>(
+    dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::MorphGrad2DOp>(
         op, 9, input, kernel, output, output1, output2, input1, copymemref,
         copymemref1, constantValue);
 
-    if (error == DIP_ERROR::INCONSISTENT_TYPES) {
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
              << "input, kernel, output, output1, output2, input1, copymemref, "
                 "copymemref1 and constant must "
                 "have the same element type";
-    } else if (error == DIP_ERROR::UNSUPPORTED_TYPE) {
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
     }
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     rewriter.create<memref::CopyOp>(loc, input, input1);
 
     rewriter.create<AffineForOp>(
@@ -1170,7 +1192,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output1, input);
@@ -1180,7 +1203,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, input, kernel, output1, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::DILATION_2D);
+              dip::DIP_OP::DILATION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -1190,7 +1213,8 @@ public:
         llvm::None,
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
-          Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sge, iv, c1);
+          Value cond = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, iv, c1);
           builder.create<scf::IfOp>(
               loc, cond, [&](OpBuilder &builder, Location loc) {
                 builder.create<memref::CopyOp>(loc, output2, input1);
@@ -1200,7 +1224,7 @@ public:
           traverseImagewBoundaryExtrapolation(
               rewriter, loc, ctx, input1, kernel, output2, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
-              DIP_OP::EROSION_2D);
+              dip::DIP_OP::EROSION_2D);
           builder.create<AffineYieldOp>(loc);
         });
 
@@ -1214,7 +1238,8 @@ public:
     VectorType vectorTy32 = VectorType::get({stride}, inElemTy);
     IntegerType i1 = IntegerType::get(ctx, 1);
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
-    Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
+    Value zeroPaddingElem =
+        dip::insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
     Value zeroPaddingVec =
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
@@ -1222,38 +1247,41 @@ public:
       buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
-            Value pseudoCol = builder.create<AddIOp>(loc, ivs4[1], strideVal);
-            Value pseudoCol1 = builder.create<SubIOp>(loc, pseudoCol, c1);
-            Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sgt,
-                                                pseudoCol1, outputCol);
+            Value pseudoCol =
+                builder.create<arith::AddIOp>(loc, ivs4[1], strideVal);
+            Value pseudoCol1 =
+                builder.create<arith::SubIOp>(loc, pseudoCol, c1);
+            Value cond = builder.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::sgt, pseudoCol1, outputCol);
             builder.create<scf::IfOp>(
                 loc, cond,
                 [&](OpBuilder &builder, Location loc) {
                   Value res =
-                      builder.create<SubIOp>(loc, pseudoCol1, outputCol);
-                  Value maskVal = builder.create<SubIOp>(loc, strideVal, res);
-                  Value maskVec =
-                      builder.create<CreateMaskOp>(loc, vectorMaskTy, maskVal);
-                  Value ou1 = builder.create<MaskedLoadOp>(
+                      builder.create<arith::SubIOp>(loc, pseudoCol1, outputCol);
+                  Value maskVal =
+                      builder.create<arith::SubIOp>(loc, strideVal, res);
+                  Value maskVec = builder.create<vector::CreateMaskOp>(
+                      loc, vectorMaskTy, maskVal);
+                  Value ou1 = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, output1, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value ou2 = builder.create<MaskedLoadOp>(
+                  Value ou2 = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value resVec = builder.create<SubFOp>(loc, ou1, ou2);
-                  builder.create<MaskedStoreOp>(loc, output,
-                                                ValueRange{ivs4[0], ivs4[1]},
-                                                maskVec, resVec);
+                  Value resVec = builder.create<arith::SubFOp>(loc, ou1, ou2);
+                  builder.create<vector::MaskedStoreOp>(
+                      loc, output, ValueRange{ivs4[0], ivs4[1]}, maskVec,
+                      resVec);
                   builder.create<scf::YieldOp>(loc);
                 },
                 [&](OpBuilder &builder, Location loc) {
-                  Value ou1 = builder.create<LoadOp>(
+                  Value ou1 = builder.create<vector::LoadOp>(
                       loc, vectorTy32, output1, ValueRange{ivs4[0], ivs4[1]});
-                  Value ou2 = builder.create<LoadOp>(
+                  Value ou2 = builder.create<vector::LoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]});
-                  Value resVec = builder.create<SubFOp>(loc, ou1, ou2);
-                  builder.create<StoreOp>(loc, resVec, output,
-                                          ValueRange{ivs4[0], ivs4[1]});
+                  Value resVec = builder.create<arith::SubFOp>(loc, ou1, ou2);
+                  builder.create<vector::StoreOp>(loc, resVec, output,
+                                                  ValueRange{ivs4[0], ivs4[1]});
                   builder.create<scf::YieldOp>(loc);
                 });
           }
@@ -1263,37 +1291,40 @@ public:
       buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
-            Value pseudoCol = builder.create<AddIOp>(loc, ivs4[1], strideVal);
-            Value pseudoCol1 = builder.create<SubIOp>(loc, pseudoCol, c1);
-            Value cond = builder.create<CmpIOp>(loc, CmpIPredicate::sgt,
-                                                pseudoCol1, outputCol);
+            Value pseudoCol =
+                builder.create<arith::AddIOp>(loc, ivs4[1], strideVal);
+            Value pseudoCol1 =
+                builder.create<arith::SubIOp>(loc, pseudoCol, c1);
+            Value cond = builder.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::sgt, pseudoCol1, outputCol);
             builder.create<scf::IfOp>(
                 loc, cond,
                 [&](OpBuilder &builder, Location loc) {
                   Value res =
-                      builder.create<SubIOp>(loc, pseudoCol1, outputCol);
-                  Value maskVal = builder.create<SubIOp>(loc, strideVal, res);
-                  Value maskVec =
-                      builder.create<CreateMaskOp>(loc, vectorMaskTy, maskVal);
-                  Value ou1 = builder.create<MaskedLoadOp>(
+                      builder.create<arith::SubIOp>(loc, pseudoCol1, outputCol);
+                  Value maskVal =
+                      builder.create<arith::SubIOp>(loc, strideVal, res);
+                  Value maskVec = builder.create<vector::CreateMaskOp>(
+                      loc, vectorMaskTy, maskVal);
+                  Value ou1 = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, output1, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value ou2 = builder.create<MaskedLoadOp>(
+                  Value ou2 = builder.create<vector::MaskedLoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]},
                       maskVec, zeroPaddingVec);
-                  Value resVec = builder.create<SubFOp>(loc, ou1, ou2);
-                  builder.create<MaskedStoreOp>(loc, output,
-                                                ValueRange{ivs4[0], ivs4[1]},
-                                                maskVec, resVec);
+                  Value resVec = builder.create<arith::SubFOp>(loc, ou1, ou2);
+                  builder.create<vector::MaskedStoreOp>(
+                      loc, output, ValueRange{ivs4[0], ivs4[1]}, maskVec,
+                      resVec);
                 },
                 [&](OpBuilder &builder, Location loc) {
-                  Value ou1 = builder.create<LoadOp>(
+                  Value ou1 = builder.create<vector::LoadOp>(
                       loc, vectorTy32, output1, ValueRange{ivs4[0], ivs4[1]});
-                  Value ou2 = builder.create<LoadOp>(
+                  Value ou2 = builder.create<vector::LoadOp>(
                       loc, vectorTy32, output2, ValueRange{ivs4[0], ivs4[1]});
-                  Value resVec = builder.create<SubFOp>(loc, ou1, ou2);
-                  builder.create<StoreOp>(loc, resVec, output,
-                                          ValueRange{ivs4[0], ivs4[1]});
+                  Value resVec = builder.create<arith::SubFOp>(loc, ou1, ou2);
+                  builder.create<vector::StoreOp>(loc, resVec, output,
+                                                  ValueRange{ivs4[0], ivs4[1]});
                 });
           });
     }
@@ -1341,9 +1372,10 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<buddy::dip::DIPDialect, func::FuncDialect,
-                    memref::MemRefDialect, scf::SCFDialect, VectorDialect,
-                    AffineDialect, arith::ArithDialect, math::MathDialect>();
+    registry
+        .insert<buddy::dip::DIPDialect, func::FuncDialect,
+                memref::MemRefDialect, scf::SCFDialect, vector::VectorDialect,
+                AffineDialect, arith::ArithDialect, math::MathDialect>();
   }
 
   Option<int64_t> stride{*this, "DIP-strip-mining",
@@ -1358,7 +1390,7 @@ void LowerDIPPass::runOnOperation() {
 
   ConversionTarget target(*context);
   target.addLegalDialect<AffineDialect, scf::SCFDialect, func::FuncDialect,
-                         memref::MemRefDialect, VectorDialect,
+                         memref::MemRefDialect, vector::VectorDialect,
                          arith::ArithDialect, math::MathDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 

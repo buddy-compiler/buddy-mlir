@@ -22,8 +22,8 @@
 #define INCLUDE_UTILS_UTILS_H
 
 using namespace mlir;
-using namespace arith;
-using namespace vector;
+
+namespace buddy {
 
 // Create an inverted mask having all 1's shifted to right side.
 Value createInvertedMask(OpBuilder &builder, Location loc, Value strideVal,
@@ -51,6 +51,6 @@ Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
 Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                     VectorType vecType);
 
-#include "Utils/Utils.cpp"
+} // namespace buddy
 
 #endif // INCLUDE_UTILS_UTILS_H
