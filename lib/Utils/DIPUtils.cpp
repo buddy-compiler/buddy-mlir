@@ -26,6 +26,9 @@
 
 #include "Utils/DIPUtils.h"
 
+using namespace mlir;
+using namespace mlir::detail;
+
 // Inserts a constant op with value 0 into a location `loc` based on type
 // `type`. Supported types are : f32, f64, integer types.
 Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
