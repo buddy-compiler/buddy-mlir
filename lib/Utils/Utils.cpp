@@ -42,9 +42,11 @@ Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
   Value cond;
   auto bitWidth = elemType.getIntOrFloatBitWidth();
   if (elemType.isF32() || elemType.isF64()) {
-    cond = builder.create<CmpFOp>(loc, CmpFPredicate::ONE, value, zeroElem);
+    cond = builder.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ONE, value,
+                                         zeroElem);
   } else if (elemType.isInteger(bitWidth)) {
-    cond = builder.create<CmpIOp>(loc, CmpIPredicate::ne, value, zeroElem);
+    cond = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, value,
+                                         zeroElem);
   }
   return cond;
 }

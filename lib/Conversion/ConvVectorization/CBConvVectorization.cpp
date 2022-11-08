@@ -86,8 +86,9 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
               // Broadcast element of the kernel.
               Value kernelValue = builder.create<memref::LoadOp>(
                   loc, kernel, ValueRange{ivs[1], ivs[2]});
-              Value kernelNonZeroCond = zeroCond(builder, loc, f32, kernelValue,
-                                                 indexToF32(builder, loc, c0));
+              Value kernelNonZeroCond =
+                  buddy::zeroCond(builder, loc, f32, kernelValue,
+                                  buddy::indexToF32(builder, loc, c0));
               builder.create<scf::IfOp>(
                   loc, kernelNonZeroCond,
                   [&](OpBuilder &builder, Location loc) {
