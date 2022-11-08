@@ -23,6 +23,12 @@
 #define INCLUDE_UTILS_DIPUTILS_H
 
 #include "Utils/Utils.h"
+#include <stdarg.h>
+
+using namespace mlir;
+
+namespace buddy {
+namespace dip {
 
 // Specify operation names which will be used for performing operation specific
 // tasks inside generic utility functions.
@@ -36,10 +42,6 @@ enum class DIP_ERROR { INCONSISTENT_TYPES, UNSUPPORTED_TYPE, NO_ERROR };
 // `type`. Supported types are : f32, f64, integer types.
 Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
                            Type elemTy);
-
-// Function for applying type check mechanisms for all DIP dialect operations.
-template <typename DIPOP>
-auto checkDIPCommonTypes(DIPOP op, size_t numArgs, ...);
 
 // Inserts FMA operation into a given location `loc` based on type `type`.
 // Note: FMA is done by Multiply and Add for integer types, because there is no
@@ -189,6 +191,10 @@ void traverseImagewBoundaryExtrapolation(
     Value constantValue, Value strideVal, Type elemTy,
     buddy::dip::BoundaryOption boundaryOptionAttr, int64_t stride, DIP_OP op);
 
-#include "Utils/DIPUtils.cpp"
+// Function for applying type check mechanisms for all DIP dialect operations.
+template <typename DIPOP>
+DIP_ERROR checkDIPCommonTypes(DIPOP op, size_t numArgs, ...);
+} // namespace dip
+} // namespace buddy
 
 #endif // INCLUDE_UTILS_DIPUTILS_H

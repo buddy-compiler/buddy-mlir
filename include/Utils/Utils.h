@@ -22,8 +22,8 @@
 #define INCLUDE_UTILS_UTILS_H
 
 using namespace mlir;
-using namespace arith;
-using namespace vector;
+
+namespace buddy {
 
 // Function to test whether a value is equivalent to zero or not.
 inline Value zeroCond(OpBuilder &builder, Location loc, Type elemType,
@@ -56,6 +56,6 @@ inline Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
 inline Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                            VectorType vecType);
 
-#include "Utils/Utils.cpp"
+} // namespace buddy
 
 #endif // INCLUDE_UTILS_UTILS_H

@@ -22,7 +22,19 @@
 #ifndef UTILS_UTILS_DEF
 #define UTILS_UTILS_DEF
 
-#include "Utils/Utils.h"
+#include <mlir/Dialect/Affine/IR/AffineOps.h>
+#include <mlir/Dialect/Affine/IR/AffineValueMap.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
+#include <mlir/Dialect/Math/IR/Math.h>
+#include <mlir/Dialect/MemRef/IR/MemRef.h>
+#include <mlir/Dialect/SCF/IR/SCF.h>
+#include <mlir/Dialect/Vector/IR/VectorOps.h>
+#include <mlir/IR/MLIRContext.h>
+#include <mlir/IR/Value.h>
+
+using namespace mlir;
+
+namespace buddy {
 
 // Function to test whether a value is equivalent to zero or not.
 Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
@@ -40,10 +52,11 @@ Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
 // Create an inverted mask having all 1's shifted to right side.
 Value createInvertedMask(OpBuilder &builder, Location loc, Value strideVal,
                          VectorType vectorMaskTy, Value leftIndex) {
-  Value leftMask = builder.create<CreateMaskOp>(loc, vectorMaskTy, leftIndex);
+  Value leftMask =
+      builder.create<vector::CreateMaskOp>(loc, vectorMaskTy, leftIndex);
   Value maskInverter =
-      builder.create<CreateMaskOp>(loc, vectorMaskTy, strideVal);
-  Value rightMask = builder.create<SubIOp>(loc, maskInverter, leftMask);
+      builder.create<vector::CreateMaskOp>(loc, vectorMaskTy, strideVal);
+  Value rightMask = builder.create<arith::SubIOp>(loc, maskInverter, leftMask);
   return rightMask;
 }
 
@@ -70,7 +83,7 @@ Value roundOff(OpBuilder &builder, Location loc, Value val) {
   Value diffCeil = builder.create<arith::SubFOp>(loc, ceilVal, val);
   Value diffFloor = builder.create<arith::SubFOp>(loc, val, floorVal);
 
-  Value diffCond = builder.create<arith::CmpFOp>(loc, CmpFPredicate::OGT,
+  Value diffCond = builder.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OGT,
                                                  diffCeil, diffFloor);
 
   return builder.create<arith::SelectOp>(loc, diffCond, floorVal, ceilVal);
@@ -112,5 +125,7 @@ Value castAndExpand(OpBuilder &builder, Location loc, Value val,
   Value interm1 = indexToF32(builder, loc, val);
   return builder.create<vector::SplatOp>(loc, vecType, interm1);
 }
+
+} // namespace buddy
 
 #endif // UTILS_UTILS_DEF
