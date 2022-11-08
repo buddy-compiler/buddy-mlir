@@ -177,7 +177,7 @@ rvv-vp-intrinsic-asm:
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
-rvv-vp-intrinsic-run-error:
+rvv-vp-intrinsic-run:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic.mlir \
 		--convert-scf-to-cf \
 		--lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
@@ -219,6 +219,16 @@ rvv-vp-intrinsic-sh-aot:
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
 
+rvv-vp-intrinsic-sh-jit:
+	@${BUDDY_OPT} ./rvv-vp-intrinsic-sh.mlir \
+		--convert-scf-to-cf \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--convert-func-to-llvm --reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS} --dlopen=${CROSS_MLIR_RUNNER_UTILS}
+
 rvv-vp-intrinsic-add-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-add.mlir \
 		--convert-scf-to-cf \
@@ -231,6 +241,16 @@ rvv-vp-intrinsic-add-aot:
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
 
+rvv-vp-intrinsic-add-jit:
+	@${BUDDY_OPT} ./rvv-vp-intrinsic-add.mlir \
+		--convert-scf-to-cf \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--convert-func-to-llvm --reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS} --dlopen=${CROSS_MLIR_RUNNER_UTILS}
+
 rvv-vp-intrinsic-and-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-and.mlir \
 		--convert-scf-to-cf \
@@ -242,6 +262,16 @@ rvv-vp-intrinsic-and-aot:
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
+
+rvv-vp-intrinsic-and-jit:
+	@${BUDDY_OPT} ./rvv-vp-intrinsic-and.mlir \
+		--convert-scf-to-cf \
+		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
+		--convert-func-to-llvm --reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS} --dlopen=${CROSS_MLIR_RUNNER_UTILS}
 
 rvv-vp-intrinsic-div-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-div.mlir \
