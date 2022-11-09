@@ -72,7 +72,7 @@ public:
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Corr2DOp>(
-        op, 4, input, kernel, output, constantValue);
+        op, {input, kernel, output, constantValue});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError() << "input, kernel, output and constant must "
@@ -116,7 +116,7 @@ public:
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     dip::DIP_ERROR error =
-        dip::checkDIPCommonTypes<dip::Rotate2DOp>(op, 2, input, output);
+        dip::checkDIPCommonTypes<dip::Rotate2DOp>(op, {input, output});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
@@ -295,7 +295,7 @@ public:
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     dip::DIP_ERROR error =
-        dip::checkDIPCommonTypes<dip::Resize2DOp>(op, 2, input, output);
+        dip::checkDIPCommonTypes<dip::Resize2DOp>(op, {input, output});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
@@ -423,7 +423,7 @@ public:
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Erosion2DOp>(
-        op, 5, input, kernel, output, copymemref, constantValue);
+        op, {input, kernel, output, copymemref, constantValue});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
@@ -496,7 +496,7 @@ public:
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Dilation2DOp>(
-        op, 5, input, kernel, output, copymemref, constantValue);
+        op, {input, kernel, output, copymemref, constantValue});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
@@ -569,8 +569,8 @@ public:
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Opening2DOp>(
-        op, 7, input, kernel, output, output1, copymemref, copymemref1,
-        constantValue);
+        op, {input, kernel, output, output1, copymemref, copymemref1,
+             constantValue});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError() << "input, kernel, output, output1, copymemref, "
@@ -664,8 +664,8 @@ public:
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Closing2DOp>(
-        op, 7, input, kernel, output, output1, copymemref, copymemref1,
-        constantValue);
+        op, {input, kernel, output, output1, copymemref, copymemref1,
+             constantValue});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError() << "input, kernel, output, output1, copymemref, "
@@ -766,8 +766,8 @@ public:
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     auto bitWidth = inElemTy.getIntOrFloatBitWidth();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::TopHat2DOp>(
-        op, 9, input, kernel, output, output1, output2, input1, copymemref,
-        copymemref1, constantValue);
+        op, {input, kernel, output, output1, output2, input1, copymemref,
+             copymemref1, constantValue});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
@@ -971,8 +971,8 @@ public:
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     auto bitWidth = inElemTy.getIntOrFloatBitWidth();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::BottomHat2DOp>(
-        op, 9, input, kernel, output, output1, output2, input1, copymemref,
-        copymemref1, constantValue);
+        op, {input, kernel, output, output1, output2, input1, copymemref,
+             copymemref1, constantValue});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
@@ -1170,8 +1170,8 @@ public:
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     auto bitWidth = inElemTy.getIntOrFloatBitWidth();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::MorphGrad2DOp>(
-        op, 9, input, kernel, output, output1, output2, input1, copymemref,
-        copymemref1, constantValue);
+        op, {input, kernel, output, output1, output2, input1, copymemref,
+             copymemref1, constantValue});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()

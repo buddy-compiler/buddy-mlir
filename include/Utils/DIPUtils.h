@@ -22,6 +22,7 @@
 #ifndef INCLUDE_UTILS_DIPUTILS_H
 #define INCLUDE_UTILS_DIPUTILS_H
 
+#include "DIP/DIPOps.h"
 #include "Utils/Utils.h"
 #include <stdarg.h>
 
@@ -197,7 +198,7 @@ void traverseImagewBoundaryExtrapolation(
 
 // Function for applying type check mechanisms for all DIP dialect operations.
 template <typename DIPOP>
-DIP_ERROR checkDIPCommonTypes(DIPOP op, size_t numArgs, ...);
+DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args);
 } // namespace dip
 } // namespace buddy
 
