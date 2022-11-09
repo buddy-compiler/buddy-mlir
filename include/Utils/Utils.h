@@ -26,35 +26,34 @@ using namespace mlir;
 namespace buddy {
 
 // Function to test whether a value is equivalent to zero or not.
-inline Value zeroCond(OpBuilder &builder, Location loc, Type elemType,
-                      Value value, Value zeroElem);
+Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
+               Value zeroElem);
 
 // Create an inverted mask having all 1's shifted to right side.
-inline Value createInvertedMask(OpBuilder &builder, Location loc,
-                                Value strideVal, VectorType vectorMaskTy,
-                                Value leftIndex);
+Value createInvertedMask(OpBuilder &builder, Location loc, Value strideVal,
+                         VectorType vectorMaskTy, Value leftIndex);
 
 // Cast a value from index type to f32 type.
-inline Value indexToF32(OpBuilder &builder, Location loc, Value val);
+Value indexToF32(OpBuilder &builder, Location loc, Value val);
 
 // Cast a value from f32 type to index type.
-inline Value F32ToIndex(OpBuilder &builder, Location loc, Value val);
+Value F32ToIndex(OpBuilder &builder, Location loc, Value val);
 
 // Round off floating point value to nearest integer type value.
-inline Value roundOff(OpBuilder &builder, Location loc, Value val);
+Value roundOff(OpBuilder &builder, Location loc, Value val);
 
 // Bound values to permissible range of allocatable values w.r.t output image.
-inline Value valBound(OpBuilder &builder, Location loc, Value val,
-                      Value lastElemF32, Value c0F32);
+Value valBound(OpBuilder &builder, Location loc, Value val, Value lastElemF32,
+               Value c0F32);
 
 // Equivalent of std::iota.
-inline Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
-                     Value indexStart, Value strideVal, VectorType vecType,
-                     Value c0, int64_t stride);
+Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
+              Value indexStart, Value strideVal, VectorType vecType, Value c0,
+              int64_t stride);
 
 // Cast index type value to f32 type and then expand it in a vector.
-inline Value castAndExpand(OpBuilder &builder, Location loc, Value val,
-                           VectorType vecType);
+Value castAndExpand(OpBuilder &builder, Location loc, Value val,
+                    VectorType vecType);
 
 } // namespace buddy
 
