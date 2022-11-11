@@ -31,6 +31,7 @@
 #include <mlir/Dialect/Vector/IR/VectorOps.h>
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Value.h>
+#include <vector>
 
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
@@ -41,172 +42,131 @@ using namespace mlir;
 
 namespace buddy {
 namespace dip {
-template DIP_ERROR checkDIPCommonTypes<dip::Corr2DOp>(dip::Corr2DOp, size_t,
-                                                      ...);
-template DIP_ERROR checkDIPCommonTypes<dip::Rotate2DOp>(dip::Rotate2DOp, size_t,
-                                                        ...);
-template DIP_ERROR checkDIPCommonTypes<dip::Resize2DOp>(dip::Resize2DOp, size_t,
-                                                        ...);
-template DIP_ERROR checkDIPCommonTypes<dip::Erosion2DOp>(dip::Erosion2DOp,
-                                                         size_t, ...);
-template DIP_ERROR checkDIPCommonTypes<dip::Dilation2DOp>(dip::Dilation2DOp,
-                                                          size_t, ...);
-template DIP_ERROR checkDIPCommonTypes<dip::Opening2DOp>(dip::Opening2DOp,
-                                                         size_t, ...);
-template DIP_ERROR checkDIPCommonTypes<dip::Closing2DOp>(dip::Closing2DOp,
-                                                         size_t, ...);
-template DIP_ERROR checkDIPCommonTypes<dip::TopHat2DOp>(dip::TopHat2DOp, size_t,
-                                                        ...);
-template DIP_ERROR checkDIPCommonTypes<dip::BottomHat2DOp>(dip::BottomHat2DOp,
-                                                           size_t, ...);
-template DIP_ERROR checkDIPCommonTypes<dip::MorphGrad2DOp>(dip::MorphGrad2DOp,
-                                                           size_t, ...);
+template DIP_ERROR
+checkDIPCommonTypes<dip::Corr2DOp>(dip::Corr2DOp,
+                                   const std::vector<Value> &args);
+template DIP_ERROR
+checkDIPCommonTypes<dip::Rotate2DOp>(dip::Rotate2DOp,
+                                     const std::vector<Value> &args);
+template DIP_ERROR
+checkDIPCommonTypes<dip::Resize2DOp>(dip::Resize2DOp,
+                                     const std::vector<Value> &args);
+template DIP_ERROR
+checkDIPCommonTypes<dip::Erosion2DOp>(dip::Erosion2DOp,
+                                      const std::vector<Value> &args);
+template DIP_ERROR
+checkDIPCommonTypes<dip::Dilation2DOp>(dip::Dilation2DOp,
+                                       const std::vector<Value> &args);
+template DIP_ERROR
+checkDIPCommonTypes<dip::Opening2DOp>(dip::Opening2DOp,
+                                      const std::vector<Value> &args);
+template DIP_ERROR
+checkDIPCommonTypes<dip::Closing2DOp>(dip::Closing2DOp,
+                                      const std::vector<Value> &args);
+template DIP_ERROR
+checkDIPCommonTypes<dip::TopHat2DOp>(dip::TopHat2DOp,
+                                     const std::vector<Value> &args);
+template DIP_ERROR
+checkDIPCommonTypes<dip::BottomHat2DOp>(dip::BottomHat2DOp,
+                                        const std::vector<Value> &args);
+template DIP_ERROR
+checkDIPCommonTypes<dip::MorphGrad2DOp>(dip::MorphGrad2DOp,
+                                        const std::vector<Value> &args);
 
 // Function for applying type check mechanisms for all DIP dialect operations.
 template <typename DIPOP>
-DIP_ERROR checkDIPCommonTypes(DIPOP op, size_t numArgs, ...) {
+DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args) {
+
+  const auto getType = [&](int argIndex) { return args[argIndex].getType(); };
+
+  const auto getElementType = [&](int argIndex) {
+    return getType(argIndex).template cast<MemRefType>().getElementType();
+  };
+
+  // NB: we can infer element type for all related memrefs to be the same as
+  // input since we verified that the operand types are the same.
+  const auto notSameElementTypeForMemrefs = [](const Type &type) {
+    const auto &bitWidth = type.getIntOrFloatBitWidth();
+    return !type.isF64() && !type.isF32() && !type.isInteger(bitWidth);
+  };
+
   if (op->getName().stripDialect() == "corr_2d") {
-    // Define variable arguments list.
-    va_list vaList;
+    auto inElemTy = getElementType(0);
+    auto kElemTy = getElementType(1);
+    auto outElemTy = getElementType(2);
+    auto constElemTy = getType(3);
 
-    // Specify total number of arguments to be accessed using the variable
-    // arguments list.
-    va_start(vaList, numArgs);
-
-    auto inElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto kElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto constElemTy = va_arg(vaList, Value).getType();
     if (inElemTy != kElemTy || kElemTy != outElemTy ||
         outElemTy != constElemTy) {
       return DIP_ERROR::INCONSISTENT_TYPES;
     }
 
-    // NB: we can infer element type for all related memrefs to be the same as
-    // input since we verified that the operand types are the same.
-    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    if (!inElemTy.isF64() && !inElemTy.isF32() &&
-        !inElemTy.isInteger(bitWidth)) {
+    if (notSameElementTypeForMemrefs(inElemTy)) {
       return DIP_ERROR::UNSUPPORTED_TYPE;
     }
   } else if (op->getName().stripDialect() == "rotate_2d" ||
              op->getName().stripDialect() == "resize_2d") {
-    // Define variable arguments list.
-    va_list vaList;
+    auto inElemTy = getElementType(0);
+    auto outElemTy = getElementType(1);
 
-    // Specify total number of arguments to be accessed using the variable
-    // arguments list.
-    va_start(vaList, numArgs);
-
-    auto inElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
     if (inElemTy != outElemTy) {
       return DIP_ERROR::INCONSISTENT_TYPES;
     }
 
     // NB: we can infer element type for all related memrefs to be the same as
     // input since we verified that the operand types are the same.
-    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    if (!inElemTy.isF64() && !inElemTy.isF32() &&
-        !inElemTy.isInteger(bitWidth)) {
+    if (notSameElementTypeForMemrefs(inElemTy)) {
       return DIP_ERROR::UNSUPPORTED_TYPE;
     }
   } else if (op->getName().stripDialect() == "erosion_2d" ||
              op->getName().stripDialect() == "dilation_2d") {
-    // Define variable arguments list.
-    va_list vaList;
 
-    // Specify total number of arguments to be accessed using the variable
-    // arguments list.
-    va_start(vaList, numArgs);
+    auto inElemTy = getElementType(0);
+    auto kElemTy = getElementType(1);
+    auto outElemTy = getElementType(2);
+    auto copyElemTy = getElementType(3);
+    auto constElemTy = getType(4);
 
-    auto inElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto kElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto copyElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto constElemTy = va_arg(vaList, Value).getType();
     if (inElemTy != kElemTy || kElemTy != outElemTy ||
         outElemTy != copyElemTy || copyElemTy != constElemTy) {
       return DIP_ERROR::INCONSISTENT_TYPES;
     }
 
-    // NB: we can infer element type for all related memrefs to be the same as
-    // input since we verified that the operand types are the same.
-    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    if (!inElemTy.isF64() && !inElemTy.isF32() &&
-        !inElemTy.isInteger(bitWidth)) {
+    if (notSameElementTypeForMemrefs(inElemTy)) {
       return DIP_ERROR::UNSUPPORTED_TYPE;
     }
   } else if (op->getName().stripDialect() == "opening_2d" ||
              op->getName().stripDialect() == "closing_2d") {
-    // Define variable arguments list.
-    va_list vaList;
+    auto inElemTy = getElementType(0);
+    auto kElemTy = getElementType(1);
+    auto outElemTy = getElementType(2);
+    auto outElemTy1 = getElementType(3);
+    auto copyElemTy = getElementType(4);
+    auto copyElemTy1 = getElementType(5);
+    auto constElemTy = getType(6);
 
-    // Specify total number of arguments to be accessed using the variable
-    // arguments list.
-    va_start(vaList, numArgs);
-
-    auto inElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto kElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy1 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto copyElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto copyElemTy1 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto constElemTy = va_arg(vaList, Value).getType();
     if (inElemTy != kElemTy || kElemTy != outElemTy ||
         outElemTy != outElemTy1 || outElemTy1 != copyElemTy ||
         copyElemTy != copyElemTy1 || copyElemTy1 != constElemTy) {
       return DIP_ERROR::INCONSISTENT_TYPES;
     }
 
-    // NB: we can infer element type for all related memrefs to be the same as
-    // input since we verified that the operand types are the same.
-    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    if (!inElemTy.isF64() && !inElemTy.isF32() &&
-        !inElemTy.isInteger(bitWidth)) {
+    if (notSameElementTypeForMemrefs(inElemTy)) {
       return DIP_ERROR::UNSUPPORTED_TYPE;
     }
   } else if (op->getName().stripDialect() == "tophat_2d" ||
              op->getName().stripDialect() == "bottomhat_2d" ||
              op->getName().stripDialect() == "morphgrad_2d") {
-    va_list vaList;
+    auto inElemTy = getElementType(0);
+    auto kElemTy = getElementType(1);
+    auto outElemTy = getElementType(2);
+    auto outElemTy1 = getElementType(3);
+    auto outElemTy2 = getElementType(4);
+    auto inElemTy1 = getElementType(5);
+    auto copyElemTy = getElementType(6);
+    auto copyElemTy1 = getElementType(7);
+    auto constElemTy = getType(8);
 
-    // Specify total number of arguments to be accessed using the variable
-    // arguments list.
-    va_start(vaList, numArgs);
-
-    auto inElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto kElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy1 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto outElemTy2 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto inElemTy1 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto copyElemTy =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto copyElemTy1 =
-        va_arg(vaList, Value).getType().cast<MemRefType>().getElementType();
-    auto constElemTy = va_arg(vaList, Value).getType();
     if (inElemTy != kElemTy || kElemTy != outElemTy ||
         outElemTy != outElemTy1 || outElemTy1 != outElemTy2 ||
         outElemTy2 != inElemTy1 || inElemTy1 != copyElemTy ||
@@ -214,14 +174,11 @@ DIP_ERROR checkDIPCommonTypes(DIPOP op, size_t numArgs, ...) {
       return DIP_ERROR::INCONSISTENT_TYPES;
     }
 
-    // NB: we can infer element type for all related memrefs to be the same as
-    // input since we verified that the operand types are the same.
-    auto bitWidth = inElemTy.getIntOrFloatBitWidth();
-    if (!inElemTy.isF64() && !inElemTy.isF32() &&
-        !inElemTy.isInteger(bitWidth)) {
+    if (notSameElementTypeForMemrefs(inElemTy)) {
       return DIP_ERROR::UNSUPPORTED_TYPE;
     }
   }
+
   return DIP_ERROR::NO_ERROR;
 }
 

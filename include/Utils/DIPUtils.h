@@ -197,7 +197,7 @@ void traverseImagewBoundaryExtrapolation(
 
 // Function for applying type check mechanisms for all DIP dialect operations.
 template <typename DIPOP>
-DIP_ERROR checkDIPCommonTypes(DIPOP op, size_t numArgs, ...);
+DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args);
 } // namespace dip
 } // namespace buddy
 
