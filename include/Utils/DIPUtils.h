@@ -22,7 +22,6 @@
 #ifndef INCLUDE_UTILS_DIPUTILS_H
 #define INCLUDE_UTILS_DIPUTILS_H
 
-#include "DIP/DIPOps.h"
 #include "Utils/Utils.h"
 #include <stdarg.h>
 
