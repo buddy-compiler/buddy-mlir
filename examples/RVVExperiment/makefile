@@ -4,6 +4,7 @@ BUDDY_TRANSLATE := ../../build/bin/buddy-translate
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
 MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+LLI := ../../llvm/build/bin/lli
 LLC := ../../llvm/build/bin/llc
 OPT := ../../llvm/build/bin/opt
 OPT_FLAG := -O3
@@ -15,6 +16,7 @@ RISCV_GNU_TOOLCHAIN_SYSROOT := ../../thirdparty/build-riscv-gnu-toolchain/sysroo
 QEMU := ../../thirdparty/qemu/build/riscv64-linux-user/qemu-riscv64
 LOCAL_CLANG := ../../thirdparty/build-local-clang/bin/clang
 CROSS_LLI := ../../thirdparty/build-cross-clang/bin/lli
+CROSS_MLIR_CPU_RUNNER := ../../thirdparty/build-cross-mlir/bin/mlir-cpu-runner
 CROSS_MLIR_C_RUNNER_UTILS := ../../thirdparty/build-cross-mlir/lib/libmlir_c_runner_utils.so
 CROSS_MLIR_RUNNER_UTILS := ../../thirdparty/build-cross-mlir/lib/libmlir_runner_utils.so
 CROSS_MLIR_LIB := ../../thirdparty/build-cross-mlir/lib
@@ -213,8 +215,8 @@ rvv-vp-intrinsic-sh-aot:
 		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
-	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
-	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o -mabi=lp64d \
+	${LLC} -mtriple riscv64  -mattr=+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o  \
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
@@ -226,7 +228,7 @@ rvv-vp-intrinsic-sh-jit:
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
-	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
+	${CROSS_LLI} --march=riscv64 -mattr=+v \
 		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS} --dlopen=${CROSS_MLIR_RUNNER_UTILS}
 
 rvv-vp-intrinsic-add-aot:
