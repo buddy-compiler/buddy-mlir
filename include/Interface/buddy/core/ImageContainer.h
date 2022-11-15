@@ -23,6 +23,7 @@
 
 #include "Interface/buddy/core/Container.h"
 #include <opencv2/opencv.hpp>
+#include <stb/stb_image.h>
 
 // Image container.
 // - T represents the type of the elements.
@@ -75,7 +76,7 @@ template <typename T, size_t N>class Stb_img <T,N>:public MemRef<T,N>
     // getter and setter
     unsigned int GetWidth() const { return Cols; }
     unsigned int GetHeight() const { return Rows; }
-    unsigned int Ge tChannels() const { return Channels; }
+    unsigned int GetChannels() const { return Channels; }
     unsigned int GetSize() const { return Rows * Cols * Channels; }
     unsigned char *Getidata() const { return Stbi_data }
     //2、实现写入一个图片；
