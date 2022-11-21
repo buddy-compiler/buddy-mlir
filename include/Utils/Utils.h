@@ -25,6 +25,10 @@ using namespace mlir;
 
 namespace buddy {
 
+// Function to test whether a value is equivalent to zero or not.
+Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
+               Value zeroElem);
+
 // Create an inverted mask having all 1's shifted to right side.
 Value createInvertedMask(OpBuilder &builder, Location loc, Value strideVal,
                          VectorType vectorMaskTy, Value leftIndex);

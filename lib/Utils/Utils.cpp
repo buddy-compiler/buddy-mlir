@@ -1,4 +1,4 @@
-//====- Utils.h -----------------------------------------------------------===//
+//====- Utils.cpp ---------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,6 +35,21 @@
 using namespace mlir;
 
 namespace buddy {
+
+// Function to test whether a value is equivalent to zero or not.
+Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
+               Value zeroElem) {
+  Value cond;
+  auto bitWidth = elemType.getIntOrFloatBitWidth();
+  if (elemType.isF32() || elemType.isF64()) {
+    cond = builder.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ONE, value,
+                                         zeroElem);
+  } else if (elemType.isInteger(bitWidth)) {
+    cond = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, value,
+                                         zeroElem);
+  }
+  return cond;
+}
 
 // Create an inverted mask having all 1's shifted to right side.
 Value createInvertedMask(OpBuilder &builder, Location loc, Value strideVal,

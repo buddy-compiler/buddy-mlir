@@ -165,10 +165,6 @@ void BilinearInterpolationResizing(
     Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
     int64_t stride, Value c0, Value c0F32, Value c1F32);
 
-// Function to test whether a value is equivalent to zero or not.
-Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
-               Value zeroElem);
-
 // Util function for morphological transformations ; compares two vectors and
 // returns a mask
 Value createCompVecMorph(OpBuilder &builder, Location loc, VectorType type,
