@@ -21,7 +21,6 @@
 #ifndef INTERFACE_BUDDY_CORE_IMAGECONTAINER
 #define INTERFACE_BUDDY_CORE_IMAGECONTAINER
 
-#include "Interface/buddy/core/Container.h"
 #include <opencv2/opencv.hpp>
 
 // Image container.

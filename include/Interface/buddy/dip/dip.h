@@ -21,6 +21,7 @@
 #ifndef INCLUDE_DIP
 #define INCLUDE_DIP
 
+#include "Interface/buddy/core/Container.h"
 #include "Interface/buddy/core/ImageContainer.h"
 
 namespace dip {

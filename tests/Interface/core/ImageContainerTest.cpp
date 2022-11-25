@@ -20,6 +20,7 @@
 
 // RUN: buddy-image-container-test 2>&1 | FileCheck %s
 
+#include "Interface/buddy/core/Container.h"
 #include "Interface/buddy/core/ImageContainer.h"
 #include <opencv2/imgcodecs.hpp>
 

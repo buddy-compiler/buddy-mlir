@@ -23,9 +23,6 @@
 
 #include <cassert>
 
-#include "Interface/buddy/core/Container.h"
-#include "Interface/buddy/core/ImageContainer.h"
-
 // Image Constructor from OpenCV Mat.
 template <typename T, size_t N> Img<T, N>::Img(cv::Mat image) : MemRef<T, N>() {
   if (image.channels() == 1) {
