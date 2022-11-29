@@ -33,10 +33,11 @@ template <typename T, size_t N> class MemRef {
 public:
   // Constructor from shape.
   MemRef(intptr_t sizes[N], T init = T(0));
+  MemRef(std::vector<size_t> sizes, T init = T(0));
   // Constructor from data.
   MemRef(const T *data, intptr_t sizes[N], intptr_t offset = 0);
   // Constructor from a unique_ptr, taking over.
-  MemRef(std::unique_ptr<T>& uptr, intptr_t sizes[N], intptr_t offset = 0);
+  MemRef(std::unique_ptr<T> &uptr, intptr_t sizes[N], intptr_t offset = 0);
   // Copy constructor.
   MemRef(const MemRef<T, N> &other);
   // Copy assignment operator.

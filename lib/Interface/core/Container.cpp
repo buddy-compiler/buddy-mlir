@@ -44,6 +44,21 @@ MemRef<T, N>::MemRef(intptr_t sizes[N], T init) {
   std::fill(aligned, aligned + size, init);
 }
 
+template <typename T, std::size_t N>
+MemRef<T, N>::MemRef(std::vector<size_t> sizes, T init) {
+  if (sizes.size() != N) {
+    throw std::runtime_error("Invalid number of dimensions.");
+  }
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
+  setStrides();
+  size = product(this->sizes);
+  allocated = new T[size];
+  aligned = allocated;
+  std::fill(aligned, aligned + size, init);
+}
+
 // MemRef Array Constructor.
 // Construct a MemRef object from the data pointer, sizes, and offset.
 // The default offset is 0.
@@ -210,7 +225,7 @@ size_t MemRef<T, N>::product(intptr_t sizes[N]) const {
   return size;
 }
 template <typename T, size_t N>
-MemRef<T, N>::MemRef(std::unique_ptr<T>& uptr, intptr_t *sizes,
+MemRef<T, N>::MemRef(std::unique_ptr<T> &uptr, intptr_t *sizes,
                      intptr_t offset) {
   if (!uptr)
     assert(0 && "Taking over an empty unique pointer.");

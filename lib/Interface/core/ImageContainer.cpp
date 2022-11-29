@@ -24,7 +24,8 @@
 #include <cassert>
 
 // Image Constructor from OpenCV Mat.
-template <typename T, size_t N> Img<T, N>::Img(cv::Mat image) : MemRef<T, N>() {
+template <typename T, size_t N>
+Img<T, N>::Img(cv::Mat image, bool norm) : MemRef<T, N>() {
   if (image.channels() == 1) {
     assert((N == 2) &&
            "Input image type does not match the selected dimension.");
@@ -41,9 +42,36 @@ template <typename T, size_t N> Img<T, N>::Img(cv::Mat image) : MemRef<T, N>() {
       }
     }
     this->setStrides();
+  }
+  // Use NHWC layout by default.
+  else if (image.channels() == 3) {
+    assert((N == 4) &&
+           "Input image type does not match the selected dimension.");
+    this->sizes[0] = 1;
+    this->sizes[1] = image.rows;
+    this->sizes[2] = image.cols;
+    this->sizes[3] = 3;
+    this->size = image.rows * image.cols * 3;
+    this->allocated = new T[this->size];
+    this->aligned = this->allocated;
+    int k = 0;
+    for (int i = 0; i < image.rows; i++) {
+      for (int j = 0; j < image.cols; j++) {
+        for (int color = 0; color < 3; color++) {
+          // Reorder to RGB layout.
+          if (norm) {
+            this->aligned[k] = (T)image.at<cv::Vec3b>(i, j)[2 - color] / 255;
+          } else {
+            this->aligned[k] = (T)image.at<cv::Vec3b>(i, j)[2 - color];
+          }
+          k++;
+        }
+      }
+    }
+    this->setStrides();
   } else {
     // TODO: Add more image channels in this constructor.
-    assert((N != 2) && "This image channels is not supported.");
+    std::cerr << "This image channels is not supported." << std::endl;
   }
 }
 
