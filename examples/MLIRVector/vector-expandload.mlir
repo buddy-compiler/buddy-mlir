@@ -9,7 +9,15 @@ memref.global "private" @gv2 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 func.func private @printMemrefI32(memref<*xi32>)
 
 func.func @main() -> i32 {
-  // maskedload is load with mask, supporting to load 1-D vector into n-D memref with mask.
+  // expandload is also load with mask, but move to read next element in memory 
+  // only when mask at current position is on, meaning:
+  //    result[0] := mask[0] ? base[index++] : pass_thru[0]
+  //    result[1] := mask[1] ? base[index++] : pass_thru[1]
+  //    ...
+  // instead of (which is what vector.maskedload doing)
+  //    result[0] := mask[0] ? base[0] : pass_thru[0]
+  //    result[1] := mask[1] ? base[1] : pass_thru[1]
+  //    ...
 
   // preparation for examples
   %c0 = arith.constant 0 : index
@@ -24,64 +32,69 @@ func.func @main() -> i32 {
   %pass_thru_4 = arith.constant dense<[2330, 2331, 2332, 2333]> : vector<4xi32>
   %pass_thru_8 = arith.constant dense<[2330, 2331, 2332, 2333, 2334, 2335, 2336, 2337]> : vector<8xi32>
 
-  // maskedload normal usage
-  // maskedload require a pass through value at any time
+  // expandload normal usage
+  // expandload require a pass through value at any time
   %mask0 = arith.constant dense<[1, 0, 1, 0]> : vector<4xi1>
-  %v0 = vector.maskedload %base0[%c0], %mask0, %pass_thru_4
+  
+  // %v0 will be [0, 2331, 1, 2333] instead of [0, 2331, 2, 2333]
+  // because position 1 is masked off, so it will not move to load next element
+  // in memory. So at position 2, it still load i32 1 at memory instead of 2.
+  %v0 = vector.expandload %base0[%c0], %mask0, %pass_thru_4
     : memref<8xi32>, vector<4xi1>, vector<4xi32> into vector<4xi32>
+  vector.print %v0 : vector<4xi32>
 
 
-  // maskedload with multi-dimension memref
+  // expandload with multi-dimension memref
   //    case 1: inside most-inner dimension
   %mask1 = arith.constant dense<[1, 0, 0, 1]> : vector<4xi1>
 
-  %v1 = vector.maskedload %base1[%c0, %c0], %mask1, %pass_thru_4
+  %v1 = vector.expandload %base1[%c0, %c0], %mask1, %pass_thru_4
     : memref<4x4xi32>, vector<4xi1>, vector<4xi32> into vector<4xi32>
   vector.print %v1 : vector<4xi32>
 
 
-  // maskedload with multi-dimension memref
+  // expandload with multi-dimension memref
   //    case 2: cross the most-inner dimension
   // In this case, it will behavior like the memref is flat
   %mask2 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
 
-  %v2 = vector.maskedload %base1[%c0, %c0], %mask2, %pass_thru_8
+  %v2 = vector.expandload %base1[%c0, %c0], %mask2, %pass_thru_8
     : memref<4x4xi32>, vector<8xi1>, vector<8xi32> into vector<8xi32>
   vector.print %v2 : vector<8xi32>
 
 
-  // maskedload with memref with custom layout
+  // expandload with memref with custom layout
   // TODO: find out how to create a memref with arbitrarily affine map layout
   // "3" is reserved for this example
 
 
-  // maskedload with dynamic memref
+  // expandload with dynamic memref
   //    case 1: in-bound
   %base4 = memref.cast %base1 : memref<4x4xi32> to memref<?x?xi32>
   %mask4 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
 
-  %v4 = vector.maskedload %base4[%c1, %c1], %mask4, %pass_thru_8
+  %v4 = vector.expandload %base4[%c1, %c1], %mask4, %pass_thru_8
     : memref<?x?xi32>, vector<8xi1>, vector<8xi32> into vector<8xi32>
   vector.print %v4 : vector<8xi32>
 
 
-  // maskedload with dynamic memref
+  // expandload with dynamic memref
   //    case 2: out-of-bound
   // it behavior likes vector.load -- it's a platform-specified operation
   // In some platform, it will just load data in @gv2 when access is out-of-bound
   %base5 = memref.cast %base1 : memref<4x4xi32> to memref<?x?xi32>
   %mask5 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
 
-  %v5 = vector.maskedload %base5[%c3, %c1], %mask5, %pass_thru_8
+  %v5 = vector.expandload %base5[%c3, %c1], %mask5, %pass_thru_8
     : memref<?x?xi32>, vector<8xi1>, vector<8xi32> into vector<8xi32>
   vector.print %v5 : vector<8xi32>
 
 
-  // maskedload with unranked memref is not allowed
+  // expandload with unranked memref is not allowed
   // %base6 = memref.cast %base1 : memref<4x4xi32> to memref<*xi32>
   // %mask6 = arith.constant dense<[1, 0, 0, 1]> : vector<4xi1>
 
-  // %v6 = vector.maskedload %base6[%c0, %c0], %mask6, %pass_thru_4
+  // %v6 = vector.expandload %base6[%c0, %c0], %mask6, %pass_thru_4
   //   : memref<*xi32>, vector<4xi1>, vector<4xi32> into vector<4xi32>
 
   %ret = arith.constant 0 : i32
