@@ -60,7 +60,7 @@ public:
   llvm::SmallVector<llvm::StringRef, 4> getBuilderNames() {
     return this->builderNames;
   }
-  llvm::SmallVector<int> getbulderIdxs() { return this->builderIdxs; }
+  llvm::SmallVector<int> getBuilderIndices() { return this->builderIdxs; }
 };
 
 /// This class is used to mark the node in the generator as a rule, and can also

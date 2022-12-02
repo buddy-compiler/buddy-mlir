@@ -22,17 +22,17 @@
 namespace frontendgen {
 
 /// TypeMap is used to store type maps.The cppMap is used to map c++ types,
-/// argumentsMap and resultsmap are used to map TableGen types.
+/// argumentsMap and resultsMap are used to map TableGen types.
 class TypeMap {
   llvm::StringMap<llvm::StringRef> cppMap;
-  llvm::StringMap<llvm::StringRef> argmentsMap;
+  llvm::StringMap<llvm::StringRef> argumentsMap;
   llvm::StringMap<llvm::StringRef> resultsMap;
 
 public:
   TypeMap() {
 #define CPPMAP(key, value) cppMap.insert(std::pair(key, value));
 #define RESULTSMAP(key, value) resultsMap.insert(std::pair(key, value));
-#define ARGUMENTSMAP(key, value) argmentsMap.insert(std::pair(key, value));
+#define ARGUMENTSMAP(key, value) argumentsMap.insert(std::pair(key, value));
 #include "TypeMap.def"
   }
   llvm::StringRef findCppMap(llvm::StringRef value);
@@ -64,7 +64,7 @@ public:
   void emitClass(llvm::StringRef grammarName);
   void emitRuleVisitor(llvm::StringRef grammarName, Rule *rule);
   void emitBuilders(Rule *rule);
-  void emitBuilder(llvm::StringRef buildrOp, int index);
+  void emitBuilder(llvm::StringRef builderOp, int index);
   Op *findOp(llvm::StringRef opName);
   void emitOp(Op *op, int index);
 };
