@@ -17,7 +17,7 @@ following targets:
 
 - Translate Target (`<Dialect Name>-<Operation Name>-translate`): the translate target is designed to show the LLVM IR that generate from MLIR. The name of the output file is `log.ll`.
 
-- Executable Target (`<Dialect Name>-<Operation Name>-run`): the executable target uses MLIR JIT engine to showe the result of the cases.
+- Executable Target (`<Dialect Name>-<Operation Name>-run`): the executable target uses MLIR JIT engine to show the result of the cases.
 
 You can run these targets with the `make` command. Take an example with the `memref.dim` operation, you can run the following command:
 
