@@ -15,7 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "CGModule.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
+#include <string>
+#include <utility>
 
 using namespace frontendgen;
 
@@ -228,6 +231,9 @@ void CGModule::emitOp(Op *op, int index) {
     // opArguments are used to store the names of the arguments needed to create
     // the operation.
     llvm::SmallVector<llvm::StringRef> opArguments;
+    // tmpStrings are used to store and own some computed string, keeping their
+    // lifetime longger than the StringRefs in opArguments
+    llvm::SmallVector<std::string> tmpStrings;
     // Emit variables for creation operation.
     // Emit variables of result type.
     for (size_t index = 0; index < resOperands.size(); index++) {
@@ -237,8 +243,9 @@ void CGModule::emitOp(Op *op, int index) {
           os << resOperandNames[index] << ";\n";
           opArguments.push_back(resOperandNames[index]);
         } else {
-          os << "res" << index << ";\n";
-          llvm::StringRef arg("res" + std::to_string(index));
+          tmpStrings.emplace_back("res" + std::to_string(index));
+          const auto &arg = tmpStrings.back();
+          os << arg << ";\n";
           opArguments.push_back(arg);
         }
       } else if (resOperands[index].startswith("AnyTypeOf")) {
@@ -269,8 +276,9 @@ void CGModule::emitOp(Op *op, int index) {
           os << resOperandNames[index] << ";\n";
           opArguments.push_back(resOperandNames[index]);
         } else {
-          os << "res" << index << ";\n";
-          llvm::StringRef arg("res" + std::to_string(index));
+          tmpStrings.emplace_back("res" + std::to_string(index));
+          const auto &arg = tmpStrings.back();
+          os << arg << ";\n";
           opArguments.push_back(arg);
         }
       } else {
@@ -287,8 +295,9 @@ void CGModule::emitOp(Op *op, int index) {
           os << argOperandNames[index] << ";\n";
           opArguments.push_back(argOperandNames[index]);
         } else {
-          os << "arg" << index << ";\n";
-          llvm::StringRef arg("arg" + std::to_string(index));
+          tmpStrings.emplace_back("arg" + std::to_string(index));
+          const auto &arg = tmpStrings.back();
+          os << arg << ";\n";
           opArguments.push_back(arg);
         }
       } else if (argOperands[index].startswith("AnyTypeOf")) {
@@ -319,8 +328,9 @@ void CGModule::emitOp(Op *op, int index) {
           os << argOperandNames[index] << ";\n";
           opArguments.push_back(argOperandNames[index]);
         } else {
-          os << "arg" << index << ";\n";
-          llvm::StringRef arg("arg" + std::to_string(index));
+          tmpStrings.emplace_back("arg" + std::to_string(index));
+          const auto &arg = tmpStrings.back();
+          os << arg << ";\n";
           opArguments.push_back(arg);
         }
       } else {
@@ -355,6 +365,7 @@ void CGModule::emitOp(Op *op, int index) {
     llvm::SmallVector<llvm::StringRef, 4> operandNames =
         op->getBuilders()[index]->getDag()->getOperandNames();
     llvm::SmallVector<llvm::StringRef> opArguments;
+    llvm::SmallVector<std::string> tmpStrings;
     os << "  {\n";
     for (size_t index = 0; index < operands.size(); index++) {
       if (!typeMap.findCppMap(operands[index]).empty())
@@ -365,8 +376,10 @@ void CGModule::emitOp(Op *op, int index) {
         os << " " << operandNames[index] << ";\n";
         opArguments.push_back(operandNames[index]);
       } else {
-        os << " arg" << index << ";\n";
-        opArguments.push_back("arg" + std::to_string(index));
+        tmpStrings.emplace_back("arg" + std::to_string(index));
+        const auto &arg = tmpStrings.back();
+        os << arg << ";\n";
+        opArguments.push_back(arg);
       }
     }
     // Emit the operation we want to create.
