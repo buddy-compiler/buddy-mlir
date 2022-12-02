@@ -1,4 +1,4 @@
-//====- CGMdodule.cpp -----------------------------------------------------===//
+//====- CGModule.cpp -----------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,8 +56,8 @@ void CGModule::emitTerminators() {
   emitWSAndComment();
 }
 
-void CGModule::emitGrammar(llvm::StringRef grammarNmae) {
-  os << "grammar " << grammarNmae << ";\n\n";
+void CGModule::emitGrammar(llvm::StringRef grammarName) {
+  os << "grammar " << grammarName << ";\n\n";
 }
 
 /// Emit user-defined terminator.
@@ -81,7 +81,7 @@ void CGModule::emit(const std::vector<Rule *> &rules) {
   }
 }
 
-/// Emit all generative formuls  in a rule.
+/// Emit all generative formulas in a rule.
 void CGModule::emit(
     const std::vector<GeneratorAndOthers *> &generatorsAndOthers) {
   for (GeneratorAndOthers *generatorAndOthers : generatorsAndOthers) {
@@ -143,8 +143,8 @@ void CGModule::emitIncludes(llvm::StringRef grammarName) {
 }
 
 /// Emit visitor class.
-void CGModule::emitClass(llvm::StringRef gramarName) {
-  os << "class MLIR" << gramarName << "Visitor : public " << gramarName
+void CGModule::emitClass(llvm::StringRef grammarName) {
+  os << "class MLIR" << grammarName << "Visitor : public " << grammarName
      << "BaseVisitor {\n";
 
   os << "mlir::ModuleOp theModule;\n";
@@ -152,7 +152,7 @@ void CGModule::emitClass(llvm::StringRef gramarName) {
   os << "std::string fileName;\n\n";
 
   os << "public:\n";
-  os << "MLIR" << gramarName
+  os << "MLIR" << grammarName
      << "Visitor(std::string filename, mlir::MLIRContext &context)\n"
      << ": builder(&context), fileName(filename) "
      << "{\n theModule = mlir::ModuleOp::create(builder.getUnknownLoc()); "
@@ -162,7 +162,7 @@ void CGModule::emitClass(llvm::StringRef gramarName) {
   // Emit all virtual functions.
   auto rules = module->getRules();
   for (auto rule : rules) {
-    emitRuleVisitor(gramarName, rule);
+    emitRuleVisitor(grammarName, rule);
   }
   os << "};\n";
 }
@@ -182,10 +182,10 @@ void CGModule::emitBuilders(Rule *rule) {
        rule->getGeneratorsAndOthers()) {
     llvm::SmallVector<llvm::StringRef> builderOpNames =
         generatorAndOthers->getBuilderNames();
-    llvm::SmallVector<int> indexs = generatorAndOthers->getbulderIdxs();
+    llvm::SmallVector<int> indices = generatorAndOthers->getBuilderIndices();
     int size = builderOpNames.size();
     for (int start = 0; start < size; start++)
-      emitBuilder(builderOpNames[start], indexs[start]);
+      emitBuilder(builderOpNames[start], indices[start]);
   }
 }
 
@@ -225,9 +225,9 @@ void CGModule::emitOp(Op *op, int index) {
       resOperandNames = result->getOperandNames();
     }
     os << "  {\n";
-    // opArgments are used to store the names of the arguments needed to create
+    // opArguments are used to store the names of the arguments needed to create
     // the operation.
-    llvm::SmallVector<llvm::StringRef> opArgments;
+    llvm::SmallVector<llvm::StringRef> opArguments;
     // Emit variables for creation operation.
     // Emit variables of result type.
     for (size_t index = 0; index < resOperands.size(); index++) {
@@ -235,17 +235,17 @@ void CGModule::emitOp(Op *op, int index) {
         os << "  " << typeMap.findResultsMap(resOperands[index]) << " ";
         if (!resOperandNames[index].empty()) {
           os << resOperandNames[index] << ";\n";
-          opArgments.push_back(resOperandNames[index]);
+          opArguments.push_back(resOperandNames[index]);
         } else {
           os << "res" << index << ";\n";
           llvm::StringRef arg("res" + std::to_string(index));
-          opArgments.push_back(arg);
+          opArguments.push_back(arg);
         }
       } else if (resOperands[index].startswith("AnyTypeOf")) {
         llvm::StringRef operand = resOperands[index];
-        uint start = operand.find('[') + 1;
-        uint end = operand.find(']');
-        uint cur = start;
+        auto start = operand.find('[') + 1;
+        auto end = operand.find(']');
+        auto cur = start;
         if (start == std::string::npos || end == std::string::npos) {
           return;
         }
@@ -267,11 +267,11 @@ void CGModule::emitOp(Op *op, int index) {
         os << "  " << type << " ";
         if (!resOperandNames[index].empty()) {
           os << resOperandNames[index] << ";\n";
-          opArgments.push_back(resOperandNames[index]);
+          opArguments.push_back(resOperandNames[index]);
         } else {
           os << "res" << index << ";\n";
           llvm::StringRef arg("res" + std::to_string(index));
-          opArgments.push_back(arg);
+          opArguments.push_back(arg);
         }
       } else {
         llvm::errs() << resOperands[index] << " in " << op->getOpName()
@@ -285,17 +285,17 @@ void CGModule::emitOp(Op *op, int index) {
         os << "  " << typeMap.findArgumentMap(argOperands[index]) << " ";
         if (!argOperandNames[index].empty()) {
           os << argOperandNames[index] << ";\n";
-          opArgments.push_back(argOperandNames[index]);
+          opArguments.push_back(argOperandNames[index]);
         } else {
           os << "arg" << index << ";\n";
           llvm::StringRef arg("arg" + std::to_string(index));
-          opArgments.push_back(arg);
+          opArguments.push_back(arg);
         }
       } else if (argOperands[index].startswith("AnyTypeOf")) {
         llvm::StringRef operand = argOperands[index];
-        uint start = operand.find('[') + 1;
-        uint end = operand.find(']');
-        uint cur = start;
+        auto start = operand.find('[') + 1;
+        auto end = operand.find(']');
+        auto cur = start;
         if (start == std::string::npos || end == std::string::npos) {
           return;
         }
@@ -317,11 +317,11 @@ void CGModule::emitOp(Op *op, int index) {
         os << "  " << type << " ";
         if (!argOperandNames[index].empty()) {
           os << argOperandNames[index] << ";\n";
-          opArgments.push_back(argOperandNames[index]);
+          opArguments.push_back(argOperandNames[index]);
         } else {
           os << "arg" << index << ";\n";
           llvm::StringRef arg("arg" + std::to_string(index));
-          opArgments.push_back(arg);
+          opArguments.push_back(arg);
         }
       } else {
         llvm::errs() << argOperands[index] << " in " << op->getOpName()
@@ -337,11 +337,11 @@ void CGModule::emitOp(Op *op, int index) {
     os << "  "
        << "builder.create<" << cppNameSpace << "::" << op->getOpName()
        << ">(location";
-    if (opArgments.size())
+    if (opArguments.size())
       os << ", ";
-    for (size_t index = 0; index < opArgments.size(); index++) {
-      os << opArgments[index];
-      if (index + 1 != opArgments.size())
+    for (size_t index = 0; index < opArguments.size(); index++) {
+      os << opArguments[index];
+      if (index + 1 != opArguments.size())
         os << ", ";
     }
     os << ");\n";
@@ -397,9 +397,9 @@ llvm::StringRef TypeMap::findCppMap(llvm::StringRef key) {
 }
 
 llvm::StringRef TypeMap::findArgumentMap(llvm::StringRef key) {
-  if (argmentsMap.find(key) == argmentsMap.end())
+  if (argumentsMap.find(key) == argumentsMap.end())
     return llvm::StringRef();
-  return argmentsMap[key];
+  return argumentsMap[key];
 }
 
 llvm::StringRef TypeMap::findResultsMap(llvm::StringRef key) {
