@@ -573,7 +573,7 @@ vector-transfer-write-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
-run-targets += vector-load-run
+run-targets += vector-write-run
 vector-transfer-write-run:
 	@${MLIR_OPT} ./vector-transfer-write.mlir \
 	    --convert-vector-to-scf --lower-affine --convert-scf-to-cf \
@@ -595,7 +595,7 @@ vector-contract-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
-run-targets += vector-load-run
+run-targets += vector-contract-run
 vector-contract-run:
 	@${MLIR_OPT} ./vector-contract.mlir \
 	    --convert-vector-to-scf --lower-affine --convert-scf-to-cf \
