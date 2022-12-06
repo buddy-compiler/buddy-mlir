@@ -15,6 +15,12 @@ memref.global "private" @gv3 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 func.func private @printMemrefI32(memref<*xi32>)
 
 func.func @main() -> i32 {
+  // compressstore is the compressing version of maskedstore, supporting
+  // store 1-D vector into n-D memref with mask.
+
+  // Unlike maskedstore, if a bit of vector is masked off, it will NOT occupy
+  // a position in the memory. 
+
   // preparation for examples
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
@@ -33,7 +39,10 @@ func.func @main() -> i32 {
   %gv3_for_print = memref.cast %base3 : memref<8xi32> to memref<*xi32>
 
   // compressstore normal usage
-  // compressstore is like "masked store"
+  // Notice that the %value0[1] is masked off, so only [100, 102] are stored
+  // into %base0[0], %base[1]
+  // If we use maskedstore here, the [100, 102] will be stored into %base0[0], 
+  // %base[2], the masked-off lane %value0[1] will also occupy a position for %base0[1] 
   %mask0 = arith.constant dense<[1, 0, 1]> : vector<3xi1>
   %value0 = arith.constant dense<[100, 101, 102]> : vector<3xi32>
 
@@ -110,6 +119,13 @@ func.func @main() -> i32 {
 
   // vector.compressstore %base6[%c0, %c0], %mask6, %value6
   //   : memref<*xi32>, vector<4xi1>, vector<4xi32>
+
+  // Unlike store, compressstore with n-D vector is not allowed
+  // %mask7 = arith.constant dense<[[1, 0, 0, 1], [0, 1, 1, 0]]> : vector<2x4xi1>
+  // %value7 = arith.constant dense<[[700, 701, 702, 703], [704, 705, 706, 707]]> : vector<2x4xi32>
+
+  // vector.compressstore %base2[%c0, %c0], %mask7, %value7
+  //   : memref<4x4xi32>, vector<2x4xi1>, vector<2x4xi32>
 
   %ret = arith.constant 0 : i32
   return %ret : i32
