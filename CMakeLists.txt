@@ -37,9 +37,13 @@ find_package(MLIR REQUIRED CONFIG)
 
 set(LLVM_MLIR_BINARY_DIR ${MLIR_DIR}/../../../bin)
 set(LLVM_MLIR_SOURCE_DIR ${MLIR_DIR}/../../../../mlir)
+set(LLVM_PROJECT_SOURCE_DIR ${MLIR_DIR}/../../../../)
 
 list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+
+find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR}
+    NO_DEFAULT_PATH)
 
 include(TableGen)
 include(AddLLVM)
@@ -62,18 +66,19 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
-# Add MLIR and LLVM headers to the include path
-include_directories(${LLVM_INCLUDE_DIRS})
-include_directories(${MLIR_INCLUDE_DIRS})
-
 # Add BUDDY files to the include path
 include_directories(${BUDDY_MAIN_INCLUDE_DIR})
 include_directories(${BUDDY_INCLUDE_DIR})
 include_directories(${BUDDY_INCLUDE_DIR}/Interface)
 include_directories(${BUDDY_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/Dialect)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/backend/include)
 include_directories(${BUDDY_SOURCE_DIR}/lib)
 include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
+
+# Add MLIR and LLVM headers to the include path
+include_directories(${LLVM_INCLUDE_DIRS})
+include_directories(${MLIR_INCLUDE_DIRS})
 
 #-------------------------------------------------------------------------------
 # Hardware detection
@@ -118,3 +123,4 @@ add_subdirectory(tools)
 add_subdirectory(examples)
 add_subdirectory(tests)
 add_subdirectory(frontend)
+add_subdirectory(backend)
