@@ -51,10 +51,7 @@ file(GLOB UPSTREAM_LLVM_TARGET_RISCV_FILE
   "${LLVM_TARGET_RISCV_DIR}/*.h"
 )
 foreach(file ${UPSTREAM_LLVM_TARGET_RISCV_FILE})
-  # Copy files to build directory, and exclude the files provided by buddy extension.
-  if (NOT ${file} STREQUAL "RISCVSubtarget.h")
-    copy_file_to_build_dir(${LLVM_TARGET_RISCV_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${file})
-  endif()
+  copy_file_to_build_dir(${LLVM_TARGET_RISCV_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${file})
 endforeach()
 
 # Copy related files to build directory.
@@ -107,6 +104,7 @@ add_llvm_target(BuddyRISCVCodeGen
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMachineFunctionInfo.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMacroFusion.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVRegisterInfo.h
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVSubtarget.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetMachine.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetObjectFile.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetTransformInfo.h
