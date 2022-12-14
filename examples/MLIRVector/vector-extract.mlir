@@ -1,19 +1,28 @@
 func.func @main() -> i32 {
-  %0 = arith.constant dense<[1, 2, 3, 4]> : vector<4xi32>
-  vector.print %0 : vector<4xi32>
+  // vector.extract can get scalar/sub-vector from a vector.
 
-  %value = vector.extract %0[2] : vector<4xi32>
-  vector.print %value : i32
+  // vector.extract only support literal as indices, if you need to extract 
+  // something from a vector with runtime values as indices, you need to cast
+  // your base vector to 1-D vector and use vector.extractelement instead.
 
-  %1 = arith.constant dense<[[[12, 13, 14], [14, 15, 16]],
-                             [[14, 16, 19], [22, 89, 78]]]> : vector<2x2x3xi32>
-  vector.print %1 : vector<2x2x3xi32>
+  %base = arith.constant dense<[[0, 1, 2], [10, 11, 12], [20, 21, 22]]> 
+    : vector<3x3xi32>
 
-  %value1 = vector.extract %1[0, 1] : vector<2x2x3xi32> // extracts [14,15,16]
-  vector.print %value1 : vector<3xi32>
+  
+  // Extract a scalar:
+  %c0 = vector.extract %base[1, 1] : vector<3x3xi32>
+  vector.print %c0 : i32
 
-  %value2 = vector.extract %1[1, 1, 2] : vector<2x2x3xi32> // extracts 78
-  vector.print %value2 : i32
+
+  // Extract a sub-vector:
+  %w1 = vector.extract %base[1] : vector<3x3xi32>
+  vector.print %w1 : vector<3xi32>
+
+
+  // For edge case, you can "extract" a vector itself.
+  // %w2 will be exactly as same as %base
+  %w2 = vector.extract %base[] : vector<3x3xi32>
+  vector.print %w2 : vector<3x3xi32>
 
   %ret = arith.constant 0 : i32
   return %ret : i32
