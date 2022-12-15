@@ -189,10 +189,10 @@ private:
         if (tensor->tensorLiteral()->Number()) {
           attrElements.push_back(
               getConstantAttr(tensor->tensorLiteral()->Number()));
-          typeElements.push_back(getType(llvm::None));
+          typeElements.push_back(getType(std::nullopt));
         } else {
           attrElements.push_back(getConstantAttr(tensor->tensorLiteral()));
-          typeElements.push_back(getType(llvm::None));
+          typeElements.push_back(getType(std::nullopt));
         }
       }
     }
@@ -323,7 +323,7 @@ private:
           break;
       }
     }
-    auto funType = builder.getFunctionType(argTypes, llvm::None);
+    auto funType = builder.getFunctionType(argTypes, std::nullopt);
     auto func = builder.create<mlir::toy::FuncOp>(
         location, ctx->Identifier()->toString(), funType);
     return func;
@@ -365,7 +365,7 @@ private:
     return structCtxMap.lookup(structName);
   }
   /// Return the numeric member index of the given struct access expression.
-  llvm::Optional<size_t> getMemberIndex(ToyParser::ExpressionContext *ctx) {
+  std::optional<size_t> getMemberIndex(ToyParser::ExpressionContext *ctx) {
     int accessIndex = 0;
     // Lookup the struct node for the LHS.
     ToyParser::StructDefineContext *parentCtx =
@@ -419,7 +419,7 @@ private:
       value = std::any_cast<mlir::Value>(visit(ctx->expression(0)));
       mlir::Location location =
           loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
-      llvm::Optional<size_t> accessIndex = getMemberIndex(ctx);
+      std::optional<size_t> accessIndex = getMemberIndex(ctx);
       value = builder.create<mlir::toy::StructAccessOp>(location, value,
                                                         *accessIndex);
       return value;

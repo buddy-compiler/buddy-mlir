@@ -109,7 +109,7 @@ Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
 
   builder.create<AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
-      builder.getDimIdentityMap(), 1, llvm::None,
+      builder.getDimIdentityMap(), 1, std::nullopt,
       [&](OpBuilder &builder, Location loc, Value iv, ValueRange iterArg) {
         Value iotaValIndex = builder.create<arith::AddIOp>(loc, iv, indexStart);
         Value iotaVal = indexToF32(builder, loc, iotaValIndex);

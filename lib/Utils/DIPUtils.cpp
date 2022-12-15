@@ -378,7 +378,7 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
                 Value inputColLastElemF32, Value c0F32) {
   builder.create<AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
-      builder.getDimIdentityMap(), /*step*/ 1, llvm::None,
+      builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
       [&](OpBuilder &builder, Location loc, ValueRange ivs,
           ValueRange iterArg) {
         std::vector<Value> origIndices =
@@ -497,7 +497,7 @@ void fillPixelsBilinearInterpolate(
     Value c1F32) {
   builder.create<AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
-      builder.getDimIdentityMap(), /*step*/ 1, llvm::None,
+      builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
       [&](OpBuilder &builder, Location loc, ValueRange ivs,
           ValueRange iterArg) {
         std::vector<Value> resIndices =

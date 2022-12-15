@@ -124,7 +124,7 @@ public:
     // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
     // FIR part
     rewriter.create<scf::ForOp>(
-        loc, c2, N, strideVal, ValueRange{llvm::None},
+        loc, c2, N, strideVal, ValueRange{std::nullopt},
         [&](OpBuilder &builder, Location loc, Value ivs, ValueRange iargs) {
           Value idx0 = ivs;
           Value idx1 = builder.create<SubIOp>(loc, idx0, c1);
@@ -144,7 +144,7 @@ public:
           Value resVec1 = builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
           Value resVec2 = builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
           builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
-          builder.create<scf::YieldOp>(loc, llvm::None);
+          builder.create<scf::YieldOp>(loc, std::nullopt);
         });
 
     // IIR part
@@ -208,7 +208,7 @@ public:
 
     // loop over every row in SOS matrix
     rewriter.create<scf::ForOp>(
-        loc, c0, filterSize, c1, ValueRange{llvm::None},
+        loc, c0, filterSize, c1, ValueRange{std::nullopt},
         [&](OpBuilder &builder, Location loc, ValueRange ivs,
             ValueRange iargs) {
           Value b0 = builder.create<memref::LoadOp>(loc, kernel,
@@ -250,7 +250,7 @@ public:
           // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
           // FIR part
           builder.create<scf::ForOp>(
-              loc, c2, N, strideVal, ValueRange{llvm::None},
+              loc, c2, N, strideVal, ValueRange{std::nullopt},
               [&](OpBuilder &builder, Location loc, Value iv,
                   ValueRange itrargs) {
                 Value idx0 = iv;
@@ -274,7 +274,7 @@ public:
                     builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
                 builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
 
-                builder.create<scf::YieldOp>(loc, llvm::None);
+                builder.create<scf::YieldOp>(loc, std::nullopt);
               });
 
           // IIR part
@@ -295,7 +295,7 @@ public:
                     loc, std::vector<Value>{itrargs[1], opt});
               });
           builder.create<memref::CopyOp>(loc, output, input);
-          builder.create<scf::YieldOp>(loc, llvm::None);
+          builder.create<scf::YieldOp>(loc, std::nullopt);
         });
 
     rewriter.eraseOp(op);
