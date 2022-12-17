@@ -114,19 +114,19 @@ add_llvm_target(BuddyRISCVCodeGen
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVRegisterBankInfo.h
 
   LINK_COMPONENTS
-  Analysis
-  AsmPrinter
-  Core
-  IPO
-  CodeGen
+  BuddyAnalysis
+  BuddyAsmPrinter
+  BuddyCore
+  BuddyIPO
+  BuddyCodeGen
   MC
   RISCVDesc
   RISCVInfo
-  SelectionDAG
+  BuddySelectionDAG
   Support
-  Target
+  BuddyTarget
   TransformUtils
-  GlobalISel
+  BuddyGlobalISel
 
   ADD_TO_COMPONENT
   RISCVBuddyExt

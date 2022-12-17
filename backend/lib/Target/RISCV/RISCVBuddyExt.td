@@ -19,7 +19,6 @@
 //===----------------------------------------------------------------------===//
 
 include "RISCV.td"
-
 def FeatureBuddyExt
     : SubtargetFeature<"buddyext", "HasBuddyExt", "true",
                        "'BuddyExt' (Buddy RISC-V Extension)">;
