@@ -58,25 +58,16 @@ async-execute-run:
 	-shared-libs=${MLIR_ASYNC_RUNTIME} ${OPT_FLAG}
 
 gpu-mma-lower:
-	@${MLIR_OPT} gpu-launch-func.mlir -gpu-kernel-outlining | \
-	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' | \
-	${MLIR_OPT}	-gpu-async-region -gpu-to-llvm -o log.mlir
+	@${MLIR_OPT} gpu-mma.mlir -gpu-kernel-outlining | \
+	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin{chip=sm_70}))' | \
+	${MLIR_OPT}	-convert-scf-to-cf -gpu-to-llvm -o log.mlir
 		
 gpu-mma-run:
-	@${MLIR_OPT} gpu-launch-func.mlir -gpu-kernel-outlining | \
-	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' | \
-	${MLIR_OPT}	-gpu-async-region -gpu-to-llvm | \
-	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME} \
-	-shared-libs=${MLIR_ASYNC_RUNTIME} 
+	@${MLIR_OPT} gpu-mma.mlir -gpu-kernel-outlining | \
+	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin{chip=sm_70}))' | \
+	${MLIR_OPT}	-convert-scf-to-cf -gpu-to-llvm | \
+	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_CUDA_RUNTIME} -shared-libs=${MLIR_RUNNER_UTILS}
 
 vector-to-gpu-lower:
-	@${MLIR_OPT} gpu-launch-func.mlir -gpu-kernel-outlining | \
-	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' | \
-	${MLIR_OPT}	-gpu-async-region -gpu-to-llvm -o log.mlir 
-
-vector-to-gpu-run:
-	@${MLIR_OPT} gpu-launch-func.mlir -gpu-kernel-outlining | \
-	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' | \
-	${MLIR_OPT}	-gpu-async-region -gpu-to-llvm | \
-	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME} \
-	-shared-libs=${MLIR_ASYNC_RUNTIME}
+	@${MLIR_OPT} vector-to-gpu.mlir -gpu-kernel-outlining | \
+	${MLIR_OPT} -pass-pipeline="builtin.module(func.func(convert-vector-to-gpu,canonicalize))" -o log.mlir 
