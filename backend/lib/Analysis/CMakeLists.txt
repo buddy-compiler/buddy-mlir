@@ -15,8 +15,6 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/CFG.cpp
   ${LLVM_Analysis_DIR}/CFGPrinter.cpp
   ${LLVM_Analysis_DIR}/CFGSCCPrinter.cpp
-  ${LLVM_Analysis_DIR}/CFLAndersAliasAnalysis.cpp
-  ${LLVM_Analysis_DIR}/CFLSteensAliasAnalysis.cpp
   ${LLVM_Analysis_DIR}/CGSCCPassManager.cpp
   ${LLVM_Analysis_DIR}/CallGraph.cpp
   ${LLVM_Analysis_DIR}/CallGraphSCCPass.cpp
@@ -108,7 +106,6 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/StackSafetyAnalysis.cpp
   ${LLVM_Analysis_DIR}/SyncDependenceAnalysis.cpp
   ${LLVM_Analysis_DIR}/SyntheticCountsUtils.cpp
-  ${LLVM_Analysis_DIR}/TFUtils.cpp
   ${LLVM_Analysis_DIR}/TFLiteUtils.cpp
   ${LLVM_Analysis_DIR}/TargetLibraryInfo.cpp
   ${LLVM_Analysis_DIR}/TargetTransformInfo.cpp
