@@ -124,6 +124,27 @@ struct RVVStoreOpLowering : public ConvertOpToLLVMPattern<RVVStoreOp> {
 using RVVSetVlOpLowering =
     OneToOneConvertToLLVMPattern<RVVSetVlOp, RVVIntrSetVlIOp>;
 
+struct RsqrtOpLowering : public ConvertOpToLLVMPattern<RsqrtOp> {
+  using ConvertOpToLLVMPattern<RsqrtOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(RsqrtOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    auto resultType = op.getResult().getType();
+    Value passthru = rewriter.create<LLVM::UndefOp>(op.getLoc(), resultType);
+    Value src = op.getOperand(0);
+    Value vl = op.getOperand(1);
+    Value vlCast = rewriter
+                       .create<UnrealizedConversionCastOp>(
+                           op.getLoc(), rewriter.getI64Type(), vl)
+                       .getResult(0);
+    rewriter.replaceOpWithNewOp<IntrFrsqrt7Op>(op, resultType, passthru, src,
+                                               vlCast);
+    return success();
+  }
+};
+
 /// Populate the given list with patterns that convert from RVV to LLVM.
 void mlir::populateRVVLegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, OwningRewritePatternList &patterns) {
@@ -135,6 +156,7 @@ void mlir::populateRVVLegalizeForLLVMExportPatterns(
   patterns.add<RVVSetVlOpLowering>(converter);
   patterns.add<RVVLoadOpLowering,
                RVVStoreOpLowering>(converter);
+  patterns.add<RsqrtOpLowering>(converter);
   // clang-format on
 }
 
@@ -142,9 +164,11 @@ void mlir::configureRVVLegalizeForExportTarget(LLVMConversionTarget &target) {
   // clang-format off
   target.addLegalOp<RVVIntrSetVlIOp,
                     RVVIntrLoadEleOp,
-                    RVVIntrStoreEleOp>();
+                    RVVIntrStoreEleOp,
+                    IntrFrsqrt7Op>();
   target.addIllegalOp<RVVSetVlOp,
                       RVVLoadOp,
-                      RVVStoreOp>();
+                      RVVStoreOp,
+                      RsqrtOp>();
   // clang-format on
 }
