@@ -62,9 +62,9 @@ int main(int argc, char *argv[]) {
   buddyKernelStart = clock();
   // Get the data, row, and column information of the kernel.
   float *kernelAlign = laplacianKernelAlign;
-  int kernelRows = laplacianKernelRows;
-  int kernelCols = laplacianKernelCols;
-  intptr_t sizesKernel[2] = {kernelRows, kernelCols};
+  size_t kernelRows = laplacianKernelRows;
+  size_t kernelCols = laplacianKernelCols;
+  size_t sizesKernel[2] = {kernelRows, kernelCols};
   // Define the kernel MemRef object.
   MemRef<float, 2> kernelMemRef(kernelAlign, sizesKernel);
   clock_t buddyKernelEnd;
@@ -77,9 +77,9 @@ int main(int argc, char *argv[]) {
   clock_t buddyOutputStart;
   buddyOutputStart = clock();
   // Define the output.
-  int outputRows = buddyInputMat.rows - kernelRows + 1;
-  int outputCols = buddyInputMat.cols - kernelCols + 1;
-  intptr_t sizesOutput[2] = {outputRows, outputCols};
+  size_t outputRows = buddyInputMat.rows - kernelRows + 1;
+  size_t outputCols = buddyInputMat.cols - kernelCols + 1;
+  size_t sizesOutput[2] = {outputRows, outputCols};
   MemRef<float, 2> outputMemRef(sizesOutput);
   clock_t buddyOutputEnd;
   buddyOutputEnd = clock();

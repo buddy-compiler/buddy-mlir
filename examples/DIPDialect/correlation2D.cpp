@@ -66,12 +66,12 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
   // Define the kernel.
   float *kernelAlign = laplacianKernelAlign;
-  int kernelRows = laplacianKernelRows;
-  int kernelCols = laplacianKernelCols;
+  size_t kernelRows = laplacianKernelRows;
+  size_t kernelCols = laplacianKernelCols;
 
   // Define sizes and strides.
-  intptr_t sizesKernel[2] = {kernelRows, kernelCols};
-  intptr_t sizesOutput[2] = {image.rows, image.cols};
+  size_t sizesKernel[2] = {kernelRows, kernelCols};
+  size_t sizesOutput[2] = {static_cast<size_t>(image.rows), static_cast<size_t>(image.cols)};
 
   // Define memref containers.
   Img<float, 2> input(image);

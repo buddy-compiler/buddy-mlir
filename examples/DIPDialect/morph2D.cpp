@@ -64,12 +64,12 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
   // Define the kernel.
   float *kernelAlign = crossKernelAlign3x3;
-  int kernelRows = crossKernelRows3x3;
-  int kernelCols = crossKernelCols3x3;
+  size_t kernelRows = crossKernelRows3x3;
+  size_t kernelCols = crossKernelCols3x3;
 
   // Define sizes and strides.
-  intptr_t sizesKernel[2] = {kernelRows, kernelCols};
-  intptr_t sizesOutput[2] = {image.rows, image.cols};
+  size_t sizesKernel[2] = {kernelRows, kernelCols};
+  size_t sizesOutput[2] = {static_cast<size_t>(image.rows), static_cast<size_t>(image.cols)};
 
   // Define memref containers.
   Img<float, 2> input(image);

@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
   cout << "Current specified path: \n";
   cout << "Load: " << fileName << endl;
   cout << "Save: " << saveFileName << endl;
-  intptr_t kernelSize = 6;
+  size_t kernelSize = 6;
   MemRef<float, 1> kernel(&kernelSize);
   dap::biquadLowpass<float, 1>(kernel, 0.3, -1.0);
   auto aud = dap::Audio<float, 1>(fileName);

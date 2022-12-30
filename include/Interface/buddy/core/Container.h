@@ -32,12 +32,12 @@
 template <typename T, size_t N> class MemRef {
 public:
   // Constructor from shape.
-  MemRef(intptr_t sizes[N], T init = T(0));
+  MemRef(size_t sizes[N], T init = T(0));
   MemRef(std::vector<size_t> sizes, T init = T(0));
   // Constructor from data.
-  MemRef(const T *data, intptr_t sizes[N], intptr_t offset = 0);
+  MemRef(const T *data, size_t sizes[N], size_t offset = 0);
   // Constructor from a unique_ptr, taking over.
-  MemRef(std::unique_ptr<T> &uptr, intptr_t sizes[N], intptr_t offset = 0);
+  MemRef(std::unique_ptr<T> &uptr, size_t sizes[N], size_t offset = 0);
   // Copy constructor.
   MemRef(const MemRef<T, N> &other);
   // Copy assignment operator.
@@ -51,9 +51,9 @@ public:
   // Get the data pointer.
   T *getData();
   // Get the sizes (shape).
-  const intptr_t *getSizes() { return sizes; }
+  const size_t *getSizes() { return sizes; }
   // Get the strides.
-  const intptr_t *getStrides() { return strides; }
+  const size_t *getStrides() { return strides; }
   // Get the rank of the memref.
   size_t getRank() const { return N; }
   // Get the size (number of elements).
@@ -72,7 +72,7 @@ protected:
   // Computes the strides of the transposed tensor for transpose=true.
   void setStrides();
   // Compute the product of array elements.
-  size_t product(intptr_t sizes[N]) const;
+  size_t product(size_t sizes[N]) const;
 
   // Data.
   // The `aligned` and `allocated` members point to the same address, `aligned`
@@ -81,11 +81,11 @@ protected:
   T *allocated = nullptr;
   T *aligned = nullptr;
   // Offset.
-  intptr_t offset = 0;
+  size_t offset = 0;
   // Shape.
-  intptr_t sizes[N];
+  size_t sizes[N];
   // Strides.
-  intptr_t strides[N];
+  size_t strides[N];
   // Number of elements.
   size_t size;
 };

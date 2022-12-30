@@ -33,7 +33,7 @@
 // Construct a MemRef object from the data shape and initial value.
 // The default initial value is 0.
 template <typename T, std::size_t N>
-MemRef<T, N>::MemRef(intptr_t sizes[N], T init) {
+MemRef<T, N>::MemRef(size_t sizes[N], T init) {
   for (size_t i = 0; i < N; i++) {
     this->sizes[i] = sizes[i];
   }
@@ -63,7 +63,7 @@ MemRef<T, N>::MemRef(std::vector<size_t> sizes, T init) {
 // Construct a MemRef object from the data pointer, sizes, and offset.
 // The default offset is 0.
 template <typename T, std::size_t N>
-MemRef<T, N>::MemRef(const T *data, intptr_t sizes[N], intptr_t offset) {
+MemRef<T, N>::MemRef(const T *data, size_t sizes[N], size_t offset) {
   this->offset = offset;
   for (size_t i = 0; i < N; i++) {
     this->sizes[i] = sizes[i];
@@ -218,15 +218,15 @@ template <typename T, std::size_t N> void MemRef<T, N>::setStrides() {
 
 // Calculate the total number of elements in the MemRef container.
 template <typename T, std::size_t N>
-size_t MemRef<T, N>::product(intptr_t sizes[N]) const {
+size_t MemRef<T, N>::product(size_t sizes[N]) const {
   size_t size = 1;
   for (size_t i = 0; i < N; i++)
     size *= sizes[i];
   return size;
 }
 template <typename T, size_t N>
-MemRef<T, N>::MemRef(std::unique_ptr<T> &uptr, intptr_t *sizes,
-                     intptr_t offset) {
+MemRef<T, N>::MemRef(std::unique_ptr<T> &uptr, size_t *sizes,
+                     size_t offset) {
   if (!uptr)
     assert(0 && "Taking over an empty unique pointer.");
   T *data = uptr.release();
