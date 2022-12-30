@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
   cout << "Load: " << fileName << endl;
   cout << "Save: " << saveFileName << endl;
   int order = 8;
-  intptr_t kernelSize[2] = {int(order / 2), 6};
+  size_t kernelSize[2] = {int(order / 2), 6};
   MemRef<float, 2> kernel(kernelSize);
 
   dap::iirLowpass<float, 2>(kernel, dap::butterworth<float>(order), 1000,

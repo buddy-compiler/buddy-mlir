@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
   cout << "Current specified path: \n";
   cout << "Load: " << fileName << endl;
   cout << "Save: " << saveFileName << endl;
-  intptr_t kernelSize = 100;
+  size_t kernelSize = 100;
   MemRef<float, 1> kernel(&kernelSize);
   dap::firLowpass<float, 1>(kernel, dap::WINDOW_TYPE::BLACKMANHARRIS7,
                             kernelSize, 0.3, nullptr);

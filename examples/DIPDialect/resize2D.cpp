@@ -41,7 +41,7 @@ bool testImplementation(int argc, char *argv[]) {
   // Define memref container for image.
   Img<float, 2> input(image);
 
-  intptr_t outputSize[2] = {250, 250};
+  size_t outputSize[2] = {250, 250};
   std::vector<float> scalingRatios = {4, 4};
 
   // dip::Resize2D() can be called with either scaling ratios
