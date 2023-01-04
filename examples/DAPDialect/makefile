@@ -59,26 +59,6 @@ dap-parallel-translate:
 		-reconcile-unrealized-casts |\
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
-dap-parallel-run:
-	@${BUDDY_OPT} ./test.mlir \
-	    -lower-dap="DAP-vector-splitting=128" \
-		-async-parallel-for \
-		-async-to-async-runtime \
-		-async-runtime-ref-counting \
-        -async-runtime-ref-counting-opt \
-		-arith-expand \
-		-convert-async-to-llvm \
-		-convert-linalg-to-affine-loops \
-		-lower-affine \
-		-convert-scf-to-cf -convert-vector-to-llvm \
-		--llvm-request-c-wrappers \
-		-convert-arith-to-llvm \
-		-convert-memref-to-llvm \
-		-convert-func-to-llvm \
-		-reconcile-unrealized-casts |\
-    ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-	    -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_ASYNC_RUNTIME}
-
 dap-parallel-aot:
 	@${BUDDY_OPT} ./test.mlir \
 	    -lower-dap="DAP-vector-splitting=128" \
@@ -109,6 +89,26 @@ dap-parallel-aot:
 
 dap-parallel-single-aot:
 	@${BUDDY_OPT} ./test.mlir \
+	 	-lower-dap="DAP-vector-splitting=128" \
+		-arith-expand \
+        -convert-linalg-to-affine-loops \
+		-lower-affine \
+		-convert-scf-to-cf -convert-vector-to-llvm \
+		--llvm-request-c-wrappers \
+		-convert-arith-to-llvm \
+		-convert-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts |\
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${CLANG} ${OPT_FLAG} log.ll \
+		-L ${MLIR_LIB} \
+		-L ${BUDDY_LIB} \
+		-lmlir_runner_utils -lmlir_c_runner_utils \
+		-o a.out
+	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out
+
+dap-buddy-parallel-single-aot:
+	@${BUDDY_OPT} ./biquad.mlir \
 	 	-lower-dap="DAP-vector-splitting=128" \
 		-arith-expand \
         -convert-linalg-to-affine-loops \
