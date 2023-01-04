@@ -171,7 +171,7 @@ public:
       loc, ValueRange{c0},ValueRange{N}, ValueRange{strideVal},
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
           Value x = builder.create<memref::LoadOp>(loc, input, ValueRange{ivs[0]});
-          builder.create<vector::PrintOp>(loc, x);
+          // builder.create<vector::PrintOp>(loc, x);
           builder.create<memref::StoreOp>(loc, x, output, ValueRange{ivs[0]});
         });
     rewriter.eraseOp(op);
