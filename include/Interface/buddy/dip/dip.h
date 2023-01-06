@@ -21,8 +21,8 @@
 #ifndef INCLUDE_DIP
 #define INCLUDE_DIP
 
-#include "Interface/buddy/core/Container.h"
-#include "Interface/buddy/core/ImageContainer.h"
+#include "buddy/core/Container.h"
+#include "buddy/core/ImageContainer.h"
 
 namespace dip {
 // Availale types of boundary extrapolation techniques provided in DIP dialect.
@@ -43,8 +43,8 @@ namespace detail {
 // Functions present inside dip::detail are not meant to be called by users
 // directly.
 
-// Declare the Corr2D C interface.
 extern "C" {
+// Declare the Corr2D C interface.
 void _mlir_ciface_corr_2d_constant_padding(
     Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     unsigned int centerX, unsigned int centerY, float constantValue);
@@ -66,6 +66,7 @@ void _mlir_ciface_resize_2d_bilinear_interpolation(
     Img<float, 2> *input, float horizontalScalingFactor,
     float verticalScalingFactor, MemRef<float, 2> *output);
 
+// Declare the Morphology 2D C interface.
 void _mlir_ciface_erosion_2d_constant_padding(
     Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *copymemref, unsigned int centerX, unsigned int centerY,
