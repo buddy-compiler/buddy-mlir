@@ -517,13 +517,13 @@ vector-insert-strided-slice-run:
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}		
 
 vector-scatter-lower:
-	@${MLIR_OPT} ./vector-bitcast.mlir \
+	@${MLIR_OPT} ./vector-scatter.mlir \
 		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 vector-scatter-translate:
-	@${MLIR_OPT} ./vector-bitcast.mlir \
+	@${MLIR_OPT} ./vector-scatter.mlir \
 		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
