@@ -92,7 +92,7 @@ $ buddy-opt <input> -lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
 
 ```
 $ cd buddy-mlir/build/bin
-$ ./buddy-opt ../../examples/DIPDialect/corr2d.mlir --lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
+$ ./buddy-opt ../../examples/DIPDialect/dip.mlir --lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
 ```
 
 - Edge detection example:
