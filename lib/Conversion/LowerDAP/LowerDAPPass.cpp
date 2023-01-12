@@ -81,88 +81,99 @@ public:
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
 
+    // Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
+    // Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    // Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
+    // Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
+    // Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
+    // Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
+
+    // Value b0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c0});
+    // Value b1 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c1});
+    // Value b2 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c2});
+    // Value a0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c3});
+    // Value a1 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c4});
+    // Value a2 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c5});
+
+    // Value N = rewriter.create<memref::DimOp>(loc, input, c0);
+
+    // Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
+
+    // FloatType f32 = FloatType::getF32(ctx);
+
+    // Value z1 = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+    // Value z2 = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+
+    // VectorType vectorTy32 = VectorType::get({stride}, f32);
+
+    // Value x0 = rewriter.create<memref::LoadOp>(loc, input, ValueRange{c0});
+    // Value x = rewriter.create<MulFOp>(loc, b0, x0);
+    // rewriter.create<memref::StoreOp>(loc, x, output, ValueRange{c0});
+
+    // Value x1 = rewriter.create<memref::LoadOp>(loc, input, ValueRange{c1});
+    // Value x2 = rewriter.create<MulFOp>(loc, b0, x1);
+    // Value x3 = rewriter.create<MulFOp>(loc, b1, x0);
+    // Value x4 = rewriter.create<AddFOp>(loc, x2, x3);
+    // rewriter.create<memref::StoreOp>(loc, x4, output, ValueRange{c1});
+
+    // Value Vecb0 = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, b0);
+    // Value Vecb1 = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, b1);
+    // Value Vecb2 = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, b2);
+
+    // // A biquad filter expression:
+    // // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
+    // // FIR part
+    // rewriter.create<scf::ForOp>(
+    //     loc, c2, N, strideVal, ValueRange{llvm::None},
+    //     [&](OpBuilder &builder, Location loc, Value ivs, ValueRange iargs) {
+    //       Value idx0 = ivs;
+    //       Value idx1 = builder.create<SubIOp>(loc, idx0, c1);
+    //       Value idx2 = builder.create<SubIOp>(loc, idx0, c2);
+
+    //       Value inputVec0 =
+    //           builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx0});
+    //       Value inputVec1 =
+    //           builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx1});
+    //       Value inputVec2 =
+    //           builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx2});
+
+    //       Value outputVec =
+    //           builder.create<LoadOp>(loc, vectorTy32, output, ValueRange{idx0});
+    //       Value resVec0 =
+    //           builder.create<FMAOp>(loc, inputVec0, Vecb0, outputVec);
+    //       Value resVec1 = builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
+    //       Value resVec2 = builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
+    //       builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
+    //       builder.create<scf::YieldOp>(loc, llvm::None);
+    //     });
+
+    // // IIR part
+    // rewriter.create<scf::ForOp>(
+    //     loc, c0, N, c1, ValueRange{z1, z2},
+    //     [&](OpBuilder &builder, Location loc, Value ivs, ValueRange iargs) {
+    //       Value x =
+    //           builder.create<memref::LoadOp>(loc, output, ValueRange(ivs));
+    //       Value t1 = builder.create<MulFOp>(loc, a1, iargs[1]);
+    //       Value t2 = builder.create<MulFOp>(loc, a2, iargs[0]);
+    //       Value y = builder.create<AddFOp>(loc, t1, t2);
+    //       Value opt = builder.create<SubFOp>(loc, x, y);
+
+    //       builder.create<memref::StoreOp>(loc, opt, output, ValueRange{ivs});
+
+    //       builder.create<scf::YieldOp>(loc, std::vector<Value>{iargs[1], opt});
+    //     });
+
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
-    Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
-    Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
-    Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
-    Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
-
-    Value b0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c0});
-    Value b1 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c1});
-    Value b2 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c2});
-    Value a0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c3});
-    Value a1 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c4});
-    Value a2 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c5});
-
     Value N = rewriter.create<memref::DimOp>(loc, input, c0);
-
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
-    FloatType f32 = FloatType::getF32(ctx);
-
-    Value z1 = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
-    Value z2 = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
-
-    VectorType vectorTy32 = VectorType::get({stride}, f32);
-
-    Value x0 = rewriter.create<memref::LoadOp>(loc, input, ValueRange{c0});
-    Value x = rewriter.create<MulFOp>(loc, b0, x0);
-    rewriter.create<memref::StoreOp>(loc, x, output, ValueRange{c0});
-
-    Value x1 = rewriter.create<memref::LoadOp>(loc, input, ValueRange{c1});
-    Value x2 = rewriter.create<MulFOp>(loc, b0, x1);
-    Value x3 = rewriter.create<MulFOp>(loc, b1, x0);
-    Value x4 = rewriter.create<AddFOp>(loc, x2, x3);
-    rewriter.create<memref::StoreOp>(loc, x4, output, ValueRange{c1});
-
-    Value Vecb0 = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, b0);
-    Value Vecb1 = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, b1);
-    Value Vecb2 = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, b2);
-
-    // A biquad filter expression:
-    // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
-    // FIR part
-    rewriter.create<scf::ForOp>(
-        loc, c2, N, strideVal, ValueRange{llvm::None},
-        [&](OpBuilder &builder, Location loc, Value ivs, ValueRange iargs) {
-          Value idx0 = ivs;
-          Value idx1 = builder.create<SubIOp>(loc, idx0, c1);
-          Value idx2 = builder.create<SubIOp>(loc, idx0, c2);
-
-          Value inputVec0 =
-              builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx0});
-          Value inputVec1 =
-              builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx1});
-          Value inputVec2 =
-              builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx2});
-
-          Value outputVec =
-              builder.create<LoadOp>(loc, vectorTy32, output, ValueRange{idx0});
-          Value resVec0 =
-              builder.create<FMAOp>(loc, inputVec0, Vecb0, outputVec);
-          Value resVec1 = builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
-          Value resVec2 = builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
-          builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
-          builder.create<scf::YieldOp>(loc, llvm::None);
+    rewriter.create<scf::ParallelOp>(
+      loc, ValueRange{c0},ValueRange{N}, ValueRange{strideVal},
+        [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+          Value x = builder.create<memref::LoadOp>(loc, input, ValueRange{ivs[0]});
+          // builder.create<vector::PrintOp>(loc, x);
+          builder.create<memref::StoreOp>(loc, x, output, ValueRange{ivs[0]});
         });
-
-    // IIR part
-    rewriter.create<scf::ForOp>(
-        loc, c0, N, c1, ValueRange{z1, z2},
-        [&](OpBuilder &builder, Location loc, Value ivs, ValueRange iargs) {
-          Value x =
-              builder.create<memref::LoadOp>(loc, output, ValueRange(ivs));
-          Value t1 = builder.create<MulFOp>(loc, a1, iargs[1]);
-          Value t2 = builder.create<MulFOp>(loc, a2, iargs[0]);
-          Value y = builder.create<AddFOp>(loc, t1, t2);
-          Value opt = builder.create<SubFOp>(loc, x, y);
-
-          builder.create<memref::StoreOp>(loc, opt, output, ValueRange{ivs});
-
-          builder.create<scf::YieldOp>(loc, std::vector<Value>{iargs[1], opt});
-        });
-
     rewriter.eraseOp(op);
     return success();
   }

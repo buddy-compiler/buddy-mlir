@@ -46,8 +46,7 @@ add_custom_command(OUTPUT buddy-biquad.o
   COMMAND ${BUDDY_BINARY_DIR}/buddy-opt
   ${BUDDY_EXAMPLES_DIR}/DAPDialect/biquad.mlir
   -lower-dap="DAP-vector-splitting=${SPLITING_SIZE}" -convert-linalg-to-affine-loops
-  -lower-affine
-  -convert-scf-to-cf -convert-vector-to-llvm 
+  -lower-affine -convert-scf-to-cf -convert-vector-to-llvm
   --llvm-request-c-wrappers
   -convert-arith-to-llvm
   -convert-memref-to-llvm -convert-func-to-llvm
