@@ -38,6 +38,8 @@ bool testImplementation(int argc, char *argv[]) {
     cout << "Could not read the image: " << argv[1] << endl;
   }
 
+  Mat inputImageNChannels = imread("../../examples/ConvOpt/images/YuTu.png", IMREAD_COLOR);
+
   // Define memref container for image.
   Img<float, 2> input(image);
 
@@ -53,6 +55,11 @@ bool testImplementation(int argc, char *argv[]) {
   MemRef<float, 2> output = dip::Resize2D(
       &input, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
       outputSize);
+
+  cv::Mat outputImageNChannels = dip::Resize2DNChannels(
+      inputImageNChannels, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
+      outputSize);
+
   // MemRef<float, 2> output = dip::Resize2D(
   //     &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION, outputSize);
 
@@ -68,6 +75,9 @@ bool testImplementation(int argc, char *argv[]) {
                           output.getData());
 
   imwrite(argv[2], outputImageResize2D);
+
+  string nameNChannelImage = "NChannels_" + (string)argv[2];
+  imwrite(nameNChannelImage, outputImageNChannels);
 
   return 1;
 }
