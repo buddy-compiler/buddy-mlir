@@ -177,22 +177,19 @@ inline MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input,
 }
 } // namespace detail
 
-MemRef<float, 2> matToMemRef(cv::Mat container, bool is32FC1 = 1)
+inline MemRef<float, 2> matToMemRef(cv::Mat container, bool is32FC1 = 1)
 {
-  std::size_t containerSize = container.rows * container.cols;
-  float *containerAlign = (float *)malloc(containerSize * sizeof(float));
+  intptr_t sizesContainer[2] = {container.rows, container.cols};
+  MemRef<float, 2> containerMemRef(sizesContainer);
 
   for (int i = 0; i < container.rows; i++) {
     for (int j = 0; j < container.cols; j++) {
         if (is32FC1)
-          containerAlign[container.rows * i + j] = container.at<float>(i, j);
+          containerMemRef.getData()[container.cols * i + j] = (float)container.at<float>(i, j);
         else 
-          containerAlign[container.rows * i + j] = static_cast<float>(container.at<uchar>(i, j));
+          containerMemRef.getData()[container.cols * i + j] = static_cast<float>(container.at<uchar>(i, j));
     }
   }
-
-  intptr_t sizesContainer[2] = {container.rows, container.cols};
-  MemRef<float, 2> containerMemRef(containerAlign, sizesContainer);
 
   return containerMemRef;
 }
@@ -211,7 +208,7 @@ inline void Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
   }
 }
 
-void Corr2DNChannels(cv::Mat &inputImage, cv::Mat &kernel, cv::Mat &outputImage, 
+inline void Corr2DNChannels(cv::Mat &inputImage, cv::Mat &kernel, cv::Mat &outputImage, 
                      unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, 
                      float constantValue = 0)
 {
@@ -270,7 +267,7 @@ inline MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
   return output;
 }
 
-cv::Mat Rotate2DNChannels(cv::Mat &inputImage, float angle, ANGLE_TYPE angleType)
+inline cv::Mat Rotate2DNChannels(cv::Mat &inputImage, float angle, ANGLE_TYPE angleType)
 {
   cv::Mat outputImage(inputImage);
   std::vector<cv::Mat> inputChannels, outputChannels;
@@ -334,7 +331,7 @@ inline MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
   return detail::Resize2D_Impl(input, type, scalingRatios, outputSize);
 }
 
-cv::Mat Resize2DNChannels(cv::Mat &inputImage, INTERPOLATION_TYPE type, intptr_t outputSize[2])
+inline cv::Mat Resize2DNChannels(cv::Mat &inputImage, INTERPOLATION_TYPE type, intptr_t outputSize[2])
 {
   cv::Mat outputImage = cv::Mat::zeros(outputSize[0], outputSize[1], CV_32FC3);
   std::vector<cv::Mat> inputChannels, outputChannels;
@@ -342,29 +339,30 @@ cv::Mat Resize2DNChannels(cv::Mat &inputImage, INTERPOLATION_TYPE type, intptr_t
 
   cv::split(inputImage, inputChannels);
   cv::split(outputImage, outputChannels);
-  
+
+  inputChannelMemRefs.clear();
   for (auto cI : inputChannels)
     inputChannelMemRefs.push_back(matToMemRef(cI, 0));
 
-  for (auto cO : outputChannels)
-    outputChannelMemRefs.push_back(matToMemRef(cO));
+  // for (auto cO : outputChannels)
+  //   outputChannelMemRefs.push_back(matToMemRef(cO));
 
-  for (int i1 = 0; i1 < inputImage.channels(); ++i1)
-  {
-    outputChannelMemRefs[i1] = dip::Resize2D(
-      static_cast<Img<float, 2> *>(&inputChannelMemRefs[i1]),
-      dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
-      outputSize);
-  }
+  // for (int i1 = 0; i1 < inputImage.channels(); ++i1)
+  // {
+  //   // outputChannelMemRefs[i1] = dip::Resize2D(
+  //   //   static_cast<Img<float, 2> *>(&inputChannelMemRefs[i1]),
+  //   //   dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
+  //   //   outputSize);
+  // }
 
-  outputChannels.clear();
-  for (int i = 0; i < inputImage.channels(); ++i)
-  {
-    outputChannels.push_back(cv::Mat(outputSize[0], outputSize[1], CV_32FC1, 
-                      outputChannelMemRefs[i].getData()));
-  }
+  // outputChannels.clear();
+  // for (int i = 0; i < inputImage.channels(); ++i)
+  // {
+  //   outputChannels.push_back(cv::Mat(outputSize[0], outputSize[1], CV_32FC1, 
+  //                     outputChannelMemRefs[i].getData()));
+  // }
 
-  cv::merge(outputChannels, outputImage);
+  // cv::merge(outputChannels, outputImage);
 
   return outputImage;
 }
