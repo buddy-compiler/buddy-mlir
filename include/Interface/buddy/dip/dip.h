@@ -185,7 +185,7 @@ inline MemRef<float, 2> matToMemRef(cv::Mat container, bool is32FC1 = 1)
   for (int i = 0; i < container.rows; i++) {
     for (int j = 0; j < container.cols; j++) {
         if (is32FC1)
-          containerMemRef.getData()[container.cols * i + j] = (float)container.at<float>(i, j);
+          containerMemRef.getData()[container.cols * i + j] = container.at<float>(i, j);
         else 
           containerMemRef.getData()[container.cols * i + j] = static_cast<float>(container.at<uchar>(i, j));
     }
@@ -344,25 +344,25 @@ inline cv::Mat Resize2DNChannels(cv::Mat &inputImage, INTERPOLATION_TYPE type, i
   for (auto cI : inputChannels)
     inputChannelMemRefs.push_back(matToMemRef(cI, 0));
 
-  // for (auto cO : outputChannels)
-  //   outputChannelMemRefs.push_back(matToMemRef(cO));
+  for (auto cO : outputChannels)
+    outputChannelMemRefs.push_back(matToMemRef(cO));
 
-  // for (int i1 = 0; i1 < inputImage.channels(); ++i1)
-  // {
-  //   // outputChannelMemRefs[i1] = dip::Resize2D(
-  //   //   static_cast<Img<float, 2> *>(&inputChannelMemRefs[i1]),
-  //   //   dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
-  //   //   outputSize);
-  // }
+  for (int i1 = 0; i1 < inputImage.channels(); ++i1)
+  {
+    outputChannelMemRefs[i1] = dip::Resize2D(
+      static_cast<Img<float, 2> *>(&inputChannelMemRefs[i1]),
+      dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
+      outputSize);
+  }
 
-  // outputChannels.clear();
-  // for (int i = 0; i < inputImage.channels(); ++i)
-  // {
-  //   outputChannels.push_back(cv::Mat(outputSize[0], outputSize[1], CV_32FC1, 
-  //                     outputChannelMemRefs[i].getData()));
-  // }
+  outputChannels.clear();
+  for (int i = 0; i < inputImage.channels(); ++i)
+  {
+    outputChannels.push_back(cv::Mat(outputSize[0], outputSize[1], CV_32FC1, 
+                      outputChannelMemRefs[i].getData()));
+  }
 
-  // cv::merge(outputChannels, outputImage);
+  cv::merge(outputChannels, outputImage);
 
   return outputImage;
 }
