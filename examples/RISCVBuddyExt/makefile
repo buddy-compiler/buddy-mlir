@@ -6,7 +6,7 @@ rv-buddy-mvin-mvout-asm:
 		-mtriple=riscv64 -verify-machineinstrs -mattr=+buddyext \
 		-o ./log.s
 
-rv-buddy-mvout-mvout-obj:
+rv-buddy-mvin-mvout-obj:
 	@${BUDDY_LLC} ./rv-buddy-mvin-mvout.ll \
 		-mtriple=riscv64 -verify-machineinstrs -mattr=+buddyext,+D -filetype=obj --float-abi=hard\
 		-o ./log.o
