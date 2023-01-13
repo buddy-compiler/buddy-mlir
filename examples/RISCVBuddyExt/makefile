@@ -1,11 +1,6 @@
 #!/bin/bash
 BUDDY_LLC := ../../build/bin/buddy-llc
 
-rv-buddy-mvin-asm:
-	@${BUDDY_LLC} ./rv-buddy-mvin.ll \
-		-mtriple=riscv64 -verify-machineinstrs -mattr=+buddyext \
-		-o ./log.s
-
 rv-buddy-mvin-mvout-asm:
 	@${BUDDY_LLC} ./rv-buddy-mvin-mvout.ll \
 		-mtriple=riscv64 -verify-machineinstrs -mattr=+buddyext \
