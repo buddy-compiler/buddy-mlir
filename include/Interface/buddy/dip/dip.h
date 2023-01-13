@@ -177,6 +177,26 @@ inline MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input,
 }
 } // namespace detail
 
+MemRef<float, 2> matToMemRef(cv::Mat container, bool is32FC1 = 1)
+{
+  std::size_t containerSize = container.rows * container.cols;
+  float *containerAlign = (float *)malloc(containerSize * sizeof(float));
+
+  for (int i = 0; i < container.rows; i++) {
+    for (int j = 0; j < container.cols; j++) {
+        if (is32FC1)
+          containerAlign[container.rows * i + j] = (float)container.at<float>(i, j);
+        else 
+          containerAlign[container.rows * i + j] = (float)container.at<uchar>(i, j);
+    }
+  }
+
+  intptr_t sizesContainer[2] = {container.rows, container.cols};
+  MemRef<float, 2> containerMemRef(containerAlign, sizesContainer);
+
+  return containerMemRef;
+}
+
 // User interface for 2D Correlation.
 inline void Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
                    MemRef<float, 2> *output, unsigned int centerX,
@@ -189,6 +209,37 @@ inline void Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
     detail::_mlir_ciface_corr_2d_replicate_padding(input, kernel, output,
                                                    centerX, centerY, 0);
   }
+}
+
+void Corr2DNChannels(cv::Mat &inputImage, cv::Mat &kernel, cv::Mat &outputImage, 
+                     unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, 
+                     float constantValue = 0)
+{
+  std::vector<cv::Mat> inputChannels, outputChannels;
+  std::vector<MemRef<float, 2>> inputChannelMemRefs, outputChannelMemRefs;
+
+  cv::split(inputImage, inputChannels);
+  cv::split(outputImage, outputChannels);
+  MemRef<float, 2> kernelMemRef = matToMemRef(kernel);
+
+  for (auto cI : inputChannels)
+    inputChannelMemRefs.push_back(matToMemRef(cI, 0));
+
+  for (auto cO : outputChannels)
+    outputChannelMemRefs.push_back(matToMemRef(cO));
+
+  for (int i1 = 0; i1 < inputImage.channels(); ++i1)
+  {
+    dip::Corr2D(static_cast<Img<float, 2> *>(&inputChannelMemRefs[i1]), &kernelMemRef, &outputChannelMemRefs[i1], 
+                centerX, centerY, option, constantValue);
+  }
+
+  outputChannels.clear();
+  for (int i = 0; i < inputImage.channels(); ++i)
+    outputChannels.push_back(cv::Mat(inputImage.rows, inputImage.cols, CV_32FC1, 
+                      outputChannelMemRefs[i].getData()));
+
+  cv::merge(outputChannels, outputImage);
 }
 
 // User interface for 2D Rotation.

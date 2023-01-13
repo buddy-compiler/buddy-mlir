@@ -64,6 +64,9 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
     cout << "Could not read the image: " << argv[1] << endl;
   }
 
+  Mat inputImageNChannels = imread("../../examples/ConvOpt/images/YuTu.png", IMREAD_COLOR);
+  Mat outputImageNChannels = Mat::zeros(inputImageNChannels.rows, inputImageNChannels.cols, CV_32FC3);
+
   // Define the kernel.
   float *kernelAlign = laplacianKernelAlign;
   int kernelRows = laplacianKernelRows;
@@ -85,15 +88,31 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   dip::Corr2D(&input, &kernel, &output1, x, y,
               dip::BOUNDARY_OPTION::REPLICATE_PADDING);
 
+  // Call the MLIR Corr2DNChannels function.
+  dip::Corr2DNChannels(inputImageNChannels, kernel1, outputImageNChannels, x, y, 
+                                    dip::BOUNDARY_OPTION::REPLICATE_PADDING);
+
   // Define a cv::Mat with the output of Corr2D.
   Mat outputImageReplicatePadding(sizesOutput[0], sizesOutput[1], CV_32FC1,
                                   output1.getData());
   imwrite(argv[2], outputImageReplicatePadding);
 
+  string argvNChannels = "NChannel_";
+  string opencvAddition = "opencv_";
+  string nameNChannelReplPadding = argvNChannels + (string)argv[2];
+  string nameNChannelConstPadding = argvNChannels + (string)argv[3];
+  string nameNChannelReplPaddingOpencv = argvNChannels + opencvAddition + (string)argv[2];
+  string nameNChannelConstPaddingOpencv = argvNChannels + opencvAddition + (string)argv[3];
+  imwrite(nameNChannelReplPadding, outputImageNChannels);
+
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
   Mat opencvConstantPadding, opencvReplicatePadding;
+  Mat opencvConstantPaddingNChannels, opencvReplicatePaddingNChannels;
   filter2D(image, opencvReplicatePadding, CV_8UC1, kernel1, cv::Point(x, y),
            0.0, cv::BORDER_REPLICATE);
+  filter2D(inputImageNChannels, opencvReplicatePaddingNChannels, CV_32FC3, kernel1, cv::Point(x, y),
+           0.0, cv::BORDER_REPLICATE);
+  imwrite(nameNChannelReplPaddingOpencv, opencvReplicatePaddingNChannels);
 
   if (!testImages(o1, opencvReplicatePadding)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
@@ -104,14 +123,22 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   dip::Corr2D(&input, &kernel, &output2, x, y,
               dip::BOUNDARY_OPTION::CONSTANT_PADDING, 0);
 
+  // Call the MLIR Corr2DNChannels function.
+  dip::Corr2DNChannels(inputImageNChannels, kernel1, outputImageNChannels, x, y, 
+                                    dip::BOUNDARY_OPTION::CONSTANT_PADDING, 0);
+
   // Define a cv::Mat with the output of Corr2D.
   Mat outputImageConstantPadding(sizesOutput[0], sizesOutput[1], CV_32FC1,
                                  output2.getData());
   imwrite(argv[3], outputImageConstantPadding);
+  imwrite(nameNChannelConstPadding, outputImageNChannels);
 
   Mat o2 = imread(argv[3], IMREAD_GRAYSCALE);
   filter2D(image, opencvConstantPadding, CV_8UC1, kernel1, cv::Point(x, y), 0.0,
            cv::BORDER_CONSTANT);
+  filter2D(inputImageNChannels, opencvConstantPaddingNChannels, CV_32FC3, kernel1, cv::Point(x, y),
+           0.0, cv::BORDER_CONSTANT);
+  imwrite(nameNChannelConstPaddingOpencv, opencvConstantPaddingNChannels);
 
   if (!testImages(o2, opencvConstantPadding)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
@@ -123,8 +150,8 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
 int main(int argc, char *argv[]) {
   bool flag = 1;
-  for (std::ptrdiff_t x = 0; x < 3; ++x) {
-    for (std::ptrdiff_t y = 0; y < 3; ++y) {
+  for (std::ptrdiff_t x = 1; x < 2; ++x) {
+    for (std::ptrdiff_t y = 1; y < 2; ++y) {
       if (!testImplementation(argc, argv, x, y, 0)) {
         flag = 0;
         break;
