@@ -20,7 +20,7 @@
 
 include "llvm/IR/IntrinsicsRISCVBuddyExt.td"
 
-let hasSideEffects = 1, mayLoad = 1, mayStore = 1 , Predicates = [HasBuddyExt] in
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in
 def MVIN : RVInstR<0b0000010, 0b011, OPC_CUSTOM_3, (outs),
                    (ins GPR:$rs1, GPR:$rs2), "mvin","$rs1, $rs2"> {
   let rd = 0;              
@@ -56,6 +56,18 @@ def CONFIG_EX : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3,(outs),
   let rd = 0;
 }
 
+let hasSideEffects = 1, mayLoad = 1, mayStore =1, Predicates = [HasBuddyExt] in 
+def PRELOAD : RVInstR<0b0000110, 0b011,OPC_CUSTOM_3,(outs),
+                    (ins GPR:$rs1, GPR:$rs2), "preload", "$rs1, $rs2">{
+  let rd = 0;
+}
+
+let Predicates = [HasBuddyExt] in 
+def COMPUTE_PRELOADED : RVInstR<0b0000100, 0b011, OPC_CUSTOM_3, (outs),
+                     (ins GPR:$rs1, GPR:$rs2), "compute_preloaded", "$rs1, $rs2">{
+  let rd = 0;
+}
+
 let Predicates = [HasBuddyExt] in
 def: PatGprGpr<int_riscv_mvin, MVIN>;
 
@@ -73,3 +85,9 @@ def : PatGprGpr<int_riscv_configSt, CONFIG_ST>;
 
 let Predicates = [HasBuddyExt] in 
 def : PatGprGpr<int_riscv_configEx, CONFIG_EX>;
+
+let Predicates = [HasBuddyExt] in 
+def : PatGprGpr<int_riscv_preload, PRELOAD>;
+
+let Predicates = [HasBuddyExt] in 
+def : PatGprGpr<int_riscv_computePreloaded, COMPUTE_PRELOADED>;

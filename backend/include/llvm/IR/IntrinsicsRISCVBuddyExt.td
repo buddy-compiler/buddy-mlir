@@ -35,3 +35,9 @@ def int_riscv_configSt : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
 let TargetPrefix = "riscv" in 
 def int_riscv_configEx : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_preload : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_computePreloaded : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
