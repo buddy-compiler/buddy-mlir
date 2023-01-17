@@ -79,7 +79,7 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
         // Create strip mining loop.
         builder.create<AffineForOp>(
             loc, ValueRange{c0}, builder.getDimIdentityMap(),
-            ValueRange{outputCol}, stripMap, /*Step=*/1, llvm::None,
+            ValueRange{outputCol}, stripMap, /*Step=*/1, std::nullopt,
             [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
                 ValueRange itrArgs) {
               // Vectorize the kernel.

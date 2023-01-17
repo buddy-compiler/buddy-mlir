@@ -54,7 +54,7 @@ op ReshapeOp
 op ReturnOp
   : arguments = (ins Variadic<F64Tensor>:$input)
   : builders = [
-    OpBuilder<(ins), [{ build($_builder, $_state, llvm::None); }]>
+    OpBuilder<(ins), [{ build($_builder, $_state, std::nullopt); }]>
   ]
   ;
 
