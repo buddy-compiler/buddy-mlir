@@ -113,9 +113,9 @@ for.inc26:                                        ; preds = %for.end24
 for.end28:                                        ; preds = %for.cond10
   call void @llvm.riscv.flush(i64 0, i64 0)
   %call29 = call signext i32 (ptr, ...) @printf(ptr noundef @.str.3)
-  call void @llvm.riscv.configld(i64 4575657221409472769, i64 16)
+  call void @llvm.riscv.configLd(i64 4575657221409472769, i64 16)
   %call30 = call signext i32 (ptr, ...) @printf(ptr noundef @.str.4)
-  call void @llvm.riscv.configst(i64 2, i64 4575657221408423952)
+  call void @llvm.riscv.configSt(i64 2, i64 4575657221408423952)
   %call31 = call signext i32 (ptr, ...) @printf(ptr noundef @.str.5)
   %arraydecay = getelementptr inbounds [16 x [16 x i8]], ptr %arrayA, i64 0, i64 0
   %13 = ptrtoint ptr %arraydecay to i64
@@ -181,8 +181,8 @@ declare dso_local signext i32 @printf(ptr noundef, ...) #1
 declare void @llvm.riscv.mvin(i64, i64)
 declare void @llvm.riscv.mvout(i64 ,i64)
 declare void @llvm.riscv.flush(i64, i64)
-declare void @llvm.riscv.configld(i64, i64)
-declare void @llvm.riscv.configst(i64, i64)
+declare void @llvm.riscv.configLd(i64, i64)
+declare void @llvm.riscv.configSt(i64, i64)
 
 attributes #0 = { noinline nounwind optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="generic-rv64" "target-features"="+64bit,+a,+c,+m,+relax,-save-restore" }
 attributes #1 = { "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="generic-rv64" "target-features"="+64bit,+a,+c,+m,+relax,-save-restore" }

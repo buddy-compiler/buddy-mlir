@@ -644,17 +644,17 @@ for.end260:                                       ; preds = %for.cond241
   %arraydecay265 = getelementptr inbounds [16 x [16 x i8]], ptr %arrayC, i64 0, i64 0
   %100 = ptrtoint ptr %arraydecay265 to i64
   store i64 %100, ptr %addrC, align 8
-  call void @llvm.riscv.configld(i64 4575657221409472773, i64 16)
+  call void @llvm.riscv.configLd(i64 4575657221409472773, i64 16)
   %call266 = call signext i32 (ptr, ...) @printf(ptr noundef @.str.6)
   call void @llvm.riscv.mvin(i64 %98, i64 4503670494330880)
   %call267 = call signext i32 (ptr, ...) @printf(ptr noundef @.str.7)
-  call void @llvm.riscv.configld(i64 4575657221409472773, i64 16)
+  call void @llvm.riscv.configLd(i64 4575657221409472773, i64 16)
   %call268 = call signext i32 (ptr, ...) @printf(ptr noundef @.str.8)
   call void @llvm.riscv.mvin(i64 %99, i64 4503671568072704)
   %call269 = call signext i32 (ptr, ...) @printf(ptr noundef @.str.9)
-  call void @llvm.riscv.configex(i64 4575657221408489472, i64 281474976710656)
+  call void @llvm.riscv.configEx(i64 4575657221408489472, i64 281474976710656)
   %call270 = call signext i32 (ptr, ...) @printf(ptr noundef @.str.10)
-  call void @llvm.riscv.configst(i64 2, i64 4575657221408423952)
+  call void @llvm.riscv.configSt(i64 2, i64 4575657221408423952)
   %call271 = call signext i32 (ptr, ...) @printf(ptr noundef @.str.11)
   call void @llvm.riscv.mvout(i64 %100, i64 4503670494330880)
   %call272 = call signext i32 (ptr, ...) @printf(ptr noundef @.str.12)
@@ -756,9 +756,9 @@ declare dso_local signext i32 @printf(ptr noundef, ...)
 declare void @llvm.riscv.mvin(i64, i64)
 declare void @llvm.riscv.mvout(i64, i64)
 declare void @llvm.riscv.flush(i64, i64)
-declare void @llvm.riscv.configld(i64, i64)
-declare void @llvm.riscv.configst(i64, i64)
-declare void @llvm.riscv.configex(i64, i64)
+declare void @llvm.riscv.configLd(i64, i64)
+declare void @llvm.riscv.configSt(i64, i64)
+declare void @llvm.riscv.configEx(i64, i64)
 
 
 !5 = distinct !{!5, !6}

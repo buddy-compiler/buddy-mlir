@@ -38,16 +38,19 @@ def FLUSH : RVInstR<0b0000111, 0b011, OPC_CUSTOM_3, (outs),
   let rd = 0;
 }
 
+let Predicates = [HasBuddyExt] in 
 def CONFIG_LD : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3, (outs),
                     (ins GPR:$rs1, GPR:$rs2), "config_ld", "$rs1, $rs2"> {
   let rd = 0;
 }
 
+let Predicates = [HasBuddyExt] in 
 def CONFIG_ST : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3,(outs),
                     (ins GPR:$rs1, GPR:$rs2), "config_st", "$rs1, $rs2"> {
   let rd = 0;
 }
 
+let Predicates = [HasBuddyExt] in 
 def CONFIG_EX : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3,(outs),
                     (ins GPR:$rs1, GPR:$rs2), "config_ex", "$rs1, $rs2"> {
   let rd = 0;
@@ -63,10 +66,10 @@ let Predicates = [HasBuddyExt] in
 def : PatGprGpr<int_riscv_flush, FLUSH>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_configld, CONFIG_LD>;
+def : PatGprGpr<int_riscv_configLd, CONFIG_LD>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_configst, CONFIG_ST>;
+def : PatGprGpr<int_riscv_configSt, CONFIG_ST>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_configex, CONFIG_EX>;
+def : PatGprGpr<int_riscv_configEx, CONFIG_EX>;

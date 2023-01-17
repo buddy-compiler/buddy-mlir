@@ -28,10 +28,10 @@ let TargetPrefix = "riscv" in
 def int_riscv_flush : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
 let TargetPrefix = "riscv" in 
-def int_riscv_configld : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+def int_riscv_configLd : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
 let TargetPrefix = "riscv" in 
-def int_riscv_configst : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+def int_riscv_configSt : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
 let TargetPrefix = "riscv" in 
-def int_riscv_configex : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+def int_riscv_configEx : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
