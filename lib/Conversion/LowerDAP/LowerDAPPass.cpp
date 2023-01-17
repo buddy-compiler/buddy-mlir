@@ -131,8 +131,8 @@ public:
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zr);
     rewriter.create<scf::ForOp>(
         loc, c2, N, strideVal, ValueRange{llvm::None},
-        [&](OpBuilder &builder, Location loc, Value iv, ValueRange itrargs) {
-          Value idx0 = iv;
+        [&](OpBuilder &builder, Location loc, Value ivs, ValueRange iargs) {
+          Value idx0 = ivs;
           Value idx1 = builder.create<SubIOp>(loc, idx0, c1);
           Value idx2 = builder.create<SubIOp>(loc, idx0, c2);
 
@@ -175,7 +175,7 @@ public:
 
                 builder.create<scf::YieldOp>(loc);
               },
-              
+
               // Without Tail Processing
               [&](OpBuilder &builder, Location loc) {
                 Value inputVec0 = builder.create<LoadOp>(loc, vectorTy32, input,
