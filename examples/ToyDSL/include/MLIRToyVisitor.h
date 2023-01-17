@@ -21,6 +21,8 @@
 #ifndef MLIR_TOY_VISITOR_H
 #define MLIR_TOY_VISITOR_H
 
+#include <optional>
+
 #include "ToyBaseVisitor.h"
 #include "ToyLexer.h"
 #include "ToyParser.h"
