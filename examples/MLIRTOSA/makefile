@@ -20,6 +20,7 @@ tosa-resize-lower:
 	@${MLIR_OPT} ./tosa-resize.mlir \
 		-pass-pipeline="builtin.module( \
 			func.func(tosa-to-linalg), \
+			empty-tensor-to-alloc-tensor, \
 			arith-bufferize, \
 			func.func(tensor-bufferize, linalg-bufferize), \
 			func-bufferize, \
@@ -37,6 +38,7 @@ tosa-resize-translate:
 	@${MLIR_OPT} ./tosa-resize.mlir \
 		-pass-pipeline="builtin.module( \
 			func.func(tosa-to-linalg), \
+			empty-tensor-to-alloc-tensor, \
 			arith-bufferize, \
 			func.func(tensor-bufferize, linalg-bufferize), \
 			func-bufferize, \
@@ -54,6 +56,7 @@ tosa-resize-run:
 	@${MLIR_OPT} ./tosa-resize.mlir \
 		-pass-pipeline="builtin.module( \
 			func.func(tosa-to-linalg), \
+			empty-tensor-to-alloc-tensor, \
 			arith-bufferize, \
 			func.func(tensor-bufferize, linalg-bufferize), \
 			func-bufferize, \

@@ -28,3 +28,4 @@ def MVIN : RVInstR<0b0000000, 0b000, OPC_CUSTOM_0, (outs),
 
 let Predicates = [HasBuddyExt] in
 def: PatGprGpr<int_riscv_mvin, MVIN>;
+

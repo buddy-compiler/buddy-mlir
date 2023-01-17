@@ -21,8 +21,8 @@
 #ifndef INCLUDE_DIP
 #define INCLUDE_DIP
 
-#include "Interface/buddy/core/Container.h"
-#include "Interface/buddy/core/ImageContainer.h"
+#include "buddy/core/Container.h"
+#include "buddy/core/ImageContainer.h"
 
 namespace dip {
 // Availale types of boundary extrapolation techniques provided in DIP dialect.
@@ -43,8 +43,8 @@ namespace detail {
 // Functions present inside dip::detail are not meant to be called by users
 // directly.
 
-// Declare the Corr2D C interface.
 extern "C" {
+// Declare the Corr2D C interface.
 void _mlir_ciface_corr_2d_constant_padding(
     Img<float, 2> *input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     unsigned int centerX, unsigned int centerY, float constantValue);
@@ -66,6 +66,7 @@ void _mlir_ciface_resize_2d_bilinear_interpolation(
     Img<float, 2> *input, float horizontalScalingFactor,
     float verticalScalingFactor, MemRef<float, 2> *output);
 
+// Declare the Morphology 2D C interface.
 void _mlir_ciface_erosion_2d_constant_padding(
     Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
     MemRef<float, 2> *copymemref, unsigned int centerX, unsigned int centerY,
@@ -154,9 +155,10 @@ void _mlir_ciface_morphgrad_2d_replicate_padding(
 }
 
 // Helper function for applying 2D resize operation on images.
-MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input, INTERPOLATION_TYPE type,
-                               std::vector<float> scalingRatios,
-                               intptr_t outputSize[2]) {
+inline MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input,
+                                      INTERPOLATION_TYPE type,
+                                      std::vector<float> scalingRatios,
+                                      intptr_t outputSize[2]) {
   MemRef<float, 2> output(outputSize);
 
   if (type == INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION) {
@@ -176,10 +178,10 @@ MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input, INTERPOLATION_TYPE type,
 } // namespace detail
 
 // User interface for 2D Correlation.
-void Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
-            MemRef<float, 2> *output, unsigned int centerX,
-            unsigned int centerY, BOUNDARY_OPTION option,
-            float constantValue = 0) {
+inline void Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
+                   MemRef<float, 2> *output, unsigned int centerX,
+                   unsigned int centerY, BOUNDARY_OPTION option,
+                   float constantValue = 0) {
   if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
     detail::_mlir_ciface_corr_2d_constant_padding(
         input, kernel, output, centerX, centerY, constantValue);
@@ -190,8 +192,8 @@ void Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
 }
 
 // User interface for 2D Rotation.
-MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
-                          ANGLE_TYPE angleType) {
+inline MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
+                                 ANGLE_TYPE angleType) {
   float angleRad;
 
   if (angleType == ANGLE_TYPE::DEGREE)
@@ -218,8 +220,8 @@ MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
 }
 
 // User interface for 2D Resize.
-MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
-                          std::vector<float> scalingRatios) {
+inline MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
+                                 std::vector<float> scalingRatios) {
   if (!scalingRatios[0] || !scalingRatios[1]) {
     throw std::invalid_argument(
         "Please enter non-zero values of scaling ratios.\n"
@@ -235,8 +237,8 @@ MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
 }
 
 // User interface for 2D Resize.
-MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
-                          intptr_t outputSize[2]) {
+inline MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
+                                 intptr_t outputSize[2]) {
   if (!outputSize[0] || !outputSize[1]) {
     throw std::invalid_argument(
         "Please enter non-zero values of output dimensions.\n");
@@ -248,10 +250,11 @@ MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
 
   return detail::Resize2D_Impl(input, type, scalingRatios, outputSize);
 }
-void Erosion2D(Img<float, 2> input, MemRef<float, 2> *kernel,
-               MemRef<float, 2> *output, unsigned int centerX,
-               unsigned int centerY, unsigned int iterations,
-               BOUNDARY_OPTION option, float constantValue = 0) {
+
+inline void Erosion2D(Img<float, 2> input, MemRef<float, 2> *kernel,
+                      MemRef<float, 2> *output, unsigned int centerX,
+                      unsigned int centerY, unsigned int iterations,
+                      BOUNDARY_OPTION option, float constantValue = 0) {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
   intptr_t sizesOutput[2] = {outputRows, outputCols};
@@ -267,10 +270,10 @@ void Erosion2D(Img<float, 2> input, MemRef<float, 2> *kernel,
   }
 }
 
-void Dilation2D(Img<float, 2> input, MemRef<float, 2> *kernel,
-                MemRef<float, 2> *output, unsigned int centerX,
-                unsigned int centerY, unsigned int iterations,
-                BOUNDARY_OPTION option, float constantValue = 0) {
+inline void Dilation2D(Img<float, 2> input, MemRef<float, 2> *kernel,
+                       MemRef<float, 2> *output, unsigned int centerX,
+                       unsigned int centerY, unsigned int iterations,
+                       BOUNDARY_OPTION option, float constantValue = 0) {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
   intptr_t sizesOutput[2] = {outputRows, outputCols};
@@ -285,10 +288,10 @@ void Dilation2D(Img<float, 2> input, MemRef<float, 2> *kernel,
   }
 }
 
-void Opening2D(Img<float, 2> input, MemRef<float, 2> *kernel,
-               MemRef<float, 2> *output, unsigned int centerX,
-               unsigned int centerY, unsigned int iterations,
-               BOUNDARY_OPTION option, float constantValue = 0) {
+inline void Opening2D(Img<float, 2> input, MemRef<float, 2> *kernel,
+                      MemRef<float, 2> *output, unsigned int centerX,
+                      unsigned int centerY, unsigned int iterations,
+                      BOUNDARY_OPTION option, float constantValue = 0) {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
 
@@ -307,10 +310,10 @@ void Opening2D(Img<float, 2> input, MemRef<float, 2> *kernel,
   }
 }
 
-void Closing2D(Img<float, 2> input, MemRef<float, 2> *kernel,
-               MemRef<float, 2> *output, unsigned int centerX,
-               unsigned int centerY, unsigned int iterations,
-               BOUNDARY_OPTION option, float constantValue = 0) {
+inline void Closing2D(Img<float, 2> input, MemRef<float, 2> *kernel,
+                      MemRef<float, 2> *output, unsigned int centerX,
+                      unsigned int centerY, unsigned int iterations,
+                      BOUNDARY_OPTION option, float constantValue = 0) {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
 
@@ -329,10 +332,10 @@ void Closing2D(Img<float, 2> input, MemRef<float, 2> *kernel,
   }
 }
 
-void TopHat2D(Img<float, 2> input, MemRef<float, 2> *kernel,
-              MemRef<float, 2> *output, unsigned int centerX,
-              unsigned int centerY, unsigned int iterations,
-              BOUNDARY_OPTION option, float constantValue = 0) {
+inline void TopHat2D(Img<float, 2> input, MemRef<float, 2> *kernel,
+                     MemRef<float, 2> *output, unsigned int centerX,
+                     unsigned int centerY, unsigned int iterations,
+                     BOUNDARY_OPTION option, float constantValue = 0) {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
   intptr_t sizesOutput[2] = {outputRows, outputCols};
@@ -352,10 +355,10 @@ void TopHat2D(Img<float, 2> input, MemRef<float, 2> *kernel,
   }
 }
 
-void BottomHat2D(Img<float, 2> input, MemRef<float, 2> *kernel,
-                 MemRef<float, 2> *output, unsigned int centerX,
-                 unsigned int centerY, unsigned int iterations,
-                 BOUNDARY_OPTION option, float constantValue = 0) {
+inline void BottomHat2D(Img<float, 2> input, MemRef<float, 2> *kernel,
+                        MemRef<float, 2> *output, unsigned int centerX,
+                        unsigned int centerY, unsigned int iterations,
+                        BOUNDARY_OPTION option, float constantValue = 0) {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
   intptr_t sizesOutput[2] = {outputRows, outputCols};
@@ -375,10 +378,10 @@ void BottomHat2D(Img<float, 2> input, MemRef<float, 2> *kernel,
   }
 }
 
-void MorphGrad2D(Img<float, 2> input, MemRef<float, 2> *kernel,
-                 MemRef<float, 2> *output, unsigned int centerX,
-                 unsigned int centerY, unsigned int iterations,
-                 BOUNDARY_OPTION option, float constantValue = 0) {
+inline void MorphGrad2D(Img<float, 2> input, MemRef<float, 2> *kernel,
+                        MemRef<float, 2> *output, unsigned int centerX,
+                        unsigned int centerY, unsigned int iterations,
+                        BOUNDARY_OPTION option, float constantValue = 0) {
   intptr_t outputRows = output->getSizes()[0];
   intptr_t outputCols = output->getSizes()[1];
   intptr_t sizesOutput[2] = {outputRows, outputCols};

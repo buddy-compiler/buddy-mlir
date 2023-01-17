@@ -211,8 +211,9 @@ template <typename T, std::size_t N> void MemRef<T, N>::setStrides() {
   strides[N - 1] = 1;
   if (N < 2)
     return;
-  for (int i = N - 2; i >= 0; i--) {
-    strides[i] = strides[i + 1] * sizes[i + 1];
+  // Prevent implicit conversions between unsigned and signed
+  for (std::size_t i = N - 1; i > 0; i--) {
+    strides[i - 1] = strides[i] * sizes[i];
   }
 }
 

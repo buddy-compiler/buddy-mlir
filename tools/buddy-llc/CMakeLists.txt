@@ -9,21 +9,21 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsDescs
   AllTargetsInfos
   
-  Analysis
-  AsmParser
-  AsmPrinter
-  CodeGen
-  Core
-  IRReader
+  BuddyAnalysis
+  BuddyAsmParser
+  BuddyAsmPrinter
+  BuddyCodeGen
+  BuddyCore
+  BuddyIRReader
   MC
-  MIRParser
-  Remarks
-  ScalarOpts
-  SelectionDAG
+  BuddyMIRParser
+  BuddyRemarks
+  BuddyScalarOpts
+  BuddySelectionDAG
   Support
-  Target
-  TransformUtils
-  Vectorize
+  BuddyTarget
+  BuddyIPO
+  BuddyVectorize
   )
 
 add_llvm_tool(buddy-llc
