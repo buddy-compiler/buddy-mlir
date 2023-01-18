@@ -84,14 +84,14 @@ public:
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
     Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
-    Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
+    // Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
     Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
     Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
 
     Value b0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c0});
     Value b1 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c1});
     Value b2 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c2});
-    Value a0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c3});
+    // Value a0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c3});
     Value a1 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c4});
     Value a2 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c5});
 
@@ -130,7 +130,7 @@ public:
     Value zeroPadding =
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zr);
     rewriter.create<scf::ForOp>(
-        loc, c2, N, strideVal, ValueRange{llvm::None},
+        loc, c2, N, strideVal, ValueRange{std::nullopt},
         [&](OpBuilder &builder, Location loc, Value ivs, ValueRange iargs) {
           Value idx0 = ivs;
           Value idx1 = builder.create<SubIOp>(loc, idx0, c1);
@@ -245,7 +245,7 @@ public:
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
     Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
-    Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
+    // Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
     Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
     Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
 
@@ -263,7 +263,7 @@ public:
 
     // loop over every row in SOS matrix
     rewriter.create<scf::ForOp>(
-        loc, c0, filterSize, c1, ValueRange{llvm::None},
+        loc, c0, filterSize, c1, ValueRange{std::nullopt},
         [&](OpBuilder &builder, Location loc, ValueRange ivs,
             ValueRange iargs) {
           Value b0 = builder.create<memref::LoadOp>(loc, kernel,
@@ -272,8 +272,8 @@ public:
                                                     ValueRange{ivs[0], c1});
           Value b2 = builder.create<memref::LoadOp>(loc, kernel,
                                                     ValueRange{ivs[0], c2});
-          Value a0 = builder.create<memref::LoadOp>(loc, kernel,
-                                                    ValueRange{ivs[0], c3});
+        //   Value a0 = builder.create<memref::LoadOp>(loc, kernel,
+        //                                             ValueRange{ivs[0], c3});
           Value a1 = builder.create<memref::LoadOp>(loc, kernel,
                                                     ValueRange{ivs[0], c4});
           Value a2 = builder.create<memref::LoadOp>(loc, kernel,
@@ -308,7 +308,7 @@ public:
           Value zeroPadding =
               builder.create<vector::BroadcastOp>(loc, vectorTy32, zr);
           builder.create<scf::ForOp>(
-              loc, c2, N, strideVal, ValueRange{llvm::None},
+              loc, c2, N, strideVal, ValueRange{std::nullopt},
               [&](OpBuilder &builder, Location loc, Value iv,
                   ValueRange itrargs) {
                 Value idx0 = iv;
@@ -398,7 +398,7 @@ public:
                     loc, std::vector<Value>{itrargs[1], opt});
               });
           builder.create<memref::CopyOp>(loc, output, input);
-          builder.create<scf::YieldOp>(loc, llvm::None);
+          builder.create<scf::YieldOp>(loc, std::nullopt);
         });
 
     rewriter.eraseOp(op);
