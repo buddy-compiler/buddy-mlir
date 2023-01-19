@@ -110,3 +110,25 @@ rv-buddy-mvout-padded-exe:
 
 rv-buddy-mvout-padded-run:
 	spike --extension=gemmini pk mvout-padded-pk
+
+rv-buddy-matmuls-padded-asm:
+	@${BUDDY_LLC} ./rv-buddy-matmuls-padded.ll \
+		-mtriple=riscv64 -verify-machineinstrs -mattr=+buddyext \
+		-o ./log.s
+
+rv-buddy-matmuls-padded-obj:
+	@${BUDDY_LLC} ./rv-buddy-matmuls-padded.ll \
+		-mtriple=riscv64 -verify-machineinstrs -mattr=+buddyext,+D -filetype=obj --float-abi=hard\
+		-o ./log.o
+	
+rv-buddy-matmuls-padded-exe:
+	riscv64-unknown-linux-gnu-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 \
+	-ffast-math -fno-common -fno-builtin-printf -march=rv64gc -Wa,-march=rv64gcxhwacha -lm -lgcc  \
+	-I$RISCV/../../generators/gemmini/software/gemmini-rocc-tests/build/../riscv-tests      \
+	-I$RISCV/../../generators/gemmini/software/gemmini-rocc-tests/build/../riscv-tests/env  \
+	-I$RISCV/../../generators/gemmini/software/gemmini-rocc-tests/build/.. \
+	-I$RISCV/../../generators/gemmini/software/gemmini-rocc-tests/build/../riscv-tests/benchmarks/common \
+	-DID_STRING= -DPRINT_TILE=0  -static -DBAREMETAL=1 log.o -o matmuls-padded-pk
+
+rv-buddy-matmuls-padded-run:
+	spike --extension=gemmini pk matmuls-padded-pk
