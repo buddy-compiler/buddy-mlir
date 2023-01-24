@@ -369,8 +369,8 @@ std::vector<Value> extractIndices(OpBuilder &builder, Location loc, Value xVec,
           F32ToIndex(builder, loc, yPosBound)};
 }
 
-// Fill appropriate pixel data in its corresponding rotated co-ordinate of
-// output image.
+// Fill appropriate pixel data in its corresponding co-ordinate of the output
+// image.
 void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
                 Value xVec, Value yVec, Value input, Value output, Value c0,
                 Value strideVal, Value outputRowLastElemF32,
@@ -383,16 +383,16 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
           ValueRange iterArg) {
         std::vector<Value> origIndices =
             extractIndices(builder, loc, xVec, yVec, ivs[0],
-                           inputRowLastElemF32, inputColLastElemF32, c0F32);
+                           inputColLastElemF32, inputRowLastElemF32, c0F32);
         std::vector<Value> resIndices =
             extractIndices(builder, loc, resXVec, resYVec, ivs[0],
-                           outputRowLastElemF32, outputColLastElemF32, c0F32);
+                           outputColLastElemF32, outputRowLastElemF32, c0F32);
 
         Value pixelVal = builder.create<memref::LoadOp>(
             loc, builder.getF32Type(), input,
-            ValueRange{origIndices[0], origIndices[1]});
+            ValueRange{origIndices[1], origIndices[0]});
         builder.create<memref::StoreOp>(
-            loc, pixelVal, output, ValueRange{resIndices[0], resIndices[1]});
+            loc, pixelVal, output, ValueRange{resIndices[1], resIndices[0]});
 
         builder.create<AffineYieldOp>(loc);
       });
