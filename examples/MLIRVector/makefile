@@ -325,22 +325,22 @@ vector-outerproduct-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}	
 
-vector-createmask-lower:
-	@${MLIR_OPT} ./vector-createmask.mlir \
+vector-create-mask-lower:
+	@${MLIR_OPT} ./vector-create-mask.mlir \
 		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
-vector-createmask-translate:
-	@${MLIR_OPT} ./vector-createmask.mlir \
+vector-create-mask-translate:
+	@${MLIR_OPT} ./vector-create-mask.mlir \
 		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
-run-targets += vector-createmask-run
-vector-createmask-run:
-	@${MLIR_OPT} ./vector-createmask.mlir \
+run-targets += vector-create-mask-run
+vector-create-mask-run:
+	@${MLIR_OPT} ./vector-create-mask.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
@@ -453,22 +453,22 @@ vector-constant-mask-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 	
-vector-expand-load-lower:
-	@${MLIR_OPT} ./vector-expand-load.mlir \
+vector-expandload-lower:
+	@${MLIR_OPT} ./vector-expandload.mlir \
 		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
-vector-expand-load-translate:
-	@${MLIR_OPT} ./vector-expand-load.mlir \
+vector-expandload-translate:
+	@${MLIR_OPT} ./vector-expandload.mlir \
 		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
-run-targets += vector-expand-load-run
-vector-expand-load-run:
-	@${MLIR_OPT} ./vector-expand-load.mlir \
+run-targets += vector-expandload-run
+vector-expandload-run:
+	@${MLIR_OPT} ./vector-expandload.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
@@ -517,13 +517,13 @@ vector-insert-strided-slice-run:
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}		
 
 vector-scatter-lower:
-	@${MLIR_OPT} ./vector-bitcast.mlir \
+	@${MLIR_OPT} ./vector-scatter.mlir \
 		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 vector-scatter-translate:
-	@${MLIR_OPT} ./vector-bitcast.mlir \
+	@${MLIR_OPT} ./vector-scatter.mlir \
 		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
@@ -532,6 +532,28 @@ vector-scatter-translate:
 run-targets += vector-scatter-run
 vector-scatter-run:
 	@${MLIR_OPT} ./vector-scatter.mlir \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		-split-input-file -verify-diagnostics \
+		--reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+vector-gather-lower:
+	@${MLIR_OPT} ./vector-gather.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts -o ./log.mlir
+
+vector-gather-translate:
+	@${MLIR_OPT} ./vector-gather.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+run-targets += vector-gather-run
+vector-gather-run:
+	@${MLIR_OPT} ./vector-gather.mlir \
 		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
 		-split-input-file -verify-diagnostics \
 		--reconcile-unrealized-casts | \
@@ -573,7 +595,7 @@ vector-transfer-write-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
-run-targets += vector-load-run
+run-targets += vector-write-run
 vector-transfer-write-run:
 	@${MLIR_OPT} ./vector-transfer-write.mlir \
 	    --convert-vector-to-scf --lower-affine --convert-scf-to-cf \
@@ -595,7 +617,7 @@ vector-contract-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
-run-targets += vector-load-run
+run-targets += vector-contract-run
 vector-contract-run:
 	@${MLIR_OPT} ./vector-contract.mlir \
 	    --convert-vector-to-scf --lower-affine --convert-scf-to-cf \
@@ -604,3 +626,24 @@ vector-contract-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
+vector-store-lower:
+	@${MLIR_OPT} ./vector-store.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts -o ./log.mlir
+
+vector-store-translate:
+	@${MLIR_OPT} ./vector-store.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+run-targets += vector-store-run
+vector-store-run:
+	@${MLIR_OPT} ./vector-store.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
