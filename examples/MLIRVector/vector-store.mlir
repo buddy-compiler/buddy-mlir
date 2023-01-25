@@ -95,7 +95,6 @@ func.func @main() -> i32 {
   // store with dynamic memref
   //    case 1: in-bound
   %base6 = memref.cast %base2 : memref<4x4xi32> to memref<?x?xi32>
-  %mask6 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
   %value6 = arith.constant dense<[600, 601, 602, 603, 604, 605, 606, 607]> : vector<8xi32>
 
   vector.store %value6, %base6[%c1, %c1] : memref<?x?xi32>, vector<8xi32>
@@ -122,10 +121,9 @@ func.func @main() -> i32 {
 
   // store with unranked memref is not allowed
   %base8 = memref.cast %base2 : memref<4x4xi32> to memref<*xi32>
-  %mask8 = arith.constant dense<[1, 0, 0, 1]> : vector<4xi1>
   %value8 = arith.constant dense<[800, 801, 802, 803]> : vector<4xi32>
 
-  // vector.maskedstore %base8[%c0, %c0], %mask8, %value8
+  // vector.store %base8[%c0, %c0], %mask8, %value8
   //   : memref<*xi32>, vector<4xi1>, vector<4xi32>
 
   %ret = arith.constant 0 : i32

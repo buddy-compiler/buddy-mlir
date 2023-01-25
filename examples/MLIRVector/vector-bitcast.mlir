@@ -2,6 +2,10 @@
 // exactly same bit pattern. 
 
 func.func @main() -> i32 {
+  // vector.bitcast cast vector<...x a x T> to vector<... x b x U>, where
+  // a * sizeof(T) == b * sizeof(U)
+  // Can only deal with inner-most dim.
+
   %v0 = arith.constant dense<[10, 20, 56, 90, 12, 90]> : vector<6xi32>
   vector.print %v0 : vector<6xi32>
 
