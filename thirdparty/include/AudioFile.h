@@ -541,9 +541,10 @@ bool AudioFile<T>::decodeWaveFile(std::vector<uint8_t> &fileData) {
         int32_t sampleAsInt = fourBytesToInt(fileData, sampleIndex);
         T sample;
 
-        if (audioFormat == WavAudioFormat::IEEEFloat)
-          sample = (T) reinterpret_cast<float &>(sampleAsInt);
-        else // assume PCM
+        if (audioFormat == WavAudioFormat::IEEEFloat) {
+          static_assert(sizeof(sampleAsInt) == sizeof(sample));
+          std::memcpy(&sample, &sampleAsInt, sizeof(sampleAsInt));
+        } else // assume PCM
           sample = (T)sampleAsInt /
                    static_cast<float>(std::numeric_limits<std::int32_t>::max());
 
@@ -575,9 +576,10 @@ bool AudioFile<T>::decodeAiffFile(std::vector<uint8_t> &fileData) {
   // Endianness::BigEndian) + 8;
   std::string format(fileData.begin() + 8, fileData.begin() + 12);
 
-  int audioFormat = format == "AIFF"   ? AIFFAudioFormat::Uncompressed
-                    : format == "AIFC" ? AIFFAudioFormat::Compressed
-                                       : AIFFAudioFormat::Error;
+  int audioFormat = format == "AIFF"
+                        ? AIFFAudioFormat::Uncompressed
+                        : format == "AIFC" ? AIFFAudioFormat::Compressed
+                                           : AIFFAudioFormat::Error;
 
   // -----------------------------------------------------------
   // try and find the start points of key chunks
@@ -693,9 +695,10 @@ bool AudioFile<T>::decodeAiffFile(std::vector<uint8_t> &fileData) {
             fourBytesToInt(fileData, sampleIndex, Endianness::BigEndian);
         T sample;
 
-        if (audioFormat == AIFFAudioFormat::Compressed)
-          sample = (T) reinterpret_cast<float &>(sampleAsInt);
-        else // assume uncompressed
+        if (audioFormat == AIFFAudioFormat::Compressed) {
+          static_assert(sizeof(sampleAsInt) == sizeof(sample));
+          std::memcpy(&sample, &sampleAsInt, sizeof(sampleAsInt));
+        } else // assume uncompressed
           sample = (T)sampleAsInt /
                    static_cast<float>(std::numeric_limits<std::int32_t>::max());
 

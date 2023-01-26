@@ -84,14 +84,14 @@ public:
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
     Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
-    Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
+    // Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
     Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
     Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
 
     Value b0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c0});
     Value b1 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c1});
     Value b2 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c2});
-    Value a0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c3});
+    // Value a0 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c3});
     Value a1 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c4});
     Value a2 = rewriter.create<memref::LoadOp>(loc, kernel, ValueRange{c5});
 
@@ -192,7 +192,7 @@ public:
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
     Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
-    Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
+    // Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
     Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
     Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
 
@@ -217,8 +217,8 @@ public:
                                                     ValueRange{ivs[0], c1});
           Value b2 = builder.create<memref::LoadOp>(loc, kernel,
                                                     ValueRange{ivs[0], c2});
-          Value a0 = builder.create<memref::LoadOp>(loc, kernel,
-                                                    ValueRange{ivs[0], c3});
+        //   Value a0 = builder.create<memref::LoadOp>(loc, kernel,
+        //                                             ValueRange{ivs[0], c3});
           Value a1 = builder.create<memref::LoadOp>(loc, kernel,
                                                     ValueRange{ivs[0], c4});
           Value a2 = builder.create<memref::LoadOp>(loc, kernel,
