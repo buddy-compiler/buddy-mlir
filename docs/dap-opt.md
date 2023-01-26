@@ -18,6 +18,7 @@ It uses abstractions provided by the vector dialect for performing vector proces
 A biquad filter is the second order recursive linear filter. 
 
 * Equation: 
+
 ![](./Images/DAP_biquad.png)
 
 Biquad Operation here is implemented in two parts ie FIR part and IIR part. The FIR part is enhanced by exploiting the vectorization and stored in the intermediate output. This intermediate state is then used to calculate the IIR part.
