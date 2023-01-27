@@ -41,3 +41,24 @@ def int_riscv_preload : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
 let TargetPrefix = "riscv" in 
 def int_riscv_computePreloaded : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_computeAccumulated : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_loopWsConfigBounds : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_loopWsConfigAddrsAB : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_loopWsConfigAddrsDC : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_loopWsConfigStridesAB : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_loopWsConfigStridesDC : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_loopWs : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
