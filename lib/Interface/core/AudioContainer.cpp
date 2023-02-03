@@ -29,20 +29,14 @@ namespace dap {
 template <typename T, size_t N> bool Audio<T, N>::save(std::string filename) {
   if (!this->audioFile.samples) {
     auto temp = this->data->release();
-    for(int i=1000; i<1005; i++){
-      std::cout<<temp[i]<<"\n";
-    }
-    if constexpr (std::is_same_v<T, float>){
-      for(int i=0; i<audioFile.numSamples; i++){
-        if(temp[i]!=temp[i]){
+    if constexpr (std::is_same_v<T, float>) {
+      for (int i = 0; i < audioFile.numSamples; i++) {
+        if (temp[i] != temp[i]) { // To handle NaN values
           temp[i] = 0.9999999;
-        }else{
-          temp[i] = std::clamp(temp[i], float(-1.0), float(1.0));
+        } else { // Clamp the values between -1.0 to 1.0
+          temp[i] = std::clamp(temp[i], float(-1.0), float(0.9999999));
         }
       }
-    }
-    for(int i=1000; i<1005; i++){
-      std::cout<<temp[i]<<"\n";
     }
     this->audioFile.samples.reset(temp);
   }
@@ -58,7 +52,8 @@ void Audio<T, N>::fetchMetadata(const AudioFile<T> &aud) {
   this->audioFile.setAudioBuffer(nullptr);
 }
 template <typename T, size_t N> void Audio<T, N>::moveToMemRef() {
-  if(data) delete data;
+  if (data)
+    delete data;
   intptr_t sizes[N];
   for (size_t i = 0; i < N; ++i) {
     sizes[i] = audioFile.numSamples;
