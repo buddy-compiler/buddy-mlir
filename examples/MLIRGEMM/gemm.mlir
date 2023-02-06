@@ -13,6 +13,8 @@
 module{
 
     func.func private @printMemrefF64(memref<*xf64>)
+
+    // naive muatrix multiplication using linalg dialect 
     func.func @matmul(%a : memref<?x?xf64>, %b : memref<?x?xf64>, %c : memref<?x?xf64>) {
       linalg.matmul 
         ins(%a, %b: memref<?x?xf64>, memref<?x?xf64>)
@@ -20,7 +22,7 @@ module{
       return
     }
 
-
+    // naive muatrix multiplication using affine dialect 
     func.func @matmul1(%A: memref<?x?xf64>, %B: memref<?x?xf64>, %C: memref<?x?xf64>) {
       affine.for %arg3 = 0 to 2048 {
           affine.for %arg4 = 0 to 2048 {
@@ -37,7 +39,7 @@ module{
       return
     }
 
-
+    // naive muatrix multiplication using affine dialect 
     func.func @matmul2(%A: memref<?x?xf64>, %B: memref<?x?xf64>, %C: memref<?x?xf64>) {
 
       %c0 = arith.constant 0 : index
@@ -66,6 +68,7 @@ module{
       return
     }
 
+    // naive muatrix multiplication using affine dialect and tiling 
     func.func @matmul3(%A: memref<?x?xf64>, %B: memref<?x?xf64>, %C: memref<?x?xf64>) {
       %c0 = arith.constant 0 : index
       %c1 = arith.constant 1 : index
@@ -93,6 +96,7 @@ module{
       return
     }
 
+    // naive muatrix multiplication using affine dialect and tiling and packing 
     func.func @matmul4(%A: memref<?x?xf64>, %B: memref<?x?xf64>, %C: memref<?x?xf64>) {
         %c0 = arith.constant 0 : index
         %c1 = arith.constant 1 : index
@@ -141,6 +145,7 @@ module{
       return
     }
    
+    // naive muatrix multiplication using affine dialect and tiling and packing and unrolling
     func.func @matmul5(%A: memref<?x?xf64>, %B: memref<?x?xf64>, %C: memref<?x?xf64>) {
         %c0 = arith.constant 0 : index
         %c1 = arith.constant 1 : index
@@ -192,7 +197,7 @@ module{
                     // 4
                     %15 = affine.load %0[%arg4 * -64 + %arg6 * 4 + 3, %arg7] : memref<?x?xf64>
                     %16 = affine.load %C[%arg6 * 4 + 3, %arg5 * 8 + %arg8] : memref<?x?xf64>
-                    %17 =  arith.mulf %2, %15 : f64
+                    %17 =  arith.mulf %3, %15 : f64
                     %18 = arith.addf %15, %16 : f64
                     affine.store %14, %C[%arg6 * 4 + 3, %arg5 * 8 + %arg8] : memref<?x?xf64>
                   }
