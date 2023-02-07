@@ -1,7 +1,7 @@
 func.func @main() -> i32 {
   // create_mask is the variable version of constant_mask, without bound 
-  // check. It accept a list of bound for each dimension, to create a 
-  // hyper-rectangular region with 1s, and rest of 0s.
+  // check. It accepts a list of bounds for each dimension, to create a 
+  // hyper-rectangular region with 1s, and the rest of 0s.
 
   %cons1 = arith.constant 1 : index
   %cons2 = arith.constant 2 : index

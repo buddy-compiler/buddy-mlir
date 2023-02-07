@@ -7,7 +7,7 @@ func.func @main() -> i32 {
     19., 20., 21., 22., 23., 24., 25., 26., 27., 28., 29., 30., 31., 32., 33., 34., 35.
   ]> : vector<36xf32>
 
-  // This cast should not make any element move
+  // This cast should not move any element.
   %1 = vector.shape_cast %0 : vector<36xf32> to vector<3x2x2x3xf32>
   vector.print %1 : vector<3x2x2x3xf32>
 

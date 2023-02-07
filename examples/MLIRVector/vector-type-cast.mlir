@@ -32,17 +32,17 @@ func.func @main() -> i32 {
   vector.print %v0 : vector<2x4xi32>
 
 
-  // LLVM backend only support 1-D vectors and require they to align to A byte 
-  // in an array, where A = length of vector rounded up to power of 2.  
+  // LLVM backend only supports 1-D vectors and requires them to align to A byte 
+  // in an array, where A = length of vector rounded up to the power of 2.  
   // In current lowering path, MLIR's n-D vector<a... x b x T> is translated to
   // LLVM's [a... x vector<b x T>]. 
 
-  // So if we want to tell compiler that "this memory region should be viewed as a 
-  // vector<a... x b x T>", we should manually align the vectors, which 
-  // unfortunately will break the abstraction that memref provided and introduce
-  // too much implementation details. 
+  // So if we want to tell the compiler that "this memory region should be 
+  // viewed as a vector<a... x b x T>", we should manually align the vectors, 
+  // which unfortunately will break the abstraction that memref provided and 
+  // introduce too many implementation details. 
 
-  // This is really buggy, so apply vector.type_cast to memref<a... x b x T> 
+  // This is buggy, so applying vector.type_cast to memref<a... x b x T> 
   // when b is not a power of 2 is not recommended yet, until we have a way to
   // express platform-specified DataLayout (which contains align requirement) in MLIR.
 
@@ -54,8 +54,8 @@ func.func @main() -> i32 {
 
 
   // However, applying vector.type_cast on memref<a... x vector<b... x T>> will
-  // not produce any buggy behaviors because align requirement is satisfied when  
-  // we init the memref and storing things into it.
+  // not produce any buggy behaviors because align requirement is satisfied when
+  // we init the memref and store things into it.
   %m2 = vector.type_cast %mem2 : memref<2xvector<3xi32>> to memref<vector<2x3xi32>>
   
   %v2 = memref.load %m2[] : memref<vector<2x3xi32>>
