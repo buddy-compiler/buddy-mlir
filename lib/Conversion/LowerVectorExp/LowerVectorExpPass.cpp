@@ -54,6 +54,12 @@ public:
             loc, resultType, cast<arith::AddFOp>(innerOp).getLhs(),
             cast<arith::AddFOp>(innerOp).getRhs(), op.getMask(), op.getVl());
         rewriter.replaceOp(op, result);
+      } else if (isa<arith::MulFOp>(innerOp)) {
+        Type resultType = cast<arith::MulFOp>(innerOp).getResult().getType();
+        Value result = rewriter.create<LLVM::VPFMulOp>(
+            loc, resultType, cast<arith::MulFOp>(innerOp).getLhs(),
+            cast<arith::MulFOp>(innerOp).getRhs(), op.getMask(), op.getVl());
+        rewriter.replaceOp(op, result);
       }
     }
     return success();
