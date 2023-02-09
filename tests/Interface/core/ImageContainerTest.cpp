@@ -20,6 +20,11 @@
 
 // RUN: buddy-image-container-test 2>&1 | FileCheck %s
 
+// Suppress array-bounds warning since layout array subscript 2 and 3 will never
+// be reached when processing gray images with N equal to 2.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+
 #include "Interface/buddy/core/Container.h"
 #include "Interface/buddy/core/ImageContainer.h"
 #include <opencv2/imgcodecs.hpp>
@@ -33,13 +38,13 @@ int main() {
   // 195.0, 210.0, 225.0, 240.0
   // The test running directory is in <build dir>/tests/Interface/core, so the
   // `imread` function uses the following relative path.
-  cv::Mat image =
+  cv::Mat grayimage =
       cv::imread("../../../../tests/Interface/core/TestGrayImage.png",
                  cv::IMREAD_GRAYSCALE);
   //===--------------------------------------------------------------------===//
   // Test image constructor for OpenCV.
   //===--------------------------------------------------------------------===//
-  Img<float, 2> testOpenCVConstructor(image);
+  Img<float, 2> testOpenCVConstructor(grayimage);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testOpenCVConstructor.getData()[0]);
   // CHECK: 4, 4
@@ -88,15 +93,43 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test overloading bracket operator.
   //===--------------------------------------------------------------------===//
-  Img<float, 2> testBracketOperator1(image);
+  Img<float, 2> testBracketOperator1(grayimage);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator1[15]);
   testBracketOperator1[15] = 90.0;
   // CHECK: 90.0
   fprintf(stderr, "%f\n", testBracketOperator1[15]);
-  const Img<float, 2> testBracketOperator2(image);
+  const Img<float, 2> testBracketOperator2(grayimage);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator2[15]);
 
+  //===--------------------------------------------------------------------===//
+  // Test image channels layout of RGB images from ImgContainer.
+  //===--------------------------------------------------------------------===//
+  // The test image is a RGB image with size 1026 * 1026 from buddy-mlir/examples.
+  // The test running directory is in <build dir>/tests/Interface/core, so the
+  // `imread` function uses the following relative path.
+
+  cv::Mat RGBimage =
+      cv::imread("../../../../examples/ConvOpt/images/YuTu.png");
+
+  // Represent NHWC layout by default.
+  Img<float, 4> testRGBImageLayout1(RGBimage);
+  // CHECK: 1, 1026, 1026, 3
+  fprintf(stderr, "%ld, %ld, %ld, %ld\n", testRGBImageLayout1.getSizes()[0],
+          testRGBImageLayout1.getSizes()[1], testRGBImageLayout1.getSizes()[2],
+          testRGBImageLayout1.getSizes()[3]);
+
+  // Represent NCHW layout with sizes = {1, 3, 1026, 1026}
+  intptr_t sizesInput2[4] = {1, 3, RGBimage.rows, RGBimage.cols};
+  Img<float, 4> testRGBImageLayout2(RGBimage, sizesInput2);
+  // CHECK: 3158028, 1052676, 1026, 1
+  fprintf(stderr, "%ld, %ld, %ld, %ld\n", testRGBImageLayout2.getStrides()[0],
+          testRGBImageLayout2.getStrides()[1],
+          testRGBImageLayout2.getStrides()[2],
+          testRGBImageLayout2.getStrides()[3]);
+
   return 0;
 }
+
+#pragma GCC diagnostic pop
