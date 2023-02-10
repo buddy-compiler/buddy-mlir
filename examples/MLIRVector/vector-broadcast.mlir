@@ -51,7 +51,7 @@ func.func @broadcast_scalar_to_vector(%src: f32) -> vector<3x1xf32> {
 }
 
 func.func @broadcast_low_dim_to_high_dim(%src: vector<3x1xf32>) -> vector<4x3x2xf32> {
-  // broadcasting vector wit smaller rank to larger one can be transformed into 
+  // broadcasting vector with smaller rank to larger one can be transformed into 
   // broadcasting two vectors with the same rank
   %result = vector.broadcast %src : vector<3x1xf32> to vector<4x3x2xf32>
 
@@ -94,9 +94,9 @@ func.func @broadcast_1_to_n_case(%src: vector<1x3x1xf32>) -> vector<4x3x2xf32> {
   %zero = arith.constant 0.0 : f32
   %w_ = vector.broadcast %zero : f32 to vector<4x3x2xf32>
   %w0 = vector.insert %t0, %w_[0] : vector<3x2xf32> into vector<4x3x2xf32>
-  %w1 = vector.insert %t0, %w0[1] : vector<3x2xf32> into vector<4x3x2xf32>
-  %w2 = vector.insert %t0, %w1[2] : vector<3x2xf32> into vector<4x3x2xf32>
-  %w3 = vector.insert %t0, %w2[3] : vector<3x2xf32> into vector<4x3x2xf32>
+  %w1 = vector.insert %t1, %w0[1] : vector<3x2xf32> into vector<4x3x2xf32>
+  %w2 = vector.insert %t2, %w1[2] : vector<3x2xf32> into vector<4x3x2xf32>
+  %w3 = vector.insert %t3, %w2[3] : vector<3x2xf32> into vector<4x3x2xf32>
 
   // now the final result %w3 will equal to %result
   vector.print %result : vector<4x3x2xf32>
