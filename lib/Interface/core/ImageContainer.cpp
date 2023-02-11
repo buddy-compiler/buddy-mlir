@@ -38,12 +38,13 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
   }
   // Use default layout setting.
   if (sizes == nullptr) {
-    if (image.channels() == 1) {
+    // The size of the gray image is represented by height and width by default.
+    if (N == 2) {
       this->sizes[0] = image.rows;
       this->sizes[1] = image.cols;
     }
     // For RGB images, use NHWC layout by default.
-    else if (image.channels() == 3) {
+    else if (N == 4) {
       this->sizes[0] = 1;
       this->sizes[1] = image.rows;
       this->sizes[2] = image.cols;
@@ -64,7 +65,8 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
 
 template <typename T, size_t N>
 void Img<T, N>::loadImg(cv::Mat image, bool norm) {
-  if (image.channels() == 1) {
+  // Load gray image data from OpenCV Mat.
+  if (N == 2) {
     size_t k = 0;
     for (int i = 0; i < this->sizes[0]; i++) {
       for (int j = 0; j < this->sizes[1]; j++) {
@@ -76,8 +78,8 @@ void Img<T, N>::loadImg(cv::Mat image, bool norm) {
         k++;
       }
     }
-  } else if (image.channels() == 3) {
-    // Detect NHWC layout.
+  } else if (N == 4) {
+    // Detect NHWC layout of RGB image data.
     if (this->sizes[1] == image.rows && this->sizes[2] == image.cols &&
         this->sizes[3] == 3) {
       size_t k = 0;
@@ -94,7 +96,7 @@ void Img<T, N>::loadImg(cv::Mat image, bool norm) {
         }
       }
     }
-    // Detect NCHW layout.
+    // Detect NCHW layout of RGB image data.
     else if (this->sizes[2] == image.rows && this->sizes[3] == image.cols &&
              this->sizes[1] == 3) {
       size_t k = 0;

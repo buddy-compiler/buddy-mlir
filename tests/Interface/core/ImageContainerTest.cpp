@@ -20,11 +20,6 @@
 
 // RUN: buddy-image-container-test 2>&1 | FileCheck %s
 
-// Suppress array-bounds warning since layout array subscript 2 and 3 will never
-// be reached when processing gray images with N equal to 2.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Warray-bounds"
-
 #include "Interface/buddy/core/Container.h"
 #include "Interface/buddy/core/ImageContainer.h"
 #include <opencv2/imgcodecs.hpp>
@@ -106,12 +101,12 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test image channels layout of RGB images from ImgContainer.
   //===--------------------------------------------------------------------===//
-  // The test image is a RGB image with size 1026 * 1026 from buddy-mlir/examples.
-  // The test running directory is in <build dir>/tests/Interface/core, so the
-  // `imread` function uses the following relative path.
+  // The test image is an RGB image with size 1026 * 1026 from
+  // buddy-mlir/examples. The test running directory is in <build
+  // dir>/tests/Interface/core, so the `imread` function uses the following
+  // relative path.
 
-  cv::Mat RGBimage =
-      cv::imread("../../../../examples/ConvOpt/images/YuTu.png");
+  cv::Mat RGBimage = cv::imread("../../../../examples/ConvOpt/images/YuTu.png");
 
   // Represent NHWC layout by default.
   Img<float, 4> testRGBImageLayout1(RGBimage);
@@ -131,5 +126,3 @@ int main() {
 
   return 0;
 }
-
-#pragma GCC diagnostic pop
