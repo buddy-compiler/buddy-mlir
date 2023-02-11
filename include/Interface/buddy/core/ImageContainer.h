@@ -31,7 +31,11 @@
 //   disabled by default.
 template <typename T, size_t N> class Img : public MemRef<T, N> {
 public:
-  Img(cv::Mat image, bool norm = false);
+  Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
+
+private:
+  // Load image data from OpenCV Mat.
+  void loadImg(cv::Mat image, bool norm);
 };
 
 #include "Interface/core/ImageContainer.cpp"
