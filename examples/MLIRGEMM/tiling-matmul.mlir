@@ -45,33 +45,33 @@ module{
   }
 
 
-    // naive muatrix multiplication using affine dialect and tiling 
-    func.func @matmul(%A: memref<?x?xf64>, %B: memref<?x?xf64>, %C: memref<?x?xf64>) {
-      %c0 = arith.constant 0 : index
-      %c1 = arith.constant 1 : index
-      affine.for %arg3 = 0 to 8 {
-        affine.for %arg4 = 0 to 33 {
-          affine.for %arg5 = 0 to 2048 {
-            affine.for %arg6 = #map10(%arg4) to #map11(%arg4) {
-              %0 = memref.alloc(%c1) : memref<?xf64>
-              %1 = affine.load %C[%arg6, %arg5] : memref<?x?xf64>
-              affine.store %1, %0[%c0] : memref<?xf64>
-              affine.for %arg7 = 0 to 256 {
-                %3 = affine.load %A[%arg6, %arg3 * 256 + %arg7] : memref<?x?xf64>
-                %4 = affine.load %B[%arg3 * 256 + %arg7, %arg5] : memref<?x?xf64>
-                %5 = affine.load %0[0] : memref<?xf64>
-                %6 =  arith.mulf %3, %4 : f64
-                %7 = arith.addf %5, %6 : f64
-                affine.store %7, %0[0] : memref<?xf64>
-              }
-              %7 = affine.load %0[%c0] : memref<?xf64>
-              affine.store %7, %C[%arg6, %arg5] : memref<?x?xf64>
+  // naive muatrix multiplication using affine dialect and tiling 
+  func.func @matmul(%A: memref<?x?xf64>, %B: memref<?x?xf64>, %C: memref<?x?xf64>) {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    affine.for %arg3 = 0 to 8 {
+      affine.for %arg4 = 0 to 33 {
+        affine.for %arg5 = 0 to 2048 {
+          affine.for %arg6 = #map10(%arg4) to #map11(%arg4) {
+            %0 = memref.alloc(%c1) : memref<?xf64>
+            %1 = affine.load %C[%arg6, %arg5] : memref<?x?xf64>
+            affine.store %1, %0[%c0] : memref<?xf64>
+            affine.for %arg7 = 0 to 256 {
+              %3 = affine.load %A[%arg6, %arg3 * 256 + %arg7] : memref<?x?xf64>
+              %4 = affine.load %B[%arg3 * 256 + %arg7, %arg5] : memref<?x?xf64>
+              %5 = affine.load %0[0] : memref<?xf64>
+              %6 =  arith.mulf %3, %4 : f64
+              %7 = arith.addf %5, %6 : f64
+              affine.store %7, %0[0] : memref<?xf64>
             }
+            %7 = affine.load %0[%c0] : memref<?xf64>
+            affine.store %7, %C[%arg6, %arg5] : memref<?x?xf64>
           }
         }
       }
-      return
     }
+    return
+  }
 
   func.func @main(){
     // Set up dims.
@@ -140,5 +140,3 @@ module{
     return
   }
 }
-
-

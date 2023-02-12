@@ -9,7 +9,7 @@ module{
       outs(%c:memref<?x?xf64>)
     return
   }
-  
+// Check the result. The sum of square of the residual should be 0.
 func.func @check_result(%A: memref<?x?xf64>){
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -37,7 +37,7 @@ func.func @check_result(%A: memref<?x?xf64>){
     %print_res = memref.cast %res : memref<?xf64> to memref<*xf64>
     func.call @printMemrefF64(%print_res) : (memref<*xf64>) -> ()
     memref.dealloc %res : memref<?xf64>
-
+    
     return
   }
 
@@ -84,7 +84,7 @@ func.func @check_result(%A: memref<?x?xf64>){
     %t_end = call @rtclock() : () -> f64
     // Get the total running time.
     %t = arith.subf %t_end, %t_start : f64
-
+    // Check the result.
     func.call @check_result(%C) : (memref<?x?xf64>) -> ()
 
     // 2 * %cM * %cK * %cN.
