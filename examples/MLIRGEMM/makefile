@@ -18,24 +18,66 @@ MLIR_ASYNC_RUNTIME := ./../llvm/build/lib/libmlir_async_runtime.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
 
-gemm-lower:
-	@${MLIR_OPT} ./gemm.mlir \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
-		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
-		-convert-func-to-llvm -reconcile-unrealized-casts \
-		-o ./log.mlir
 
-gemm-translate:
-	@${MLIR_OPT} ./gemm.mlir \
+linalg-matmul-run:
+	@${MLIR_OPT} linalg-matmul.mlir ${MLIR_OPT_OPTIONS} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	${MLIR_CPU_RUNNER}  ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}  
 
-gemm-run:
-	@${MLIR_OPT} ./gemm.mlir ${MLIR_OPT_OPTIONS} \
+
+naive-matmul-run:
+	@${MLIR_OPT} naive-matmul.mlir ${MLIR_OPT_OPTIONS} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+	${MLIR_CPU_RUNNER}  ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} ; \
+ 
+
+tiling-packing-matmul-run:
+	@${MLIR_OPT} tiling-packing-matmul.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} ; \
+ 
+
+tiling-packing-unrolling-matmul-run:
+	@${MLIR_OPT} tiling-packing-unrolling-matmul.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} ; \
+ 
+
+
+naive-vector-matmul-run:
+	@${MLIR_OPT} naive-vector-matmul.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} ; \
+
+tiling-packing-vector-matmul-run:
+	@${MLIR_OPT} tiling-packing-vector-matmul.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} ; \
+
+
+
+
+
+
+ 
+
+
+
+
+ 
+ 
+
+ 
  
