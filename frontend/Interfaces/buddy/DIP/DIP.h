@@ -1,4 +1,4 @@
-//===- dip.h --------------------------------------------------------------===//
+//===- DIP.h --------------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_DIP
-#define INCLUDE_DIP
+#ifndef FRONTEND_INTERFACES_BUDDY_DIP_DIP
+#define FRONTEND_INTERFACES_BUDDY_DIP_DIP
 
-#include "buddy/core/Container.h"
-#include "buddy/core/ImageContainer.h"
+#include "buddy/Core/Container.h"
+#include "buddy/DIP/ImageContainer.h"
 
 namespace dip {
 // Availale types of boundary extrapolation techniques provided in DIP dialect.
@@ -401,4 +401,5 @@ inline void MorphGrad2D(Img<float, 2> input, MemRef<float, 2> *kernel,
   }
 }
 } // namespace dip
-#endif
+
+#endif // FRONTEND_INTERFACES_BUDDY_DIP_DIP

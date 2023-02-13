@@ -1,4 +1,4 @@
-//===- AudioContainer.cpp -------------------------------------------------===//
+//===- AudioContainer.h ---------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,17 +14,44 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the audio container descriptor.
+// Audio container descriptor.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef CORE_AUDIO_CONTAINER_DEF
-#define CORE_AUDIO_CONTAINER_DEF
+#ifndef FRONTEND_INTERFACES_BUDDY_DAP_AUDIOCONTAINER
+#define FRONTEND_INTERFACES_BUDDY_DAP_AUDIOCONTAINER
 
-#include "Interface/buddy/dap/AudioContainer.h"
-#include "Interface/buddy/core/Container.h"
+#include "AudioFile.h"
+#include "buddy/Core/Container.h"
 
 namespace dap {
+
+// Audio container.
+// - T represents the type of the elements.
+// - N represents the number of audio channels (Normally would be 1 or 2).
+// If N is smaller than channels from the file, only previous N channels will be
+// manipulated.
+template <typename T, size_t N> class Audio {
+public:
+  Audio() : audioFile(), data(nullptr) {}
+  explicit Audio(std::string filename) : audioFile(filename), data(nullptr) {}
+  void fetchMetadata(const AudioFile<T> &aud);
+  bool save(std::string filename);
+  AudioFile<T> &getAudioFile() {
+    moveToAudioFile();
+    return audioFile;
+  }
+  MemRef<T, N> &getMemRef() {
+    moveToMemRef();
+    return *data;
+  }
+
+protected:
+  void moveToMemRef();
+  void moveToAudioFile();
+  AudioFile<T> audioFile;
+  MemRef<T, N> *data;
+};
 
 template <typename T, size_t N> bool Audio<T, N>::save(std::string filename) {
   if (!this->audioFile.samples) {
@@ -42,7 +69,8 @@ void Audio<T, N>::fetchMetadata(const AudioFile<T> &aud) {
   this->audioFile.setAudioBuffer(nullptr);
 }
 template <typename T, size_t N> void Audio<T, N>::moveToMemRef() {
-  if(data) delete data;
+  if (data)
+    delete data;
   intptr_t sizes[N];
   for (size_t i = 0; i < N; ++i) {
     sizes[i] = audioFile.numSamples;
@@ -55,6 +83,7 @@ template <typename T, size_t N> void Audio<T, N>::moveToAudioFile() {
     audioFile.setAudioBuffer(temp);
   }
 }
+
 } // namespace dap
 
-#endif // CORE_AUDIO_CONTAINER_DEF
+#endif // FRONTEND_INTERFACES_BUDDY_DAP_AUDIOCONTAINER

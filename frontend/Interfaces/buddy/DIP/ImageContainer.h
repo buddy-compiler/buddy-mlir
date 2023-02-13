@@ -1,4 +1,4 @@
-//===- ImageContainer.cpp -------------------------------------------------===//
+//===- ImageContainer.h ---------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,14 +14,31 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the image container descriptor.
+// Image container descriptor.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef CORE_IMAGE_CONTAINER_DEF
-#define CORE_IMAGE_CONTAINER_DEF
+#ifndef FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
+#define FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 
+#include "buddy/Core/Container.h"
 #include <cassert>
+#include <opencv2/opencv.hpp>
+
+// Image container.
+// - T represents the type of the elements.
+// - N represents the number of dimensions.
+// - image represents the OpenCV Mat object.
+// - norm indicates whether to perform normalization, and the normalization is
+//   disabled by default.
+template <typename T, size_t N> class Img : public MemRef<T, N> {
+public:
+  Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
+
+private:
+  // Load image data from OpenCV Mat.
+  void loadImg(cv::Mat image, bool norm);
+};
 
 // Image Constructor from OpenCV Mat.
 template <typename T, size_t N>
@@ -119,4 +136,4 @@ void Img<T, N>::loadImg(cv::Mat image, bool norm) {
   }
 }
 
-#endif // CORE_IMAGE_CONTAINER_DEF
+#endif // FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER

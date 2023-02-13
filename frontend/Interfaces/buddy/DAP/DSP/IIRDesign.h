@@ -1,4 +1,4 @@
-//===- iir_design.h -------------------------------------------------------===//
+//===- IIRDesign.h --------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_DAP_DSP_IIR_DESIGN
-#define INCLUDE_DAP_DSP_IIR_DESIGN
+#ifndef FRONTEND_INTERFACES_BUDDY_DAP_DSP_IIRDESIGN
+#define FRONTEND_INTERFACES_BUDDY_DAP_DSP_IIRDESIGN
 
 #include <cmath>
 #include <complex>
@@ -421,4 +421,4 @@ template <typename T> std::vector<std::vector<T>> to_sos(const zpk<T> &filter) {
 } // namespace detail
 
 } // namespace dap
-#endif // INCLUDE_DAP_DSP_IIR_DESIGN
+#endif // FRONTEND_INTERFACES_BUDDY_DAP_DSP_IIRDESIGN

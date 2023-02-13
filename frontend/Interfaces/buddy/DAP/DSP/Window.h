@@ -1,4 +1,4 @@
-//===- window.h -----------------------------------------------------------===//
+//===- Window.h -----------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_DAP_DSP_WINDOW
-#define INCLUDE_DAP_DSP_WINDOW
+#ifndef FRONTEND_INTERFACES_BUDDY_DAP_DSP_WINDOW
+#define FRONTEND_INTERFACES_BUDDY_DAP_DSP_WINDOW
 
-#include "Interface/buddy/core/Container.h"
-#include "Interface/buddy/dap/dsp/math.h"
+#include "buddy/Core/Container.h"
+#include "buddy/DAP/DSP/Math.h"
 
 #include <cassert>
 #include <functional>
@@ -124,7 +124,8 @@ template <typename T> T _window_triangular(size_t i, size_t len, T n) {
   return 1.0 - abs(v0 / v1);
 }
 
-template <typename T> std::function<T(size_t,size_t)> _bind_window(WINDOW_TYPE type, T *args) {
+template <typename T>
+std::function<T(size_t, size_t)> _bind_window(WINDOW_TYPE type, T *args) {
   using namespace std;
   using namespace std::placeholders;
   switch (type) {
@@ -155,4 +156,4 @@ template <typename T> std::function<T(size_t,size_t)> _bind_window(WINDOW_TYPE t
 } // namespace detail
 } // namespace dap
 
-#endif // INCLUDE_DAP_DSP_WINDOW
+#endif // FRONTEND_INTERFACES_BUDDY_DAP_DSP_WINDOW

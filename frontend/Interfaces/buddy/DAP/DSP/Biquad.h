@@ -1,4 +1,4 @@
-//===- biquad.h -----------------------------------------------------------===//
+//===- Biquad.h -----------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@
 // Header file for Biquad operation and other entities in DAP dialect.
 //===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_DAP_DSP_BIQUAD
-#define INCLUDE_DAP_DSP_BIQUAD
+#ifndef FRONTEND_INTERFACES_BUDDY_DAP_DSP_BIQUAD
+#define FRONTEND_INTERFACES_BUDDY_DAP_DSP_BIQUAD
 
-#include "Interface/buddy/core/Container.h"
-#include "Interface/buddy/dap/AudioContainer.h"
+#include "buddy/Core/Container.h"
+#include "buddy/DAP/AudioContainer.h"
 
 #include "cmath"
 
@@ -67,4 +67,4 @@ void biquad(MemRef<float, N> *input, MemRef<T, N> *filter,
 
 } // namespace dap
 
-#endif // INCLUDE_DAP_DSP_BIQUAD
+#endif // FRONTEND_INTERFACES_BUDDY_DAP_DSP_BIQUAD

@@ -20,7 +20,7 @@
 
 // RUN: buddy-container-test 2>&1 | FileCheck %s
 
-#include "Interface/buddy/core/Container.h"
+#include <buddy/Core/Container.h>
 
 int main() {
   intptr_t sizes[] = {2, 3};

@@ -1,4 +1,4 @@
-//===- dap.h --------------------------------------------------------------===//
+//===- DAP.h --------------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,13 +18,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_DAP
-#define INCLUDE_DAP
+#ifndef FRONTEND_INTERFACES_BUDDY_DAP_DAP
+#define FRONTEND_INTERFACES_BUDDY_DAP_DAP
 
 #include "AudioFile.h"
-#include "Interface/buddy/dap/AudioContainer.h"
-#include "Interface/buddy/dap/dsp/biquad.h"
-#include "Interface/buddy/dap/dsp/fir.h"
-#include "Interface/buddy/dap/dsp/iir.h"
+#include "buddy/DAP/AudioContainer.h"
+#include "buddy/DAP/DSP/Biquad.h"
+#include "buddy/DAP/DSP/FIR.h"
+#include "buddy/DAP/DSP/IIR.h"
 
-#endif
+#endif // FRONTEND_INTERFACES_BUDDY_DAP_DAP

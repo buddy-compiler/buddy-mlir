@@ -1,4 +1,4 @@
-//===- fir.h --------------------------------------------------------------===//
+//===- FIR.h --------------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,12 +18,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_DAP_DSP_FIR
-#define INCLUDE_DAP_DSP_FIR
+#ifndef FRONTEND_INTERFACES_BUDDY_DAP_DSP_FIR
+#define FRONTEND_INTERFACES_BUDDY_DAP_DSP_FIR
 
-#include "Interface/buddy/core/Container.h"
-#include "Interface/buddy/dap/AudioContainer.h"
-#include "Interface/buddy/dap/dsp/window.h"
+#include "buddy/Core/Container.h"
+#include "buddy/DAP/AudioContainer.h"
+#include "buddy/DAP/DSP/Window.h"
 
 namespace dap {
 namespace detail {
@@ -79,4 +79,4 @@ void fir(MemRef<float, N> *input, MemRef<T, N> *filter,
 }
 } // namespace dap
 
-#endif // INCLUDE_DAP_DSP_FIR
+#endif // FRONTEND_INTERFACES_BUDDY_DAP_DSP_FIR

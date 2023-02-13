@@ -1,4 +1,4 @@
-//===- math.h -------------------------------------------------------------===//
+//===- Math.h -------------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_DAP_DSP_MATH
-#define INCLUDE_DAP_DSP_MATH
+#ifndef FRONTEND_INTERFACES_BUDDY_DAP_DSP_MATH
+#define FRONTEND_INTERFACES_BUDDY_DAP_DSP_MATH
 
 #include <cmath>
 
@@ -36,4 +36,4 @@ template <typename T> T besseli0(T x) {
 // More math functions with higher complexity
 } // namespace dap
 
-#endif // INCLUDE_DAP_DSP_MATH
+#endif // FRONTEND_INTERFACES_BUDDY_DAP_DSP_MATH

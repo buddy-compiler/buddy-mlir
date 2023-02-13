@@ -1,4 +1,4 @@
-//===- iir.h --------------------------------------------------------------===//
+//===- IIR.h --------------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,16 +14,16 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Header file for Iir operation and other entities in DAP dialect.
+// Header file for IIR operation and other entities in DAP dialect.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_DAP_DSP_IIR
-#define INCLUDE_DAP_DSP_IIR
+#ifndef FRONTEND_INTERFACES_BUDDY_DAP_DSP_IIR
+#define FRONTEND_INTERFACES_BUDDY_DAP_DSP_IIR
 
-#include "Interface/buddy/core/Container.h"
-#include "Interface/buddy/dap/AudioContainer.h"
-#include "Interface/buddy/dap/dsp/iir_design.h"
+#include "buddy/Core/Container.h"
+#include "buddy/DAP/AudioContainer.h"
+#include "buddy/DAP/DSP/IIRDesign.h"
 
 namespace dap {
 namespace detail {
@@ -73,4 +73,4 @@ void iir(MemRef<float, N> *input, MemRef<T, M> *filter,
 }
 } // namespace dap
 
-#endif // INCLUDE_DAP_DSP_IIR
+#endif // FRONTEND_INTERFACES_BUDDY_DAP_DSP_IIR

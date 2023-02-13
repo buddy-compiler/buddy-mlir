@@ -23,9 +23,9 @@
 #include <opencv2/opencv.hpp>
 
 #include "../ConvOpt/kernels.h"
-#include "Interface/buddy/core/Container.h"
-#include "Interface/buddy/core/ImageContainer.h"
-#include <Interface/buddy/dip/dip.h>
+#include <buddy/Core/Container.h>
+#include <buddy/DIP/DIP.h>
+#include <buddy/DIP/ImageContainer.h>
 #include <iostream>
 #include <time.h>
 
@@ -88,18 +88,18 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
   // kernel for morphological transformations.
   Mat kernel1 = cv::getStructuringElement(MORPH_ELLIPSE, Size(3, 3));
-  
+
   dip::Opening2D(input, &kernel, &output1, x, y, 1,
                  dip::BOUNDARY_OPTION::CONSTANT_PADDING, 0.0);
   Mat outputImageConstantPaddingopening(sizesOutput[0], sizesOutput[1],
-                                         CV_32FC1, output1.getData());
+                                        CV_32FC1, output1.getData());
   imwrite(argv[2], outputImageConstantPaddingopening);
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
   // cv::Mat to store output of the opening op
   Mat opencvConstantPaddingopening;
-  morphologyEx(image, opencvConstantPaddingopening, 2, kernel1,
-               cv::Point(x, y), 1, 0, 0.0);
+  morphologyEx(image, opencvConstantPaddingopening, 2, kernel1, cv::Point(x, y),
+               1, 0, 0.0);
 
   if (!testImages(o1, opencvConstantPaddingopening)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
@@ -110,13 +110,13 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
                  dip::BOUNDARY_OPTION::REPLICATE_PADDING, 0.0);
   // Define a cv::Mat with the output of Opening2D.
   Mat outputImageReplicatePaddingopening(sizesOutput[0], sizesOutput[1],
-                                        CV_32FC1, output2.getData());
+                                         CV_32FC1, output2.getData());
   imwrite(argv[3], outputImageReplicatePaddingopening);
   Mat o2 = imread(argv[3], IMREAD_GRAYSCALE);
   // Define a cv::mat to store the output of Opencv's opening.
   Mat opencvReplicatePaddingopening;
-  morphologyEx(image, opencvReplicatePaddingopening, 2, kernel1, cv::Point(x, y),
-               1, cv::BORDER_REPLICATE, 0.0);
+  morphologyEx(image, opencvReplicatePaddingopening, 2, kernel1,
+               cv::Point(x, y), 1, cv::BORDER_REPLICATE, 0.0);
   if (!testImages(o2, opencvReplicatePaddingopening)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
@@ -173,8 +173,8 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }
-  
-    // Call the MLIR Dilation2D function.
+
+  // Call the MLIR Dilation2D function.
   dip::Dilation2D(input, &kernel, &output6, x, y, 1,
                   dip::BOUNDARY_OPTION::CONSTANT_PADDING, 0.0);
   // Define a cv::Mat with the output of Dilation2D.

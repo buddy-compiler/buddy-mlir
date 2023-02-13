@@ -75,6 +75,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/backend/include)
 include_directories(${BUDDY_SOURCE_DIR}/lib)
 include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
+include_directories(${BUDDY_SOURCE_DIR}/frontend/Interfaces)
 
 # Add MLIR and LLVM headers to the include path
 include_directories(${LLVM_INCLUDE_DIRS})
