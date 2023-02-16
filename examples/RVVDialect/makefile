@@ -16,15 +16,49 @@ CROSS_MLIR_LIB := ../../thirdparty/build-cross-mlir/lib
 
 rvv-setvl-lower:
 	@${BUDDY_OPT} ./rvv-setvl.mlir \
-		--lower-rvv --convert-func-to-llvm \
-		--reconcile-unrealized-casts \
+		-convert-scf-to-cf \
+		-convert-math-to-llvm \
+		-lower-rvv \
+		-convert-vector-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts \
 		-o ./log.mlir
 
 rvv-setvl-translate:
 	@${BUDDY_OPT} ./rvv-setvl.mlir \
-		--lower-rvv --convert-func-to-llvm \
-		--reconcile-unrealized-casts | \
-	${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll
+		-convert-scf-to-cf \
+		-convert-math-to-llvm \
+		-lower-rvv \
+		-convert-vector-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir -o log.ll
+
+rvv-setvl-128-run:
+	@${BUDDY_OPT} ./rvv-setvl.mlir \
+		-convert-scf-to-cf \
+		-convert-math-to-llvm \
+		-lower-rvv \
+		-convert-vector-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v \
+		-dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
+
+rvv-setvl-256-run:
+	@${BUDDY_OPT} ./rvv-setvl.mlir \
+		-convert-scf-to-cf \
+		-convert-math-to-llvm \
+		-lower-rvv \
+		-convert-vector-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=256 \
+	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v \
+		-dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
 
 rvv-rsqrt-lower:
 	@${BUDDY_OPT} ./rvv-rsqrt.mlir \
