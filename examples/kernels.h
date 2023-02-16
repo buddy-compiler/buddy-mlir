@@ -18,8 +18,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef EXAMPLES_CONV_OPT_KERNELS
-#define EXAMPLES_CONV_OPT_KERNELS
+#ifndef EXAMPLES_KERNELS
+#define EXAMPLES_KERNELS
 
 float prewittKernelAlign[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
 int prewittKernelRows = 3;

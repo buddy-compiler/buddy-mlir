@@ -22,7 +22,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "kernels.h"
+#include "../kernels.h"
 #include <buddy/DIP/ImageContainer.h>
 #include <iostream>
 #include <opencv2/imgcodecs.hpp>

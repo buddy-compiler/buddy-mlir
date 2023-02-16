@@ -24,7 +24,7 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "../ConvOpt/kernels.h"
+#include "../kernels.h"
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/DIP.h>
 #include <buddy/DIP/ImageContainer.h>

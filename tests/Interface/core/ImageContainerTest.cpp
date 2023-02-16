@@ -106,7 +106,7 @@ int main() {
   // dir>/tests/Interface/core, so the `imread` function uses the following
   // relative path.
 
-  cv::Mat RGBimage = cv::imread("../../../../examples/ConvOpt/images/YuTu.png");
+  cv::Mat RGBimage = cv::imread("../../../../examples/images/YuTu.png");
 
   // Represent NHWC layout by default.
   Img<float, 4> testRGBImageLayout1(RGBimage);

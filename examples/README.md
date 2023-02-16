@@ -74,7 +74,7 @@ You can detect the edge of the image with `edge-detection`.
 
 ```
 $ cd bin
-$ ./edge-detection ../../examples/ConvOpt/images/YuTu.png
+$ ./edge-detection ../../examples/images/YuTu.png
 ```
 
 We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches. 
@@ -108,7 +108,7 @@ $ cd buddy-mlir/build
 $ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja correlation2D
 $ cd bin
-$ ./correlation2D ../../examples/ConvOpt/images/YuTu.png result-dip-corr2d-replicate-padding.png result-dip-corr2d-constant-padding.png
+$ ./correlation2D ../../examples/images/YuTu.png result-dip-corr2d-replicate-padding.png result-dip-corr2d-constant-padding.png
 ```
 
 Of course, you can also use your own configuration assigning values `-DBUDDY_DIP_OPT_STRIP_MINING` (e.g. 64) and `-DBUDDY_OPT_ATTR` (e.g. avx2).
@@ -121,7 +121,7 @@ $ cd buddy-mlir/build
 $ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja rotation2D
 $ cd bin
-$ ./rotation2D ../../examples/ConvOpt/images/YuTu.png result-dip-rotate.png
+$ ./rotation2D ../../examples/images/YuTu.png result-dip-rotate.png
 ```
 
  - Resize example:
@@ -130,7 +130,7 @@ $ cd buddy-mlir/build
 $ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja resize2D
 $ cd bin
-$ ./resize2D ../../examples/ConvOpt/images/YuTu.png result-dip-resize.png
+$ ./resize2D ../../examples/images/YuTu.png result-dip-resize.png
 ```
 
 - Morphological Operations example:
@@ -139,7 +139,7 @@ $ cd buddy-mlir/build
 $ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja morph2D
 $ cd bin
-$ ./morph2D ../../examples/ConvOpt/images/YuTu.png result-opening-constant.png result-opening-replicate.png result-closing-replicate.png result-closing-constant.png result-tophat-replicate.png result-dilation-constant.png result-dilation-replicate.png result-erosion-constant.png result-erosion-replicate.png result-morphgrad-replicate.png result-bottomhat-replicate.png
+$ ./morph2D ../../examples/images/YuTu.png result-opening-constant.png result-opening-replicate.png result-closing-replicate.png result-closing-constant.png result-tophat-replicate.png result-dilation-constant.png result-dilation-replicate.png result-erosion-constant.png result-erosion-replicate.png result-morphgrad-replicate.png result-bottomhat-replicate.png
 ```
 We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches. 
 For more details, please see [the benchamrk in the buddy-benchmark repo](https://github.com/buddy-compiler/buddy-benchmark#image-processing-benchmark).
