@@ -786,7 +786,8 @@ void traverseImagewBoundaryExtrapolation(
   // Create DimOp.
   Value inputRow = rewriter.create<memref::DimOp>(loc, input, c0);
   Value inputCol = rewriter.create<memref::DimOp>(loc, input, c1);
-  Value kernelSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
+  Value kernelRow = rewriter.create<memref::DimOp>(loc, kernel, c0);
+  Value kernelCol = rewriter.create<memref::DimOp>(loc, kernel, c1);
 
   // Variables used for detecting rowMid, rowDown, colMid and colRight
   // regions.
@@ -794,7 +795,7 @@ void traverseImagewBoundaryExtrapolation(
   Value colMidHelper = rewriter.create<arith::AddIOp>(loc, inputCol, centerX);
 
   SmallVector<Value, 8> lowerBounds(4, c0);
-  SmallVector<Value, 8> uperBounds{inputRow, kernelSize, inputCol, kernelSize};
+  SmallVector<Value, 8> uperBounds{inputRow, kernelRow, inputCol, kernelCol};
   SmallVector<int64_t, 8> steps{1, 1, stride, 1};
 
   VectorType vectorTy32 = VectorType::get({stride}, elemTy);
@@ -809,7 +810,7 @@ void traverseImagewBoundaryExtrapolation(
   AffineMap calcHelper = AffineMap::get(3, 0, {a + b - c}, ctx);
 
   Value pseudoCol = rewriter.create<AffineApplyOp>(
-      loc, calcHelper, ValueRange{inputCol, kernelSize, c1});
+      loc, calcHelper, ValueRange{inputCol, kernelCol, c1});
 
   buildAffineLoopNest(
       rewriter, loc, lowerBounds, uperBounds, steps,
@@ -855,7 +856,7 @@ void traverseImagewBoundaryExtrapolation(
                       } else if (op == DIP_OP::DILATION_2D) {
                         Value tailCond =
                             tailChecker(builder, loc, calcHelper, strideVal,
-                                        kernelSize, c1, pseudoCol, ivs[2]);
+                                        kernelCol, c1, pseudoCol, ivs[2]);
 
                         calcAndStorewTailProcessingMorph(
                             builder, loc, vectorTy32, inputVec, kernelVec,
@@ -865,7 +866,7 @@ void traverseImagewBoundaryExtrapolation(
                       } else if (op == DIP_OP::EROSION_2D) {
                         Value tailCond =
                             tailChecker(builder, loc, calcHelper, strideVal,
-                                        kernelSize, c1, pseudoCol, ivs[2]);
+                                        kernelCol, c1, pseudoCol, ivs[2]);
 
                         calcAndStorewTailProcessingMorph(
                             builder, loc, vectorTy32, inputVec, kernelVec,
@@ -1000,7 +1001,7 @@ void traverseImagewBoundaryExtrapolation(
                                   }
                                   Value tailCond = tailChecker(
                                       builder, loc, calcHelper, strideVal,
-                                      kernelSize, c1, pseudoCol, ivs[2]);
+                                      kernelCol, c1, pseudoCol, ivs[2]);
 
                                   if (op == DIP_OP::CORRELATION_2D) {
                                     calcAndStoreFMAwTailProcessing(
@@ -1201,7 +1202,7 @@ void traverseImagewBoundaryExtrapolation(
                                       }
                                       Value tailCond = tailChecker(
                                           builder, loc, calcHelper, strideVal,
-                                          kernelSize, c1, pseudoCol, ivs[2]);
+                                          kernelCol, c1, pseudoCol, ivs[2]);
 
                                       if (op == DIP_OP::CORRELATION_2D) {
                                         calcAndStoreFMAwTailProcessing(
@@ -1418,7 +1419,7 @@ void traverseImagewBoundaryExtrapolation(
                                         }
                                         Value tailCond = tailChecker(
                                             builder, loc, calcHelper, strideVal,
-                                            kernelSize, c1, pseudoCol, ivs[2]);
+                                            kernelCol, c1, pseudoCol, ivs[2]);
 
                                         if (op == DIP_OP::CORRELATION_2D) {
                                           calcAndStoreFMAwTailProcessing(
