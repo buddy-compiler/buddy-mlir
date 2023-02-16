@@ -11,6 +11,11 @@ add_llvm_executable(buddy-translate
 llvm_update_compile_flags(buddy-translate)
 target_link_libraries(buddy-translate
   PRIVATE
+  MLIRBuddyTargetLLVMIRExport
+  MLIRBuddyLLVMDialect
+  MLIRBuddyNVVMDialect
+  MLIRBuddyROCDLDialect
+  MLIRBuddyControlFlowToLLVM
   ${dialect_libs}
   ${translation_libs}
   MLIRIR
