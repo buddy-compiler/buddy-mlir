@@ -28,6 +28,43 @@
 using namespace mlir;
 using namespace buddy::rvv;
 
+template <typename SourceOp, typename TargetOp>
+class ConvertPassthruOperandOpToLLVMPattern
+    : public ConvertOpToLLVMPattern<SourceOp> {
+public:
+  using ConvertOpToLLVMPattern<SourceOp>::ConvertOpToLLVMPattern;
+
+  /// This pattern creates an `undef` operation, inserts the `undef`
+  /// operation to the beginning of the operand list, and creates the intrinsic
+  /// operation.
+  LogicalResult
+  matchAndRewrite(SourceOp op, typename SourceOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    unsigned numResults = op->getNumResults();
+    auto resultType = op->getResultTypes();
+    Type packedType;
+    ValueRange operands = adaptor.getOperands();
+    SmallVector<Value, 6> operandsVector(operands);
+    Value passthru = rewriter.create<LLVM::UndefOp>(loc, resultType[0]);
+    operandsVector.insert(operandsVector.begin(), passthru);
+
+    LLVMTypeConverter typeConverter = *this->getTypeConverter();
+    if (numResults != 0) {
+      packedType = typeConverter.packFunctionResults(op->getResultTypes());
+      if (!packedType)
+        return failure();
+    }
+
+    // Create the intrinsic operation.
+    OperationState state(loc, TargetOp::getOperationName());
+    state.addTypes(packedType);
+    state.addOperands(operandsVector);
+    Operation *newOp = rewriter.create(state);
+    return rewriter.replaceOp(op, newOp->getResult(0)), success();
+  }
+};
+
 template <typename OpTy>
 class ForwardOperands : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
@@ -123,6 +160,10 @@ struct RVVStoreOpLowering : public ConvertOpToLLVMPattern<RVVStoreOp> {
 
 using RVVSetVlOpLowering =
     OneToOneConvertToLLVMPattern<RVVSetVlOp, RVVIntrSetVlIOp>;
+using RVVAddOpLowering =
+    ConvertPassthruOperandOpToLLVMPattern<RVVAddOp, RVVIntrAddOp>;
+using RVVMulOpLowering =
+    ConvertPassthruOperandOpToLLVMPattern<RVVMulOp, RVVIntrMulOp>;
 
 struct RsqrtOpLowering : public ConvertOpToLLVMPattern<RsqrtOp> {
   using ConvertOpToLLVMPattern<RsqrtOp>::ConvertOpToLLVMPattern;
@@ -157,6 +198,8 @@ void mlir::populateRVVLegalizeForLLVMExportPatterns(
   patterns.add<RVVLoadOpLowering,
                RVVStoreOpLowering>(converter);
   patterns.add<RsqrtOpLowering>(converter);
+  patterns.add<RVVAddOpLowering,
+               RVVMulOpLowering>(converter);
   // clang-format on
 }
 
@@ -165,10 +208,14 @@ void mlir::configureRVVLegalizeForExportTarget(LLVMConversionTarget &target) {
   target.addLegalOp<RVVIntrSetVlIOp,
                     RVVIntrLoadEleOp,
                     RVVIntrStoreEleOp,
-                    IntrFrsqrt7Op>();
+                    IntrFrsqrt7Op,
+                    RVVIntrAddOp,
+                    RVVIntrMulOp>();
   target.addIllegalOp<RVVSetVlOp,
                       RVVLoadOp,
                       RVVStoreOp,
-                      RsqrtOp>();
+                      RsqrtOp,
+                      RVVAddOp,
+                      RVVMulOp>();
   // clang-format on
 }

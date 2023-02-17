@@ -119,6 +119,27 @@ def RsqrtOp : RVV_Op<"rsqrt", [Pure, AllTypesMatch<["src", "dst"]>]>,
   let assemblyFormat = "$src `,` $length attr-dict `:` type($dst) `,`  type($length)";
 }
 
+class RVV_BinaryAAXNoMask_Op<string mnemonic, string op_description,
+                             list<Trait> traits = []> :
+  RVV_Op<mnemonic, !listconcat(traits, [AllTypesMatch<["src1", "dst"]>])> {
+  let summary = op_description # "for RVV scalable vectors";
+  let description = [{ The `rvv.}] # mnemonic # [{` operation can be of 
+    vector-vector form or vector-scalar form. It also takes the vector length 
+    value and returns a scalable vector with the result of the }]
+    # op_description # [{.}];
+  let arguments = (ins 
+    ScalableVectorOf<[AnyInteger]>:$src1,
+    AnyType:$src2,
+    Index:$length
+  );
+  let results = (outs ScalableVectorOf<[AnyInteger]>:$dst);
+  let assemblyFormat = "$src1 `,` $src2 `,` $length attr-dict `:` type($src1) "
+    "`,` type($src2) `,` type($length)";
+}
+
+def RVVAddOp : RVV_BinaryAAXNoMask_Op<"add", "addition">;
+def RVVMulOp : RVV_BinaryAAXNoMask_Op<"mul", "multiplication">;
+
 //===----------------------------------------------------------------------===//
 // RVV intrinsic operation definitions
 //===----------------------------------------------------------------------===//
@@ -159,6 +180,16 @@ class RVV_UnaryNoMask_IntrOp<string mnemonic, list<Trait> traits = []> :
                   /*list<Trait> traits=*/traits, 
                   /*int numResults=*/1>;
 
+class RVV_BinaryAAXNoMask_IntrOp<string mnemonic,
+                                 list<Trait> traits = []> :
+  LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect, 
+                  /*string opName=*/"intr." # mnemonic,
+                  /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
+                  /*list<int> overloadedResults=*/[0], 
+                  /*list<int> overloadedOperands=*/[2, 3], 
+                  /*list<Trait> traits=*/traits, 
+                  /*int numResults=*/1>;
+
 def RVVIntrSetVlIOp : RVV_VSetVlI_IntrOp<"vsetvli">,
   Arguments<(ins AnyInteger, AnyInteger, AnyInteger)>;
 def RVVIntrLoadEleOp : RVV_USLoad_IntrOp<"vle">,
@@ -167,5 +198,10 @@ def RVVIntrStoreEleOp : RVV_USStore_IntrOp<"vse">,
   Arguments<(ins AnyScalableVector, LLVM_AnyPointer, AnyInteger)>;
 def IntrFrsqrt7Op : RVV_UnaryNoMask_IntrOp<"vfrsqrt7">,
   Arguments<(ins AnyScalableVector, AnyScalableVector, AnyInteger)>;
+
+def RVVIntrAddOp : RVV_BinaryAAXNoMask_IntrOp<"vadd">, 
+  Arguments<(ins AnyScalableVector, AnyScalableVector, AnyType, AnyInteger)>;
+def RVVIntrMulOp : RVV_BinaryAAXNoMask_IntrOp<"vmul">, 
+  Arguments<(ins AnyScalableVector, AnyScalableVector, AnyType, AnyInteger)>;
 
 #endif // RVV_OPS
