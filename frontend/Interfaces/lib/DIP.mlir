@@ -131,3 +131,15 @@ func.func @morphgrad_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel
   dip.morphgrad_2d <REPLICATE_PADDING> %inputImage, %kernel, %outputImage, %outputImage1,%outputImage2, %inputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
+
+func.func @sep_corr_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernelX : memref<?x?xf32>, %kernelY : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
+{
+  dip.sep_corr_2d <CONSTANT_PADDING> %inputImage, %kernelX, %kernelY, %outputImage, %outputImage1 %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  return
+}
+
+func.func @sep_corr_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernelX : memref<?x?xf32>, %kernelY : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
+{
+  dip.sep_corr_2d <REPLICATE_PADDING> %inputImage, %kernelX, %kernelY, %outputImage, %outputImage1, %centerX, %centerY , %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
+  return
+}
