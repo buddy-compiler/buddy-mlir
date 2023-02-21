@@ -54,7 +54,7 @@ void iirLowpass(MemRef<T, N> &input, const zpk<T> &filter, T frequency, T fs) {
   result = detail::lp2lp_zpk(result, warped);
   result = detail::bilinear<float>(result, 2.0);
   auto bqs = detail::to_sos(result);
-  int M = bqs[0].size();
+  size_t M = bqs[0].size();
   for (size_t i = 0; i < bqs.size(); i++) {
     for (size_t j = 0; j < M; j++) {
       input[i * M + j] = bqs[i][j];
