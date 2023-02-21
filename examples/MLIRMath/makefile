@@ -36,3 +36,39 @@ math-atan2-run:
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+math-rsqrt-lower:
+	@${MLIR_OPT} ./math-rsqrt.mlir \
+		-convert-math-to-llvm -convert-func-to-llvm \
+		-o ./log.mlir
+
+math-rsqrt-translate:
+	@${MLIR_OPT} ./math-rsqrt.mlir \
+		-convert-math-to-llvm -convert-func-to-llvm | \
+	${MLIR_TRANSLATE} \
+		-mlir-to-llvmir -o log.ll
+
+math-rsqrt-lower-x86:
+	@${MLIR_OPT} ./math-rsqrt.mlir \
+		-test-math-polynomial-approximation=enable-avx2 \
+		-convert-vector-to-llvm="enable-x86vector" \
+		-convert-math-to-llvm -convert-func-to-llvm \
+		-o ./log.mlir
+
+math-rsqrt-translate-x86:
+	@${MLIR_OPT} ./math-rsqrt.mlir \
+		-test-math-polynomial-approximation=enable-avx2 \
+		-convert-vector-to-llvm="enable-x86vector" \
+		-convert-math-to-llvm -convert-func-to-llvm | \
+	${MLIR_TRANSLATE} \
+		-mlir-to-llvmir -o log.ll
+
+math-rsqrt-asm-x86:
+	@${MLIR_OPT} ./math-rsqrt.mlir \
+		-test-math-polynomial-approximation=enable-avx2 \
+		-convert-vector-to-llvm="enable-x86vector" \
+		-convert-math-to-llvm -convert-func-to-llvm | \
+	${MLIR_TRANSLATE} \
+		-mlir-to-llvmir | \
+	${LLC} ${OPT_FLAG} -mtriple=x86_64-unknown-linux-gnu -mattr=+avx512f \
+		--filetype=asm -o log.s

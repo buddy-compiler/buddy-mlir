@@ -22,7 +22,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Interface/buddy/dap/dap.h"
+#include <buddy/DAP/DAP.h>
 #include <iostream>
 
 using namespace dap;

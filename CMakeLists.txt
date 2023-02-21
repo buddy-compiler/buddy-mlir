@@ -58,7 +58,7 @@ include(HandleLLVMOptions)
 set(BUDDY_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
-set(BUDDY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/include/)
+set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include/)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include/)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
@@ -66,15 +66,19 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
+# Generate libraries into `lib` of build directory.
+set(LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+
 # Add BUDDY files to the include path
 include_directories(${BUDDY_MAIN_INCLUDE_DIR})
-include_directories(${BUDDY_INCLUDE_DIR})
-include_directories(${BUDDY_INCLUDE_DIR}/Interface)
-include_directories(${BUDDY_INCLUDE_DIR}/Dialect)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/Dialect)
+include_directories(${BUDDY_MIDEND_INCLUDE_DIR})
+include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Interface)
+include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Dialect)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/midend/include/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/backend/include)
 include_directories(${BUDDY_SOURCE_DIR}/lib)
 include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
+include_directories(${BUDDY_SOURCE_DIR}/frontend/Interfaces)
 
 # Add MLIR and LLVM headers to the include path
 include_directories(${LLVM_INCLUDE_DIRS})
@@ -117,10 +121,9 @@ endif()
 #-------------------------------------------------------------------------------
 
 add_subdirectory(cmake)
-add_subdirectory(include)
-add_subdirectory(lib)
+add_subdirectory(frontend)
+add_subdirectory(midend)
+add_subdirectory(backend)
 add_subdirectory(tools)
 add_subdirectory(examples)
 add_subdirectory(tests)
-add_subdirectory(frontend)
-add_subdirectory(backend)

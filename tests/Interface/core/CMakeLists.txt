@@ -1,7 +1,5 @@
 _add_test_executable(buddy-container-test
   ContainerTest.cpp
-  LINK_LIBS
-    Container
 )
 
 if(BUDDY_ENABLE_OPENCV)
@@ -16,6 +14,4 @@ endif()
 
 _add_test_executable(buddy-audio-container-test
   AudioContainerTest.cpp
-  LINK_LIBS
-  Container AudioContainer
 )
