@@ -22,11 +22,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <opencv2/opencv.hpp>
-#include "Interface/buddy/core/Container.h"
-#include "Interface/buddy/core/ImageContainer.h"
-#include <Interface/buddy/dip/dip.h>
+#include <buddy/Core/Container.h>
+#include <buddy/DIP/DIP.h>
+#include <buddy/DIP/ImageContainer.h>
 #include <iostream>
+#include <opencv2/opencv.hpp>
 
 using namespace cv;
 using namespace std;

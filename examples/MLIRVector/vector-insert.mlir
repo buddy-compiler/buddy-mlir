@@ -1,27 +1,41 @@
 func.func @main() -> i32 {
-  %0 = arith.constant dense<[[[1., 9., 8.], [12., 13., 14.], [23., 45., 78.]],
-                              [[12., 67., 89.], [16., 17., 10.], [15., 78., 65.]],
-                              [[134., 56., 27.], [90., 87., 65.], [12., 45., 78.]]]> : vector<3x3x3xf32>
-  vector.print %0 : vector<3x3x3xf32>
+  // vector.insert can insert scalar/sub-vector into a vector, creating a new 
+  // vector as result. The original vector will NOT change.
 
-  %constant = arith.constant 2. : f32
-  %1 = vector.insert %constant, %0[0, 0, 0] : f32 into vector<3x3x3xf32> // Insert 2 at position (0,0,0), this will replace 1 
-  vector.print %1 : vector<3x3x3xf32>
+  // vector.insert only support literal as indices, if you need to insert 
+  // something into a vector with runtime values as indices, you need to cast
+  // your base vector to 1-D vector and use vector.insertelement instead.
 
-  %2 = arith.constant dense<[12., 34., 70.]> : vector<3xf32>
-  vector.print %2 : vector<3xf32>
+  %base = arith.constant dense<[[0, 1, 2], [10, 11, 12], [20, 21, 22]]> 
+    : vector<3x3xi32>
 
-  %3 = vector.insert %2, %0[2, 1] : vector<3xf32> into vector<3x3x3xf32>  // Insert a 1d vector at (2,1), replaces [90.,87.,65.]
-  vector.print %3 : vector<3x3x3xf32>
+
+  // Insert a scalar into a vector:
+  // It will insert scalar 100 into position [0, 0] at %base, 
+  // replacing original value 0.
+  %c0 = arith.constant 100 : i32
+  %v0 = vector.insert %c0, %base[0, 0] : i32 into vector<3x3xi32> 
+  vector.print %v0 : vector<3x3xi32>
+
+
+  // Insert a sub-vector into a vector:
+  // It will insert sub-vector %w1 into position [0, 1] at %base, 
+  // replacing original vector [10, 11, 12].
+  %w1 = arith.constant dense<[100, 101, 102]> : vector<3xi32>
+  %v1 = vector.insert %w1, %base[1] : vector<3xi32> into vector<3x3xi32>
+  vector.print %v1 : vector<3x3xi32>
     
-  %4 = arith.constant dense<[[12, 11],
-                             [23, 24]]> : vector<2x2xi32>
-  vector.print %4 : vector<2x2xi32>
 
-  %vec = arith.constant dense<[100, 101]> : vector<2xi32>
-  %5 = vector.insert %vec, %4[1] : vector<2xi32> into vector<2x2xi32> // Will replace [23,24], with [100,101]
+  // For edge case, you can even "insert" a vector with exactly same rank with 
+  // original vector. In this case, the result will be just the new vector itself.
+  %w2 = arith.constant dense<[[200, 201, 202], [210, 211, 212], [220, 221, 222]]> : vector<3x3xi32>
+  %v2 = vector.insert %w2, %base[] : vector<3x3xi32> into vector<3x3xi32>
+  vector.print %v2 : vector<3x3xi32> // will print %w2
 
-  vector.print %5 : vector<2x2xi32>
+
+  // After all the insertions, the original vector does NOT change.
+  // vector.insert creates new vector for result. It will never change the old vector
+  vector.print %base : vector<3x3xi32>
 
   %ret = arith.constant 0 : i32
   return %ret : i32

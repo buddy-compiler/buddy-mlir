@@ -22,11 +22,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <opencv2/opencv.hpp>
-#include "Interface/buddy/core/Container.h"
-#include "Interface/buddy/core/ImageContainer.h"
-#include <Interface/buddy/dip/dip.h>
+#include <buddy/Core/Container.h>
+#include <buddy/DIP/DIP.h>
+#include <buddy/DIP/ImageContainer.h>
 #include <iostream>
+#include <opencv2/opencv.hpp>
 
 using namespace cv;
 using namespace std;
@@ -41,7 +41,7 @@ bool testImplementation(int argc, char *argv[]) {
   // Define memref container for image.
   Img<float, 2> input(image);
 
-  intptr_t outputSize[2] = {250, 250};
+  intptr_t outputSize[2] = {100, 250};
   std::vector<float> scalingRatios = {4, 4};
 
   // dip::Resize2D() can be called with either scaling ratios
