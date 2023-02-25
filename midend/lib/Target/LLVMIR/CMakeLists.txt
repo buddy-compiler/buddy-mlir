@@ -9,4 +9,5 @@ add_mlir_translation_library(BuddyToLLVMIRTranslationRegistration
 
   LINK_LIBS PUBLIC
   BuddyRVVToLLVMIRTranslation
+  BuddyGemminiToLLVMIRTranslation
   )
