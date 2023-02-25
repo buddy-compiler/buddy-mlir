@@ -108,13 +108,15 @@ struct GemminiMvinOpLowering : public ConvertOpToLLVMPattern<MvinOp> {
                  ConversionPatternRewriter &rewriter) const override {
     Value input = mvinOp.getInput();
     Location loc = input.getLoc();
+    MemRefType memRefType = mvinOp.getOperandTypes().front().dyn_cast<MemRefType>();
+    llvm::ArrayRef<int64_t> memRefShape = memRefType.getShape();
     TypeRange resultType = mlir::TypeRange(rewriter.getIndexType());
     Value extractOp = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, resultType, input);
     IntegerType i64Type = rewriter.getI64Type();
     Value indexCastOp = rewriter.create<arith::IndexCastOp>(loc, i64Type, extractOp);
     Value spadAddrValue = mvinOp.getAddr();
     IntegerAttr spadAddrAttr = spadAddrValue.getDefiningOp()->getAttr("value").dyn_cast<IntegerAttr>();
-    uint64_t spadAddrInt = (uint64_t)DIM << (ADDR_LEN + 16) | (uint64_t)DIM << ADDR_LEN | spadAddrAttr.getInt();
+    uint64_t spadAddrInt = (uint64_t)memRefShape[0] << (ADDR_LEN + 16) | (uint64_t)memRefShape[1] << ADDR_LEN | spadAddrAttr.getInt();
     Attribute newSpadAddr = rewriter.getI64IntegerAttr(spadAddrInt);
     Value spad = rewriter.create<arith::ConstantOp>(loc, newSpadAddr, i64Type);
     rewriter.replaceOpWithNewOp<Mvin_IntrOp>(mvinOp, indexCastOp, spad);
@@ -135,7 +137,9 @@ struct GemminiMvoutLowering : public ConvertOpToLLVMPattern<MvoutOp> {
     Value indexCastOp = rewriter.create<arith::IndexCastOp>(loc, i64Type, extractOp); 
     Value spadAddr = mvoutOp.getAddr();
     IntegerAttr spadAddrAttr = spadAddr.getDefiningOp()->getAttr("value").dyn_cast<IntegerAttr>();
-    uint64_t spadAddrInt = (uint64_t)DIM << (ADDR_LEN + 16) | (uint64_t)DIM << ADDR_LEN | spadAddrAttr.getInt();
+    MemRefType memRefType = mvoutOp.getOperandTypes().front().dyn_cast<MemRefType>();
+    llvm::ArrayRef<int64_t> memRefShape = memRefType.getShape();
+    uint64_t spadAddrInt = (uint64_t)memRefShape[0] << (ADDR_LEN + 16) | (uint64_t)memRefShape[1] << ADDR_LEN | spadAddrAttr.getInt();
     Attribute newSpadAddr = rewriter.getI64IntegerAttr(spadAddrInt);
     Value newSpad = rewriter.create<arith::ConstantOp>(loc, newSpadAddr, i64Type);
     rewriter.replaceOpWithNewOp<Mvout_IntrOp>(mvoutOp, indexCastOp, newSpad);
