@@ -20,6 +20,15 @@
 
 include "llvm/IR/IntrinsicsRISCVBuddyExt.td"
 
+// Gemmini defines different values as func7
+// - https://github.com/ucb-bar/gemmini-rocc-tests/blob/e326e7c43457ff08669fe88edcaa395d846474d8/include/gemmini.h#L25
+
+// Gemmini uses 0x3 (0b011) as func3
+// - https://github.com/IBM/rocc-software/blob/fddb795a0b52e82f8f4ce9ead9b1428440a62ab0/src/xcustom.h#L147
+
+// Gemmini uses OPC_CUSTOM_3
+// - https://github.com/IBM/rocc-software/blob/fddb795a0b52e82f8f4ce9ead9b1428440a62ab0/src/xcustom.h#L123
+
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in
 def MVIN : RVInstR<0b0000010, 0b011, OPC_CUSTOM_3, (outs),
                    (ins GPR:$rs1, GPR:$rs2), "mvin","$rs1, $rs2"> {
@@ -27,7 +36,7 @@ def MVIN : RVInstR<0b0000010, 0b011, OPC_CUSTOM_3, (outs),
 }
 
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in 
-def MVOUT : RVInstR<0b0000011, 0b011, OPC_CUSTOM_3,(outs),
+def MVOUT : RVInstR<0b0000011, 0b011, OPC_CUSTOM_3, (outs),
                     (ins GPR:$rs1, GPR:$rs2), "mvout","$rs1, $rs2">{
   let rd = 0;
 }
@@ -45,7 +54,7 @@ def CONFIG_LD : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3, (outs),
 }
 
 let Predicates = [HasBuddyExt] in 
-def CONFIG_ST : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3,(outs),
+def CONFIG_ST : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3, (outs),
                     (ins GPR:$rs1, GPR:$rs2), "config_st", "$rs1, $rs2"> {
   let rd = 0;
 }
@@ -162,58 +171,58 @@ let Predicates = [HasBuddyExt] in
 def : PatGprGpr<int_riscv_flush, FLUSH>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_configLd, CONFIG_LD>;
+def : PatGprGpr<int_riscv_config_ld, CONFIG_LD>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_configSt, CONFIG_ST>;
+def : PatGprGpr<int_riscv_config_st, CONFIG_ST>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_configEx, CONFIG_EX>;
+def : PatGprGpr<int_riscv_config_ex, CONFIG_EX>;
 
 let Predicates = [HasBuddyExt] in 
 def : PatGprGpr<int_riscv_preload, PRELOAD>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_computePreloaded, COMPUTE_PRELOADED>;
+def : PatGprGpr<int_riscv_compute_preloaded, COMPUTE_PRELOADED>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_computeAccumulated, COMPUTE_ACCUMULATED>;
+def : PatGprGpr<int_riscv_compute_accumulated, COMPUTE_ACCUMULATED>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopWsConfigBounds, LOOP_WS_CONFIG_BOUNDS>;
+def : PatGprGpr<int_riscv_loop_ws_config_bounds, LOOP_WS_CONFIG_BOUNDS>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopWsConfigAddrsAB, LOOP_WS_CONFIG_ADDRS_AB>;
+def : PatGprGpr<int_riscv_loop_ws_config_addrs_ab, LOOP_WS_CONFIG_ADDRS_AB>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopWsConfigAddrsDC, LOOP_WS_CONFIG_ADDRS_DC>;
+def : PatGprGpr<int_riscv_loop_ws_config_addrs_dc, LOOP_WS_CONFIG_ADDRS_DC>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopWsConfigStridesAB, LOOP_WS_CONFIG_STRIDES_AB>;
+def : PatGprGpr<int_riscv_loop_ws_config_strides_ab, LOOP_WS_CONFIG_STRIDES_AB>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopWsConfigStridesDC, LOOP_WS_CONFIG_STRIDES_DC>;
+def : PatGprGpr<int_riscv_loop_ws_config_strides_dc, LOOP_WS_CONFIG_STRIDES_DC>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopWs, LOOP_WS>;
+def : PatGprGpr<int_riscv_loop_ws, LOOP_WS>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopConvWs, LOOP_CONV_WS>;
+def : PatGprGpr<int_riscv_loop_conv_ws, LOOP_CONV_WS>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopConvWsConfig1, LOOP_CONV_WS_CONFIG1>;
+def : PatGprGpr<int_riscv_loop_conv_ws_config1, LOOP_CONV_WS_CONFIG1>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopConvWsConfig2, LOOP_CONV_WS_CONFIG2>;
+def : PatGprGpr<int_riscv_loop_conv_ws_config2, LOOP_CONV_WS_CONFIG2>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopConvWsConfig3, LOOP_CONV_WS_CONFIG3>;
+def : PatGprGpr<int_riscv_loop_conv_ws_config3, LOOP_CONV_WS_CONFIG3>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopConvWsConfig4, LOOP_CONV_WS_CONFIG4>;
+def : PatGprGpr<int_riscv_loop_conv_ws_config4, LOOP_CONV_WS_CONFIG4>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopConvWsConfig5, LOOP_CONV_WS_CONFIG5>;
+def : PatGprGpr<int_riscv_loop_conv_ws_config5, LOOP_CONV_WS_CONFIG5>;
 
 let Predicates = [HasBuddyExt] in 
-def : PatGprGpr<int_riscv_loopConvWsConfig6, LOOP_CONV_WS_CONFIG6>;
+def : PatGprGpr<int_riscv_loop_conv_ws_config6, LOOP_CONV_WS_CONFIG6>;

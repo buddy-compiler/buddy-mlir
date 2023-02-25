@@ -1,4 +1,4 @@
-//======- RVVToLLVMIRTranslation.cpp - Translate RVV to LLVM IR ----------====//
+//======- GemminiToLLVMIRTranslation.cpp - Translate Gemmini to LLVM IR--====//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements a translation between the RVV dialect and LLVM IR.
+// This file implements a translation between the Gemmini dialect and LLVM IR.
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,8 +24,9 @@
 #include "llvm/IR/IRBuilder.h"
 #include "backend/include/llvm/IR/IntrinsicsRISCV.h"
 
-#include "RVV/RVVDialect.h"
-#include "Target/LLVMIR/Dialect/RVV/RVVToLLVMIRTranslation.h"
+#include "Gemmini/GemminiDialect.h"
+#include "Gemmini/GemminiOps.h"
+#include "Target/LLVMIR/Dialect/Gemmini/GemminiToLLVMIRTranslation.h"
 
 using namespace mlir;
 using namespace mlir::LLVM;
@@ -33,8 +34,8 @@ using namespace buddy;
 
 namespace {
 /// Implementation of the dialect interface that converts operations belonging
-/// to the RVV dialect to LLVM IR.
-class RVVDialectLLVMIRTranslationInterface
+/// to the Gemmini dialect to LLVM IR.
+class GemminiDialectLLVMIRTranslationInterface
     : public LLVMTranslationDialectInterface {
 public:
   using LLVMTranslationDialectInterface::LLVMTranslationDialectInterface;
@@ -45,22 +46,23 @@ public:
   convertOperation(Operation *op, llvm::IRBuilderBase &builder,
                    LLVM::ModuleTranslation &moduleTranslation) const final {
     Operation &opInst = *op;
-#include "RVV/RVVConversions.inc"
+#include "Gemmini/GemminiConversions.inc"
 
     return failure();
   }
 };
 } // end namespace
 
-void buddy::registerRVVDialectTranslation(DialectRegistry &registry) {
-  registry.insert<rvv::RVVDialect>();
-  registry.addExtension(+[](MLIRContext *ctx, rvv::RVVDialect *dialect) {
-    dialect->addInterfaces<RVVDialectLLVMIRTranslationInterface>();
-  });
+void buddy::registerGemminiDialectTranslation(DialectRegistry &registry) {
+  registry.insert<gemmini::GemminiDialect>();
+  registry.addExtension(
+      +[](MLIRContext *ctx, gemmini::GemminiDialect *dialect) {
+        dialect->addInterfaces<GemminiDialectLLVMIRTranslationInterface>();
+      });
 }
 
-void buddy::registerRVVDialectTranslation(MLIRContext &context) {
+void buddy::registerGemminiDialectTranslation(MLIRContext &context) {
   DialectRegistry registry;
-  registerRVVDialectTranslation(registry);
+  registerGemminiDialectTranslation(registry);
   context.appendDialectRegistry(registry);
 }
