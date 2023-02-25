@@ -24,3 +24,4 @@ mvin-mvout-exe:
 
 mvin-mvout-run:
 	spike --extension=gemmini pk mvin-mvout-pk
+	
