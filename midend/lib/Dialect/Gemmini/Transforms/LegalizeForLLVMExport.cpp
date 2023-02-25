@@ -68,18 +68,18 @@ struct GemminiConfigStOpLowering : public ConvertOpToLLVMPattern<ConfigStOp> {
   LogicalResult
   matchAndRewrite(ConfigStOp configStOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    mlir::Value strideValue = configStOp.getStride();
-    mlir::Operation* op = strideValue.getDefiningOp();
-    mlir::Attribute attr = op->getAttr("value");
-    mlir::IntegerAttr intAttr = attr.dyn_cast<IntegerAttr>();
+    Value strideValue = configStOp.getStride();
+    Operation* op = strideValue.getDefiningOp();
+    Attribute attr = op->getAttr("value");
+    IntegerAttr intAttr = attr.dyn_cast<IntegerAttr>();
     uint64_t stride = intAttr.getInt();
-    mlir::Type i64Type = rewriter.getI64Type();
-    mlir::Attribute input0 = rewriter.getI64IntegerAttr(CONFIG_ST); 
-    mlir::Location loc = configStOp.getLoc(); 
+    Type i64Type = rewriter.getI64Type();
+    Attribute input0 = rewriter.getI64IntegerAttr(CONFIG_ST); 
+    Location loc = configStOp.getLoc(); 
     uint64_t arg = (uint64_t)acc_scale_t_to_acc_scale_t_bits((acc_scale_t)ACC_SCALE_IDENTITY) << 32 | (uint32_t)stride;
-    mlir::Attribute input1 = rewriter.getI64IntegerAttr(arg);
-    mlir::Value value1 = rewriter.create<arith::ConstantOp>(loc, input0, i64Type);
-    mlir::Value value2 = rewriter.create<arith::ConstantOp>(loc, input1, i64Type);
+    Attribute input1 = rewriter.getI64IntegerAttr(arg);
+    Value value1 = rewriter.create<arith::ConstantOp>(loc, input0, i64Type);
+    Value value2 = rewriter.create<arith::ConstantOp>(loc, input1, i64Type);
     rewriter.replaceOpWithNewOp<ConfigSt_IntrOp>(configStOp, value1, value2);
     return success();
   }
@@ -90,34 +90,36 @@ struct GemminiConfigLdOpLowering : public ConvertOpToLLVMPattern<ConfigLdOp> {
   LogicalResult 
   matchAndRewrite(ConfigLdOp configLdOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    mlir::Value strideValue = configLdOp.getStride();
+    Value strideValue = configLdOp.getStride();
     uint64_t arg = (uint64_t)scale_t_to_scale_t_bits(MVIN_SCALE_IDENTITY) << 32 | ((uint64_t)16 << 16) | (uint64_t)1 << 8 | 0 << 2 | CONFIG_LD;
-    mlir::Type i64Type = rewriter.getI64Type();
-    mlir::Attribute input = rewriter.getI64IntegerAttr(arg);
-    mlir::Location loc = configLdOp.getLoc();
-    mlir::Value value = rewriter.create<arith::ConstantOp>(loc, input, i64Type);
+    Type i64Type = rewriter.getI64Type();
+    Attribute input = rewriter.getI64IntegerAttr(arg);
+    Location loc = configLdOp.getLoc();
+    Value value = rewriter.create<arith::ConstantOp>(loc, input, i64Type);
     rewriter.replaceOpWithNewOp<ConifgLd_IntrOp>(configLdOp, value, strideValue);
     return success();
   }
 };
 
-
 struct GemminiMvinOpLowering : public ConvertOpToLLVMPattern<MvinOp> {
   using ConvertOpToLLVMPattern<MvinOp>::ConvertOpToLLVMPattern;
-  LogicalResult
-  matchAndRewrite(MvinOp mvinOp, OpAdaptor adaptor, 
-                  ConversionPatternRewriter &rewriter) const override {
-    mlir::Value inputValue = mvinOp.getInput();
-    mlir::Value spadAddrValue = mvinOp.getAddr();
-    mlir::IntegerAttr spadAddrAttr = spadAddrValue.getDefiningOp()->getAttr("value").dyn_cast<IntegerAttr>();
-    mlir::Type i64Type = rewriter.getI64Type();
+  LogicalResult 
+  matchAndRewrite(MvinOp mvinOp, OpAdaptor adaptor,
+                 ConversionPatternRewriter &rewriter) const override {
+    Value input = mvinOp.getInput();
+    Location loc = input.getLoc();
+    TypeRange resultType = mlir::TypeRange(rewriter.getIndexType());
+    Value extractOp = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, resultType, input);
+    IntegerType i64Type = rewriter.getI64Type();
+    Value indexCastOp = rewriter.create<arith::IndexCastOp>(loc, i64Type, extractOp);
+    Value spadAddrValue = mvinOp.getAddr();
+    IntegerAttr spadAddrAttr = spadAddrValue.getDefiningOp()->getAttr("value").dyn_cast<IntegerAttr>();
     uint64_t spadAddrInt = (uint64_t)DIM << (ADDR_LEN + 16) | (uint64_t)DIM << ADDR_LEN | spadAddrAttr.getInt();
-    mlir::Attribute input = rewriter.getI64IntegerAttr(spadAddrInt);
-    mlir::Location loc = mvinOp.getLoc();
-    mlir::Value value = rewriter.create<arith::ConstantOp>(loc, input, i64Type);
-    rewriter.replaceOpWithNewOp<Mvin_IntrOp>(mvinOp, inputValue, value);
+    Attribute newSpadAddr = rewriter.getI64IntegerAttr(spadAddrInt);
+    Value spad = rewriter.create<arith::ConstantOp>(loc, newSpadAddr, i64Type);
+    rewriter.replaceOpWithNewOp<Mvin_IntrOp>(mvinOp, indexCastOp, spad);
     return success();
-  }
+  } 
 };
 
 struct GemminiMvoutLowering : public ConvertOpToLLVMPattern<MvoutOp> {
@@ -125,15 +127,18 @@ struct GemminiMvoutLowering : public ConvertOpToLLVMPattern<MvoutOp> {
     LogicalResult 
     matchAndRewrite(MvoutOp mvoutOp, OpAdaptor adaptor,
                     ConversionPatternRewriter &rewriter) const override {
-    mlir::Value outputValue = mvoutOp.getOutput();
-    mlir::Value spadAddrValue = mvoutOp.getAddr();
-    mlir::IntegerAttr spadAddrAttr = spadAddrValue.getDefiningOp()->getAttr("value").dyn_cast<IntegerAttr>();
-    mlir::Type i64Type = rewriter.getI64Type();
+    Value output = mvoutOp.getOutput();
+    TypeRange resultType = mlir::TypeRange(rewriter.getIndexType());
+    Location loc = mvoutOp.getLoc();
+    Value extractOp = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, resultType, output);
+    IntegerType i64Type = rewriter.getI64Type();
+    Value indexCastOp = rewriter.create<arith::IndexCastOp>(loc, i64Type, extractOp); 
+    Value spadAddr = mvoutOp.getAddr();
+    IntegerAttr spadAddrAttr = spadAddr.getDefiningOp()->getAttr("value").dyn_cast<IntegerAttr>();
     uint64_t spadAddrInt = (uint64_t)DIM << (ADDR_LEN + 16) | (uint64_t)DIM << ADDR_LEN | spadAddrAttr.getInt();
-    mlir::Attribute output = rewriter.getI64IntegerAttr(spadAddrInt);
-    mlir::Location loc = mvoutOp.getLoc();
-    mlir::Value value = rewriter.create<arith::ConstantOp>(loc, output, i64Type);
-    rewriter.replaceOpWithNewOp<Mvout_IntrOp>(mvoutOp, outputValue, value);
+    Attribute newSpadAddr = rewriter.getI64IntegerAttr(spadAddrInt);
+    Value newSpad = rewriter.create<arith::ConstantOp>(loc, newSpadAddr, i64Type);
+    rewriter.replaceOpWithNewOp<Mvout_IntrOp>(mvoutOp, indexCastOp, newSpad);
     return success();
   }
 };

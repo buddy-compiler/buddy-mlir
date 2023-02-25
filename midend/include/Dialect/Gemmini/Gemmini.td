@@ -61,13 +61,13 @@ def ConfigLdOp : Gemmini_Op<"configLd"> {
 
 def MvinOp : Gemmini_Op<"mvin"> {
   let summary = "Load operation";
-  let arguments = (ins I64:$input, I64:$addr);
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr);
   let assemblyFormat = "$input $addr attr-dict `:` type($input) type($addr)";
 }
 
 def MvoutOp : Gemmini_Op<"mvout"> {
   let summary = "Store operation";
-  let arguments = (ins I64:$output, I64:$addr);
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$output, I64:$addr);
   let assemblyFormat = "$output $addr attr-dict `:` type($output) type($addr)";
 }
 

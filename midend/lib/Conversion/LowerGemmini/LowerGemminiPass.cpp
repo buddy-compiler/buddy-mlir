@@ -43,8 +43,6 @@
 using namespace mlir;
 using namespace buddy;
 
-
-
 // PrintOpLowering refers to the toy.print op.
 class PrintOpLowering : public ConversionPattern {
 public:

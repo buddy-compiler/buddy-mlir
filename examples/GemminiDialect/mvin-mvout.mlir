@@ -7,15 +7,11 @@ func.func @main() -> i64{
   %spadAddr = arith.constant 0 : i64
   %arrayA = memref.get_global @gv : memref<2x16xi8>
   %arrayB = memref.alloc() : memref<2x16xi8>
-  gemmini.print %arrayA : memref<2x16xi8>
-  %arrayAIndexAddr = memref.extract_aligned_pointer_as_index %arrayA : memref<2x16xi8> -> index 
-  %arrayAI64Addr = arith.index_cast %arrayAIndexAddr : index to i64
-  %arrayBIndexAddr = memref.extract_aligned_pointer_as_index %arrayB : memref<2x16xi8> -> index 
-  %arrayBI64Addr = arith.index_cast %arrayBIndexAddr : index to i64 
+  gemmini.print %arrayB : memref<2x16xi8>
   gemmini.configSt %stride : i64 
   gemmini.configLd %stride : i64 
-  gemmini.mvin %arrayAI64Addr %spadAddr : i64 i64
-  gemmini.mvout %arrayBI64Addr %spadAddr : i64 i64
+  gemmini.mvin %arrayA %spadAddr : memref<2x16xi8> i64
+  gemmini.mvout %arrayB %spadAddr : memref<2x16xi8> i64
   gemmini.print %arrayB : memref<2x16xi8>
   return %0 : i64
 }
