@@ -23,6 +23,9 @@
 using namespace mlir;
 using namespace buddy;
 
+
+
+// PrintOpLowering refers to the toy.print op.
 class PrintOpLowering : public ConversionPattern {
 public:
   explicit PrintOpLowering(MLIRContext *context)
@@ -36,14 +39,12 @@ public:
     auto loc = op->getLoc();
     ModuleOp parentModule = op->getParentOfType<ModuleOp>();
 
-    // Get a symbol reference to the printf function, inserting it if necessary.
     auto printfRef = getOrInsertPrintf(rewriter, parentModule);
     Value formatSpecifierCst = getOrCreateGlobalString(
         loc, rewriter, "frmt_spec", StringRef("%d \0", 4), parentModule);
     Value newLineCst = getOrCreateGlobalString(
         loc, rewriter, "nl", StringRef("\n\0", 2), parentModule);
 
-    // Create a loop for each of the dimensions within the shape.
     SmallVector<Value, 4> loopIvs;
     for (unsigned i = 0, e = memRefShape.size(); i != e; ++i) {
       auto lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
@@ -56,10 +57,8 @@ public:
         rewriter.eraseOp(&nested);
       loopIvs.push_back(loop.getInductionVar());
 
-      // Terminate the loop body.
       rewriter.setInsertionPointToEnd(loop.getBody());
 
-      // Insert a newline after each of the inner dimensions of the shape.
       if (i != e - 1)
         rewriter.create<func::CallOp>(loc, printfRef,
                                       rewriter.getIntegerType(32), newLineCst);
@@ -67,7 +66,6 @@ public:
       rewriter.setInsertionPointToStart(loop.getBody());
     }
 
-    // Generate a call to printf for the current element of the loop.
     auto printOp = cast<gemmini::PrintOp>(op);
     auto elementLoad =
         rewriter.create<memref::LoadOp>(loc, printOp.getInput(), loopIvs);
@@ -75,52 +73,41 @@ public:
         loc, printfRef, rewriter.getIntegerType(32),
         ArrayRef<Value>({formatSpecifierCst, elementLoad}));
 
-    // Notify the rewriter that this operation has been removed.
     rewriter.eraseOp(op);
     return success();
   }
 
 private:
-  /// Return a symbol reference to the printf function, inserting it into the
-  /// module if necessary.
   static FlatSymbolRefAttr getOrInsertPrintf(PatternRewriter &rewriter,
                                              ModuleOp module) {
     auto *context = module.getContext();
     if (module.lookupSymbol<LLVM::LLVMFuncOp>("printf")) 
       return SymbolRefAttr::get(context, "printf");
-    // Create a function declaration for printf, the signature is:
-    //   * `i32 (i8*, ...)`
+
     auto llvmI32Ty = IntegerType::get(context, 32);
     auto llvmI8PtrTy = LLVM::LLVMPointerType::get(IntegerType::get(context, 8));
-    auto llvmFnType = LLVM::LLVMFunctionType::get(llvmI32Ty, llvmI8PtrTy,
-                                                  /*isVarArg=*/true);
+    auto llvmFnType = LLVM::LLVMFunctionType::get(llvmI32Ty, llvmI8PtrTy, true);
 
-    // Insert the printf function into the body of the parent module.
     PatternRewriter::InsertionGuard insertGuard(rewriter);
     rewriter.setInsertionPointToStart(module.getBody());
     rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "printf", llvmFnType);
     return SymbolRefAttr::get(context, "printf");
   }
 
-  /// Return a value representing an access into a global string with the given
-  /// name, creating the string if necessary.
   static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
                                        StringRef name, StringRef value,
                                        ModuleOp module) {
-    // Create the global at the entry of the module.
     LLVM::GlobalOp global;
     if (!(global = module.lookupSymbol<LLVM::GlobalOp>(name))) {
       OpBuilder::InsertionGuard insertGuard(builder);
       builder.setInsertionPointToStart(module.getBody());
       auto type = LLVM::LLVMArrayType::get(
           IntegerType::get(builder.getContext(), 8), value.size());
-      global = builder.create<LLVM::GlobalOp>(loc, type, /*isConstant=*/true,
+      global = builder.create<LLVM::GlobalOp>(loc, type, true,
                                               LLVM::Linkage::Internal, name,
-                                              builder.getStringAttr(value),
-                                              /*alignment=*/0);
+                                              builder.getStringAttr(value),0);
     }
 
-    // Get the pointer to the first character in the global string.
     Value globalPtr = builder.create<LLVM::AddressOfOp>(loc, global);
     Value cst0 = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
                                                   builder.getIndexAttr(0));
