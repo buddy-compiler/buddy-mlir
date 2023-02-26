@@ -55,7 +55,7 @@ def ConfigStOp : Gemmini_Op<"configSt"> {
 
 def ConfigLdOp : Gemmini_Op<"configLd"> {
   let summary = "Config load operation";
-  let arguments = (ins I64:$stride);
+  let arguments = (ins I64:$stride, DefaultValuedAttr<F32Attr, "1.0">:$scale, DefaultValuedAttr<BoolAttr, "false">:$shrunk);
   let assemblyFormat = "$stride attr-dict `:` type($stride)";
 }
 
@@ -77,6 +77,15 @@ def PrintOp : Gemmini_Op<"print"> {
   let assemblyFormat = "$input attr-dict `:` type($input)";
 }
 
+def ConfigExOp : Gemmini_Op<"configEx"> {
+  let summary = "configExOp configures the execute pipeline";
+  let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$dataflow, DefaultValuedAttr<I64Attr, "0">:$sys_act, 
+                       DefaultValuedAttr<I64Attr, "0">:$sys_shift, DefaultValuedAttr<F32Attr, "1.0">:$sys_acc_scale,
+                       DefaultValuedAttr<I64Attr, "1">:$A_stride, DefaultValuedAttr<BoolAttr, "false">:$A_transpose,
+                       DefaultValuedAttr<BoolAttr, "false">:$B_transpose);
+  let assemblyFormat = "attr-dict";
+}
+
 //===----------------------------------------------------------------------===//
 // RVV intrinsic operation definitions
 //===----------------------------------------------------------------------===//
@@ -94,6 +103,9 @@ def Gemmini_ConfigSt_IntrOp : Gemmini_IntrOpBase<"configSt">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Gemmini_ConifgLd_IntrOp : Gemmini_IntrOpBase<"configLd">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_ConfigEX_IntrOp : Gemmini_IntrOpBase<"configEx">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Gemmini_Mvin_IntrOp : Gemmini_IntrOpBase<"mvin">,

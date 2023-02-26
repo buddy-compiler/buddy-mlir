@@ -18,10 +18,10 @@
 #define GEMMINI_TRANSLATE_H
 #define CONFIG_LD 1
 #define CONFIG_ST 2
+#define CONFIG_EX 0
 #define DIM 16
 #define ADDR_LEN 32
 #define ACC_SCALE_IDENTITY 1.0
-#define MVIN_SCALE_IDENTITY 1.0
 typedef uint32_t acc_scale_t_bits;
 typedef float acc_scale_t;
 typedef uint32_t scale_t_bits;

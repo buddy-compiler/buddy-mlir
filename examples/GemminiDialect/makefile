@@ -24,3 +24,25 @@ mvin-mvout-exe:
 
 mvin-mvout-run:
 	spike --extension=gemmini pk mvin-mvout-pk
+
+matrix-add-lower:
+	@${BUDDY_OPT} ./matrix-add.mlir \
+		--lower-gemmini -o ./log.mlir
+
+matrix-add-translate:
+	@${BUDDY_OPT} ./matrix-add.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll 
+
+matrix-add-obj:
+	@${BUDDY_OPT} ./matrix-add.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+		${BUDDY_LLC} -filetype=obj -mtriple=riscv64 -mattr=+buddyext,+D \
+		--float-abi=hard -o log.o 
+
+matrix-add-exe:
+	riscv64-unknown-linux-gnu-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 \
+	-ffast-math -fno-common -fno-builtin-printf -march=rv64gc -Wa,-march=rv64gcxhwacha -lm -lgcc  \
+	-DID_STRING= -DPRINT_TILE=0  -static -DBAREMETAL=1 log.o -o matrix-add-pk 
+
+matrix-add-run:
+	spike --extension=gemmini pk matrix-add-pk 
