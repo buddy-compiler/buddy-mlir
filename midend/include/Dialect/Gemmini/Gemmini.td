@@ -59,6 +59,15 @@ def ConfigLdOp : Gemmini_Op<"configLd"> {
   let assemblyFormat = "$stride attr-dict `:` type($stride)";
 }
 
+def ConfigExOp : Gemmini_Op<"configEx"> {
+  let summary = "configExOp configures the execute pipeline";
+  let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$dataflow, DefaultValuedAttr<I64Attr, "0">:$sys_act, 
+                       DefaultValuedAttr<I64Attr, "0">:$sys_shift, DefaultValuedAttr<F32Attr, "1.0">:$sys_acc_scale,
+                       DefaultValuedAttr<I64Attr, "1">:$A_stride, DefaultValuedAttr<BoolAttr, "false">:$A_transpose,
+                       DefaultValuedAttr<BoolAttr, "false">:$B_transpose);
+  let assemblyFormat = "attr-dict";
+}
+
 def MvinOp : Gemmini_Op<"mvin"> {
   let summary = "Load operation";
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr);
@@ -77,17 +86,8 @@ def PrintOp : Gemmini_Op<"print"> {
   let assemblyFormat = "$input attr-dict `:` type($input)";
 }
 
-def ConfigExOp : Gemmini_Op<"configEx"> {
-  let summary = "configExOp configures the execute pipeline";
-  let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$dataflow, DefaultValuedAttr<I64Attr, "0">:$sys_act, 
-                       DefaultValuedAttr<I64Attr, "0">:$sys_shift, DefaultValuedAttr<F32Attr, "1.0">:$sys_acc_scale,
-                       DefaultValuedAttr<I64Attr, "1">:$A_stride, DefaultValuedAttr<BoolAttr, "false">:$A_transpose,
-                       DefaultValuedAttr<BoolAttr, "false">:$B_transpose);
-  let assemblyFormat = "attr-dict";
-}
-
 //===----------------------------------------------------------------------===//
-// RVV intrinsic operation definitions
+// Gemmini intrinsic operation definitions
 //===----------------------------------------------------------------------===//
 
 class Gemmini_IntrOpBase<string mnemonic, list<Trait> traits = []> : 
