@@ -23,8 +23,7 @@ func.func @main() -> i64 {
   gemmini.configLd %cst4 {shrunk = true} : i64
   gemmini.mvin %arrayA %a_Acc_Addr : memref<4x4xi8> i64
   gemmini.configLd %cst4 {shrunk = true} : i64
-  gemmini.mvin %arrayB %b_Acc_Addr : memref<4x4xi8> i64
-  gemmini.configEx {dataflow = 0, sys_act = 0, sys_shift = 0}
+  gemmini.mvin %arrayB %b_Acc_Addr : memref<4x4xi8> i64 
   gemmini.configSt %cst4 : i64
   gemmini.mvout %arrayC %c_Acc_Addr : memref<4x4xi8> i64
   gemmini.print %arrayC : memref<4x4xi8> 
