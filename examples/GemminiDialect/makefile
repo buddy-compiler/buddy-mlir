@@ -46,3 +46,25 @@ matrix-add-exe:
 
 matrix-add-run:
 	spike --extension=gemmini pk matrix-add-pk 
+
+matrix-add-scale-lower:
+	@${BUDDY_OPT} ./matrix-add-scale.mlir \
+		--lower-gemmini -o ./log.mlir
+
+matrix-add-scale-translate:
+	@${BUDDY_OPT} ./matrix-add-scale.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll 
+
+matrix-add-scale-obj:
+	@${BUDDY_OPT} ./matrix-add-scale.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+		${BUDDY_LLC} -filetype=obj -mtriple=riscv64 -mattr=+buddyext,+D \
+		--float-abi=hard -o log.o 
+
+matrix-add-scale-exe:
+	riscv64-unknown-linux-gnu-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 \
+	-ffast-math -fno-common -fno-builtin-printf -march=rv64gc -Wa,-march=rv64gcxhwacha -lm -lgcc  \
+	-DID_STRING= -DPRINT_TILE=0  -static -DBAREMETAL=1 log.o -o matrix-add-scale-pk 
+
+matrix-add-scale-run:
+	spike --extension=gemmini pk matrix-add-scale-pk 

@@ -117,7 +117,7 @@ struct GemminiConfigExOpLowering : public ConvertOpToLLVMPattern<ConfigExOp> {
     Location loc = configExOp.getLoc();
     float scale = configExOp.getSysAccScale().convertToFloat();
     uint64_t rs1 =
-        (uint64_t)acc_scale_t_to_acc_scale_t_bits(scale) << 32 |
+        (uint64_t)acc_scale_t_to_acc_scale_t_bits(scale ) << 32 |
         configExOp.getAStride() << 16 | configExOp.getBTranspose() << 9 |
         configExOp.getATranspose() << 8 | configExOp.getSysAct() << 3 |
         configExOp.getDataflow() << 2 | CONFIG_EX;
