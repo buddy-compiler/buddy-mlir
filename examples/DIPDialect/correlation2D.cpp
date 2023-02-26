@@ -1,4 +1,4 @@
-//====- correlation2D.cpp - Example of buddy-opt tool ========================//
+//===- correlation2D.cpp - Example of buddy-opt tool ----------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,13 +22,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <opencv2/imgcodecs.hpp>
 #include <opencv2/opencv.hpp>
 
-#include "../ConvOpt/kernels.h"
-
-#include <Interface/buddy/dip/dip.h>
-#include <Interface/buddy/dip/memref.h>
+#include "../kernels.h"
+#include <buddy/Core/Container.h>
+#include <buddy/DIP/DIP.h>
+#include <buddy/DIP/ImageContainer.h>
 #include <iostream>
 #include <time.h>
 
@@ -65,56 +64,30 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
     cout << "Could not read the image: " << argv[1] << endl;
   }
 
-  int inputSize = image.rows * image.cols;
-
-  // Define the input with the image.
-  float *inputAlign = (float *)malloc(inputSize * sizeof(float));
-  for (int i = 0; i < image.rows; i++) {
-    for (int j = 0; j < image.cols; j++) {
-      inputAlign[image.rows * i + j] = (float)image.at<uchar>(i, j);
-    }
-  }
-
   // Define the kernel.
   float *kernelAlign = laplacianKernelAlign;
   int kernelRows = laplacianKernelRows;
   int kernelCols = laplacianKernelCols;
 
-  // Define the output.
-  int outputRows = image.rows;
-  int outputCols = image.cols;
-  float *outputAlign = (float *)malloc(outputRows * outputCols * sizeof(float));
-
-  for (int i = 0; i < image.rows; i++)
-    for (int j = 0; j < image.cols; j++)
-      outputAlign[i * image.rows + j] = 0;
-
-  // Define the allocated, sizes, and strides.
-  float *allocated = (float *)malloc(1 * sizeof(float));
-  intptr_t sizesInput[2] = {image.rows, image.cols};
+  // Define sizes and strides.
   intptr_t sizesKernel[2] = {kernelRows, kernelCols};
-  intptr_t sizesOutput[2] = {outputRows, outputCols};
-  intptr_t stridesInput[2] = {image.rows, image.cols};
-  intptr_t stridesKernel[2] = {kernelRows, kernelCols};
-  intptr_t stridesOutput[2] = {outputRows, outputCols};
+  intptr_t sizesOutput[2] = {image.rows, image.cols};
 
-  // Define memref descriptors.
-  MemRef_descriptor input =
-      MemRef_Descriptor(allocated, inputAlign, 0, sizesInput, stridesInput);
-  MemRef_descriptor kernel =
-      MemRef_Descriptor(allocated, kernelAlign, 0, sizesKernel, stridesKernel);
-  MemRef_descriptor output =
-      MemRef_Descriptor(allocated, outputAlign, 0, sizesOutput, stridesOutput);
+  // Define memref containers.
+  Img<float, 2> input(image);
+  MemRef<float, 2> kernel(kernelAlign, sizesKernel);
+  MemRef<float, 2> output1(sizesOutput);
+  MemRef<float, 2> output2(sizesOutput);
 
   Mat kernel1 = Mat(3, 3, CV_32FC1, laplacianKernelAlign);
 
   // Call the MLIR Corr2D function.
-  dip::Corr2D(input, kernel, output, x, y,
+  dip::Corr2D(&input, &kernel, &output1, x, y,
               dip::BOUNDARY_OPTION::REPLICATE_PADDING);
 
   // Define a cv::Mat with the output of Corr2D.
-  Mat outputImageReplicatePadding(outputRows, outputCols, CV_32FC1,
-                                  output->aligned);
+  Mat outputImageReplicatePadding(sizesOutput[0], sizesOutput[1], CV_32FC1,
+                                  output1.getData());
   imwrite(argv[2], outputImageReplicatePadding);
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
@@ -127,17 +100,13 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
     return 0;
   }
 
-  for (int i = 0; i < image.rows; i++)
-    for (int j = 0; j < image.cols; j++)
-      output->aligned[i * image.rows + j] = 0;
-
   // Call the MLIR Corr2D function.
-  dip::Corr2D(input, kernel, output, x, y,
+  dip::Corr2D(&input, &kernel, &output2, x, y,
               dip::BOUNDARY_OPTION::CONSTANT_PADDING, 0);
 
   // Define a cv::Mat with the output of Corr2D.
-  Mat outputImageConstantPadding(outputRows, outputCols, CV_32FC1,
-                                 output->aligned);
+  Mat outputImageConstantPadding(sizesOutput[0], sizesOutput[1], CV_32FC1,
+                                 output2.getData());
   imwrite(argv[3], outputImageConstantPadding);
 
   Mat o2 = imread(argv[3], IMREAD_GRAYSCALE);
@@ -148,12 +117,6 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }
-
-  free(input);
-  free(kernel);
-  free(output);
-  free(inputAlign);
-  free(outputAlign);
 
   return 1;
 }

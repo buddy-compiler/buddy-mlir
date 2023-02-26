@@ -1,0 +1,8 @@
+add_subdirectory(ConvVectorization)
+add_subdirectory(LowerBud)
+add_subdirectory(LowerDIP)
+add_subdirectory(LowerRVV)
+add_subdirectory(LowerDAP)
+add_subdirectory(MatMulOptimization)
+add_subdirectory(ConvOptimization)
+add_subdirectory(LowerVectorExp)

@@ -1,0 +1,141 @@
+dialect Toy_Dialect 
+  : name = "toy" 
+  : cppNamespace = "mlir::toy"
+  ;
+
+op ConstantOp 
+  : arguments = (ins F64ElementsAttr : $value)
+  : results = (outs F64Tensor)
+  : builders = [
+    OpBuilder<(ins "DenseElementsAttr" : $value),
+    [{ build($_builder, $_state, value.getType(), value); }]>, 
+    OpBuilder<(ins "double":$value)>]
+  ;
+
+op AddOp 
+  : arguments = (ins F64Tensor : $lhs, F64Tensor: $rhs)
+  : results = (outs F64Tensor)
+  : builders = [OpBuilder<(ins "Value" : $lhs, "Value" : $rhs)>]
+  ;
+
+op CastOp 
+  : arguments = (ins F64Tensor:$input)
+  : results = (outs F64Tensor:$output)
+  ;
+
+op FuncOp
+  : arguments = (ins
+    SymbolNameAttr:$sym_name,
+    TypeAttrOf<FunctionType>:$function_type
+  )
+  : builders = [ OpBuilder<(ins
+    "StringRef":$name, "FunctionType":$type,
+    CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
+  ]
+  ;
+
+op MulOp 
+  : arguments = (ins F64Tensor:$lhs, F64Tensor:$rhs)
+  : results = (outs F64Tensor)
+  : builders = [
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs)>
+  ]
+  ;
+
+op PrintOp
+  : arguments = (ins AnyTypeOf<[F64Tensor, F64MemRef]>:$input)
+  ;
+
+op ReshapeOp 
+  : arguments = (ins F64Tensor : $input)
+  : results = (outs StaticShapeTensorOf<[F64]>)
+  ;
+
+op ReturnOp
+  : arguments = (ins Variadic<F64Tensor>:$input)
+  : builders = [
+    OpBuilder<(ins), [{ build($_builder, $_state, std::nullopt); }]>
+  ]
+  ;
+
+op GenericCallOp
+  : arguments = (ins FlatSymbolRefAttr:$callee, Variadic<F64Tensor>:$inputs)
+  : results = (outs F64Tensor)
+  : builders = [
+    OpBuilder<(ins "StringRef":$callee, "ArrayRef<Value>":$arguments)>
+  ]
+  ;
+
+op TransposeOp
+  : arguments = (ins F64Tensor:$input)
+  : results = (outs F64Tensor)
+  : builders = [
+    OpBuilder<(ins "Value":$input)>
+  ]
+  ;
+
+
+rule module 
+  : funDefine 
+  ;
+
+rule expression 
+  : Number 
+  : tensorLiteral 
+  : identifierExpr 
+  : expression Add expression 
+  ;
+
+rule returnExpr 
+  : Return expression? 
+  ;
+
+rule identifierExpr 
+  : Identifier
+  : Identifier ParentheseOpen (expression (Comma expression) *)? ParentheseClose {
+    builder = GenericCallOp_1, PrintOp_0
+  }
+  ;
+
+rule tensorLiteral 
+  : SbracketOpen ( tensorLiteral ( Comma tensorLiteral ) *) ? SbracketClose 
+  : Number 
+  ;
+
+rule varDecl 
+  : Var Identifier (type) ? (Equal expression) ? {
+    builder = ReshapeOp_0 
+  }
+  ;
+
+rule type 
+  : AngleBracketOpen Number(Comma Number) * AngleBracketClose
+  ;
+
+rule funDefine 
+  : prototype block {
+    builder = ReturnOp_1  
+  }
+  ;
+
+rule prototype 
+  : Def Identifier ParentheseOpen declList ? ParentheseClose {
+    builder = FuncOp_0  
+  }
+  ;
+
+rule declList 
+  : Identifier 
+  : Identifier Comma declList
+  ;
+
+rule block 
+  : BracketOpen(blockExpr Semi) * BracketClose
+  ;
+
+rule blockExpr 
+  : varDecl
+  : returnExpr 
+  : expression
+  ;
+

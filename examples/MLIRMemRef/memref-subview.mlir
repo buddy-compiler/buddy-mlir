@@ -5,9 +5,9 @@ module {
                                                          [20., 21., 22., 23. , 24.],
                                                          [30., 31., 32., 33. , 34.],
                                                          [40., 41., 42., 43. , 44.]]>
-  func private @print_memref_f32(memref<*xf32>)
+  func.func private @printMemrefF32(memref<*xf32>)
 
-  func @main() {
+  func.func @main() {
     %mem = memref.get_global @gv : memref<5x5xf32>
 
     %offset = arith.constant 0 : index
@@ -17,9 +17,13 @@ module {
     %result = memref.subview %mem[%offset, %offset] [%sub_size, %sub_size] [%stride, %stride]
         : memref<5x5xf32> to memref<?x?xf32, #map0>
 
+    %result_reduce = memref.subview %mem[0, 0][1, 3][1, 1]: memref<5x5xf32> to memref<3xf32, strided<[1]>>
+
     // Print output.
     %print_output = memref.cast %result : memref<?x?xf32, #map0> to memref<*xf32>
-    call @print_memref_f32(%print_output) : (memref<*xf32>) -> ()
+    call @printMemrefF32(%print_output) : (memref<*xf32>) -> ()
+    %print_output_reduce = memref.cast %result_reduce : memref<3xf32, strided<[1]>> to memref<*xf32>
+    call @printMemrefF32(%print_output_reduce) : (memref<*xf32>) -> ()
 
     return
   }

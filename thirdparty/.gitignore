@@ -1,0 +1,11 @@
+# RISC-V GNU Toolchain
+/riscv-gnu-toolchain
+
+# SiFive QEMU
+/qemu
+
+# RVV Environment
+/build-riscv-gnu-toolchain
+/build-local-clang
+/build-cross-clang
+/build-cross-mlir

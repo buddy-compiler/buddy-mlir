@@ -1,9 +1,25 @@
 //====- buddy-opt.cpp - The driver of buddy-mlir --------------------------===//
 //
-// This file is the dialects and oprimization driver of buddy-mlir project.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file is the dialects and optimization driver of buddy-mlir project.
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Bufferization/Transforms/Passes.h"
+#include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/InitAllDialects.h"
@@ -19,9 +35,13 @@
 
 #include "Bud/BudDialect.h"
 #include "Bud/BudOps.h"
+#include "DAP/DAPDialect.h"
+#include "DAP/DAPOps.h"
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
 #include "RVV/RVVDialect.h"
+#include "VectorExp/VectorExpDialect.h"
+#include "VectorExp/VectorExpOps.h"
 
 namespace mlir {
 namespace buddy {
@@ -30,7 +50,11 @@ void registerPointwiseConvToGemmPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
+void registerLowerDAPPass();
 void registerLowerRVVPass();
+void registerMatMulOptimizePass();
+void registerConvOptimizePass();
+void registerLowerVectorExpPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -44,7 +68,13 @@ int main(int argc, char **argv) {
   mlir::buddy::registerPoolingVectorizationPass();
   mlir::buddy::registerLowerBudPass();
   mlir::buddy::registerLowerDIPPass();
+  mlir::buddy::registerLowerDAPPass();
   mlir::buddy::registerLowerRVVPass();
+  mlir::buddy::registerLowerVectorExpPass();
+
+  // Register Several Optimize Pass.
+  mlir::buddy::registerMatMulOptimizePass();
+  mlir::buddy::registerConvOptimizePass();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
@@ -53,7 +83,9 @@ int main(int argc, char **argv) {
   // clang-format off
   registry.insert<buddy::bud::BudDialect,
                   buddy::dip::DIPDialect,
-                  buddy::rvv::RVVDialect>();
+                  buddy::dap::DAPDialect,
+                  buddy::rvv::RVVDialect,
+                  buddy::vector_exp::VectorExpDialect>();
   // clang-format on
 
   return mlir::failed(

@@ -6,7 +6,7 @@ MLIR-Based Ideas Landing Project ([Project page](https://buddy-compiler.github.i
 
 ### LLVM/MLIR Dependencies
 
-This project uses LLVM/MLIR as an external library. Please make sure [the dependencies](https://mlir.llvm.org/getting_started/) are available
+This project uses LLVM/MLIR as an external library. Please make sure [the dependencies](https://llvm.org/docs/GettingStarted.html#requirements) are available
 on your machine.
 
 ### Clone and Initialize
@@ -18,27 +18,26 @@ $ cd buddy-mlir
 $ git submodule update --init
 ```
 
-### Build and Test LLVM/MLIR
+### Build and Test LLVM/MLIR/CLANG
 
 ```
 $ cd buddy-mlir
 $ mkdir llvm/build
 $ cd llvm/build
 $ cmake -G Ninja ../llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir" \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
-$ ninja
-$ ninja check-mlir
+$ ninja check-mlir check-clang
 ```
 
 If your target machine includes a Nvidia GPU, you can use the following configuration:
 
 ```
 $ cmake -G Ninja ../llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir" \
-    -DLLVM_TARGETS_TO_BUILD="host;NVPTX" \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV;NVPTX" \
     -DMLIR_ENABLE_CUDA_RUNNER=ON \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
@@ -55,8 +54,15 @@ $ cmake -G Ninja .. \
     -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
+$ ninja
 $ ninja check-buddy
 ```
+
+If you want to add domain-specific framework support, please add the following cmake options:
+
+| Framework  | Enable Option | Other Options |
+| -------------- | ------------- | ------------- |
+| OpenCV  | `-DBUDDY_ENABLE_OPENCV=ON`  | Add `-DOpenCV_DIR=</PATH/TO/OPENCV/BUILD/>` or install OpenCV release version on your local device. |
 
 ## Dialects
 
@@ -74,95 +80,19 @@ DIP dialect is designed for digital image processing abstraction.
 
 The buddy-opt is the driver for dialects and optimization in buddy-mlir project. 
 
-**Convolution Optimization**
+### AutoConfig Mechanism
 
-So far, we provide the 2D convolution vectorization pass `conv-vectorization`. The pass implements the Coefficients Broadcasting algorithm with Strip Mining strategy, and the strip mining size is configurable. Take the size of 256 as an example, you can use the tool with the following configuration.
+The `AutoConfig` mechanism is designed to detect the target hardware and configure the toolchain automatically.
 
-```
-$ buddy-opt <input> -conv-vectorization="strip-mining=256"
-```
+## Examples
 
-- Conversion example
+The purpose of the examples is to give users a better understanding of how to use the passes and the interfaces in buddy-mlir. Currently, we provide three types of examples.
 
-We provide a function with `linalg.conv_2d` operation. You can use the following commands to print the conversion result.
+- IR level conversion and transformation examples.
+- Domain-specific application level examples.
+- Testing and demonstrating examples.
 
-```
-$ cd buddy-mlir/build/bin
-$ ./buddy-opt ../../examples/ConvOpt/conv2d.mlir -conv-vectorization="strip-mining=256"
-```
-
-- Edge detection example
-
-We also provide an edge detection example to show the optimization.
-The `conv-vectorization` pass is responsible for lowering the `linalg.conv_2d` with our algorithm.
-And then we use `mlir-translate` and `llc` tools to generate the object file.
-At last, we call the MLIR convolution function in a C++ program.
-
-Please use a Linux machine with OpenCV installed to play around.
-You should specify the `<strip mining size>` (e.g. 256) and `<ISA vector extension>` (e.g. avx512f).
-
-```
-$ cd buddy-mlir/build
-$ cmake -G Ninja .. \
-    -DBUDDY_EXAMPLES=ON \
-    -DBUDDY_CONV_OPT_STRIP_MINING=<strip mining size> \
-    -DBUDDY_OPT_ATTR=<ISA vector extension> \
-    -DBUDDY_OPT_TRIPLE=<target triple>
-$ ninja edge-detection
-```
-
-We provide an image at `buddy-mlir/examples/ConvOpt/images/YuTu.png`, which is the robotic lunar rover that formed part of the Chinese Chang'e 3 mission.
-You can detect the edge of the image with `edge-detection`.
-
-```
-$ cd bin
-$ ./edge-detection ../../examples/ConvOpt/images/YuTu.png result.png
-```
-
-We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches. 
-For more details, please see [convolution comparison](./examples/ConvOpt/comparison/README.md).
-
-**Lowering DIP Dialect**
-
-```
-$ buddy-opt <input> -lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
-```
-
-- Conversion example:
-
-```
-$ cd buddy-mlir/build/bin
-$ ./buddy-opt ../../examples/DIPDialect/corr2d.mlir --lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
-```
-
-- Edge detection example:
-
-Build and run the example.
-
-*Note: Please use a Linux machine with OpenCV installed to play around.*
-
-```
-$ cd buddy-mlir/build
-$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_DIP_OPT_STRIP_MINING=256
-$ ninja correlation2D
-$ cd bin
-$ ./correlation2D ../../examples/ConvOpt/images/YuTu.png result-dip-replicate-padding.png result-dip-constant-padding.png
-```
-
-*Note: Maximum allowed value of `BUDDY_DIP_OPT_STRIP_MINING` for producing correct result is equal to image width.*
-
-**Lowering Bud Dialect**
-
-```
-$ buddy-opt <input> -lower-bud
-```
-
-Example:
-
-```
-$ cd buddy-mlir/build/bin
-$ ./buddy-opt ../../examples/BudDialect/TestConstant.mlir --lower-bud
-```
+For more details, please see the [documentation of the examples](./examples/README.md).
 
 ## Benchmarks
 

@@ -1,0 +1,8 @@
+add_subdirectory(Target)
+add_subdirectory(CodeGen)
+add_subdirectory(Analysis)
+add_subdirectory(AsmParser)
+add_subdirectory(IRReader)
+add_subdirectory(Remarks)
+add_subdirectory(Transforms)
+add_subdirectory(IR)
