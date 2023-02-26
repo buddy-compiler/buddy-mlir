@@ -796,7 +796,7 @@ void traverseImagewBoundaryExtrapolation(
 
   SmallVector<Value, 8> lowerBounds(4, c0);
   SmallVector<Value, 8> uperBounds{inputRow, kernelRow, inputCol, kernelCol};
-  SmallVector<int64_t, 8> steps{1, 1, stride, 1};
+  SmallVector<Value, 8> stepsPl{c1, c1, strideVal, c1};
 
   VectorType vectorTy32 = VectorType::get({stride}, elemTy);
   VectorType vectorMaskTy = VectorType::get({stride}, i1);
@@ -812,8 +812,8 @@ void traverseImagewBoundaryExtrapolation(
   Value pseudoCol = rewriter.create<AffineApplyOp>(
       loc, calcHelper, ValueRange{inputCol, kernelCol, c1});
 
-  buildAffineLoopNest(
-      rewriter, loc, lowerBounds, uperBounds, steps,
+  rewriter.create<scf::ParallelOp>(
+      loc, lowerBounds, uperBounds, stepsPl,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         // Indices of current pixel with respect to pseudo image containing
         // extrapolated boundaries.
