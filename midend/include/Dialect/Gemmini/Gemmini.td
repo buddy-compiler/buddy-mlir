@@ -86,6 +86,18 @@ def PrintOp : Gemmini_Op<"print"> {
   let assemblyFormat = "$input attr-dict `:` type($input)";
 }
 
+def PreloadZerosOp : Gemmini_Op<"preloadZeros"> {
+  let summary = "Preload 0 matrix";
+  let arguments = (ins I64:$addr, I64:$cRows, I64:$cCols);
+  let assemblyFormat = "$addr $cRows $cCols attr-dict `:` type($addr) type($cRows) type($cCols)";
+}
+
+def PreloadOp : Gemmini_Op<"preload"> {
+  let summary = "Preload matrixs operation";
+  let arguments = (ins I64:$bdAddr, I64:$cAddr, I64:$bdRows, I64:$bdCols, I64:$cRows, I64:$cCols);
+  let assemblyFormat = "$bdAddr $cAddr $bdRows $bdCols $cRows $cCols  attr-dict `:` type($bdAddr) type($cAddr) type($bdRows) type($bdCols) type($cRows) type($cCols) ";
+}
+
 //===----------------------------------------------------------------------===//
 // Gemmini intrinsic operation definitions
 //===----------------------------------------------------------------------===//
@@ -112,6 +124,9 @@ def Gemmini_Mvin_IntrOp : Gemmini_IntrOpBase<"mvin">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Gemmini_Mvout_IntrOp : Gemmini_IntrOpBase<"mvout">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_Preload_IntrOp : Gemmini_IntrOpBase<"preload">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 #endif 

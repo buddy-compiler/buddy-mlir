@@ -13,19 +13,19 @@ func.func @main() -> i64 {
   %arrayC = memref.alloc() : memref<4x4xi8>
   gemmini.print %arrayC : memref<4x4xi8>
   // 10000000000000000000000000000000  
-  %a_Acc_Addr = arith.constant 2147483648 : i64
+  %aAccAddr = arith.constant 2147483648 : i64
   // 11000000000000000000000000000000
-  %b_Acc_Addr = arith.constant 3221225472 : i64 
+  %bAccAddr = arith.constant 3221225472 : i64 
   // 10000000000000000000000000000000
-  %c_Acc_Addr = arith.constant 2147483648
+  %cAccAddr = arith.constant 2147483648
   %cst4 = arith.constant 4 : i64
   %cst0 = arith.constant 0 : i64
   gemmini.configLd %cst4 {shrunk = true} : i64
-  gemmini.mvin %arrayA %a_Acc_Addr : memref<4x4xi8> i64
+  gemmini.mvin %arrayA %aAccAddr : memref<4x4xi8> i64
   gemmini.configLd %cst4 {shrunk = true} : i64
-  gemmini.mvin %arrayB %b_Acc_Addr : memref<4x4xi8> i64 
+  gemmini.mvin %arrayB %bAccAddr : memref<4x4xi8> i64
   gemmini.configSt %cst4 : i64
-  gemmini.mvout %arrayC %c_Acc_Addr : memref<4x4xi8> i64
+  gemmini.mvout %arrayC %cAccAddr : memref<4x4xi8> i64
   gemmini.print %arrayC : memref<4x4xi8> 
   return %cst0 : i64
 }
