@@ -61,10 +61,10 @@ def ConfigLdOp : Gemmini_Op<"configLd"> {
 
 def ConfigExOp : Gemmini_Op<"configEx"> {
   let summary = "configExOp configures the execute pipeline";
-  let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$dataflow, DefaultValuedAttr<I64Attr, "0">:$sys_act, 
-                       DefaultValuedAttr<I64Attr, "0">:$sys_shift, DefaultValuedAttr<F32Attr, "1.0">:$sys_acc_scale,
-                       DefaultValuedAttr<I64Attr, "1">:$A_stride, DefaultValuedAttr<BoolAttr, "false">:$A_transpose,
-                       DefaultValuedAttr<BoolAttr, "false">:$B_transpose);
+  let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$dataflow, DefaultValuedAttr<I64Attr, "0">:$sysAct, 
+                       DefaultValuedAttr<I64Attr, "0">:$sysShift, DefaultValuedAttr<F32Attr, "1.0">:$sysAccScale,
+                       DefaultValuedAttr<I64Attr, "1">:$aStride, DefaultValuedAttr<BoolAttr, "false">:$aTranspose,
+                       DefaultValuedAttr<BoolAttr, "false">:$bTranspose);
   let assemblyFormat = "attr-dict";
 }
 
@@ -98,6 +98,12 @@ def PreloadOp : Gemmini_Op<"preload"> {
   let assemblyFormat = "$bdAddr $cAddr $bdRows $bdCols $cRows $cCols  attr-dict `:` type($bdAddr) type($cAddr) type($bdRows) type($bdCols) type($cRows) type($cCols) ";
 }
 
+def ComputePreloaded : Gemmini_Op<"computePreloaded"> {
+  let summary = "compute operation";
+  let arguments = (ins I64:$aAddr, I64:$bdAddr, I64:$aRows, I64:$aCols, I64:$bdRows, I64:$bdCols);
+  let assemblyFormat = "$aAddr $bdAddr $aRows $aCols $bdRows $bdCols attr-dict `:` type($aAddr) type($bdAddr) type($aRows) type($aCols) type($bdRows) type($bdCols)";
+}
+
 //===----------------------------------------------------------------------===//
 // Gemmini intrinsic operation definitions
 //===----------------------------------------------------------------------===//
@@ -127,6 +133,9 @@ def Gemmini_Mvout_IntrOp : Gemmini_IntrOpBase<"mvout">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Gemmini_Preload_IntrOp : Gemmini_IntrOpBase<"preload">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_ComputePreloaded_IntrOp: Gemmini_IntrOpBase<"computePreloaded">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 #endif 
