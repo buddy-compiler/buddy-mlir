@@ -34,8 +34,11 @@
 using namespace mlir;
 using namespace buddy::gemmini;
 
-int64_t getNumberFromValue(Value& value) {
-    return value.getDefiningOp()->getAttr("value").dyn_cast<IntegerAttr>().getInt();
+int64_t getNumberFromValue(Value &value) {
+  return value.getDefiningOp()
+      ->getAttr("value")
+      .dyn_cast<IntegerAttr>()
+      .getInt();
 }
 
 template <typename OpTy>
@@ -118,7 +121,7 @@ struct GemminiConfigExOpLowering : public ConvertOpToLLVMPattern<ConfigExOp> {
     Location loc = configExOp.getLoc();
     float scale = configExOp.getSysAccScale().convertToFloat();
     uint64_t rs1 =
-        (uint64_t)acc_scale_t_to_acc_scale_t_bits(scale ) << 32 |
+        (uint64_t)acc_scale_t_to_acc_scale_t_bits(scale) << 32 |
         configExOp.getAStride() << 16 | configExOp.getBTranspose() << 9 |
         configExOp.getATranspose() << 8 | configExOp.getSysAct() << 3 |
         configExOp.getDataflow() << 2 | CONFIG_EX;
@@ -189,9 +192,10 @@ struct GemminiMvoutLowering : public ConvertOpToLLVMPattern<MvoutOp> {
   }
 };
 
-struct GemminiPreloadZerosLowering : public ConvertOpToLLVMPattern<PreloadZerosOp> {
+struct GemminiPreloadZerosLowering
+    : public ConvertOpToLLVMPattern<PreloadZerosOp> {
   using ConvertOpToLLVMPattern<PreloadZerosOp>::ConvertOpToLLVMPattern;
-  LogicalResult 
+  LogicalResult
   matchAndRewrite(PreloadZerosOp preloadZerosOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value addr = preloadZerosOp.getAddr();
@@ -201,21 +205,24 @@ struct GemminiPreloadZerosLowering : public ConvertOpToLLVMPattern<PreloadZerosO
     IntegerType i64Type = rewriter.getI64Type();
     uint64_t addrInt = getNumberFromValue(addr);
     uint64_t cRowsInt = getNumberFromValue(cRows);
-    uint64_t cColsInt = getNumberFromValue(cCols); 
-    uint64_t rs1 = (uint64_t)16 << (ADDR_LEN + 16) | (uint64_t)16 << ADDR_LEN | (uint64_t)-1;
-    uint64_t rs2 = cRowsInt << (ADDR_LEN + 16) | cColsInt << (ADDR_LEN) | addrInt;
+    uint64_t cColsInt = getNumberFromValue(cCols);
+    uint64_t rs1 = (uint64_t)16 << (ADDR_LEN + 16) | (uint64_t)16 << ADDR_LEN |
+                   (uint64_t)-1;
+    uint64_t rs2 =
+        cRowsInt << (ADDR_LEN + 16) | cColsInt << (ADDR_LEN) | addrInt;
     Attribute rs1Attr = rewriter.getI64IntegerAttr(rs1);
     Attribute rs2Attr = rewriter.getI64IntegerAttr(rs2);
     Value rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr, i64Type);
     Value rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr, i64Type);
-    rewriter.replaceOpWithNewOp<Preload_IntrOp>(preloadZerosOp, rs1Value, rs2Value); 
+    rewriter.replaceOpWithNewOp<Preload_IntrOp>(preloadZerosOp, rs1Value,
+                                                rs2Value);
     return success();
   }
 };
 
 struct GemminiPreloadLowering : public ConvertOpToLLVMPattern<PreloadOp> {
   using ConvertOpToLLVMPattern<PreloadOp>::ConvertOpToLLVMPattern;
-  LogicalResult 
+  LogicalResult
   matchAndRewrite(PreloadOp preloadOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value bdAddr = preloadOp.getBdAddr();
@@ -232,26 +239,29 @@ struct GemminiPreloadLowering : public ConvertOpToLLVMPattern<PreloadOp> {
     uint64_t bdRowsInt = getNumberFromValue(bdRows);
     uint64_t cColsInt = getNumberFromValue(cCols);
     uint64_t cRowsInt = getNumberFromValue(cRows);
-    uint64_t rs1 = bdRowsInt << (ADDR_LEN + 16) | bdColsInt << ADDR_LEN | (uint64_t)bdAddrInt;
-    uint64_t rs2 = cRowsInt << (ADDR_LEN + 16) | cColsInt << ADDR_LEN | (uint64_t) cAddrInt;
+    uint64_t rs1 = bdRowsInt << (ADDR_LEN + 16) | bdColsInt << ADDR_LEN |
+                   (uint64_t)bdAddrInt;
+    uint64_t rs2 =
+        cRowsInt << (ADDR_LEN + 16) | cColsInt << ADDR_LEN | (uint64_t)cAddrInt;
     Attribute rs1Attr = rewriter.getI64IntegerAttr(rs1);
     Attribute rs2Attr = rewriter.getI64IntegerAttr(rs2);
     Value rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr, i64Type);
     Value rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr, i64Type);
     rewriter.replaceOpWithNewOp<Preload_IntrOp>(preloadOp, rs1Value, rs2Value);
-    return success(); 
+    return success();
   }
 };
 
-struct GemminiComputePreloadedLowering : public ConvertOpToLLVMPattern<ComputePreloaded> {
+struct GemminiComputePreloadedLowering
+    : public ConvertOpToLLVMPattern<ComputePreloaded> {
   using ConvertOpToLLVMPattern<ComputePreloaded>::ConvertOpToLLVMPattern;
-  LogicalResult 
+  LogicalResult
   matchAndRewrite(ComputePreloaded computePreloadedOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value aAddr = computePreloadedOp.getAAddr();
     Value bdAddr = computePreloadedOp.getBdAddr();
     Value aRows = computePreloadedOp.getARows();
-    Value aCols = computePreloadedOp.getACols(); 
+    Value aCols = computePreloadedOp.getACols();
     Value bdRows = computePreloadedOp.getBdRows();
     Value bdCols = computePreloadedOp.getBdCols();
     Location loc = computePreloadedOp.getLoc();
@@ -262,18 +272,22 @@ struct GemminiComputePreloadedLowering : public ConvertOpToLLVMPattern<ComputePr
     uint64_t aColsInt = getNumberFromValue(aCols);
     uint64_t bdRowsInt = getNumberFromValue(bdRows);
     uint64_t bdColsInt = getNumberFromValue(bdCols);
-    uint64_t rs1 = aRowsInt << (ADDR_LEN + 16) | aColsInt << ADDR_LEN | aAddrInt; 
-    uint64_t rs2 = bdRowsInt << (ADDR_LEN + 16) | bdColsInt << ADDR_LEN | bdAddrInt;
+    uint64_t rs1 =
+        aRowsInt << (ADDR_LEN + 16) | aColsInt << ADDR_LEN | aAddrInt;
+    uint64_t rs2 =
+        bdRowsInt << (ADDR_LEN + 16) | bdColsInt << ADDR_LEN | bdAddrInt;
     Attribute rs1Attr = rewriter.getI64IntegerAttr(rs1);
     Attribute rs2Attr = rewriter.getI64IntegerAttr(rs2);
     Value rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr, i64Type);
     Value rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr, i64Type);
-    rewriter.replaceOpWithNewOp<ComputePreloaded_IntrOp>(computePreloadedOp, rs1Value, rs2Value);
-    return success();  
+    rewriter.replaceOpWithNewOp<ComputePreloaded_IntrOp>(computePreloadedOp,
+                                                         rs1Value, rs2Value);
+    return success();
   }
 };
 
-struct GemminiComputeAccumulatedLowering : public ConvertOpToLLVMPattern<ComputeAccumulated> {
+struct GemminiComputeAccumulatedLowering
+    : public ConvertOpToLLVMPattern<ComputeAccumulated> {
   using ConvertOpToLLVMPattern<ComputeAccumulated>::ConvertOpToLLVMPattern;
   LogicalResult
   matchAndRewrite(ComputeAccumulated computeAccumulatedOp, OpAdaptor adaptor,
@@ -283,7 +297,7 @@ struct GemminiComputeAccumulatedLowering : public ConvertOpToLLVMPattern<Compute
     Value aRows = computeAccumulatedOp.getARows();
     Value aCols = computeAccumulatedOp.getACols();
     Value bdRows = computeAccumulatedOp.getBdRows();
-    Value bdCols = computeAccumulatedOp.getBdCols(); 
+    Value bdCols = computeAccumulatedOp.getBdCols();
     Location loc = computeAccumulatedOp.getLoc();
     IntegerType i64Type = rewriter.getI64Type();
     uint64_t aAddrInt = getNumberFromValue(aAddr);
@@ -292,13 +306,16 @@ struct GemminiComputeAccumulatedLowering : public ConvertOpToLLVMPattern<Compute
     uint64_t aColsInt = getNumberFromValue(aCols);
     uint64_t bdRowsInt = getNumberFromValue(bdRows);
     uint64_t bdColsInt = getNumberFromValue(bdCols);
-    uint64_t rs1 = aRowsInt << (ADDR_LEN + 16) | aColsInt << ADDR_LEN | aAddrInt; 
-    uint64_t rs2 = bdRowsInt << (ADDR_LEN + 16) | bdColsInt << ADDR_LEN | bdAddrInt;
+    uint64_t rs1 =
+        aRowsInt << (ADDR_LEN + 16) | aColsInt << ADDR_LEN | aAddrInt;
+    uint64_t rs2 =
+        bdRowsInt << (ADDR_LEN + 16) | bdColsInt << ADDR_LEN | bdAddrInt;
     Attribute rs1Attr = rewriter.getI64IntegerAttr(rs1);
     Attribute rs2Attr = rewriter.getI64IntegerAttr(rs2);
     Value rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr, i64Type);
     Value rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr, i64Type);
-    rewriter.replaceOpWithNewOp<ComputeAccumulated_IntrOp>(computeAccumulatedOp, rs1Value, rs2Value);
+    rewriter.replaceOpWithNewOp<ComputeAccumulated_IntrOp>(computeAccumulatedOp,
+                                                           rs1Value, rs2Value);
     return success();
   }
 };
@@ -322,7 +339,9 @@ void mlir::populateGemminiLegalizeForLLVMExportPatterns(
 void mlir::configureGemminiegalizeForExportTarget(
     LLVMConversionTarget &target) {
   target.addLegalOp<ConfigSt_IntrOp, ConifgLd_IntrOp, ConfigEX_IntrOp,
-                    Mvin_IntrOp, Mvout_IntrOp, Preload_IntrOp, ComputePreloaded_IntrOp, ComputeAccumulated_IntrOp>();
+                    Mvin_IntrOp, Mvout_IntrOp, Preload_IntrOp,
+                    ComputePreloaded_IntrOp, ComputeAccumulated_IntrOp>();
   target.addIllegalOp<ConfigStOp, ConfigLdOp, ConfigExOp, MvinOp, MvoutOp,
-                      PrintOp, PreloadZerosOp, PreloadOp, ComputePreloaded, ComputeAccumulated>();
+                      PrintOp, PreloadZerosOp, PreloadOp, ComputePreloaded,
+                      ComputeAccumulated>();
 }

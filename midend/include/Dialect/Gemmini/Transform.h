@@ -28,23 +28,23 @@ typedef uint32_t scale_t_bits;
 typedef float scale_t;
 
 static acc_scale_t_bits acc_scale_t_to_acc_scale_t_bits(acc_scale_t x) {
-    union {
-        acc_scale_t_bits b;
-        acc_scale_t f;
-    } un;
+  union {
+    acc_scale_t_bits b;
+    acc_scale_t f;
+  } un;
 
-    un.f = x;
-    return un.b;
+  un.f = x;
+  return un.b;
 }
 
 static scale_t_bits scale_t_to_scale_t_bits(scale_t x) {
-    union {
-        scale_t_bits b;
-        scale_t f;
-    } un;
+  union {
+    scale_t_bits b;
+    scale_t f;
+  } un;
 
-    un.f = x;
-    return un.b;
+  un.f = x;
+  return un.b;
 }
 
 namespace mlir {
@@ -54,9 +54,10 @@ class LLVMTypeConverter;
 class RewritePatternSet;
 using OwningRewritePatternList = RewritePatternSet;
 
-void populateGemminiLegalizeForLLVMExportPatterns(LLVMTypeConverter &converter,RewritePatternSet &patterns);
+void populateGemminiLegalizeForLLVMExportPatterns(LLVMTypeConverter &converter,
+                                                  RewritePatternSet &patterns);
 void configureGemminiegalizeForExportTarget(LLVMConversionTarget &target);
 
-}  // namespace mlir
+} // namespace mlir
 
 #endif // GEMMINI_TRANSLATE_H

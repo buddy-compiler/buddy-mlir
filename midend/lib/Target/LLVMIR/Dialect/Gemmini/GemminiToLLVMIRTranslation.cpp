@@ -1,4 +1,5 @@
-//======- GemminiToLLVMIRTranslation.cpp - Translate RVV to LLVM IR -------====//
+//======- GemminiToLLVMIRTranslation.cpp - Translate RVV to LLVM IR
+//-------====//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,9 +56,10 @@ public:
 
 void buddy::registerGemminiDialectTranslation(DialectRegistry &registry) {
   registry.insert<gemmini::GemminiDialect>();
-  registry.addExtension(+[](MLIRContext *ctx, gemmini::GemminiDialect *dialect) {
-    dialect->addInterfaces<GemminiDialectLLVMIRTranslationInterface>();
-  });
+  registry.addExtension(
+      +[](MLIRContext *ctx, gemmini::GemminiDialect *dialect) {
+        dialect->addInterfaces<GemminiDialectLLVMIRTranslationInterface>();
+      });
 }
 
 void buddy::registerGemminiDialectTranslation(MLIRContext &context) {

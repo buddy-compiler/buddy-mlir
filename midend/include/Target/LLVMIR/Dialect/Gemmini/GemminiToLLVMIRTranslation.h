@@ -5,8 +5,8 @@
 #include "mlir/IR/MLIRContext.h"
 
 namespace buddy {
-  void registerGemminiDialectTranslation(mlir::DialectRegistry &registry);
-  void registerGemminiDialectTranslation(mlir::MLIRContext &context);
-}
+void registerGemminiDialectTranslation(mlir::DialectRegistry &registry);
+void registerGemminiDialectTranslation(mlir::MLIRContext &context);
+} // namespace buddy
 
 #endif

@@ -26,9 +26,8 @@
 #include "mlir/IR/TypeUtilities.h"
 #include "llvm/ADT/TypeSwitch.h"
 
-
-#include "Gemmini/GemminiOps.h"
 #include "Gemmini/GemminiDialect.h"
+#include "Gemmini/GemminiOps.h"
 using namespace mlir;
 using namespace buddy::gemmini;
 
@@ -38,7 +37,7 @@ using namespace buddy::gemmini;
 #include "Gemmini/Gemmini.cpp.inc"
 
 void GemminiDialect::initialize() {
-    addOperations<
+  addOperations<
 #define GET_OP_LIST
 #include "Gemmini/Gemmini.cpp.inc"
       >();
