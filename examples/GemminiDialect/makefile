@@ -112,3 +112,4 @@ matmul-exe:
 
 matmul-run:
 	spike --extension=gemmini pk matmul-pk  
+
