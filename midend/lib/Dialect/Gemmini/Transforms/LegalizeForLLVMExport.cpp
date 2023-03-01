@@ -273,6 +273,36 @@ struct GemminiComputePreloadedLowering : public ConvertOpToLLVMPattern<ComputePr
   }
 };
 
+struct GemminiComputeAccumulatedLowering : public ConvertOpToLLVMPattern<ComputeAccumulated> {
+  using ConvertOpToLLVMPattern<ComputeAccumulated>::ConvertOpToLLVMPattern;
+  LogicalResult
+  matchAndRewrite(ComputeAccumulated computeAccumulatedOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value aAddr = computeAccumulatedOp.getAAddr();
+    Value bdAddr = computeAccumulatedOp.getBdAddr();
+    Value aRows = computeAccumulatedOp.getARows();
+    Value aCols = computeAccumulatedOp.getACols();
+    Value bdRows = computeAccumulatedOp.getBdRows();
+    Value bdCols = computeAccumulatedOp.getBdCols(); 
+    Location loc = computeAccumulatedOp.getLoc();
+    IntegerType i64Type = rewriter.getI64Type();
+    uint64_t aAddrInt = getNumberFromValue(aAddr);
+    uint64_t bdAddrInt = getNumberFromValue(bdAddr);
+    uint64_t aRowsInt = getNumberFromValue(aRows);
+    uint64_t aColsInt = getNumberFromValue(aCols);
+    uint64_t bdRowsInt = getNumberFromValue(bdRows);
+    uint64_t bdColsInt = getNumberFromValue(bdCols);
+    uint64_t rs1 = aRowsInt << (ADDR_LEN + 16) | aColsInt << ADDR_LEN | aAddrInt; 
+    uint64_t rs2 = bdRowsInt << (ADDR_LEN + 16) | bdColsInt << ADDR_LEN | bdAddrInt;
+    Attribute rs1Attr = rewriter.getI64IntegerAttr(rs1);
+    Attribute rs2Attr = rewriter.getI64IntegerAttr(rs2);
+    Value rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr, i64Type);
+    Value rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr, i64Type);
+    rewriter.replaceOpWithNewOp<ComputeAccumulated_IntrOp>(computeAccumulatedOp, rs1Value, rs2Value);
+    return success();
+  }
+};
+
 void mlir::populateGemminiLegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
   patterns
@@ -286,12 +316,13 @@ void mlir::populateGemminiLegalizeForLLVMExportPatterns(
   patterns.add<GemminiPreloadZerosLowering>(converter);
   patterns.add<GemminiPreloadLowering>(converter);
   patterns.add<GemminiComputePreloadedLowering>(converter);
+  patterns.add<GemminiComputeAccumulatedLowering>(converter);
 }
 
 void mlir::configureGemminiegalizeForExportTarget(
     LLVMConversionTarget &target) {
   target.addLegalOp<ConfigSt_IntrOp, ConifgLd_IntrOp, ConfigEX_IntrOp,
-                    Mvin_IntrOp, Mvout_IntrOp, Preload_IntrOp, ComputePreloaded_IntrOp>();
+                    Mvin_IntrOp, Mvout_IntrOp, Preload_IntrOp, ComputePreloaded_IntrOp, ComputeAccumulated_IntrOp>();
   target.addIllegalOp<ConfigStOp, ConfigLdOp, ConfigExOp, MvinOp, MvoutOp,
-                      PrintOp, PreloadZerosOp, PreloadOp, ComputePreloaded>();
+                      PrintOp, PreloadZerosOp, PreloadOp, ComputePreloaded, ComputeAccumulated>();
 }

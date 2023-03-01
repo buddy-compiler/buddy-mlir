@@ -104,6 +104,12 @@ def ComputePreloaded : Gemmini_Op<"computePreloaded"> {
   let assemblyFormat = "$aAddr $bdAddr $aRows $aCols $bdRows $bdCols attr-dict `:` type($aAddr) type($bdAddr) type($aRows) type($aCols) type($bdRows) type($bdCols)";
 }
 
+def ComputeAccumulated : Gemmini_Op<"computeAccumulated"> {
+  let summary = "compute accumulated opertion";
+  let arguments = (ins I64:$aAddr, I64:$bdAddr, I64:$aRows, I64:$aCols, I64:$bdRows, I64:$bdCols);
+  let assemblyFormat = "$aAddr $bdAddr $aRows $aCols $bdRows $bdCols attr-dict `:` type($aAddr) type($bdAddr) type($aRows) type($aCols) type($bdRows) type($bdCols)";
+}
+
 //===----------------------------------------------------------------------===//
 // Gemmini intrinsic operation definitions
 //===----------------------------------------------------------------------===//
@@ -136,6 +142,9 @@ def Gemmini_Preload_IntrOp : Gemmini_IntrOpBase<"preload">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Gemmini_ComputePreloaded_IntrOp: Gemmini_IntrOpBase<"computePreloaded">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_ComputeAccumulated_IntrOp : Gemmini_IntrOpBase<"computeAccumulated">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 #endif 

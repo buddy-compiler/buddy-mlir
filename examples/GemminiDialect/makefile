@@ -113,3 +113,24 @@ matmul-exe:
 matmul-run:
 	spike --extension=gemmini pk matmul-pk  
 
+compute-accumulated-lower:
+	@${BUDDY_OPT} ./compute-accumulated.mlir \
+		--lower-gemmini -o ./log.mlir
+
+compute-accumulated-translate:
+	@${BUDDY_OPT} ./compute-accumulated.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll 
+
+compute-accumulated-obj:
+	@${BUDDY_OPT} ./compute-accumulated.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+		${BUDDY_LLC} -filetype=obj -mtriple=riscv64 -mattr=+buddyext,+D \
+		--float-abi=hard -o log.o 
+
+compute-accumulated-exe:
+	riscv64-unknown-linux-gnu-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 \
+	-ffast-math -fno-common -fno-builtin-printf -march=rv64gc -Wa,-march=rv64gcxhwacha -lm -lgcc  \
+	-DID_STRING= -DPRINT_TILE=0  -static -DBAREMETAL=1 log.o -o compute-accumulated-pk 
+
+compute-accumulated-run:
+	spike --extension=gemmini pk compute-accumulated-pk  
