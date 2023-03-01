@@ -89,4 +89,27 @@ transpose-exe:
 	-DID_STRING= -DPRINT_TILE=0  -static -DBAREMETAL=1 log.o -o transpose-pk 
 
 transpose-run:
-	spike --extension=gemmini pk transpose-pk 
+	spike --extension=gemmini pk transpose-pk
+
+matmul-lower:
+	@${BUDDY_OPT} ./matmul.mlir \
+		--lower-gemmini -o ./log.mlir
+
+matmul-translate:
+	@${BUDDY_OPT} ./matmul.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll 
+
+matmul-obj:
+	@${BUDDY_OPT} ./matmul.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+		${BUDDY_LLC} -filetype=obj -mtriple=riscv64 -mattr=+buddyext,+D \
+		--float-abi=hard -o log.o 
+
+matmul-exe:
+	riscv64-unknown-linux-gnu-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 \
+	-ffast-math -fno-common -fno-builtin-printf -march=rv64gc -Wa,-march=rv64gcxhwacha -lm -lgcc  \
+	-DID_STRING= -DPRINT_TILE=0  -static -DBAREMETAL=1 log.o -o matmul-pk 
+
+matmul-run:
+	spike --extension=gemmini pk matmul-pk  
+	
