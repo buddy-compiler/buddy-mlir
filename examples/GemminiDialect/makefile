@@ -91,27 +91,27 @@ transpose-exe:
 transpose-run:
 	spike --extension=gemmini pk transpose-pk
 
-matmul-lower:
-	@${BUDDY_OPT} ./matmul.mlir \
+matmul-os-lower:
+	@${BUDDY_OPT} ./matmul-os.mlir \
 		--lower-gemmini -o ./log.mlir
 
-matmul-translate:
-	@${BUDDY_OPT} ./matmul.mlir \
+matmul-os-translate:
+	@${BUDDY_OPT} ./matmul-os.mlir \
 		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll 
 
-matmul-obj:
-	@${BUDDY_OPT} ./matmul.mlir \
+matmul-os-obj:
+	@${BUDDY_OPT} ./matmul-os.mlir \
 		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 		${BUDDY_LLC} -filetype=obj -mtriple=riscv64 -mattr=+buddyext,+D \
 		--float-abi=hard -o log.o 
 
-matmul-exe:
+matmul-os-exe:
 	riscv64-unknown-linux-gnu-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 \
 	-ffast-math -fno-common -fno-builtin-printf -march=rv64gc -Wa,-march=rv64gcxhwacha -lm -lgcc  \
-	-DID_STRING= -DPRINT_TILE=0  -static -DBAREMETAL=1 log.o -o matmul-pk 
+	-DID_STRING= -DPRINT_TILE=0  -static -DBAREMETAL=1 log.o -o matmul-os-pk 
 
-matmul-run:
-	spike --extension=gemmini pk matmul-pk  
+matmul-os-run:
+	spike --extension=gemmini pk matmul-os-pk  
 
 compute-accumulated-lower:
 	@${BUDDY_OPT} ./compute-accumulated.mlir \
@@ -134,3 +134,25 @@ compute-accumulated-exe:
 
 compute-accumulated-run:
 	spike --extension=gemmini pk compute-accumulated-pk  
+
+matmul-ws-lower:
+	@${BUDDY_OPT} ./matmul-ws.mlir \
+		--lower-gemmini -o ./log.mlir
+
+matmul-ws-translate:
+	@${BUDDY_OPT} ./matmul-ws.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll 
+
+matmul-ws-obj:
+	@${BUDDY_OPT} ./matmul-ws.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+		${BUDDY_LLC} -filetype=obj -mtriple=riscv64 -mattr=+buddyext,+D \
+		--float-abi=hard -o log.o 
+
+matmul-ws-exe:
+	riscv64-unknown-linux-gnu-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 \
+	-ffast-math -fno-common -fno-builtin-printf -march=rv64gc -Wa,-march=rv64gcxhwacha -lm -lgcc  \
+	-DID_STRING= -DPRINT_TILE=0  -static -DBAREMETAL=1 log.o -o matmul-ws-pk 
+
+matmul-ws-run:
+	spike --extension=gemmini pk matmul-ws-pk  
