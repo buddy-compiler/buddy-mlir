@@ -320,6 +320,33 @@ struct GemminiComputeAccumulatedLowering
   }
 };
 
+
+/*struct GemminiTileMatMulLowering :public ConvertOpToLLVMPattern<TileMatMul> {
+  using ConvertOpToLLVMPattern<TileMatMul>::ConvertOpToLLVMPattern;
+  LogicalResult 
+  matchAndRewrite(TileMatMul tileMatMulOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+#define partition_rows (BANK_NUM * BANK_ROWS / 2)
+#define mats_in_partition (partition_rows / DIM)
+#define mats_in_acc (ACC_ROWS / DIM)
+#define max_tile_i_j ((size_t)sqrt(mats_in_acc))
+#define max_tile_k (mats_in_partition / max_tile_i_j)
+
+#define db_partition_rows ((BANK_NUM * BANK_ROWS / 2) / 2)
+#define db_mats_in_partition (db_partition_rows / DIM)
+#define db_mats_in_acc ((ACC_ROWS / 2) / DIM)
+#define db_max_tile_i_j ((size_t)sqrt(db_mats_in_acc))
+#define db_max_tile_k (db_mats_in_partition / db_max_tile_i_j)
+
+    Value aArray = tileMatMulOp.getAArray();
+    Value bArray = tileMatMulOp.getBArray();
+    Value cArray = tileMatMulOp.getCArray(); 
+    Value dArray = tiliMatMulOp.getDArray(); 
+
+  };
+};
+
+
 void mlir::populateGemminiLegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
   patterns
