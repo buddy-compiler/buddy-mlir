@@ -77,3 +77,21 @@ vector-exp-predication-memory-run:
 	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v \
 		-dlopen=${CROSS_MLIR_C_RUNNER_UTILS} \
 		-dlopen=${CROSS_MLIR_RUNNER_UTILS}
+
+vector-exp-predication-matmul-run:
+	@${BUDDY_OPT} ./vector-exp-predication-matmul.mlir \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-math-to-llvm \
+		-lower-vector-exp \
+		-lower-rvv \
+		-convert-vector-to-llvm \
+		-convert-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts |\
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} \
+			-cpu rv64,x-v=true,vlen=128 \
+	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v \
+		-dlopen=${CROSS_MLIR_C_RUNNER_UTILS} \
+		-dlopen=${CROSS_MLIR_RUNNER_UTILS}

@@ -106,6 +106,34 @@ public:
         Value resultValue = rewriter.create<LLVM::VPLoadOp>(
             loc, resultType, dataPtr, op.getMask(), op.getVl());
         rewriter.replaceOp(op, resultValue);
+      } else if (isa<vector::StoreOp>(innerOp)) {
+        // The conversion to VP operation is similar to the load operation.
+        // - Get MemRef descriptor.
+        // - Get indices of the memory access.
+        // - Get the data pointer.
+        // - Create VP store operation and erase the predication operation.
+        vector::StoreOp storeOp = cast<vector::StoreOp>(innerOp);
+        Value valueToStore = storeOp.getValueToStore();
+        MemRefType memRefTy = storeOp.getMemRefType();
+        Type structType = this->getTypeConverter()->convertType(memRefTy);
+        Value memDesc = rewriter
+                            .create<UnrealizedConversionCastOp>(
+                                loc, structType, storeOp.getBase())
+                            .getResult(0);
+        SmallVector<Value, 4> indices;
+        for (Value idx : storeOp.getIndices()) {
+          Type idxType = idx.getType();
+          Type intType = this->getTypeConverter()->convertType(idxType);
+          Value intIdx =
+              rewriter.create<UnrealizedConversionCastOp>(loc, intType, idx)
+                  .getResult(0);
+          indices.push_back(intIdx);
+        }
+        Value dataPtr = this->getStridedElementPtr(loc, memRefTy, memDesc,
+                                                   indices, rewriter);
+        rewriter.create<LLVM::VPStoreOp>(loc, valueToStore, dataPtr,
+                                         op.getMask(), op.getVl());
+        rewriter.eraseOp(op);
       } else if (isa<vector::YieldOp>(innerOp)) {
         // Skip the YieldOp.
         continue;
