@@ -89,7 +89,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   Mat kernel1Y = Mat(3, 1, CV_32FC1, sepKernelY);
 
   // Call the MLIR Corr2D function.
-  dip::Sep_Corr2D(&input, &kernelX, &kernelY, &output1, x, y,
+  dip::Sep_Corr2D(&input, &kernelX, &kernelY, &output1, 0, 0,
               dip::BOUNDARY_OPTION::REPLICATE_PADDING);
 
   // Define a cv::Mat with the output of Corr2D.
@@ -99,31 +99,13 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
 
   Mat o1 = imread(argv[2], IMREAD_GRAYSCALE);
   Mat opencvConstantPadding, opencvReplicatePadding;
-  sepFilter2D(image, opencvReplicatePadding, CV_8UC1, kernel1X, kernel1Y, cv::Point(x, y),
+  sepFilter2D(image, opencvReplicatePadding, CV_8UC1, kernel1X, kernel1Y, cv::Point(0, 0),
            0.0, cv::BORDER_REPLICATE);
 
   if (!testImages(o1, opencvReplicatePadding)) {
     std::cout << "x, y = " << x << ", " << y << "\n";
     return 0;
   }
-
-  // Call the MLIR Corr2D function.
-  /*dip::Corr2D(&input, &kernel, &output2, x, y,
-              dip::BOUNDARY_OPTION::CONSTANT_PADDING, 0);
-
-  // Define a cv::Mat with the output of Corr2D.
-  Mat outputImageConstantPadding(sizesOutput[0], sizesOutput[1], CV_32FC1,
-                                 output2.getData());
-  imwrite(argv[3], outputImageConstantPadding);
-
-  Mat o2 = imread(argv[3], IMREAD_GRAYSCALE);
-  filter2D(image, opencvConstantPadding, CV_8UC1, kernel1, cv::Point(x, y), 0.0,
-           cv::BORDER_CONSTANT);
-
-  if (!testImages(o2, opencvConstantPadding)) {
-    std::cout << "x, y = " << x << ", " << y << "\n";
-    return 0;
-  }*/
 
   return 1;
 }

@@ -90,7 +90,7 @@ DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args) {
     return !type.isF64() && !type.isF32() && !type.isInteger(bitWidth);
   };
 
-  if (op->getName().stripDialect() == "corr_2d") {
+  if (op->getName().stripDialect() == "corr_2d" || op->getName().stripDialect() == "sep_corr_2d") {
     auto inElemTy = getElementType(0);
     auto kElemTy = getElementType(1);
     auto outElemTy = getElementType(2);

@@ -1366,8 +1366,8 @@ public:
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    /*dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Corr2DOp>(
-        op, {input, kernel, output, constantValue});
+    /*dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Sep_Corr2DOp>(
+        op, {input, kernelX, output, constantValue});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError() << "input, kernel, output and constant must "

@@ -406,6 +406,7 @@ inline void MorphGrad2D(Img<float, 2> input, MemRef<float, 2> *kernel,
         &copymemref1, centerX, centerY, iterations, 0);
   }
 }
+
 inline void Sep_Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernelX, MemRef<float, 2> *kernelY, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, float constantValue = 0) {
 intptr_t outputRows = output->getSizes()[0];
 intptr_t outputCols = output->getSizes()[1];
