@@ -156,3 +156,25 @@ matmul-ws-exe:
 
 matmul-ws-run:
 	spike --extension=gemmini pk matmul-ws-pk  
+
+tile-matmul-lower:
+	@${BUDDY_OPT} ./tile-matmul.mlir \
+		--lower-gemmini -o ./log.mlir
+
+tile-matmul-translate:
+	@${BUDDY_OPT} ./tile-matmul.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll 
+
+tile-matmul-obj:
+	@${BUDDY_OPT} ./tile-matmul.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+		${BUDDY_LLC} -filetype=obj -mtriple=riscv64 -mattr=+buddyext,+D \
+		--float-abi=hard -o log.o 
+
+tile-matmul-exe:
+	riscv64-unknown-linux-gnu-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 \
+	-ffast-math -fno-common -fno-builtin-printf -march=rv64gc -Wa,-march=rv64gcxhwacha -lm -lgcc  \
+	-DID_STRING= -DPRINT_TILE=0  -static -DBAREMETAL=1 log.o -o tile-matmul-pk 
+
+tile-matmul-run:
+	spike --extension=gemmini pk tile-matmul-pk 

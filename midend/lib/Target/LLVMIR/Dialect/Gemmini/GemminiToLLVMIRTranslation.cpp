@@ -1,5 +1,4 @@
-//======- GemminiToLLVMIRTranslation.cpp - Translate RVV to LLVM IR
-//-------====//
+//======- GemminiToLLVMIRTranslation.cpp - Translate Gemmini to LLVM IR--====//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +34,7 @@ using namespace buddy;
 
 namespace {
 /// Implementation of the dialect interface that converts operations belonging
-/// to the RVV dialect to LLVM IR.
+/// to the Gemmini dialect to LLVM IR.
 class GemminiDialectLLVMIRTranslationInterface
     : public LLVMTranslationDialectInterface {
 public:
