@@ -5,7 +5,6 @@ func.func @main() -> i8 {
   %i2I32 = arith.constant 2 : i32
   %c0 = arith.constant 0 : index 
   %c1 = arith.constant 1 : index 
-  %c4 = arith.constant 4 : index 
   %aArray = memref.alloc() {alignment = 16} : memref<64x64xi8>
   %bArray = memref.alloc() {alignment = 16}: memref<64x64xi8>
   %cArray = memref.alloc() {alignment = 16}: memref<64x64xi8>
