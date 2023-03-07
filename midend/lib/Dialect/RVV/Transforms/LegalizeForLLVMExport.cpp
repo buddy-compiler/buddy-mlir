@@ -118,7 +118,7 @@ struct RVVLoadOpLowering : public ConvertOpToLLVMPattern<RVVLoadOp> {
     Value vl = loadOp.getOperand(2);
     Value vlCast = rewriter
                        .create<UnrealizedConversionCastOp>(
-                           loadOp.getLoc(), rewriter.getI64Type(), vl)
+                           loadOp.getLoc(), rewriter.getI32Type(), vl)
                        .getResult(0);
     rewriter.replaceOpWithNewOp<RVVIntrLoadEleOp>(loadOp, resultType, passthru,
                                                   bitCastedPtr, vlCast);
@@ -150,7 +150,7 @@ struct RVVStoreOpLowering : public ConvertOpToLLVMPattern<RVVStoreOp> {
     Value vl = storeOp.getOperand(3);
     Value vlCast = rewriter
                        .create<UnrealizedConversionCastOp>(
-                           storeOp.getLoc(), rewriter.getI64Type(), vl)
+                           storeOp.getLoc(), rewriter.getI32Type(), vl)
                        .getResult(0);
     rewriter.replaceOpWithNewOp<RVVIntrStoreEleOp>(storeOp, adaptor.getValue(),
                                                    bitCastedPtr, vlCast);
@@ -178,7 +178,7 @@ struct RsqrtOpLowering : public ConvertOpToLLVMPattern<RsqrtOp> {
     Value vl = op.getOperand(1);
     Value vlCast = rewriter
                        .create<UnrealizedConversionCastOp>(
-                           op.getLoc(), rewriter.getI64Type(), vl)
+                           op.getLoc(), rewriter.getI32Type(), vl)
                        .getResult(0);
     rewriter.replaceOpWithNewOp<IntrFrsqrt7Op>(op, resultType, passthru, src,
                                                vlCast);

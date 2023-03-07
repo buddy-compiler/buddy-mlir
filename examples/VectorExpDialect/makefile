@@ -95,3 +95,18 @@ vector-exp-predication-matmul-run:
 	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v \
 		-dlopen=${CROSS_MLIR_C_RUNNER_UTILS} \
 		-dlopen=${CROSS_MLIR_RUNNER_UTILS}
+
+vector-exp-predication-matmul-rv32-asm:
+	@${BUDDY_OPT} ./vector-exp-predication-matmul-i32.mlir \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-math-to-llvm \
+		-lower-vector-exp \
+		-lower-rvv \
+		-convert-vector-to-llvm \
+		-convert-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	/home/xlinsist/intern/llvm/build/bin/llc -mtriple riscv32 -target-abi ilp32 \
+		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=asm -opaque-pointers -o log.s

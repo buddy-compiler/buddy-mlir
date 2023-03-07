@@ -65,8 +65,10 @@ class RVV_Op<string mnemonic, list<Trait> traits = []> :
 def RVVSetVlOp :
     RVV_Op<"setvl",
               !listconcat([], [AllTypesMatch<["avl", "sew", "lmul", "vl"]>])>,
-    Arguments<(ins Index:$avl, Index:$sew, Index:$lmul)>,
-    Results<(outs Index:$vl)> {
+    Arguments<(ins AnySignlessIntegerOrIndex:$avl, 
+                  AnySignlessIntegerOrIndex:$sew, 
+                  AnySignlessIntegerOrIndex:$lmul)>,
+    Results<(outs AnySignlessIntegerOrIndex:$vl)> {
   let summary = "Set vector length according to AVL, SEW, and LMUL";
   let description = [{
     SetVl operation sets the vector length according to AVL, SEW, and LMUL.
@@ -80,7 +82,7 @@ def RVVSetVlOp :
 
 def RVVLoadOp : RVV_Op<"load">,
     Arguments<(ins Arg<AnyMemRef, "", [MemRead]>:$base, Index:$index,
-                       Index:$length)>,
+                  AnySignlessIntegerOrIndex:$length)>,
     Results<(outs ScalableVectorOf<[AnyType]>:$result)> {
   let summary = "Load scalable vector from memory";
   let description = [{
@@ -97,7 +99,8 @@ def RVVLoadOp : RVV_Op<"load">,
 
 def RVVStoreOp : RVV_Op<"store">,
     Arguments<(ins ScalableVectorOf<[AnyType]>:$value, Arg<AnyMemRef, "",
-                   [MemWrite]>:$base, Index:$index, Index:$length)> {
+                   [MemWrite]>:$base, Index:$index, 
+                   AnySignlessIntegerOrIndex:$length)> {
   let summary = "Store scalable vector into memory";
   let description = [{
     Store the given element length of a scalable vector on a slice of memory.
@@ -112,7 +115,8 @@ def RVVStoreOp : RVV_Op<"store">,
 }
 
 def RsqrtOp : RVV_Op<"rsqrt", [Pure, AllTypesMatch<["src", "dst"]>]>,
-    Arguments<(ins ScalableVectorOf<[AnyType]>:$src, Index:$length)>,
+    Arguments<(ins ScalableVectorOf<[AnyType]>:$src, 
+                  AnySignlessIntegerOrIndex:$length)>,
     Results<(outs ScalableVectorOf<[AnyType]>:$dst)> {
   let summary = "Reciprocal of the square-root";
   let description = "Floating-point reciprocal square-root estimated to 7 bits.";
@@ -130,7 +134,7 @@ class RVV_BinaryAAXNoMask_Op<string mnemonic, string op_description,
   let arguments = (ins 
     ScalableVectorOf<[AnyInteger]>:$src1,
     AnyType:$src2,
-    Index:$length
+    AnySignlessIntegerOrIndex:$length
   );
   let results = (outs ScalableVectorOf<[AnyInteger]>:$dst);
   let assemblyFormat = "$src1 `,` $src2 `,` $length attr-dict `:` type($src1) "
