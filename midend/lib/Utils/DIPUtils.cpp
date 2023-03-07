@@ -528,16 +528,16 @@ void fillPixelsBilinearInterpolate(
 
         Value pixelVal_a = builder.create<memref::LoadOp>(
             loc, builder.getF32Type(), input,
-            ValueRange{inputIndices_L[0], inputIndices_L[1]});
+            ValueRange{inputIndices_L[1], inputIndices_L[0]});
         Value pixelVal_b = builder.create<memref::LoadOp>(
             loc, builder.getF32Type(), input,
-            ValueRange{inputIndices_H[0], inputIndices_L[1]});
+            ValueRange{inputIndices_H[1], inputIndices_L[0]});
         Value pixelVal_c = builder.create<memref::LoadOp>(
             loc, builder.getF32Type(), input,
-            ValueRange{inputIndices_L[0], inputIndices_H[1]});
+            ValueRange{inputIndices_L[1], inputIndices_H[0]});
         Value pixelVal_d = builder.create<memref::LoadOp>(
             loc, builder.getF32Type(), input,
-            ValueRange{inputIndices_H[0], inputIndices_H[1]});
+            ValueRange{inputIndices_H[1], inputIndices_H[0]});
 
         Value weightVal1 =
             builder.create<arith::MulFOp>(loc, indexWeights_UnitComplements[0],
@@ -568,7 +568,7 @@ void fillPixelsBilinearInterpolate(
         Value pixelVal = roundOff(builder, loc, pixel_interm3);
 
         builder.create<memref::StoreOp>(
-            loc, pixelVal, output, ValueRange{resIndices[0], resIndices[1]});
+            loc, pixelVal, output, ValueRange{resIndices[1], resIndices[0]});
 
         builder.create<AffineYieldOp>(loc);
       });

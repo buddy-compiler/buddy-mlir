@@ -315,7 +315,7 @@ public:
     Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
     Value outputCol = rewriter.create<memref::DimOp>(loc, output, c1);
 
-    // Determine lower bound for second call of rotation function (this is done
+    // Determine lower bound for second call of resize function (this is done
     // for efficient tail processing).
     Value outputColStrideRatio =
         rewriter.create<arith::DivUIOp>(loc, outputCol, strideVal);
