@@ -69,6 +69,18 @@ public:
             loc, resultType, cast<arith::MulFOp>(innerOp).getLhs(),
             cast<arith::MulFOp>(innerOp).getRhs(), op.getMask(), op.getVl());
         rewriter.replaceOp(op, result);
+      } else if (isa<arith::AddIOp>(innerOp)) {
+        Type resultType = cast<arith::AddIOp>(innerOp).getResult().getType();
+        Value result = rewriter.create<LLVM::VPAddOp>(
+            loc, resultType, cast<arith::AddIOp>(innerOp).getLhs(),
+            cast<arith::AddIOp>(innerOp).getRhs(), op.getMask(), op.getVl());
+        rewriter.replaceOp(op, result);
+      } else if (isa<arith::MulIOp>(innerOp)) {
+        Type resultType = cast<arith::MulIOp>(innerOp).getResult().getType();
+        Value result = rewriter.create<LLVM::VPMulOp>(
+            loc, resultType, cast<arith::MulIOp>(innerOp).getLhs(),
+            cast<arith::MulIOp>(innerOp).getRhs(), op.getMask(), op.getVl());
+        rewriter.replaceOp(op, result);
       } else if (isa<vector::LoadOp>(innerOp)) {
         vector::LoadOp loadOp = cast<vector::LoadOp>(innerOp);
         // Prepare the MemRef descriptor for the `getStridedElementPtr`.
