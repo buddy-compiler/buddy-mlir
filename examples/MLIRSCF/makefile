@@ -7,7 +7,7 @@ LLC := ../../llvm/build/bin/llc
 OPT_FLAG := -O0
 CLANG := ../../llvm/build//bin/clang
 MLIR_LIB := ../../llvm/build/lib/
-BUDDY_LIB := ../../build/lib/
+BUDDY_LIB := ../../build/midend/lib/
 
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
@@ -91,7 +91,7 @@ scf-parallel-aot:
 		-L ${BUDDY_LIB} \
 		-lmlir_runner_utils -lmlir_c_runner_utils \
 		-lstatic_mlir_async_runtime \
-		-lLLVMSupport \
+		-lLLVMSupport -lLLVMDemangle\
 		-lstdc++ -lpthread -ltinfo -lm \
 		-o a.out
 	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out
