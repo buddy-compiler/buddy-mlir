@@ -31,6 +31,7 @@
 #include <mlir/Dialect/Vector/IR/VectorOps.h>
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Value.h>
+#include <numeric>
 #include <vector>
 
 #include "DIP/DIPDialect.h"
@@ -540,17 +541,13 @@ void affineTransformController(OpBuilder &builder, Location loc,
 
   SmallVector<int64_t, 8> steps{1, stride};
 
-  /*
-  Value xVecInitial = builder.create<vector::SplatOp>(loc, c0F32, vectorTyF32);
-  for (int i = 1; i < stride; i++) {
-    Value iVal = builder.create<arith::ConstantIndexOp>(loc, i);
-    Value iValF32 = builder.create<arith::ConstantFloatOp>(
-        loc, llvm::APFloat((float)i), FloatType::getF32(ctx));
-    builder.create<vector::InsertElementOp>(loc, iValF32, xVecInitial, iVal);
-  }
-   */
-  Value xVecInitial =
-      iotaVec(builder, loc, ctx, c0, strideVal, vectorTyF32, c0, stride);
+  // generate vector [0., 1., ..., stride - 1]
+  std::vector<float> xInit(stride);
+  std::iota(xInit.begin(), xInit.end(), .0);
+  Value xVecInitial = builder.create<arith::ConstantOp>(
+      loc,
+      DenseFPElementsAttr::get(VectorType::get(stride, FloatType::getF32(ctx)),
+                               ArrayRef<float>(xInit)));
   Value xVecInitialStorage = builder.create<memref::AllocaOp>(
       loc,
       MemRefType::get(llvm::ArrayRef<int64_t>{stride}, FloatType::getF32(ctx)));
