@@ -178,3 +178,25 @@ tile-matmul-exe:
 
 tile-matmul-run:
 	spike --extension=gemmini pk tile-matmul-pk 
+
+tile-conv-lower:
+	@${BUDDY_OPT} ./tile-conv.mlir \
+		--lower-gemmini -o ./log.mlir
+
+tile-conv-translate:
+	@${BUDDY_OPT} ./tile-conv.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll 
+
+tile-conv-obj:
+	@${BUDDY_OPT} ./tile-conv.mlir \
+		--lower-gemmini | ${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+		${BUDDY_LLC} -filetype=obj -mtriple=riscv64 -mattr=+buddyext,+D \
+		--float-abi=hard -o log.o 
+
+tile-conv-exe:
+	riscv64-unknown-linux-gnu-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 \
+	-ffast-math -fno-common -fno-builtin-printf -march=rv64gc -Wa,-march=rv64gcxhwacha -lm -lgcc  \
+	-DID_STRING= -DPRINT_TILE=0  -static -DBAREMETAL=1 log.o -o tile-conv-pk 
+
+tile-conv-run:
+	spike --extension=gemmini pk tile-conv-pk 

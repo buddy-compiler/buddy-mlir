@@ -69,8 +69,9 @@ def ConfigExOp : Gemmini_Op<"configEx"> {
   let summary = "configExOp configures the execute pipeline";
   let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$dataflow, DefaultValuedAttr<I64Attr, "0">:$sysAct, 
                        DefaultValuedAttr<I64Attr, "0">:$sysShift, DefaultValuedAttr<F32Attr, "1.0">:$sysAccScale,
-                       DefaultValuedAttr<I64Attr, "1">:$aStride, DefaultValuedAttr<BoolAttr, "false">:$aTranspose,
-                       DefaultValuedAttr<BoolAttr, "false">:$bTranspose);
+                       DefaultValuedAttr<I64Attr, "1">:$cStride, DefaultValuedAttr<I64Attr, "1">:$aStride, 
+                       DefaultValuedAttr<BoolAttr, "false">:$aTranspose, DefaultValuedAttr<BoolAttr, "false">:$bTranspose, 
+                       DefaultValuedAttr<BoolAttr, "false">:$setOnlyStrides);
   let assemblyFormat = "attr-dict";
 }
 
@@ -88,7 +89,7 @@ def MvoutOp : Gemmini_Op<"mvout"> {
 
 def PrintOp : Gemmini_Op<"print"> {
   let summary = "Print operation";
-  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input);
+  let arguments = (ins MemRefRankOf<[AnyType], [2, 4]>:$input);
   let assemblyFormat = "$input attr-dict `:` type($input)";
 }
 
@@ -117,7 +118,7 @@ def ComputeAccumulatedOp : Gemmini_Op<"computeAccumulated"> {
 }
 
 def TileMatMulOp : Gemmini_Op<"tileMatMul"> {
-  let summary = "loop instruction.";
+  let summary = "The tileMatMulOp which can automatically perform matrix multiplication operations.";
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$aArray, MemRefRankOf<[AnyType], [2]>:$bArray,
                        MemRefRankOf<[AnyType], [2]>:$cArray, MemRefRankOf<[AnyType], [2]>:$dArray,
                        DefaultValuedAttr<F32Attr, "1.0">:$aScaleFactor, DefaultValuedAttr<F32Attr, "1.0">:$bScaleFactor,
@@ -127,6 +128,21 @@ def TileMatMulOp : Gemmini_Op<"tileMatMul"> {
                        DefaultValuedAttr<BoolAttr, "false">:$bTranspose, DefaultValuedAttr<BoolAttr, "false">:$fullC,
                        DefaultValuedAttr<BoolAttr, "false">:$lowD, DefaultValuedAttr<I64Attr, "0">:$weightA);
   let assemblyFormat = "$aArray $bArray $cArray $dArray attr-dict `:` type($aArray) type($bArray) type($cArray) type($dArray)";  
+}
+
+def TileConvOp : Gemmini_Op<"tileConv"> {
+  let summary = "The tileConvOp which can automatically perform convolution operations.";
+  let arguments = (ins MemRefRankOf<[AnyType], [4]>:$input, MemRefRankOf<[AnyType], [2]>:$weights,
+                       MemRefRankOf<[AnyType], [1]>:$bias, MemRefRankOf<[AnyType], [2]>:$output,
+                       I64:$outDim, I64:$kernelDim, DefaultValuedAttr<I64Attr, "1">:$stride, 
+                       DefaultValuedAttr<I64Attr, "1">:$inputDilation, DefaultValuedAttr<I64Attr, "1">:$kernelDilation, 
+                       DefaultValuedAttr<I64Attr, "0">:$padding, DefaultValuedAttr<BoolAttr, "false">:$wrot180, 
+                       DefaultValuedAttr<BoolAttr, "false">:$transOutput1203, DefaultValuedAttr<BoolAttr, "false">:$transInput3120, 
+                       DefaultValuedAttr<BoolAttr, "false">:$transWeight1203, DefaultValuedAttr<BoolAttr, "false">:$transWeight0132, 
+                       DefaultValuedAttr<I64Attr, "0">:$act, DefaultValuedAttr<F32Attr, "1.0">:$scale, 
+                       DefaultValuedAttr<I64Attr, "0">:$poolSize, DefaultValuedAttr<I64Attr, "0">:$poolStride, 
+                       DefaultValuedAttr<I64Attr, "0">:$poolPadding);
+  let assemblyFormat = "$input $weights $bias $output $outDim $kernelDim attr-dict `:` type($input) type($weights) type($bias) type($output) type($outDim) type($kernelDim)";
 }
 
 //===----------------------------------------------------------------------===//
@@ -184,6 +200,27 @@ def Gemmini_LoopWsConfigStridesDC_IntrOp : Gemmini_IntrOpBase<"loopWsConfigStrid
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Gemmini_LoopWs_IntrOp : Gemmini_IntrOpBase<"loopWs">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_LoopConvWs_IntrOp : Gemmini_IntrOpBase<"loopConvWs">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_LoopConvWsConfig1_IntrOp : Gemmini_IntrOpBase<"loopConvWsConfig1">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_LoopConvWsConfig2_IntrOp : Gemmini_IntrOpBase<"loopConvWsConfig2">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_LoopConvWsConfig3_IntrOp : Gemmini_IntrOpBase<"loopConvWsConfig3">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_LoopConvWsConfig4_IntrOp : Gemmini_IntrOpBase<"loopConvWsConfig4">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_LoopConvWsConfig5_IntrOp : Gemmini_IntrOpBase<"loopConvWsConfig5">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_LoopConvWsConfig6_IntrOp : Gemmini_IntrOpBase<"loopConvWsConfig6">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 #endif 

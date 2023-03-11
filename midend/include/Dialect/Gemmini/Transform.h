@@ -33,6 +33,7 @@
 #define MAX_BYTES 64
 #define MAX_BLOCK_LEN (MAX_BYTES/(DIM*1))
 #define MAX_BLOCK_LEN_ACC (MAX_BYTES/(DIM*4))
+#define HAS_FIRST_LAYER_OPTIMIZATIONS
 
 typedef uint32_t acc_scale_t_bits;
 typedef float acc_scale_t;
