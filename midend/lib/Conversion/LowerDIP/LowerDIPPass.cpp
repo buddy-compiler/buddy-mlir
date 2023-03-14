@@ -160,13 +160,6 @@ public:
 
     SmallVector<int64_t, 8> steps{1, stride};
 
-
-    // Get sin(angle) which will be used in further calculations.
-    Value sinVal = rewriter.create<math::SinOp>(loc, angleVal);
-
-    // Get cos(angle) which will be used in further calculations.
-    Value cosVal = rewriter.create<math::CosOp>(loc, angleVal);
-
     // let alpha = scale * cos(angle), beta = scale * sin(angle)
     // the affine matrix would be as follow:
     // [[alpha, beta, (1 - alpha) * centerx - beta * centery],
