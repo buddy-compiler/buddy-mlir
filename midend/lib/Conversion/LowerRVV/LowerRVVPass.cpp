@@ -22,9 +22,9 @@
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
 
@@ -58,6 +58,10 @@ public:
     registry.insert<rvv::RVVDialect>();
   }
 
+  Option<bool> isOnRV32{*this, "rv32",
+                        llvm::cl::desc("Emit RVV intrinsics on rv32"),
+                        llvm::cl::init(false)};
+
   void runOnOperation() override;
 };
 } // namespace
@@ -70,8 +74,13 @@ void LowerRVVToLLVMPass::runOnOperation() {
   RewritePatternSet patterns(context);
   LLVMConversionTarget target(*context);
 
+  int64_t RVVIndexBitwidth;
+  if (isOnRV32)
+    RVVIndexBitwidth = 32;
+  else
+    RVVIndexBitwidth = 64;
   configureRVVLegalizeForExportTarget(target);
-  populateRVVLegalizeForLLVMExportPatterns(converter, patterns);
+  populateRVVLegalizeForLLVMExportPatterns(converter, patterns, RVVIndexBitwidth);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
