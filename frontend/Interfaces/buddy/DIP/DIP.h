@@ -230,10 +230,11 @@ inline MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
   }
 
   intptr_t outputSize[2] = {
-      static_cast<unsigned int>(input->getSizes()[0] / scalingRatios[1]),
-      static_cast<unsigned int>(input->getSizes()[1] / scalingRatios[0])};
+      static_cast<unsigned int>(input->getSizes()[0] / scalingRatios[0]),
+      static_cast<unsigned int>(input->getSizes()[1] / scalingRatios[1])};
 
-  return detail::Resize2D_Impl(input, type, scalingRatios, outputSize);
+  return detail::Resize2D_Impl(
+      input, type, {scalingRatios[1], scalingRatios[0]}, outputSize);
 }
 
 // User interface for 2D Resize.

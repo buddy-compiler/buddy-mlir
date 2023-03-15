@@ -27,7 +27,8 @@ using OwningRewritePatternList = RewritePatternSet;
 /// Collect a set of patterns to lower RVV ops to ops that map to LLVM
 /// intrinsics.
 void populateRVVLegalizeForLLVMExportPatterns(LLVMTypeConverter &converter,
-                                              RewritePatternSet &patterns);
+                                              RewritePatternSet &patterns,
+                                              int64_t RVVIndexBitwidth);
 
 /// Configure the target to support lowering RVV ops to ops that map to LLVM
 /// intrinsics.
