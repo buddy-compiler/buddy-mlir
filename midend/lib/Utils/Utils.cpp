@@ -98,12 +98,6 @@ Value valBound(OpBuilder &builder, Location loc, Value val, Value lastElemF32,
   return builder.create<arith::MinFOp>(loc, interm1, lastElemF32);
 }
 
-Value valBoundI(OpBuilder &builder, Location loc, Value val, Value lastElemF32,
-                Value c0) {
-  Value interm1 = builder.create<arith::MaxUIOp>(loc, val, c0);
-  return builder.create<arith::MinUIOp>(loc, interm1, lastElemF32);
-}
-
 // Equivalent of std::iota.
 Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
               Value indexStart, Value strideVal, VectorType vecType, Value c0,

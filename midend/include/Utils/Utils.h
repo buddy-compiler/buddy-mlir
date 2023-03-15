@@ -46,9 +46,6 @@ Value roundOff(OpBuilder &builder, Location loc, Value val);
 Value valBound(OpBuilder &builder, Location loc, Value val, Value lastElemF32,
                Value c0F32);
 
-Value valBoundI(OpBuilder &builder, Location loc, Value val, Value lastElemF32,
-                Value c0);
-
 // Equivalent of std::iota.
 Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
               Value indexStart, Value strideVal, VectorType vecType, Value c0,
