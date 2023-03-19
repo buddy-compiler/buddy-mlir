@@ -86,6 +86,12 @@ class Conv2DHchwFchwLowering
     MemRefType inputType = input0.getType().dyn_cast<MemRefType>();
     MemRefType weightsType = input1.getType().dyn_cast<MemRefType>();
     MemRefType outputType = output.getType().dyn_cast<MemRefType>();
+    if (!inputType.getElementType().isInteger(8)) 
+      return failure();
+    if (!weightsType.getElementType().isInteger(8))
+      return failure();
+    if (!weightsType.getElementType().isInteger(8))
+      return failure();
     ArrayRef<int64_t> inputShape = inputType.getShape();
     ArrayRef<int64_t> outputShape = outputType.getShape();
     ArrayRef<int64_t> weightsShape = weightsType.getShape();
