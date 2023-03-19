@@ -25,4 +25,5 @@ target_link_libraries(buddy-opt
   LowerVectorExpPass
   BuddyGemmini
   LowerGemminiPass
+  LowerLinalgToGemminiPass
   )

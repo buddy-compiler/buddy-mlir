@@ -58,6 +58,7 @@ void registerMatMulOptimizePass();
 void registerConvOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
+void registerLowerLinalgToGemminiPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -75,6 +76,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
   mlir::buddy::registerLowerGemminiPass();
+  mlir::buddy::registerLowerLinalgToGemminiPass();
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulOptimizePass();

@@ -134,12 +134,12 @@ def TileConvOp : Gemmini_Op<"tileConv"> {
   let summary = "The tileConvOp which can automatically perform convolution operations.";
   let arguments = (ins MemRefRankOf<[AnyType], [4]>:$input, MemRefRankOf<[AnyType], [2]>:$weights,
                        MemRefRankOf<[AnyType], [1]>:$bias, MemRefRankOf<[AnyType], [2]>:$output,
-                       I64:$outDim, I64:$kernelDim, DefaultValuedAttr<I64Attr, "1">:$stride, 
-                       DefaultValuedAttr<I64Attr, "1">:$inputDilation, DefaultValuedAttr<I64Attr, "1">:$kernelDilation, 
-                       DefaultValuedAttr<I64Attr, "0">:$padding, DefaultValuedAttr<BoolAttr, "false">:$wrot180, 
-                       DefaultValuedAttr<BoolAttr, "false">:$transOutput1203, DefaultValuedAttr<BoolAttr, "false">:$transInput3120, 
-                       DefaultValuedAttr<BoolAttr, "false">:$transWeight1203, DefaultValuedAttr<BoolAttr, "false">:$transWeight0132, 
-                       DefaultValuedAttr<I64Attr, "0">:$act, DefaultValuedAttr<F32Attr, "1.0">:$scale, 
+                       I64:$outDim, I64:$kernelDim, DefaultValuedAttr<F32Attr, "1.0">:$scale,
+                       DefaultValuedAttr<I64Attr, "1">:$stride, DefaultValuedAttr<I64Attr, "1">:$inputDilation, 
+                       DefaultValuedAttr<I64Attr, "1">:$kernelDilation, DefaultValuedAttr<I64Attr, "0">:$padding, 
+                       DefaultValuedAttr<BoolAttr, "false">:$wrot180, DefaultValuedAttr<BoolAttr, "false">:$transOutput1203, 
+                       DefaultValuedAttr<BoolAttr, "false">:$transInput3120, DefaultValuedAttr<BoolAttr, "false">:$transWeight1203, 
+                       DefaultValuedAttr<BoolAttr, "false">:$transWeight0132, DefaultValuedAttr<I64Attr, "0">:$act,
                        DefaultValuedAttr<I64Attr, "0">:$poolSize, DefaultValuedAttr<I64Attr, "0">:$poolStride, 
                        DefaultValuedAttr<I64Attr, "0">:$poolPadding);
   let assemblyFormat = "$input $weights $bias $output $outDim $kernelDim attr-dict `:` type($input) type($weights) type($bias) type($output) type($outDim) type($kernelDim)";
