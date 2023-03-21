@@ -32,6 +32,8 @@
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Value.h>
 
+#include <cmath>
+
 using namespace mlir;
 
 namespace buddy {
@@ -126,6 +128,466 @@ Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                     VectorType vecType) {
   Value interm1 = indexToF32(builder, loc, val);
   return builder.create<vector::SplatOp>(loc, vecType, interm1);
+}
+
+// Function for calculating complex addition of 2 input 1D complex vectors.
+// Separate vectors for real and imaginary parts are expected.
+inline std::vector<Value> complexVecAddI(OpBuilder &builder, Location loc,
+                                         Value vec1Real, Value vec1Imag,
+                                         Value vec2Real, Value vec2Imag) {
+  return {builder.create<arith::AddFOp>(loc, vec1Real, vec2Real),
+          builder.create<arith::AddFOp>(loc, vec1Imag, vec2Imag)};
+}
+
+// Function for calculating complex subtraction of 2 input 1D complex vectors.
+// Separate vectors for real and imaginary parts are expected.
+inline std::vector<Value> complexVecSubI(OpBuilder &builder, Location loc,
+                                         Value vec1Real, Value vec1Imag,
+                                         Value vec2Real, Value vec2Imag) {
+  return {builder.create<arith::SubFOp>(loc, vec1Real, vec2Real),
+          builder.create<arith::SubFOp>(loc, vec1Imag, vec2Imag)};
+}
+
+// Function for calculating complex product of 2 input 1D complex vectors.
+// Separate vectors for real and imaginary parts are expected.
+std::vector<Value> complexVecMulI(OpBuilder &builder, Location loc,
+                                  Value vec1Real, Value vec1Imag,
+                                  Value vec2Real, Value vec2Imag) {
+  Value int1 = builder.create<arith::MulFOp>(loc, vec1Real, vec2Real);
+  Value int2 = builder.create<arith::MulFOp>(loc, vec1Imag, vec2Imag);
+  Value int3 = builder.create<arith::MulFOp>(loc, vec1Real, vec2Imag);
+  Value int4 = builder.create<arith::MulFOp>(loc, vec1Imag, vec2Real);
+
+  return {builder.create<arith::SubFOp>(loc, int1, int2),
+          builder.create<arith::AddFOp>(loc, int3, int4)};
+}
+
+// Function for calculating Transpose of 2D input MemRef.
+void scalar2DMemRefTranspose(OpBuilder &builder, Location loc, Value memref1,
+                             Value memref2, Value memref1NumRows,
+                             Value memref1NumCols, Value memref2NumRows,
+                             Value memref2NumCols, Value c0) {
+  SmallVector<Value, 8> lowerBounds(2, c0);
+  SmallVector<Value, 8> upperBounds{memref1NumRows, memref1NumCols};
+  SmallVector<int64_t, 8> steps(2, 1);
+
+  buildAffineLoopNest(builder, loc, lowerBounds, upperBounds, steps,
+                      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+                        Value pixelVal = builder.create<memref::LoadOp>(
+                            loc, builder.getF32Type(), memref1,
+                            ValueRange{ivs[0], ivs[1]});
+
+                        builder.create<memref::StoreOp>(
+                            loc, pixelVal, memref2, ValueRange{ivs[1], ivs[0]});
+                      });
+}
+
+// Function for calculating Hadamard product of complex type 2D MemRefs.
+// Separate MemRefs for real and imaginary parts are expected.
+void vector2DMemRefMultiply(OpBuilder &builder, Location loc, Value memRef1Real,
+                            Value memRef1Imag, Value memRef2Real,
+                            Value memRef2Imag, Value memRef3Real,
+                            Value memRef3Imag, Value memRefNumRows,
+                            Value memRefNumCols, Value c0, VectorType vecType) {
+  SmallVector<Value, 8> lowerBounds(2, c0);
+  SmallVector<Value, 8> upperBounds{memRefNumRows, memRefNumCols};
+  SmallVector<int64_t, 8> steps(2, 1);
+
+  buildAffineLoopNest(
+      builder, loc, lowerBounds, upperBounds, steps,
+      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+        Value pixelVal1Real = builder.create<vector::LoadOp>(
+            loc, vecType, memRef1Real, ValueRange{ivs[0], ivs[1]});
+        Value pixelVal1Imag = builder.create<vector::LoadOp>(
+            loc, vecType, memRef1Imag, ValueRange{ivs[0], ivs[1]});
+
+        Value pixelVal2Real = builder.create<vector::LoadOp>(
+            loc, vecType, memRef2Real, ValueRange{ivs[0], ivs[1]});
+        Value pixelVal2Imag = builder.create<vector::LoadOp>(
+            loc, vecType, memRef2Imag, ValueRange{ivs[0], ivs[1]});
+
+        std::vector<Value> resVecs =
+            complexVecMulI(builder, loc, pixelVal1Real, pixelVal1Imag,
+                           pixelVal2Real, pixelVal2Imag);
+
+        builder.create<vector::StoreOp>(loc, resVecs[0], memRef3Real,
+                                        ValueRange{ivs[0], ivs[1]});
+        builder.create<vector::StoreOp>(loc, resVecs[1], memRef3Imag,
+                                        ValueRange{ivs[0], ivs[1]});
+      });
+}
+
+// Function for implementing Cooley Tukey Butterfly algortihm for calculating
+// inverse of discrete Fourier transform of invidiual 1D components of 2D input
+// MemRef. Separate MemRefs for real and imaginary parts are expected.
+void idft1DCooleyTukeyButterfly(OpBuilder &builder, Location loc,
+                                Value memRefReal2D, Value memRefImag2D,
+                                Value memRefLength, Value strideVal,
+                                VectorType vecType, Value rowIndex, Value c0,
+                                Value c1, int64_t step) {
+  // Cooley Tukey Butterfly algorithm implementation.
+  Value subProbs = builder.create<arith::ShRSIOp>(loc, memRefLength, c1);
+  Value subProbSize, half = c1, i, jBegin, jEnd, j, angle;
+  Value wStepReal, wStepImag, wReal, wImag, tmp1Real, tmp1Imag, tmp2Real,
+      tmp2Imag;
+  Value wRealVec, wImagVec, wStepRealVec, wStepImagVec;
+  Value tmp2RealTemp, tmp2ImagTemp;
+
+  Value upperBound =
+      F32ToIndex(builder, loc,
+                 builder.create<math::Log2Op>(
+                     loc, indexToF32(builder, loc, memRefLength)));
+  Value pos2MPI = builder.create<arith::ConstantFloatOp>(
+      loc, (llvm::APFloat)(float)(2.0 * M_PI), builder.getF32Type());
+
+  builder.create<scf::ForOp>(
+      loc, c0, upperBound, c1, ValueRange{subProbs, half},
+      [&](OpBuilder &builder, Location loc, ValueRange iv,
+          ValueRange outerIterVR) {
+        subProbSize = builder.create<arith::ShLIOp>(loc, outerIterVR[1], c1);
+        angle = builder.create<arith::DivFOp>(
+            loc, pos2MPI, indexToF32(builder, loc, subProbSize));
+
+        wStepReal = builder.create<math::CosOp>(loc, angle);
+        wStepRealVec =
+            builder.create<vector::BroadcastOp>(loc, vecType, wStepReal);
+
+        wStepImag = builder.create<math::SinOp>(loc, angle);
+        wStepImagVec =
+            builder.create<vector::BroadcastOp>(loc, vecType, wStepImag);
+
+        builder.create<scf::ForOp>(
+            loc, c0, outerIterVR[0], c1, ValueRange{},
+            [&](OpBuilder &builder, Location loc, ValueRange iv1, ValueRange) {
+              jBegin = builder.create<arith::MulIOp>(loc, iv1[0], subProbSize);
+              jEnd = builder.create<arith::AddIOp>(loc, jBegin, outerIterVR[1]);
+              wReal = builder.create<arith::ConstantFloatOp>(
+                  loc, (llvm::APFloat)1.0f, builder.getF32Type());
+              wImag = builder.create<arith::ConstantFloatOp>(
+                  loc, (llvm::APFloat)0.0f, builder.getF32Type());
+
+              wRealVec =
+                  builder.create<vector::BroadcastOp>(loc, vecType, wReal);
+              wImagVec =
+                  builder.create<vector::BroadcastOp>(loc, vecType, wImag);
+
+              // Vectorize stuff inside this loop (take care of tail processing
+              // as well)
+              builder.create<scf::ForOp>(
+                  loc, jBegin, jEnd, strideVal, ValueRange{wRealVec, wImagVec},
+                  [&](OpBuilder &builder, Location loc, ValueRange iv2,
+                      ValueRange wVR) {
+                    tmp1Real = builder.create<vector::LoadOp>(
+                        loc, vecType, memRefReal2D,
+                        ValueRange{rowIndex, iv2[0]});
+                    tmp1Imag = builder.create<vector::LoadOp>(
+                        loc, vecType, memRefImag2D,
+                        ValueRange{rowIndex, iv2[0]});
+
+                    Value secondIndex = builder.create<arith::AddIOp>(
+                        loc, iv2[0], outerIterVR[1]);
+                    tmp2RealTemp = builder.create<vector::LoadOp>(
+                        loc, vecType, memRefReal2D,
+                        ValueRange{rowIndex, secondIndex});
+                    tmp2ImagTemp = builder.create<vector::LoadOp>(
+                        loc, vecType, memRefImag2D,
+                        ValueRange{rowIndex, secondIndex});
+
+                    std::vector<Value> tmp2Vec =
+                        complexVecMulI(builder, loc, tmp2RealTemp, tmp2ImagTemp,
+                                       wVR[0], wVR[1]);
+
+                    std::vector<Value> int1Vec =
+                        complexVecAddI(builder, loc, tmp1Real, tmp1Imag,
+                                       tmp2Vec[0], tmp2Vec[1]);
+                    builder.create<vector::StoreOp>(
+                        loc, int1Vec[0], memRefReal2D,
+                        ValueRange{rowIndex, iv2[0]});
+                    builder.create<vector::StoreOp>(
+                        loc, int1Vec[1], memRefImag2D,
+                        ValueRange{rowIndex, iv2[0]});
+
+                    std::vector<Value> int2Vec =
+                        complexVecSubI(builder, loc, tmp1Real, tmp1Imag,
+                                       tmp2Vec[0], tmp2Vec[1]);
+                    builder.create<vector::StoreOp>(
+                        loc, int2Vec[0], memRefReal2D,
+                        ValueRange{rowIndex, secondIndex});
+                    builder.create<vector::StoreOp>(
+                        loc, int2Vec[1], memRefImag2D,
+                        ValueRange{rowIndex, secondIndex});
+
+                    std::vector<Value> wUpdate =
+                        complexVecMulI(builder, loc, wVR[0], wVR[1],
+                                       wStepRealVec, wStepImagVec);
+
+                    builder.create<scf::YieldOp>(
+                        loc, ValueRange{wUpdate[0], wUpdate[1]});
+                  });
+
+              builder.create<scf::YieldOp>(loc);
+            });
+        Value updatedSubProbs =
+            builder.create<arith::ShRSIOp>(loc, outerIterVR[0], c1);
+
+        builder.create<scf::YieldOp>(loc,
+                                     ValueRange{updatedSubProbs, subProbSize});
+      });
+
+  Value memRefLengthVec = builder.create<vector::BroadcastOp>(
+      loc, vecType, indexToF32(builder, loc, memRefLength));
+
+  builder.create<scf::ForOp>(
+      loc, c0, memRefLength, strideVal, ValueRange{},
+      [&](OpBuilder &builder, Location loc, ValueRange iv, ValueRange) {
+        Value tempVecReal = builder.create<vector::LoadOp>(
+            loc, vecType, memRefReal2D, ValueRange{rowIndex, iv[0]});
+        Value tempResVecReal =
+            builder.create<arith::DivFOp>(loc, tempVecReal, memRefLengthVec);
+        builder.create<vector::StoreOp>(loc, tempResVecReal, memRefReal2D,
+                                        ValueRange{rowIndex, iv[0]});
+
+        Value tempVecImag = builder.create<vector::LoadOp>(
+            loc, vecType, memRefImag2D, ValueRange{rowIndex, iv[0]});
+        Value tempResVecImag =
+            builder.create<arith::DivFOp>(loc, tempVecImag, memRefLengthVec);
+        builder.create<vector::StoreOp>(loc, tempResVecImag, memRefImag2D,
+                                        ValueRange{rowIndex, iv[0]});
+
+        builder.create<scf::YieldOp>(loc);
+      });
+}
+
+// Function for implementing Gentleman Sande Butterfly algortihm for calculating
+// discrete Fourier transform of invidiual 1D components of 2D input MemRef.
+// Separate MemRefs for real and imaginary parts are expected.
+void dft1DGentlemanSandeButterfly(OpBuilder &builder, Location loc,
+                                  Value memRefReal2D, Value memRefImag2D,
+                                  Value memRefLength, Value strideVal,
+                                  VectorType vecType, Value rowIndex, Value c0,
+                                  Value c1, int64_t step) {
+  // Gentleman Sande Butterfly algorithm implementation.
+  Value subProbs = c1, subProbSize = memRefLength, i, jBegin, jEnd, j, half,
+        angle;
+  Value wStepReal, wStepImag, wReal, wImag, tmp1Real, tmp1Imag, tmp2Real,
+      tmp2Imag;
+  Value wRealVec, wImagVec, wStepRealVec, wStepImagVec;
+
+  Value upperBound =
+      F32ToIndex(builder, loc,
+                 builder.create<math::Log2Op>(
+                     loc, indexToF32(builder, loc, memRefLength)));
+  Value neg2MPI = builder.create<arith::ConstantFloatOp>(
+      loc, (llvm::APFloat)(float)(-2.0 * M_PI), builder.getF32Type());
+
+  builder.create<scf::ForOp>(
+      loc, c0, upperBound, c1, ValueRange{subProbs, subProbSize},
+      [&](OpBuilder &builder, Location loc, ValueRange iv,
+          ValueRange outerIterVR) {
+        half = builder.create<arith::ShRSIOp>(loc, outerIterVR[1], c1);
+        angle = builder.create<arith::DivFOp>(
+            loc, neg2MPI, indexToF32(builder, loc, outerIterVR[1]));
+
+        wStepReal = builder.create<math::CosOp>(loc, angle);
+        wStepRealVec =
+            builder.create<vector::BroadcastOp>(loc, vecType, wStepReal);
+
+        wStepImag = builder.create<math::SinOp>(loc, angle);
+        wStepImagVec =
+            builder.create<vector::BroadcastOp>(loc, vecType, wStepImag);
+
+        builder.create<scf::ForOp>(
+            loc, c0, outerIterVR[0], c1, ValueRange{},
+            [&](OpBuilder &builder, Location loc, ValueRange iv1, ValueRange) {
+              jBegin =
+                  builder.create<arith::MulIOp>(loc, iv1[0], outerIterVR[1]);
+              jEnd = builder.create<arith::AddIOp>(loc, jBegin, half);
+              wReal = builder.create<arith::ConstantFloatOp>(
+                  loc, (llvm::APFloat)1.0f, builder.getF32Type());
+              wImag = builder.create<arith::ConstantFloatOp>(
+                  loc, (llvm::APFloat)0.0f, builder.getF32Type());
+
+              wRealVec =
+                  builder.create<vector::BroadcastOp>(loc, vecType, wReal);
+              wImagVec =
+                  builder.create<vector::BroadcastOp>(loc, vecType, wImag);
+
+              // Vectorize stuff inside this loop (take care of tail processing
+              // as well)
+              builder.create<scf::ForOp>(
+                  loc, jBegin, jEnd, strideVal, ValueRange{wRealVec, wImagVec},
+                  [&](OpBuilder &builder, Location loc, ValueRange iv2,
+                      ValueRange wVR) {
+                    tmp1Real = builder.create<vector::LoadOp>(
+                        loc, vecType, memRefReal2D,
+                        ValueRange{rowIndex, iv2[0]});
+                    tmp1Imag = builder.create<vector::LoadOp>(
+                        loc, vecType, memRefImag2D,
+                        ValueRange{rowIndex, iv2[0]});
+
+                    Value secondIndex =
+                        builder.create<arith::AddIOp>(loc, iv2[0], half);
+                    tmp2Real = builder.create<vector::LoadOp>(
+                        loc, vecType, memRefReal2D,
+                        ValueRange{rowIndex, secondIndex});
+                    tmp2Imag = builder.create<vector::LoadOp>(
+                        loc, vecType, memRefImag2D,
+                        ValueRange{rowIndex, secondIndex});
+
+                    std::vector<Value> int1Vec = complexVecAddI(
+                        builder, loc, tmp1Real, tmp1Imag, tmp2Real, tmp2Imag);
+                    builder.create<vector::StoreOp>(
+                        loc, int1Vec[0], memRefReal2D,
+                        ValueRange{rowIndex, iv2[0]});
+                    builder.create<vector::StoreOp>(
+                        loc, int1Vec[1], memRefImag2D,
+                        ValueRange{rowIndex, iv2[0]});
+
+                    std::vector<Value> int2Vec = complexVecSubI(
+                        builder, loc, tmp1Real, tmp1Imag, tmp2Real, tmp2Imag);
+                    std::vector<Value> int3Vec = complexVecMulI(
+                        builder, loc, int2Vec[0], int2Vec[1], wVR[0], wVR[1]);
+
+                    builder.create<vector::StoreOp>(
+                        loc, int3Vec[0], memRefReal2D,
+                        ValueRange{rowIndex, secondIndex});
+                    builder.create<vector::StoreOp>(
+                        loc, int3Vec[1], memRefImag2D,
+                        ValueRange{rowIndex, secondIndex});
+
+                    std::vector<Value> wUpdate =
+                        complexVecMulI(builder, loc, wVR[0], wVR[1],
+                                       wStepRealVec, wStepImagVec);
+
+                    builder.create<scf::YieldOp>(
+                        loc, ValueRange{wUpdate[0], wUpdate[1]});
+                  });
+
+              builder.create<scf::YieldOp>(loc);
+            });
+        Value updatedSubProbs =
+            builder.create<arith::ShLIOp>(loc, outerIterVR[0], c1);
+
+        builder.create<scf::YieldOp>(loc, ValueRange{updatedSubProbs, half});
+      });
+}
+
+// Function for applying inverse of discrete fourier transform on a 2D MemRef.
+// Separate MemRefs for real and imaginary parts are expected.
+void idft2D(OpBuilder &builder, Location loc, Value container2DReal,
+            Value container2DImag, Value container2DRows, Value container2DCols,
+            Value intermediateReal, Value intermediateImag, Value c0, Value c1,
+            Value strideVal, VectorType vecType) {
+  builder.create<AffineForOp>(
+      loc, ValueRange{c0}, builder.getDimIdentityMap(),
+      ValueRange{container2DRows}, builder.getDimIdentityMap(), 1, std::nullopt,
+      [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
+          ValueRange itrArg) {
+        idft1DCooleyTukeyButterfly(builder, loc, container2DReal,
+                                   container2DImag, container2DCols, strideVal,
+                                   vecType, iv, c0, c1, 1);
+
+        nestedBuilder.create<AffineYieldOp>(nestedLoc);
+      });
+
+  scalar2DMemRefTranspose(builder, loc, container2DReal, intermediateReal,
+                          container2DRows, container2DCols, container2DCols,
+                          container2DRows, c0);
+  scalar2DMemRefTranspose(builder, loc, container2DImag, intermediateImag,
+                          container2DRows, container2DCols, container2DCols,
+                          container2DRows, c0);
+
+  builder.create<AffineForOp>(
+      loc, ValueRange{c0}, builder.getDimIdentityMap(),
+      ValueRange{container2DCols}, builder.getDimIdentityMap(), 1, std::nullopt,
+      [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
+          ValueRange itrArg) {
+        idft1DCooleyTukeyButterfly(builder, loc, intermediateReal,
+                                   intermediateImag, container2DRows, strideVal,
+                                   vecType, iv, c0, c1, 1);
+
+        nestedBuilder.create<AffineYieldOp>(nestedLoc);
+      });
+
+  Value transposeCond = builder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::ne, container2DRows, container2DCols);
+  builder.create<scf::IfOp>(
+      loc, transposeCond,
+      [&](OpBuilder &builder, Location loc) {
+        scalar2DMemRefTranspose(builder, loc, intermediateReal, container2DReal,
+                                container2DCols, container2DRows,
+                                container2DRows, container2DCols, c0);
+        scalar2DMemRefTranspose(builder, loc, intermediateImag, container2DImag,
+                                container2DCols, container2DRows,
+                                container2DRows, container2DCols, c0);
+
+        builder.create<scf::YieldOp>(loc);
+      },
+      [&](OpBuilder &builder, Location loc) {
+        builder.create<memref::CopyOp>(loc, intermediateReal, container2DReal);
+        builder.create<memref::CopyOp>(loc, intermediateImag, container2DImag);
+
+        builder.create<scf::YieldOp>(loc);
+      });
+}
+
+// Function for applying discrete fourier transform on a 2D MemRef. Separate
+// MemRefs for real and imaginary parts are expected.
+void dft2D(OpBuilder &builder, Location loc, Value container2DReal,
+           Value container2DImag, Value container2DRows, Value container2DCols,
+           Value intermediateReal, Value intermediateImag, Value c0, Value c1,
+           Value strideVal, VectorType vecType) {
+  builder.create<AffineForOp>(
+      loc, ValueRange{c0}, builder.getDimIdentityMap(),
+      ValueRange{container2DRows}, builder.getDimIdentityMap(), 1, std::nullopt,
+      [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
+          ValueRange itrArg) {
+        dft1DGentlemanSandeButterfly(builder, loc, container2DReal,
+                                     container2DImag, container2DCols,
+                                     strideVal, vecType, iv, c0, c1, 1);
+
+        nestedBuilder.create<AffineYieldOp>(nestedLoc);
+      });
+
+  scalar2DMemRefTranspose(builder, loc, container2DReal, intermediateReal,
+                          container2DRows, container2DCols, container2DCols,
+                          container2DRows, c0);
+  scalar2DMemRefTranspose(builder, loc, container2DImag, intermediateImag,
+                          container2DRows, container2DCols, container2DCols,
+                          container2DRows, c0);
+
+  builder.create<AffineForOp>(
+      loc, ValueRange{c0}, builder.getDimIdentityMap(),
+      ValueRange{container2DCols}, builder.getDimIdentityMap(), 1, std::nullopt,
+      [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
+          ValueRange itrArg) {
+        dft1DGentlemanSandeButterfly(builder, loc, intermediateReal,
+                                     intermediateImag, container2DRows,
+                                     strideVal, vecType, iv, c0, c1, 1);
+
+        nestedBuilder.create<AffineYieldOp>(nestedLoc);
+      });
+
+  Value transposeCond = builder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::ne, container2DRows, container2DCols);
+  builder.create<scf::IfOp>(
+      loc, transposeCond,
+      [&](OpBuilder &builder, Location loc) {
+        scalar2DMemRefTranspose(builder, loc, intermediateReal, container2DReal,
+                                container2DCols, container2DRows,
+                                container2DRows, container2DCols, c0);
+        scalar2DMemRefTranspose(builder, loc, intermediateImag, container2DImag,
+                                container2DCols, container2DRows,
+                                container2DRows, container2DCols, c0);
+
+        builder.create<scf::YieldOp>(loc);
+      },
+      [&](OpBuilder &builder, Location loc) {
+        builder.create<memref::CopyOp>(loc, intermediateReal, container2DReal);
+        builder.create<memref::CopyOp>(loc, intermediateImag, container2DImag);
+
+        builder.create<scf::YieldOp>(loc);
+      });
 }
 
 } // namespace buddy

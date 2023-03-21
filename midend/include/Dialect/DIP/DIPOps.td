@@ -98,6 +98,31 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d"> {
   }];
 }
 
+def DIP_CorrFFT2DOp : DIP_Op<"corrfft_2d">
+{
+  let summary = [{ abc def ghi jkl mno pqr stu vwx yz }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemrefReal",
+                           [MemRead]>:$memrefIReal,
+                       Arg<AnyRankedOrUnrankedMemRef, "inputMemrefImag",
+                           [MemRead]>:$memrefIImag,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemrefReal",
+                           [MemRead]>:$memrefKReal,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemrefImag",
+                           [MemRead]>:$memrefKImag,
+                       Arg<AnyRankedOrUnrankedMemRef, "intermediateMemrefReal",
+                           [MemRead]>:$memrefIntReal,
+                       Arg<AnyRankedOrUnrankedMemRef, "intermediateMemrefImag",
+                           [MemRead]>:$memrefIntImag);
+
+  let assemblyFormat = [{
+    $memrefIReal `,` $memrefIImag `,` $memrefKReal `,` $memrefKImag `,` $memrefIntReal `,` 
+    $memrefIntImag attr-dict `:` 
+    type($memrefIReal) `,` type($memrefIImag) `,` type($memrefKReal) `,` 
+    type($memrefKImag) `,` type($memrefIntReal) `,` type($memrefIntImag)
+  }];
+}
+
 def DIP_Rotate2DOp : DIP_Op<"rotate_2d"> {
   let summary = [{This operation intends to provide utility for rotating images via the DIP dialect.
   Image rotation has many applications such as data augmentation, alignment adjustment, etc. and
