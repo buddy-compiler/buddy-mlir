@@ -32,8 +32,6 @@
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Value.h>
 
-#include <cmath>
-
 using namespace mlir;
 
 namespace buddy {
