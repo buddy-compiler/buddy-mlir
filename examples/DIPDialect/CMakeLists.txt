@@ -3,6 +3,10 @@ if(BUDDY_ENABLE_OPENCV)
   include_directories(${OpenCV_INCLUDE_DIRS})
 endif()
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -no-pie")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
+set(CMAKE_CXX_COMPILER ${LLVM_MLIR_BINARY_DIR}/clang++)
+
 add_executable(correlation2D correlation2D.cpp)
 target_link_libraries(correlation2D ${OpenCV_LIBS} BuddyLibDIP)
 
