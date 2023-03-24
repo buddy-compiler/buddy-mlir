@@ -11,9 +11,9 @@ add_llvm_tool(buddy-translate
 llvm_update_compile_flags(buddy-translate)
 target_link_libraries(buddy-translate
   PRIVATE
+  LLVMBuddyCore
   ${dialect_libs}
   ${translation_libs}
-  LLVMBuddyCore
   MLIRIR
   MLIRParser
   MLIRPass
