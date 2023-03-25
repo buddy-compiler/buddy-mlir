@@ -3,7 +3,8 @@ add_mlir_translation_library(BuddyRVVToLLVMIRTranslation
 
   DEPENDS
   BuddyRVVConversionsIncGen
-
+  buddy_intrinsics_gen
+  
   LINK_COMPONENTS
   Core
 
