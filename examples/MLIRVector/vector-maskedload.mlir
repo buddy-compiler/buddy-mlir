@@ -9,7 +9,8 @@ memref.global "private" @gv2 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 func.func private @printMemrefI32(memref<*xi32>)
 
 func.func @main() -> i32 {
-  // maskedload is load with mask, supporting to load 1-D vector into n-D memref with mask.
+  // maskedload is a load with a mask, supporting to load 
+  // an 1-D vector into a n-D memref with the mask.
 
   // preparation for examples
   %c0 = arith.constant 0 : index
@@ -25,7 +26,7 @@ func.func @main() -> i32 {
   %pass_thru_8 = arith.constant dense<[2330, 2331, 2332, 2333, 2334, 2335, 2336, 2337]> : vector<8xi32>
 
   // maskedload normal usage
-  // maskedload require a pass through value at any time
+  // maskedload requires a pass-through value at any time
   %mask0 = arith.constant dense<[1, 0, 1, 0]> : vector<4xi1>
   %v0 = vector.maskedload %base0[%c0], %mask0, %pass_thru_4
     : memref<8xi32>, vector<4xi1>, vector<4xi32> into vector<4xi32>
@@ -42,7 +43,7 @@ func.func @main() -> i32 {
 
   // maskedload with multi-dimension memref
   //    case 2: cross the most-inner dimension
-  // In this case, it will behavior like the memref is flat
+  // In this case, it will behave like the memref is flat
   %mask2 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
 
   %v2 = vector.maskedload %base1[%c0, %c0], %mask2, %pass_thru_8
@@ -67,8 +68,8 @@ func.func @main() -> i32 {
 
   // maskedload with dynamic memref
   //    case 2: out-of-bound
-  // it behavior likes vector.load -- it's a platform-specified operation
-  // In some platform, it will just load data in @gv2 when access is out-of-bound
+  // like vector.load, it's a platform-specific operation
+  // On some platforms, it will just load data in @gv2 when access is out-of-bound
   %base5 = memref.cast %base1 : memref<4x4xi32> to memref<?x?xi32>
   %mask5 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
 

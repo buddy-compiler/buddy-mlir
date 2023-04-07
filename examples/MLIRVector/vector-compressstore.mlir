@@ -16,7 +16,7 @@ func.func private @printMemrefI32(memref<*xi32>)
 
 func.func @main() -> i32 {
   // compressstore is the compressing version of maskedstore, supporting
-  // store 1-D vector into n-D memref with mask.
+  // store 1-D vector into n-D memref with a mask.
 
   // Unlike maskedstore, if a bit of vector is masked off, it will NOT occupy
   // a position in the memory. 
@@ -65,7 +65,7 @@ func.func @main() -> i32 {
 
   // compressstore with multi-dimension memref
   //    case 2: cross the most-inner dimension
-  // In this case, it will behavior like the memref is flat
+  // In this case, it will behave like the memref is flat
   %mask2 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
   %value2 = arith.constant dense<[300, 301, 302, 303, 304, 305, 306, 307]> : vector<8xi32>
 
@@ -80,9 +80,9 @@ func.func @main() -> i32 {
   // "3" is reserved for this example
 
   //============================================================================
-  // Tips: because keep using same memory region for all examples will make the 
-  // changes of memref looking very messed, so we change to another clean memref
-  // as our "base ptr" below. (%gv2)
+  // Tips: because keep using the same memory region for all examples will make 
+  // the changes of memref look very messed up, we change to another clean 
+  // memref as our "base ptr" below. (%gv2)
   //============================================================================
 
   // compressstore with dynamic memref
@@ -98,7 +98,7 @@ func.func @main() -> i32 {
 
 
   // compressstore with dynamic memref
-  //    case 2: what will happened if we store into somewhere out of bound?
+  //    case 2: what will happen if we store into somewhere out of bounds?
   %base5 = memref.cast %base2 : memref<4x4xi32> to memref<?x?xi32>
   %mask5 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
   %value5 = arith.constant dense<[500, 501, 502, 503, 504, 505, 506, 507]> : vector<8xi32>

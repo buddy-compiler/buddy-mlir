@@ -15,7 +15,8 @@ memref.global "private" @gv3 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 func.func private @printMemrefI32(memref<*xi32>)
 
 func.func @main() -> i32 {
-  // maskedstore is store with mask, supporting store 1-D vector into n-D memref with mask.
+  // maskedstore is a store with a mask, supporting store a 1-D vector 
+  // into an n-D memref with the mask.
 
   // preparation for examples
   %c0 = arith.constant 0 : index
@@ -57,7 +58,7 @@ func.func @main() -> i32 {
 
   // maskedstore with multi-dimension memref
   //    case 2: cross the most-inner dimension
-  // In this case, it will behavior like the memref is flat
+  // In this case, it will behave like the memref is flat
   %mask2 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
   %value2 = arith.constant dense<[300, 301, 302, 303, 304, 305, 306, 307]> : vector<8xi32>
 
@@ -72,8 +73,8 @@ func.func @main() -> i32 {
   // "3" is reserved for this example
 
   //============================================================================
-  // Tips: because keep using same memory region for all examples will make the 
-  // changes of memref looking very messed, so we change to another clean memref
+  // Tips: because keep using the same memory region for all examples will make the 
+  // changes of memref look very messed up, we change to another clean memref
   // as our "base ptr" below. (%gv2)
   //============================================================================
 
@@ -90,7 +91,7 @@ func.func @main() -> i32 {
 
 
   // maskedstore with dynamic memref
-  //    case 2: what will happened if we store into somewhere out of bound?
+  //    case 2: what will happen if we store into somewhere out of bounds?
   %base5 = memref.cast %base2 : memref<4x4xi32> to memref<?x?xi32>
   %mask5 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
   %value5 = arith.constant dense<[500, 501, 502, 503, 504, 505, 506, 507]> : vector<8xi32>

@@ -10,16 +10,16 @@ memref.global "private" @gv2 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 func.func private @printMemrefI32(memref<*xi32>)
 
 func.func @main() -> i32 {
-  // vector.gather is also load with mask, but loading element in custom order, 
+  // vector.gather is also a load with mask, but it load elements in a custom order, 
   // rather than sequentially:
   //    result[0] := mask[0] ? base[index[0]] : pass_thru[0]
   //    result[1] := mask[1] ? base[index[1]] : pass_thru[1]
   //    ...
-  // As a comparison, that's what vector.maskedload doing:
+  // As a comparison, that's what vector.maskedload does:
   //    result[0] := mask[0] ? base[0] : pass_thru[0]
   //    result[1] := mask[1] ? base[1] : pass_thru[1]
   //    ...
-  // But vector.gather support loading n-D vector.
+  // vector.gather supports loading n-D vector.
 
   // preparation for examples
   %c0 = arith.constant 0 : index
@@ -53,9 +53,9 @@ func.func @main() -> i32 {
   vector.print %v1 : vector<4xi32>
 
 
-  // for n-D vector, the element is numbered as if they are in flat memory
+  // for n-D vectors, the element is numbered as if they are in flat memory
   // In this example, we load a 2x2 vector at the center of a 4x4 memory, and
-  // they are numbered like the right hand side:
+  // they are numbered like the right-hand side:
   //  o o o o   |   o o o o
   //  o x x o   |   o 1 2 o
   //  o x x o   |   o 3 4 o
@@ -68,8 +68,8 @@ func.func @main() -> i32 {
   vector.print %v2 : vector<2x2xi32>
 
 
-  // For the same reason as vector.load, index can be negative or out-of-bound,
-  // the behavior will be specified by platform.
+  // For the same reason as vector.load, the indices can be negative or out-of-bound,
+  // and the behavior will be specified by platforms.
   %mask3 = arith.constant dense<1> : vector<2x2xi1>
   %index3 = arith.constant dense<[[-1, -8], [5, 13]]> : vector<2x2xi32>
 

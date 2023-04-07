@@ -5,7 +5,7 @@ memref.global "private" @gv1 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 func.func private @printMemrefI32(memref<*xi32>)
 
 func.func @main() -> i32 {
-  // vector.scatter is also store with mask, but storing element in custom order, 
+  // vector.scatter is also a store with a mask, but storing elements in a custom order, 
   // rather than sequentially:
   //    if (mask[0]) base[index[0]] = value[0]
   //    if (mask[1]) base[index[1]] = value[1]
@@ -50,8 +50,8 @@ func.func @main() -> i32 {
   func.call @printMemrefI32(%base0_print) : (memref<*xi32>) -> ()
 
 
-  // For the same reason as vector.store, index can be negative or out-of-bound,
-  // the behavior will be specified by platform.
+  // For the same reason as vector.store, the indices can be negative or out-of-bound,
+  // and the behavior will be specified by platforms.
   %mask2 = arith.constant dense<1> : vector<4xi1>
   %index2 = arith.constant dense<[-1, -2, 5, 10]> : vector<4xi32>
   %value2 = arith.constant dense<[1200, 1201, 1202, 1203]> : vector<4xi32>

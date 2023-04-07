@@ -49,7 +49,7 @@ func.func @main() -> i32 {
 
   // store with multi-dimension memref
   //    case 2: cross the most-inner dimension
-  // In this case, it will behavior like the memref is flat
+  // In this case, it will behave like the memref is flat
   %value2 = arith.constant dense<[300, 301, 302, 303, 304, 305, 306, 307]> : vector<8xi32>
   vector.store %value2, %base1[%c0, %c0] : memref<4x4xi32>, vector<8xi32>
   func.call @printMemrefI32(%gv1_for_print) : (memref<*xi32>) -> ()
@@ -61,7 +61,7 @@ func.func @main() -> i32 {
   %value3_0 = arith.constant dense<[300, 301, 302, 303]> : vector<4xi32>
   vector.store %value3_0, %base4[%c0] : memref<2xvector<4xi32>>, vector<4xi32>
 
-  // this one fail
+  // this one fails
   // %value3_1 = arith.constant dense<[[310, 311], [312, 312]]> : vector<2x2xi32>
   // vector.store %value3_1, %base4[%c1] : memref<2xvector<4xi32>>, vector<2x2xi32>
 
@@ -73,7 +73,7 @@ func.func @main() -> i32 {
   }
 
 
-  // store a n-D vector into memref
+  // store an n-D vector into memref
   // TODO: figure out why it failed. The document says it SHOULD work.
 
   // %value4 = arith.constant dense<[[400, 401], [402, 403]]> : vector<2x2xi32>
@@ -87,8 +87,8 @@ func.func @main() -> i32 {
   // "5" is reserved for this example
 
   //============================================================================
-  // Tips: because keep using same memory region for all examples will make the 
-  // changes of memref looking very messed, so we change to another clean memref
+  // Tips: because keep using the same memory region for all examples will make
+  // the changes of memref look very messed up, we change to another clean memref
   // as our "base ptr" below. (%gv2)
   //============================================================================
 
@@ -115,7 +115,7 @@ func.func @main() -> i32 {
 
   vector.store %value7, %base7[%c3, %c1] : memref<?x?xi32>, vector<8xi32>
 
-  // if you are lucky, you will see gv3 is changed by out-of-bound writing
+  // if you are lucky, you will see that gv3 is changed by out-of-bound writing
   func.call @printMemrefI32(%gv2_for_print) : (memref<*xi32>) -> ()
   func.call @printMemrefI32(%gv3_for_print) : (memref<*xi32>) -> ()
 

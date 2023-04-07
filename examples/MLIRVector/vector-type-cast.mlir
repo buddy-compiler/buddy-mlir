@@ -44,7 +44,7 @@ func.func @main() -> i32 {
 
   // This is buggy, so applying vector.type_cast to memref<a... x b x T> 
   // when b is not a power of 2 is not recommended yet, until we have a way to
-  // express platform-specified DataLayout (which contains align requirement) in MLIR.
+  // express platform-specific DataLayout (which contains align requirement) in MLIR.
 
   // If it hasn't be fixed, you will see "( ( 1, 2, 3 ), ( 5, 6, 0 ) )" instead
   // of "( ( 1, 2, 3 ), ( 4, 5, 6 ) )" with LLVM backend.
