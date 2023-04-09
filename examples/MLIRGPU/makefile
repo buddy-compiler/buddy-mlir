@@ -71,3 +71,13 @@ gpu-mma-run:
 vector-to-gpu-lower:
 	@${MLIR_OPT} vector-to-gpu.mlir -gpu-kernel-outlining | \
 	${MLIR_OPT} -pass-pipeline="builtin.module(func.func(convert-vector-to-gpu,canonicalize))" -o log.mlir 
+
+test-all: \
+	vector-to-gpu-lower
+
+cuda-test-all: \
+	test-all \
+	gpu-all-reduce-and-run \
+	gpu-launch-func-run \
+	async-execute-run \
+	gpu-mma-run 

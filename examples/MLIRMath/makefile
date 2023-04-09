@@ -72,3 +72,10 @@ math-rsqrt-asm-x86:
 		-mlir-to-llvmir | \
 	${LLC} ${OPT_FLAG} -mtriple=x86_64-unknown-linux-gnu -mattr=+avx512f \
 		--filetype=asm -o log.s
+
+math-rsqrt-asm-x86-test: math-rsqrt-asm-x86
+	@grep -q "vrsqrtps" log.s && echo "find vrsqrtps"
+
+test-all: \
+	math-atan2-run \
+	math-rsqrt-asm-x86-test

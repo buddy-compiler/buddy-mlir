@@ -7,3 +7,6 @@ emitc-include-emit:
 	@${MLIR_TRANSLATE} ./emitc-include.mlir \
 		-mlir-to-cpp \
 		-o log.cpp
+
+test-all: \
+	emitc-include-emit

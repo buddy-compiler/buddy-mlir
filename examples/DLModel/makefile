@@ -31,3 +31,5 @@ resnet-18-lower:
 		--convert-func-to-llvm \
 		--reconcile-unrealized-casts \
 		-o ./log.mlir
+
+test-all: resnet-18-lower

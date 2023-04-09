@@ -146,3 +146,12 @@ memref-reinterpret-cast-run:
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+# Make this depends on all target above
+test-all: \
+	memref-memory-run \
+	memref-subview-run \
+	memref-dim-run \
+	memref-rank-run \
+	memref-expand-shape-run \
+	memref-reinterpret-cast-run
