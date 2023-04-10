@@ -51,6 +51,9 @@ Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
               Value indexStart, Value strideVal, VectorType vecType, Value c0,
               int64_t stride);
 
+// Generate vector [0, 1, ..., length - 1]
+Value iotaVec0F32(OpBuilder &builder, Location loc, int64_t length);
+
 // Cast index type value to f32 type and then expand it in a vector.
 Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                     VectorType vecType);

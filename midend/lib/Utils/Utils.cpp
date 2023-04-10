@@ -32,6 +32,8 @@
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Value.h>
 
+#include <numeric>
+
 using namespace mlir;
 
 namespace buddy {
@@ -119,6 +121,17 @@ Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
       });
 
   return builder.create<vector::LoadOp>(loc, vecType, tempMem, ValueRange{c0});
+}
+
+Value iotaVec0F32(OpBuilder &builder, Location loc, int64_t length) {
+  MLIRContext *ctx = builder.getContext();
+  std::vector<float> vec(length);
+  std::iota(vec.begin(), vec.end(), .0);
+  Value res = builder.create<arith::ConstantOp>(
+      loc,
+      DenseFPElementsAttr::get(VectorType::get(length, FloatType::getF32(ctx)),
+                               ArrayRef<float>(vec)));
+  return res;
 }
 
 // Cast index type value to f32 type and then expand it in a vector.

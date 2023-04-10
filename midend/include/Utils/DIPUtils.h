@@ -111,6 +111,7 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
 // Calculate tan(angle / 2) where angle is a function parameter.
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal);
 
+// Get affine matrix used in rotation.
 SmallVector<Value, 6> getRotationMatrix(OpBuilder& builder, Location loc, Value centerX, Value centerY, Value angle, Value scale);
 
 // Controls affine transform application.
