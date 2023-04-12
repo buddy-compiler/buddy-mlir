@@ -13,6 +13,7 @@ target_link_libraries(buddy-translate
   PRIVATE
   ${dialect_libs}
   ${translation_libs}
+  LLVMBuddyCore
   MLIRIR
   MLIRParser
   MLIRPass

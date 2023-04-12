@@ -25,6 +25,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 
+#include "Target/LLVMIR/Dialect/Gemmini/GemminiToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/RVV/RVVToLLVMIRTranslation.h"
 
 using namespace buddy;
@@ -56,6 +57,7 @@ void registerBuddyToLLVMIRTranslation() {
         registerX86VectorDialectTranslation(registry);
         // Register translation in buddy project.
         registerRVVDialectTranslation(registry);
+        registerGemminiDialectTranslation(registry);
       });
 }
 } // namespace buddy
