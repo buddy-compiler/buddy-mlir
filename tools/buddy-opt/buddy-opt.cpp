@@ -42,6 +42,8 @@
 #include "RVV/RVVDialect.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
+#include "Gemmini/GemminiDialect.h"
+#include "Gemmini/GemminiOps.h"
 
 namespace mlir {
 namespace buddy {
@@ -55,6 +57,8 @@ void registerLowerRVVPass();
 void registerMatMulOptimizePass();
 void registerConvOptimizePass();
 void registerLowerVectorExpPass();
+void registerLowerGemminiPass();
+void registerLowerLinalgToGemminiPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -71,6 +75,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerDAPPass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
+  mlir::buddy::registerLowerGemminiPass();
+  mlir::buddy::registerLowerLinalgToGemminiPass();
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulOptimizePass();
@@ -85,7 +91,8 @@ int main(int argc, char **argv) {
                   buddy::dip::DIPDialect,
                   buddy::dap::DAPDialect,
                   buddy::rvv::RVVDialect,
-                  buddy::vector_exp::VectorExpDialect>();
+                  buddy::vector_exp::VectorExpDialect,
+                  buddy::gemmini::GemminiDialect>();
   // clang-format on
 
   return mlir::failed(

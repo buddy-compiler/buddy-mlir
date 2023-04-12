@@ -76,6 +76,7 @@ include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Interface)
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/midend/include/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/backend/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/lib)
 include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/frontend/Interfaces)
@@ -116,21 +117,6 @@ if(BUDDY_DSL_EXAMPLES)
     # add macros to generate ANTLR Cpp code from grammar
     find_package(ANTLR REQUIRED)
 endif()
-
-#-------------------------------------------------------------------------------
-# OpenMP setup
-#-------------------------------------------------------------------------------
-
-find_library(OPENMP_LIB omp PATHS ${LLVM_MLIR_BINARY_DIR}/../lib)
-if(OPENMP_LIB)
-    message("-- OpenMP FOUND")
-    set(CMAKE_CXX_COMPILER ${LLVM_MLIR_BINARY_DIR}/clang++)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -no-pie")
-    link_libraries(${OPENMP_LIB})
-else()
-    message("-- OpenMP NOT FOUND")
-endif()
-
 #-------------------------------------------------------------------------------
 # Directory setup
 #-------------------------------------------------------------------------------

@@ -3,14 +3,13 @@ add_mlir_translation_library(BuddyRVVToLLVMIRTranslation
 
   DEPENDS
   BuddyRVVConversionsIncGen
-
+  buddy_intrinsics_gen
+  
   LINK_COMPONENTS
   Core
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRLLVMDialect
   MLIRSupport
-  MLIRTargetLLVMIRExport
   BuddyRVV
   )
