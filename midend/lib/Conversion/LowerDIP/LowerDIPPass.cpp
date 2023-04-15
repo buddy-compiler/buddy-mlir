@@ -1366,7 +1366,7 @@ public:
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    /*dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Sep_Corr2DOp>(
+    dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Sep_Corr2DOp>(
         op, {input, kernelX, output, constantValue});
 
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
@@ -1375,7 +1375,7 @@ public:
     } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
-    }*/
+    }
 
     traverseImagewBoundaryExtrapolation(rewriter, loc, ctx, input, kernelX,
                                         output1, c0, centerY, constantValue,
