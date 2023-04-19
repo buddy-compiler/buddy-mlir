@@ -1,3 +1,6 @@
+# let the whole script failed if any command failed
+set -e
+
 if [ -z "$1" ]
 then
   llvm_build_dir="llvm/build"
