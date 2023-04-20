@@ -1,3 +1,12 @@
+// RUN: buddy-opt %s \
+// RUN:     -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+// RUN:     -convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+// RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
+// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
 #map0 = affine_map<(d0, d1) -> (d0 + d1 - 1)>
 module {
   func.func private @printMemrefF32(memref<*xf32>)
@@ -42,6 +51,11 @@ module {
     call @conv_2d(%image, %filter, %output) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
 
     // Print output.
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [8, 8] strides = [8, 1] data =
+    // CHECK-NEXT:     [
+    // CHECK-COUNT-7:    [9, 9, 9, 9, 9, 9, 9, 9],
+    // CHECK-NEXT:       [9, 9, 9, 9, 9, 9, 9, 9]
+    // CHECK-SAME:     ]
     %print_output = memref.cast %output : memref<?x?xf32> to memref<*xf32>
     call @printMemrefF32(%print_output) : (memref<*xf32>) -> ()
 

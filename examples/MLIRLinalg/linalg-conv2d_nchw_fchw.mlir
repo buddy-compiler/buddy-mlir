@@ -1,3 +1,12 @@
+// RUN: buddy-opt %s \
+// RUN:     -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+// RUN:     -convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
+// RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
+// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
 module {
   func.func private @printMemrefF32(memref<*xf32>)
   func.func @alloc_2d_filled_f32(%arg0: index, %arg1: index, %arg2: index, %arg3: index, %arg4: f32) -> memref<?x?x?x?xf32> {
@@ -51,6 +60,29 @@ module {
     %3 = memref.cast %output : memref<?x?x?x?xf32> to memref<*xf32>
 
     // Print output.
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [2, 2, 4, 4] strides = [32, 16, 4, 1] data =
+    // CHECK-NEXT:  [
+    // CHECK-SAME:    [
+    // CHECK-SAME:      [
+    // CHECK-COUNT-3:     [32, 32, 32, 32],
+    // CHECK-NEXT:        [32, 32, 32, 32]
+    // CHECK-SAME:      ],
+    // CHECK-NEXT:      [
+    // CHECK-COUNT-3:     [32, 32, 32, 32],
+    // CHECK-NEXT:        [32, 32, 32, 32]
+    // CHECK-SAME:      ]
+    // CHECK-SAME:    ],
+    // CHECK-NEXT:    [
+    // CHECK-SAME:      [
+    // CHECK-COUNT-3:     [32, 32, 32, 32],
+    // CHECK-NEXT:        [32, 32, 32, 32]
+    // CHECK-SAME:      ],
+    // CHECK-NEXT:      [
+    // CHECK-COUNT-3:     [32, 32, 32, 32],
+    // CHECK-NEXT:        [32, 32, 32, 32]
+    // CHECK-SAME:      ]
+    // CHECK-SAME:    ]
+    // CHECK-SAME:  ]
     call @printMemrefF32(%3) : (memref<*xf32>) -> ()
 
     memref.dealloc %output : memref<?x?x?x?xf32>

@@ -128,3 +128,11 @@ add_subdirectory(backend)
 add_subdirectory(tools)
 add_subdirectory(examples)
 add_subdirectory(tests)
+
+#-------------------------------------------------------------------------------
+# Target check-buddy
+#-------------------------------------------------------------------------------
+
+add_custom_target(check-buddy
+  DEPENDS check-examples check-tests
+)
