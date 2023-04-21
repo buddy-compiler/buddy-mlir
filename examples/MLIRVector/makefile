@@ -667,6 +667,4 @@ test-all: \
 	vector-transfer-read-run \
 	vector-transfer-write-run \
 	vector-contract-run \
-  vector-store-run
-
-
+	vector-store-run

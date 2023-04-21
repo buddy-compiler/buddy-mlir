@@ -294,4 +294,3 @@ test-all: \
 	tosa-sigmoid-run \
 	tosa-log-run \
 	tosa-add-run
-	
