@@ -156,3 +156,4 @@ module attributes {llvm.data_layout = ""} {
   }
 }
 ```
+Currently supported operators include: arith\_add, matmul.
