@@ -447,7 +447,7 @@ SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
 
 // Compute the inverse of the affine matrix
 // After inverting the matrix, the calculation of the affine transformation can
-// become x_new = m0 * x + m1 * y + m2 y_new = m3 * x + m4 * y + m5
+// become x_src = m0 * x_dst + m1 * y_dst + m2 y_src = m3 * x_dst + m4 * y_dst + m5
 inline void inverseAffineMatrix(OpBuilder &builder, Location loc,
                                 SmallVector<Value, 6> &affineMatrix) {
   Value c0F32 = builder.create<arith::ConstantOp>(
@@ -527,7 +527,7 @@ void affineTransformController(OpBuilder &builder, Location loc,
 
   MemRefType dynamicTypeI32 = MemRefType::get(ShapedType::kDynamic, IntegerType::get(ctx, 32));
 
-  // compute x*m0 and x*m3 and store the results into xMm0 and xMm3
+  // compute x*m0+m2 and x*m3+m5 and store the results into xMm0 and xMm3
   Value xMm0 = builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
   Value xMm3 = builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
 
@@ -547,14 +547,14 @@ void affineTransformController(OpBuilder &builder, Location loc,
                                 builderFor.create<AffineYieldOp>(locFor);
                               });
 
-  // set up block size to do loop tiling
-#define BLOCK_SZ 32
-
-#undef BLOCK_SZ
-
+  // core:
+  // x_src = x_dst * m0 + y_dst * m1 + m2
+  // y_src = x_dst * m3 + y_dst * m4 + m5
+  // first loop y
   builder.create<AffineForOp>(
       loc, ValueRange{c0Index}, builder.getDimIdentityMap(), ValueRange{outputRow}, builder.getDimIdentityMap(),
       1, std::nullopt, [&](OpBuilder &outerBuilder, Location outerLoc, ValueRange outerIvs, ValueRange outerIterArg) {
+        // precompute y vector (y_dst * m1/m4) since it won't change during x loop
         Value yF32 = indexToF32(outerBuilder, outerLoc, outerIvs[0]);
         Value yF32_0 = outerBuilder.create<arith::AddFOp>(
             outerLoc, affineMatrix[2],
@@ -568,13 +568,17 @@ void affineTransformController(OpBuilder &builder, Location loc,
         Value y1 = outerBuilder.create<arith::FPToUIOp>(outerLoc, builder.getI32Type(), yF32_1);
         Value y0Vec = outerBuilder.create<vector::SplatOp>(outerLoc, vectorTyI32, y0);
         Value y1Vec = outerBuilder.create<vector::SplatOp>(outerLoc, vectorTyI32, y1);
+        // then loop x
         outerBuilder.create<AffineForOp>(
             outerLoc, ValueRange{c0Index}, builder.getDimIdentityMap(), ValueRange{outputCol}, builder.getDimIdentityMap(),
             stride, std::nullopt, [&](OpBuilder &innerBuilder, Location innerLoc, ValueRange innerIvs, ValueRange innerIterArg) {
+              // load x_dst * m0/m3 + m2/m5 from memref
               Value x0Vec = innerBuilder.create<vector::LoadOp>(innerLoc, vectorTyI32, xMm0, innerIvs[0]);
               Value x1Vec = innerBuilder.create<vector::LoadOp>(innerLoc, vectorTyI32, xMm3, innerIvs[0]);
+              // compute x_src and y_src
               Value inputXVec = innerBuilder.create<arith::AddIOp>(innerLoc, x0Vec, y0Vec);
               Value inputYVec = innerBuilder.create<arith::AddIOp>(innerLoc, x1Vec, y1Vec);
+              // remapping
               innerBuilder.create<AffineForOp>(
                   innerLoc, ValueRange{c0Index}, builder.getDimIdentityMap(),
                   ValueRange{strideVal}, builder.getDimIdentityMap(), 1, std::nullopt,
@@ -620,86 +624,6 @@ void affineTransformController(OpBuilder &builder, Location loc,
       }
   );
 
-  /*
-  builder.create<scf::ParallelOp>(
-      loc,
-      ValueRange{c0, c0},
-      ValueRange{outputRow, outputCol},
-      ValueRange{c1, strideVal},
-      [&](OpBuilder &builderFn, Location locFn, ValueRange ivsFn) {
-        Value yVec = builderFn.create<vector::SplatOp>(
-            locFn, vectorTyF32, indexToF32(builderFn, locFn, ivsFn[0]));
-        Value delta = builderFn.create<vector::SplatOp>(
-            locFn, vectorTyF32, indexToF32(builderFn, locFn, ivsFn[1]));
-        Value xVec = builderFn.create<arith::AddFOp>(locFn, xVecInitial, delta);
-        Value x0Vec = builderFn.create<vector::LoadOp>(locFn, vectorTyF32, xMm0, ivsFn[1]);
-        Value x1Vec = builderFn.create<vector::LoadOp>(locFn, vectorTyF32, xMm3, ivsFn[1]);
-        Value y0Vec = builderFn.create<vector::FMAOp>(locFn, yVec, m1Vec, m2Vec);
-        Value y1Vec = builderFn.create<vector::FMAOp>(locFn, yVec, m4Vec, m5Vec);
-
-        // sourceXVec=(xVec*m0Vec*1024+(yVec*m1Vec+m2Vec)*1024+512)/1024
-        // sourceYVec=(xVec*m3Vec*1024+(yVec*m4Vec+m5Vec)*1024+512)/1024
-        // sourceXVec = ((int)(xVec * m0Vec * 1024) + (int)((yVec * m1Vec +
-        // m2Vec) * 1024) + 512) / 1024 sourceYVec = ((int)(xVec * m3Vec * 1024)
-        // + (int)((yVec * m4Vec + m5Vec) * 1024) + 512) / 1024
-
-        //Value inputXVec = getRes(m0Vec, m1Vec, m2Vec);
-        //Value inputYVec = getRes(m3Vec, m4Vec, m5Vec);
-        //Value inputXVec = builderFn.create<arith::AddFOp>(locFn, x0Vec, y1Vec);
-        //Value inputYVec = builderFn.create<arith::AddFOp>(locFn, x4Vec, y5Vec);
-
-        Value inputXVec = builderFn.create<arith::AddFOp>(locFn, x0Vec, y0Vec);
-        Value inputYVec = builderFn.create<arith::AddFOp>(locFn, x1Vec, y1Vec);
-
-        builderFn.create<AffineForOp>(
-            loc, ValueRange{c0}, builder.getDimIdentityMap(),
-            ValueRange{strideVal}, builder.getDimIdentityMap(), 1, std::nullopt,
-            [&](OpBuilder &builderFor, Location locFor, ValueRange ivsFor,
-                ValueRange iterArg) {
-              Value inputPixelX = builderFor.create<vector::ExtractElementOp>(
-                  locFor, inputXVec, ivsFor[0]);
-              Value inputPixelY = builderFor.create<vector::ExtractElementOp>(
-                  locFor, inputYVec, ivsFor[0]);
-              Value inputPixelXI = F32ToIndex(
-                  builderFor, locFor,
-                  builderFor.create<math::RoundOp>(locFor, inputPixelX));
-              Value inputPixelYI = F32ToIndex(
-                  builderFor, locFor,
-                  builderFor.create<math::RoundOp>(locFor, inputPixelY));
-
-              auto inBound = [&](Value lb, Value ub, Value val) {
-                Value greaterThanLb = builderFor.create<arith::CmpIOp>(
-                    locFor, arith::CmpIPredicate::sle, lb, val);
-                Value lowerThanUb = builderFor.create<arith::CmpIOp>(
-                    locFor, arith::CmpIPredicate::slt, val, ub);
-                return builderFor.create<arith::AndIOp>(locFor, greaterThanLb,
-                                                        lowerThanUb);
-              };
-              Value pixelInImage = builderFor.create<arith::AndIOp>(
-                  locFor, inBound(c0, inputRow, inputPixelYI),
-                  inBound(c0, inputCol, inputPixelXI));
-              builderFor.create<scf::IfOp>(
-                  locFor, pixelInImage,
-                  [&](OpBuilder &builderIf, Location locIf) {
-                    Value pixel = builderIf.create<memref::LoadOp>(
-                        locIf, input, ValueRange{inputPixelYI, inputPixelXI});
-                    Value outputPixelX =
-                        builderIf.create<vector::ExtractElementOp>(locIf, xVec,
-                                                                   ivsFor[0]);
-                    Value outputPixelXI =
-                        F32ToIndex(builderIf, locIf, outputPixelX);
-                    Value outputPixelYI = ivsFn[0];
-                    builderIf.create<memref::StoreOp>(
-                        locIf, pixel, output,
-                        ValueRange{outputPixelYI, outputPixelXI});
-                    builderIf.create<scf::YieldOp>(locIf);
-                  });
-
-              builderFor.create<AffineYieldOp>(locFor);
-            });
-        builderFn.create<scf::YieldOp>(locFn);
-      });
-*/
   builder.create<memref::DeallocOp>(loc, xMm0);
   builder.create<memref::DeallocOp>(loc, xMm3);
 

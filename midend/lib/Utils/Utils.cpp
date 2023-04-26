@@ -123,6 +123,7 @@ Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
   return builder.create<vector::LoadOp>(loc, vecType, tempMem, ValueRange{c0});
 }
 
+// Generate vector[0, 1, ..., length - 1] with f32 type
 Value iotaVec0F32(OpBuilder &builder, Location loc, int64_t length) {
   MLIRContext *ctx = builder.getContext();
   std::vector<float> vec(length);
