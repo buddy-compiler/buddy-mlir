@@ -6,5 +6,4 @@ add_library(WarpAffineUtils WarpAffineUtils.cpp)
 target_link_libraries(DIPUtils
   PRIVATE
   Utils
-  WarpAffineUtils
   )
