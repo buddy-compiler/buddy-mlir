@@ -182,3 +182,11 @@ tensor-insert-slice-run:
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+# TODO: tensor-insert-slice-run fails
+test-all: \
+	tensor-print-run \
+	tensor-collapse-shape-run \
+	tensor-extract-run \
+	tensor-from-elements-run \
+	tensor-insert-run

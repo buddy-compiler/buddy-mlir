@@ -29,3 +29,5 @@ jobs:
           key: build-${{ steps.llvm-build-dir.outputs.commit }}
       - name: Test build
         run: bash ./tests/Actions/TestBuild.sh  llvm/build-${{ steps.llvm-build-dir.outputs.commit }}
+      - name: Test Examples
+        run: bash ./tests/Actions/TestExamples.sh llvm/build-${{ steps.llvm-build-dir.outputs.commit }}

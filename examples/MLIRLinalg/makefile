@@ -161,3 +161,12 @@ linalg-conv2d_nchw_fchw-optimize-run:
 		-convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+# TODO: linalg-matmul-optimize-run is not working
+test-all: \
+	linalg-conv2d-run \
+	linalg-conv2d-tiling-run \
+	linalg-generic-run \
+	linalg-matmul-run \
+	linalg-conv2d_nchw_fchw-run \
+	linalg-conv2d_nchw_fchw-optimize-run

@@ -164,3 +164,11 @@ scf-do-while-run:
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+# TODO: scf-parallell-for-aot is not working
+test-all: \
+	scf-while-run \
+	scf-parallel-run \
+	scf-for-run \
+	scf-if-run \
+	scf-do-while-run

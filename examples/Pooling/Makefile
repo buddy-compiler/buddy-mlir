@@ -91,3 +91,13 @@ strided-dilated-mlir:
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+test-all: \
+	pool \
+	pool-mlir \
+	strided \
+	strided-mlir \
+	dilated \
+	dilated-mlir \
+	strided-dilated \
+	strided-dilated-mlir
