@@ -44,7 +44,6 @@ config.excludes = [
     'GemminiDialect',
     'MLIREmitC',
     'MLIRGPU',
-    'MLIRMath',
     'MLIRMemRef',
     'MLIRPDL',
     'MLIRPython',
