@@ -47,7 +47,6 @@ config.excludes = [
     'MLIRMemRef',
     'MLIRPDL',
     'MLIRPython',
-    'MLIRSCF',
     'MLIRTensor',
     'MLIRTOSA',
     'MLIRVector',
