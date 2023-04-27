@@ -1,3 +1,13 @@
+// RUN:	buddy-opt %s \
+// RUN:		--convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+// RUN:		-split-input-file -verify-diagnostics \
+// RUN:		--reconcile-unrealized-casts \
+// RUN:	| mlir-cpu-runner  -e main -entry-point-result=i32 \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
+
 memref.global "private" @gv0 : memref<2x4xi32> = dense<[[1, 2, 3, 4], [5, 6, 7, 8]]>
 memref.global "private" @gv1 : memref<2x3xi32> = dense<[[1, 2, 3], [4, 5, 6]]> 
 memref.global "private" @gv2 : memref<2xvector<3xi32>>
@@ -29,6 +39,7 @@ func.func @main() -> i32 {
   %m0 = vector.type_cast %mem0 : memref<2x4xi32> to memref<vector<2x4xi32>>
   
   %v0 = memref.load %m0[] : memref<vector<2x4xi32>>
+  // CHECK: ( ( 1, 2, 3, 4 ), ( 5, 6, 7, 8 ) )
   vector.print %v0 : vector<2x4xi32>
 
 
@@ -59,6 +70,7 @@ func.func @main() -> i32 {
   %m2 = vector.type_cast %mem2 : memref<2xvector<3xi32>> to memref<vector<2x3xi32>>
   
   %v2 = memref.load %m2[] : memref<vector<2x3xi32>>
+  //CHECK: ( ( 1, 2, 3 ), ( 4, 5, 6 ) )
   vector.print %v2 : vector<2x3xi32>
 
 

@@ -1,9 +1,20 @@
+// RUN: buddy-opt %s \
+// RUN:		 -arith-bufferize  -tensor-bufferize -linalg-bufferize \
+// RUN:	   -func-bufferize -buffer-deallocation -convert-linalg-to-loops \
+// RUN:	   -convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
+// RUN:		 -reconcile-unrealized-casts \
+// RUN:	| mlir-cpu-runner -e main -entry-point-result=void \
+// RUN:		-shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:   -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
+func.func private @printMemrefF32(%ptr : tensor<*xf32>)
+
 func.func @main() {
   %init = arith.constant dense<[1.0, 2.0, 3.0]> : tensor<3xf32>
   %tensor_unranked = tensor.cast %init : tensor<3xf32> to tensor<*xf32>
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 1 offset = 0 sizes = [3] strides = [1] data = 
+  // CHECK-NEXT: [1,  2,  3]
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
-
   return
 }
-
-func.func private @printMemrefF32(%ptr : tensor<*xf32>)
