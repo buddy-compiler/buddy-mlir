@@ -90,14 +90,14 @@ tensor-extract-run:
 tensor-extract-slice-lower:
 	@${MLIR_OPT} ./tensor-extract-slice.mlir \
 		-arith-bufferize  -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
+		-func-bufferize -buffer-deallocation -convert-linalg-to-loops -expand-strided-metadata \
 		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts -o ./log.mlir
 
 tensor-extract-slice-translate:
 	@${MLIR_OPT} ./tensor-extract-slice.mlir \
 		-arith-bufferize  -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
+		-func-bufferize -buffer-deallocation -convert-linalg-to-loops -expand-strided-metadata \
 		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
@@ -105,7 +105,7 @@ tensor-extract-slice-translate:
 tensor-extract-slice-run:
 	@${MLIR_OPT} ./tensor-extract-slice.mlir \
 		-arith-bufferize  -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
+		-func-bufferize -buffer-deallocation -convert-linalg-to-loops -expand-strided-metadata \
 		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
@@ -162,14 +162,14 @@ tensor-insert-run:
 tensor-insert-slice-lower:
 	@${MLIR_OPT} ./tensor-insert-slice.mlir \
 		-arith-bufferize  -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
+		-func-bufferize -buffer-deallocation -convert-linalg-to-loops -expand-strided-metadata \
 		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts -o ./log.mlir
 
 tensor-insert-slice-translate:
 	@${MLIR_OPT} ./tensor-insert-slice.mlir \
 		-arith-bufferize  -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
+		-func-bufferize -buffer-deallocation -convert-linalg-to-loops -expand-strided-metadata \
 		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
@@ -177,7 +177,7 @@ tensor-insert-slice-translate:
 tensor-insert-slice-run:
 	@${MLIR_OPT} ./tensor-insert-slice.mlir \
 		-arith-bufferize  -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
+		-func-bufferize -buffer-deallocation -convert-linalg-to-loops -expand-strided-metadata \
 		-convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \

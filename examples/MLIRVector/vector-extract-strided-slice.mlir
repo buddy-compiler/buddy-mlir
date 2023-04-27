@@ -1,3 +1,11 @@
+// RUN: buddy-opt %s \
+// RUN:     -convert-vector-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -reconcile-unrealized-casts \
+// RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
 func.func @main() -> i32 {
   // vector.extract_strided_slice can extract elements from a vector with 
   // offsets and strides, then group them into a new vector.
@@ -18,6 +26,7 @@ func.func @main() -> i32 {
   %w0 = vector.extract_strided_slice %base 
     { offsets = [0, 0], sizes = [2, 2], strides = [1, 1] }
     : vector<4x4xi32> to vector<2x2xi32>
+  // CHECK: ( ( 0, 1 ), ( 10, 11 ) )
   vector.print %w0 : vector<2x2xi32>
 
 
@@ -36,9 +45,11 @@ func.func @main() -> i32 {
   %w1_2 = vector.extract_strided_slice %base 
     { offsets = [1, 1], sizes = [2, 2], strides = [1, 1] }
     : vector<4x4xi32> to vector<2x2xi32>
-
+  // CHECK: ( ( 10, 11 ), ( 20, 21 ) )
   vector.print %w1_0 : vector<2x2xi32>
+  // CHECk: ( ( 1, 2 ), ( 11, 12 ) )
   vector.print %w1_1 : vector<2x2xi32>
+  // CHECk: ( ( 11, 12 ), ( 21, 22 ) )
   vector.print %w1_2 : vector<2x2xi32>
 
 
@@ -85,6 +96,8 @@ func.func @main() -> i32 {
   %w3 = vector.extract_strided_slice %big_base 
     { offsets = [1, 0, 0], sizes = [2, 3, 3], strides = [1, 1, 1] } 
     : vector<4x4x4xi32> to vector<2x3x3xi32>
+  // CHECK: ( ( ( 1, 11, 21 ), ( 101, 111, 121 ), ( 201, 211, 221 ) ),
+  // CHECK-SAME: ( ( 2, 12, 22 ), ( 102, 112, 122 ), ( 202, 212, 222 ) ) )
   vector.print %w3 : vector<2x3x3xi32>
 
 
@@ -106,8 +119,13 @@ func.func @main() -> i32 {
     { offsets = [1, 0, 0], sizes = [1, 3, 3], strides = [1, 1, 1] }
     : vector<4x4x4xi32> to vector<1x3x3xi32>
   %w4_2 = vector.extract %t2[0] : vector<1x3x3xi32>
-
+  // CHECK: ( ( 1, 11, 21 ), 
+  // CHECK-SAME: ( 101, 111, 121 ), 
+  // CHECK-SAME: ( 201, 211, 221 ) )
   vector.print %w4_1 : vector<3x3xi32>
+  // CHECK: ( ( 1, 11, 21 ),
+  // CHECK: ( 101, 111, 121 ),
+  // CHECK: ( 201, 211, 221 ) )
   vector.print %w4_2 : vector<3x3xi32>
 
   %ret = arith.constant 0 : i32

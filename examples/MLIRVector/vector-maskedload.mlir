@@ -1,3 +1,11 @@
+// RUN: buddy-opt %s \
+// RUN:     -convert-vector-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -split-input-file -verify-diagnostics -reconcile-unrealized-casts \
+// RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
 memref.global "private" @gv0 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 
 memref.global "private" @gv1 : memref<4x4xi32> = dense<[[0, 1, 2, 3],
@@ -38,6 +46,7 @@ func.func @main() -> i32 {
 
   %v1 = vector.maskedload %base1[%c0, %c0], %mask1, %pass_thru_4
     : memref<4x4xi32>, vector<4xi1>, vector<4xi32> into vector<4xi32>
+  // CHECK: ( 0, 2331, 2332, 3 )
   vector.print %v1 : vector<4xi32>
 
 
@@ -48,6 +57,7 @@ func.func @main() -> i32 {
 
   %v2 = vector.maskedload %base1[%c0, %c0], %mask2, %pass_thru_8
     : memref<4x4xi32>, vector<8xi1>, vector<8xi32> into vector<8xi32>
+  // CHECK: ( 0, 2331, 2, 3, 4, 5, 2336, 2337 )
   vector.print %v2 : vector<8xi32>
 
 
@@ -63,6 +73,7 @@ func.func @main() -> i32 {
 
   %v4 = vector.maskedload %base4[%c1, %c1], %mask4, %pass_thru_8
     : memref<?x?xi32>, vector<8xi1>, vector<8xi32> into vector<8xi32>
+  // CHECK: ( 5, 2331, 7, 8, 9, 10, 2336, 2337 )
   vector.print %v4 : vector<8xi32>
 
 
@@ -75,6 +86,7 @@ func.func @main() -> i32 {
 
   %v5 = vector.maskedload %base5[%c3, %c1], %mask5, %pass_thru_8
     : memref<?x?xi32>, vector<8xi1>, vector<8xi32> into vector<8xi32>
+  // CHECK: ( 13, 2331, 15, 0, 1, 2, 2336, 2337 )
   vector.print %v5 : vector<8xi32>
 
 
