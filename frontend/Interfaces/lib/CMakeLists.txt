@@ -1,6 +1,7 @@
 if (${BUDDY_DIP_OPT_STRIP_MINING})
     set(SPLITING_SIZE ${BUDDY_DIP_OPT_STRIP_MINING})
 elseif (HAVE_AVX512)
+    # TODO: current rotation generates wrong image using avx512
     set(SPLITING_SIZE 256)
 elseif (HAVE_AVX2)
     set(SPLITING_SIZE 16)
@@ -16,11 +17,8 @@ add_custom_command(OUTPUT DIP.o
         -lower-dip="DIP-strip-mining=${SPLITING_SIZE}"
         -arith-expand
         -lower-affine
-        -convert-scf-to-openmp
-        -convert-async-to-llvm
         -convert-memref-to-llvm
         -convert-scf-to-cf
-        -convert-openmp-to-llvm
         -convert-math-to-llvm
         -convert-vector-to-llvm
         -convert-func-to-llvm
