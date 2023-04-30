@@ -31,6 +31,7 @@ add_custom_command(OUTPUT DIP.o
         -mattr=${BUDDY_OPT_ATTR}
         --filetype=obj
         -o ${CMAKE_CURRENT_BINARY_DIR}/DIP.o
+        DEPENDS buddy-opt
         )
 
 add_library(BuddyLibDIP STATIC DIP.o)
