@@ -46,6 +46,9 @@ Value roundOff(OpBuilder &builder, Location loc, Value val);
 Value valBound(OpBuilder &builder, Location loc, Value val, Value lastElemF32,
                Value c0F32);
 
+// check if lb <= val < ub and returns Value 0 or 1
+Value inBound(OpBuilder &builder, Location loc, Value val, Value lb, Value ub);
+
 // Equivalent of std::iota.
 Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
               Value indexStart, Value strideVal, VectorType vecType, Value c0,
@@ -57,6 +60,15 @@ Value iotaVec0F32(OpBuilder &builder, Location loc, int64_t length);
 // Cast index type value to f32 type and then expand it in a vector.
 Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                     VectorType vecType);
+
+// print float32 value(for debug use)
+void printF32(OpBuilder &builder, Location loc, Value val);
+
+// print int32 value(for debug use)
+void printI32(OpBuilder &builder, Location loc, Value val);
+
+// print index value(for debug use)
+void printIndex(OpBuilder &builder, Location loc, Value val);
 
 } // namespace buddy
 

@@ -100,6 +100,13 @@ Value valBound(OpBuilder &builder, Location loc, Value val, Value lastElemF32,
   return builder.create<arith::MinFOp>(loc, interm1, lastElemF32);
 }
 
+// check if lb <= val < ub and returns Value 0 or 1
+Value inBound(OpBuilder &builder, Location loc, Value val, Value lb, Value ub) {
+  Value greaterThanLb = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sle, lb, val);
+  Value lowerThanUb = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, val, ub);
+  return builder.create<arith::AndIOp>(loc, greaterThanLb, lowerThanUb);
+}
+
 // Equivalent of std::iota.
 Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
               Value indexStart, Value strideVal, VectorType vecType, Value c0,
@@ -140,6 +147,28 @@ Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                     VectorType vecType) {
   Value interm1 = indexToF32(builder, loc, val);
   return builder.create<vector::SplatOp>(loc, vecType, interm1);
+}
+
+// print float32 value(for debug use)
+void printF32(OpBuilder &builder, Location loc, Value val) {
+  VectorType ty = VectorType::get({1}, Float32Type::get(builder.getContext()));
+  Value vec = builder.create<vector::SplatOp>(loc, ty, val);
+  builder.create<vector::PrintOp>(loc, vec);
+}
+
+// print int32 value(for debug use)
+void printI32(OpBuilder &builder, Location loc, Value val) {
+  VectorType ty = VectorType::get({1}, IntegerType::get(builder.getContext(), 32));
+  Value vec = builder.create<vector::SplatOp>(loc, ty, val);
+  builder.create<vector::PrintOp>(loc, vec);
+}
+
+// print index value(for debug use)
+void printIndex(OpBuilder &builder, Location loc, Value val) {
+  VectorType ty = VectorType::get({1}, IntegerType::get(builder.getContext(), 32));
+  Value valI = builder.create<arith::IndexCastOp>(loc, IntegerType::get(builder.getContext(), 32), val);
+  Value vec = builder.create<vector::SplatOp>(loc, ty, valI);
+  builder.create<vector::PrintOp>(loc, vec);
 }
 
 } // namespace buddy
