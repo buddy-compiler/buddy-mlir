@@ -40,19 +40,19 @@ bool testImages(cv::Mat img1, cv::Mat img2) {
     return 0;
   }
 
-  // for (std::ptrdiff_t i = 0; i < img1.cols; ++i) {
-  //   for (std::ptrdiff_t j = 0; j < img1.rows; ++j) {
-  //     if (img1.at<uchar>(i, j) != img2.at<uchar>(i, j)) {
-  //       std::cout << "Pixels not equal at : (" << i << "," << j << ")\n";
-  //       std::cout << (int)img1.at<uchar>(i, j) << "\n";
-  //       std::cout << (int)img2.at<uchar>(i, j) << "\n\n";
+  for (std::ptrdiff_t i = 0; i < img1.cols; ++i) {
+    for (std::ptrdiff_t j = 0; j < img1.rows; ++j) {
+      if (img1.at<uchar>(i, j) != img2.at<uchar>(i, j)) {
+        std::cout << "Pixels not equal at : (" << i << "," << j << ")\n";
+        std::cout << (int)img1.at<uchar>(i, j) << "\n";
+        std::cout << (int)img2.at<uchar>(i, j) << "\n\n";
 
-  //       std::cout << img1 << "\n\n";
-  //       std::cout << img2 << "\n\n";
-  //       return 0;
-  //     }
-  //   }
-  // }
+        std::cout << img1 << "\n\n";
+        std::cout << img2 << "\n\n";
+        return 0;
+      }
+    }
+  }
   return 1;
 }
 
