@@ -71,7 +71,8 @@ float logKernelAlign[25] = {0, 0, 1, 0, 0,
 int logKernelRows = 5;
 int logKernelCols = 5;
 
-float crossKernelAlign3x3[9] = {0,1,0,1,1,1,0,1,0};
+// float crossKernelAlign3x3[9] = {0,0,0,0,0,0,0,0,0};
+float crossKernelAlign3x3[9] = {1,1,1,1,1,1,1,1,1};
 int crossKernelRows3x3 = 3;
 int crossKernelCols3x3 = 3;
 
