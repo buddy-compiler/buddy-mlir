@@ -162,7 +162,7 @@ def LOOP_CONV_WS_CONFIG6 : RVInstR<0b0010101, 0b011, OPC_CUSTOM_3, (outs),
 }
 
 let Predicates = [HasBuddyExt] in
-def: PatGprGpr<int_riscv_mvin, MVIN>;
+def : PatGprGpr<int_riscv_mvin, MVIN>;
 
 let Predicates = [HasBuddyExt] in
 def : PatGprGpr<int_riscv_mvout, MVOUT>;
