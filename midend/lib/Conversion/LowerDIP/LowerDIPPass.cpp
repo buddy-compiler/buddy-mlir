@@ -126,8 +126,6 @@ public:
                                << inElemTy << "is passed";
     }
 
-    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
-
     // Create constant indices.
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
@@ -141,24 +139,6 @@ public:
     // Get output image dimensions.
     Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
     Value outputCol = rewriter.create<memref::DimOp>(loc, output, c1);
-
-    // Determine lower bound for second call of rotation function (this is done
-    // for efficient tail processing).
-    Value inputColStrideRatio =
-        rewriter.create<arith::DivUIOp>(loc, inputCol, strideVal);
-    Value inputColMultiple =
-        rewriter.create<arith::MulIOp>(loc, strideVal, inputColStrideRatio);
-
-    // Bounds for first call to rotation function (doesn't involve tail
-    // processing).
-    SmallVector<Value, 8> lowerBounds1(2, c0);
-    SmallVector<Value, 8> upperBounds1{inputRow, inputColMultiple};
-
-    // Bounds for second call to rotation function (involves tail processing).
-    SmallVector<Value, 8> lowerBounds2{c0, inputColMultiple};
-    SmallVector<Value, 8> upperBounds2{inputRow, inputCol};
-
-    SmallVector<int64_t, 8> steps{1, stride};
 
     // let alpha = scale * cos(angle), beta = scale * sin(angle)
     // the affine matrix would be as follow:
