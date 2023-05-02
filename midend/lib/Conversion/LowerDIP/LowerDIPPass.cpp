@@ -437,7 +437,7 @@ public:
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -455,7 +455,7 @@ public:
               rewriter, loc, ctx, input, kernel, output, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::EROSION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
     // Remove the origin erosion operation.
@@ -509,7 +509,7 @@ public:
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -527,7 +527,7 @@ public:
               rewriter, loc, ctx, input, kernel, output, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::DILATION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
     // Remove the origin dilation operation.
@@ -583,7 +583,7 @@ public:
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -601,10 +601,10 @@ public:
               rewriter, loc, ctx, input, kernel, output1, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::EROSION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -622,7 +622,7 @@ public:
               rewriter, loc, ctx, output1, kernel, output, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::DILATION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
     // Remove the origin opening operation.
@@ -678,7 +678,7 @@ public:
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -696,10 +696,10 @@ public:
               rewriter, loc, ctx, input, kernel, output1, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::DILATION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -717,7 +717,7 @@ public:
               rewriter, loc, ctx, output1, kernel, output, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::EROSION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
     // Remove the origin closing operation.
@@ -779,7 +779,7 @@ public:
                                << inElemTy << "is passed";
     }
     rewriter.create<memref::CopyOp>(loc, input, input1);
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -797,10 +797,10 @@ public:
               rewriter, loc, ctx, input1, kernel, output1, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::EROSION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -818,7 +818,7 @@ public:
               rewriter, loc, ctx, output1, kernel, output2, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::DILATION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
     Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
@@ -836,7 +836,7 @@ public:
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
     if (inElemTy.isF32() || inElemTy.isF64()) {
-      buildAffineLoopNest(
+      affine::buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
             Value pseudoCol =
@@ -880,7 +880,7 @@ public:
 
       );
     } else if (inElemTy.isInteger(bitWidth)) {
-      buildAffineLoopNest(
+      affine::buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
             Value pseudoCol =
@@ -984,7 +984,7 @@ public:
                                << inElemTy << "is passed";
     }
     rewriter.create<memref::CopyOp>(loc, input, input1);
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -1002,10 +1002,10 @@ public:
               rewriter, loc, ctx, input1, kernel, output1, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::DILATION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -1023,7 +1023,7 @@ public:
               rewriter, loc, ctx, output1, kernel, output2, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::EROSION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
     Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
@@ -1042,7 +1042,7 @@ public:
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
     if (inElemTy.isF32() || inElemTy.isF64()) {
-      buildAffineLoopNest(
+      affine::buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
             Value pseudoCol =
@@ -1086,7 +1086,7 @@ public:
 
       );
     } else if (inElemTy.isInteger(bitWidth)) {
-      buildAffineLoopNest(
+      affine::buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
             Value pseudoCol =
@@ -1186,7 +1186,7 @@ public:
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     rewriter.create<memref::CopyOp>(loc, input, input1);
 
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -1204,10 +1204,10 @@ public:
               rewriter, loc, ctx, input, kernel, output1, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::DILATION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
-    rewriter.create<AffineForOp>(
+    rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
         std::nullopt,
@@ -1225,7 +1225,7 @@ public:
               rewriter, loc, ctx, input1, kernel, output2, centerX, centerY,
               constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
               dip::DIP_OP::EROSION_2D);
-          builder.create<AffineYieldOp>(loc);
+          builder.create<affine::AffineYieldOp>(loc);
         });
 
     Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
@@ -1244,7 +1244,7 @@ public:
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
     if (inElemTy.isF32() || inElemTy.isF64()) {
-      buildAffineLoopNest(
+      affine::buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
             Value pseudoCol =
@@ -1288,7 +1288,7 @@ public:
 
       );
     } else if (inElemTy.isInteger(bitWidth)) {
-      buildAffineLoopNest(
+      affine::buildAffineLoopNest(
           rewriter, loc, lowerbounds4, upperbounds4, steps4,
           [&](OpBuilder &builder, Location loc, ValueRange ivs4) {
             Value pseudoCol =
@@ -1375,7 +1375,8 @@ public:
     registry
         .insert<buddy::dip::DIPDialect, func::FuncDialect,
                 memref::MemRefDialect, scf::SCFDialect, vector::VectorDialect,
-                AffineDialect, arith::ArithDialect, math::MathDialect>();
+                affine::AffineDialect, arith::ArithDialect,
+                math::MathDialect>();
   }
 
   Option<int64_t> stride{*this, "DIP-strip-mining",
@@ -1389,9 +1390,10 @@ void LowerDIPPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<AffineDialect, scf::SCFDialect, func::FuncDialect,
-                         memref::MemRefDialect, vector::VectorDialect,
-                         arith::ArithDialect, math::MathDialect>();
+  target.addLegalDialect<affine::AffineDialect, scf::SCFDialect,
+                         func::FuncDialect, memref::MemRefDialect,
+                         vector::VectorDialect, arith::ArithDialect,
+                         math::MathDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);

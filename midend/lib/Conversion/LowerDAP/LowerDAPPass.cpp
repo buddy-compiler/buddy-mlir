@@ -332,7 +332,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<buddy::dap::DAPDialect, func::FuncDialect,
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
-                    AffineDialect, arith::ArithDialect>();
+                    affine::AffineDialect, arith::ArithDialect>();
   }
   Option<int64_t> stride{*this, "DAP-vector-splitting",
                          llvm::cl::desc("Vector splitting size."),
@@ -345,9 +345,10 @@ void LowerDAPPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<AffineDialect, scf::SCFDialect, func::FuncDialect,
-                         memref::MemRefDialect, VectorDialect,
-                         arith::ArithDialect, linalg::LinalgDialect>();
+  target.addLegalDialect<affine::AffineDialect, scf::SCFDialect,
+                         func::FuncDialect, memref::MemRefDialect,
+                         VectorDialect, arith::ArithDialect,
+                         linalg::LinalgDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);

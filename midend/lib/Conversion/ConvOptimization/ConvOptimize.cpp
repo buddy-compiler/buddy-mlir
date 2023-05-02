@@ -76,49 +76,49 @@ public:
     Value buffer = rewriter.create<memref::AllocOp>(loc, bufferTy);
 
     // Step 1: Create outer most loops.
-    buildAffineLoopNest(rewriter, loc, c0, a, 1, [&](OpBuilder &, Location loc, ValueRange ivRange) {
+    affine::buildAffineLoopNest(rewriter, loc, c0, a, 1, [&](OpBuilder &, Location loc, ValueRange ivRange) {
       Value ivA = ivRange.front();
-      buildAffineLoopNest(rewriter, loc, c0, b, 1, [&](OpBuilder &, Location loc, ValueRange ivRange) {
+      affine::buildAffineLoopNest(rewriter, loc, c0, b, 1, [&](OpBuilder &, Location loc, ValueRange ivRange) {
         Value ivB = ivRange.front();
-        buildAffineLoopNest(rewriter, loc, c0, d, 1, [&](OpBuilder &, Location loc, ValueRange ivRange) {
+        affine::buildAffineLoopNest(rewriter, loc, c0, d, 1, [&](OpBuilder &, Location loc, ValueRange ivRange) {
           Value ivD = ivRange.front();
-          buildAffineLoopNest(rewriter, loc, c0, c, 1, [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
+          affine::buildAffineLoopNest(rewriter, loc, c0, c, 1, [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
             Value ivC = ivRange.front();
             Value t = builder.create<SplatOp>(loc, vecTy, cf0);
             builder.create<memref::StoreOp>(loc, t, buffer, c0);
-            buildAffineLoopNest(rewriter, loc, c0, e, 1, [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
+            affine::buildAffineLoopNest(rewriter, loc, c0, e, 1, [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
               Value ivE = ivRange.front();
 
-              Value fixed = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0.ceilDiv(kernelM) * kernelM), ValueRange{f});
+              Value fixed = builder.create<affine::AffineApplyOp>(loc, AffineMap::get(1, 0, d0.ceilDiv(kernelM) * kernelM), ValueRange{f});
 
-              buildAffineLoopNest(rewriter, loc, c0, fixed, kernelM, [&]([[maybe_unused]] OpBuilder &builder, Location loc, ValueRange ivRange) {
+              affine::buildAffineLoopNest(rewriter, loc, c0, fixed, kernelM, [&]([[maybe_unused]] OpBuilder &builder, Location loc, ValueRange ivRange) {
                 Value ivF = ivRange.front();
-                buildAffineLoopNest(rewriter, loc, c0, g, kernelN * vecSize, [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
+                affine::buildAffineLoopNest(rewriter, loc, c0, g, kernelN * vecSize, [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
                   Value ivG = ivRange.front();
 
                   SmallVector<Value> iList;
                   SmallVector<Value> fList;
                   for (int i = 0; i < kernelM; ++i) {
-                    Value rowInput = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + i + d1), ValueRange{ivC, ivF});
-                    Value rowFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + i), ivF);
+                    Value rowInput = builder.create<affine::AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + i + d1), ValueRange{ivC, ivF});
+                    Value rowFilter = builder.create<affine::AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + i), ivF);
                     for (int j = 0; j < kernelN; ++j) {
-                      Value columnInput = builder.create<AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1 + j * vecSize), ValueRange{ivD, ivG});
-                      Value columnFilter = builder.create<AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + j * vecSize), ivG);
+                      Value columnInput = builder.create<affine::AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1 + j * vecSize), ValueRange{ivD, ivG});
+                      Value columnFilter = builder.create<affine::AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + j * vecSize), ivG);
 
                       Value i = builder.create<TransferReadOp>(loc, vecTy, input, ValueRange{ivA, ivE, rowInput, columnInput});
 
                       auto protectedF =
-                          builder.create<AffineIfOp>(loc, vecTy, IntegerSet::get(1, 1, {s0 - 1 - d0}, {false}), ValueRange{rowFilter, f}, true);
+                          builder.create<affine::AffineIfOp>(loc, vecTy, IntegerSet::get(1, 1, {s0 - 1 - d0}, {false}), ValueRange{rowFilter, f}, true);
 
                       // if row in range, read normally.
                       auto thenBuilder = protectedF.getThenBodyBuilder();
                       Value normalReadVec = thenBuilder.create<TransferReadOp>(loc, vecTy, filter, ValueRange{ivB, ivE, rowFilter, columnFilter});
-                      thenBuilder.create<AffineYieldOp>(loc, normalReadVec);
+                      thenBuilder.create<affine::AffineYieldOp>(loc, normalReadVec);
 
                       // if row out of range, give back a empty vector.
                       auto elseBuilder = protectedF.getElseBodyBuilder();
                       Value emptyVec = elseBuilder.create<SplatOp>(loc, vecTy, cf0);
-                      elseBuilder.create<AffineYieldOp>(loc, emptyVec);
+                      elseBuilder.create<affine::AffineYieldOp>(loc, emptyVec);
 
                       iList.push_back(i);
                       fList.push_back(protectedF->getOpResult(0));
@@ -180,7 +180,7 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, scf::SCFDialect, AffineDialect, VectorDialect>();
+    registry.insert<linalg::LinalgDialect, scf::SCFDialect, affine::AffineDialect, VectorDialect>();
   }
 
   Option<int64_t> vecSize{*this, "vec-size", llvm::cl::desc("Vector size using in kernel."), llvm::cl::init(16)};
@@ -196,7 +196,7 @@ void ConvOptimizePass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<arith::ArithDialect, AffineDialect, scf::SCFDialect, memref::MemRefDialect, VectorDialect>();
+  target.addLegalDialect<arith::ArithDialect, affine::AffineDialect, scf::SCFDialect, memref::MemRefDialect, VectorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
 

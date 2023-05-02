@@ -47,9 +47,8 @@ public:
     // Get type from the origin operation.
     Type resultType = op.getResult().getType();
     // Create constant operation.
-    Attribute zeroAttr = rewriter.getZeroAttr(resultType);
-    Value c0 =
-        rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
+    Value c0 = rewriter.create<mlir::arith::ConstantOp>(
+        loc, resultType, rewriter.getZeroAttr(resultType));
 
     rewriter.replaceOp(op, c0);
     return success();
@@ -66,9 +65,8 @@ public:
     // Get type from the origin operation.
     Type resultType = op.getResult().getType();
     // Create constant operation.
-    Attribute zeroAttr = rewriter.getZeroAttr(resultType);
-    Value c0 =
-        rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
+    Value c0 = rewriter.create<mlir::arith::ConstantOp>(
+        loc, resultType, rewriter.getZeroAttr(resultType));
     // Create print operation for the scalar value.
     rewriter.create<vector::PrintOp>(loc, c0);
     VectorType vectorTy4 =

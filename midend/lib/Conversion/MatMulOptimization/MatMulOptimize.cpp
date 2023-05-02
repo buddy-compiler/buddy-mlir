@@ -82,11 +82,11 @@ public:
     Value K = rewriter.create<memref::DimOp>(loc, A, 1);
 
     // build loop body
-    buildAffineLoopNest(
+    affine::buildAffineLoopNest(
         rewriter, loc, {c0}, {N}, kNLen,
         [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
           auto ivJ = ivRange.front();
-          buildAffineLoopNest(
+          affine::buildAffineLoopNest(
               builder, loc, {c0}, {M}, kernelM,
               [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
                 Value ivI = ivRange.front();
@@ -95,7 +95,7 @@ public:
                 for (int i = 0; i < kernelM; ++i) {
                   Value fixedIV = ivI;
                   if (i != 0) {
-                    fixedIV = builder.create<AffineMinOp>(
+                    fixedIV = builder.create<affine::AffineMinOp>(
                         loc,
                         AffineMap::get(1, 1, {d0 + i, s0 - 1},
                                        builder.getContext()),
@@ -111,7 +111,7 @@ public:
                   aptrs.push_back(aptr);
                 }
                 for (int i = 0; i < kernelM; ++i) {
-                  Value fixedIV = builder.create<AffineMinOp>(
+                  Value fixedIV = builder.create<affine::AffineMinOp>(
                       loc,
                       AffineMap::get(1, 1, {d0 + i, s0 - 1},
                                      builder.getContext()),
@@ -125,7 +125,7 @@ public:
                       SmallVector<OpFoldResult>{c1, c1});
                   cptrs.push_back(cptr);
                 }
-                buildAffineLoopNest(
+                affine::buildAffineLoopNest(
                     builder, loc, {c0}, {K}, 1,
                     [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
                       Value ivK = ivRange.front();
@@ -141,7 +141,7 @@ public:
                       for (int i = 0; i < kernelM; ++i) {
                         Value c = cptrs[i];
                         for (int j = 0; j < kernelN; ++j) {
-                          Value fixedIV = builder.create<AffineApplyOp>(
+                          Value fixedIV = builder.create<affine::AffineApplyOp>(
                               loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
                           Value d = builder.create<TransferReadOp>(
                               loc, vTy, c, ValueRange{c0, fixedIV});
@@ -151,7 +151,7 @@ public:
                       for (int i = 0; i < kernelN; ++i) {
                         Value fixedIV = ivJ;
                         if (i != 0) {
-                          fixedIV = builder.create<AffineApplyOp>(
+                          fixedIV = builder.create<affine::AffineApplyOp>(
                               loc, AffineMap::get(1, 0, d0 + i * vecSize), ivJ);
                         }
                         Value b = builder.create<TransferReadOp>(
@@ -168,7 +168,7 @@ public:
 
                       for (int i = 0; i < kernelM; ++i) {
                         for (int j = 0; j < kernelN; ++j) {
-                          Value fixedIV = builder.create<AffineApplyOp>(
+                          Value fixedIV = builder.create<affine::AffineApplyOp>(
                               loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
                           builder.create<TransferWriteOp>(
                               loc, ds[i * kernelN + j], cptrs[i],
@@ -215,8 +215,8 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, scf::SCFDialect, AffineDialect,
-                    VectorDialect>();
+    registry.insert<linalg::LinalgDialect, scf::SCFDialect,
+                    affine::AffineDialect, VectorDialect>();
   }
 
   Option<int64_t> vecSize{*this, "vec-size",
@@ -239,8 +239,8 @@ void MatMulOptimizePass::runOnOperation() {
 
   ConversionTarget target(*context);
   target
-      .addLegalDialect<arith::ArithDialect, AffineDialect, scf::SCFDialect,
-                       memref::MemRefDialect, VectorDialect>();
+      .addLegalDialect<arith::ArithDialect, affine::AffineDialect,
+                       scf::SCFDialect, memref::MemRefDialect, VectorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
 
