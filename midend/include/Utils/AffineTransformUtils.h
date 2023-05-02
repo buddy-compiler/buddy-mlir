@@ -16,16 +16,16 @@ void affineTransformCore(OpBuilder &builder, Location loc, Value input,
                          Value xAddr2, int64_t stride, int interp_type);
 
 // remap using nearest neighbor interpolation
-void remapNearest(OpBuilder &builder, Location loc, Value input, Value output);
+void remapNearest(OpBuilder &builder, Location loc, Value input, Value output, Value mapInt, Value yStart, Value xStart, Value rows, Value cols);
 
 // remap using bilinear interpolation
-void remapBilinear(OpBuilder &builder, Location loc, Value input, Value output);
+void remapBilinear(OpBuilder &builder, Location loc, Value input, Value output, Value mapInt, Value mapFrac);
 
 // remap using bicubic interpolation
-void remapBicubic(OpBuilder &builder, Location loc, Value input, Value output);
+void remapBicubic(OpBuilder &builder, Location loc, Value input, Value output, Value mapInt, Value mapFrac);
 
 // remap using lancoz interpolation
-void remapLancoz(OpBuilder &builder, Location loc, Value input, Value output);
+void remapLancoz(OpBuilder &builder, Location loc, Value input, Value output, Value mapInt, Value mapFrac);
 } // namespace buddy
 
 #endif // BUDDY_MLIR_AFFINETRANSFORMUTILS_H

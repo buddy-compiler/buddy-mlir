@@ -514,9 +514,6 @@ void affineTransformController(OpBuilder &builder, Location loc,
   Value m5Vec =
       builder.create<vector::SplatOp>(loc, vectorTyF32, affineMatrix[5]);
 
-  Value inputRow = builder.create<memref::DimOp>(loc, input, c0Index);
-  Value inputCol = builder.create<memref::DimOp>(loc, input, c1Index);
-
   Value outputRow = builder.create<memref::DimOp>(loc, output, c0Index);
   Value outputCol = builder.create<memref::DimOp>(loc, output, c1Index);
 
@@ -536,8 +533,7 @@ void affineTransformController(OpBuilder &builder, Location loc,
   Value xMm0 = builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
   Value xMm3 = builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
 
-
-#define RSV_BITS 10
+#define RSV_BITS 5
   Value c_rsv = builder.create<arith::ConstantOp>(loc, builder.getF32FloatAttr((float)(1 << RSV_BITS)));
   Value rsv_delta = builder.create<arith::ConstantOp>(loc, builder.getI32IntegerAttr(1 << (RSV_BITS - 1)));
   Value c_rsvVec = builder.create<vector::SplatOp>(loc, vectorTyF32, c_rsv);
