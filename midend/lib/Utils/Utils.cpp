@@ -33,6 +33,7 @@
 #include <mlir/IR/Value.h>
 
 #include <numeric>
+#include <initializer_list>
 
 using namespace mlir;
 
@@ -149,25 +150,22 @@ Value castAndExpand(OpBuilder &builder, Location loc, Value val,
   return builder.create<vector::SplatOp>(loc, vecType, interm1);
 }
 
-// print float32 value(for debug use)
-void printF32(OpBuilder &builder, Location loc, Value val) {
-  VectorType ty = VectorType::get({1}, Float32Type::get(builder.getContext()));
-  Value vec = builder.create<vector::SplatOp>(loc, ty, val);
-  builder.create<vector::PrintOp>(loc, vec);
-}
-
-// print int32 value(for debug use)
-void printI32(OpBuilder &builder, Location loc, Value val) {
-  VectorType ty = VectorType::get({1}, IntegerType::get(builder.getContext(), 32));
-  Value vec = builder.create<vector::SplatOp>(loc, ty, val);
-  builder.create<vector::PrintOp>(loc, vec);
-}
-
-// print index value(for debug use)
-void printIndex(OpBuilder &builder, Location loc, Value val) {
-  VectorType ty = VectorType::get({1}, IntegerType::get(builder.getContext(), 32));
-  Value valI = builder.create<arith::IndexCastOp>(loc, IntegerType::get(builder.getContext(), 32), val);
-  Value vec = builder.create<vector::SplatOp>(loc, ty, valI);
+// print values(for debug use)
+void printValues(OpBuilder &builder, Location loc, std::initializer_list<Value> values) {
+  if(empty(values)) return;
+  Type valueTy = values.begin()->getType();
+  VectorType vecTy = VectorType::get({(long)values.size()}, valueTy);
+  Value vec = builder.create<vector::SplatOp>(loc, vecTy, *values.begin());
+  int idx = 0;
+  for(auto value: values) {
+    if(idx != 0) {
+      // all values should have same type
+      assert(value.getType() == valueTy);
+      Value idxVal = builder.create<arith::ConstantIndexOp>(loc, idx);
+      vec = builder.create<vector::InsertElementOp>(loc, value, vec, idxVal);
+    }
+    idx ++;
+  }
   builder.create<vector::PrintOp>(loc, vec);
 }
 

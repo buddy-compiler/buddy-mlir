@@ -61,14 +61,8 @@ Value iotaVec0F32(OpBuilder &builder, Location loc, int64_t length);
 Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                     VectorType vecType);
 
-// print float32 value(for debug use)
-void printF32(OpBuilder &builder, Location loc, Value val);
-
-// print int32 value(for debug use)
-void printI32(OpBuilder &builder, Location loc, Value val);
-
-// print index value(for debug use)
-void printIndex(OpBuilder &builder, Location loc, Value val);
+// print values(for debug use)
+void printValues(OpBuilder &builder, Location loc, std::initializer_list<Value> values);
 
 } // namespace buddy
 
