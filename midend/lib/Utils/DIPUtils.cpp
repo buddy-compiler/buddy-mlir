@@ -239,7 +239,7 @@ void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
 Value tailChecker(OpBuilder &builder, Location loc, AffineMap calcHelper,
                   Value strideVal, Value kernelSize, Value c1, Value pseudoCol,
                   Value colPivot) {
-  Value tailChecker = builder.create<AffineApplyOp>(
+  Value tailChecker = builder.create<affine::AffineApplyOp>(
       loc, calcHelper, ValueRange{strideVal, kernelSize, c1});
   Value colEndDistance =
       builder.create<arith::SubIOp>(loc, pseudoCol, colPivot);
@@ -376,7 +376,7 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
                 Value strideVal, Value outputRowLastElemF32,
                 Value outputColLastElemF32, Value inputRowLastElemF32,
                 Value inputColLastElemF32, Value c0F32) {
-  builder.create<AffineForOp>(
+  builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
       [&](OpBuilder &builder, Location loc, ValueRange ivs,
@@ -394,7 +394,7 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
         builder.create<memref::StoreOp>(
             loc, pixelVal, output, ValueRange{resIndices[1], resIndices[0]});
 
-        builder.create<AffineYieldOp>(loc);
+        builder.create<affine::AffineYieldOp>(loc);
       });
 }
 
@@ -421,7 +421,7 @@ void shearTransformController(
     Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0, Value c0F32,
     Value c1F32Vec, VectorType vectorTy32, int64_t stride, FloatType f32) {
-  buildAffineLoopNest(
+  affine::buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
@@ -461,7 +461,7 @@ void standardRotateController(
   Value cosVal = builder.create<math::CosOp>(loc, angleVal);
   Value cosVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, cosVal);
 
-  buildAffineLoopNest(
+  affine::buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
@@ -495,7 +495,7 @@ void fillPixelsBilinearInterpolate(
     Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
     Value c1F32) {
-  builder.create<AffineForOp>(
+  builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
       [&](OpBuilder &builder, Location loc, ValueRange ivs,
@@ -570,7 +570,7 @@ void fillPixelsBilinearInterpolate(
         builder.create<memref::StoreOp>(
             loc, pixelVal, output, ValueRange{resIndices[1], resIndices[0]});
 
-        builder.create<AffineYieldOp>(loc);
+        builder.create<affine::AffineYieldOp>(loc);
       });
 }
 
@@ -584,7 +584,7 @@ void NearestNeighbourInterpolationResizing(
     Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
     int64_t stride, Value c0, Value c0F32) {
-  buildAffineLoopNest(
+  affine::buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
@@ -615,7 +615,7 @@ void BilinearInterpolationResizing(
     Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
     int64_t stride, Value c0, Value c0F32, Value c1F32) {
-  buildAffineLoopNest(
+  affine::buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
@@ -809,10 +809,10 @@ void traverseImagewBoundaryExtrapolation(
   bindDims(ctx, a, b, c);
   AffineMap calcHelper = AffineMap::get(3, 0, {a + b - c}, ctx);
 
-  Value pseudoCol = rewriter.create<AffineApplyOp>(
+  Value pseudoCol = rewriter.create<affine::AffineApplyOp>(
       loc, calcHelper, ValueRange{inputCol, kernelCol, c1});
 
-  buildAffineLoopNest(
+  affine::buildAffineLoopNest(
       rewriter, loc, lowerBounds, uperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         // Indices of current pixel with respect to pseudo image containing

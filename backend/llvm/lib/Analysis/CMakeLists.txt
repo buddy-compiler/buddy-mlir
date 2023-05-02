@@ -33,11 +33,9 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/DependenceAnalysis.cpp
   ${LLVM_Analysis_DIR}/DependenceGraphBuilder.cpp
   ${LLVM_Analysis_DIR}/DevelopmentModeInlineAdvisor.cpp
-  ${LLVM_Analysis_DIR}/DivergenceAnalysis.cpp
   ${LLVM_Analysis_DIR}/DomPrinter.cpp
   ${LLVM_Analysis_DIR}/DomTreeUpdater.cpp
   ${LLVM_Analysis_DIR}/DominanceFrontier.cpp
-  ${LLVM_Analysis_DIR}/EHPersonalities.cpp
   ${LLVM_Analysis_DIR}/FunctionPropertiesAnalysis.cpp
   ${LLVM_Analysis_DIR}/GlobalsModRef.cpp
   ${LLVM_Analysis_DIR}/GuardUtils.cpp
@@ -54,15 +52,16 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/InstCount.cpp
   ${LLVM_Analysis_DIR}/InstructionPrecedenceTracking.cpp
   ${LLVM_Analysis_DIR}/InstructionSimplify.cpp
+  ${LLVM_Analysis_DIR}/InteractiveModelRunner.cpp
   ${LLVM_Analysis_DIR}/Interval.cpp
   ${LLVM_Analysis_DIR}/IntervalPartition.cpp
   ${LLVM_Analysis_DIR}/LazyBranchProbabilityInfo.cpp
   ${LLVM_Analysis_DIR}/LazyBlockFrequencyInfo.cpp
   ${LLVM_Analysis_DIR}/LazyCallGraph.cpp
   ${LLVM_Analysis_DIR}/LazyValueInfo.cpp
-  ${LLVM_Analysis_DIR}/LegacyDivergenceAnalysis.cpp
   ${LLVM_Analysis_DIR}/Lint.cpp
   ${LLVM_Analysis_DIR}/Loads.cpp
+  ${LLVM_Analysis_DIR}/Local.cpp
   ${LLVM_Analysis_DIR}/LoopAccessAnalysis.cpp
   ${LLVM_Analysis_DIR}/LoopAnalysisManager.cpp
   ${LLVM_Analysis_DIR}/LoopCacheAnalysis.cpp
@@ -104,7 +103,6 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/ScalarEvolutionNormalization.cpp
   ${LLVM_Analysis_DIR}/StackLifetime.cpp
   ${LLVM_Analysis_DIR}/StackSafetyAnalysis.cpp
-  ${LLVM_Analysis_DIR}/SyncDependenceAnalysis.cpp
   ${LLVM_Analysis_DIR}/SyntheticCountsUtils.cpp
   ${LLVM_Analysis_DIR}/TFLiteUtils.cpp
   ${LLVM_Analysis_DIR}/TargetLibraryInfo.cpp
@@ -114,6 +112,7 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/TrainingLogger.cpp
   ${LLVM_Analysis_DIR}/TypeBasedAliasAnalysis.cpp
   ${LLVM_Analysis_DIR}/TypeMetadataUtils.cpp
+  ${LLVM_Analysis_DIR}/UniformityAnalysis.cpp
   ${LLVM_Analysis_DIR}/ScopedNoAliasAA.cpp
   ${LLVM_Analysis_DIR}/ValueLattice.cpp
   ${LLVM_Analysis_DIR}/ValueLatticeUtils.cpp
@@ -139,4 +138,3 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ProfileData
   Support
   )
-

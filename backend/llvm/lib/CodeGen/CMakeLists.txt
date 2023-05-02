@@ -76,7 +76,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/LLVMTargetMachine.cpp
   ${LLVM_CodeGen_DIR}/LocalStackSlotAllocation.cpp
   ${LLVM_CodeGen_DIR}/LoopTraversal.cpp
-  ${LLVM_CodeGen_DIR}/LowLevelType.cpp
+  ${LLVM_CodeGen_DIR}/LowLevelTypeUtils.cpp
   ${LLVM_CodeGen_DIR}/LowerEmuTLS.cpp
   ${LLVM_CodeGen_DIR}/MachineBasicBlock.cpp
   ${LLVM_CodeGen_DIR}/MachineBlockFrequencyInfo.cpp
