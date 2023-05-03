@@ -989,9 +989,9 @@ rvv-createmask-asm:
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
-run-targets += rvv-createmask-run
-rvv-createmask-run:
-	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-createmask.mlir \
+run-targets += rvv-create-mask-run
+rvv-create-mask-run:
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-create-mask.mlir \
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
