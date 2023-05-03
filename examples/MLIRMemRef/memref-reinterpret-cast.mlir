@@ -1,5 +1,5 @@
 // RUN: buddy-opt %s \
-// RUN:     -lower-affine -convert-memref-to-llvm \
+// RUN:     -lower-affine -finalize-memref-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-scf-to-cf -convert-func-to-llvm  \
 // RUN:     -reconcile-unrealized-casts \ 

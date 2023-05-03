@@ -1,7 +1,7 @@
 // RUN: buddy-opt %s \
 // RUN:     -expand-strided-metadata \
 // RUN:     -lower-affine \
-// RUN:     -convert-memref-to-llvm \
+// RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \

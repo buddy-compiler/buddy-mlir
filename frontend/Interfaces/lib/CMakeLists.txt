@@ -18,7 +18,7 @@ add_custom_command(OUTPUT DIP.o
               -convert-scf-to-cf
               -convert-math-to-llvm
               -convert-vector-to-llvm
-              -convert-memref-to-llvm
+              -finalize-memref-to-llvm
               -llvm-request-c-wrappers
               -convert-func-to-llvm
               -reconcile-unrealized-casts | 

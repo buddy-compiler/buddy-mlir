@@ -16,7 +16,7 @@ pool:
 	@${BUDDY_OPT} ./pooling.mlir --pooling-vectorization \
 		 --lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
-		--convert-vector-to-llvm --convert-memref-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm \
 		--convert-arith-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
@@ -26,7 +26,7 @@ pool-mlir:
 	@${MLIR_OPT} ./pooling.mlir -convert-linalg-to-loops \
 		--lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
-		--convert-vector-to-llvm --convert-memref-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm \
 		--convert-arith-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
@@ -36,7 +36,7 @@ strided:
 	@${BUDDY_OPT} ./strided.mlir --pooling-vectorization \
 		--lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
-		--convert-vector-to-llvm --convert-memref-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm \
 		--convert-arith-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
@@ -46,7 +46,7 @@ strided-mlir:
 	@${MLIR_OPT} ./strided.mlir -convert-linalg-to-loops \
 		--lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
-		--convert-vector-to-llvm --convert-memref-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm \
 		--convert-arith-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
@@ -56,7 +56,7 @@ dilated:
 	@${BUDDY_OPT} ./dilated.mlir --pooling-vectorization \
 		--lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
-		--convert-vector-to-llvm --convert-memref-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm \
 		--convert-arith-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
@@ -66,7 +66,7 @@ dilated-mlir:
 	@${MLIR_OPT} ./dilated.mlir -convert-linalg-to-loops \
 		--lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
-		--convert-vector-to-llvm --convert-memref-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm \
 		--convert-arith-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
@@ -76,7 +76,7 @@ strided-dilated:
 	@${BUDDY_OPT} ./strided-dilated.mlir --pooling-vectorization \
 		--lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
-		--convert-vector-to-llvm --convert-memref-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm \
 		--convert-arith-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
@@ -86,7 +86,7 @@ strided-dilated-mlir:
 	@${MLIR_OPT} ./strided-dilated.mlir -convert-linalg-to-loops \
 		--lower-affine --convert-vector-to-scf \
 		--convert-scf-to-cf --tensor-bufferize \
-		--convert-vector-to-llvm --convert-memref-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm \
 		--convert-arith-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
