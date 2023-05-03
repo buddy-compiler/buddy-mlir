@@ -1,8 +1,8 @@
 // RUN: buddy-opt %s \
-// RUN:     -arith-bufferize  -tensor-bufferize -linalg-bufferize \
-// RUN:     -convert-vector-to-llvm -func-bufferize -buffer-deallocation \ 
-// RUN:     -convert-linalg-to-loops -convert-linalg-to-llvm \
-// RUN:     -convert-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -arith-bufferize -tensor-bufferize -func-bufferize \
+// RUN:     -finalizing-bufferize -buffer-deallocation -convert-linalg-to-llvm \
+// RUN:     -expand-strided-metadata -lower-affine \
+// RUN:     -finalize-memref-to-llvm -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
@@ -55,10 +55,7 @@ func.func @main() {
   // CHECK: [0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,  11]
   call @printMemrefF32(%print_out3) : (tensor<*xf32>) -> ()
   %t6 = arith.constant dense<[[[1.]]]> : tensor<1x1x1xf32>
-  %t7 = tensor.collapse_shape %t6 []
-  :tensor<1x1x1xf32> into tensor<f32>
-  %rank = tensor.rank %t7 : tensor<f32>
-  vector.print %rank : index
+  %t7 = tensor.collapse_shape %t6 [] :tensor<1x1x1xf32> into tensor<f32>
   %print_out4 = tensor.cast %t7 : tensor<f32> to tensor<*xf32>
   // CHECK: Unranked Memref base@ = {{.*}} rank = 0 offset = 0 sizes = [] strides = [] data = 
   // CHECK: [1]

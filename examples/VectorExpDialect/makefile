@@ -31,7 +31,7 @@ vector-exp-config-lower:
 	@${BUDDY_OPT} ./vector-exp-predication.mlir \
 		-lower-vector-exp \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts \
 		-o ./log.mlir
@@ -40,7 +40,7 @@ vector-exp-config-translate:
 	@${BUDDY_OPT} ./vector-exp-predication.mlir \
 		-lower-vector-exp \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll
@@ -49,7 +49,7 @@ vector-exp-config-run:
 	@${BUDDY_OPT} ./vector-exp-predication.mlir \
 		-lower-vector-exp \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
@@ -59,7 +59,7 @@ vector-exp-predication-memory-lower:
 	@${BUDDY_OPT} ./vector-exp-predication-memory.mlir \
 		-lower-vector-exp \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts \
 		-o ./log.mlir
@@ -68,7 +68,7 @@ vector-exp-predication-memory-run:
 	@${BUDDY_OPT} ./vector-exp-predication-memory.mlir \
 		-lower-vector-exp \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts |\
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
@@ -86,7 +86,7 @@ vector-exp-predication-matmul-run:
 		-lower-vector-exp \
 		-lower-rvv \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts |\
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
@@ -102,7 +102,7 @@ vector-exp-add-mask-run:
 		-convert-scf-to-cf \
 		-convert-math-to-llvm \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
@@ -118,7 +118,7 @@ vector-exp-add-mask-asm:
 		-convert-scf-to-cf \
 		-convert-math-to-llvm \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
@@ -134,7 +134,7 @@ vector-exp-add-predication-run:
 		-lower-vector-exp \
 		-lower-rvv \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
@@ -152,7 +152,7 @@ vector-exp-add-predication-asm:
 		-lower-vector-exp \
 		-lower-rvv \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \

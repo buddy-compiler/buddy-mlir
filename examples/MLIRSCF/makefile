@@ -53,7 +53,7 @@ scf-parallel-translate:
 		-arith-expand \
         -convert-async-to-llvm \
         -convert-scf-to-cf \
-        -convert-memref-to-llvm \
+        -finalize-memref-to-llvm \
         -convert-func-to-llvm \
         -reconcile-unrealized-casts |\
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
@@ -68,7 +68,7 @@ scf-parallel-run:
         -convert-async-to-llvm \
 		-convert-vector-to-llvm \
         -convert-scf-to-cf \
-        -convert-memref-to-llvm \
+        -finalize-memref-to-llvm \
         -convert-func-to-llvm \
         -reconcile-unrealized-casts |\
     ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
@@ -86,7 +86,7 @@ scf-parallel-aot:
         -convert-async-to-llvm \
 		-convert-vector-to-llvm \
         -convert-scf-to-cf \
-        -convert-memref-to-llvm \
+        -finalize-memref-to-llvm \
         -convert-func-to-llvm \
         -reconcile-unrealized-casts |\
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
@@ -105,7 +105,7 @@ scf-parallel-single-aot:
 		-arith-expand \
 		-convert-vector-to-llvm \
         -convert-scf-to-cf \
-        -convert-memref-to-llvm \
+        -finalize-memref-to-llvm \
         -convert-func-to-llvm \
         -reconcile-unrealized-casts |\
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll

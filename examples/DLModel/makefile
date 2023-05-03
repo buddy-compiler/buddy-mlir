@@ -25,7 +25,7 @@ resnet-18-lower:
 		--memref-expand \
 		--arith-expand \
 		--convert-arith-to-llvm \
-		--convert-memref-to-llvm \
+		--finalize-memref-to-llvm \
 		--convert-math-to-llvm \
 		--llvm-request-c-wrappers \
 		--convert-func-to-llvm \

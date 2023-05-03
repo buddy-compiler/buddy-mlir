@@ -1,5 +1,5 @@
 // RUN: buddy-opt %s \
-// RUN:     -convert-vector-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
 // RUN:     -split-input-file -verify-diagnostics -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \

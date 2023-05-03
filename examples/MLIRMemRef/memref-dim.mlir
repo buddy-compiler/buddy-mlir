@@ -1,5 +1,5 @@
 // RUN: buddy-opt %s \
-// RUN:     -lower-affine -convert-memref-to-llvm \
+// RUN:     -lower-affine -finalize-memref-to-llvm \
 // RUN:     -convert-arith-to-llvm -convert-vector-to-llvm \
 // RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \

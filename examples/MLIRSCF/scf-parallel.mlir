@@ -7,7 +7,7 @@
 // RUN:     -convert-async-to-llvm \
 // RUN:     -convert-vector-to-llvm \
 // RUN:     -convert-scf-to-cf \
-// RUN:     -convert-memref-to-llvm \
+// RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -O0 -e main -entry-point-result=void \

@@ -26,5 +26,5 @@ pdl-multiroot-lower:
 pdl-bud-fma-lower:
 	@${MLIR_OPT} ./pdl-bud-fma.mlir \
 		-allow-unregistered-dialect -test-pdl-bytecode-pass --convert-vector-to-llvm \
-		--convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts \
+		--finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts \
 		-o ./log.mlir
