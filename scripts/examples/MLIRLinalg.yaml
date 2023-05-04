@@ -3,7 +3,7 @@
   arch: general
   commands:
   - exec: ${MLIR_OPT}
-    args: linalg-conv2d.mlir ${MLIR_OPT_OPTIONS} -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
+    args: -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
     workingdir:
     env:
     input: FILE
@@ -20,7 +20,7 @@
   arch: general
   commands:
   - exec: ${MLIR_OPT}
-    args: linalg-generic.mlir ${MLIR_OPT_OPTIONS} -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
+    args: -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
     workingdir:
     env:
     input: FILE
@@ -37,7 +37,7 @@
   arch: general
   commands:
   - exec: ${BUDDY_OPT}
-    args: ${MLIR_OPT_OPTIONS} --matmul-optimize="vec-size=16 kernel-m=2 kernel-n=4" -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
+    args: --matmul-optimize="vec-size=16 kernel-m=2 kernel-n=4" -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
     workingdir:
     env:
     input: FILE
@@ -54,7 +54,7 @@
   arch: general
   commands:
   - exec: ${MLIR_OPT}
-    args: ${MLIR_OPT_OPTIONS} -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
+    args: -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
     workingdir:
     env:
     input: FILE
