@@ -66,7 +66,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -89,7 +89,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -mattr=+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -mattr=+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -112,7 +112,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -135,7 +135,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -158,7 +158,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -181,7 +181,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -204,19 +204,19 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
     output: FILE
   - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
-    args: log.o -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -o a.out
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
     workingdir:
     env:
     input: FILE
     output: FILE
   - exec: ${QEMU}
-    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
     workingdir:
     env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
     input: NONE
@@ -239,19 +239,19 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
     output: FILE
   - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
-    args: log.o -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -o a.out
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
     workingdir:
     env:
     input: FILE
     output: FILE
   - exec: ${QEMU}
-    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
     workingdir:
     env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
     input: NONE
@@ -274,19 +274,19 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
     output: FILE
   - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
-    args: log.o -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -o a.out
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
     workingdir:
     env:
     input: FILE
     output: FILE
   - exec: ${QEMU}
-    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
     workingdir:
     env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
     input: NONE
@@ -309,7 +309,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -332,7 +332,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -355,7 +355,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -378,7 +378,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -413,7 +413,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -448,7 +448,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -483,7 +483,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: FILE
@@ -506,7 +506,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: FILE
@@ -529,7 +529,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: FILE
@@ -552,7 +552,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -575,7 +575,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -597,7 +597,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -620,7 +620,7 @@
     input: STDIN
     output: FILE
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -643,7 +643,7 @@
     input: STDIN
     output: FILE
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -666,7 +666,7 @@
     input: STDIN
     output: FILE
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -689,7 +689,7 @@
     input: STDIN
     output: FILE
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: FILE
@@ -712,7 +712,7 @@
     input: STDIN
     output: FILE
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: FILE
@@ -735,7 +735,7 @@
     input: STDIN
     output: FILE
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: FILE
@@ -758,7 +758,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -793,7 +793,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -828,7 +828,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -965,7 +965,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -988,7 +988,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN
@@ -1011,7 +1011,7 @@
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
-    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
     workingdir:
     env:
     input: STDIN

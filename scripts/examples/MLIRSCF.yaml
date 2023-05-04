@@ -26,13 +26,13 @@
     input: FILE
     output: STDOUT
   - exec: ${MLIR_TRANSLATE}
-    args: --mlir-to-llvmir -o log.ll
+    args: --mlir-to-llvmir
     workingdir:
     env:
     input: STDIN
     output: FILE
   - exec: ${CLANG}
-    args: ${OPT_FLAG} log.ll -L ${MLIR_LIB} -L ${BUDDY_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lstatic_mlir_async_runtime -lLLVMSupport -lLLVMDemangle -lstdc++ -lpthread -ltinfo -lm -o a.out
+    args: ${OPT_FLAG} -L ${MLIR_LIB} -L ${BUDDY_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lstatic_mlir_async_runtime -lLLVMSupport -lLLVMDemangle -lstdc++ -lpthread -ltinfo -lm
     workingdir:
     env:
     input: FILE
