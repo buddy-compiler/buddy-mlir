@@ -1,6 +1,7 @@
 set(LLVM_CodeGen_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/CodeGen)
 
 add_llvm_component_library(LLVMBuddyCodeGen
+
   ${LLVM_CodeGen_DIR}/AggressiveAntiDepBreaker.cpp
   ${LLVM_CodeGen_DIR}/AllocationOrder.cpp
   ${LLVM_CodeGen_DIR}/Analysis.cpp
@@ -13,6 +14,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/BasicBlockSections.cpp
   ${LLVM_CodeGen_DIR}/BasicBlockSectionsProfileReader.cpp
   ${LLVM_CodeGen_DIR}/CalcSpillWeights.cpp
+  ${LLVM_CodeGen_DIR}/CallBrPrepare.cpp
   ${LLVM_CodeGen_DIR}/CallingConvLower.cpp
   ${LLVM_CodeGen_DIR}/CFGuardLongjmp.cpp
   ${LLVM_CodeGen_DIR}/CFIFixup.cpp
@@ -120,6 +122,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/MachineSSAUpdater.cpp
   ${LLVM_CodeGen_DIR}/MachineStripDebug.cpp
   ${LLVM_CodeGen_DIR}/MachineTraceMetrics.cpp
+  ${LLVM_CodeGen_DIR}/MachineUniformityAnalysis.cpp
   ${LLVM_CodeGen_DIR}/MachineVerifier.cpp
   ${LLVM_CodeGen_DIR}/MIRFSDiscriminator.cpp
   ${LLVM_CodeGen_DIR}/MIRSampleProfile.cpp
@@ -190,6 +193,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/SpillPlacement.cpp
   ${LLVM_CodeGen_DIR}/SplitKit.cpp
   ${LLVM_CodeGen_DIR}/StackColoring.cpp
+  ${LLVM_CodeGen_DIR}/StackFrameLayoutAnalysisPass.cpp
   ${LLVM_CodeGen_DIR}/StackMapLivenessAnalysis.cpp
   ${LLVM_CodeGen_DIR}/StackMaps.cpp
   ${LLVM_CodeGen_DIR}/StackProtector.cpp
@@ -207,8 +211,8 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/TargetRegisterInfo.cpp
   ${LLVM_CodeGen_DIR}/TargetSchedule.cpp
   ${LLVM_CodeGen_DIR}/TargetSubtargetInfo.cpp
-  ${LLVM_CodeGen_DIR}/TypePromotion.cpp
   ${LLVM_CodeGen_DIR}/TwoAddressInstructionPass.cpp
+  ${LLVM_CodeGen_DIR}/TypePromotion.cpp
   ${LLVM_CodeGen_DIR}/UnreachableBlockElim.cpp
   ${LLVM_CodeGen_DIR}/ValueTypes.cpp
   ${LLVM_CodeGen_DIR}/VLIWMachineScheduler.cpp
@@ -234,16 +238,17 @@ add_llvm_component_library(LLVMBuddyCodeGen
 
   LINK_COMPONENTS
   BuddyAnalysis
-  BitReader
-  BitWriter
+  BuddyBitReader
+  BuddyBitWriter
   BuddyCore
   MC
   ObjCARC
-  ProfileData
+  BuddyProfileData
   BuddyScalar
   Support
   BuddyTarget
-  TransformUtils
+  BuddyTransformUtils
+  
   )
 
 add_subdirectory(SelectionDAG)
