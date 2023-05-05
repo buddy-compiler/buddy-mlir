@@ -37,5 +37,5 @@ add_llvm_component_library(LLVMBuddySelectionDAG
   MC
   Support
   BuddyTarget
-  TransformUtils
+  BuddyTransformUtils
   )

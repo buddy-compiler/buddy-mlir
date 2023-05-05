@@ -22,6 +22,7 @@ add_llvm_component_library(LLVMBuddyCore
   ${LLVM_IR_DIR}/DiagnosticInfo.cpp
   ${LLVM_IR_DIR}/DiagnosticPrinter.cpp
   ${LLVM_IR_DIR}/Dominators.cpp
+  ${LLVM_IR_DIR}/EHPersonalities.cpp
   ${LLVM_IR_DIR}/FPEnv.cpp
   ${LLVM_IR_DIR}/Function.cpp
   ${LLVM_IR_DIR}/GCStrategy.cpp
@@ -79,6 +80,8 @@ add_llvm_component_library(LLVMBuddyCore
 
   LINK_COMPONENTS
   BinaryFormat
+  Demangle
   BuddyRemarks
   Support
+  TargetParser
   )

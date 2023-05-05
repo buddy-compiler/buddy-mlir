@@ -25,5 +25,5 @@ add_llvm_component_library(LLVMBuddyVectorize
   BuddyAnalysis
   BuddyCore
   Support
-  TransformUtils
+  BuddyTransformUtils
   )

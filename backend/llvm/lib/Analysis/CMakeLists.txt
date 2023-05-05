@@ -1,6 +1,7 @@
 set(LLVM_Analysis_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Analysis)
 
 add_llvm_component_library(LLVMBuddyAnalysis
+
   ${LLVM_Analysis_DIR}/AliasAnalysis.cpp
   ${LLVM_Analysis_DIR}/AliasAnalysisEvaluator.cpp
   ${LLVM_Analysis_DIR}/AliasAnalysisSummary.cpp
@@ -134,7 +135,9 @@ add_llvm_component_library(LLVMBuddyAnalysis
   LINK_COMPONENTS
   BinaryFormat
   BuddyCore
+  BuddyObject
   Object
-  ProfileData
+  BuddyProfileData
   Support
+  TargetParser
   )
