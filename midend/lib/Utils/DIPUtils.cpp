@@ -447,7 +447,8 @@ SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
 
 // Compute the inverse of the affine matrix
 // After inverting the matrix, the calculation of the affine transformation can
-// become x_src = m0 * x_dst + m1 * y_dst + m2 y_src = m3 * x_dst + m4 * y_dst + m5
+// become x_src = m0 * x_dst + m1 * y_dst + m2 y_src = m3 * x_dst + m4 * y_dst +
+// m5
 inline void inverseAffineMatrix(OpBuilder &builder, Location loc,
                                 SmallVector<Value, 6> &affineMatrix) {
   Value c0F32 = builder.create<arith::ConstantOp>(
@@ -517,54 +518,76 @@ void affineTransformController(OpBuilder &builder, Location loc,
   Value outputCol = builder.create<memref::DimOp>(loc, output, c1Index);
 
   Value strideVal = builder.create<arith::ConstantIndexOp>(loc, stride);
-  Value outputColStrideRatio = builder.create<arith::DivUIOp>(loc, outputCol, strideVal);
-  Value outputColMultiple = builder.create<arith::MulIOp>(loc,
-                                                          builder.create<arith::AddIOp>(loc, outputColStrideRatio, c1Index),
-                                                          strideVal);
+  Value outputColStrideRatio =
+      builder.create<arith::DivUIOp>(loc, outputCol, strideVal);
+  Value outputColMultiple = builder.create<arith::MulIOp>(
+      loc, builder.create<arith::AddIOp>(loc, outputColStrideRatio, c1Index),
+      strideVal);
 
   // generate vector [0., 1., ..., stride - 1]
   Value xVecInitial = iotaVec0F32(builder, loc, stride);
-  //Value xVecInitial = builder.create<vector::SplatOp>(loc, vectorTyF32, c512F32);
+  // Value xVecInitial = builder.create<vector::SplatOp>(loc, vectorTyF32,
+  // c512F32);
 
-  MemRefType dynamicTypeI32 = MemRefType::get(ShapedType::kDynamic, IntegerType::get(ctx, 32));
+  MemRefType dynamicTypeI32 =
+      MemRefType::get(ShapedType::kDynamic, IntegerType::get(ctx, 32));
 
   // compute x*m0+m2 and x*m3+m5 and store the results into xMm0 and xMm3
-  Value xMm0 = builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
-  Value xMm3 = builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
+  Value xMm0 =
+      builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
+  Value xMm3 =
+      builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
 
   const int RSV_BITS = 5;
-  Value c_rsv = builder.create<arith::ConstantOp>(loc, builder.getF32FloatAttr((float)(1 << RSV_BITS)));
-  Value rsv_delta = builder.create<arith::ConstantOp>(loc, builder.getI32IntegerAttr(1 << (RSV_BITS - 1)));
+  Value c_rsv = builder.create<arith::ConstantOp>(
+      loc, builder.getF32FloatAttr((float)(1 << RSV_BITS)));
+  Value rsv_delta = builder.create<arith::ConstantOp>(
+      loc, builder.getI32IntegerAttr(1 << (RSV_BITS - 1)));
   Value c_rsvVec = builder.create<vector::SplatOp>(loc, vectorTyF32, c_rsv);
-  Value rsv_deltaVec = builder.create<vector::SplatOp>(loc, vectorTyI32, rsv_delta);
+  Value rsv_deltaVec =
+      builder.create<vector::SplatOp>(loc, vectorTyI32, rsv_delta);
 
-  builder.create<AffineForOp>(loc, ValueRange{c0Index}, builder.getDimIdentityMap(),
-                              ValueRange{outputColMultiple},
-                              builder.getDimIdentityMap(), stride, std::nullopt,
-                              [&](OpBuilder &builderFor, Location locFor,
-                                  ValueRange ivsFor, ValueRange iterArg) {
-                                Value delta = builderFor.create<vector::SplatOp>(locFor, vectorTyF32, indexToF32(builderFor, locFor, ivsFor[0]));
-                                Value xVec = builderFor.create<arith::AddFOp>(locFor, xVecInitial, delta);
-                                Value x0xM0 = builderFor.create<arith::MulFOp>(locFor, xVec, m0Vec);
-                                Value x1xM3 = builderFor.create<arith::MulFOp>(locFor, xVec, m3Vec);
-                                Value x0xM0addM2 = builderFor.create<arith::AddFOp>(locFor, x0xM0, m2Vec);
-                                Value x1xM3addM5 = builderFor.create<arith::AddFOp>(locFor, x1xM3, m5Vec);
-                                Value x0xM0addM2xrsv = builderFor.create<arith::MulFOp>(locFor, x0xM0addM2, c_rsvVec);
-                                Value x1xM3addM5xrsv = builderFor.create<arith::MulFOp>(locFor, x1xM3addM5, c_rsvVec);
-                                Value x0 = builderFor.create<arith::FPToSIOp>(locFor, vectorTyI32, x0xM0addM2xrsv);
-                                Value x1 = builderFor.create<arith::FPToSIOp>(locFor, vectorTyI32, x1xM3addM5xrsv);
-                                Value x0addrsv_delta = builderFor.create<arith::AddIOp>(locFor, x0, rsv_deltaVec);
-                                Value x1addrsv_delta = builderFor.create<arith::AddIOp>(locFor, x1, rsv_deltaVec);
-                                builderFor.create<vector::StoreOp>(locFor, x0addrsv_delta, xMm0, ValueRange{ivsFor[0]});
-                                builderFor.create<vector::StoreOp>(locFor, x1addrsv_delta, xMm3, ValueRange{ivsFor[0]});
-                                builderFor.create<AffineYieldOp>(locFor);
-                              });
+  builder.create<AffineForOp>(
+      loc, ValueRange{c0Index}, builder.getDimIdentityMap(),
+      ValueRange{outputColMultiple}, builder.getDimIdentityMap(), stride,
+      std::nullopt,
+      [&](OpBuilder &builderFor, Location locFor, ValueRange ivsFor,
+          ValueRange iterArg) {
+        Value delta = builderFor.create<vector::SplatOp>(
+            locFor, vectorTyF32, indexToF32(builderFor, locFor, ivsFor[0]));
+        Value xVec =
+            builderFor.create<arith::AddFOp>(locFor, xVecInitial, delta);
+        Value x0xM0 = builderFor.create<arith::MulFOp>(locFor, xVec, m0Vec);
+        Value x1xM3 = builderFor.create<arith::MulFOp>(locFor, xVec, m3Vec);
+        Value x0xM0addM2 =
+            builderFor.create<arith::AddFOp>(locFor, x0xM0, m2Vec);
+        Value x1xM3addM5 =
+            builderFor.create<arith::AddFOp>(locFor, x1xM3, m5Vec);
+        Value x0xM0addM2xrsv =
+            builderFor.create<arith::MulFOp>(locFor, x0xM0addM2, c_rsvVec);
+        Value x1xM3addM5xrsv =
+            builderFor.create<arith::MulFOp>(locFor, x1xM3addM5, c_rsvVec);
+        Value x0 = builderFor.create<arith::FPToSIOp>(locFor, vectorTyI32,
+                                                      x0xM0addM2xrsv);
+        Value x1 = builderFor.create<arith::FPToSIOp>(locFor, vectorTyI32,
+                                                      x1xM3addM5xrsv);
+        Value x0addrsv_delta =
+            builderFor.create<arith::AddIOp>(locFor, x0, rsv_deltaVec);
+        Value x1addrsv_delta =
+            builderFor.create<arith::AddIOp>(locFor, x1, rsv_deltaVec);
+        builderFor.create<vector::StoreOp>(locFor, x0addrsv_delta, xMm0,
+                                           ValueRange{ivsFor[0]});
+        builderFor.create<vector::StoreOp>(locFor, x1addrsv_delta, xMm3,
+                                           ValueRange{ivsFor[0]});
+        builderFor.create<AffineYieldOp>(locFor);
+      });
 
-  affineTransformCore(builder, loc, input, output, c0Index, outputRow, c0Index, outputCol, affineMatrix[1], affineMatrix[4], xMm0, xMm3, stride, RSV_BITS, 0);
+  affineTransformCore(builder, loc, input, output, c0Index, outputRow, c0Index,
+                      outputCol, affineMatrix[1], affineMatrix[4], xMm0, xMm3,
+                      stride, RSV_BITS, 0);
 
   builder.create<memref::DeallocOp>(loc, xMm0);
   builder.create<memref::DeallocOp>(loc, xMm3);
-
 }
 
 // Controls shear transform application.
