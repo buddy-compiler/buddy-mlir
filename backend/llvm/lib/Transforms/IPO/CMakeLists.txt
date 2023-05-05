@@ -58,18 +58,19 @@ add_llvm_component_library(LLVMBuddyIPO
   LINK_COMPONENTS
   AggressiveInstCombine
   BuddyAnalysis
-  BitReader
-  BitWriter
+  BuddyBitReader
+  BuddyBitWriter
   BuddyCore
   FrontendOpenMP
   InstCombine
   BuddyIRReader
   Linker
+  BuddyObject
   Object
-  ProfileData
+  BuddyProfileData
   BuddyScalar
   Support
-  TransformUtils
+  BuddyTransformUtils
   BuddyVectorize
   Instrumentation
   )

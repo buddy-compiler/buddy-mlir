@@ -121,14 +121,15 @@ add_llvm_target(BuddyRISCVCodeGen
   BuddyIPO
   BuddyCodeGen
   MC
-  RISCVDesc
-  RISCVInfo
+  BuddyRISCVDesc
+  BuddyRISCVInfo
   BuddySelectionDAG
   Support
   BuddyTarget
-  TransformUtils
+  BuddyTransformUtils
   BuddyGlobalISel
-
+  TargetParser
+  
   ADD_TO_COMPONENT
   RISCVBuddyExt
   )
@@ -152,8 +153,8 @@ add_llvm_component_library(LLVMBuddyRISCVAsmParser
   LINK_COMPONENTS
   MC
   MCParser
-  RISCVDesc
-  RISCVInfo
+  BuddyRISCVDesc
+  BuddyRISCVInfo
   Support
 
   ADD_TO_COMPONENT
@@ -204,8 +205,9 @@ add_llvm_component_library(LLVMBuddyRISCVDesc
 
   LINK_COMPONENTS
   MC
-  RISCVInfo
+  BuddyRISCVInfo
   Support
+  TargetParser
 
   ADD_TO_COMPONENT
   RISCVBuddyExt

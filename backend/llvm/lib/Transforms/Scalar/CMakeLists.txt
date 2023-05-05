@@ -89,7 +89,7 @@ add_llvm_component_library(LLVMBuddyScalarOpts
   buddy_intrinsics_gen
 
   COMPONENT_NAME
-  Scalar
+  BuddyScalar
 
   LINK_COMPONENTS
   AggressiveInstCombine
@@ -97,5 +97,5 @@ add_llvm_component_library(LLVMBuddyScalarOpts
   BuddyCore
   InstCombine
   Support
-  TransformUtils
+  BuddyTransformUtils
   )
