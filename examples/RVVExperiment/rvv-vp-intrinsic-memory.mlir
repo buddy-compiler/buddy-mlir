@@ -55,12 +55,12 @@ module {
     %34 = llvm.mlir.constant(1 : index) : i64
     %35 = llvm.alloca %34 x !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)> : (i64) -> !llvm.ptr<struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>>
     llvm.store %20, %35 : !llvm.ptr<struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>>
-    %36 = llvm.bitcast %35 : !llvm.ptr<struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>> to !llvm.ptr<i8>
+    %36 = llvm.bitcast %35 : !llvm.ptr<struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>> to !llvm.ptr
     %37 = llvm.mlir.constant(2 : index) : i64
-    %38 = llvm.mlir.undef : !llvm.struct<(i64, ptr<i8>)>
-    %39 = llvm.insertvalue %37, %38[0] : !llvm.struct<(i64, ptr<i8>)> 
-    %40 = llvm.insertvalue %36, %39[1] : !llvm.struct<(i64, ptr<i8>)> 
-    %41 = builtin.unrealized_conversion_cast %40 : !llvm.struct<(i64, ptr<i8>)> to memref<*xf32>
+    %38 = llvm.mlir.undef : !llvm.struct<(i64, ptr)>
+    %39 = llvm.insertvalue %37, %38[0] : !llvm.struct<(i64, ptr)> 
+    %40 = llvm.insertvalue %36, %39[1] : !llvm.struct<(i64, ptr)> 
+    %41 = builtin.unrealized_conversion_cast %40 : !llvm.struct<(i64, ptr)> to memref<*xf32>
     call @printMemrefF32(%41) : (memref<*xf32>) -> ()
 
     %ret = arith.constant 0 : i32
