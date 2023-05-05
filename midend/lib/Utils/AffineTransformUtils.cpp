@@ -19,12 +19,19 @@
 using namespace mlir;
 
 namespace buddy {
-void affineTransformCoreTiled(OpBuilder& builder, Location loc, Value resIntPart, Value resFracPart, Value yStart,
-                              Value yEnd, Value xStart, Value xEnd, Value m1, Value m4, Value xAddr1, Value xAddr2,
-                              Value rsvValVec, Value strideVal, Value c0, Value c1, Value c_rsv, int64_t stride) {
-  VectorType vectorTyI32 = VectorType::get({stride}, IntegerType::get(builder.getContext(), 32));
-  VectorType vectorTyI16 = VectorType::get({stride}, IntegerType::get(builder.getContext(), 16));
-  VectorType vectorTyI8 = VectorType::get({stride}, IntegerType::get(builder.getContext(), 8));
+// compute core(tiled)
+void affineTransformCoreTiled(OpBuilder &builder, Location loc,
+                              Value resIntPart, Value resFracPart, Value yStart,
+                              Value yEnd, Value xStart, Value xEnd, Value m1,
+                              Value m4, Value xAddr1, Value xAddr2,
+                              Value rsvValVec, Value strideVal, Value c0,
+                              Value c1, Value c_rsv, int64_t stride) {
+  VectorType vectorTyI32 =
+      VectorType::get({stride}, IntegerType::get(builder.getContext(), 32));
+  VectorType vectorTyI16 =
+      VectorType::get({stride}, IntegerType::get(builder.getContext(), 16));
+  VectorType vectorTyI8 =
+      VectorType::get({stride}, IntegerType::get(builder.getContext(), 8));
   builder.create<scf::ForOp>(
       loc, yStart, yEnd, c1, std::nullopt,
       [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
@@ -53,16 +60,30 @@ void affineTransformCoreTiled(OpBuilder& builder, Location loc, Value resIntPart
                   xBuilder.create<arith::AddIOp>(xLoc, x0Vec, y0Vec);
               Value srcYVec =
                   xBuilder.create<arith::AddIOp>(xLoc, x1Vec, y1Vec);
-              Value srcXVecFrac = xBuilder.create<arith::TruncIOp>(loc, vectorTyI8, srcXVec);
-              Value srcYVecFrac = xBuilder.create<arith::TruncIOp>(loc, vectorTyI8, srcYVec);
-              xBuilder.create<vector::StoreOp>(loc, srcXVecFrac, resFracPart, ValueRange{c0, yOffset, xOffset});
-              xBuilder.create<vector::StoreOp>(loc, srcYVecFrac, resFracPart, ValueRange{c1, yOffset, xOffset});
-              Value srcXVecShifted = xBuilder.create<arith::ShRSIOp>(loc, srcXVec, rsvValVec);
-              Value srcYVecShifted = xBuilder.create<arith::ShRSIOp>(loc, srcYVec, rsvValVec);
-              Value srcXVecInt = xBuilder.create<arith::TruncIOp>(loc, vectorTyI16, srcXVecShifted);
-              Value srcYVecInt = xBuilder.create<arith::TruncIOp>(loc, vectorTyI16, srcYVecShifted);
-              xBuilder.create<vector::StoreOp>(loc, srcXVecInt, resIntPart, ValueRange{c0, yOffset, xOffset});
-              xBuilder.create<vector::StoreOp>(loc, srcYVecInt, resIntPart, ValueRange{c1, yOffset, xOffset});
+              Value srcXVecFrac =
+                  xBuilder.create<arith::TruncIOp>(loc, vectorTyI8, srcXVec);
+              Value srcYVecFrac =
+                  xBuilder.create<arith::TruncIOp>(loc, vectorTyI8, srcYVec);
+              xBuilder.create<vector::StoreOp>(
+                  loc, srcXVecFrac, resFracPart,
+                  ValueRange{c0, yOffset, xOffset});
+              xBuilder.create<vector::StoreOp>(
+                  loc, srcYVecFrac, resFracPart,
+                  ValueRange{c1, yOffset, xOffset});
+              Value srcXVecShifted =
+                  xBuilder.create<arith::ShRSIOp>(loc, srcXVec, rsvValVec);
+              Value srcYVecShifted =
+                  xBuilder.create<arith::ShRSIOp>(loc, srcYVec, rsvValVec);
+              Value srcXVecInt = xBuilder.create<arith::TruncIOp>(
+                  loc, vectorTyI16, srcXVecShifted);
+              Value srcYVecInt = xBuilder.create<arith::TruncIOp>(
+                  loc, vectorTyI16, srcYVecShifted);
+              xBuilder.create<vector::StoreOp>(
+                  loc, srcXVecInt, resIntPart,
+                  ValueRange{c0, yOffset, xOffset});
+              xBuilder.create<vector::StoreOp>(
+                  loc, srcYVecInt, resIntPart,
+                  ValueRange{c1, yOffset, xOffset});
 
               xBuilder.create<scf::YieldOp>(xLoc);
             });
@@ -71,6 +92,8 @@ void affineTransformCoreTiled(OpBuilder& builder, Location loc, Value resIntPart
       });
 }
 
+// Given x*m0+m2(and x*m3+m5) and m1(and m4), compute new x and y, then remap
+// origin pixels to new pixels
 void affineTransformCore(OpBuilder &builder, Location loc, Value input,
                          Value output, Value yStart, Value yEnd, Value xStart,
                          Value xEnd, Value m1, Value m4, Value xAddr1,
@@ -90,8 +113,12 @@ void affineTransformCore(OpBuilder &builder, Location loc, Value input,
 
   // create memref to store compute result for remap use
 #define BLOCK_SZ 64
-  MemRefType resIntPartType = MemRefType::get({2, BLOCK_SZ / 2, BLOCK_SZ * 2}, IntegerType::get(builder.getContext(), 16));
-  MemRefType resFracPartType = MemRefType::get({2, BLOCK_SZ / 2, BLOCK_SZ * 2}, IntegerType::get(builder.getContext(), 8));
+  MemRefType resIntPartType =
+      MemRefType::get({2, BLOCK_SZ / 2, BLOCK_SZ * 2},
+                      IntegerType::get(builder.getContext(), 16));
+  MemRefType resFracPartType =
+      MemRefType::get({2, BLOCK_SZ / 2, BLOCK_SZ * 2},
+                      IntegerType::get(builder.getContext(), 8));
   Value resIntPart = builder.create<memref::AllocOp>(loc, resIntPartType);
   Value resFracPart = builder.create<memref::AllocOp>(loc, resFracPartType);
 
@@ -99,52 +126,78 @@ void affineTransformCore(OpBuilder &builder, Location loc, Value input,
   Value colStride = builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ * 2);
 #undef BLOCK_SZ
 
-  builder.create<scf::ForOp>(loc, yStart, yEnd, rowStride, std::nullopt, [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
-           Value realYEnd = yBuilder.create<arith::MinUIOp>(yLoc, yEnd, yBuilder.create<arith::AddIOp>(yLoc, yiv, rowStride));
-           Value rows = yBuilder.create<arith::SubIOp>(yLoc, realYEnd, yiv);
-           yBuilder.create<scf::ForOp>(yLoc, xStart, xEnd, colStride, std::nullopt, [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
-             Value realXEnd = xBuilder.create<arith::MinUIOp>(xLoc, xEnd, xBuilder.create<arith::AddIOp>(xLoc, xiv, colStride));
-             Value cols = xBuilder.create<arith::SubIOp>(xLoc, realXEnd, xiv);
-             affineTransformCoreTiled(xBuilder, xLoc, resIntPart, resFracPart, yiv, realYEnd, xiv, realXEnd, m1, m4, xAddr1, xAddr2, rsvValVec, strideVal, c0, c1, c_rsv, stride);
+  builder.create<scf::ForOp>(
+      loc, yStart, yEnd, rowStride, std::nullopt,
+      [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
+        Value realYEnd = yBuilder.create<arith::MinUIOp>(
+            yLoc, yEnd, yBuilder.create<arith::AddIOp>(yLoc, yiv, rowStride));
+        Value rows = yBuilder.create<arith::SubIOp>(yLoc, realYEnd, yiv);
+        yBuilder.create<scf::ForOp>(
+            yLoc, xStart, xEnd, colStride, std::nullopt,
+            [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
+              Value realXEnd = xBuilder.create<arith::MinUIOp>(
+                  xLoc, xEnd,
+                  xBuilder.create<arith::AddIOp>(xLoc, xiv, colStride));
+              Value cols = xBuilder.create<arith::SubIOp>(xLoc, realXEnd, xiv);
+              affineTransformCoreTiled(xBuilder, xLoc, resIntPart, resFracPart,
+                                       yiv, realYEnd, xiv, realXEnd, m1, m4,
+                                       xAddr1, xAddr2, rsvValVec, strideVal, c0,
+                                       c1, c_rsv, stride);
 
-             // remap
-             remapNearest(xBuilder, xLoc, input, output, resIntPart, yiv, xiv, rows, cols);
+              // remap
+              remapNearest(xBuilder, xLoc, input, output, resIntPart, yiv, xiv,
+                           rows, cols);
 
-             xBuilder.create<scf::YieldOp>(xLoc);
-           });
-           yBuilder.create<scf::YieldOp>(yLoc);
-         });
+              xBuilder.create<scf::YieldOp>(xLoc);
+            });
+        yBuilder.create<scf::YieldOp>(yLoc);
+      });
 
   builder.create<memref::DeallocOp>(loc, resIntPart);
   builder.create<memref::DeallocOp>(loc, resFracPart);
 }
 
-void remapNearest(OpBuilder &builder, Location loc, Value input, Value output, Value mapInt, Value yStart, Value xStart, Value rows, Value cols) {
+void remapNearest(OpBuilder &builder, Location loc, Value input, Value output,
+                  Value mapInt, Value yStart, Value xStart, Value rows,
+                  Value cols) {
   Value c0 = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
   Value inputRow = builder.create<memref::DimOp>(loc, input, c0);
   Value inputCol = builder.create<memref::DimOp>(loc, input, c1);
-  builder.create<scf::ForOp>(loc, c0, rows, c1, std::nullopt, [&](OpBuilder& yBuilder, Location yLoc, Value yiv, ValueRange){
-    Value dstY = yBuilder.create<arith::AddIOp>(yLoc, yiv, yStart);
-    yBuilder.create<scf::ForOp>(yLoc, c0, cols, c1, std::nullopt, [&](OpBuilder& xBuilder, Location xLoc, Value xiv, ValueRange) {
-      Value dstX = xBuilder.create<arith::AddIOp>(xLoc, xiv, xStart);
-      Value srcXI16 = xBuilder.create<memref::LoadOp>(xLoc, mapInt, ValueRange{c0, yiv, xiv});
-      Value srcYI16 = xBuilder.create<memref::LoadOp>(xLoc, mapInt, ValueRange{c1, yiv, xiv});
-      Value srcX = xBuilder.create<arith::IndexCastOp>(xLoc, IndexType::get(xBuilder.getContext()), srcXI16);
-      Value srcY = xBuilder.create<arith::IndexCastOp>(xLoc, IndexType::get(xBuilder.getContext()), srcYI16);
-      Value xInBound = inBound(xBuilder, xLoc, srcX, c0, inputCol);
-      Value yInBound = inBound(xBuilder, xLoc, srcY, c0, inputRow);
-      Value pixelInBound = xBuilder.create<arith::AndIOp>(xLoc, xInBound, yInBound);
-      xBuilder.create<scf::IfOp>(xLoc, pixelInBound, [&](OpBuilder& ifBuilder, Location ifLoc) {
-        Value pixel = ifBuilder.create<memref::LoadOp>(ifLoc, input, ValueRange{srcY, srcX});
-        ifBuilder.create<memref::StoreOp>(ifLoc, pixel, output, ValueRange{dstY, dstX});
-        ifBuilder.create<scf::YieldOp>(ifLoc);
+  builder.create<scf::ForOp>(
+      loc, c0, rows, c1, std::nullopt,
+      [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
+        Value dstY = yBuilder.create<arith::AddIOp>(yLoc, yiv, yStart);
+        yBuilder.create<scf::ForOp>(
+            yLoc, c0, cols, c1, std::nullopt,
+            [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
+              Value dstX = xBuilder.create<arith::AddIOp>(xLoc, xiv, xStart);
+              Value srcXI16 = xBuilder.create<memref::LoadOp>(
+                  xLoc, mapInt, ValueRange{c0, yiv, xiv});
+              Value srcYI16 = xBuilder.create<memref::LoadOp>(
+                  xLoc, mapInt, ValueRange{c1, yiv, xiv});
+              Value srcX = xBuilder.create<arith::IndexCastOp>(
+                  xLoc, IndexType::get(xBuilder.getContext()), srcXI16);
+              Value srcY = xBuilder.create<arith::IndexCastOp>(
+                  xLoc, IndexType::get(xBuilder.getContext()), srcYI16);
+              Value xInBound = inBound(xBuilder, xLoc, srcX, c0, inputCol);
+              Value yInBound = inBound(xBuilder, xLoc, srcY, c0, inputRow);
+              Value pixelInBound =
+                  xBuilder.create<arith::AndIOp>(xLoc, xInBound, yInBound);
+              xBuilder.create<scf::IfOp>(
+                  xLoc, pixelInBound,
+                  [&](OpBuilder &ifBuilder, Location ifLoc) {
+                    Value pixel = ifBuilder.create<memref::LoadOp>(
+                        ifLoc, input, ValueRange{srcY, srcX});
+                    ifBuilder.create<memref::StoreOp>(ifLoc, pixel, output,
+                                                      ValueRange{dstY, dstX});
+                    ifBuilder.create<scf::YieldOp>(ifLoc);
+                  });
+
+              xBuilder.create<scf::YieldOp>(xLoc);
+            });
+
+        yBuilder.create<scf::YieldOp>(yLoc);
       });
-
-      xBuilder.create<scf::YieldOp>(xLoc);
-    });
-
-    yBuilder.create<scf::YieldOp>(yLoc);
-  });
 }
 } // namespace buddy
