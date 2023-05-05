@@ -182,7 +182,7 @@ rvv-vp-intrinsic-asm:
 rvv-vp-intrinsic-run:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --finalize-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv -lower-vector-exp --convert-vector-to-llvm --finalize-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
@@ -192,7 +192,7 @@ rvv-vp-intrinsic-run:
 rvv-vp-intrinsic-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic.mlir \
 		--convert-scf-to-cf \
-		--lower-rvv --lower-bud --convert-vector-to-llvm --finalize-memref-to-llvm --convert-arith-to-llvm \
+		--lower-rvv -lower-vector-exp --convert-vector-to-llvm --finalize-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -200,14 +200,6 @@ rvv-vp-intrinsic-aot:
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
-
-rvv-vp-intrinsic-aot-debug:
-	@${MLIR_OPT} ./rvv-vp-intrinsic.mlir \
-		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-arith-to-llvm \
-		--convert-func-to-llvm --reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir | \
-	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
-		-debug-only=legalize-types > log.txt 2>&1
 
 rvv-vp-intrinsic-sh-aot:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-sh.mlir \
@@ -709,18 +701,6 @@ rvv-vp-intrinsic-rem-error:
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
 
-rvv-vp-intrinsic-to-error:
-	@${BUDDY_OPT} ./rvv-vp-intrinsic-to-error.mlir \
-		--convert-scf-to-cf \
-		--lower-rvv --convert-vector-to-llvm --finalize-memref-to-llvm --convert-arith-to-llvm \
-		--convert-func-to-llvm --reconcile-unrealized-casts | \
-	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
-	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
-	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o -mabi=lp64d \
-		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
-		-o a.out
-	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
-
 rvv-vp-intrinsic-fmul-reduce-error:
 	@${BUDDY_OPT} ./rvv-vp-intrinsic-fmul-reduce-error.mlir \
 		--convert-scf-to-cf \
@@ -733,8 +713,8 @@ rvv-vp-intrinsic-fmul-reduce-error:
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
 
-rvv-vp-intrinsic-mul-reduce-error:
-	@${BUDDY_OPT} ./rvv-vp-intrinsic-mul-reduce-error.mlir \
+rvv-vp-intrinsic-mul-reduce-aot:
+	@${BUDDY_OPT} ./rvv-vp-intrinsic-mul-reduce.mlir \
 		--convert-scf-to-cf \
 		--lower-rvv --convert-vector-to-llvm --finalize-memref-to-llvm --convert-arith-to-llvm \
 		--convert-func-to-llvm --reconcile-unrealized-casts | \
@@ -829,9 +809,9 @@ rvv-long-run:
 
 rvv-transpose-asm:
 	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-transpose.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
-		--reconcile-unrealized-casts | \
+		-convert-vector-to-scf -convert-scf-to-cf \
+		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
 	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
@@ -840,8 +820,9 @@ rvv-transpose-asm:
 run-targets += rvv-transpose-run
 rvv-transpose-run:
 	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-transpose.mlir \
-		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
-		--reconcile-unrealized-casts | \
+		-convert-vector-to-scf -convert-scf-to-cf \
+		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 \
 	${CROSS_LLI} --march=riscv64 -mattr=+m,+d,+v -jit-linker=jitlink -relocation-model=pic \
@@ -1095,7 +1076,7 @@ rvv-constant-mask-run:
 		--dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
 
 rvv-expand-load-asm:
-	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-expand-load.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-expandload.mlir \
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
@@ -1105,7 +1086,7 @@ rvv-expand-load-asm:
 
 run-targets += rvv-expand-load-run
 rvv-expand-load-run:
-	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-expand-load.mlir \
+	@${MLIR_OPT} ${MLIR_VECTOR_EXAMPLES}/vector-expandload.mlir \
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
