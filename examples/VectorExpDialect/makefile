@@ -27,6 +27,34 @@ MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
 
+vector-exp-load-dynamic-lower:
+	@${BUDDY_OPT} ./vector-exp-load-dynamic.mlir \
+		-o ./log.mlir
+
+vector-exp-load-original-lower:
+	@${BUDDY_OPT} ./vector-exp-load-original.mlir \
+		-convert-vector-to-llvm \
+		-o ./log.mlir
+
+vector-exp-load-original-translate:
+	@${BUDDY_OPT} ./vector-exp-load-original.mlir \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll
+
+vector-exp-load-original-asm:
+	@${BUDDY_OPT} ./vector-exp-load-original.mlir \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
+		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
+		--filetype=asm -o log.s
+
 vector-exp-config-lower:
 	@${BUDDY_OPT} ./vector-exp-predication.mlir \
 		-lower-vector-exp \
