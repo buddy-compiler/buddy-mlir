@@ -532,12 +532,11 @@ void affineTransformController(OpBuilder &builder, Location loc,
   Value xMm0 = builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
   Value xMm3 = builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
 
-#define RSV_BITS 5
+  const int RSV_BITS = 5;
   Value c_rsv = builder.create<arith::ConstantOp>(loc, builder.getF32FloatAttr((float)(1 << RSV_BITS)));
   Value rsv_delta = builder.create<arith::ConstantOp>(loc, builder.getI32IntegerAttr(1 << (RSV_BITS - 1)));
   Value c_rsvVec = builder.create<vector::SplatOp>(loc, vectorTyF32, c_rsv);
   Value rsv_deltaVec = builder.create<vector::SplatOp>(loc, vectorTyI32, rsv_delta);
-#undef RSV_BITS
 
   builder.create<AffineForOp>(loc, ValueRange{c0Index}, builder.getDimIdentityMap(),
                               ValueRange{outputColMultiple},
@@ -561,7 +560,7 @@ void affineTransformController(OpBuilder &builder, Location loc,
                                 builderFor.create<AffineYieldOp>(locFor);
                               });
 
-  affineTransformCore(builder, loc, input, output, c0Index, outputRow, c0Index, outputCol, affineMatrix[1], affineMatrix[4], xMm0, xMm3, stride, 0);
+  affineTransformCore(builder, loc, input, output, c0Index, outputRow, c0Index, outputCol, affineMatrix[1], affineMatrix[4], xMm0, xMm3, stride, RSV_BITS, 0);
 
   builder.create<memref::DeallocOp>(loc, xMm0);
   builder.create<memref::DeallocOp>(loc, xMm3);

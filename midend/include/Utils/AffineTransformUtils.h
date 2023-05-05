@@ -13,7 +13,8 @@ namespace buddy {
 void affineTransformCore(OpBuilder &builder, Location loc, Value input,
                          Value output, Value yStart, Value yEnd, Value xStart,
                          Value xEnd, Value m1, Value m4, Value xAddr1,
-                         Value xAddr2, int64_t stride, int interp_type);
+                         Value xAddr2, int64_t stride, const int &RSV_BITS,
+                         int interp_type);
 
 // remap using nearest neighbor interpolation
 void remapNearest(OpBuilder &builder, Location loc, Value input, Value output,

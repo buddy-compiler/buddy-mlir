@@ -97,8 +97,8 @@ void affineTransformCoreTiled(OpBuilder &builder, Location loc,
 void affineTransformCore(OpBuilder &builder, Location loc, Value input,
                          Value output, Value yStart, Value yEnd, Value xStart,
                          Value xEnd, Value m1, Value m4, Value xAddr1,
-                         Value xAddr2, int64_t stride, int interp_type) {
-#define RSV_BITS 5
+                         Value xAddr2, int64_t stride, const int &RSV_BITS,
+                         int interp_type) {
   Value c0 = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
   Value c_rsv = builder.create<arith::ConstantOp>(
@@ -109,10 +109,10 @@ void affineTransformCore(OpBuilder &builder, Location loc, Value input,
   VectorType vectorTyI32 =
       VectorType::get({stride}, IntegerType::get(builder.getContext(), 32));
   Value rsvValVec = builder.create<vector::SplatOp>(loc, vectorTyI32, rsvVal);
-#undef RSV_BITS
 
   // create memref to store compute result for remap use
-#define BLOCK_SZ 64
+  // TODO: auto config BLOCK_SZ by input type. float->32, uchar->64
+#define BLOCK_SZ 32
   MemRefType resIntPartType =
       MemRefType::get({2, BLOCK_SZ / 2, BLOCK_SZ * 2},
                       IntegerType::get(builder.getContext(), 16));
