@@ -17,8 +17,11 @@ add_custom_command(OUTPUT DIP.o
         -lower-dip="DIP-strip-mining=${SPLITING_SIZE}"
         -arith-expand
         -lower-affine
+        -convert-scf-to-openmp
+        #-convert-async-to-llvm
         -convert-memref-to-llvm
         -convert-scf-to-cf
+        -convert-openmp-to-llvm
         -convert-math-to-llvm
         -convert-vector-to-llvm
         -convert-func-to-llvm
@@ -29,11 +32,12 @@ add_custom_command(OUTPUT DIP.o
         -mattr=${BUDDY_OPT_ATTR}
         --filetype=obj
         -o ${CMAKE_CURRENT_BINARY_DIR}/DIP.o
+        DEPENDS buddy-opt
         )
 
 add_library(BuddyLibDIP STATIC DIP.o)
 
 SET_TARGET_PROPERTIES(BuddyLibDIP PROPERTIES
-  LINKER_LANGUAGE C
-  ARCHIVE_OUTPUT_DIRECTORY ${LIBRARY_OUTPUT_DIRECTORY}
-  )
+        LINKER_LANGUAGE C
+        ARCHIVE_OUTPUT_DIRECTORY ${LIBRARY_OUTPUT_DIRECTORY}
+        )

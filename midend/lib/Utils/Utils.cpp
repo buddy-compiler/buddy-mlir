@@ -33,6 +33,7 @@
 #include <mlir/IR/Value.h>
 
 #include <numeric>
+#include <initializer_list>
 
 using namespace mlir;
 
@@ -100,6 +101,13 @@ Value valBound(OpBuilder &builder, Location loc, Value val, Value lastElemF32,
   return builder.create<arith::MinFOp>(loc, interm1, lastElemF32);
 }
 
+// check if lb <= val < ub and returns Value 0 or 1
+Value inBound(OpBuilder &builder, Location loc, Value val, Value lb, Value ub) {
+  Value greaterThanLb = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sle, lb, val);
+  Value lowerThanUb = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, val, ub);
+  return builder.create<arith::AndIOp>(loc, greaterThanLb, lowerThanUb);
+}
+
 // Equivalent of std::iota.
 Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
               Value indexStart, Value strideVal, VectorType vecType, Value c0,
@@ -140,6 +148,25 @@ Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                     VectorType vecType) {
   Value interm1 = indexToF32(builder, loc, val);
   return builder.create<vector::SplatOp>(loc, vecType, interm1);
+}
+
+// print values(for debug use)
+void printValues(OpBuilder &builder, Location loc, std::initializer_list<Value> values) {
+  if(empty(values)) return;
+  Type valueTy = values.begin()->getType();
+  VectorType vecTy = VectorType::get({(long)values.size()}, valueTy);
+  Value vec = builder.create<vector::SplatOp>(loc, vecTy, *values.begin());
+  int idx = 0;
+  for(auto value: values) {
+    if(idx != 0) {
+      // all values should have same type
+      assert(value.getType() == valueTy);
+      Value idxVal = builder.create<arith::ConstantIndexOp>(loc, idx);
+      vec = builder.create<vector::InsertElementOp>(loc, value, vec, idxVal);
+    }
+    idx ++;
+  }
+  builder.create<vector::PrintOp>(loc, vec);
 }
 
 } // namespace buddy
