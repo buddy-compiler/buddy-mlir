@@ -1,3 +1,11 @@
+// RUN: buddy-opt %s \
+// RUN:     -convert-vector-to-llvm -convert-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -reconcile-unrealized-casts \
+// RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
 memref.global "private" @gv : memref<4x4xf32> = dense<[[0. , 1. , 2. , 3. ],
                                                        [10., 11., 12., 13.],
                                                        [20., 21., 22., 23.],
@@ -13,22 +21,50 @@ func.func @main() -> i32 {
   // Broadcast scalar to 1-D vector.
   %ele = memref.load %mem[%c1, %c1] : memref<4x4xf32>
   %broadcast_vec = vector.broadcast %ele : f32 to vector<4xf32>
+  // CHECK: ( 11, 11, 11, 11 )
   vector.print %broadcast_vec : vector<4xf32>
-
 
   // Broadcast 1-D vector to 2-D vector. 
   %load_vec = vector.load %mem[%c0, %c0] : memref<4x4xf32>, vector<4xf32>
   %broadcast_vec_2d = vector.broadcast %load_vec : vector<4xf32> to vector<4x4xf32>
+  // CHECK: ( ( 0, 1, 2, 3 ), ( 0, 1, 2, 3 ), ( 0, 1, 2, 3 ), ( 0, 1, 2, 3 ) )
   vector.print %broadcast_vec_2d : vector<4x4xf32>
 
 
   // Detailed examples for all cases of vector.broadcast:
   %v1 = arith.constant dense<[[1.0], [2.0], [3.0]]> : vector<3x1xf32>
   %v2 = arith.constant dense<[[[1.0], [2.0], [3.0]]]> : vector<1x3x1xf32>
-
+  // CHECK: ( ( 1 ), ( 1 ), ( 1 ) )
+  // CHECK-NEXT: ( ( 1 ), ( 1 ), ( 1 ) )
   func.call @broadcast_scalar_to_vector(%f1) : (f32) -> vector<3x1xf32>
+  // CHECK:    ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ), 
+  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECk-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ) )
+  // CHECK-NEXT: ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ) )
+  // CHECK-NEXT:    ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ), 
+  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECk-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ) )
+  // CHECK-NEXT: ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ) )
   func.call @broadcast_low_dim_to_high_dim(%v1) : (vector<3x1xf32>) -> vector<4x3x2xf32>
+  // CHECK:    ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ), 
+  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECk-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ) )
+  // CHECK-NEXT: ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
+  // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ) )
   func.call @broadcast_1_to_n_case(%v2) : (vector<1x3x1xf32>) -> vector<4x3x2xf32>
+  // CHECK: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) )
+  // CHECK: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) )
   func.call @broadcast_n_to_n_case(%v1) : (vector<3x1xf32>) -> vector<3x2xf32>
 
   %ret = arith.constant 0 : i32
