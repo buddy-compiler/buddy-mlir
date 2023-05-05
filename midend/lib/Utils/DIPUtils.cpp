@@ -431,7 +431,6 @@ SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
       builder.create<arith::ConstantOp>(loc,
                                         builder.getF32FloatAttr((float)1.)),
       alpha);
-  SmallVector<Value, 6> mat;
   Value m20 = builder.create<arith::MulFOp>(loc, oneMinusAlpha, centerX);
   Value m21 = builder.create<arith::MulFOp>(loc, beta, centerY);
   Value m50 = builder.create<arith::MulFOp>(loc, beta, centerX);
