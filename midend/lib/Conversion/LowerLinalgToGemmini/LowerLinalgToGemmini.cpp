@@ -36,6 +36,8 @@ using namespace buddy;
 namespace {
 class MatmulLowering : public OpRewritePattern<linalg::MatmulOp> {
 public:
+  explicit MatmulLowering(MLIRContext* context, std::string accType)
+      : OpRewritePattern(context), accType(accType) {}
   using OpRewritePattern<linalg::MatmulOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(linalg::MatmulOp matMulOp,
                                 PatternRewriter &rewriter) const override {
@@ -45,23 +47,21 @@ public:
     Value input0 = inputs[0];
     Value input1 = inputs[1];
     Value output0 = ouputs[0];
-    MemRefType input0Type = input0.getType().dyn_cast<MemRefType>();
-    if (!input0Type.getElementType().isInteger(8))
-      return failure();
-    MemRefType input1Type = input1.getType().dyn_cast<MemRefType>();
-    if (!input1Type.getElementType().isInteger(8))
-      return failure();
-    MemRefType output0Type = output0.getType().dyn_cast<MemRefType>();
-    if (!output0Type.getElementType().isInteger(8))
-      return failure();
+    MemRefType input0Type = input0.getType().dyn_cast<MemRefType>(); 
     MemRefType biasType =
         MemRefType::get(input0Type.getShape(), rewriter.getI32Type());
-    IntegerAttr alignment = rewriter.getI64IntegerAttr(64);
+    TypedAttr fillOpInputAttr = rewriter.getI32IntegerAttr(0);
+    Type fillOpInsType = rewriter.getI32Type();
+    if (accType == "f32") {
+      biasType = MemRefType::get(input0Type.getShape(), rewriter.getF32Type());
+      fillOpInputAttr = rewriter.getF32FloatAttr(0);
+      fillOpInsType = rewriter.getF32Type();
+    }
     llvm::APFloat scale1((float)1.0);
     llvm::APFloat scale0((float)0.0);
-    Value bias = rewriter.create<memref::AllocOp>(loc, biasType, alignment);
-    Value fillOpInputValue =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getI32IntegerAttr(0));
+    Value bias = rewriter.create<memref::AllocOp>(loc, biasType);
+    Value fillOpInputValue = rewriter.create<arith::ConstantOp>(
+        loc, fillOpInsType, fillOpInputAttr);
     rewriter.create<linalg::FillOp>(loc, fillOpInputValue, bias);
     rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
         matMulOp, input0, input1, output0, bias, /*aScaleFactor = */ scale1,
@@ -70,10 +70,15 @@ public:
     rewriter.create<memref::DeallocOp>(loc, bias);
     return success();
   }
+  private:
+    std::string accType;
 };
 
-class Conv2DHchwFchwLowering
+class Conv2DNchwFchwLowering
     : public OpRewritePattern<linalg::Conv2DNchwFchwOp> {
+  public:
+  explicit Conv2DNchwFchwLowering(MLIRContext* context, std::string accType)
+      : OpRewritePattern(context), accType(accType) {}
   using OpRewritePattern<linalg::Conv2DNchwFchwOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(linalg::Conv2DNchwFchwOp convOp,
                                 PatternRewriter &rewriter) const override {
@@ -84,39 +89,44 @@ class Conv2DHchwFchwLowering
     Location loc = convOp.getLoc();
     MemRefType inputType = input0.getType().dyn_cast<MemRefType>();
     MemRefType weightsType = input1.getType().dyn_cast<MemRefType>();
-    MemRefType outputType = output.getType().dyn_cast<MemRefType>();
-    if (!inputType.getElementType().isInteger(8))
-      return failure();
-    if (!weightsType.getElementType().isInteger(8))
-      return failure();
-    if (!weightsType.getElementType().isInteger(8))
-      return failure();
+    MemRefType outputType = output.getType().dyn_cast<MemRefType>(); 
     ArrayRef<int64_t> inputShape = inputType.getShape();
     ArrayRef<int64_t> outputShape = outputType.getShape();
     ArrayRef<int64_t> weightsShape = weightsType.getShape();
+    Type inputElemType = inputType.getElementType(); 
+    Type weightsElemType = weightsType.getElementType(); 
+    Type outputElemType = outputType.getElementType(); 
+    DenseIntElementsAttr dilationsAttr =  convOp.getDilationsAttr();
+    DenseIntElementsAttr stridesAttr =  convOp.getStrides();
+    size_t dilations = 1;
+    size_t strides = 1; 
+    // Gemmini only support 1-D dilations.
+    if (dilationsAttr) 
+      dilations = (*dilationsAttr.begin()).getLimitedValue();
+    if (stridesAttr)
+      strides = (*stridesAttr.begin()).getLimitedValue(); 
     SmallVector<int64_t> inputMatShape = {inputShape[0], inputShape[2],
                                           inputShape[3], inputShape[1]};
     SmallVector<int64_t> weightsMatShape = {
         weightsShape[1] * weightsShape[2] * weightsShape[3], weightsShape[0]};
     MemRefType inputMatType =
-        MemRefType::get(inputMatShape, rewriter.getI8Type());
+        MemRefType::get(inputMatShape, inputElemType);
     MemRefType weightsMatType =
-        MemRefType::get(weightsMatShape, rewriter.getI8Type());
+        MemRefType::get(weightsMatShape, weightsElemType);
     Value inputMat = rewriter.create<memref::AllocOp>(loc, inputMatType);
     Value weightsMat = rewriter.create<memref::AllocOp>(loc, weightsMatType);
     MemRefType biasType =
         MemRefType::get(weightsShape[0], rewriter.getI32Type());
+    if (accType == "f32")
+      biasType = MemRefType::get(weightsShape[0], rewriter.getF32Type());
     SmallVector<int64_t, 2> outputMatShape = {
         inputShape[0] * outputShape[2] * outputShape[3], outputShape[1]};
     MemRefType outputMatType =
-        MemRefType::get(outputMatShape, rewriter.getI8Type());
+        MemRefType::get(outputMatShape, outputElemType);
     Value bias = rewriter.create<memref::AllocOp>(loc, biasType);
     Value outputMat = rewriter.create<memref::AllocOp>(loc, outputMatType);
-    IntegerAttr outDimAttr = rewriter.getI64IntegerAttr(outputShape[2]);
-    Value batchSize =
-        rewriter.create<arith::ConstantIndexOp>(loc, inputShape[0]);
-    Value outDim = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(outputShape[2]));
+    TypedAttr outDimAttr = rewriter.getI64IntegerAttr(outputShape[2]);
+    Value outDim = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64Type(), outDimAttr);
     Value kernelDim =
         rewriter.create<arith::ConstantIndexOp>(loc, weightsShape[2]);
     Value inChannels =
@@ -169,10 +179,11 @@ class Conv2DHchwFchwLowering
     rewriter.create<memref::StoreOp>(loc, tmp1, weightsMat, valueRange);
     rewriter.setInsertionPointAfter(loopOp);
     kernelDim = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(weightsShape[2]));
+        loc, rewriter.getI64Type(),
+        rewriter.getI64IntegerAttr(weightsShape[2]));
     rewriter.create<gemmini::TileConvOp>(loc, inputMat, weightsMat, bias,
                                          outputMat, outDim, kernelDim,
-                                         llvm::APFloat(float(1.0)));
+                                         llvm::APFloat(float(1.0)), strides, dilations);
     rewriter.eraseOp(convOp);
     loopIvs0.clear();
     loopIvs1.clear();
@@ -189,7 +200,8 @@ class Conv2DHchwFchwLowering
         loopOp = loop.getOperation();
     }
     outDim = rewriter.create<arith::ConstantIndexOp>(loc, outputShape[2]);
-    tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs0[0], batchSize);
+    tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs0[0], outDim);
+    tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, outDim);
     tmp1 = rewriter.create<arith::MulIOp>(loc, loopIvs0[2], outDim);
     tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
     tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, loopIvs0[3]);
@@ -199,8 +211,204 @@ class Conv2DHchwFchwLowering
     rewriter.create<memref::StoreOp>(loc, tmp1, output, loopIvs0);
     rewriter.setInsertionPointAfter(loopOp);
     rewriter.create<memref::DeallocOp>(loc, inputMat);
+    rewriter.create<memref::DeallocOp>(loc, weightsMat);
     rewriter.create<memref::DeallocOp>(loc, outputMat);
     rewriter.create<memref::DeallocOp>(loc, bias);
+    return success();
+  }
+  private:
+    std::string accType;
+};
+
+class Conv2DNhwcHwcfLowering
+    : public OpRewritePattern<linalg::Conv2DNhwcHwcfOp> {
+  public:
+  explicit Conv2DNhwcHwcfLowering(MLIRContext* context, std::string accType)
+      : OpRewritePattern(context), accType(accType) {}
+  using OpRewritePattern<linalg::Conv2DNhwcHwcfOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::Conv2DNhwcHwcfOp convOp,
+                                PatternRewriter &rewriter) const override {
+    Value input = convOp.getInputs()[0];
+    Value kernel = convOp.getInputs()[1];
+    Value output = convOp.getOutputs()[0];
+    Location loc = convOp.getLoc();
+    MemRefType inputType = input.getType().dyn_cast<MemRefType>();
+    MemRefType kernelType = kernel.getType().dyn_cast<MemRefType>();
+    MemRefType outputType = output.getType().dyn_cast<MemRefType>();
+    Type kernelElemType = kernelType.getElementType(); 
+    Type outputElemType = outputType.getElementType();
+    ArrayRef<int64_t> inputShape = inputType.getShape();
+    DenseIntElementsAttr dilationsAttr =  convOp.getDilationsAttr();
+    DenseIntElementsAttr stridesAttr =  convOp.getStrides();
+    size_t dilations = 1;
+    size_t strides = 1; 
+    // Gemmini only support 1-D dilations.
+    if (dilationsAttr) 
+      dilations = (*dilationsAttr.begin()).getLimitedValue();
+    if (stridesAttr)
+      strides = (*stridesAttr.begin()).getLimitedValue(); 
+
+    if (inputShape[1] != inputShape[2])
+      return failure();
+    ArrayRef<int64_t> kernelShape = kernelType.getShape();
+    if (kernelShape[0] != kernelShape[1])
+      return failure();
+    ArrayRef<int64_t> outputShape = outputType.getShape();
+    // Create kernelMat and outputMat.
+    SmallVector<int64_t> memRefShape = {
+        kernelShape[0] * kernelShape[1] * kernelShape[2], kernelShape[3]};
+    MemRefType kernelMatType =
+        MemRefType::get(memRefShape, kernelElemType);
+    Value kernelMat = rewriter.create<memref::AllocOp>(loc, kernelMatType);
+    memRefShape.assign(
+        {outputShape[0] * outputShape[1] * outputShape[2], outputShape[3]});
+    MemRefType outputMatType =
+        MemRefType::get(memRefShape, outputElemType);
+    Value outputMat = rewriter.create<memref::AllocOp>(loc, outputMatType);
+    memRefShape.assign({outputShape[3]});
+    MemRefType biasType = MemRefType::get(memRefShape, rewriter.getI32Type());
+    if (accType == "f32")
+      biasType = MemRefType::get(memRefShape, rewriter.getF32Type()); 
+    Value bias = rewriter.create<memref::AllocOp>(loc, biasType);
+    TypedAttr attr = rewriter.getI32IntegerAttr(0);
+    if (accType == "f32")
+      attr = rewriter.getF32FloatAttr(0); 
+    Value constant0 =
+        rewriter.create<arith::ConstantOp>(loc, attr);
+    SmallVector<Value, 1> inputs = {constant0};
+    SmallVector<Value, 1> outputs = {bias};
+    rewriter.create<linalg::FillOp>(loc, inputs, outputs);
+    // Transferring kernel data to kernelMat.
+    Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Operation *loopOp = nullptr;
+    SmallVector<Value, 4> loopIvs;
+    for (size_t i = 0; i != kernelShape.size(); i++) {
+      Value upperBound =
+          rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[i]);
+      auto loop =
+          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+      loopIvs.push_back(loop.getInductionVar());
+      if (i == 0)
+        loopOp = loop.getOperation();
+      rewriter.setInsertionPointToStart(loop.getBody());
+    }
+    Value kernelDim =
+        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[1]);
+    Value inChannels =
+        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[3]);
+    Value tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs[0], kernelDim);
+    tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, inChannels);
+    Value tmp1 = rewriter.create<arith::MulIOp>(loc, loopIvs[1], inChannels);
+    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
+    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, loopIvs[2]);
+    tmp1 = rewriter.create<memref::LoadOp>(loc, kernel, loopIvs);
+    SmallVector<Value, 2> indices = {tmp0, loopIvs[3]};
+    rewriter.create<memref::StoreOp>(loc, tmp1, kernelMat, indices);
+    rewriter.setInsertionPointAfter(loopOp);
+    attr = rewriter.getI64IntegerAttr(outputShape[1]);
+    Value outDim =
+        rewriter.create<arith::ConstantOp>(loc, attr);
+    attr = rewriter.getI64IntegerAttr(kernelShape[1]);
+    kernelDim =
+        rewriter.create<arith::ConstantOp>(loc, attr);
+    rewriter.create<gemmini::TileConvOp>(loc, input, kernelMat, bias, outputMat,
+                                         outDim, kernelDim,
+                                         llvm::APFloat(float(1.0)), strides, dilations);
+    // after the conv operation is completed, the data in outputmat needs to be
+    // transferred into output.
+    loopIvs.clear();
+    indices.clear();
+    for (size_t i = 0; i < outputShape.size(); i++) {
+      Value upperBound =
+          rewriter.create<arith::ConstantIndexOp>(loc, outputShape[i]);
+      auto loop =
+          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+      loopIvs.push_back(loop.getInductionVar());
+      if (i == 0)
+        loopOp = loop.getOperation();
+      rewriter.setInsertionPointToStart(loop.getBody());
+    }
+
+    // Because outputRow is equal to outputCol,here you only need to use
+    // outputRow.
+    Value row = rewriter.create<arith::ConstantIndexOp>(loc, outputShape[1]);
+    tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs[0], row);
+    tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, row);
+    tmp1 = rewriter.create<arith::MulIOp>(loc, row, loopIvs[1]);
+    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
+    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, loopIvs[2]);
+    indices.assign({tmp0, loopIvs[3]});
+    tmp0 = rewriter.create<memref::LoadOp>(loc, outputMat, indices);
+    rewriter.create<memref::StoreOp>(loc, tmp0, output, loopIvs);
+    rewriter.setInsertionPointAfter(loopOp);
+    rewriter.create<memref::DeallocOp>(loc, kernelMat);
+    rewriter.create<memref::DeallocOp>(loc, outputMat);
+    rewriter.create<memref::DeallocOp>(loc, bias);
+    rewriter.eraseOp(convOp);
+    return success();
+  }
+  private:
+    std::string accType;
+};
+
+class BatchMatMulOpLowering : public OpRewritePattern<linalg::BatchMatmulOp> {
+  public:
+  using OpRewritePattern<linalg::BatchMatmulOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::BatchMatmulOp batchMatMulOp,
+                                PatternRewriter &rewriter) const override {
+    Location loc = batchMatMulOp.getLoc();
+    auto inputs = batchMatMulOp.getInputs();
+    Value input0 = inputs[0];
+    Value input1 = inputs[1];
+    Value output = batchMatMulOp.getOutputs()[0];
+    MemRefType input0Type = input0.getType().dyn_cast<MemRefType>();
+    ArrayRef<int64_t> input0Shape = input0Type.getShape();
+    MemRefType input1Type = input1.getType().dyn_cast<MemRefType>();
+    ArrayRef<int64_t> input1Shape = input1Type.getShape();
+    MemRefType outputType = output.getType().dyn_cast<MemRefType>();
+    ArrayRef<int64_t> outputShape = outputType.getShape();
+    Type elemType = input0Type.getElementType(); 
+    for (unsigned i = 0; i != input0Shape[0]; i++) {
+      SmallVector<int64_t> staticOffsets = {i, 0, 0};
+      SmallVector<int64_t> staticSizes = {1, input0Shape[1], input0Shape[2]};
+      SmallVector<int64_t> staticStrides = {1, 1, 1};
+      SmallVector<int64_t> resultShape = {input0Shape[1], input0Shape[2]};
+      SmallVector<int64_t> layout = {input0Shape[2], 1};
+      FailureOr<StridedLayoutAttr> computelayout =
+          StridedLayoutAttr::get(batchMatMulOp.getContext(),
+                                 i * input0Shape[1] * input0Shape[2], layout);
+      MemRefType resultType =
+          MemRefType::get(resultShape, elemType, *computelayout, 0);
+      Value subInput0 = rewriter.create<memref::SubViewOp>(
+          loc, resultType, input0, staticOffsets, staticSizes, staticStrides);
+
+      staticSizes.assign({1, input1Shape[1], input1Shape[2]});
+      resultShape.assign({input1Shape[1], input1Shape[2]});
+      layout.assign({input1Shape[2], 1});
+      computelayout =
+          StridedLayoutAttr::get(batchMatMulOp.getContext(),
+                                 i * input1Shape[1] * input1Shape[2], layout);
+      resultType =
+          MemRefType::get(resultShape, elemType, *computelayout, 0);
+      Value subInput1 = rewriter.create<memref::SubViewOp>(
+          loc, resultType, input1, staticOffsets, staticSizes, staticStrides);
+
+      staticSizes.assign({1, outputShape[1], outputShape[2]});
+      resultShape.assign({outputShape[1], outputShape[2]});
+      layout.assign({outputShape[2], 1});
+      computelayout =
+          StridedLayoutAttr::get(batchMatMulOp.getContext(),
+                                 i * outputShape[1] * outputShape[2], layout);
+      resultType =
+          MemRefType::get(resultShape, elemType, *computelayout, 0);
+      Value subOutput = rewriter.create<memref::SubViewOp>(
+          loc, resultType, output, staticOffsets, staticSizes, staticStrides);
+      SmallVector<Value> inputs = {subInput0, subInput1};
+      SmallVector<Value> output = {subOutput};
+      rewriter.create<linalg::MatmulOp>(batchMatMulOp.getLoc(), inputs, output);
+    }
+    rewriter.eraseOp(batchMatMulOp.getOperation());
     return success();
   }
 };
@@ -208,9 +416,11 @@ class Conv2DHchwFchwLowering
 } // namespace
 
 void populateLowerLinalgToGemminiConversionPatterns(
-    RewritePatternSet &patterns) {
-  patterns.add<MatmulLowering>(patterns.getContext());
-  patterns.add<Conv2DHchwFchwLowering>(patterns.getContext());
+    RewritePatternSet &patterns, std::string accType) {
+  patterns.add<MatmulLowering>(patterns.getContext(), accType);
+  patterns.add<Conv2DNchwFchwLowering>(patterns.getContext(), accType);
+  patterns.add<Conv2DNhwcHwcfLowering>(patterns.getContext(), accType);
+  patterns.add<BatchMatMulOpLowering>(patterns.getContext());
 }
 
 //===----------------------------------------------------------------------===//
@@ -229,6 +439,9 @@ public:
     return "convert linalg dialect to gemmini dialect";
   }
   void runOnOperation() override;
+  Option<std::string> accType{*this, "acc_t",
+                    llvm::cl::desc("The type of acc_t."),
+                    llvm::cl::init("i32")};
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<gemmini::GemminiDialect, func::FuncDialect,
                     memref::MemRefDialect, linalg::LinalgDialect,
@@ -245,7 +458,7 @@ void LowerLinalgToGemminiPass::runOnOperation() {
                          arith::ArithDialect, scf::SCFDialect>();
   target.addLegalOp<linalg::FillOp, linalg::YieldOp>();
   RewritePatternSet patterns(context);
-  populateLowerLinalgToGemminiConversionPatterns(patterns);
+  populateLowerLinalgToGemminiConversionPatterns(patterns, accType);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
 }
