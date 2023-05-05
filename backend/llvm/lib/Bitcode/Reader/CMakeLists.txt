@@ -19,3 +19,4 @@ add_llvm_component_library(LLVMBuddyBitReader
   Support
   TargetParser
   )
+

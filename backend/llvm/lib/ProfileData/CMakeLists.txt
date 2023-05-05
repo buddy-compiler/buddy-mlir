@@ -31,3 +31,4 @@ add_llvm_component_library(LLVMBuddyProfileData
   DebugInfoDWARF
   TargetParser
   )
+
