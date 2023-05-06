@@ -474,10 +474,12 @@ inline void inverseAffineMatrix(OpBuilder &builder, Location loc,
       });
   D = scfRes.getResult(0);
   Value negD = builder.create<arith::NegFOp>(loc, D);
-  affineMatrix[0] = builder.create<arith::MulFOp>(loc, affineMatrix[4], D);
+  Value a0 = builder.create<arith::MulFOp>(loc, affineMatrix[4], D);
+  Value a4 = builder.create<arith::MulFOp>(loc, affineMatrix[0], D);
+  affineMatrix[0] = a0;
   affineMatrix[1] = builder.create<arith::MulFOp>(loc, affineMatrix[1], negD);
   affineMatrix[3] = builder.create<arith::MulFOp>(loc, affineMatrix[3], negD);
-  affineMatrix[4] = builder.create<arith::MulFOp>(loc, affineMatrix[0], D);
+  affineMatrix[4] = a4;
   Value m0pm2 =
       builder.create<arith::MulFOp>(loc, affineMatrix[0], affineMatrix[2]);
   Value m1pm5 =
