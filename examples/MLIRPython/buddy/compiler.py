@@ -80,6 +80,19 @@ def CodeGen(node, symbolTable, argsList):
       # Generate matmul operation.
       op = linalg.matmul(input1, input2, outs=[init_result.result])
       symbolTable[str(node.name)] = op
+    if node.target.__name__ == "dot":
+      # Get two input values.
+      input1 = symbolTable.get(str(node._args[0]))
+      input2 = symbolTable.get(str(node._args[1]))
+      f32_type = F32Type.get()
+      f32_attr = FloatAttr.get(f32_type, 0.0)
+      tensor_type = RankedTensorType.get([], f32_type)
+      tensor_attr = DenseElementsAttr.get_splat(tensor_type, f32_attr)
+      init_result = arith.ConstantOp(tensor_type, tensor_attr)
+      # Generate dot operation.
+      op = linalg.dot(input1, input2, outs=[init_result.result])
+      symbolTable[str(node.name)] = op
+
   if node.op == "output" :
     # Generating return operation.
     ret = symbolTable.get(str(node._args[0][0]))
@@ -94,7 +107,7 @@ def Lowering(module):
   pm.add("func.func(linalg-bufferize)")
   pm.add("func.func(tensor-bufferize)")
   pm.add("func-bufferize")
-  pm.run(module)
+  pm.run(module.operation)
   print(module)
   print("-------------------------------------------------------------------")
   print("Lowering the module to LLVM dialect ...")
@@ -102,9 +115,9 @@ def Lowering(module):
   pm.add("func.func(convert-linalg-to-loops)")
   pm.add("convert-scf-to-cf")
   pm.add("convert-linalg-to-llvm")
-  pm.add("convert-memref-to-llvm")
+  pm.add("finalize-memref-to-llvm")
   pm.add("convert-func-to-llvm")
   pm.add("reconcile-unrealized-casts")
-  pm.run(module)
+  pm.run(module.operation)
   print(module)
   return module
