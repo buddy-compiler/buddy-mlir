@@ -85,7 +85,7 @@ def CodeGen(node, symbolTable, argsList):
     ret = symbolTable.get(str(node._args[0][0]))
     symbolTable["output"] = ret
 
-def Lowering(module):
+def Lowering(module: Module):
   print("-------------------------------------------------------------------")
   print("Bufferizing the module ...")
   pm = PassManager('builtin.module')
@@ -94,7 +94,7 @@ def Lowering(module):
   pm.add("func.func(linalg-bufferize)")
   pm.add("func.func(tensor-bufferize)")
   pm.add("func-bufferize")
-  pm.run(module)
+  pm.run(module.operation)
   print(module)
   print("-------------------------------------------------------------------")
   print("Lowering the module to LLVM dialect ...")
@@ -102,9 +102,10 @@ def Lowering(module):
   pm.add("func.func(convert-linalg-to-loops)")
   pm.add("convert-scf-to-cf")
   pm.add("convert-linalg-to-llvm")
-  pm.add("convert-memref-to-llvm")
+  pm.add("expand-strided-metadata")
+  pm.add("finalize-memref-to-llvm")
   pm.add("convert-func-to-llvm")
   pm.add("reconcile-unrealized-casts")
-  pm.run(module)
+  pm.run(module.operation)
   print(module)
   return module
