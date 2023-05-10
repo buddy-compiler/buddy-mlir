@@ -1,9 +1,10 @@
 from mlir.ir import *
-from mlir.dialects import arith, linalg
+from mlir.dialects import arith, linalg, tosa
 import mlir.dialects.func as func
 from mlir.passmanager import *
 import torch
 from typing import List
+import array
 
 def DynamoCompiler(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
   print("Custom Compiler from FX Graph to MLIR:")
@@ -80,6 +81,21 @@ def CodeGen(node, symbolTable, argsList):
       # Generate matmul operation.
       op = linalg.matmul(input1, input2, outs=[init_result.result])
       symbolTable[str(node.name)] = op
+    if node.target.__name__ == "transpose":
+      input_tensor = symbolTable.get(str(node._args[0]))
+      size1 = RankedTensorType(input_tensor.type).shape[0]
+      size2 = RankedTensorType(input_tensor.type).shape[1]
+      sizes = [size2, size1]
+
+      f32 = F32Type.get()
+      trans_result_tensor_type = RankedTensorType.get(sizes, f32)
+      perm_tensor_type = RankedTensorType.get([2], f32)
+      perm_content = memoryview(array.array('i', [1, 0]))
+      perm_attr = DenseElementsAttr.get(perm_content)
+      perm = arith.ConstantOp(perm_tensor_type, perm_attr)
+      op = tosa.TransposeOp(trans_result_tensor_type, input_tensor, perm)
+      symbolTable[str(node.name)] = op
+
   if node.op == "output" :
     # Generating return operation.
     ret = symbolTable.get(str(node._args[0][0]))
@@ -89,6 +105,8 @@ def Lowering(module: Module):
   print("-------------------------------------------------------------------")
   print("Bufferizing the module ...")
   pm = PassManager('builtin.module')
+  pm.add("func.func(tosa-to-linalg)")
+  pm.add("empty-tensor-to-alloc-tensor")
   pm.add("convert-elementwise-to-linalg")
   pm.add("arith-bufferize")
   pm.add("func.func(linalg-bufferize)")
@@ -102,6 +120,7 @@ def Lowering(module: Module):
   pm.add("func.func(convert-linalg-to-loops)")
   pm.add("convert-scf-to-cf")
   pm.add("convert-linalg-to-llvm")
+  pm.add("convert-arith-to-llvm")
   pm.add("expand-strided-metadata")
   pm.add("finalize-memref-to-llvm")
   pm.add("convert-func-to-llvm")
