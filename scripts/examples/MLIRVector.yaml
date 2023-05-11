@@ -289,6 +289,7 @@
     env:
     input: STDIN
     output: STDOUT
+    
 - filename: vector-insert.mlir
   type: jit
   arch: general

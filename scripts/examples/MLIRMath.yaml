@@ -17,10 +17,10 @@
 
 - filename: math-rsqrt.mlir
   type: aot
-  arch: x86
+  arch: general
   commands:
   - exec: ${MLIR_OPT}
-    args: --test-math-polynomial-approximation=enable-avx2 --convert-vector-to-llvm="enable-x86vector" --convert-math-to-llvm --convert-func-to-llvm
+    args: --convert-math-to-llvm --convert-vector-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
     env:
     input: FILE
