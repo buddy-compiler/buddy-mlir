@@ -1,5 +1,5 @@
 from mlir.ir import *
-from mlir.dialects import arith, linalg
+from mlir.dialects import arith, linalg, tosa
 import mlir.dialects.func as func
 from mlir.passmanager import *
 import torch
@@ -97,6 +97,20 @@ def CodeGen(node, symbolTable, argsList):
         symbolTable[str(node.name)] = op
       else:
         raise NotImplementedError
+    if node.target.__name__ == "transpose":
+      input_tensor = symbolTable.get(str(node._args[0]))
+      size1 = RankedTensorType(input_tensor.type).shape[0]
+      size2 = RankedTensorType(input_tensor.type).shape[1]
+      sizes = [size2, size1]
+
+      f32 = F32Type.get()
+      trans_result_tensor_type = RankedTensorType.get(sizes, f32)
+      perm_tensor_type = RankedTensorType.get([2], f32)
+      perm_content = memoryview(array.array('i', [1, 0]))
+      perm_attr = DenseElementsAttr.get(perm_content)
+      perm = arith.ConstantOp(perm_tensor_type, perm_attr)
+      op = tosa.TransposeOp(trans_result_tensor_type, input_tensor, perm)
+      symbolTable[str(node.name)] = op
 
   if node.op == "output" :
     # Generating return operation.
@@ -107,6 +121,8 @@ def Lowering(module: Module):
   print("-------------------------------------------------------------------")
   print("Bufferizing the module ...")
   pm = PassManager('builtin.module')
+  pm.add("func.func(tosa-to-linalg)")
+  pm.add("empty-tensor-to-alloc-tensor")
   pm.add("convert-elementwise-to-linalg")
   pm.add("arith-bufferize")
   pm.add("func.func(linalg-bufferize)")
