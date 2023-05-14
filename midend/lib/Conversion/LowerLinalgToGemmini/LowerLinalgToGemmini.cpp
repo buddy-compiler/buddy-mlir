@@ -294,7 +294,7 @@ public:
     Value kernelDim =
         rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[1]);
     Value inChannels =
-        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[3]);
+        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[2]);
     Value tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs[0], kernelDim);
     tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, inChannels);
     Value tmp1 = rewriter.create<arith::MulIOp>(loc, loopIvs[1], inChannels);
