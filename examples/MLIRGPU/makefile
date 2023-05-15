@@ -71,3 +71,14 @@ gpu-mma-run:
 vector-to-gpu-lower:
 	@${MLIR_OPT} vector-to-gpu.mlir -gpu-kernel-outlining | \
 	${MLIR_OPT} -pass-pipeline="builtin.module(func.func(convert-vector-to-gpu,canonicalize))" -o log.mlir 
+
+gpu-matmul-lower:
+	@${MLIR_OPT} gpu-matmul.mlir -lower-affine --convert-scf-to-cf -gpu-kernel-outlining | \
+	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' | \
+	${MLIR_OPT}	-gpu-async-region -gpu-to-llvm -o log.mlir
+
+gpu-matmul-run:
+	@${MLIR_OPT} gpu-matmul.mlir -lower-affine --convert-scf-to-cf -gpu-kernel-outlining | \
+	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' | \
+	${MLIR_OPT}	-gpu-async-region -gpu-to-llvm | \
+	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
