@@ -11,7 +11,7 @@ elseif(HAVE_NEON)
 endif()
 
 add_custom_command(OUTPUT DIP.o
-  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/DIP.mlir 
+  COMMAND ${CMAKE_BINARY_DIR}/bin/buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/DIP.mlir 
               -lower-dip="DIP-strip-mining=${SPLITING_SIZE}" 
               -arith-expand
               -lower-affine

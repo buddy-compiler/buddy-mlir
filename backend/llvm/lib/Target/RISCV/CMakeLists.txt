@@ -38,7 +38,7 @@ tablegen(LLVM RISCVGenRegisterInfo.inc -gen-register-info)
 tablegen(LLVM RISCVGenSearchableTables.inc -gen-searchable-tables)
 tablegen(LLVM RISCVGenSubtargetInfo.inc -gen-subtarget)
 
-add_public_tablegen_target(RISCVCommonTableGen)
+add_public_tablegen_target(RISCVBuddyCommonTableGen)
 
 # ------------------------------------------------------------------------------
 # Build RISC-V Buddy Extension CodeGen.

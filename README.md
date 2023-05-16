@@ -68,6 +68,23 @@ $ ninja
 $ ninja check-buddy
 ```
 
+### Build One Step
+
+```
+$ cmake -G Ninja -Bbuild \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+    -DLLVM_EXTERNAL_PROJECTS="buddy-mlir" \
+    -DLLVM_EXTERNAL_BUDDY_MLIR_SOURCE_DIR="$PWD" \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    llvm/llvm
+$ ninja check-mlir check-clang
+$ ninja
+$ ninja check-buddy
+```
+
 If you want to add domain-specific framework support, please add the following cmake options:
 
 | Framework  | Enable Option | Other Options |
