@@ -33,13 +33,126 @@
 //   disabled by default.
 template <typename T, size_t N> class Img : public MemRef<T, N> {
 public:
-  Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
+  //Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
+  /*
+		Img类默认构造函数
+	*/    
+    Img();
+    /*
+    	@rows:二维数组的行数
+    	@cols:二维数组的列数
+    	@type:数组类型 使用CV_8UC1，…， CV_64FC4创建1-4通道矩阵，或
+CV_8UC (n),……， CV_64FC(n)创建多通道(最多CV_CN_MAX通道)矩阵。
+    */
+    Img(int rows , int cols , int type);
+    /*
+    	@size：二维数组的大小 类Size(cols,rows)
+    	@type:数组类型 使用CV_8UC1，…， CV_64FC4创建1-4通道矩阵，或
+CV_8UC (n),……， CV_64FC(n)创建多通道(最多CV_CN_MAX通道)矩阵。
+    */
+    Img(Size size, int type);
+    /*
+    	@rows:二维数组的行数
+    	@cols:二维数组的列数
+    	@type:数组类型 使用CV_8UC1，…， CV_64FC4创建1-4通道矩阵，或
+CV_8UC (n),……， CV_64FC(n)创建多通道(最多CV_CN_MAX通道)矩阵。
+		@s:使用指定的Scalar颜色填充二维数组
+    */
+    Img(int rows , int cols ,int type , const Scalar& s);
+    /*
+    	@size：二维数组的大小 类Size(cols,rows)
+    	@type:数组类型 使用CV_8UC1，…， CV_64FC4创建1-4通道矩阵，或
+CV_8UC (n),……， CV_64FC(n)创建多通道(最多CV_CN_MAX通道)矩阵。
+		@s:使用指定的Scalar颜色填充二维数组
+    */
+    Img(Size size , int type , const Scalar & s);
+    /*
+    	@ndims:数组的维度
+    	@sizes：用来指定n维数组的形状
+    	@type:数组类型 使用CV_8UC1，…， CV_64FC4创建1-4通道矩阵，或
+CV_8UC (n),……， CV_64FC(n)创建多通道(最多CV_CN_MAX通道)矩阵。
+    */
+    Img(int ndims , const int*sizes , int type);
+    /*
+    	@sizes:使用vector容器存储n维数组的形状
+    	@type:数组类型 使用CV_8UC1，…， CV_64FC4创建1-4通道矩阵，或
+CV_8UC (n),……， CV_64FC(n)创建多通道(最多CV_CN_MAX通道)矩阵。
+    */
+    Img(const std::vector<int>& sizes, int type);
+	/*
+		@ndims:数组的维度
+		@sizes：用来指定n维数组的形状
+		@type:数组类型 使用CV_8UC1，…， CV_64FC4创建1-4通道矩阵，或
+CV_8UC (n),……， CV_64FC(n)创建多通道(最多CV_CN_MAX通道)矩阵。
+		@s:使用指定的Scalar颜色填充二维数组
+	*/ 
+    Img(int ndims, const int* sizes, int type, const Scalar& s);
+    /*
+    	@sizes:使用vector容器存储n维数组的形状
+    	@type:数组类型 使用CV_8UC1，…， CV_64FC4创建1-4通道矩阵，或
+CV_8UC (n),……， CV_64FC(n)创建多通道(最多CV_CN_MAX通道)矩阵。
+		@s:使用指定的Scalar颜色填充二维数组
+    */
+    Img(const std::vector<int>& sizes, int type, const Scalar& s);
+	/*
+		@m:赋值构造函数，并不发生拷贝。当用户使用这个构造函数进行构造时，改变该矩阵同时也会改变用来构建该矩阵的源矩阵。如果用户想拥有独立的内存空间用来拷贝新矩阵，可以使用 Img::clone() 
+	*/
+    Img(const Img& m);
+    /*
+    	@data:指向用户数据的指针(存储图像数据的地址)，Img不会通过data和step来为数据分配内存，仅仅利用header来指向数据。
+    	@step:每个矩阵行所占有的字节数。这个值应该包含行尾的填充字节.如果缺省该参数，则默认没有填充字节且实际的步长由cols*elemSize()决定. 
+    */
+    Img(int rows, int cols, int type, void* data, size_t step=AUTO_STEP);
 
-private:
-  // Load image data from OpenCV Mat.
-  void loadImg(cv::Mat image, bool norm);
+    Img(Size size, int type, void* data, size_t step=AUTO_STEP);
+
+    Img(int ndims, const int* sizes, int type, void* data, const size_t* steps=0);
+
+    Img(const std::vector<int>& sizes, int type, void* data, const size_t* steps=0);
+	/*
+		@rowRange:要选取m行的范围，范围为左闭右开。可以使用Range::all表示所有行。
+		@colRange:要选取m列的范围，可以使用Range::all表示所有列。	
+	*/
+    Img(const Img& m, const Range& rowRange, const Range& colRange=Range::all());
+	/*
+		@roi:感兴趣的区域
+	*/
+    Img(const Img& m, const Rect& roi);
+	
+    ~Img();
+  
+/*
+    	成员函数。
+    */
+    void create(int rows , int cols ,int type);
+    void create(Size size , int type);
+    void create(int ndims , const int * sizes , int type);
+    void create(const std::vector<int>&sizes , int type);
+    void addref();
+    void release();
+    void deallocate();
+    
+    static bool load(const String& filename , int flags , Img& img);
+    static bool save(const String& filename);
+    
+    template<typename _Tp> void push_back(const _Tp& elem);
+    template<typename _Tp> void push_back(const Mat_<_Tp>& elem);
+    template<typename _Tp> void push_back(const std::vector<_Tp>& elem);
+    int type() const;
+  
+    /*
+    	成员数据。
+    */
+ 	  int flags;
+    //! 矩阵维度, >= 2
+    int dims;
+    //! 当矩阵有多个维度时，行数及列数或者(-1, -1) 
+    int rows, cols;
+    //! 指向数据的指针
+    T* data;
 };
 
+/*
 // Image Constructor from OpenCV Mat.
 template <typename T, size_t N>
 Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
@@ -135,5 +248,5 @@ void Img<T, N>::loadImg(cv::Mat image, bool norm) {
     }
   }
 }
-
+*/
 #endif // FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
