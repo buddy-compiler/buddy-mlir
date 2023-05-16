@@ -149,3 +149,25 @@ memref-reshape-run:
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+memref-copy-lower:
+	@${MLIR_OPT} ./memref-copy.mlir \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm -convert-arith-to-llvm  \
+		-convert-func-to-llvm -reconcile-unrealized-casts \
+		-o ./log.mlir
+
+memref-copy-translate:
+	@${MLIR_OPT} ./memref-copy.mlir \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm -convert-arith-to-llvm  \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+memref-copy-run:
+	@${MLIR_OPT} ./memref-copy.mlir --lower-affine  \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm -convert-arith-to-llvm  \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
