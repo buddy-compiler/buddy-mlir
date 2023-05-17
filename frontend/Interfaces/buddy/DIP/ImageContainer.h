@@ -117,6 +117,15 @@ public:
   int type() const;
   bool empty() const;
 
+  // The template methods return a reference to the specified array element.
+  // param row Index along the dimension 0
+  // param col Index along the dimension 1
+  template <typename _Tp> _Tp &at(int row, int col);
+  // param i0 Index along the dimension 0
+  // param i1 Index along the dimension 1
+  // param i2 Index along the dimension 2
+  template <typename _Tp> _Tp &at(int i0, int i1, int i2);
+  
   int flags;
   //! the matrix dimensionality, >= 2
   int dims;
