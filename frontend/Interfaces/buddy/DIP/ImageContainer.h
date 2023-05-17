@@ -73,8 +73,6 @@ public:
     assigning new data, the old data is de-referenced via Mat::release . 
   */
   Img &operator=(const Img &m);
-
-  // 成员函数。
   /*
     Allocates new array data if needed.
     @rows:New number of rows.
@@ -116,9 +114,8 @@ public:
   int rows() const;
   int type() const;
   bool empty() const;
-  /*
-      成员数据。
-  */
+
+  
   int flags;
   //! 矩阵维度, >= 2
   int dims;
