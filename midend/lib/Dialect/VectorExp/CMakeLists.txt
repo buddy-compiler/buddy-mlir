@@ -5,4 +5,7 @@ add_mlir_dialect_library(VectorExp
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRInferTypeOpInterface
+  BuddyDynamicVLOpInterface
   )
+
+add_subdirectory(Interfaces)

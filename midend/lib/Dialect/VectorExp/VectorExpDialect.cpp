@@ -32,6 +32,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/SourceMgr.h"
 
+#include "VectorExp/DynamicVLOpInterface.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
 

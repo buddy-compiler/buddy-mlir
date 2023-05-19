@@ -1,1 +1,2 @@
 add_mlir_dialect(VectorExpOps vector_exp)
+add_mlir_interface(DynamicVLOpInterface)

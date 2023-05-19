@@ -22,6 +22,7 @@
 #define VECTOREXP_VECTOREXPOPS_TD
 
 include "VectorExpDialect.td"
+include "DynamicVLOpInterface.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
@@ -45,7 +46,7 @@ def VectorExp_PredicationOp : VectorExp_Op<"predication"> {
 // Vector Load Operation with Dynamic Length
 //===----------------------------------------------------------------------===//
 
-def VectorExp_LoadOp : VectorExp_Op<"load", [AttrSizedOperandSegments]> {
+def VectorExp_LoadOp : VectorExp_Op<"load", [DeclareOpInterfaceMethods<DynamicVLOpInterface>]> {
   let summary = "reads an n-D slice of memory into an n-D vector";
   let description = [{
     The 'vector.load' operation reads an n-D slice of memory into an n-D
@@ -102,9 +103,13 @@ def VectorExp_LoadOp : VectorExp_Op<"load", [AttrSizedOperandSegments]> {
     ```
   }];
 
+  // let arguments = (ins Arg<AnyMemRef, "the reference to load from",
+  //     [MemRead]>:$base,
+  //     Optional<AnyInteger>:$vl,
+  //     Variadic<Index>:$indices
+  //     );
   let arguments = (ins Arg<AnyMemRef, "the reference to load from",
       [MemRead]>:$base,
-      Optional<AnyInteger>:$vl,
       Variadic<Index>:$indices
       );
   let results = (outs AnyVector:$result);
@@ -123,7 +128,7 @@ def VectorExp_LoadOp : VectorExp_Op<"load", [AttrSizedOperandSegments]> {
   let hasVerifier = 0;
 
   let assemblyFormat =
-    "$base `[` $indices `]` (`(` `vl` `=` $vl^ `:` type($vl) `)`)? attr-dict `:` type($base) `,` type($result)";
+    "$base `[` $indices `]` attr-dict `:` type($base) `,` type($result)";
 }
 
 #endif // VECTOREXP_VECTOREXPOPS_TD
