@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------
-# Helper functions and variables.
+# Helper functions macro and variables.
 # ------------------------------------------------------------------------------
 function(copy_file_to_build_dir src_dir output_dir file)
   set(src ${src_dir}/${file})
@@ -9,6 +9,17 @@ function(copy_file_to_build_dir src_dir output_dir file)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${src} ${dst}
     COMMENT "Copying RISCV Target - ${file}...")
 endfunction(copy_file_to_build_dir)
+
+# The macro helps to find the correct path of "IntrinsicsRISCV.h"
+macro(buddy_add_llvm_target target_name)
+  include_directories(BEFORE
+    ${BUDDY_BUILD_DIR}/backend/include/
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+  add_llvm_component_library(LLVM${target_name} ${ARGN})
+  set( CURRENT_LLVM_TARGET LLVM${target_name} )
+endmacro(buddy_add_llvm_target)
 
 set(LLVM_TARGET_RISCV_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Target/RISCV)
 
@@ -65,7 +76,7 @@ foreach(file ${UPSTREAM_LLVM_TARGET_RISCV_GISEL_FILE})
 endforeach()
 
 # Build BuddyRISCVCodeGen target.
-add_llvm_target(BuddyRISCVCodeGen
+buddy_add_llvm_target(BuddyRISCVCodeGen
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVAsmPrinter.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVCodeGenPrepare.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMakeCompressible.cpp

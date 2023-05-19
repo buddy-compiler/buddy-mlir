@@ -32,8 +32,8 @@ option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targe
 option(BUDDY_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_BUILD)
-    message(STATUS "Buddy-mlir out-of-tree build.")
-    # Out-of-tree build
+    message(STATUS "buddy-mlir two-step build.")
+    # Two-step build
     #-------------------------------------------------------------------------------
     # MLIR/LLVM Configuration
     #-------------------------------------------------------------------------------
@@ -56,8 +56,11 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
     include(AddMLIR)
     include(HandleLLVMOptions)
 else()
-    message(STATUS "Buddy-mlir in-tree build.")
-    # In-tree build with LLVM_EXTERNAL_PROJECTS=buddy-mlir
+    message(STATUS "buddy-mlir one-step build.")
+    # one-step build with LLVM_EXTERNAL_PROJECTS=buddy-mlir
+    #-------------------------------------------------------------------------------
+    # MLIR/LLVM Configuration
+    #-------------------------------------------------------------------------------
     
     set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
     set(MLIR_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include)
@@ -74,6 +77,7 @@ endif()
 
 # BUDDY project.
 set(BUDDY_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(BUDDY_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include/)
