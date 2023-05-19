@@ -73,7 +73,6 @@ class ForwardOperands : public OpConversionPattern<OpTy> {
                   ConversionPatternRewriter &rewriter) const final {
     if (adaptor.getOperands().getTypes() == op->getOperands().getTypes())
       return rewriter.notifyMatchFailure(op, "operand types already match");
-
     rewriter.updateRootInPlace(
         op, [&]() { op->setOperands(adaptor.getOperands()); });
     return success();
@@ -230,7 +229,6 @@ struct GemminiMvoutLowering : public ConvertOpToLLVMPattern<MvoutOp> {
     llvm::ArrayRef<int64_t> memRefShape = memRefType.getShape();
     uint64_t spadAddrInt = (uint64_t)memRefShape[0] << (addrLen + 16) |
                            (uint64_t)memRefShape[1] << addrLen | number;
-    Attribute newSpadAddr = rewriter.getI64IntegerAttr(spadAddrInt);
     Value newSpad = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(spadAddrInt));
     rewriter.replaceOpWithNewOp<Mvout_IntrOp>(mvoutOp, indexCastOp, newSpad);
@@ -254,15 +252,12 @@ struct GemminiPreloadZerosLowering
     Value cRows = preloadZerosOp.getCRows();
     Value cCols = preloadZerosOp.getCCols();
     Location loc = preloadZerosOp.getLoc();
-    IntegerType i64Type = rewriter.getI64Type();
     uint64_t addrInt = getNumberFromValue(addr);
     uint64_t cRowsInt = getNumberFromValue(cRows);
     uint64_t cColsInt = getNumberFromValue(cCols);
     uint64_t rs1 = (uint64_t)dim << (addrLen + 16) | (uint64_t)dim << addrLen |
                    (uint64_t)-1;
     uint64_t rs2 = cRowsInt << (addrLen + 16) | cColsInt << (addrLen) | addrInt;
-    Attribute rs1Attr = rewriter.getI64IntegerAttr(rs1);
-    Attribute rs2Attr = rewriter.getI64IntegerAttr(rs2);
     Value rs1Value = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(rs1));
     Value rs2Value = rewriter.create<arith::ConstantOp>(
@@ -292,7 +287,6 @@ struct GemminiPreloadLowering : public ConvertOpToLLVMPattern<PreloadOp> {
     Value cCols = preloadOp.getCCols();
     Value cRows = preloadOp.getBdRows();
     Location loc = preloadOp.getLoc();
-    IntegerType i64Type = rewriter.getI64Type();
     uint64_t bdAddrInt = getNumberFromValue(bdAddr);
     uint64_t cAddrInt = getNumberFromValue(cAddr);
     uint64_t bdColsInt = getNumberFromValue(bdCols);
@@ -331,7 +325,6 @@ struct GemminiComputePreloadedLowering
     Value bdRows = computePreloadedOp.getBdRows();
     Value bdCols = computePreloadedOp.getBdCols();
     Location loc = computePreloadedOp.getLoc();
-    IntegerType i64Type = rewriter.getI64Type();
     uint64_t aAddrInt = getNumberFromValue(aAddr);
     uint64_t bdAddrInt = getNumberFromValue(bdAddr);
     uint64_t aRowsInt = getNumberFromValue(aRows);
@@ -341,8 +334,6 @@ struct GemminiComputePreloadedLowering
     uint64_t rs1 = aRowsInt << (addrLen + 16) | aColsInt << addrLen | aAddrInt;
     uint64_t rs2 =
         bdRowsInt << (addrLen + 16) | bdColsInt << addrLen | bdAddrInt;
-    Attribute rs1Attr = rewriter.getI64IntegerAttr(rs1);
-    Attribute rs2Attr = rewriter.getI64IntegerAttr(rs2);
     Value rs1Value = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(rs1));
     Value rs2Value = rewriter.create<arith::ConstantOp>(
@@ -372,7 +363,6 @@ struct GemminiComputeAccumulatedLowering
     Value bdRows = computeAccumulatedOp.getBdRows();
     Value bdCols = computeAccumulatedOp.getBdCols();
     Location loc = computeAccumulatedOp.getLoc();
-    IntegerType i64Type = rewriter.getI64Type();
     uint64_t aAddrInt = getNumberFromValue(aAddr);
     uint64_t bdAddrInt = getNumberFromValue(bdAddr);
     uint64_t aRowsInt = getNumberFromValue(aRows);

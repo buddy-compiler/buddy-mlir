@@ -70,7 +70,6 @@ public:
     }
     Value newLineCst = getOrCreateGlobalString(
         loc, rewriter, "nl", StringRef("\n\0", 2), parentModule);
-
     SmallVector<Value, 4> loopIvs;
     for (unsigned i = 0, e = memRefShape.size(); i != e; ++i) {
       auto lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
