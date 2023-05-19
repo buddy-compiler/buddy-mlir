@@ -9,11 +9,3 @@ add_mlir_library(BuddyDIPUtils
   LINK_LIBS PUBLIC
   BuddyUtils
   )
-
-add_library(Utils Utils.cpp)
-
-add_library(DIPUtils DIPUtils.cpp)
-target_link_libraries(DIPUtils
-  PRIVATE
-  Utils
-  )

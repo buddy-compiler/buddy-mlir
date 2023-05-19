@@ -4,13 +4,14 @@ MLIR-Based Ideas Landing Project ([Project page](https://buddy-compiler.github.i
 
 ## Getting Started
 
+Two building strategies are provided: one-step building strategy and two-step building strategy. The one-step building strategy uses buddy-mlir as an external library, while the two-step building strategy uses LLVM/MLIR as an external library. 
+
 ### LLVM/MLIR Dependencies
 
-This project uses LLVM/MLIR as an external library. Please make sure [the dependencies](https://llvm.org/docs/GettingStarted.html#requirements) are available
+Before building, please make sure [the dependencies](https://llvm.org/docs/GettingStarted.html#requirements) are available
 on your machine.
 
 ### Clone and Initialize
-
 
 ```
 $ git clone git@github.com:buddy-compiler/buddy-mlir.git
@@ -18,7 +19,30 @@ $ cd buddy-mlir
 $ git submodule update --init
 ```
 
-### Build and Test LLVM/MLIR/CLANG
+### One-step building strategy
+
+If you have not previously built llvm-project and you want to use buddy-mlir as an external library, you can follow these commands to build llvm-project as well as buddy-mlir.
+
+```
+$ cmake -G Ninja -Bbuild \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+    -DLLVM_EXTERNAL_PROJECTS="buddy-mlir" \
+    -DLLVM_EXTERNAL_BUDDY_MLIR_SOURCE_DIR="$PWD" \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    llvm/llvm
+$ ninja check-mlir check-clang
+$ ninja
+$ ninja check-buddy
+```
+
+### Two-step building strategy
+
+If you have not previously built llvm-project and you want to use LLVM/MLIR as an external library, you can follow these steps to build llvm-project first, and then build buddy-mlir.
+
+#### Build and Test LLVM/MLIR/CL
 
 ```
 $ cd buddy-mlir
@@ -53,7 +77,10 @@ $ cmake -G Ninja ../llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
 ```
-### Build buddy-mlir
+
+#### Build buddy-mlir
+
+If you have previously built the llvm-project, you can replace the $PWD with the path to the directory where you have successfully built the llvm-project.
 
 ```
 $ cd buddy-mlir
@@ -64,23 +91,6 @@ $ cmake -G Ninja .. \
     -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
-$ ninja
-$ ninja check-buddy
-```
-
-### Build One Step
-
-```
-$ cmake -G Ninja -Bbuild \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
-    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
-    -DLLVM_EXTERNAL_PROJECTS="buddy-mlir" \
-    -DLLVM_EXTERNAL_BUDDY_MLIR_SOURCE_DIR="$PWD" \
-    -DLLVM_ENABLE_ASSERTIONS=ON \
-    -DCMAKE_BUILD_TYPE=RELEASE \
-    llvm/llvm
-$ ninja check-mlir check-clang
 $ ninja
 $ ninja check-buddy
 ```
