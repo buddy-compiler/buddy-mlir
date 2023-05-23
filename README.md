@@ -35,6 +35,7 @@ $ cmake -G Ninja -Bbuild \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
     llvm/llvm
+$ cd build
 $ ninja check-mlir check-clang
 $ ninja
 $ ninja check-buddy
