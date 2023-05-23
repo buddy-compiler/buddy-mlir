@@ -6,7 +6,7 @@ MLIR-Based Ideas Landing Project ([Project page](https://buddy-compiler.github.i
 
 Two building strategies are provided: one-step building strategy and two-step building strategy. The one-step building strategy uses buddy-mlir as an external library, while the two-step building strategy uses LLVM/MLIR as an external library. 
 
-**However, the one-step building strategy is currently not compatible with buddy-benchmark targets and buddy-mlir examples, so our default building strategy is still the two-step one, and users of the one-step strategy are only those who use our toolchain in their own projects.**
+**However, the one-step building strategy is currently not compatible with [buddy-benchmark targets](https://github.com/buddy-compiler/buddy-benchmark) and [buddy-mlir examples](https://github.com/buddy-compiler/buddy-mlir/tree/main/examples), so our default building strategy is still the two-step one, and users of the one-step strategy are only those who use our toolchain in their own projects.**
 
 ### LLVM/MLIR Dependencies
 
