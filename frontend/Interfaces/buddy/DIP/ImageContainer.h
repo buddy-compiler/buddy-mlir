@@ -97,11 +97,11 @@ public:
   // The method decrements the reference counter associated with the matrix data
   // TODO gc : void release();
 
-  //deallocates the matrix data
+  //  deallocates the matrix data
   void deallocate();
   
   /*
-    Creates a full copy of the array and the underlying data.
+      Creates a full copy of the array and the underlying data.
   */
   Img clone() const;
 
