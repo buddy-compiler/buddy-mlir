@@ -141,9 +141,13 @@ def Lowering(module: Module):
   pm.add("expand-strided-metadata")
   pm.add("finalize-memref-to-llvm")
   pm.add("convert-func-to-llvm")
-  # reconcile-unrealized-casts is needed to fix the type mismatch issue.
-  pm.add("reconcile-unrealized-casts")
-  pm.add("reconcile-unrealized-casts")
+  
+  # pm.add("reconcile-unrealized-casts")
+  # %141 and %142 should be removed but I `reconcile-unrealized-casts` is not working, 
+  # meanwhile, it set the op to illegal.
+  # %141 = builtin.unrealized_conversion_cast %140 : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> to memref<1x3xf32>
+  # %142 = builtin.unrealized_conversion_cast %141 : memref<1x3xf32> to !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)>
+  
   pm.run(module.operation)
   print(module)
   return module
