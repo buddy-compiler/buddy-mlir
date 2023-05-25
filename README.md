@@ -90,6 +90,18 @@ DIP dialect is designed for digital image processing abstraction.
 
 The buddy-opt is the driver for dialects and optimization in buddy-mlir project. 
 
+### buddy-lsp-server
+
+This program should be a drop-in replacement for `mlir-lsp-server`, supporting new dialects defined in buddy-mlir. To use it, please directly modify mlir LSP server path in VSCode settings (or similar settings for other editors) to:
+
+```json
+{
+    "mlir.server_path": "YOUR_BUDDY_MLIR_BUILD/bin/buddy-lsp-server",
+}
+```
+
+After modification, your editor should have correct completion and error prompts for new dialects such as `rvv` and `gemmini`.
+
 ### AutoConfig Mechanism
 
 The `AutoConfig` mechanism is designed to detect the target hardware and configure the toolchain automatically.
