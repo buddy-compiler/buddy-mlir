@@ -123,6 +123,7 @@ def Lowering(module: Module):
   print("Bufferizing the module ...")
   pm = PassManager('builtin.module')
   pm.add("func.func(tosa-to-linalg)")
+  pm.add("func.func(tosa-to-tensor)")
   pm.add("empty-tensor-to-alloc-tensor")
   pm.add("convert-elementwise-to-linalg")
   pm.add("arith-bufferize")
@@ -133,6 +134,7 @@ def Lowering(module: Module):
   print(module)
   print("-------------------------------------------------------------------")
   print("Lowering the module to LLVM dialect ...")
+  
   pm.add("func.func(buffer-deallocation)")
   pm.add("func.func(convert-linalg-to-loops)")
   pm.add("convert-scf-to-cf")
@@ -141,13 +143,7 @@ def Lowering(module: Module):
   pm.add("expand-strided-metadata")
   pm.add("finalize-memref-to-llvm")
   pm.add("convert-func-to-llvm")
-  
-  # pm.add("reconcile-unrealized-casts")
-  # %141 and %142 should be removed but I `reconcile-unrealized-casts` is not working, 
-  # meanwhile, it set the op to illegal.
-  # %141 = builtin.unrealized_conversion_cast %140 : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> to memref<1x3xf32>
-  # %142 = builtin.unrealized_conversion_cast %141 : memref<1x3xf32> to !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)>
-  
+  pm.add("reconcile-unrealized-casts")
   pm.run(module.operation)
   print(module)
   return module
