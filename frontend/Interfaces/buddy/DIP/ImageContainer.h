@@ -54,11 +54,6 @@ public:
   */
   Img(int ndims, const int *sizes, int type);
   /*
-    @sizes:sizes Array of integers specifying an n-dimensional array shape
-    @type:type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel matrices, or CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to CV_CN_MAX channels) matrices.
-  */
-  Img(const std::vector<int> &sizes, int type);
-  /*
     @m:m Array that (as a whole or partly) is assigned to the constructed matrix. No data is copied by these constructors. 
     If you want to have an independent copy of the sub-array, use Mat::clone() 
   */
