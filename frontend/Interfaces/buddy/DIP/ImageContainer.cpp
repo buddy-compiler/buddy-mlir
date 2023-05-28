@@ -46,10 +46,11 @@ void Img::create(int ndims, const int *sizes, int type) {
   type = CV_MAT_TYPE(type);
 
   // CV_ELEM_SIZE是一个宏定义，用于计算指定数据类型的每个元素所占的字节数。
-  int s = CV_ELEM_SIZE(type);
+  int ss = CV_ELEM_SIZE(type);
 
   // Compute the size and allocate memory for the matrix
-  int total = rows * cols * s;
+  int size = rows * cols * ss;
+    
   if (data && (d == dims || (d == 1 && dims <= 2)) && _type == type()) {
     if (dims == 1 && (d == 1 && sizes[0] == rows))
       return;
