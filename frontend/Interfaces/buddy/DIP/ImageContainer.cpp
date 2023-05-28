@@ -67,6 +67,7 @@ void Img::create(int ndims, const int *sizes, int type) {
 
   // Allocate memory for the matrix data
   allocated = new T[total];
+  data = allocated;
   aligned = allocated;
   std::fill(aligned, aligned + size, init);
 }
