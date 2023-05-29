@@ -97,6 +97,9 @@ public:
     if (elementLoad.getType() == rewriter.getF32Type())
       elementLoad = rewriter.create<mlir::LLVM::FPExtOp>(
           loc, rewriter.getF64Type(), elementLoad);
+    else if (elementLoad.getType() == rewriter.getI8Type())
+      elementLoad = rewriter.create<mlir::LLVM::SExtOp>(
+          loc, rewriter.getI32Type(), elementLoad);
     rewriter.create<func::CallOp>(
         loc, printfRef, rewriter.getIntegerType(32),
         ArrayRef<Value>({formatSpecifierCst, elementLoad}));
