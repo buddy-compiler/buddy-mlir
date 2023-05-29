@@ -1,3 +1,12 @@
+// RUN: buddy-opt %s \
+// RUN:     -convert-vector-to-llvm \
+// RUN:     -finalize-memref-to-llvm -convert-arith-to-llvm \
+// RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
+// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
 module {
   memref.global "private" @gv : memref<4x4xf32> = dense<[[0., 1., 2., 3.],
                                                          [4., 5., 6., 7.],
@@ -16,8 +25,14 @@ module {
 
     memref.store %ele, %mem1[%c3, %c1] : memref<?x?xf32>
     %print_mem =  memref.cast %mem1 : memref<?x?xf32> to memref<*xf32>
-    func.call @printMemrefF32(%print_mem) : (memref<*xf32>) -> ()
-
-    func.return
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data = 
+    // CHECK-NEXT: [
+    // CHECK-SAME: [0,   1,   2,   3], 
+    // CHECK-NEXT: [4,   5,   6,   7],  
+    // CHECK-NEXT: [8,   9,   10,   12], 
+    // CHECK-NEXT: [13,   1,   15,   16]
+    // CHECK-SAME: ]
+    call @printMemrefF32(%print_mem) : (memref<*xf32>) -> ()
+    return
   }
 }

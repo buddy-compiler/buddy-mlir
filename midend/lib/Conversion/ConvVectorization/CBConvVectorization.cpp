@@ -73,11 +73,11 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
   SmallVector<Value, 8> lowerBounds(3, c0);
   SmallVector<Value, 8> uperBounds{outputRow, kernelRow, kernelCol};
   SmallVector<int64_t, 8> steps(3, /*Value=*/1);
-  buildAffineLoopNest(
+  affine::buildAffineLoopNest(
       rewriter, loc, lowerBounds, uperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         // Create strip mining loop.
-        builder.create<AffineForOp>(
+        builder.create<affine::AffineForOp>(
             loc, ValueRange{c0}, builder.getDimIdentityMap(),
             ValueRange{outputCol}, stripMap, /*Step=*/1, std::nullopt,
             [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
@@ -112,7 +112,7 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
                         loc, tailCond,
                         [&](OpBuilder &builder, Location loc) {
                           Value inputVector =
-                              nestedBuilder.create<AffineVectorLoadOp>(
+                              nestedBuilder.create<affine::AffineVectorLoadOp>(
                                   loc, vectorTy32, input, inputVectorMap,
                                   ValueRange{ivs[0], ivs[1], ivs[2], iv});
                           // Define AffineMap.
@@ -124,13 +124,13 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
                               /*dimCount=*/2, /*symbolCount=*/0,
                               {x, y * stride}, ctx);
                           Value outputVector =
-                              nestedBuilder.create<AffineVectorLoadOp>(
+                              nestedBuilder.create<affine::AffineVectorLoadOp>(
                                   loc, vectorTy32, output, outputVectorMap,
                                   ValueRange{ivs[0], iv});
                           // FMA = Fused Multiply + Add
                           Value resultVector = nestedBuilder.create<FMAOp>(
                               loc, inputVector, kernelVector, outputVector);
-                          nestedBuilder.create<AffineVectorStoreOp>(
+                          nestedBuilder.create<affine::AffineVectorStoreOp>(
                               loc, resultVector, output, outputVectorMap,
                               ValueRange{ivs[0], iv});
                           builder.create<scf::YieldOp>(loc);
@@ -169,7 +169,7 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
                         });
                     builder.create<scf::YieldOp>(loc);
                   });
-              nestedBuilder.create<AffineYieldOp>(nestedLoc);
+              nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);
             });
       });
   // Remove the origin convolution operation.
@@ -206,12 +206,12 @@ void populateCBTilingPattern(Operation *op, ArrayRef<int64_t> tileSizes,
   SmallVector<Value, 8> lowerBounds(2, c0);
   SmallVector<Value, 8> uperBounds{kernelRow, kernelCol};
   SmallVector<int64_t, 8> steps(2, /*Value=*/1);
-  buildAffineLoopNest(
+  affine::buildAffineLoopNest(
       rewriter, loc, lowerBounds, uperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         // Vectorize the kernel.
         // Broadcast element of the kernel into 2D vector.
-        Value kernelValue = builder.create<AffineVectorLoadOp>(
+        Value kernelValue = builder.create<affine::AffineVectorLoadOp>(
             loc, vectorTy1, kernel, ValueRange{ivs[0], ivs[1]});
         Value kernelVector =
             builder.create<vector::BroadcastOp>(loc, vectorTy32, kernelValue);
@@ -287,8 +287,8 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, scf::SCFDialect, AffineDialect,
-                    VectorDialect, func::FuncDialect>();
+    registry.insert<linalg::LinalgDialect, scf::SCFDialect,
+                    affine::AffineDialect, VectorDialect, func::FuncDialect>();
   }
 
   Option<int64_t> stride{*this, "strip-mining",
@@ -304,9 +304,10 @@ void ConvVectorizationPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<arith::ArithDialect, AffineDialect, scf::SCFDialect,
-                         func::FuncDialect, memref::MemRefDialect,
-                         VectorDialect, math::MathDialect>();
+  target.addLegalDialect<arith::ArithDialect, affine::AffineDialect,
+                         scf::SCFDialect, func::FuncDialect,
+                         memref::MemRefDialect, VectorDialect,
+                         math::MathDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
 

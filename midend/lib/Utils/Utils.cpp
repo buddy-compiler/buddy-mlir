@@ -107,7 +107,7 @@ Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
   MemRefType memTy = MemRefType::get({stride}, builder.getF32Type());
   Value tempMem = builder.create<memref::AllocOp>(loc, memTy);
 
-  builder.create<AffineForOp>(
+  builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), 1, std::nullopt,
       [&](OpBuilder &builder, Location loc, Value iv, ValueRange iterArg) {
@@ -115,7 +115,7 @@ Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
         Value iotaVal = indexToF32(builder, loc, iotaValIndex);
 
         builder.create<memref::StoreOp>(loc, iotaVal, tempMem, ValueRange{iv});
-        builder.create<AffineYieldOp>(loc);
+        builder.create<affine::AffineYieldOp>(loc);
       });
 
   return builder.create<vector::LoadOp>(loc, vecType, tempMem, ValueRange{c0});

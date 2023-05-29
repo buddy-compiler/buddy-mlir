@@ -22,6 +22,8 @@
 #include "VectorExp/VectorExpDialect.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 
 #define GET_OP_CLASSES
 #include "VectorExp/VectorExpOps.cpp.inc"

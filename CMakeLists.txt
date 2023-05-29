@@ -76,6 +76,7 @@ include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Interface)
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/midend/include/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/backend/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/lib)
 include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/frontend/Interfaces)
@@ -127,3 +128,11 @@ add_subdirectory(backend)
 add_subdirectory(tools)
 add_subdirectory(examples)
 add_subdirectory(tests)
+
+#-------------------------------------------------------------------------------
+# Target check-buddy
+#-------------------------------------------------------------------------------
+
+add_custom_target(check-buddy
+  DEPENDS check-examples check-tests
+)

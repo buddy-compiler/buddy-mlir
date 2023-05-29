@@ -22,7 +22,7 @@
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
 
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/IntrinsicsRISCV.h"
+#include "backend/include/llvm/IR/IntrinsicsRISCV.h"
 
 #include "RVV/RVVDialect.h"
 #include "Target/LLVMIR/Dialect/RVV/RVVToLLVMIRTranslation.h"

@@ -1,3 +1,12 @@
+// RUN: buddy-opt %s \
+// RUN:     -convert-vector-to-scf -lower-affine -convert-scf-to-cf \
+// RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -reconcile-unrealized-casts \
+// RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
 // `vector.bitcast` creates an vector from one type to another type, with the 
 // exactly same bit pattern. 
 
@@ -7,20 +16,24 @@ func.func @main() -> i32 {
   // Can only deal with innermost dim.
 
   %v0 = arith.constant dense<[10, 20, 56, 90, 12, 90]> : vector<6xi32>
+  // CHECK: ( 10, 20, 56, 90, 12, 90 )
   vector.print %v0 : vector<6xi32>
 
   // bitcast can change the element type and dimension.
   %v1 = vector.bitcast %v0 : vector<6xi32> to vector<3xi64>
+  // CHECK: ( 85899345930, 386547056696, 386547056652 )
   vector.print %v1 : vector<3xi64>
 
   // it can even change element type from integer to float
   // note that it will preserve bit pattern instead of value.
   %v2 = vector.bitcast %v0 : vector<6xi32> to vector<6xf32>
+  // CHECK: ( 1.4013e-44, 2.8026e-44, 7.84727e-44, 1.26117e-43, 1.68156e-44, 1.26117e-43 )
   vector.print %v2 : vector<6xf32>
 
   // cast it back, and it will be the same vector with exactly
   // every bit same as %v0.
   %v3 = vector.bitcast %v2 : vector<6xf32> to vector<6xi32>
+  // CHECk: ( 10, 20, 56, 90, 12, 90 )
   vector.print %v3 : vector<6xi32>
 
   // bitcast could only be used between vector types with

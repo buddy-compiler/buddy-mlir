@@ -19,10 +19,10 @@ if(BUDDY_ENABLE_OPENCV)
   list(APPEND BUDDY_TEST_DEPENDS buddy-image-container-test)
 endif()
 
-add_lit_testsuite(check-buddy "Running the buddy regression tests"
+add_lit_testsuite(check-tests "Running the buddy regression tests..."
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${BUDDY_TEST_DEPENDS}
   )
-set_target_properties(check-buddy PROPERTIES FOLDER "Tests")
+set_target_properties(check-tests PROPERTIES FOLDER "Tests")
 
 add_lit_testsuites(BUDDY ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${BUDDY_TEST_DEPENDS})

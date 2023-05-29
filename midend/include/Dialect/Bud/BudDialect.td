@@ -34,6 +34,7 @@ def Bud_Dialect : Dialect {
     The `bud` dialect is for testing and demonstrating.
   }];
   let cppNamespace = "::buddy::bud";
+  let useDefaultAttributePrinterParser = 1;
 }
 
 //===----------------------------------------------------------------------===//

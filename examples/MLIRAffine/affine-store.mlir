@@ -1,3 +1,12 @@
+// RUN: buddy-opt %s \
+// RUN:     -lower-affine -convert-scf-to-cf -convert-vector-to-llvm \
+// RUN:		  -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:		  -reconcile-unrealized-casts \
+// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
 memref.global "private" @gv : memref<4xf32> = dense<[0. , 0. , 0. , 0. ]>
 #map0 = affine_map<(d0, d1) -> (d0 + d1)>
 
@@ -27,6 +36,8 @@ func.func @main() {
   %idx = arith.addi %c0, %c1 : index
   affine.store %c4, %mem[symbol(%idx)] : memref<4xf32>
   %print_out3 = memref.cast %mem : memref<4xf32> to memref<*xf32>
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 1 offset = 0 sizes = [4] strides = [1] data =
+  // CHECK: [2, 3, 2, 0]
   func.call @printMemrefF32(%print_out3) : (memref<*xf32>) -> ()
   func.return
 

@@ -2,25 +2,21 @@
 BUDDY_OPT := ../../build/bin/buddy-opt
 
 bud-array-attr-lower:
-	@${BUDDY_OPT} ./TestArrayAttr.mlir \
+	@${BUDDY_OPT} ./bud-array-attr.mlir \
 		--lower-bud -o ./log.mlir
 
 bud-constant-lower:
-	@${BUDDY_OPT} ./TestConstant.mlir \
+	@${BUDDY_OPT} ./bud-constant.mlir \
 		--lower-bud -o ./log.mlir
 
 bud-print-lower:
-	@${BUDDY_OPT} ./TestPrint.mlir \
+	@${BUDDY_OPT} ./bud-print.mlir \
 		--lower-bud -o ./log.mlir
 
 bud-str-attr-lower:
-	@${BUDDY_OPT} ./TestStrAttr.mlir \
-		--lower-bud -o ./log.mlir
-
-bud-vector-config-lower:
-	@${BUDDY_OPT} ./VectorConfig.mlir \
+	@${BUDDY_OPT} ./bud-str-attr.mlir \
 		--lower-bud -o ./log.mlir
 
 bud-inline-interface-lower:
-	@${BUDDY_OPT} ./TestInlineInterface.mlir \
+	@${BUDDY_OPT} ./bud-inline-interface.mlir \
 		--inline -o ./log.mlir

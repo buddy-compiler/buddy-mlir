@@ -52,21 +52,21 @@ func.func @main() -> i32 {
   // VP Intrinsic PtrToInt Operation + Fixed Vector Type
   //===--------------------------------------------------------------------===//
 
-//   // Mask-Driven Error
-//   %vec5 = vector.load %mem_i32[%c0] : memref<20xi32>, vector<8xi32>
-//   %res_inttoptr_mask_driven = "llvm.intr.vp.inttoptr" (%vec5, %mask6, %evl8) :
-//          (vector<8xi32>, vector<8xi1>, i32) -> !llvm.vec<8 x !llvm.ptr<i32>>
-//   %res_ptrtoint_mask_driven = "llvm.intr.vp.ptrtoint" (%res_inttoptr_mask_driven, %mask6, %evl8) :
-//          (!llvm.vec<8 x !llvm.ptr<i32>>, vector<8xi1>, i32) -> vector<8xi32>
-//   vector.print %res_ptrtoint_mask_driven : vector<8xi32>
+  // Mask-Driven
+  %vec5 = vector.load %mem_i32[%c0] : memref<20xi32>, vector<8xi32>
+  %res_inttoptr_mask_driven = "llvm.intr.vp.inttoptr" (%vec5, %mask6, %evl8) :
+         (vector<8xi32>, vector<8xi1>, i32) -> !llvm.vec<8 x !llvm.ptr<i32>>
+  %res_ptrtoint_mask_driven = "llvm.intr.vp.ptrtoint" (%res_inttoptr_mask_driven, %mask6, %evl8) :
+         (!llvm.vec<8 x !llvm.ptr<i32>>, vector<8xi1>, i32) -> vector<8xi32>
+  vector.print %res_ptrtoint_mask_driven : vector<8xi32>
 
-//   // EVL-Driven Error
-//   %vec6 = vector.load %mem_i32[%c0] : memref<20xi32>, vector<8xi32>
-//   %res_inttoptr_evl_driven = "llvm.intr.vp.inttoptr" (%vec6, %mask8, %evl6) :
-//          (vector<8xi32>, vector<8xi1>, i32) -> !llvm.vec<8 x !llvm.ptr<i32>>
-//   %res_ptrtoint_evl_driven = "llvm.intr.vp.ptrtoint" (%res_inttoptr_evl_driven, %mask8, %evl6) :
-//          (!llvm.vec<8 x !llvm.ptr<i32>>, vector<8xi1>, i32) -> vector<8xi32>
-//   vector.print %res_ptrtoint_evl_driven : vector<8xi32>
+  // EVL-Driven
+  %vec6 = vector.load %mem_i32[%c0] : memref<20xi32>, vector<8xi32>
+  %res_inttoptr_evl_driven = "llvm.intr.vp.inttoptr" (%vec6, %mask8, %evl6) :
+         (vector<8xi32>, vector<8xi1>, i32) -> !llvm.vec<8 x !llvm.ptr<i32>>
+  %res_ptrtoint_evl_driven = "llvm.intr.vp.ptrtoint" (%res_inttoptr_evl_driven, %mask8, %evl6) :
+         (!llvm.vec<8 x !llvm.ptr<i32>>, vector<8xi1>, i32) -> vector<8xi32>
+  vector.print %res_ptrtoint_evl_driven : vector<8xi32>
 
   //===--------------------------------------------------------------------===//
   // VP Intrinsic SIToFP Operation + Fixed Vector Type

@@ -18,6 +18,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/DLTI/DLTI.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Target/LLVMIR/Dialect/All.h"
 #include "mlir/Target/LLVMIR/Export.h"
@@ -25,6 +27,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 
+#include "Target/LLVMIR/Dialect/Gemmini/GemminiToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/RVV/RVVToLLVMIRTranslation.h"
 
 using namespace buddy;
@@ -34,9 +37,9 @@ namespace buddy {
 void registerBuddyToLLVMIRTranslation() {
   TranslateFromMLIRRegistration registration(
       "buddy-to-llvmir", "translate MLIR from buddy toolchain to LLVM IR",
-      [](ModuleOp module, raw_ostream &output) {
+      [](Operation *op, raw_ostream &output) {
         llvm::LLVMContext llvmContext;
-        auto llvmModule = translateModuleToLLVMIR(module, llvmContext);
+        auto llvmModule = translateModuleToLLVMIR(op, llvmContext);
         if (!llvmModule)
           return failure();
 
@@ -45,17 +48,11 @@ void registerBuddyToLLVMIRTranslation() {
       },
       [](DialectRegistry &registry) {
         // Register translation in upstream MLIR.
-        registerArmNeonDialectTranslation(registry);
-        registerAMXDialectTranslation(registry);
-        registerArmSVEDialectTranslation(registry);
-        registerLLVMDialectTranslation(registry);
-        registerNVVMDialectTranslation(registry);
-        registerOpenACCDialectTranslation(registry);
-        registerOpenMPDialectTranslation(registry);
-        registerROCDLDialectTranslation(registry);
-        registerX86VectorDialectTranslation(registry);
+        registry.insert<DLTIDialect, func::FuncDialect>();
+        registerAllToLLVMIRTranslations(registry);
         // Register translation in buddy project.
         registerRVVDialectTranslation(registry);
+        registerGemminiDialectTranslation(registry);
       });
 }
 } // namespace buddy
