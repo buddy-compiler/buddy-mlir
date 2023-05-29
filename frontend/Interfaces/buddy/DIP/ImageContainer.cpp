@@ -40,7 +40,6 @@ void Img<T, N>::create(int rows, int _cols, int type) {
 
 template <typename T, size_t N>
 void Img<T, N>::create(int ndims, const int *sizes, int type) {
-
   int i;
   // CV_MAX_DIM是一个宏。它表示维度的最大值。
   assert(0 <= ndims && ndims <= MAX_DIM && sizes);
