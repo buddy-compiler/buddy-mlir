@@ -1,4 +1,4 @@
-//===- correlation2D.cpp - Example of buddy-opt tool ----------------------===//
+//===- correlationFFT2D.cpp - Example of buddy-opt tool ----------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements a 2D correlation example with dip.corr_2d operation.
-// The dip.corr_2d operation will be compiled into an object file with the
+// This file implements a 2D correlation example with dip.corrfft_2d operation.
+// The dip.corrfft_2d operation will be compiled into an object file with the
 // buddy-opt tool.
 // This file will be linked with the object file to generate the executable
 // file.
