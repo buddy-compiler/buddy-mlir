@@ -101,6 +101,7 @@ public:
 
   explicit DIPCorrFFT2DOpLowering(MLIRContext *context, int64_t strideParam)
       : OpRewritePattern(context) {
+    // ToDO: Develop support for stride > 1 for improving performance.
     stride = 1;
   }
 
@@ -1433,11 +1434,10 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry
-        .insert<buddy::dip::DIPDialect, func::FuncDialect,
-                memref::MemRefDialect, scf::SCFDialect, vector::VectorDialect,
-                affine::AffineDialect, arith::ArithDialect,
-                math::MathDialect>();
+    registry.insert<buddy::dip::DIPDialect, func::FuncDialect,
+                    memref::MemRefDialect, scf::SCFDialect,
+                    vector::VectorDialect, affine::AffineDialect,
+                    arith::ArithDialect, math::MathDialect>();
   }
 
   Option<int64_t> stride{*this, "DIP-strip-mining",

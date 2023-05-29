@@ -169,15 +169,15 @@ void scalar2DMemRefTranspose(OpBuilder &builder, Location loc, Value memref1,
   SmallVector<Value, 8> upperBounds{memref1NumRows, memref1NumCols};
   SmallVector<int64_t, 8> steps(2, 1);
 
-  buildAffineLoopNest(builder, loc, lowerBounds, upperBounds, steps,
-                      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-                        Value pixelVal = builder.create<memref::LoadOp>(
-                            loc, builder.getF32Type(), memref1,
-                            ValueRange{ivs[0], ivs[1]});
+  affine::buildAffineLoopNest(
+      builder, loc, lowerBounds, upperBounds, steps,
+      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+        Value pixelVal = builder.create<memref::LoadOp>(
+            loc, builder.getF32Type(), memref1, ValueRange{ivs[0], ivs[1]});
 
-                        builder.create<memref::StoreOp>(
-                            loc, pixelVal, memref2, ValueRange{ivs[1], ivs[0]});
-                      });
+        builder.create<memref::StoreOp>(loc, pixelVal, memref2,
+                                        ValueRange{ivs[1], ivs[0]});
+      });
 }
 
 // Function for calculating Hadamard product of complex type 2D MemRefs.
@@ -191,7 +191,7 @@ void vector2DMemRefMultiply(OpBuilder &builder, Location loc, Value memRef1Real,
   SmallVector<Value, 8> upperBounds{memRefNumRows, memRefNumCols};
   SmallVector<int64_t, 8> steps(2, 1);
 
-  buildAffineLoopNest(
+  affine::buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value pixelVal1Real = builder.create<vector::LoadOp>(
@@ -476,7 +476,7 @@ void idft2D(OpBuilder &builder, Location loc, Value container2DReal,
             Value container2DImag, Value container2DRows, Value container2DCols,
             Value intermediateReal, Value intermediateImag, Value c0, Value c1,
             Value strideVal, VectorType vecType) {
-  builder.create<AffineForOp>(
+  builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(),
       ValueRange{container2DRows}, builder.getDimIdentityMap(), 1, std::nullopt,
       [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
@@ -485,7 +485,7 @@ void idft2D(OpBuilder &builder, Location loc, Value container2DReal,
                                    container2DImag, container2DCols, strideVal,
                                    vecType, iv, c0, c1, 1);
 
-        nestedBuilder.create<AffineYieldOp>(nestedLoc);
+        nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);
       });
 
   scalar2DMemRefTranspose(builder, loc, container2DReal, intermediateReal,
@@ -495,7 +495,7 @@ void idft2D(OpBuilder &builder, Location loc, Value container2DReal,
                           container2DRows, container2DCols, container2DCols,
                           container2DRows, c0);
 
-  builder.create<AffineForOp>(
+  builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(),
       ValueRange{container2DCols}, builder.getDimIdentityMap(), 1, std::nullopt,
       [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
@@ -504,7 +504,7 @@ void idft2D(OpBuilder &builder, Location loc, Value container2DReal,
                                    intermediateImag, container2DRows, strideVal,
                                    vecType, iv, c0, c1, 1);
 
-        nestedBuilder.create<AffineYieldOp>(nestedLoc);
+        nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);
       });
 
   Value transposeCond = builder.create<arith::CmpIOp>(
@@ -535,7 +535,7 @@ void dft2D(OpBuilder &builder, Location loc, Value container2DReal,
            Value container2DImag, Value container2DRows, Value container2DCols,
            Value intermediateReal, Value intermediateImag, Value c0, Value c1,
            Value strideVal, VectorType vecType) {
-  builder.create<AffineForOp>(
+  builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(),
       ValueRange{container2DRows}, builder.getDimIdentityMap(), 1, std::nullopt,
       [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
@@ -544,7 +544,7 @@ void dft2D(OpBuilder &builder, Location loc, Value container2DReal,
                                      container2DImag, container2DCols,
                                      strideVal, vecType, iv, c0, c1, 1);
 
-        nestedBuilder.create<AffineYieldOp>(nestedLoc);
+        nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);
       });
 
   scalar2DMemRefTranspose(builder, loc, container2DReal, intermediateReal,
@@ -554,7 +554,7 @@ void dft2D(OpBuilder &builder, Location loc, Value container2DReal,
                           container2DRows, container2DCols, container2DCols,
                           container2DRows, c0);
 
-  builder.create<AffineForOp>(
+  builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(),
       ValueRange{container2DCols}, builder.getDimIdentityMap(), 1, std::nullopt,
       [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
@@ -563,7 +563,7 @@ void dft2D(OpBuilder &builder, Location loc, Value container2DReal,
                                      intermediateImag, container2DRows,
                                      strideVal, vecType, iv, c0, c1, 1);
 
-        nestedBuilder.create<AffineYieldOp>(nestedLoc);
+        nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);
       });
 
   Value transposeCond = builder.create<arith::CmpIOp>(
