@@ -1,3 +1,7 @@
+// RUN: buddy-opt %s \
+// RUN:     --lower-gemmini | \
+// RUN: FileCheck %s
+
 // batchSize = 1 inputDIm = 5 inChannels = 2 
 memref.global "private" @input : memref<1x5x5x1xi8> = dense<[[[[1], [0], [-1], [0], [1]],
                                                               [[1], [0], [-1], [0], [1]],
@@ -20,6 +24,14 @@ func.func @main() -> i64 {
   %weight = memref.get_global @weight : memref<9x2xi8>
   %bias = memref.get_global @bias : memref<2xi32>
   %output = memref.alloc() : memref<9x2xi8>
+  // CHECK: "gemmini.intr.loop_conv_ws_config1"
+  // CHECK: "gemmini.intr.loop_conv_ws_config2"
+  // CHECK: "gemmini.intr.loop_conv_ws_config3"
+  // CHECK: "gemmini.intr.loop_conv_ws_config4"
+  // CHECK: "gemmini.intr.loop_conv_ws_config5"
+  // CHECK: "gemmini.intr.loop_conv_ws_config6"
+  // CHECK: "gemmini.intr.loop_conv_ws"
+  // CHECK: "gemmini.intr.flush"
   gemmini.tile_conv %input %weight %bias %output %3 %3 {stride = 1}: 
   memref<1x5x5x1xi8> memref<9x2xi8> memref<2xi32> memref<9x2xi8> i64 i64
   gemmini.print %output : memref<9x2xi8>

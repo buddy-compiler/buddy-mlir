@@ -1,3 +1,7 @@
+// RUN: buddy-opt %s \
+// RUN:     --convert-linalg-to-gemmini="acc_t=f32" | \
+// RUN: FileCheck %s
+
 memref.global "private" @input : memref<1x5x5x1xf32> = dense<[[[[1.],[2.],[3.],[4.],[5.]],
                                                               [[6.],[7.],[8.],[9.],[10.]],
                                                               [[11.],[12.],[13.],[14.],[15.]],
@@ -16,6 +20,8 @@ func.func @main() -> i8 {
   %kernel = memref.get_global @kernel : memref<3x3x1x1xf32>
   // batchsize h w outputchannel
   %output = memref.alloc() : memref<1x3x3x1xf32> 
+  // CHECK: gemmini.tile_conv %{{.+}} %alloc_{{[0-9]+}} %alloc_{{[0-9]+}} %alloc_{{[0-9]+}} %{{.+}} %{{.+}} : 
+  // CHECK: memref<1x5x5x1xf32> memref<9x1xf32> memref<1xf32> memref<9x1xf32> i64 i64
   linalg.conv_2d_nhwc_hwcf 
     ins(%input, %kernel : memref<1x5x5x1xf32>, memref<3x3x1x1xf32>)
   outs(%output : memref<1x3x3x1xf32>)

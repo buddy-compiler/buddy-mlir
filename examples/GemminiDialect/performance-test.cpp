@@ -142,27 +142,27 @@ void _mlir_ciface_gemmini_matmul6(MemRef<int8_t, 2> *input0,
                                  MemRef<int8_t, 2>  *output ,
                                  MemRef<int32_t, 2> *bias);
 
-void _mlir_ciface_conv_2d_nchw_fchw1(MemRef<int8_t, 4> *input,
+void _mlir_ciface_linalg_conv1(MemRef<int8_t, 4> *input,
                                      MemRef<int8_t, 4> *kernel,
                                      MemRef<int8_t, 4> *output);
 
-void _mlir_ciface_conv_2d_nchw_fchw2(MemRef<int8_t, 4> *input,
+void _mlir_ciface_linalg_conv2(MemRef<int8_t, 4> *input,
                                      MemRef<int8_t, 4> *kernel,
                                      MemRef<int8_t, 4> *output);
 
-void _mlir_ciface_conv_2d_nchw_fchw3(MemRef<int8_t, 4> *input,
+void _mlir_ciface_linalg_conv3(MemRef<int8_t, 4> *input,
                                      MemRef<int8_t, 4> *kernel,
                                      MemRef<int8_t, 4> *output);
 
-void _mlir_ciface_conv_2d_nchw_fchw4(MemRef<int8_t, 4> *input,
+void _mlir_ciface_linalg_conv4(MemRef<int8_t, 4> *input,
                                      MemRef<int8_t, 4> *kernel,
                                      MemRef<int8_t, 4> *output);
 
-void _mlir_ciface_conv_2d_nchw_fchw5(MemRef<int8_t, 4> *input,
+void _mlir_ciface_linalg_conv5(MemRef<int8_t, 4> *input,
                                      MemRef<int8_t, 4> *kernel,
                                      MemRef<int8_t, 4> *output);
 
-void _mlir_ciface_conv_2d_nchw_fchw6(MemRef<int8_t, 4> *input,
+void _mlir_ciface_linalg_conv6(MemRef<int8_t, 4> *input,
                                      MemRef<int8_t, 4> *kernel,
                                      MemRef<int8_t, 4> *output);
 
@@ -312,32 +312,32 @@ int main() {
       switch (CONV) {
       case 1:
         start = readCycles();
-        _mlir_ciface_conv_2d_nchw_fchw1(&input, &weights, &output);
+        _mlir_ciface_linalg_conv1(&input, &weights, &output);
         end = readCycles();
         break;
       case 2:
         start = readCycles();
-        _mlir_ciface_conv_2d_nchw_fchw2(&input, &weights, &output);
+        _mlir_ciface_linalg_conv2(&input, &weights, &output);
         end = readCycles();
         break;
       case 3:
         start = readCycles();
-        _mlir_ciface_conv_2d_nchw_fchw3(&input, &weights, &output);
+        _mlir_ciface_linalg_conv3(&input, &weights, &output);
         end = readCycles();
         break;
       case 4:
         start = readCycles();
-        _mlir_ciface_conv_2d_nchw_fchw4(&input, &weights, &output);
+        _mlir_ciface_linalg_conv4(&input, &weights, &output);
         end = readCycles();
         break;
       case 5:
         start = readCycles();
-        _mlir_ciface_conv_2d_nchw_fchw5(&input, &weights, &output);
+        _mlir_ciface_linalg_conv5(&input, &weights, &output);
         end = readCycles();
         break;
       case 6:
         start = readCycles();
-        _mlir_ciface_conv_2d_nchw_fchw6(&input, &weights, &output);
+        _mlir_ciface_linalg_conv6(&input, &weights, &output);
         end = readCycles();
         break;
       default:
