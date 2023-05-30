@@ -4,9 +4,9 @@ MLIR-Based Ideas Landing Project ([Project page](https://buddy-compiler.github.i
 
 ## Getting Started
 
-Two building strategies are provided: one-step building strategy and two-step building strategy. The one-step building strategy uses buddy-mlir as an external library, while the two-step building strategy uses LLVM/MLIR as an external library. 
-
-**However, the one-step building strategy is currently not compatible with [buddy-benchmark targets](https://github.com/buddy-compiler/buddy-benchmark) and [buddy-mlir examples](https://github.com/buddy-compiler/buddy-mlir/tree/main/examples), so our default building strategy is still the two-step one, and users of the one-step strategy are only those who use our toolchain in their own projects.**
+The default build system uses LLVM/MLIR as an external library. 
+We also provide a [one-step build strategy](#one-step) for users who only want to use our tools.
+Please make sure [the dependencies](https://llvm.org/docs/GettingStarted.html#requirements) are available on your machine.
 
 ### LLVM/MLIR Dependencies
 
@@ -21,31 +21,7 @@ $ cd buddy-mlir
 $ git submodule update --init
 ```
 
-### One-step building strategy
-
-If you have not previously built llvm-project and you want to use buddy-mlir as an external library, you can follow these commands to build llvm-project as well as buddy-mlir.
-
-```
-$ cmake -G Ninja -Bbuild \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
-    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
-    -DLLVM_EXTERNAL_PROJECTS="buddy-mlir" \
-    -DLLVM_EXTERNAL_BUDDY_MLIR_SOURCE_DIR="$PWD" \
-    -DLLVM_ENABLE_ASSERTIONS=ON \
-    -DCMAKE_BUILD_TYPE=RELEASE \
-    llvm/llvm
-$ cd build
-$ ninja check-mlir check-clang
-$ ninja
-$ ninja check-buddy
-```
-
-### Two-step building strategy
-
-If you have not previously built llvm-project and you want to use LLVM/MLIR as an external library, you can follow these steps to build llvm-project first, and then build buddy-mlir.
-
-#### Build and Test LLVM/MLIR/CL
+### Build and Test LLVM/MLIR/CLANG
 
 ```
 $ cd buddy-mlir
@@ -81,7 +57,7 @@ $ cmake -G Ninja ../llvm \
     -DCMAKE_BUILD_TYPE=RELEASE
 ```
 
-#### Build buddy-mlir
+### Build buddy-mlir
 
 If you have previously built the llvm-project, you can replace the $PWD with the path to the directory where you have successfully built the llvm-project.
 
@@ -104,6 +80,25 @@ If you want to add domain-specific framework support, please add the following c
 | -------------- | ------------- | ------------- |
 | OpenCV  | `-DBUDDY_ENABLE_OPENCV=ON`  | Add `-DOpenCV_DIR=</PATH/TO/OPENCV/BUILD/>` or install OpenCV release version on your local device. |
 
+<h3 id="one-step">One-step building strategy</h3>
+
+If you only want to use our tools and integrate them more easily into your projects, you can choose to use the one-step build strategy.
+
+```
+$ cmake -G Ninja -Bbuild \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+    -DLLVM_EXTERNAL_PROJECTS="buddy-mlir" \
+    -DLLVM_EXTERNAL_BUDDY_MLIR_SOURCE_DIR="$PWD" \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    llvm/llvm
+$ cd build
+$ ninja check-mlir check-clang
+$ ninja
+$ ninja check-buddy
+```
 ## Dialects
 
 ### Bud Dialect
@@ -145,19 +140,3 @@ The purpose of the examples is to give users a better understanding of how to us
 - Testing and demonstrating examples.
 
 For more details, please see the [documentation of the examples](./examples/README.md).
-
-## Benchmarks
-
-The benchmarks in this repo use JIT tool (mlir-cpu-runner) as the execution engine.
-For AOT benchmarks, please see [buddy-benchmark repo](https://github.com/buddy-compiler/buddy-benchmark).
-
-We provide the following benchmarks:
-
-- Conv2D
-
-```
-$ cd buddy-mlir/benchmark
-$ make
-```
-
-For more features and configurations, please see the [benchmark document](./benchmark/README.md).
