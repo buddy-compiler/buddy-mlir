@@ -8,7 +8,7 @@ OPT_FLAG := -O0
 
 resnet-18-lower:
 	@${MLIR_OPT} ./ResNet-18.mlir \
-		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-tensor),func.func(tosa-to-linalg),func.func(tosa-to-arith))" | \
+		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${MLIR_OPT} \
 		--test-linalg-transform-patterns="test-generalize-pad-tensor" \
 		--linalg-bufferize \

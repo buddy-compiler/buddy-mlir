@@ -4,5 +4,5 @@ add_mlir_library(CBConvVectorization
   PoolingVectorization.cpp
   
   LINK_LIBS PUBLIC
-  Utils
+  BuddyUtils
   )

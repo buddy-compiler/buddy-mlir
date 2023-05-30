@@ -54,7 +54,7 @@
   arch: general
   commands:
   - exec: ${MLIR_OPT}
-    args: -arith-bufferize -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm -func-bufferize -buffer-deallocation -convert-linalg-to-loops -convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
+    args: -arith-bufferize -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm -func-bufferize -buffer-deallocation -convert-linalg-to-loops -expand-strided-metadata -convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
     workingdir:
     env:
     input: FILE
@@ -105,7 +105,7 @@
   arch: general
   commands:
   - exec: ${MLIR_OPT}
-    args: -arith-bufferize -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm -func-bufferize -buffer-deallocation -convert-linalg-to-loops -convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
+    args: -arith-bufferize -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm -func-bufferize -buffer-deallocation -convert-linalg-to-loops -expand-strided-metadata -convert-linalg-to-llvm -convert-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
     workingdir:
     env:
     input: FILE

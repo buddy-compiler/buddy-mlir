@@ -50,4 +50,4 @@ import lit.llvm
 lit.llvm.initialize(lit_config, config)
 
 # Let the main config do the real work.
-lit_config.load_config(config, "@CMAKE_SOURCE_DIR@/examples/lit.cfg.py")
+lit_config.load_config(config, "@PROJECT_SOURCE_DIR@/examples/lit.cfg.py")
