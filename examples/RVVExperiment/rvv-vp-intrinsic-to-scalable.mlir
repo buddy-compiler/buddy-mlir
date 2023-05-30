@@ -71,19 +71,19 @@ func.func @main() -> i32 {
   // VP Intrinsic PtrToInt Operation + Scalable Vector Type
   //===--------------------------------------------------------------------===//
 
-  // // Mask-Driven Error
-  // %res_inttoptr_mask_driven = "llvm.intr.vp.inttoptr" (%load_vec1_i32, %mask_scalable6, %vl8_i32) :
-  //     (vector<[4]xi32>, vector<[4]xi1>, i32) -> !llvm.vec<? x 4 x !llvm.ptr<i32>>
-  // %res_ptrtoint_mask_driven = "llvm.intr.vp.ptrtoint" (%res_inttoptr_mask_driven, %mask_scalable6, %vl8_i32) :
-  //     (!llvm.vec<? x 4 x !llvm.ptr<i32>>, vector<[4]xi1>, i32) -> vector<[4]xi32>
-  // call @print_scalable_vector_i32(%res_ptrtoint_mask_driven) : (vector<[4]xi32>) -> ()
+  // Mask-Driven
+  %res_inttoptr_mask_driven = "llvm.intr.vp.inttoptr" (%load_vec1_i32, %mask_scalable6, %vl8_i32) :
+      (vector<[4]xi32>, vector<[4]xi1>, i32) -> !llvm.vec<? x 4 x !llvm.ptr<i32>>
+  %res_ptrtoint_mask_driven = "llvm.intr.vp.ptrtoint" (%res_inttoptr_mask_driven, %mask_scalable6, %vl8_i32) :
+      (!llvm.vec<? x 4 x !llvm.ptr<i32>>, vector<[4]xi1>, i32) -> vector<[4]xi32>
+  call @print_scalable_vector_i32(%res_ptrtoint_mask_driven) : (vector<[4]xi32>) -> ()
 
-  // // EVL-Driven Error
-  // %res_inttoptr_evl_driven = "llvm.intr.vp.inttoptr" (%load_vec1_i32, %mask_scalable8, %vl6_i32) :
-  //     (vector<[4]xi32>, vector<[4]xi1>, i32) -> !llvm.vec<? x 4 x !llvm.ptr<i32>>
-  // %res_ptrtoint_evl_driven = "llvm.intr.vp.ptrtoint" (%res_inttoptr_evl_driven, %mask_scalable8, %vl6_i32) :
-  //     (!llvm.vec<? x 4 x !llvm.ptr<i32>>, vector<[4]xi1>, i32) -> vector<[4]xi32>
-  // call @print_scalable_vector_i32(%res_ptrtoint_evl_driven) : (vector<[4]xi32>) -> ()
+  // EVL-Driven
+  %res_inttoptr_evl_driven = "llvm.intr.vp.inttoptr" (%load_vec1_i32, %mask_scalable8, %vl6_i32) :
+      (vector<[4]xi32>, vector<[4]xi1>, i32) -> !llvm.vec<? x 4 x !llvm.ptr<i32>>
+  %res_ptrtoint_evl_driven = "llvm.intr.vp.ptrtoint" (%res_inttoptr_evl_driven, %mask_scalable8, %vl6_i32) :
+      (!llvm.vec<? x 4 x !llvm.ptr<i32>>, vector<[4]xi1>, i32) -> vector<[4]xi32>
+  call @print_scalable_vector_i32(%res_ptrtoint_evl_driven) : (vector<[4]xi32>) -> ()
 
   //===--------------------------------------------------------------------===//
   // VP Intrinsic SIToFP Operation + Scalable Vector Type

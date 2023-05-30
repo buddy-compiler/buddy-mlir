@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------
-# Helper functions and variables.
+# Helper functions macro and variables.
 # ------------------------------------------------------------------------------
 function(copy_file_to_build_dir src_dir output_dir file)
   set(src ${src_dir}/${file})
@@ -9,6 +9,17 @@ function(copy_file_to_build_dir src_dir output_dir file)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${src} ${dst}
     COMMENT "Copying RISCV Target - ${file}...")
 endfunction(copy_file_to_build_dir)
+
+# The macro helps to find the correct path of "IntrinsicsRISCV.h"
+macro(buddy_add_llvm_target target_name)
+  include_directories(BEFORE
+    ${BUDDY_BUILD_DIR}/backend/include/
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+  add_llvm_component_library(LLVM${target_name} ${ARGN})
+  set( CURRENT_LLVM_TARGET LLVM${target_name} )
+endmacro(buddy_add_llvm_target)
 
 set(LLVM_TARGET_RISCV_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Target/RISCV)
 
@@ -38,7 +49,7 @@ tablegen(LLVM RISCVGenRegisterInfo.inc -gen-register-info)
 tablegen(LLVM RISCVGenSearchableTables.inc -gen-searchable-tables)
 tablegen(LLVM RISCVGenSubtargetInfo.inc -gen-subtarget)
 
-add_public_tablegen_target(RISCVCommonTableGen)
+add_public_tablegen_target(RISCVBuddyCommonTableGen)
 
 # ------------------------------------------------------------------------------
 # Build RISC-V Buddy Extension CodeGen.
@@ -65,8 +76,7 @@ foreach(file ${UPSTREAM_LLVM_TARGET_RISCV_GISEL_FILE})
 endforeach()
 
 # Build BuddyRISCVCodeGen target.
-add_llvm_target(BuddyRISCVCodeGen
-  # Target RISCV
+buddy_add_llvm_target(BuddyRISCVCodeGen
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVAsmPrinter.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVCodeGenPrepare.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMakeCompressible.cpp
@@ -74,6 +84,7 @@ add_llvm_target(BuddyRISCVCodeGen
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVExpandPseudoInsts.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVFrameLowering.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVGatherScatterLowering.cpp
+  # ${CMAKE_CURRENT_BINARY_DIR}/RISCVInsertNTLHInsts.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInsertVSETVLI.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInstrInfo.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVISelDAGToDAG.cpp
@@ -82,18 +93,19 @@ add_llvm_target(BuddyRISCVCodeGen
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMacroFusion.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCInstLower.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMergeBaseOffset.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVOptWInstrs.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVRedundantCopyElimination.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVRegisterInfo.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVSExtWRemoval.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVRVVInitUndef.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVSubtarget.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetMachine.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetObjectFile.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetTransformInfo.cpp
-  # GISel
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVCallLowering.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInstructionSelector.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVLegalizerInfo.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVRegisterBankInfo.cpp
+
   # Add *.h files to track the copies above.
   # Target RISCV
   ${CMAKE_CURRENT_BINARY_DIR}/RISCV.h
@@ -120,14 +132,15 @@ add_llvm_target(BuddyRISCVCodeGen
   BuddyIPO
   BuddyCodeGen
   MC
-  RISCVDesc
-  RISCVInfo
+  BuddyRISCVDesc
+  BuddyRISCVInfo
   BuddySelectionDAG
   Support
   BuddyTarget
-  TransformUtils
+  BuddyTransformUtils
   BuddyGlobalISel
-
+  TargetParser
+  
   ADD_TO_COMPONENT
   RISCVBuddyExt
   )
@@ -151,8 +164,8 @@ add_llvm_component_library(LLVMBuddyRISCVAsmParser
   LINK_COMPONENTS
   MC
   MCParser
-  RISCVDesc
-  RISCVInfo
+  BuddyRISCVDesc
+  BuddyRISCVInfo
   Support
 
   ADD_TO_COMPONENT
@@ -187,6 +200,7 @@ add_llvm_component_library(LLVMBuddyRISCVDesc
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMatInt.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetStreamer.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVELFStreamer.cpp
+
   # Add *.h files to track the copies above.
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVAsmBackend.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVBaseInfo.h
@@ -202,8 +216,9 @@ add_llvm_component_library(LLVMBuddyRISCVDesc
 
   LINK_COMPONENTS
   MC
-  RISCVInfo
+  BuddyRISCVInfo
   Support
+  TargetParser
 
   ADD_TO_COMPONENT
   RISCVBuddyExt

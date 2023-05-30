@@ -53,7 +53,7 @@ scf-parallel-translate:
 		-arith-expand \
         -convert-async-to-llvm \
         -convert-scf-to-cf \
-        -convert-memref-to-llvm \
+        -finalize-memref-to-llvm \
         -convert-func-to-llvm \
         -reconcile-unrealized-casts |\
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
@@ -66,12 +66,15 @@ scf-parallel-run:
         -async-runtime-ref-counting-opt \
 		-arith-expand \
         -convert-async-to-llvm \
+		-convert-vector-to-llvm \
         -convert-scf-to-cf \
-        -convert-memref-to-llvm \
+        -finalize-memref-to-llvm \
         -convert-func-to-llvm \
         -reconcile-unrealized-casts |\
     ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-	    -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_ASYNC_RUNTIME}
+	    -shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS} \
+		-shared-libs=${MLIR_ASYNC_RUNTIME}
 
 scf-parallel-aot:
 	@${MLIR_OPT} ./scf-parallel.mlir \
@@ -81,8 +84,9 @@ scf-parallel-aot:
         -async-runtime-ref-counting-opt \
 		-arith-expand \
         -convert-async-to-llvm \
+		-convert-vector-to-llvm \
         -convert-scf-to-cf \
-        -convert-memref-to-llvm \
+        -finalize-memref-to-llvm \
         -convert-func-to-llvm \
         -reconcile-unrealized-casts |\
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
@@ -99,8 +103,9 @@ scf-parallel-aot:
 scf-parallel-single-aot:
 	@${MLIR_OPT} ./scf-parallel.mlir \
 		-arith-expand \
+		-convert-vector-to-llvm \
         -convert-scf-to-cf \
-        -convert-memref-to-llvm \
+        -finalize-memref-to-llvm \
         -convert-func-to-llvm \
         -reconcile-unrealized-casts |\
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
@@ -146,21 +151,3 @@ scf-if-run:
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}	
-
-scf-do-while-lower:
-	@${MLIR_OPT} ./scf-do-while.mlir \
-		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
-		--reconcile-unrealized-casts -o ./log.mlir
-
-scf-do-while-translate:
-	@${MLIR_OPT} ./scf-do-while.mlir \
-		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
-		--reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
-
-scf-do-while-run:
-	@${MLIR_OPT} ./scf-do-while.mlir \
-		--convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm \
-		--reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}

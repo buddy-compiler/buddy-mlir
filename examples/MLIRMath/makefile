@@ -20,19 +20,19 @@ endif
 
 math-atan2-lower:
 	@${MLIR_OPT} ./math-atan2.mlir \
-		-convert-math-to-llvm -convert-math-to-libm -convert-vector-to-llvm -convert-func-to-llvm \
+		-convert-math-to-llvm -convert-vector-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts \
 		-o ./log.mlir
 
 math-atan2-translate:
 	@${MLIR_OPT} ./math-atan2.mlir \
-		-convert-math-to-llvm -convert-math-to-libm -convert-vector-to-llvm -convert-func-to-llvm \
+		-convert-math-to-llvm -convert-vector-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 math-atan2-run:
 	@${MLIR_OPT} ./math-atan2.mlir \
-		-convert-math-to-llvm -convert-math-to-libm -convert-vector-to-llvm -convert-func-to-llvm \
+		-convert-math-to-llvm -convert-vector-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -72,3 +72,12 @@ math-rsqrt-asm-x86:
 		-mlir-to-llvmir | \
 	${LLC} ${OPT_FLAG} -mtriple=x86_64-unknown-linux-gnu -mattr=+avx512f \
 		--filetype=asm -o log.s
+
+math-rsqrt-run:
+	@${MLIR_OPT} ./math-rsqrt.mlir \
+		-convert-vector-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}

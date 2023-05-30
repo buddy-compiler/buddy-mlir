@@ -4,13 +4,16 @@ MLIR-Based Ideas Landing Project ([Project page](https://buddy-compiler.github.i
 
 ## Getting Started
 
+Two building strategies are provided: one-step building strategy and two-step building strategy. The one-step building strategy uses buddy-mlir as an external library, while the two-step building strategy uses LLVM/MLIR as an external library. 
+
+**However, the one-step building strategy is currently not compatible with [buddy-benchmark targets](https://github.com/buddy-compiler/buddy-benchmark) and [buddy-mlir examples](https://github.com/buddy-compiler/buddy-mlir/tree/main/examples), so our default building strategy is still the two-step one, and users of the one-step strategy are only those who use our toolchain in their own projects.**
+
 ### LLVM/MLIR Dependencies
 
-This project uses LLVM/MLIR as an external library. Please make sure [the dependencies](https://llvm.org/docs/GettingStarted.html#requirements) are available
+Before building, please make sure [the dependencies](https://llvm.org/docs/GettingStarted.html#requirements) are available
 on your machine.
 
 ### Clone and Initialize
-
 
 ```
 $ git clone git@github.com:buddy-compiler/buddy-mlir.git
@@ -18,7 +21,31 @@ $ cd buddy-mlir
 $ git submodule update --init
 ```
 
-### Build and Test LLVM/MLIR/CLANG
+### One-step building strategy
+
+If you have not previously built llvm-project and you want to use buddy-mlir as an external library, you can follow these commands to build llvm-project as well as buddy-mlir.
+
+```
+$ cmake -G Ninja -Bbuild \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+    -DLLVM_EXTERNAL_PROJECTS="buddy-mlir" \
+    -DLLVM_EXTERNAL_BUDDY_MLIR_SOURCE_DIR="$PWD" \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    llvm/llvm
+$ cd build
+$ ninja check-mlir check-clang
+$ ninja
+$ ninja check-buddy
+```
+
+### Two-step building strategy
+
+If you have not previously built llvm-project and you want to use LLVM/MLIR as an external library, you can follow these steps to build llvm-project first, and then build buddy-mlir.
+
+#### Build and Test LLVM/MLIR/CL
 
 ```
 $ cd buddy-mlir
@@ -43,7 +70,20 @@ $ cmake -G Ninja ../llvm \
     -DCMAKE_BUILD_TYPE=RELEASE
 ```
 
-### Build buddy-mlir
+If your target machine has lld installed, you can use the following configuration:
+
+```
+$ cmake -G Ninja ../llvm \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+    -DLLVM_USE_LINKER=lld \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE
+```
+
+#### Build buddy-mlir
+
+If you have previously built the llvm-project, you can replace the $PWD with the path to the directory where you have successfully built the llvm-project.
 
 ```
 $ cd buddy-mlir
@@ -79,6 +119,18 @@ DIP dialect is designed for digital image processing abstraction.
 ### buddy-opt
 
 The buddy-opt is the driver for dialects and optimization in buddy-mlir project. 
+
+### buddy-lsp-server
+
+This program should be a drop-in replacement for `mlir-lsp-server`, supporting new dialects defined in buddy-mlir. To use it, please directly modify mlir LSP server path in VSCode settings (or similar settings for other editors) to:
+
+```json
+{
+    "mlir.server_path": "YOUR_BUDDY_MLIR_BUILD/bin/buddy-lsp-server",
+}
+```
+
+After modification, your editor should have correct completion and error prompts for new dialects such as `rvv` and `gemmini`.
 
 ### AutoConfig Mechanism
 

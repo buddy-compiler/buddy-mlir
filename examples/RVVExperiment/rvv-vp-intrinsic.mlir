@@ -50,7 +50,7 @@ func.func @main() -> i32 {
 
   %vec5 = vector.load %mem[%c0] : memref<20xf32>, vector<8xf32>
   %vec6 = vector.load %mem[%c10] : memref<20xf32>, vector<8xf32>
-  %res_vector_config = bud.vector_config %mask8, %evl6 : vector<8xi1>, i32 {
+  %res_vector_config = vector_exp.predication %mask8, %evl6 : vector<8xi1>, i32 {
     %add = arith.addf %vec5, %vec6 : vector<8xf32>
     vector.yield %add : vector<8xf32>
   } : vector<8xf32>
@@ -89,7 +89,7 @@ func.func @main() -> i32 {
 
   %vec9 = rvv.load %mem[%c0], %vl : memref<20xf32>, vector<[4]xf32>, index
   %vec10 = rvv.load %mem[%c10], %vl : memref<20xf32>, vector<[4]xf32>, index
-  %res_scalable_vector_config = bud.vector_config %vec_mask, %vl_i32 : vector<[4]xi1>, i32 {
+  %res_scalable_vector_config = vector_exp.predication %vec_mask, %vl_i32 : vector<[4]xi1>, i32 {
     %add = arith.addf %vec9, %vec10 : vector<[4]xf32>
     vector.yield %add : vector<[4]xf32>
   } : vector<[4]xf32>

@@ -87,4 +87,24 @@ check_cxx_source_runs(
     message(STATUS "\tArm Neon support - no")
   endif(${HAVE_NEON})
 
+#-------------------------------------------------------------------------------
+# Check RISC-V Vector
+#-------------------------------------------------------------------------------
+
+  check_cxx_source_runs(
+    "
+    #include <riscv_vector.h>
+    int main() {
+      int avl = 70;
+      int vl = vsetvl_e32m2(avl);
+      return 0;
+    }
+    " HAVE_LOCAL_RVV)
+
+    if(${HAVE_LOCAL_RVV})
+      message(STATUS "\tRISC-V Vector local support - yes")
+    else()
+      message(STATUS "\tRISC-V Vector local support - no")
+    endif(${HAVE_LOCAL_RVV})
+
 endmacro(CHECK_SIMD)

@@ -1,5 +1,5 @@
 from mlir.ir import *
-from mlir.dialects import arith
+from mlir.dialects import arith, linalg
 import mlir.dialects.func as func
 from mlir.passmanager import *
 import torch
@@ -59,6 +59,26 @@ def CodeGen(node, symbolTable, argsList):
       input1 = symbolTable.get(str(node._args[0]))
       input2 = symbolTable.get(str(node._args[1]))
       op = arith.AddFOp(input1, input2)
+      symbolTable[str(node.name)] = op
+    if node.target.__name__ == "matmul":
+      # Only support 2D matmul now.
+      # Get two input values.
+      input1 = symbolTable.get(str(node._args[0]))
+      input2 = symbolTable.get(str(node._args[1]))
+      # Infer the output sizes.
+      size1 = RankedTensorType(input1.type).shape[0]
+      size2 = RankedTensorType(input2.type).shape[1]
+      sizes = [size1, size2]
+      # Generate an output tensor for matmul operation.
+      # For example:
+      # `arith.constant dense<0.000000e+00> : tensor<3x3xf32>`
+      f32 = F32Type.get()
+      element = FloatAttr.get(f32, 0.0)
+      tensor_type = RankedTensorType.get(sizes, f32)
+      attr = DenseElementsAttr.get_splat(tensor_type, element)
+      init_result = arith.ConstantOp(tensor_type, attr)
+      # Generate matmul operation.
+      op = linalg.matmul(input1, input2, outs=[init_result.result])
       symbolTable[str(node.name)] = op
   if node.op == "output" :
     # Generating return operation.

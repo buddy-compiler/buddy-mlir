@@ -24,7 +24,9 @@ set(LLVM_LINK_COMPONENTS
   BuddyTarget
   BuddyIPO
   BuddyVectorize
-  )
+  TargetParser
+  BuddyTransformUtils
+)
 
 add_llvm_tool(buddy-llc
   ${LLVM_PROJECT_SOURCE_DIR}/llvm/tools/llc/llc.cpp
