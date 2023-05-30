@@ -1,4 +1,4 @@
-//====- LowerLinalgToGemmini - Linalg Dialect Lowering Pass --------------===//
+//====- LowerLinalgToGemmini.cpp - Linalg Dialect Lowering Pass -----------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -60,9 +60,8 @@ public:
     llvm::APFloat scale1((float)1.0);
     llvm::APFloat scale0((float)0.0);
     Value bias = rewriter.create<memref::AllocOp>(loc, biasType, alignment);
-    IntegerAttr fillOpInputAttr = rewriter.getI32IntegerAttr(0);
-    Value fillOpInputValue = rewriter.create<arith::ConstantOp>(
-        loc, fillOpInputAttr, rewriter.getI32Type());
+    Value fillOpInputValue =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getI32IntegerAttr(0));
     rewriter.create<linalg::FillOp>(loc, fillOpInputValue, bias);
     rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
         matMulOp, input0, input1, output0, bias, /*aScaleFactor = */ scale1,
@@ -86,7 +85,7 @@ class Conv2DHchwFchwLowering
     MemRefType inputType = input0.getType().dyn_cast<MemRefType>();
     MemRefType weightsType = input1.getType().dyn_cast<MemRefType>();
     MemRefType outputType = output.getType().dyn_cast<MemRefType>();
-    if (!inputType.getElementType().isInteger(8)) 
+    if (!inputType.getElementType().isInteger(8))
       return failure();
     if (!weightsType.getElementType().isInteger(8))
       return failure();
@@ -116,8 +115,8 @@ class Conv2DHchwFchwLowering
     IntegerAttr outDimAttr = rewriter.getI64IntegerAttr(outputShape[2]);
     Value batchSize =
         rewriter.create<arith::ConstantIndexOp>(loc, inputShape[0]);
-    Value outDim = rewriter.create<arith::ConstantOp>(loc, outDimAttr,
-                                                      rewriter.getI64Type());
+    Value outDim = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(outputShape[2]));
     Value kernelDim =
         rewriter.create<arith::ConstantIndexOp>(loc, weightsShape[2]);
     Value inChannels =
@@ -170,8 +169,7 @@ class Conv2DHchwFchwLowering
     rewriter.create<memref::StoreOp>(loc, tmp1, weightsMat, valueRange);
     rewriter.setInsertionPointAfter(loopOp);
     kernelDim = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64Type(),
-        rewriter.getI64IntegerAttr(weightsShape[2]));
+        loc, rewriter.getI64IntegerAttr(weightsShape[2]));
     rewriter.create<gemmini::TileConvOp>(loc, inputMat, weightsMat, bias,
                                          outputMat, outDim, kernelDim,
                                          llvm::APFloat(float(1.0)));

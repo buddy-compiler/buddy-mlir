@@ -13,15 +13,15 @@ endif ()
 
 add_custom_command(OUTPUT DIP.o
         POST_BUILD
-        COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/DIP.mlir
+        COMMAND ${CMAKE_BINARY_DIR}/bin/buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/DIP.mlir
         -lower-dip="DIP-strip-mining=${SPLITING_SIZE}"
         -arith-expand
         -lower-affine
-        -convert-scf-to-openmp
+        #-convert-scf-to-openmp
         #-convert-async-to-llvm
-        -convert-memref-to-llvm
+        -finalize-memref-to-llvm
         -convert-scf-to-cf
-        -convert-openmp-to-llvm
+        #-convert-openmp-to-llvm
         -convert-math-to-llvm
         -convert-vector-to-llvm
         -convert-func-to-llvm

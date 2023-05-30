@@ -267,8 +267,8 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, scf::SCFDialect, AffineDialect,
-                    VectorDialect>();
+    registry.insert<linalg::LinalgDialect, scf::SCFDialect, 
+                    affine::AffineDialect, VectorDialect>();
   }
 
   Option<int64_t> strip{*this, "strip-mining",
@@ -283,8 +283,8 @@ void PoolingVectorizationPass::runOnOperation() {
 
   ConversionTarget target(*context);
   target
-      .addLegalDialect<arith::ArithDialect, AffineDialect, scf::SCFDialect,
-                       memref::MemRefDialect, VectorDialect>();
+      .addLegalDialect<arith::ArithDialect, affine::AffineDialect,
+                       scf::SCFDialect, memref::MemRefDialect, VectorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
 

@@ -1,0 +1,79 @@
+- filename: scf-while.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: scf-parallel.mlir
+  type: aot
+  arch: x86
+  commands:
+  - exec: ${MLIR_OPT}
+    args: -async-parallel-for -async-to-async-runtime -async-runtime-ref-counting -async-runtime-ref-counting-opt -arith-expand -convert-async-to-llvm -convert-vector-to-llvm -convert-scf-to-cf -convert-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_TRANSLATE}
+    args: --mlir-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${CLANG}
+    args: ${OPT_FLAG} -L ${MLIR_LIB} -L ${BUDDY_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lstatic_mlir_async_runtime -lLLVMSupport -lLLVMDemangle -lstdc++ -lpthread -ltinfo -lm
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+  - exec: ./a.out
+    args:
+    workingdir:
+    env: LD_LIBRARY_PATH=${MLIR_LIB}
+    input: FILE
+    output: STDOUT
+
+- filename: scf-for.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: scf-if.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT

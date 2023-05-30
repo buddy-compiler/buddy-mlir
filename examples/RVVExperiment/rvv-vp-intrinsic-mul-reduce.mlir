@@ -13,13 +13,13 @@ func.func @main() -> i32 {
   // VP Intrinsic Reduce Mul Operation + Fixed Vector Type
   //===--------------------------------------------------------------------===//
 
-  // Mask-Driven Error
+  // Mask-Driven
   %vec1 = vector.load %mem_i32[%c0] : memref<20xi32>, vector<8xi32>
   %res_reduce_mul_mask_driven = "llvm.intr.vp.reduce.mul" (%c1_i32, %vec1, %mask6, %evl8) :
          (i32, vector<8xi32>, vector<8xi1>, i32) -> i32
   vector.print %res_reduce_mul_mask_driven : i32
 
-  // EVL-Driven Error
+  // EVL-Driven
   %vec2 = vector.load %mem_i32[%c0] : memref<20xi32>, vector<8xi32>
   %res_reduce_mul_evl_driven = "llvm.intr.vp.reduce.mul" (%c1_i32, %vec2, %mask8, %evl6) :
          (i32, vector<8xi32>, vector<8xi1>, i32) -> i32

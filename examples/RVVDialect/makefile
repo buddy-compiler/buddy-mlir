@@ -64,7 +64,7 @@ rvv-rsqrt-lower:
 	@${BUDDY_OPT} ./rvv-rsqrt.mlir \
 		--convert-scf-to-cf \
 		--convert-math-to-llvm \
-		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts \
 		-o ./log.mlir
 
@@ -72,7 +72,7 @@ rvv-rsqrt-translate:
 	@${BUDDY_OPT} ./rvv-rsqrt.mlir \
 		--convert-scf-to-cf \
 		--convert-math-to-llvm \
-		--lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm \
+		--lower-rvv --convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 		${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll
 
@@ -80,7 +80,7 @@ rvv-rsqrt-aot:
 	@${BUDDY_OPT} ./rvv-rsqrt.mlir \
 		-convert-scf-to-cf \
 		--convert-math-to-llvm \
-		--lower-rvv -convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm\
+		--lower-rvv -convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm\
 		--reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
@@ -95,7 +95,7 @@ rvv-mul-add-lower:
 		-convert-math-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts \
 		-o ./log.mlir
@@ -106,7 +106,7 @@ rvv-mul-add-translate:
 		-convert-math-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir -o log.ll
@@ -117,7 +117,7 @@ rvv-mul-add-run:
 		-convert-math-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
@@ -133,7 +133,7 @@ rvv-stripmining-lower:
 		-convert-math-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts \
 		-o ./log.mlir
@@ -144,7 +144,7 @@ rvv-stripmining-translate:
 		-convert-math-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir -o log.ll
@@ -155,7 +155,7 @@ rvv-stripmining-run:
 		-convert-math-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
@@ -171,7 +171,7 @@ rvv-stripmining-aot:
 		-convert-math-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
-		-convert-memref-to-llvm \
+		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \

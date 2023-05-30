@@ -25,16 +25,15 @@ add_llvm_component_library(LLVMBuddyIPO
   ${LLVM_IPO_DIR}/IPO.cpp
   ${LLVM_IPO_DIR}/IROutliner.cpp
   ${LLVM_IPO_DIR}/InferFunctionAttrs.cpp
-  ${LLVM_IPO_DIR}/InlineSimple.cpp
   ${LLVM_IPO_DIR}/Inliner.cpp
   ${LLVM_IPO_DIR}/Internalize.cpp
   ${LLVM_IPO_DIR}/LoopExtractor.cpp
   ${LLVM_IPO_DIR}/LowerTypeTests.cpp
+  ${LLVM_IPO_DIR}/MemProfContextDisambiguation.cpp
   ${LLVM_IPO_DIR}/MergeFunctions.cpp
   ${LLVM_IPO_DIR}/ModuleInliner.cpp
   ${LLVM_IPO_DIR}/OpenMPOpt.cpp
   ${LLVM_IPO_DIR}/PartialInlining.cpp
-  ${LLVM_IPO_DIR}/PassManagerBuilder.cpp
   ${LLVM_IPO_DIR}/SampleContextTracker.cpp
   ${LLVM_IPO_DIR}/SampleProfile.cpp
   ${LLVM_IPO_DIR}/SampleProfileProbe.cpp
@@ -59,18 +58,19 @@ add_llvm_component_library(LLVMBuddyIPO
   LINK_COMPONENTS
   AggressiveInstCombine
   BuddyAnalysis
-  BitReader
-  BitWriter
+  BuddyBitReader
+  BuddyBitWriter
   BuddyCore
   FrontendOpenMP
   InstCombine
   BuddyIRReader
   Linker
+  BuddyObject
   Object
-  ProfileData
+  BuddyProfileData
   BuddyScalar
   Support
-  TransformUtils
+  BuddyTransformUtils
   BuddyVectorize
   Instrumentation
   )

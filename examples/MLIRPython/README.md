@@ -14,7 +14,8 @@ $ cmake -G Ninja ../llvm \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
-    -DMLIR_ENABLE_BINDINGS_PYTHON=ON
+    -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+    -DPython3_EXECUTABLE=[path_to_python_executable]
 $ ninja check-mlir
 ```
 
@@ -156,3 +157,4 @@ module attributes {llvm.data_layout = ""} {
   }
 }
 ```
+Currently supported operators include: arith\_add, matmul.

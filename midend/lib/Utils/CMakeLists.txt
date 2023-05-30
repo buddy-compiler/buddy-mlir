@@ -1,10 +1,12 @@
-add_library(Utils Utils.cpp)
+add_mlir_library(BuddyUtils
+  Utils.cpp
+  DIPUtils.cpp
+  AffineTransformUtils.cpp
+  )
 
-add_library(DIPUtils DIPUtils.cpp)
-
-add_library(AffineTransformUtils AffineTransformUtils.cpp)
-target_link_libraries(DIPUtils
-  PRIVATE
-  Utils
-  AffineTransformUtils
+add_mlir_library(BuddyDIPUtils
+  DIPUtils.cpp
+  
+  LINK_LIBS PUBLIC
+  BuddyUtils
   )

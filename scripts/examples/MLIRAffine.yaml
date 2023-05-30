@@ -1,0 +1,84 @@
+- filename: affine-load.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --convert-vector-to-scf --lower-affine --convert-scf-to-cf --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: affine-store.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --convert-vector-to-scf --lower-affine --convert-scf-to-cf --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: affine-max.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --convert-vector-to-scf --lower-affine --convert-scf-to-cf --convert-vector-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: affine-parallel.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --convert-vector-to-scf --lower-affine --convert-scf-to-cf --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: affine-vector.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --convert-vector-to-scf --lower-affine --convert-scf-to-cf --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT

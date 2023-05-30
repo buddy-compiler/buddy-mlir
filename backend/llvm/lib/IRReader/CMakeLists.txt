@@ -11,7 +11,7 @@ add_llvm_component_library(LLVMBuddyIRReader
 
   LINK_COMPONENTS
   BuddyAsmParser
-  BitReader
+  BuddyBitReader
   BuddyCore
   Support
   )

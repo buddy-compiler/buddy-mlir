@@ -174,7 +174,7 @@ void LowerGemminiToLLVMPass::runOnOperation() {
   populateAffineToStdConversionPatterns(patterns);
   populateSCFToControlFlowConversionPatterns(patterns);
   mlir::arith::populateArithToLLVMConversionPatterns(converter, patterns);
-  populateMemRefToLLVMConversionPatterns(converter, patterns);
+  populateFinalizeMemRefToLLVMConversionPatterns(converter, patterns);
   cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
   populateFuncToLLVMConversionPatterns(converter, patterns);
   patterns.add<PrintOpLowering>(&getContext());

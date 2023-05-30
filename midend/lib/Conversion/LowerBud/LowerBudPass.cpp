@@ -47,9 +47,8 @@ public:
     // Get type from the origin operation.
     Type resultType = op.getResult().getType();
     // Create constant operation.
-    Attribute zeroAttr = rewriter.getZeroAttr(resultType);
-    Value c0 =
-        rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
+    Value c0 = rewriter.create<mlir::arith::ConstantOp>(
+        loc, resultType, rewriter.getZeroAttr(resultType));
 
     rewriter.replaceOp(op, c0);
     return success();
@@ -66,9 +65,8 @@ public:
     // Get type from the origin operation.
     Type resultType = op.getResult().getType();
     // Create constant operation.
-    Attribute zeroAttr = rewriter.getZeroAttr(resultType);
-    Value c0 =
-        rewriter.create<mlir::arith::ConstantOp>(loc, resultType, zeroAttr);
+    Value c0 = rewriter.create<mlir::arith::ConstantOp>(
+        loc, resultType, rewriter.getZeroAttr(resultType));
     // Create print operation for the scalar value.
     rewriter.create<vector::PrintOp>(loc, c0);
     VectorType vectorTy4 =
@@ -136,28 +134,6 @@ public:
     return success();
   }
 };
-
-class BudVectorConfigLowering : public OpRewritePattern<bud::VectorConfigOp> {
-public:
-  using OpRewritePattern<bud::VectorConfigOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(bud::VectorConfigOp op,
-                                PatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    mlir::Region &configRegion = op.getRegion();
-    mlir::Block &configBlock = configRegion.front();
-    for (mlir::Operation &innerOp : configBlock.getOperations()) {
-      if (isa<arith::AddFOp>(innerOp)) {
-        Type resultType = cast<arith::AddFOp>(innerOp).getResult().getType();
-        Value result = rewriter.create<LLVM::VPFAddOp>(
-            loc, resultType, cast<arith::AddFOp>(innerOp).getLhs(),
-            cast<arith::AddFOp>(innerOp).getRhs(), op.getMask(), op.getVl());
-        rewriter.replaceOp(op, result);
-      }
-    }
-    return success();
-  }
-};
 } // end anonymous namespace
 
 void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
@@ -166,8 +142,7 @@ void populateLowerBudConversionPatterns(RewritePatternSet &patterns) {
       BudTestConstantLowering,
       BudTestPrintLowering,
       BudTestEnumAttrLowering,
-      BudTestArrayAttrLowering,
-      BudVectorConfigLowering>(patterns.getContext());
+      BudTestArrayAttrLowering>(patterns.getContext());
   // clang-format on
 }
 
