@@ -159,6 +159,12 @@ void _mlir_ciface_morphgrad_2d_replicate_padding(
     MemRef<float, 2> *input1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
+
+void _mlir_ciface_sep_corr_2d_constant_padding(
+  Img<float, 2> *input, MemRef<float, 2> *kernelX, MemRef<float, 2> *kernelY, MemRef<float, 2>*output, MemRef<float, 2> *output1, unsigned int centerX, unsigned int centerY, float constantValue);  
+
+void _mlir_ciface_sep_corr_2d_replicate_padding(
+  Img<float, 2> *input, MemRef<float, 2> *kernelX, MemRef<float, 2> *kernelY, MemRef<float, 2>*output, MemRef<float, 2> *output1, unsigned int centerX, unsigned int centerY, float constantValue);      
 }
 
 // Pad kernel as per the requirements for using FFT in convolution.
@@ -506,6 +512,22 @@ inline void MorphGrad2D(Img<float, 2> input, MemRef<float, 2> *kernel,
         input, kernel, output, &output1, &output2, &input1, &copymemref,
         &copymemref1, centerX, centerY, iterations, 0);
   }
+}
+
+inline void Sep_Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernelX, MemRef<float, 2> *kernelY, MemRef<float, 2> *output, unsigned int centerX, unsigned int centerY, BOUNDARY_OPTION option, float constantValue = 0) {
+intptr_t outputRows = output->getSizes()[0];
+intptr_t outputCols = output->getSizes()[1];
+intptr_t sizesOutput[2] = {outputRows, outputCols};
+MemRef<float, 2> output1(sizesOutput);
+if (option == BOUNDARY_OPTION::CONSTANT_PADDING) {
+  detail::_mlir_ciface_sep_corr_2d_constant_padding(
+     input, kernelX, kernelY, output, &output1, centerX, centerY, constantValue
+  );
+}
+else if (option == BOUNDARY_OPTION::REPLICATE_PADDING) {
+  detail::_mlir_ciface_sep_corr_2d_replicate_padding(
+    input, kernelX, kernelY, output, &output1, centerX, centerY, 0);
+}
 }
 } // namespace dip
 

@@ -1399,6 +1399,63 @@ private:
   int64_t stride;
 };
 
+class DIPSep_Corr2DOpLowering : public OpRewritePattern<dip::Sep_Corr2DOp> {
+public:
+  using OpRewritePattern<dip::Sep_Corr2DOp>::OpRewritePattern;
+
+  explicit DIPSep_Corr2DOpLowering(MLIRContext *context, int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
+
+  LogicalResult matchAndRewrite(dip::Sep_Corr2DOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto *ctx = op->getContext();
+
+    // Register operand values.
+    Value input = op->getOperand(0);
+    Value kernelX = op->getOperand(1);
+    Value kernelY = op->getOperand(2);
+    Value output = op->getOperand(3);
+    Value output1 = op->getOperand(4);
+    Value centerX = op->getOperand(5);
+    Value centerY = op->getOperand(6);
+    Value constantValue = op->getOperand(7);
+    dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+
+    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Sep_Corr2DOp>(
+        op, {input, kernelX, output, constantValue});
+
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
+      return op->emitOpError() << "input, kernel, output and constant must "
+                                  "have the same element type";
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
+      return op->emitOpError() << "supports only f32, f64 and integer types. "
+                               << inElemTy << "is passed";
+    }
+
+    traverseImagewBoundaryExtrapolation(rewriter, loc, ctx, input, kernelX,
+                                        output1, c0, centerY, constantValue,
+                                        strideVal, inElemTy, boundaryOptionAttr,
+                                        stride, dip::DIP_OP::CORRELATION_2D);
+
+    traverseImagewBoundaryExtrapolation(rewriter, loc, ctx, output1, kernelY,
+                                        output, centerX, c0, constantValue,
+                                        strideVal, inElemTy, boundaryOptionAttr,
+                                        stride, dip::DIP_OP::CORRELATION_2D);                                        
+    // Remove the origin convolution operation.
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  int64_t stride;
+};
+
 } // end anonymous namespace
 
 void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
@@ -1414,6 +1471,7 @@ void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
   patterns.add<DIPTopHat2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPBottomHat2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPMorphGrad2DOpLowering>(patterns.getContext(), stride);
+  patterns.add<DIPSep_Corr2DOpLowering>(patterns.getContext(), stride);
 }
 
 //===----------------------------------------------------------------------===//

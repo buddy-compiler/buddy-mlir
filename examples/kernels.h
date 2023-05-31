@@ -75,4 +75,12 @@ float crossKernelAlign3x3[9] = {0,1,0,1,1,1,0,1,0};
 int crossKernelRows3x3 = 3;
 int crossKernelCols3x3 = 3;
 
+float sepKernelX[3] = {1, 2, 3};
+int sepKernelXRows = 1;
+int sepKernelXCols = 3;
+
+float sepKernelY[3] = {3, 4, 5};
+int sepKernelYRows = 3;
+int sepKernelYCols = 1;
+
 #endif

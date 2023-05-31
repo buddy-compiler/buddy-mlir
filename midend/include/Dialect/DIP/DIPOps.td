@@ -403,4 +403,46 @@ def DIP_MorphGrad2DOp : DIP_Op<"morphgrad_2d"> {
   }];
 }
 
+def DIP_Sep_Corr2DOp : DIP_Op<"sep_corr_2d"> {
+  let summary = [{This operation is used for performing 2D correlation on an image.
+    The 2D correlation API provided by the linalg dialect is more suited for
+    applications in which boundary extrapolation is not explicitly required.
+    Due to this, dimensions of output are always less than the input dimensions after
+    using linalg dialect's 2D correlation API.
+
+    dip.sep_corr_2d performs boundary extrapolation for making the size of the output image
+    equal to the size of the input image. Boundary extrapolation can be done using
+    different methods, supported options are:
+      a. Constant Padding : Uses a constant for padding whole extra region in input image
+      for obtaining the boundary extrapolated output image. (kkk|abcdefg|kkk)
+      b. Replicate Padding : Uses last/first element of respective column/row for padding
+      the extra region used for creating the boundary extrapolated output image. (aaa|abcdefg|ggg)
+    For example:
+
+    ```mlir
+      dip.corr_2d CONSTANT_PADDING %inputImage, %kernel, %output, %centerX, %centerY, %constantValue
+          : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index
+    ```
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemrefX",
+                           [MemRead]>:$memrefKX,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemrefY",
+                           [MemRead]>:$memrefKY,                           
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCO,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemrefInter",
+                           [MemRead]>:$memrefCO1,                           
+                       Index : $centerX,
+                       Index : $centerY,
+                       AnyTypeOf<[AnyI8, AnyI32, AnyI64, AnyFloat]> : $constantValue,
+                       DIP_BoundaryOptionAttr:$boundary_option);
+
+  let assemblyFormat = [{
+    $boundary_option $memrefI `,` $memrefKX `,` $memrefKY `,` $memrefCO `,` $memrefCO1 `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefKX) `,` type($memrefKY) `,` type($memrefCO) `,` type($memrefCO1) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+  }];
+}
+
 #endif // DIP_DIPOPS_TD

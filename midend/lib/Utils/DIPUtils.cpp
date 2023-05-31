@@ -73,6 +73,10 @@ template DIP_ERROR
 checkDIPCommonTypes<dip::MorphGrad2DOp>(dip::MorphGrad2DOp,
                                         const std::vector<Value> &args);
 
+template DIP_ERROR
+checkDIPCommonTypes<dip::Sep_Corr2DOp>(dip::Sep_Corr2DOp,
+                                        const std::vector<Value> &args);                                        
+
 // Function for applying type check mechanisms for all DIP dialect operations.
 template <typename DIPOP>
 DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args) {
@@ -90,7 +94,7 @@ DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args) {
     return !type.isF64() && !type.isF32() && !type.isInteger(bitWidth);
   };
 
-  if (op->getName().stripDialect() == "corr_2d") {
+  if (op->getName().stripDialect() == "corr_2d" || op->getName().stripDialect() == "sep_corr_2d") {
     auto inElemTy = getElementType(0);
     auto kElemTy = getElementType(1);
     auto outElemTy = getElementType(2);
