@@ -129,7 +129,7 @@ public:
   //! pointer to the data
   T *data;
   // store the size of each dimension.
-  size_t *size;
+  size_t *_size;
 };
 
 // Image Constructor from Img
@@ -257,7 +257,7 @@ template <typename T, size_t N> size_t Img<T, N>::total() const {
   }
   size_t p = 1;
   for (int i = 0; i < dims; i++)
-    p *= size[i]; // TODO size需要定义
+    p *= this->_size[i]; 
   return p;
 }
 
