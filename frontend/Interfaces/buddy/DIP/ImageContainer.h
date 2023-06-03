@@ -128,6 +128,8 @@ public:
   int rows, cols;
   //! pointer to the data
   T *data;
+  // store the size of each dimension.
+  size_t *size;
 };
 
 // Image Constructor from Img
