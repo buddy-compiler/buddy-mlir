@@ -111,6 +111,7 @@ public:
   int type() const;
   bool empty() const;
   size_t total() const;
+  
   // The template methods return a reference to the specified array element.
   // param row Index along the dimension 0
   // param col Index along the dimension 1
