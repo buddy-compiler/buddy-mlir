@@ -335,12 +335,14 @@ inline MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
         "output_image_dimension / input_image_dimension\n");
   }
   std::reverse(scalingRatios.begin(), scalingRatios.end());
+
+  intptr_t outputSize[2] = {static_cast<unsigned>(std::round(
+                                input->getSizes()[0] * scalingRatios[0])),
+                            static_cast<unsigned>(std::round(
+                                input->getSizes()[1] * scalingRatios[1]))};
+
   scalingRatios[0] = 1 / scalingRatios[0];
   scalingRatios[1] = 1 / scalingRatios[1];
-
-  intptr_t outputSize[2] = {
-      static_cast<unsigned int>(input->getSizes()[0] / scalingRatios[0]),
-      static_cast<unsigned int>(input->getSizes()[1] / scalingRatios[1])};
 
   return detail::Resize2D_Impl(
       input, type, {scalingRatios[1], scalingRatios[0]}, outputSize);
