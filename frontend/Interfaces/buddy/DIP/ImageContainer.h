@@ -223,21 +223,14 @@ void Img<T, N>::create(int ndims, const int *sizes, int type) {
       return;
     if (d == 2 && rows == sizes[0] && cols == sizes[1])
       return;
-    if (i == d && (d > 1 || cols == 1))
-      return;
   }
   if (d == 0)
     return;
   // CV_MAT_TYPE_MASK是OpenCV中的一个宏定义，用于提取矩阵类型的掩码。掩码是指在二进制编码中，用特定位数的二进制表示来标识某个属性或状态的方式。CV_MAT_TYPE_MASK提取矩阵类型掩码，可以用于判断矩阵的数据类型（例如8位、16位、32位浮点、64位浮点等）。
-  flags = (type & CV_MAT_TYPE_MASK) | MAGIC_VAL;
-  this->rows = rows;
-  this->cols = cols;
+  flags = (type & CV_MAT_TYPE_MASK) | MAGIC_VAL;  
 
   // Allocate memory for the matrix data
-  this->allocated = new T[total];
-  data = this->allocated;
-  this->aligned = this->allocated;
-  std::fill(aligned, aligned + size, init);
+  this->data = new T[total];
 }
 
 template <typename T, size_t N> int Img<T, N>::channels() const {
