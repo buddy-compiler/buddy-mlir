@@ -162,9 +162,9 @@ void _mlir_ciface_morphgrad_2d_replicate_padding(
 }
 
 // Pad kernel as per the requirements for using FFT in convolution.
-void padKernel(MemRef<float, 2> *kernel, unsigned int centerX,
-               unsigned int centerY, intptr_t *paddedSizes,
-               MemRef<float, 2> *kernelPaddedReal) {
+inline void padKernel(MemRef<float, 2> *kernel, unsigned int centerX,
+                      unsigned int centerY, intptr_t *paddedSizes,
+                      MemRef<float, 2> *kernelPaddedReal) {
   // Apply padding so that the center of kernel is at top left of 2D padded
   // container.
   for (long i = -static_cast<long>(centerY);
@@ -217,10 +217,10 @@ inline void Corr2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
   }
 }
 
-void CorrFFT2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
-               MemRef<float, 2> *output, unsigned int centerX,
-               unsigned int centerY, BOUNDARY_OPTION option,
-               float constantValue = 0) {
+inline void CorrFFT2D(Img<float, 2> *input, MemRef<float, 2> *kernel,
+                      MemRef<float, 2> *output, unsigned int centerX,
+                      unsigned int centerY, BOUNDARY_OPTION option,
+                      float constantValue = 0) {
   // Calculate padding sizes.
   intptr_t paddedSizes[2] = {
       1 << static_cast<intptr_t>(
