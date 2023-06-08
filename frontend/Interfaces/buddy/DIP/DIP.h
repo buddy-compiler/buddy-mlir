@@ -328,16 +328,21 @@ inline MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
 // User interface for 2D Resize.
 inline MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
                                  std::vector<float> scalingRatios) {
-  if (!scalingRatios[0] || !scalingRatios[1]) {
+  if (scalingRatios[0] <= 0 || scalingRatios[1] <= 0) {
     throw std::invalid_argument(
-        "Please enter non-zero values of scaling ratios.\n"
+        "Please enter positive values of scaling ratios.\n"
         "Note : scaling ratio = "
-        "input_image_dimension / output_image_dimension\n");
+        "output_image_dimension / input_image_dimension\n");
   }
+  std::reverse(scalingRatios.begin(), scalingRatios.end());
 
-  intptr_t outputSize[2] = {
-      static_cast<unsigned int>(input->getSizes()[0] / scalingRatios[0]),
-      static_cast<unsigned int>(input->getSizes()[1] / scalingRatios[1])};
+  intptr_t outputSize[2] = {static_cast<unsigned>(std::round(
+                                input->getSizes()[0] * scalingRatios[0])),
+                            static_cast<unsigned>(std::round(
+                                input->getSizes()[1] * scalingRatios[1]))};
+
+  scalingRatios[0] = 1 / scalingRatios[0];
+  scalingRatios[1] = 1 / scalingRatios[1];
 
   return detail::Resize2D_Impl(
       input, type, {scalingRatios[1], scalingRatios[0]}, outputSize);
@@ -346,10 +351,11 @@ inline MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
 // User interface for 2D Resize.
 inline MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
                                  intptr_t outputSize[2]) {
-  if (!outputSize[0] || !outputSize[1]) {
+  if (outputSize[0] <= 0 || outputSize[1] <= 0) {
     throw std::invalid_argument(
-        "Please enter non-zero values of output dimensions.\n");
+        "Please enter positive values of output dimensions.\n");
   }
+  std::reverse(outputSize, outputSize + 2);
 
   std::vector<float> scalingRatios(2);
   scalingRatios[1] = input->getSizes()[0] * 1.0f / outputSize[0];
