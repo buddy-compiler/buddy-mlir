@@ -167,6 +167,7 @@ void printValues(OpBuilder &builder, Location loc, std::initializer_list<Value> 
     idx ++;
   }
   builder.create<vector::PrintOp>(loc, vec);
+}
 
 // Function for calculating complex addition of 2 input 1D complex vectors.
 // Separate vectors for real and imaginary parts are expected.
