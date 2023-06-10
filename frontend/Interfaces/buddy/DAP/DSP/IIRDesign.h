@@ -286,7 +286,7 @@ template <typename T> int countreal(const std::vector<std::complex<T>> &list) {
 template <typename T> T warp_freq(T frequency, T fs) {
   frequency = 2 * frequency / fs;
   fs = 2.0;
-  T warped = 2 * fs * tan(M_PIf32 * frequency / fs);
+  T warped = 2 * fs * tan(M_PI * frequency / fs);
   return warped;
 }
 
