@@ -594,10 +594,10 @@ public:
     MemRefType bArrayType = bArray.getType().dyn_cast<MemRefType>();
     MemRefType cArrayType = cArray.getType().dyn_cast<MemRefType>();
     MemRefType dArrayType = dArray.getType().dyn_cast<MemRefType>();
-    llvm::ArrayRef<long> aArrayShape = aArrayType.getShape();
-    llvm::ArrayRef<long> bArrayShape = bArrayType.getShape();
-    llvm::ArrayRef<long> cArrayShape = cArrayType.getShape();
-    llvm::ArrayRef<long> dArrayShape = dArrayType.getShape();
+    auto aArrayShape = aArrayType.getShape();
+    auto bArrayShape = bArrayType.getShape();
+    auto cArrayShape = cArrayType.getShape();
+    auto dArrayShape = dArrayType.getShape();
     size_t dimI = aArrayShape[0];
     size_t dimK = aArrayShape[1];
     size_t dimJ = bArrayShape[1];
