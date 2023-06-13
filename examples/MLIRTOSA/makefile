@@ -27,7 +27,7 @@ tosa-resize-lower:
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
 			convert-linalg-to-llvm, \
-			convert-memref-to-llvm, \
+			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
 			reconcile-unrealized-casts \
@@ -45,7 +45,7 @@ tosa-resize-translate:
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
 			convert-linalg-to-llvm, \
-			convert-memref-to-llvm, \
+			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
 			reconcile-unrealized-casts \
@@ -63,7 +63,7 @@ tosa-resize-run:
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
 			convert-linalg-to-llvm, \
-			convert-memref-to-llvm, \
+			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
 			reconcile-unrealized-casts \
