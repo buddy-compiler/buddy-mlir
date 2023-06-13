@@ -458,11 +458,10 @@ inline void inverseAffineMatrix(OpBuilder &builder, Location loc,
   Value m1pm3 =
       builder.create<arith::MulFOp>(loc, affineMatrix[1], affineMatrix[3]);
   Value D = builder.create<arith::SubFOp>(loc, m0pm4, m1pm3);
-  // TODO: can a float number compare with 0.0 directly?
   Value dEq0 =
       builder.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OEQ, D, c0F32);
   auto scfRes = builder.create<scf::IfOp>(
-      loc, /*TypeRange{builder.getF32Type()},*/ dEq0,
+      loc, dEq0,
       [&](OpBuilder &thenBuilder, Location thenLoc) {
         thenBuilder.create<scf::YieldOp>(thenLoc, ValueRange{c0F32});
       },
@@ -526,10 +525,7 @@ void affineTransformController(OpBuilder &builder, Location loc,
       loc, builder.create<arith::AddIOp>(loc, outputColStrideRatio, c1Index),
       strideVal);
 
-  // generate vector [0., 1., ..., stride - 1]
   Value xVecInitial = iotaVec0F32(builder, loc, stride);
-  // Value xVecInitial = builder.create<vector::SplatOp>(loc, vectorTyF32,
-  // c512F32);
 
   MemRefType dynamicTypeI32 =
       MemRefType::get(ShapedType::kDynamic, IntegerType::get(ctx, 32));

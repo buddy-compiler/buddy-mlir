@@ -17,13 +17,10 @@ add_custom_command(OUTPUT DIP.o
         -lower-dip="DIP-strip-mining=${SPLITING_SIZE}"
         -arith-expand
         -lower-affine
-        #-convert-scf-to-openmp
-        #-convert-async-to-llvm
-        -finalize-memref-to-llvm
         -convert-scf-to-cf
-        #-convert-openmp-to-llvm
         -convert-math-to-llvm
         -convert-vector-to-llvm
+        -finalize-memref-to-llvm
         -convert-func-to-llvm
         -reconcile-unrealized-casts |
         ${LLVM_MLIR_BINARY_DIR}/mlir-translate --mlir-to-llvmir |

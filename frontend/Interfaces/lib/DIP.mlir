@@ -30,7 +30,7 @@ func.func @corr_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : me
   return
 }
 
-func.func @corrfft_2d(%inputImageReal : memref<?x?xf32>, %inputImageImag : memref<?x?xf32>, %kernelReal : memref<?x?xf32>, %kernelImag : memref<?x?xf32>, %intermediateReal : memref<?x?xf32>, %intermediateImag : memref<?x?xf32>)
+func.func @corrfft_2d(%inputImageReal : memref<?x?xf32>, %inputImageImag : memref<?x?xf32>, %kernelReal : memref<?x?xf32>, %kernelImag : memref<?x?xf32>, %intermediateReal : memref<?x?xf32>, %intermediateImag : memref<?x?xf32>) attributes{llvm.emit_c_interface}
 {
   dip.corrfft_2d %inputImageReal, %inputImageImag, %kernelReal, %kernelImag, %intermediateReal, %intermediateImag : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>
   return
