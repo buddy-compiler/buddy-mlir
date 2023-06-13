@@ -184,7 +184,7 @@ tosa-log-run:
 tosa-add-lower:
 	@${MLIR_OPT} ./tosa-add.mlir \
 		-pass-pipeline="builtin.module( \
-			func.func(tosa-to-linalg), \
+			func.func(tosa-to-linalg, tosa-to-tensor), \
 			empty-tensor-to-alloc-tensor, \
 			arith-bufferize, \
 			func.func(tensor-bufferize, linalg-bufferize), \
@@ -202,7 +202,7 @@ tosa-add-lower:
 tosa-add-translate:
 	@${MLIR_OPT} ./tosa-add.mlir \
 		-pass-pipeline="builtin.module( \
-			func.func(tosa-to-linalg), \
+			func.func(tosa-to-linalg, tosa-to-tensor), \
 			empty-tensor-to-alloc-tensor, \
 			arith-bufferize, \
 			func.func(tensor-bufferize, linalg-bufferize), \
@@ -220,7 +220,7 @@ tosa-add-translate:
 tosa-add-run:
 	@${MLIR_OPT} ./tosa-add.mlir \
 		-pass-pipeline="builtin.module( \
-			func.func(tosa-to-linalg), \
+			func.func(tosa-to-linalg, tosa-to-tensor), \
 			empty-tensor-to-alloc-tensor, \
 			arith-bufferize, \
 			func.func(tensor-bufferize, linalg-bufferize), \
@@ -239,7 +239,7 @@ tosa-add-run:
 tosa-concat-lower:
 	@${MLIR_OPT} ./tosa-concat.mlir \
 		-pass-pipeline="builtin.module( \
-			func.func(tosa-to-linalg), \
+			func.func(tosa-to-linalg, tosa-to-tensor), \
 			empty-tensor-to-alloc-tensor, \
 			arith-bufferize, \
 			func.func(tensor-bufferize, linalg-bufferize), \
@@ -247,6 +247,7 @@ tosa-concat-lower:
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
 			convert-linalg-to-llvm, \
+			expand-strided-metadata, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -257,7 +258,7 @@ tosa-concat-lower:
 tosa-concat-translate:
 	@${MLIR_OPT} ./tosa-concat.mlir \
 		-pass-pipeline="builtin.module( \
-			func.func(tosa-to-linalg), \
+			func.func(tosa-to-linalg, tosa-to-tensor), \
 			empty-tensor-to-alloc-tensor, \
 			arith-bufferize, \
 			func.func(tensor-bufferize, linalg-bufferize), \
@@ -265,6 +266,7 @@ tosa-concat-translate:
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
 			convert-linalg-to-llvm, \
+			expand-strided-metadata, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -275,7 +277,7 @@ tosa-concat-translate:
 tosa-concat-run:
 	@${MLIR_OPT} ./tosa-concat.mlir \
 		-pass-pipeline="builtin.module( \
-			func.func(tosa-to-linalg), \
+			func.func(tosa-to-linalg, tosa-to-tensor), \
 			empty-tensor-to-alloc-tensor, \
 			arith-bufferize, \
 			func.func(tensor-bufferize, linalg-bufferize), \
@@ -283,6 +285,7 @@ tosa-concat-run:
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
 			convert-linalg-to-llvm, \
+			expand-strided-metadata, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
