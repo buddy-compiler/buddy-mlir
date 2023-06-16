@@ -101,9 +101,6 @@ public:
   */
   Img clone() const;
 
-  void static bool load(const String &filename, int flags, Img &img);
-  static bool save(const String &filename);
-
   int depth() const;
   int channels() const;
   int _cols() const;
@@ -230,7 +227,10 @@ void Img<T, N>::create(int ndims, const int *sizes, int type) {
   flags = (type & CV_MAT_TYPE_MASK) | MAGIC_VAL;  
 
   // Allocate memory for the matrix data
-  this->data = new T[total];
+  this->allocated = new T[total];
+  this->aligned =this-> allocated;
+  data = this->allocated;
+  std::fill(this->aligned, this->aligned + total, T(0));
 }
 
 template <typename T, size_t N> int Img<T, N>::channels() const {
