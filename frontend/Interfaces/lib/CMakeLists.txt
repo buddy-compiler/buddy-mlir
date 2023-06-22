@@ -1,14 +1,13 @@
 if (${BUDDY_DIP_OPT_STRIP_MINING})
     set(SPLITING_SIZE ${BUDDY_DIP_OPT_STRIP_MINING})
 elseif (HAVE_AVX512)
-    # TODO: current rotation generates wrong image using avx512
-    set(SPLITING_SIZE 256)
+    set(SPLITING_SIZE 64)
 elseif (HAVE_AVX2)
     set(SPLITING_SIZE 16)
 elseif (HAVE_SSE)
-    set(SPLITING_SIZE 64)
+    set(SPLITING_SIZE 16)
 elseif (HAVE_NEON)
-    set(SPLITING_SIZE 64)
+    set(SPLITING_SIZE 16)
 endif ()
 
 add_custom_command(OUTPUT DIP.o
