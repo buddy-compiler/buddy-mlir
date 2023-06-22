@@ -311,11 +311,9 @@ inline MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
   float cosAngle = std::cos(angleRad);
 
   int outputRows = std::round(std::abs(input->getSizes()[0] * cosAngle) +
-                              std::abs(input->getSizes()[1] * sinAngle)) +
-                   1;
+                              std::abs(input->getSizes()[1] * sinAngle));
   int outputCols = std::round(std::abs(input->getSizes()[1] * cosAngle) +
-                              std::abs(input->getSizes()[0] * sinAngle)) +
-                   1;
+                              std::abs(input->getSizes()[0] * sinAngle));
 
   intptr_t sizesOutput[2] = {outputRows, outputCols};
   MemRef<float, 2> output(sizesOutput);
