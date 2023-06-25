@@ -25,6 +25,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 
 #include "DAP/DAPDialect.h"
 #include "DAP/DAPOps.h"
@@ -332,7 +333,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<buddy::dap::DAPDialect, func::FuncDialect,
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
-                    affine::AffineDialect, arith::ArithDialect>();
+                    affine::AffineDialect, arith::ArithDialect,linalg::LinalgDialect>();
   }
   Option<int64_t> stride{*this, "DAP-vector-splitting",
                          llvm::cl::desc("Vector splitting size."),

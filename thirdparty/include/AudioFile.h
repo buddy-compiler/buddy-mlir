@@ -546,7 +546,7 @@ bool AudioFile<T>::decodeWaveFile(std::vector<uint8_t> &fileData) {
           std::memcpy(&sample, &sampleAsInt, sizeof(sampleAsInt));
         } else // assume PCM
           sample = (T)sampleAsInt /
-                   static_cast<float>(std::numeric_limits<std::int32_t>::max());
+                   static_cast<float>(std::numeric_limits<int32_t>::max());
 
         getSample(channel, i) = sample;
       } else {
@@ -700,7 +700,7 @@ bool AudioFile<T>::decodeAiffFile(std::vector<uint8_t> &fileData) {
           std::memcpy(&sample, &sampleAsInt, sizeof(sampleAsInt));
         } else // assume uncompressed
           sample = (T)sampleAsInt /
-                   static_cast<float>(std::numeric_limits<std::int32_t>::max());
+                   static_cast<float>(std::numeric_limits<int32_t>::max());
 
         getSample(channel, i) = sample;
       } else {

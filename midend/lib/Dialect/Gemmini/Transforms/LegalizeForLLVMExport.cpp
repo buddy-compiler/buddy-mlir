@@ -669,7 +669,10 @@ public:
                                                                 dArray);
     Value dArrayindexCastOp =
         rewriter.create<arith::IndexCastOp>(loc, i64Type, dArrayExtractOp);
-
+    MemRefType aArrayType = aArray.getType().dyn_cast<MemRefType>();
+    MemRefType bArrayType = bArray.getType().dyn_cast<MemRefType>();
+    MemRefType cArrayType = cArray.getType().dyn_cast<MemRefType>();
+    MemRefType dArrayType = dArray.getType().dyn_cast<MemRefType>();
     llvm::ArrayRef<int64_t> aArrayShape = aArrayType.getShape();
     llvm::ArrayRef<int64_t> bArrayShape = bArrayType.getShape();
     llvm::ArrayRef<int64_t> cArrayShape = cArrayType.getShape();
