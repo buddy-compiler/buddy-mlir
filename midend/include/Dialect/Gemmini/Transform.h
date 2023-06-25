@@ -24,8 +24,6 @@
 #define CONFIG_LD 1
 #define CONFIG_ST 2
 #define CONFIG_EX 0
-#define DIM 16
-#define ADDR_LEN 32
 #define ACC_SCALE_IDENTITY 1.0
 #define BANK_NUM 4
 #define BANK_ROWS 4096
@@ -39,9 +37,7 @@ typedef uint32_t acc_scale_t_bits;
 typedef float acc_scale_t;
 typedef uint32_t scale_t_bits;
 typedef float scale_t;
-typedef int8_t elem_t;
 typedef int32_t scale_acc_t;
-typedef int32_t acc_t;
 
 namespace mlir {
 
@@ -51,7 +47,9 @@ class RewritePatternSet;
 using OwningRewritePatternList = RewritePatternSet;
 
 void populateGemminiLegalizeForLLVMExportPatterns(LLVMTypeConverter &converter,
-                                                  RewritePatternSet &patterns);
+                                                  RewritePatternSet &patterns,
+                                                  int64_t dim, int64_t addrLen, 
+                                                  size_t sizeOfElemT, size_t sizeOfAccT);
 void configureGemminiegalizeForExportTarget(LLVMConversionTarget &target);
 
 } // namespace mlir

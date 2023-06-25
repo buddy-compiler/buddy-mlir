@@ -41,7 +41,6 @@ config.excludes = [
     'DIPDialect',
     'DLModel',
     'FrontendGen',
-    'GemminiDialect',
     'MLIREmitC',
     'MLIRGPU',
     'MLIRPDL',
