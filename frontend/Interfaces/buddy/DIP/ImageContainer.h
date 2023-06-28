@@ -22,7 +22,7 @@
 #ifndef FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 #define FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 
-#include "Container.h"
+#include "buddy/Core/Container.h"
 #include <cassert>
 
 // Image container.
@@ -52,7 +52,7 @@ public:
   Img(int rows, int cols, int type);
   /*
     @ndims:ndims Array dimensionality.
-    @sizes£ºsizes Array of integers specifying an n-dimensional array shape.
+    @sizesÂ£Âºsizes Array of integers specifying an n-dimensional array shape.
     @type:type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel
     matrices, or CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to
     CV_CN_MAX channels) matrices.
@@ -69,7 +69,7 @@ public:
   //~Img();
 
   /*
-    @m£ºm Assigned, right-hand-side matrix. Matrix assignment is an O(1)
+    @mÂ£Âºm Assigned, right-hand-side matrix. Matrix assignment is an O(1)
     operation. This means that no data is copied but the data is shared and the
     reference counter, if any, is incremented. Before assigning new data, the
     old data is de-referenced via Mat::release .
@@ -153,7 +153,7 @@ Img<T, N>::Img(int _rows, int _cols, int type)
 }
 /*
   @ndims:ndims Array dimensionality.
-  @sizes£ºsizes Array of integers specifying an n-dimensional array shape.
+  @sizesÂ£Âºsizes Array of integers specifying an n-dimensional array shape.
   @type:type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel
   matrices, or CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to
   CV_CN_MAX channels) matrices.
@@ -233,7 +233,7 @@ void Img<T, N>::create(int ndims, const int *sizes, int _type) {
 }
 
 /*
-@m£ºm Assigned, right-hand-side matrix. Matrix assignment is an O(1)
+@mÂ£Âºm Assigned, right-hand-side matrix. Matrix assignment is an O(1)
 operation. This means that no data is copied but the data is shared and the
 reference counter, if any, is incremented. Before assigning new data, the
 old data is de-referenced via Mat::release .
