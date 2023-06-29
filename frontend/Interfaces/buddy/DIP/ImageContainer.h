@@ -21,7 +21,7 @@
 #ifndef FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 #define FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 
-#include "Container.h"
+#include "buddy/Core/Container.h"
 #include <cassert>
 
 // Image container.
@@ -62,7 +62,7 @@ public:
     matrix. No data is copied by these constructors. If you want to have an
     independent copy of the sub-array, use Mat::clone()
   */
-  Img(const Img &m);
+  Img(const Img<T, N> &m);
 
   // destructor - calls release()
   //~Img();
@@ -73,13 +73,18 @@ public:
     reference counter, if any, is incremented. Before assigning new data, the
     old data is de-referenced via Mat::release .
   */
-  Img &operator=(const Img &m);
+  Img &operator=(const Img<T, N> &m);
   /*
     Allocates new array data if needed.
     @rows:New number of rows.
     @cols:New number of columns.
     @type:New matrix type.
   */
+  // Move constructor.
+  Img(Img<T, N> &&m);
+  // Move assignment operator.
+  Img &operator=(const Img<T, N> &&other);
+
   void create(int rows, int cols, int type);
   /*
     @mdims: ndims New array dimensionality.
@@ -270,7 +275,50 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
   return *this;
 }
 
-template <typename T, size_t N> int Img<T, N>::channels() const {
+// Move Constructor.
+// This constructor is used to initialize a MemRef object from a rvalue.
+// The move constructor steals the resources of the original object.
+// Note that the original object no longer owns the members and spaces.
+// - Steal members from the original object.
+// - Assign the NULL pointer to the original aligned and allocated members to
+//   avoid the double free error.
+template <typename T, size_t N>
+Img<T, N>::Img(Img<T, N> &&m)
+    : flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols) {
+  this->aligned = m.aligned;
+  this->allocated = m.allocated;
+  this->data = m.data;
+  this->size = m.size;
+  std::swap(this->_size, m._size);
+  // Assign the NULL pointer to the original aligned and allocated members to
+  // avoid the double free error.
+  m.allocated = m.aligned = m.data = nullptr;
+}
+
+// Move Assignment Operator.
+// Note that the original object no longer owns the members and spaces.
+// - Check if they are the same object.
+// - Free the data space of this object to avoid memory leaks.
+// - Steal members from the original object.
+// - Assign the NULL pointer to the original aligned and allocated members to
+//   avoid the double free error.
+template <typename T, size_t N>
+Img<T, N> &Img<T, N>::operator=(const Img<T, N> &&m) {
+  if (this != &m) {
+    // Free the original aligned and allocated space.
+    delete[] this->allocated;
+    // Steal members of the original object.
+    std::swap(this->_sizes, m._sizes);
+    std::swap(this->size, m.size);
+    std::swap(this->allocated, m.allocated);
+    std::swap(this->aligned, m.aligned);
+    std::swap(this->data, m.data);
+    // Assign the NULL pointer to the original aligned and allocated members to
+    // avoid the double free error.
+    m.allocated = m.aligned = m.data = nullptr;
+  }
+}
+template <typename T, std::size_t N> int Img<T, N>::channels() const {
   return dims <= 2 ? 1 : 3;
 }
 template <typename T, size_t N> int Img<T, N>::depth() const {}
@@ -291,4 +339,5 @@ template <typename T, size_t N> size_t Img<T, N>::total() {
     p *= this->_size[i];
   return p;
 }
+
 #endif // FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
