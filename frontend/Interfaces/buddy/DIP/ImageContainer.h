@@ -1,4 +1,3 @@
-#pragma once
 //===- ImageContainer.h ---------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +21,7 @@
 #ifndef FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 #define FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 
-#include "buddy/Core/Container.h"
+#include "Container.h"
 #include <cassert>
 
 // Image container.
@@ -52,7 +51,7 @@ public:
   Img(int rows, int cols, int type);
   /*
     @ndims:ndims Array dimensionality.
-    @sizes£ºsizes Array of integers specifying an n-dimensional array shape.
+    @sizes：sizes Array of integers specifying an n-dimensional array shape.
     @type:type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel
     matrices, or CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to
     CV_CN_MAX channels) matrices.
@@ -69,7 +68,7 @@ public:
   //~Img();
 
   /*
-    @m£ºm Assigned, right-hand-side matrix. Matrix assignment is an O(1)
+    @m：m Assigned, right-hand-side matrix. Matrix assignment is an O(1)
     operation. This means that no data is copied but the data is shared and the
     reference counter, if any, is incremented. Before assigning new data, the
     old data is de-referenced via Mat::release .
@@ -106,8 +105,8 @@ public:
   int _rows() const;
   int type() const;
   bool empty() const;
-  size_t total() const;
-
+  size_t total();
+  T *_getData();
   // The template methods return a reference to the specified array element.
   // param row Index along the dimension 0
   // param col Index along the dimension 1
@@ -125,6 +124,7 @@ public:
   int rows, cols;
   // store the size of each dimension.
   size_t *_size;
+  T *data;
 };
 
 // Image Constructor from Img
@@ -153,7 +153,7 @@ Img<T, N>::Img(int _rows, int _cols, int type)
 }
 /*
   @ndims:ndims Array dimensionality.
-  @sizes£ºsizes Array of integers specifying an n-dimensional array shape.
+  @sizes：sizes Array of integers specifying an n-dimensional array shape.
   @type:type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel
   matrices, or CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to
   CV_CN_MAX channels) matrices.
@@ -169,7 +169,7 @@ Img<T, N>::Img(int ndims, const int *sizes, int type)
   independent copy of the sub-array, use Mat::clone()
 */
 template <typename T, size_t N>
-Img<T, N>::Img(const Img &m)
+Img<T, N>::Img(const Img<T, N> &m)
     : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols) {
   if (m._size == nullptr) {
     return;
@@ -179,8 +179,13 @@ Img<T, N>::Img(const Img &m)
       this->_size[i] = m._size[i];
     }
   }
-  this->allocated = m.allocated;
-  this->aligned = m.aligned;
+  this->size = total();
+  this->allocated = new T[this->size];
+  this->aligned = this->allocated;
+  this->data = this->allocated;
+  for (size_t i = 0; i < this->size; i++) {
+    this->aligned[i] = m.aligned[i];
+  }
 }
 
 // destructor - calls release()
@@ -223,17 +228,19 @@ void Img<T, N>::create(int ndims, const int *sizes, int _type) {
   }
   this->dims = ndims;
   this->_size = new size_t[ndims];
+  this->size = total();
   for (int i = 0; i < ndims; i++) {
     this->_size[i] = sizes[i];
   }
   if (total() > 0) {
     this->allocated = new T[total()];
     this->aligned = this->allocated;
+    this->data = this->allocated;
   }
 }
 
 /*
-@m£ºm Assigned, right-hand-side matrix. Matrix assignment is an O(1)
+@m：m Assigned, right-hand-side matrix. Matrix assignment is an O(1)
 operation. This means that no data is copied but the data is shared and the
 reference counter, if any, is incremented. Before assigning new data, the
 old data is de-referenced via Mat::release .
@@ -249,10 +256,17 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
     this->rows = m.rows;
     this->cols = m.cols;
     this->_size = m._size;
+    this->size = total();
   } else {
   }
-  this->allocated = m.allocated;
-  this->aligned = m.aligned;
+  // Allocate new space and deep copy.
+  T *ptr = new T[this->size];
+  for (size_t i = 0; i < this->size; i++) {
+    ptr[i] = m.aligned[i];
+  }
+  this->allocated = ptr;
+  this->aligned = ptr;
+  this->data = ptr;
   return *this;
 }
 
@@ -268,7 +282,7 @@ template <typename T, size_t N> int Img<T, N>::_cols() const {
   return this->cols;
 }
 
-template <typename T, size_t N> size_t Img<T, N>::total() const {
+template <typename T, size_t N> size_t Img<T, N>::total() {
   if (dims <= 2) {
     return (size_t)rows * cols;
   }
@@ -277,5 +291,4 @@ template <typename T, size_t N> size_t Img<T, N>::total() const {
     p *= this->_size[i];
   return p;
 }
-
 #endif // FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
