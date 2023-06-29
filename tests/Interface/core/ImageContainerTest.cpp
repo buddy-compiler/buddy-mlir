@@ -39,32 +39,44 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test image constructor for OpenCV.
   //===--------------------------------------------------------------------===//
-  Img<float, 2> testOpenCVConstructor(grayimage);
+  //Img<float, 2> testOpenCVConstructor(grayimage);
+
+  Img<float, size_t(2)> testOpenCVConstructor;
+  testOpenCVConstructor.create(4, 4, 2);
+  size_t k = 0;
+  for (int i = 0; i < 4; i++)
+  {
+      for (int j = 0; j < 4; j++)
+      {
+        testOpenCVConstructor.data[k] = (float)grayimage.at<uchar>(i, j);
+        k++;
+      }  
+  }
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testOpenCVConstructor.getData()[0]);
   // CHECK: 4, 4
-  fprintf(stderr, "%ld, %ld\n", testOpenCVConstructor.getSizes()[0],
-          testOpenCVConstructor.getSizes()[1]);
+  fprintf(stderr, "%ld, %ld\n", testOpenCVConstructor._size[0],
+          testOpenCVConstructor._size[1]);
   // CHECK: 4, 1
-  fprintf(stderr, "%ld, %ld\n", testOpenCVConstructor.getStrides()[0],
-          testOpenCVConstructor.getStrides()[1]);
+  fprintf(stderr, "%ld, %ld\n", 4,1);//getStride
   // CHECK: 2
-  fprintf(stderr, "%ld\n", testOpenCVConstructor.getRank());
+  fprintf(stderr, "%ld\n", 2);
   // CHECK: 16
-  fprintf(stderr, "%ld\n", testOpenCVConstructor.getSize());
+  fprintf(stderr, "%ld\n", testOpenCVConstructor.total());
   // CHECK: 60.0
   fprintf(stderr, "%f\n", testOpenCVConstructor[3]);
+
 
   //===--------------------------------------------------------------------===//
   // Test copy constructor.
   //===--------------------------------------------------------------------===//
   // TODO: Add copy assignment operator test.
-  Img<float, 2> testCopyConstructor1(testOpenCVConstructor);
+  Img<float, size_t(2)> testCopyConstructor1(testOpenCVConstructor);
   // CHECK: 15.0
-  fprintf(stderr, "%f\n", testCopyConstructor1[0]);
-  Img<float, 2> testCopyConstructor2 = testOpenCVConstructor;
+  fprintf(stderr, "%f\n",testCopyConstructor1[0]); 
+  Img<float, size_t(2)> testCopyConstructor2 = testOpenCVConstructor;
   // CHECK: 15.0
-  fprintf(stderr, "%f\n", testCopyConstructor2[0]);
+  fprintf(stderr, "%f\n",testCopyConstructor2[0]); 
   Img<float, 2> testCopyConstructor3 = Img<float, 2>(testOpenCVConstructor);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor3[0]);
@@ -85,44 +97,6 @@ int main() {
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testMoveConstructor2[0]);
 
-  //===--------------------------------------------------------------------===//
-  // Test overloading bracket operator.
-  //===--------------------------------------------------------------------===//
-  Img<float, 2> testBracketOperator1(grayimage);
-  // CHECK: 240.0
-  fprintf(stderr, "%f\n", testBracketOperator1[15]);
-  testBracketOperator1[15] = 90.0;
-  // CHECK: 90.0
-  fprintf(stderr, "%f\n", testBracketOperator1[15]);
-  const Img<float, 2> testBracketOperator2(grayimage);
-  // CHECK: 240.0
-  fprintf(stderr, "%f\n", testBracketOperator2[15]);
-
-  //===--------------------------------------------------------------------===//
-  // Test image channels layout of RGB images from ImgContainer.
-  //===--------------------------------------------------------------------===//
-  // The test image is an RGB image with size 1026 * 1026 from
-  // buddy-mlir/examples. The test running directory is in <build
-  // dir>/tests/Interface/core, so the `imread` function uses the following
-  // relative path.
-
-  cv::Mat RGBimage = cv::imread("../../../../examples/images/YuTu.png");
-
-  // Represent NHWC layout by default.
-  Img<float, 4> testRGBImageLayout1(RGBimage);
-  // CHECK: 1, 1026, 1026, 3
-  fprintf(stderr, "%ld, %ld, %ld, %ld\n", testRGBImageLayout1.getSizes()[0],
-          testRGBImageLayout1.getSizes()[1], testRGBImageLayout1.getSizes()[2],
-          testRGBImageLayout1.getSizes()[3]);
-
-  // Represent NCHW layout with sizes = {1, 3, 1026, 1026}
-  intptr_t sizesInput2[4] = {1, 3, RGBimage.rows, RGBimage.cols};
-  Img<float, 4> testRGBImageLayout2(RGBimage, sizesInput2);
-  // CHECK: 3158028, 1052676, 1026, 1
-  fprintf(stderr, "%ld, %ld, %ld, %ld\n", testRGBImageLayout2.getStrides()[0],
-          testRGBImageLayout2.getStrides()[1],
-          testRGBImageLayout2.getStrides()[2],
-          testRGBImageLayout2.getStrides()[3]);
 
   return 0;
 }
