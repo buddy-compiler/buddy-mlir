@@ -116,6 +116,22 @@ def ConfigExOp : Gemmini_Op<"config_ex"> {
   let assemblyFormat = "attr-dict";
 }
 
+def ConfigNormOp : Gemmini_Op<"config_norm"> {
+  let summary = "ConfigNormOp configures TODO pipeline";
+  let description = [{
+    ConfigNormOp configures TODO pipeline
+  }];
+  let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$qConst,
+                       DefaultValuedAttr<I64Attr, "0">:$qConstType,
+                       DefaultValuedAttr<I64Attr, "0">:$setStatsIdOnly,
+                       DefaultValuedAttr<I64Attr, "0">:$actMsb,
+                       DefaultValuedAttr<I64Attr, "0">:$StatsId,
+                       DefaultValuedAttr<I64Attr, "0">:$iguluQb,
+                       DefaultValuedAttr<I64Attr, "0">:$iguluQc);
+  let assemblyFormat = "attr-dict";
+                       
+}
+
 def MvinOp : Gemmini_Op<"mvin"> {
   let summary = "Load operation";
   let description = [{
@@ -303,7 +319,10 @@ def Gemmini_ConifgLd_IntrOp : Gemmini_IntrOpBase<"config_ld">,
 def Gemmini_ConfigSt_IntrOp : Gemmini_IntrOpBase<"config_st">, 
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
-def Gemmini_ConfigEX_IntrOp : Gemmini_IntrOpBase<"config_ex">,
+def Gemmini_ConfigEX_IntrOp : Gemmini_IntrOpBase<"config_ex">, 
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_ConfigNorm_IntrOp : Gemmini_IntrOpBase<"config_norm">, 
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Gemmini_Preload_IntrOp : Gemmini_IntrOpBase<"preload">,

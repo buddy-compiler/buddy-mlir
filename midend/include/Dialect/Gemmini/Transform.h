@@ -24,6 +24,9 @@
 #define CONFIG_LD 1
 #define CONFIG_ST 2
 #define CONFIG_EX 0
+#define CONFIG_BERT 3
+#define DIM 16
+#define ADDR_LEN 32
 #define ACC_SCALE_IDENTITY 1.0
 #define BANK_NUM 4
 #define BANK_ROWS 4096

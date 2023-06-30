@@ -173,6 +173,46 @@ struct GemminiConfigExLowering : public ConvertOpToLLVMPattern<ConfigExOp> {
   }
 };
 
+struct GemminiConfigNormOpLowering : public ConvertOpToLLVMPattern<ConfigNormOp> {
+  using ConvertOpToLLVMPattern<ConfigNormOp>::ConvertOpToLLVMPattern;
+  LogicalResult
+  matchAndRewrite(ConfigNormOp configNormOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = configNormOp.getLoc();
+    // ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, 
+    // (((uint64_t) ((uint32_t) q_const)) << 32) | ((q_const_type & 1) << 18) | ((set_stats_id_only & 1) << 17) | ((act_msb & 1) << 16) | ((uint64_t)stat_id << 8) | CONFIG_BERT, ((uint64_t)((uint32_t)(igelu_qc)) << 32) | ((uint64_t)((uint32_t)(igelu_qb))), k_CONFIG)
+    uint64_t rs1 = (uint64_t )((uint32_t )configNormOp.getQConst() << 32) |
+                   (configNormOp.getQConstType() & 1) << 18 |
+                   (configNormOp.getSetStatsIdOnly() & 1) << 17 |
+                   (configNormOp.getActMsb() & 1) << 16 |
+                   configNormOp.getStatsId() << 8 | CONFIG_BERT;
+    uint64_t rs2 = ((uint64_t)((uint32_t)(configNormOp.getIguluQc())) << 32) | ((uint64_t)((uint32_t)(configNormOp.getIguluQb())));
+    Value rs1Value = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(rs1));
+    Value rs2Value = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(rs2));
+    rewriter.replaceOpWithNewOp<ConfigNorm_IntrOp>(configNormOp, rs1Value,
+                                                 rs2Value);
+    // float scale = configNormOp.getSysAccScale().convertToFloat();
+    // uint64_t rs1 = 
+    //   configNormOp.
+    // uint64_t rs1 =
+    //     (uint64_t)acc_scale_t_to_acc_scale_t_bits(scale) << 32 |
+    //     configNormOp.getQ() << 16 | configNormOp.getBTranspose() << 9 |
+    //     configNormOp.getATranspose() << 8 | configNormOp.getSetOnlyStrides() << 7 |
+    //     configNormOp.getSysAct() << 3 | configNormOp.getDataflow() << 2 | CONFIG_EX;
+
+    // uint64_t rs2 = configNormOp.getCStride() << 48 | configNormOp.getSysShift();
+    // Value rs1Value = rewriter.create<arith::ConstantOp>(
+    //     loc, rewriter.getI64IntegerAttr(rs1));
+    // Value rs2Value = rewriter.create<arith::ConstantOp>(
+    //     loc, rewriter.getI64IntegerAttr(rs2));
+    // rewriter.replaceOpWithNewOp<ConfigEX_IntrOp>(configNormOp, rs1Value,
+    //                                              rs2Value);
+    return success();
+  }
+};
+
 struct GemminiMvinLowering : public ConvertOpToLLVMPattern<MvinOp> {
   using ConvertOpToLLVMPattern<MvinOp>::ConvertOpToLLVMPattern;
   explicit GemminiMvinLowering(LLVMTypeConverter &typeConverter,
@@ -493,6 +533,35 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
         loc, rewriter.getI64IntegerAttr(strideD * sizeofD));
     rewriter.create<ConfigLdOp>(loc, strideValue,
                                 llvm::APFloat((float)dScaleFactor), lowD, 2);
+    
+    /*
+      Add config norm op
+    */
+
+   // acc_scale_t => acc_scale_t
+    if (act == IGELU) {
+      const acc_scale_t sqrt_2 = 1.41421356237;
+      const acc_scale_t S = bertScale;
+      const acc_scale_t S_erf = (-0.2888 * ((S*S) / 2));
+
+      const acc_t qb = -1.769 / (S / sqrt_2);
+      const acc_t qc = 1.0 / S_erf;
+      rewriter.create<ConfigNormOp>(loc, 0, 0, 0, 0,0, qb, qc);
+    }
+
+    if (act == SOFTMAX) {
+      const scale_t a = 0.3585;
+      const scale_t b = 1.353;
+      const scale_t c = 0.344;
+
+      const acc_t qln2 = (int) (0.693147 / bertScale);
+      const acc_t qln2_inv = 65536 / qln2;
+      const acc_t qb = b / bertScale;
+      const acc_t qc = c / (a*bertScale*bertScale);
+      rewriter.create<ConfigNormOp>(loc, qln2, 0, 0, 1, 0, qb, qc);
+      rewriter.create<ConfigNormOp>(loc, qln2_inv, 1, 0, 1, 0, qb, qc);
+    }
+
     for (size_t i0 = 0; i0 < I0; i0++)
       for (size_t j0 = 0; j0 < J0; j0++)
         for (size_t k0 = 0; k0 < K0; k0++) {
@@ -1370,6 +1439,7 @@ void mlir::populateGemminiLegalizeForLLVMExportPatterns(
   patterns.add<GemminiMvinLowering>(converter, addrLen);
   patterns.add<GemminiMvoutLowering>(converter, addrLen);
   patterns.add<GemminiConfigExLowering>(converter);
+  patterns.add<GemminiConfigNormOpLowering>(converter);
   patterns.add<GemminiPreloadZerosLowering>(converter, dim, addrLen);
   patterns.add<GemminiPreloadLowering>(converter, addrLen);
   patterns.add<GemminiComputePreloadedLowering>(converter, addrLen);
@@ -1390,9 +1460,9 @@ void mlir::configureGemminiegalizeForExportTarget(
       LoopWsConfigStridesAB_IntrOp, LoopWsConfigStridesDC_IntrOp, LoopWs_IntrOp,
       LoopConvWsConfig1_IntrOp, LoopConvWsConfig2_IntrOp,
       LoopConvWsConfig3_IntrOp, LoopConvWsConfig4_IntrOp,
-      LoopConvWsConfig5_IntrOp, LoopConvWsConfig6_IntrOp, LoopConvWs_IntrOp>();
+      LoopConvWsConfig5_IntrOp, LoopConvWsConfig6_IntrOp, LoopConvWs_IntrOp, ConfigNorm_IntrOp>();
   target.addIllegalOp<FlushOp, ConfigStOp, ConfigLdOp, ConfigExOp, MvinOp,
                       MvoutOp, PrintOp, PreloadZerosOp, PreloadOp,
                       ComputePreloadedOp, ComputeAccumulatedOp, TileMatMulOp,
-                      TileConvOp>();
+                      TileConvOp, ConfigNormOp>();
 }
