@@ -6,6 +6,10 @@
   dimLevelType = ["compressed"]
 }>
 
+#CSR = #sparse_tensor.encoding<{
+  dimLevelType = [ "dense", "compressed" ]
+}>
+
 func.func private @printMemrefInd(%arg0 : memref<*xindex>)
 
 func.func @dump_vector(%arg: tensor<1024xf32, #SparseVector>) {
@@ -48,16 +52,16 @@ func.func @dump_matrix(%arg: tensor<1024x1024xf32, #SparseMatrix>) {
   // Print Indices(Coordinate)
   %coo0 = sparse_tensor.coordinates %arg { level = 0 : index }
         : tensor<1024x1024xf32, #SparseMatrix> to memref<?xindex>
-  %vcoo0 = vector.transfer_read %coo0[%c0], %pad : memref<?xindex>, vector<6xindex>
-  vector.print %vcoo0 : vector<6xindex>
+  %vcoo0 = vector.transfer_read %coo0[%c0], %pad : memref<?xindex>, vector<5xindex>
+  vector.print %vcoo0 : vector<5xindex>
 
   // Print dimension 1
   %c1 = arith.constant 1 : index
   vector.print %c1 : index
   %p1 = sparse_tensor.positions %arg { level = 1 : index }
         : tensor<1024x1024xf32, #SparseMatrix> to memref<?xindex>
-  %vp1 = vector.transfer_read %p1[%c0], %pad : memref<?xindex>, vector<7xindex>
-  vector.print %vp1 : vector<7xindex>
+  %vp1 = vector.transfer_read %p1[%c0], %pad : memref<?xindex>, vector<6xindex>
+  vector.print %vp1 : vector<6xindex>
   %coo1 = sparse_tensor.coordinates %arg { level = 1 : index }
         : tensor<1024x1024xf32, #SparseMatrix> to memref<?xindex>
   %vcoo1 = vector.transfer_read %coo1[%c0], %pad : memref<?xindex>, vector<6xindex>
@@ -70,12 +74,37 @@ func.func @dump_matrix(%arg: tensor<1024x1024xf32, #SparseMatrix>) {
   return
 }
 
+func.func @dump_csr(%arg: tensor<1024x1024xf32, #CSR>) {
+  %c0 = arith.constant 0 : index
+  %pad = arith.constant 99 : index
+  %vpad = arith.constant -1.0 : f32
+
+  // Print pointers
+  %p0 = sparse_tensor.positions %arg { level = 1 : index }
+        : tensor<1024x1024xf32, #CSR> to memref<?xindex>
+  %vp0 = vector.transfer_read %p0[%c0], %pad : memref<?xindex>, vector<6xindex>
+  vector.print %vp0 : vector<6xindex>
+
+  // Print Indices(Coordinate)
+  %coo0 = sparse_tensor.coordinates %arg { level = 1 : index }
+        : tensor<1024x1024xf32, #CSR> to memref<?xindex>
+  %vcoo0 = vector.transfer_read %coo0[%c0], %pad : memref<?xindex>, vector<6xindex>
+  vector.print %vcoo0 : vector<6xindex>
+
+  // Print values
+  %v = sparse_tensor.values %arg : tensor<1024x1024xf32, #CSR> to memref<?xf32>
+  %v0 = vector.transfer_read %v[%c0], %vpad : memref<?xf32>, vector<6xf32>
+  vector.print %v0 : vector<6xf32>
+
+  return
+}
+
 func.func @main() {
   // Create a Sparse Vector.
   // The first row is a list of coordinate of the non-zero entries.
   // The second row contains actual value of those non-zero entries.
   %m = arith.constant sparse<
-    [[0, 1], [2, 4], [4, 8], [32, 64], [128, 256], [512, 1023]],
+    [[0, 1], [0, 4], [4, 8], [32, 64], [128, 256], [512, 1023]],
     [ 1.1, 2.2, 3.3, 4.4, 4.4, 5.5 ]
   > : tensor<1024x1024xf32>
   // Convert into Sparse Storage
@@ -90,6 +119,9 @@ func.func @main() {
   // values: [ 1.1, 2.2, 3.3, 4.4, 4.4, 5.5 ]
   %sm = sparse_tensor.convert %m : tensor<1024x1024xf32> to tensor<1024x1024xf32, #SparseMatrix>
   call @dump_matrix(%sm) : (tensor<1024x1024xf32, #SparseMatrix>) -> ()
+
+  %csrm = sparse_tensor.convert %m : tensor<1024x1024xf32> to tensor<1024x1024xf32, #CSR>
+  call @dump_csr(%csrm) : (tensor<1024x1024xf32, #CSR>) -> ()
 
   // Create a Sparse vector [0, 1.1, ..., 2.2, ..., 3.3, ..., 4.4, 0]
   %v = arith.constant sparse<
