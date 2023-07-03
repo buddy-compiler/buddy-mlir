@@ -193,22 +193,6 @@ struct GemminiConfigNormOpLowering : public ConvertOpToLLVMPattern<ConfigNormOp>
         loc, rewriter.getI64IntegerAttr(rs2));
     rewriter.replaceOpWithNewOp<ConfigNorm_IntrOp>(configNormOp, rs1Value,
                                                  rs2Value);
-    // float scale = configNormOp.getSysAccScale().convertToFloat();
-    // uint64_t rs1 = 
-    //   configNormOp.
-    // uint64_t rs1 =
-    //     (uint64_t)acc_scale_t_to_acc_scale_t_bits(scale) << 32 |
-    //     configNormOp.getQ() << 16 | configNormOp.getBTranspose() << 9 |
-    //     configNormOp.getATranspose() << 8 | configNormOp.getSetOnlyStrides() << 7 |
-    //     configNormOp.getSysAct() << 3 | configNormOp.getDataflow() << 2 | CONFIG_EX;
-
-    // uint64_t rs2 = configNormOp.getCStride() << 48 | configNormOp.getSysShift();
-    // Value rs1Value = rewriter.create<arith::ConstantOp>(
-    //     loc, rewriter.getI64IntegerAttr(rs1));
-    // Value rs2Value = rewriter.create<arith::ConstantOp>(
-    //     loc, rewriter.getI64IntegerAttr(rs2));
-    // rewriter.replaceOpWithNewOp<ConfigEX_IntrOp>(configNormOp, rs1Value,
-    //                                              rs2Value);
     return success();
   }
 };
@@ -469,8 +453,185 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
     rewriter.create<LoopWs_IntrOp>(loc, rs1Value, rs2Value);
   }
 
-  void inner(Value &a, Value &b, Value &pre, Value &out, scale_t aScaleFactor,
-             scale_t bScaleFactor, scale_acc_t dScaleFactor, size_t i, size_t j,
+  void spTiledMatmulWs(Value &a, Value &b, Value &d, Value &c,
+                       scale_t aScaleFactor, scale_t bScaleFactor,
+                       scale_acc_t dScaleFactor, size_t i, size_t j, size_t k,
+                       size_t padI, size_t padJ, size_t padK, size_t strideA,
+                       size_t strideB, size_t strideD, size_t strideC,
+                       bool aTranspose, bool bTranspose, bool fullC, bool lowD,
+                       bool noBias, bool repeatingBias, int act,
+                       TileMatMulOp &tileMatMulOp,
+                       ConversionPatternRewriter &rewriter) const {
+
+    gemminiLoopWs(i, j, k, padI, padJ, padK, a, b, d, c, strideA, strideB,
+                  repeatingBias ? 0 : strideD, strideC, aTranspose, bTranspose,
+                  fullC, lowD, !noBias, act, tileMatMulOp, rewriter);
+  }
+
+  // Tiling functions
+  void spTiledMatmulOs(Value &a, Value &b, Value &d, Value &c,
+                       scale_t aScaleFactor, scale_t bScaleFactor,
+                       scale_acc_t dScaleFactor, size_t i, size_t j, size_t k,
+                       size_t padI, size_t padJ, size_t padK, size_t strideA,
+                       size_t strideB, size_t strideD, size_t strideC,
+                       bool aTranspose, bool bTranspose, bool fullC, bool lowD,
+                       bool noBias, bool repeatingBias, int act,
+                       TileMatMulOp &tileMatMulOp,
+                       ConversionPatternRewriter &rewriter) const {
+    const uint32_t aSpAddrStart = 0;
+    const uint32_t bSpAddrStart = BANK_NUM * BANK_ROWS - k * j * DIM;
+    const uint32_t dSpAddrStart = 1 << (ADDR_LEN - 1);
+    const uint32_t cSpAddrStart =
+        (3 << (ADDR_LEN - 2)) | (fullC << (ADDR_LEN - 3));
+
+    const int aBlocks = k <= MAX_BLOCK_LEN ? k : MAX_BLOCK_LEN;
+    const int bBlocks = j <= MAX_BLOCK_LEN ? j : MAX_BLOCK_LEN;
+    const int dBlocks = j <= MAX_BLOCK_LEN_ACC ? j : MAX_BLOCK_LEN_ACC;
+
+    Location loc = a.getLoc();
+    uint64_t dAddrInt = getNumberFromValue(d);
+
+    // Move-in D
+    if (dAddrInt != 0 && !noBias) {
+      const size_t dStride = repeatingBias ? 0 : strideD * sizeof(acc_t);
+      Value strideValue = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getI64IntegerAttr(dStride));
+      rewriter.create<ConfigLdOp>(loc, strideValue,
+                                  llvm::APFloat((float)dScaleFactor));
+
+      for (size_t i0 = 0; i0 < i; i0++) {
+        for (size_t j0 = 0; j0 < j; j0 += dBlocks) {
+          const size_t biasRow = repeatingBias ? 0 : i0;
+//          const acc_t *const dDramAddr =
+//              (acc_t *)d + (biasRow * strideD + j0) * DIM;
+          const size_t offset = (biasRow * strideD + j0) * DIM * sizeof (acc_t);
+          const uint32_t dSpAddrAcc = dSpAddrStart + (i0 * j + j0) * DIM;
+
+          const size_t blocks = j0 + dBlocks <= j ? dBlocks : j - j0;
+
+          const size_t cols = blocks * DIM - (j0 + blocks >= j ? padJ : 0);
+          const size_t rows = DIM - (i0 == i - 1 ? padI : 0);
+
+          gemminiMvinOffset(d, offset, dSpAddrAcc, cols, rows, rewriter);
+        }
+      }
+    }
+
+    // Move-in B
+    Value strideValue = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(strideB));
+    rewriter.create<ConfigLdOp>(loc, strideValue,
+                                llvm::APFloat((float)bScaleFactor));
+    //    gemmini_extended_config_ld(strideB * sizeof(elem_t), bScaleFactor);
+    for (size_t j0 = 0; j0 < j; j0 += bBlocks) {
+      for (size_t k0 = 0; k0 < k; k0++) {
+//        const elem_t *const B_dram_addr = B + (k0 * strideB + j0) * DIM;
+        const size_t offset = (k0 * strideB + j0) * DIM * sizeof (elem_t);
+        const uint32_t bSpAddr = bSpAddrStart + (k0 * j + j0) * DIM;
+        const size_t blocks = j0 + bBlocks <= j ? bBlocks : j - j0;
+        const size_t cols = blocks * DIM - (j0 + blocks >= j ? padJ : 0);
+        const size_t rows = DIM - (k0 == k - 1 ? padK : 0);
+        gemminiMvinOffset(b, offset, bSpAddr, cols, rows, rewriter);
+//        gemmini_extended_mvin(B_dram_addr, bSpAddr, cols, rows);
+      }
+    }
+
+    // Move-in A
+    strideValue = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(strideA));
+    rewriter.create<ConfigLdOp>(loc, strideValue,
+                                llvm::APFloat((float)aScaleFactor));
+
+    for (size_t i0 = 0; i0 < i; i0++) {
+      for (size_t k0 = 0; k0 < k; k0 += aBlocks) {
+//        const elem_t *const A_dram_addr = A + (i0 * strideA + k0) * DIM;
+        const size_t offset = (i0 * strideA + k0) * DIM * sizeof (elem_t);
+        const uint32_t aSpAddr = aSpAddrStart + (i0 * k + k0) * DIM;
+        const size_t blocks = k0 + aBlocks <= k ? aBlocks : k - k0;
+        const size_t cols = blocks * DIM - (k0 + blocks >= k ? padK : 0);
+        const size_t rows = DIM - (i0 == i - 1 ? padI : 0);
+        gemminiMvinOffset(a, offset, aSpAddr, cols, rows, rewriter);
+//        gemmini_extended_mvin(A_dram_addr, aSpAddr, cols, rows);
+      }
+    }
+
+    for (size_t i0 = 0; i0 < i; i0++) {
+      for (size_t j0 = 0; j0 < j; j0++) {
+        const uint32_t cSpAddr = cSpAddrStart + (i0 * j + j0) * DIM;
+
+        for (size_t k0 = 0; k0 < k; k0++) {
+
+          const uint32_t aSpAddr = aSpAddrStart + (i0 * k + k0) * DIM;
+          const uint32_t bSpAddr = bSpAddrStart + (k0 * j + j0) * DIM;
+
+          uint32_t outSpAddr = k0 == k - 1 ? cSpAddr : GARBAGE_ADDR;
+
+          // If we're not using a bias, then we want to overwrite what's in the
+          // accumulator, rather than writing over it
+
+          int noBiasNewMatrix = noBias && dAddrInt != 0 && k0 == k - 1;
+          if (noBiasNewMatrix) {
+            outSpAddr &= ~(1 << (ADDR_LEN - 2));
+          }
+
+          const size_t aCols = DIM - (k0 == k - 1 ? padK : 0);
+          const size_t aRows = DIM - (i0 == i - 1 ? padI : 0);
+          const size_t bCols = DIM - (j0 == j - 1 ? padJ : 0);
+          const size_t bRows = DIM - (k0 == k - 1 ? padK : 0);
+          const size_t cCols = DIM - (j0 == j - 1 ? padJ : 0);
+          const size_t cRows = DIM - (i0 == i - 1 ? padI : 0);
+
+          Value aColsOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(aCols));
+          Value aRowsOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(aRows));
+          Value bColsOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(bCols));
+          Value bRowsOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(bRows));
+          Value cColsOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(cCols));
+          Value cRowsOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(cRows));
+
+          Value aSpAddrOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(aSpAddr));
+          Value bSpAddrOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(bSpAddr));
+          Value outSpAddrOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(outSpAddr));
+
+
+          Value garbageAddrOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(GARBAGE_ADDR));
+
+          Value dimOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(DIM));
+
+//          gemmini_extended_preload(GARBAGE_ADDR, outSpAddr, DIM, DIM, cCols,
+//                                   cRows);
+          rewriter.create<PreloadOp>(loc, garbageAddrOp, outSpAddrOp, dimOp,
+                                     dimOp, cRowsOp, cColsOp);
+
+          if (k0 == 0) { // First iteration
+            rewriter.create<ComputePreloadedOp>(loc, aSpAddrOp, bSpAddrOp, aRowsOp, aColsOp, bRowsOp, bColsOp);
+
+          } else { // All other iterations
+            rewriter.create<ComputeAccumulatedOp>(loc, aSpAddrOp, bSpAddrOp, aRowsOp, aColsOp, bRowsOp, bColsOp);
+          }
+        }
+      }
+    }
+  }
+
+  void gemminiMvinOffset(const Value &mem, const size_t offset, const uint32_t SpAddr,
+           const size_t cols, const size_t rows,
+           ConversionPatternRewriter &rewriter) const{
+    Location loc = mem.getLoc();
+    Value offsetOp = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(offset));
+    IntegerType i64Type = rewriter.getI64Type();
+    Value configPtr = rewriter.create<arith::AddIOp>(loc, i64Type, mem, offsetOp);
+    Value spadAddrValue = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(SpAddr));
+    uint64_t spadAddrInt = (uint64_t)rows << (ADDR_LEN + 16) |
+                           (uint64_t)cols << ADDR_LEN | (uint64_t) SpAddr;
+    Value spad = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(spadAddrInt));
+    rewriter.create<Mvin_IntrOp>(loc, configPtr, spad);
+
+  }
+
+  void inner(Value &a, Value &b, Value &pre, Value &out, scale_t aScaleFactor, scale_t bScaleFactor, scale_acc_t dScaleFactor, size_t i, size_t j,
              size_t k, size_t padI, size_t padJ, size_t padK, size_t strideA,
              size_t strideB, size_t strideD, size_t strideC, bool aTranspose,
              bool bTranspose, bool fullC, bool lowD, bool noBias,
@@ -490,7 +651,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
                         size_t tileK, int act, acc_scale_t scale,
                         acc_scale_t bertScale, bool repeatingBias,
                         bool aTranspose, bool bTranspose, bool fullC, bool lowD,
-                        uint8_t weightA, TileMatMulOp &tileMatMulOp,
+                        uint8_t weightA, int dataflow, TileMatMulOp &tileMatMulOp,
                         ConversionPatternRewriter &rewriter) const {
     const size_t dimIPadded = (dimI / dim + (dimI % dim != 0)) * dim;
     const size_t dimJPadded = (dimJ / dim + (dimJ % dim != 0)) * dim;
@@ -638,10 +799,17 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
             b = rewriter.create<arith::AddIOp>(loc, rewriter.getI64Type(), B,
                                                offsetValue);
           }
-          inner(a, b, pre, out, aScaleFactor, bScaleFactor, dScaleFactor, i, j,
-                k, padI, padJ, padK, strideA, strideB, strideD, strideC,
-                aTranspose, bTranspose, fullC, lowD, noBias, repeatingBias, act,
-                tileMatMulOp, rewriter);
+          if (dataflow == OUTPUT_STATIONARY) {
+            spTiledMatmulOs(a, b, pre, out, aScaleFactor, bScaleFactor, dScaleFactor, i, j,
+                            k, padI, padJ, padK, strideA, strideB, strideD, strideC,
+                            aTranspose, bTranspose, fullC, lowD, noBias, repeatingBias, act,
+                            tileMatMulOp, rewriter);
+          } else { // WS
+            spTiledMatmulWs(a, b, pre, out, aScaleFactor, bScaleFactor, dScaleFactor, i, j,
+                            k, padI, padJ, padK, strideA, strideB, strideD, strideC,
+                            aTranspose, bTranspose, fullC, lowD, noBias, repeatingBias, act,
+                            tileMatMulOp, rewriter);
+          }
         }
     IntegerAttr flushAttr = rewriter.getI64IntegerAttr(0);
     Value flushValue = rewriter.create<arith::ConstantOp>(
@@ -813,12 +981,14 @@ public:
 #undef dbMatsInAcc
 #undef dbMaxTileIJ
 #undef dbMaxTileK
+    int dataflow = tileMatMulOp.getDataflow();
+
 
     tiledMatmulOuter(dimI, dimJ, dimK, aArrayindexCastOp, bArrayindexCastOp,
                      dArrayindexCastOp, cArrayindexCastOp, strideA, strideB,
                      strideD, strideC, aScaleFactor, bScaleFactor, dScaleFactor,
                      tileI, tileJ, tileK, act, scale, bertScale, repeatingBias,
-                     aTranspose, bTranspose, fullC, lowD, weightA, tileMatMulOp,
+                     aTranspose, bTranspose, fullC, lowD, weightA, dataflow, tileMatMulOp,
                      rewriter);
     return success();
   };
