@@ -82,8 +82,8 @@ func.func @dump_csr(%arg: tensor<1024x1024xf32, #CSR>) {
   // Print pointers
   %p0 = sparse_tensor.positions %arg { level = 1 : index }
         : tensor<1024x1024xf32, #CSR> to memref<?xindex>
-  %vp0 = vector.transfer_read %p0[%c0], %pad : memref<?xindex>, vector<6xindex>
-  vector.print %vp0 : vector<6xindex>
+  %vp0 = vector.transfer_read %p0[%c0], %pad : memref<?xindex>, vector<1025xindex>
+  vector.print %vp0 : vector<1025xindex>
 
   // Print Indices(Coordinate)
   %coo0 = sparse_tensor.coordinates %arg { level = 1 : index }
@@ -123,7 +123,7 @@ func.func @main() {
   // Convert the sparse matrix into CSR format
   // The first dimension is store in dense.
   // The second dimension:
-  // pointers[1]: [0, 2, 2, 2, 2, 3]
+  // pointers[1]: [0, 2, 2, 2, 2, 3, 3, 3, 3, 4, ..., 5, ..., 6] # length = 1025
   // indices[1]: [1, 4, 8, 64, 256, 1023]
   // values: [ 1.1, 2.2, 3.3, 4.4, 4.4, 5.5 ]
   //
