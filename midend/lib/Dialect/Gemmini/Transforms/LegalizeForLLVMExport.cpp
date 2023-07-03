@@ -489,10 +489,12 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
     const int dBlocks = j <= MAX_BLOCK_LEN_ACC ? j : MAX_BLOCK_LEN_ACC;
 
     Location loc = a.getLoc();
-    uint64_t dAddrInt = getNumberFromValue(d);
+    bool dAddrNull = llvm::dyn_cast<arith::ConstantOp>(d.getDefiningOp()) && getNumberFromValue(d) == 0;
+    bool cAddrNull = llvm::dyn_cast<arith::ConstantOp>(c.getDefiningOp()) && getNumberFromValue(c) == 0;
+//    uint64_t dAddrInt = getNumberFromValue(d);
 
     // Move-in D
-    if (dAddrInt != 0 && !noBias) {
+    if (!dAddrNull && !noBias) {
       const size_t dStride = repeatingBias ? 0 : strideD * sizeof(acc_t);
       Value strideValue = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getI64IntegerAttr(dStride));
@@ -569,7 +571,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
           // If we're not using a bias, then we want to overwrite what's in the
           // accumulator, rather than writing over it
 
-          int noBiasNewMatrix = noBias && dAddrInt != 0 && k0 == k - 1;
+          int noBiasNewMatrix = noBias && !dAddrNull && k0 == k - 1;
           if (noBiasNewMatrix) {
             outSpAddr &= ~(1 << (ADDR_LEN - 2));
           }
@@ -611,6 +613,22 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
         }
       }
     }
+    // Move-out C
+    if (!cAddrNull) {
+      const size_t sizeof_C = fullC ? sizeof(acc_t) : sizeof(elem_t);
+
+      for (size_t i0 = 0; i0 < i; i0++) {
+        for (size_t j0 = 0; j0 < j; j0++) {
+          const size_t offset = (i0 *strideC + j0)*DIM*sizeof_C;
+          const uint32_t cSpAddr = cSpAddrStart + (i0 *j + j0)*DIM;
+
+          const size_t cCols = DIM - (j0 == j - 1 ? padJ : 0);
+          const size_t cRows = DIM - (i0 == j - 1 ? padI : 0);
+
+          gemminiMvoutOffset(c, offset, cSpAddr, cCols, cRows, rewriter);
+        }
+      }
+    }
   }
 
   void gemminiMvinOffset(const Value &mem, const size_t offset, const uint32_t SpAddr,
@@ -628,7 +646,23 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
     Value spad = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(spadAddrInt));
     rewriter.create<Mvin_IntrOp>(loc, configPtr, spad);
+  }
 
+  void gemminiMvoutOffset(const Value &mem, const size_t offset, const uint32_t SpAddr,
+                         const size_t cols, const size_t rows,
+                         ConversionPatternRewriter &rewriter) const{
+    Location loc = mem.getLoc();
+    Value offsetOp = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(offset));
+    IntegerType i64Type = rewriter.getI64Type();
+    Value configPtr = rewriter.create<arith::AddIOp>(loc, i64Type, mem, offsetOp);
+    Value spadAddrValue = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(SpAddr));
+    uint64_t spadAddrInt = (uint64_t)rows << (ADDR_LEN + 16) |
+                           (uint64_t)cols << ADDR_LEN | (uint64_t) SpAddr;
+    Value spad = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(spadAddrInt));
+    rewriter.create<Mvout_IntrOp>(loc, configPtr, spad);
   }
 
   void inner(Value &a, Value &b, Value &pre, Value &out, scale_t aScaleFactor, scale_t bScaleFactor, scale_acc_t dScaleFactor, size_t i, size_t j,
