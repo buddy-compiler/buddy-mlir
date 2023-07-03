@@ -44,3 +44,16 @@ sparse-tensor-pack-run:
 		--sparse-compiler="enable-runtime-library=false" | \
 	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
 		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
+
+sparse-tensor-dump-lower:
+	@${MLIR_OPT} ./sparse-tensor-dump.mlir \
+		--sparse-compiler="enable-runtime-library=true" -o log.mlir
+sparse-tensor-dump-translate:
+	@${MLIR_OPT} ./sparse-tensor-dump.mlir \
+		--sparse-compiler="enable-runtime-library=true" | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+sparse-tensor-dump-run:
+	@${MLIR_OPT} ./sparse-tensor-dump.mlir \
+		--sparse-compiler="enable-runtime-library=true" | \
+	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
+		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
