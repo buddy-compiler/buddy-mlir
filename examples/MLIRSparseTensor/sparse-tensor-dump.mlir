@@ -109,17 +109,26 @@ func.func @main() {
   > : tensor<1024x1024xf32>
   // Convert into Sparse Storage
   // pointers: [
-  //   [0, 6],
-  //   [0, 1, 2, 3, 4, 5, 6],
+  //   [0, 5],
+  //   [0, 2, 3, 4, 5, 6],
   // ]
   // indices: [
-  //   [0, 2, 4, 32, 128, 512],
+  //   [0, 4, 32, 128, 512],
   //   [1, 4, 8, 64, 256, 1023],
   // ]
   // values: [ 1.1, 2.2, 3.3, 4.4, 4.4, 5.5 ]
   %sm = sparse_tensor.convert %m : tensor<1024x1024xf32> to tensor<1024x1024xf32, #SparseMatrix>
   call @dump_matrix(%sm) : (tensor<1024x1024xf32, #SparseMatrix>) -> ()
 
+  // Convert the sparse matrix into CSR format
+  // The first dimension is store in dense.
+  // The second dimension:
+  // pointers[1]: [0, 2, 2, 2, 2, 3]
+  // indices[1]: [1, 4, 8, 64, 256, 1023]
+  // values: [ 1.1, 2.2, 3.3, 4.4, 4.4, 5.5 ]
+  //
+  // let s = pointers[1][i], e = pointers[1][i+1],
+  // range [ s, e ) is the slice access of the indices and values for row `i`.
   %csrm = sparse_tensor.convert %m : tensor<1024x1024xf32> to tensor<1024x1024xf32, #CSR>
   call @dump_csr(%csrm) : (tensor<1024x1024xf32, #CSR>) -> ()
 
