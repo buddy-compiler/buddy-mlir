@@ -31,3 +31,16 @@ sparse-tensor-new-run:
 	TENSOR0=${SPARSE_MATRIX_A} TENSOR1=${SPARSE_MATRIX_B} \
 	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
 		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
+
+sparse-tensor-pack-lower:
+	@${MLIR_OPT} ./sparse-tensor-pack.mlir \
+		--sparse-compiler="enable-runtime-library=false" -o log.mlir
+sparse-tensor-pack-translate:
+	@${MLIR_OPT} ./sparse-tensor-pack.mlir \
+		--sparse-compiler="enable-runtime-library=false" | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+sparse-tensor-pack-run:
+	@${MLIR_OPT} ./sparse-tensor-pack.mlir \
+		--sparse-compiler="enable-runtime-library=false" | \
+	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
+		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
