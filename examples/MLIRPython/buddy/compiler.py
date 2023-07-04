@@ -1,146 +1,111 @@
-from mlir.ir import *
-from mlir.dialects import arith, linalg, tosa
-import mlir.dialects.func as func
-from mlir.passmanager import *
-import torch
+import operator
 from typing import List
-import array
+
+import mlir.dialects.func as func
+from mlir.dialects import arith
+import torch
+
+import mlir.ir as ir
+from mlir.passmanager import *
+
+from .operators_gen import operation_func
+
 
 def DynamoCompiler(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
-  print("Custom Compiler from FX Graph to MLIR:")
-  print("-------------------------------------------------------------------")
-  gm.graph.print_tabular()
-  # Initialize the MLIR context.
-  ctx = Context()
-  with Location.unknown(ctx):
-    module = Importer(gm, inputs)
-    module = Lowering(module)
-  return gm.forward
+    print("Custom Compiler from FX Graph to MLIR:")
+    print("-------------------------------------------------------------------")
+    gm.graph.print_tabular()
+    # Initialize the MLIR context.
+    ctx = ir.Context()
+    with ir.Location.unknown(ctx):
+        fx_importer = _FXGraphImporter(gm, inputs)
+        module = fx_importer.import_graph()
+        module = Lowering(module)
+    return gm.forward
 
-def Importer(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
-  # Initialize the symbol table.
-  symbolTable = {}
-  # Create a module and build the operations into the module.
-  module = Module.create()
-  with InsertionPoint(module.body):
-    # Parse the arguments.
-    arguments = []
-    for arg in inputs:
-      shapeList = list(arg.shape)
-      f32 = F32Type.get()
-      tensorArg = RankedTensorType.get(shapeList, f32)
-      arguments.append(tensorArg)
-    # Generate the function.
-    @func.FuncOp.from_py_func(*arguments)
-    def generated_func(*args):
-      # Convert arguments tuple into a list.
-      argsList = list(args)
-      # Traverse the graph and generate IR.
-      for node in gm.graph.nodes:
-        CodeGen(node, symbolTable, argsList)
-      return symbolTable.get("output")
-  print("-------------------------------------------------------------------")
-  print("Printing the symbol table ...")
-  for symbol, op in symbolTable.items():
-    print(symbol, ": ", op)
-  print("-------------------------------------------------------------------")
-  print("Printing the generated MLIR ...")
-  print(module)
-  return(module)
 
-def CodeGen(node, symbolTable, argsList):
-  if node.op == "placeholder" :
-    # Bind the placeholder with args.
-    symbolTable[str(node.name)] = argsList[0]
-    argsList.pop(0)
-  if node.op == "call_function" :
-    # Parse a call_function operation.
-    if node.target.__name__ == "add":
-      # Generate add operation.  
-      input1 = symbolTable.get(str(node._args[0])) 
-      input2 = symbolTable.get(str(node._args[1]))
-      op = arith.AddFOp(input1, input2)
-      symbolTable[str(node.name)] = op
-    if node.target.__name__ == "matmul":
-      # Only support 2D matmul now.
-      # Get two input values.
-      input1 = symbolTable.get(str(node._args[0]))
-      input2 = symbolTable.get(str(node._args[1]))
-      shp1 = RankedTensorType(input1.type).shape
-      shp2 = RankedTensorType(input2.type).shape
-      assert len(shp1) == len(shp2)
-      f32 = F32Type.get()
-      zero_element = FloatAttr.get(f32, 0.0)
-      if len(shp1) == 2:
-        # Infer the output sizes.
-        size1 = shp1[0]
-        size2 = shp2[1]
-        sizes = [size1, size2]
-        # Generate an output tensor for matmul operation.
-        # For example:
-        # `arith.constant dense<0.000000e+00> : tensor<3x3xf32>`
-        tensor_type = RankedTensorType.get(sizes, f32)
-        attr = DenseElementsAttr.get_splat(tensor_type, zero_element)
-        init_result = arith.ConstantOp(tensor_type, attr)
-        # Generate matmul operation.
-        op = linalg.matmul(input1, input2, outs=[init_result.result])
-        symbolTable[str(node.name)] = op
-      elif len(shp1) == 3:
-        size0 = shp1[0]
-        size1 = shp1[1]
-        size2 = shp2[2]
-        sizes = [size0, size1, size2]
-        tensor_type = RankedTensorType.get(sizes, f32)
-        attr = DenseElementsAttr.get_splat(tensor_type, zero_element)
-        init_result = arith.ConstantOp(tensor_type, attr)
-        op = linalg.batch_matmul(input1, input2, outs=[init_result.result])
-        symbolTable[str(node.name)] = op
-      else:
-        raise NotImplementedError
-    if node.target.__name__ == "transpose":
-      input_tensor = symbolTable.get(str(node._args[0]))
-      size1 = RankedTensorType(input_tensor.type).shape[0]
-      size2 = RankedTensorType(input_tensor.type).shape[1]
-      sizes = [size2, size1]
+class _FXGraphImporter:
+    def __init__(self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor], func_name: str = "main"):
+        self._symbol_table = {}
+        self._gm = gm
+        self._func_name = func_name
+        self._inputs = inputs
+        self._num_input_visited = 0
+        self._module = ir.Module.create()
 
-      f32 = F32Type.get()
-      trans_result_tensor_type = RankedTensorType.get(sizes, f32)
-      perm_tensor_type = RankedTensorType.get([2], f32)
-      perm_content = memoryview(array.array('i', [1, 0]))
-      perm_attr = DenseElementsAttr.get(perm_content)
-      perm = arith.ConstantOp(perm_tensor_type, perm_attr)
-      op = tosa.TransposeOp(trans_result_tensor_type, input_tensor, perm)
-      symbolTable[str(node.name)] = op
+    def import_graph(self):
+        with ir.InsertionPoint(self._module.body):
+            arguments = []
+            for arg in self._inputs:
+                shape_list = list(arg.shape)
+                f32 = ir.F32Type.get()
+                tensor_arg = ir.RankedTensorType.get(shape_list, f32)
+                arguments.append(tensor_arg)
 
-  if node.op == "output" :
-    # Generating return operation.
-    ret = symbolTable.get(str(node._args[0][0]))
-    symbolTable["output"] = ret
+            @func.FuncOp.from_py_func(*arguments, name=self._func_name)
+            def generated_func(*args):
+                args_list = list(args)
+                for node in self._gm.graph.nodes:
+                    if node.op == "output":
+                        output_node_args = node.args[0]
+                        returns = []
+                        for output_arg in output_node_args:
+                            op = self._symbol_table.get((str(output_arg), 0))
+                            returns.append(op)
 
-def Lowering(module: Module):
-  print("-------------------------------------------------------------------")
-  print("Bufferizing the module ...")
-  pm = PassManager('builtin.module')
-  pm.add("func.func(tosa-to-linalg)")
-  pm.add("empty-tensor-to-alloc-tensor")
-  pm.add("convert-elementwise-to-linalg")
-  pm.add("arith-bufferize")
-  pm.add("func.func(linalg-bufferize)")
-  pm.add("func.func(tensor-bufferize)")
-  pm.add("func-bufferize")
-  pm.run(module.operation)
-  print(module)
-  print("-------------------------------------------------------------------")
-  print("Lowering the module to LLVM dialect ...")
-  pm.add("func.func(buffer-deallocation)")
-  pm.add("func.func(convert-linalg-to-loops)")
-  pm.add("convert-scf-to-cf")
-  pm.add("convert-linalg-to-llvm")
-  pm.add("convert-arith-to-llvm")
-  pm.add("expand-strided-metadata")
-  pm.add("finalize-memref-to-llvm")
-  pm.add("convert-func-to-llvm")
-  pm.add("reconcile-unrealized-casts")
-  pm.run(module.operation)
-  print(module)
-  return module
+                        self._symbol_table[("output", 0)] = returns
+                    elif node.op == "placeholder":
+                        self._import_placeholder(node, args_list)
+                    else:
+                        if node.target is operator.getitem:
+                            self._symbol_table[(str(node.name), 0)] = self._symbol_table[(node.args[0], node.args[1])]
+                        else:
+                            self._import_op(node)
+
+                return self._symbol_table.get(("output", 0))
+
+        print("Printing the generated MLIR")
+        print(self._module)
+        return self._module
+
+    def _import_placeholder(self, node: torch.fx.Node, args_list):
+        placeholder_name = args_list[self._num_input_visited]
+        self._symbol_table[(str(node.name), 0)] = placeholder_name
+        self._num_input_visited += 1
+
+    def _import_op(self, node: torch.fx.Node):
+        op_code = node.target.__name__
+
+        operation: ir.Operation = operation_func[op_code](node, self._symbol_table)
+        for i, result in enumerate(operation.results):
+            self._symbol_table[(str(node.name), i)] = result
+
+
+def Lowering(module: ir.Module):
+    print("-------------------------------------------------------------------")
+    print("Bufferizing the module ...")
+    pm = PassManager("builtin.module")
+    pm.add("func.func(tosa-to-linalg)")
+    pm.add("func.func(tosa-to-tensor)")
+    pm.add("empty-tensor-to-alloc-tensor")
+    pm.add("convert-elementwise-to-linalg")
+    pm.add("arith-bufferize")
+    pm.add("func.func(linalg-bufferize)")
+    pm.add("func.func(tensor-bufferize)")
+    pm.add("func-bufferize")
+    pm.run(module.operation)
+    print(module)
+    print("-------------------------------------------------------------------")
+    print("Lowering the module to LLVM dialect ...")
+    pm.add("func.func(buffer-deallocation)")
+    pm.add("func.func(convert-linalg-to-loops)")
+    pm.add("convert-scf-to-cf")
+    pm.add("convert-linalg-to-llvm")
+    pm.add("convert-arith-to-llvm")
+    pm.add("expand-strided-metadata")
+    pm.add("finalize-memref-to-llvm")
+    pm.add("convert-func-to-llvm")
+    pm.add("reconcile-unrealized-casts")
+    pm.run(module.operation)
+    print(module)
+    return module
