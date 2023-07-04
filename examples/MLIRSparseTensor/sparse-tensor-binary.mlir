@@ -84,8 +84,47 @@ func.func @intersec_example() {
   return
 }
 
+// This example show how the keyword `identity` work in sparse_tensor.binary operation.
+func.func @try_identity() {
+  %c0 = arith.constant 0 : index
+  %fpad = arith.constant -1.0 : f64
+  %ind_pad = arith.constant -1 : index
+
+  // Create a sparse vector, with value on index 0, 4, 16, 64, 256, 1023
+  %cv0 = arith.constant sparse<
+    [ [0], [4], [16], [64], [256], [1023] ],
+    [ 1.1, 2.2, 3.3,   4.4,  5.5,   6.6 ]
+    > : tensor<1024xf64>
+  %sv0 = sparse_tensor.convert %cv0 : tensor<1024xf64> to tensor<1024xf64, #SV>
+
+  %it0 = bufferization.alloc_tensor() : tensor<1024xi32, #SV>
+  %shape = bufferization.alloc_tensor() : tensor<1024xf64, #SV>
+
+  // Return all the element from `left` operand by declaring keyword `identity`.
+  // This operation will return a copy of the input tensor.
+  // Note that the %it0 is of type `tensor<1024xi32, #SV>`.
+  // Because we use empty block for the `right` operand, we don't need to match the type of both operands.
+  %cp0 = linalg.generic #trait
+    ins(%sv0, %it0 : tensor<1024xf64, #SV>, tensor<1024xi32, #SV>)
+    outs(%shape : tensor<1024xf64, #SV>) {
+      ^bb0(%arg0: f64, %arg1: i32, %arg2: f64):
+        %result = sparse_tensor.binary %arg0, %arg1 : f64, i32 to f64
+          overlap={}
+          left=identity
+          right={}
+        linalg.yield %result : f64
+  } -> tensor<1024xf64, #SV>
+  %n = sparse_tensor.number_of_entries %cp0 : tensor<1024xf64, #SV>
+  %size = arith.constant 6 : index
+  %cmp = arith.cmpi eq, %n, %size : index
+  cf.assert %cmp, "Expect size to be 6"
+
+  return
+}
+
 func.func @main() {
   call @intersec_example() : () -> ()
+  call @try_identity() : () -> ()
 
   return
 }
