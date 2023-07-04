@@ -111,6 +111,16 @@ $ cd bin
 $ ./correlation2D ../../examples/images/YuTu.png result-dip-corr2d-replicate-padding.png result-dip-corr2d-constant-padding.png
 ```
 
+Using Fast Fourier Transform:
+
+```
+$ cd buddy-mlir/build
+$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
+$ ninja correlationFFT2D
+$ cd bin
+$ ./correlationFFT2D ../../examples/images/YuTu.png result-dip-corr2d-replicate-padding.png result-dip-corr2d-constant-padding.png
+```
+
 Of course, you can also use your own configuration assigning values `-DBUDDY_DIP_OPT_STRIP_MINING` (e.g. 64) and `-DBUDDY_OPT_ATTR` (e.g. avx2).
 
 *Note: Maximum allowed value of `BUDDY_DIP_OPT_STRIP_MINING` for producing correct result is equal to image width.*

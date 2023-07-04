@@ -54,15 +54,22 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto memRefType = (*op->operand_type_begin()).cast<MemRefType>();
     auto memRefShape = memRefType.getShape();
+    Type memElementType = memRefType.getElementType();
     auto loc = op->getLoc();
     ModuleOp parentModule = op->getParentOfType<ModuleOp>();
-
     auto printfRef = getOrInsertPrintf(rewriter, parentModule);
-    Value formatSpecifierCst = getOrCreateGlobalString(
-        loc, rewriter, "frmt_spec", StringRef("%d \0", 4), parentModule);
+    Value formatSpecifierCst;
+    if (memElementType == rewriter.getF32Type() ||
+        memElementType == rewriter.getF64Type()) {
+      formatSpecifierCst = getOrCreateGlobalString(
+          loc, rewriter, "frmt_spec", StringRef("%f \0", 4), parentModule);
+    } else if (memElementType == rewriter.getI8Type() ||
+               memElementType == rewriter.getI32Type()) {
+      formatSpecifierCst = getOrCreateGlobalString(
+          loc, rewriter, "frmt_spec", StringRef("%d \0", 4), parentModule);
+    }
     Value newLineCst = getOrCreateGlobalString(
         loc, rewriter, "nl", StringRef("\n\0", 2), parentModule);
-
     SmallVector<Value, 4> loopIvs;
     for (unsigned i = 0, e = memRefShape.size(); i != e; ++i) {
       auto lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
@@ -85,8 +92,14 @@ public:
     }
 
     auto printOp = cast<gemmini::PrintOp>(op);
-    auto elementLoad =
+    Value elementLoad =
         rewriter.create<memref::LoadOp>(loc, printOp.getInput(), loopIvs);
+    if (elementLoad.getType() == rewriter.getF32Type())
+      elementLoad = rewriter.create<mlir::LLVM::FPExtOp>(
+          loc, rewriter.getF64Type(), elementLoad);
+    else if (elementLoad.getType() == rewriter.getI8Type())
+      elementLoad = rewriter.create<mlir::LLVM::SExtOp>(
+          loc, rewriter.getI32Type(), elementLoad);
     rewriter.create<func::CallOp>(
         loc, printfRef, rewriter.getIntegerType(32),
         ArrayRef<Value>({formatSpecifierCst, elementLoad}));
@@ -148,6 +161,18 @@ public:
   LowerGemminiToLLVMPass() = default;
   LowerGemminiToLLVMPass(const LowerGemminiToLLVMPass &) {}
 
+  Option<int64_t> dim{*this, "dim", llvm::cl::desc("Size of systolic array."),
+                      llvm::cl::init(16)};
+  Option<int64_t> addrLen{*this, "addr-len",
+                          llvm::cl::desc("The length of address."),
+                          llvm::cl::init(32)};
+  Option<std::string> elemType{*this, "elem_t",
+                               llvm::cl::desc("The type of elem_t."),
+                               llvm::cl::init("i8")};
+  Option<std::string> accType{*this, "acc_t",
+                              llvm::cl::desc("The type of acc_t."),
+                              llvm::cl::init("i32")};
+
   // Override explicitly to allow conditional dialect dependence.
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<LLVM::LLVMDialect>();
@@ -165,12 +190,22 @@ public:
 void LowerGemminiToLLVMPass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
-
+  // The default elem_t is int8_t,
+  // so the default size of elem_t is 1 type.
+  size_t sizeOfElemT = sizeof(int8_t);
+  if (elemType == "f32")
+    sizeOfElemT = sizeof(float);
+  // The default acc_t is int32_t,
+  // so the default size of acc_t is 4 type.
+  size_t sizeOfAccT = sizeof(int32_t);
+  if (accType == "f32")
+    sizeOfAccT = sizeof(float);
   LLVMTypeConverter converter(context);
   RewritePatternSet patterns(context);
   LLVMConversionTarget target(*context);
   configureGemminiegalizeForExportTarget(target);
-  populateGemminiLegalizeForLLVMExportPatterns(converter, patterns);
+  populateGemminiLegalizeForLLVMExportPatterns(
+      converter, patterns, dim, addrLen, sizeOfElemT, sizeOfAccT);
   populateAffineToStdConversionPatterns(patterns);
   populateSCFToControlFlowConversionPatterns(patterns);
   mlir::arith::populateArithToLLVMConversionPatterns(converter, patterns);

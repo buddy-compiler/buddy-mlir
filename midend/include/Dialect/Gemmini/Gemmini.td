@@ -142,7 +142,7 @@ def MvoutOp : Gemmini_Op<"mvout"> {
 
 def PrintOp : Gemmini_Op<"print"> {
   let summary = "Print memref value.";
-  let arguments = (ins MemRefRankOf<[AnyType], [2, 4]>:$input);
+  let arguments = (ins AnyTypeOf<[I8MemRef, I32MemRef, F32MemRef, F64MemRef]>:$input); 
   let assemblyFormat = "$input attr-dict `:` type($input)";
 }
 
