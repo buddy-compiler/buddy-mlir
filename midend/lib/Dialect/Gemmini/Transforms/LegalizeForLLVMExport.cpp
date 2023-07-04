@@ -179,8 +179,6 @@ struct GemminiConfigNormOpLowering : public ConvertOpToLLVMPattern<ConfigNormOp>
   matchAndRewrite(ConfigNormOp configNormOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = configNormOp.getLoc();
-    // ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, 
-    // (((uint64_t) ((uint32_t) q_const)) << 32) | ((q_const_type & 1) << 18) | ((set_stats_id_only & 1) << 17) | ((act_msb & 1) << 16) | ((uint64_t)stat_id << 8) | CONFIG_BERT, ((uint64_t)((uint32_t)(igelu_qc)) << 32) | ((uint64_t)((uint32_t)(igelu_qb))), k_CONFIG)
     uint64_t rs1 = (uint64_t )((uint32_t )configNormOp.getQConst() << 32) |
                    (configNormOp.getQConstType() & 1) << 18 |
                    (configNormOp.getSetStatsIdOnly() & 1) << 17 |
@@ -491,7 +489,6 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
     Location loc = a.getLoc();
     bool dAddrNull = llvm::dyn_cast<arith::ConstantOp>(d.getDefiningOp()) && getNumberFromValue(d) == 0;
     bool cAddrNull = llvm::dyn_cast<arith::ConstantOp>(c.getDefiningOp()) && getNumberFromValue(c) == 0;
-//    uint64_t dAddrInt = getNumberFromValue(d);
 
     // Move-in D
     if (!dAddrNull && !noBias) {
@@ -504,16 +501,11 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
       for (size_t i0 = 0; i0 < i; i0++) {
         for (size_t j0 = 0; j0 < j; j0 += dBlocks) {
           const size_t biasRow = repeatingBias ? 0 : i0;
-//          const acc_t *const dDramAddr =
-//              (acc_t *)d + (biasRow * strideD + j0) * DIM;
           const size_t offset = (biasRow * strideD + j0) * DIM * sizeof (acc_t);
           const uint32_t dSpAddrAcc = dSpAddrStart + (i0 * j + j0) * DIM;
-
           const size_t blocks = j0 + dBlocks <= j ? dBlocks : j - j0;
-
           const size_t cols = blocks * DIM - (j0 + blocks >= j ? padJ : 0);
           const size_t rows = DIM - (i0 == i - 1 ? padI : 0);
-
           gemminiMvinOffset(d, offset, dSpAddrAcc, cols, rows, rewriter);
         }
       }
@@ -524,17 +516,14 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
         loc, rewriter.getI64IntegerAttr(strideB));
     rewriter.create<ConfigLdOp>(loc, strideValue,
                                 llvm::APFloat((float)bScaleFactor));
-    //    gemmini_extended_config_ld(strideB * sizeof(elem_t), bScaleFactor);
     for (size_t j0 = 0; j0 < j; j0 += bBlocks) {
       for (size_t k0 = 0; k0 < k; k0++) {
-//        const elem_t *const B_dram_addr = B + (k0 * strideB + j0) * DIM;
         const size_t offset = (k0 * strideB + j0) * DIM * sizeof (elem_t);
         const uint32_t bSpAddr = bSpAddrStart + (k0 * j + j0) * DIM;
         const size_t blocks = j0 + bBlocks <= j ? bBlocks : j - j0;
         const size_t cols = blocks * DIM - (j0 + blocks >= j ? padJ : 0);
         const size_t rows = DIM - (k0 == k - 1 ? padK : 0);
         gemminiMvinOffset(b, offset, bSpAddr, cols, rows, rewriter);
-//        gemmini_extended_mvin(B_dram_addr, bSpAddr, cols, rows);
       }
     }
 
@@ -546,21 +535,18 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
 
     for (size_t i0 = 0; i0 < i; i0++) {
       for (size_t k0 = 0; k0 < k; k0 += aBlocks) {
-//        const elem_t *const A_dram_addr = A + (i0 * strideA + k0) * DIM;
         const size_t offset = (i0 * strideA + k0) * DIM * sizeof (elem_t);
         const uint32_t aSpAddr = aSpAddrStart + (i0 * k + k0) * DIM;
         const size_t blocks = k0 + aBlocks <= k ? aBlocks : k - k0;
         const size_t cols = blocks * DIM - (k0 + blocks >= k ? padK : 0);
         const size_t rows = DIM - (i0 == i - 1 ? padI : 0);
         gemminiMvinOffset(a, offset, aSpAddr, cols, rows, rewriter);
-//        gemmini_extended_mvin(A_dram_addr, aSpAddr, cols, rows);
       }
     }
 
     for (size_t i0 = 0; i0 < i; i0++) {
       for (size_t j0 = 0; j0 < j; j0++) {
         const uint32_t cSpAddr = cSpAddrStart + (i0 * j + j0) * DIM;
-
         for (size_t k0 = 0; k0 < k; k0++) {
 
           const uint32_t aSpAddr = aSpAddrStart + (i0 * k + k0) * DIM;
@@ -594,13 +580,9 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
           Value bSpAddrOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(bSpAddr));
           Value outSpAddrOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(outSpAddr));
 
-
           Value garbageAddrOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(GARBAGE_ADDR));
-
           Value dimOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(DIM));
 
-//          gemmini_extended_preload(GARBAGE_ADDR, outSpAddr, DIM, DIM, cCols,
-//                                   cRows);
           rewriter.create<PreloadOp>(loc, garbageAddrOp, outSpAddrOp, dimOp,
                                      dimOp, cRowsOp, cColsOp);
 
@@ -732,8 +714,6 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
     /*
       Add config norm op
     */
-
-   // acc_scale_t => acc_scale_t
     if (act == IGELU) {
       const acc_scale_t sqrt_2 = 1.41421356237;
       const acc_scale_t S = bertScale;
