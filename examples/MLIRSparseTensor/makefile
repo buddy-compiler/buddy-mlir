@@ -96,3 +96,10 @@ sparse-tensor-binary-run:
 		--sparse-compiler="enable-runtime-library=true" | \
 	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
 		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
+
+# `sparse_tensor.expand/compress` are lowering operation
+sparse-tensor-expand-lower:
+	@${MLIR_OPT} ./sparse-tensor-expand.mlir \
+		--linalg-generalize-named-ops \
+		--linalg-fuse-elementwise-ops \
+		--sparsification -o log.mlir
