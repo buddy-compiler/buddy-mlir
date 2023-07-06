@@ -13,6 +13,7 @@ endif
 
 SPARSE_MATRIX_A := ./data/sa.mtx
 SPARSE_MATRIX_B := ./data/sb.mtx
+SPARSE_MATRIX_C := ./data/generated.mtx
 
 sparse-tensor-fuse-tensor-cast-lower:
 	@${MLIR_OPT} ./sparse-tensor-fuse-tensor-cast.mlir\
@@ -28,7 +29,7 @@ sparse-tensor-new-translate:
 sparse-tensor-new-run:
 	@${MLIR_OPT} ./sparse-tensor-new.mlir \
 		--sparse-compiler="enable-runtime-library=true" | \
-	TENSOR0=${SPARSE_MATRIX_A} TENSOR1=${SPARSE_MATRIX_B} \
+	TENSOR0=${SPARSE_MATRIX_A} TENSOR1=${SPARSE_MATRIX_B} TENSOR2=${SPARSE_MATRIX_C} \
 	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
 		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
 
