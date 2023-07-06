@@ -14,11 +14,11 @@ func.func @matmul(%A: tensor<4x2xf64, #CSR>,
 
 // @matmul will be rewrited into code like @matmul_expand.
 // It use `sparse_tensor.expand` to get the innermost level access pattern of the given tensor.
-// This operation is useful to implement calculation kernel on the output kernel.
+// This operation is useful to implement calculation kernel on the output tensor.
 // The `values` array contains values in the innermost level of the given tensor.
 // The `filled` array contains boolean value that indicate whether a coordinate has been filled at the level.
 // The `added` array and `count` array are used to store new level-coordinate when the current operating coordinate has never been filled.
-// After operation, the rewrite op will use `sparse_tensor.compress` to compress the access pattern into the given tensor.
+// After kernel operation done, the rewrite op will use `sparse_tensor.compress` to compress those access pattern into the output tensor.
 func.func @matmul_expand(%A: tensor<4x2xf64, #CSR>, %B: tensor<2x4xf64, #CSR>) -> tensor<4x4xf64, #CSR> {
   %c4 = arith.constant 4 : index
   %c0 = arith.constant 0 : index
