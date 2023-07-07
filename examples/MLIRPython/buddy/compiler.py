@@ -1,12 +1,10 @@
 import operator
-from typing import List
+from typing import List, Union
 
 import mlir.dialects.func as func
-from mlir.dialects import arith
-import torch
-
 import mlir.ir as ir
-from mlir.passmanager import *
+from mlir.passmanager import PassManager
+import torch
 
 from .operators_gen import operation_func
 
@@ -25,7 +23,12 @@ def DynamoCompiler(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
 
 
 class _FXGraphImporter:
-    def __init__(self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor], func_name: str = "main"):
+    def __init__(
+        self,
+        gm: torch.fx.GraphModule,
+        inputs: List[torch.Tensor],
+        func_name: str = "main",
+    ):
         self._symbol_table = {}
         self._gm = gm
         self._func_name = func_name
@@ -58,7 +61,9 @@ class _FXGraphImporter:
                         self._import_placeholder(node, args_list)
                     else:
                         if node.target is operator.getitem:
-                            self._symbol_table[(str(node.name), 0)] = self._symbol_table[(node.args[0], node.args[1])]
+                            self._symbol_table[
+                                (str(node.name), 0)
+                            ] = self._symbol_table[(node.args[0], node.args[1])]
                         else:
                             self._import_op(node)
 
@@ -74,11 +79,16 @@ class _FXGraphImporter:
         self._num_input_visited += 1
 
     def _import_op(self, node: torch.fx.Node):
-        op_code = node.target.__name__
+        op_name = node.target.__name__
 
-        operation: ir.Operation = operation_func[op_code](node, self._symbol_table)
-        for i, result in enumerate(operation.results):
-            self._symbol_table[(str(node.name), i)] = result
+        op_ret: Union[ir.Operation, tuple] = operation_func[op_name](
+            node, self._symbol_table
+        )
+        if isinstance(op_ret, tuple):
+            for i, operation in op_ret:
+                self._symbol_table[(str(node.name), i)] = operation.result
+        else:
+            self._symbol_table[(str(node.name), 0)] = op_ret
 
 
 def Lowering(module: ir.Module):
