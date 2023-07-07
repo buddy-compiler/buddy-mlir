@@ -31,3 +31,28 @@ resnet-18-lower:
 		--convert-func-to-llvm \
 		--reconcile-unrealized-casts \
 		-o ./log.mlir
+
+bert-lower:
+	@${MLIR_OPT} ./Bert.mlir \
+		--test-linalg-transform-patterns="test-generalize-pad-tensor" \
+		--linalg-bufferize \
+		--convert-linalg-to-loops \
+		--func-bufferize \
+		--arith-bufferize \
+		--tensor-bufferize \
+		--finalizing-bufferize \
+		--convert-vector-to-scf \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-vector-to-llvm \
+		--memref-expand \
+		--arith-expand \
+		--convert-arith-to-llvm \
+		--finalize-memref-to-llvm \
+		--test-math-polynomial-approximation \
+		--convert-math-to-llvm \
+		--llvm-request-c-wrappers \
+		--convert-func-to-llvm \
+		--reconcile-unrealized-casts \
+		-o ./log.mlir
