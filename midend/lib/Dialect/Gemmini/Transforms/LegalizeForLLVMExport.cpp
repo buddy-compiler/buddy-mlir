@@ -116,11 +116,12 @@ struct GemminiConfigStLowering : public ConvertOpToLLVMPattern<ConfigStOp> {
     int stride = getNumberFromValue(strideValue);
     float scale = configStOp.getScale().convertToFloat();
     Location loc = configStOp.getLoc();
+    uint64_t rs1 = ((uint64_t)configStOp.getActivation() << 2) | CONFIG_ST;
     uint64_t arg = (uint64_t)acc_scale_t_to_acc_scale_t_bits((acc_scale_t)scale)
                        << 32 |
                    (uint32_t)stride;
     Value value1 = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(CONFIG_ST));
+        loc, rewriter.getI64IntegerAttr(rs1));
     Value value2 = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(arg));
     rewriter.replaceOpWithNewOp<ConfigSt_IntrOp>(configStOp, value1, value2);

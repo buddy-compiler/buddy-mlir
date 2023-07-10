@@ -46,6 +46,8 @@ typedef float acc_scale_t;
 typedef uint32_t scale_t_bits;
 typedef float scale_t;
 typedef int32_t scale_acc_t;
+typedef int32_t acc_t;
+typedef int8_t elem_t;
 
 namespace mlir {
 
