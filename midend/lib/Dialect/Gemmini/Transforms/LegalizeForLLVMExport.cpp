@@ -179,12 +179,14 @@ struct GemminiConfigNormOpLowering : public ConvertOpToLLVMPattern<ConfigNormOp>
   matchAndRewrite(ConfigNormOp configNormOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = configNormOp.getLoc();
-    uint64_t rs1 = (uint64_t )((uint32_t )configNormOp.getQConst() << 32) |
+    // ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, 
+    // (((uint64_t) ((uint32_t) q_const)) << 32) | ((q_const_type & 1) << 18) | ((set_stats_id_only & 1) << 17) | ((act_msb & 1) << 16) | ((uint64_t)stat_id << 8) | CONFIG_BERT, ((uint64_t)((uint32_t)(igelu_qc)) << 32) | ((uint64_t)((uint32_t)(igelu_qb))), k_CONFIG)
+    uint64_t rs1 = (((uint64_t) (configNormOp.getQConst())) << 32) |
                    (configNormOp.getQConstType() & 1) << 18 |
                    (configNormOp.getSetStatsIdOnly() & 1) << 17 |
                    (configNormOp.getActMsb() & 1) << 16 |
                    configNormOp.getStatsId() << 8 | CONFIG_BERT;
-    uint64_t rs2 = ((uint64_t)((uint32_t)(configNormOp.getIguluQc())) << 32) | ((uint64_t)((uint32_t)(configNormOp.getIguluQb())));
+    uint64_t rs2 = (((uint64_t) configNormOp.getIguluQc()) << 32) | ((uint64_t) ((uint32_t)configNormOp.getIguluQb()));
     Value rs1Value = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(rs1));
     Value rs2Value = rewriter.create<arith::ConstantOp>(
@@ -621,8 +623,6 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
         loc, rewriter.getI64IntegerAttr(offset));
     IntegerType i64Type = rewriter.getI64Type();
     Value configPtr = rewriter.create<arith::AddIOp>(loc, i64Type, mem, offsetOp);
-    Value spadAddrValue = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(SpAddr));
     uint64_t spadAddrInt = (uint64_t)rows << (ADDR_LEN + 16) |
                            (uint64_t)cols << ADDR_LEN | (uint64_t) SpAddr;
     Value spad = rewriter.create<arith::ConstantOp>(
@@ -638,8 +638,6 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
         loc, rewriter.getI64IntegerAttr(offset));
     IntegerType i64Type = rewriter.getI64Type();
     Value configPtr = rewriter.create<arith::AddIOp>(loc, i64Type, mem, offsetOp);
-    Value spadAddrValue = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(SpAddr));
     uint64_t spadAddrInt = (uint64_t)rows << (ADDR_LEN + 16) |
                            (uint64_t)cols << ADDR_LEN | (uint64_t) SpAddr;
     Value spad = rewriter.create<arith::ConstantOp>(
