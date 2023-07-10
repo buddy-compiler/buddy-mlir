@@ -1,0 +1,32 @@
+memref.global "private" @g1 : memref<3x3xi8> = dense<[[1, 0, 0], [1, -1, 1], [-1, 0, 1]]>
+memref.global "private" @g2 : memref<3x3xi8> = dense<[[1, -1, 0], [1, 0, -1], [-1, -1, 0]]>
+
+func.func @main() -> i8 {
+  %i0 = arith.constant 0 : i8
+  %i1I8 = arith.constant 1 : i8
+  %minus1 = arith.constant -2 : i8
+  %i2I8 = arith.constant 2 : i8
+  %i2I32 = arith.constant 2 : i32
+  %dI32 = arith.constant 0 : i32
+  %c0 = arith.constant 0 : index 
+  %c1 = arith.constant 1 : index
+  %aArray = memref.get_global @g1 : memref<3x3xi8>
+  %bArray = memref.get_global @g2 : memref<3x3xi8>
+  %cArray = memref.alloc()  : memref<3x3xi8>
+  %dArray = memref.alloc()  : memref<3x3xi32>
+  %dim_I = memref.dim %aArray, %c0 : memref<3x3xi8>
+  %dim_J = memref.dim %bArray, %c1 : memref<3x3xi8>
+  %dim_K = memref.dim %aArray, %c1 : memref<3x3xi8>
+
+  scf.for %i3 = %c0 to %dim_I step %c1 {
+    scf.for %j3 = %c0 to %dim_J step %c1 {
+      memref.store %dI32, %dArray[%i3, %j3] : memref<3x3xi32>
+    }
+  }
+  gemmini.print %aArray : memref<3x3xi8>
+  gemmini.print %bArray : memref<3x3xi8>
+  // gemmini.print %dArray : memref<3x3xi32>
+  gemmini.tile_matmul %aArray %bArray %cArray %dArray {dataflow=1, act=3, bertScale=0.8:f32}: memref<3x3xi8> memref<3x3xi8> memref<3x3xi8> memref<3x3xi32>
+  gemmini.print %cArray : memref<3x3xi8>
+  return %i0 : i8
+}
