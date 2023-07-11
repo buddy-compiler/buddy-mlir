@@ -9,8 +9,7 @@ from mlir.dialects import tosa, linalg, arith
 def _broadcast_shape(tensor_input1: ir.Value,
                      tensor_input2: ir.Value) -> List[int]:
   """Calculate the broadcast shape of two tensors with broadcastable shapes 
-  according to PyTorch's broadcast semantics: https://pytorch.org/docs/stable/notes/broadcasting.html
-  """
+  according to PyTorch's broadcast semantics: https://pytorch.org/docs/stable/notes/broadcasting.html"""
   shp1 = ir.RankedTensorType(tensor_input1.type).shape
   shp2 = ir.RankedTensorType(tensor_input2.type).shape
   if len(shp1) < len(shp2):
@@ -25,14 +24,15 @@ def _broadcast_shape(tensor_input1: ir.Value,
 
 def AddOp(node: torch.fx.Node,
           symbol_table: Dict[Tuple[str, int], ir.Operation]) -> ir.Operation:
-  """
-  Map aten.add.Tensor to tosa.add.
+  """Map aten.add.Tensor to tosa.add.
+
   Args:
     node: A FX graph containing the aten.add.Tensor operator and its parameter.
     symbol_table: The symbol table that records the mapping between symbols and operations.
 
   Returns:
-    The generated tosa.add operation.
+    ir.Operation: The generated tosa.add operation.
+
   """
   input1 = symbol_table.get((str(node.args[0]), 0))
   input2 = symbol_table.get((str(node.args[1]), 0))
@@ -46,6 +46,16 @@ def AddOp(node: torch.fx.Node,
 
 def AddMMOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation]) -> ir.Operation:
+  """Map aten.addmm.default to MLIR operation.
+
+  Args:
+    node (torch.fx.Node): A FX graph containing the aten.addmm.default operator and its parameter.
+    symbol_table (Dict[Tuple[str, int], ir.Operation]): The symbol table that records the mapping between symbols and operations.
+
+  Returns:
+    ir.Operation: The generated MLIR operation representing aten.addmm.default
+
+  """
   input_ = symbol_table.get((str(node.args[0]), 0))
   mat1 = symbol_table.get((str(node.args[1]), 0))
   mat2 = symbol_table.get((str(node.args[2]), 0))

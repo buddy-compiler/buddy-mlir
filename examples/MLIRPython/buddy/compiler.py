@@ -24,6 +24,7 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
 
   Returns:
     Callable: A compiled function that equivalent to the FX graph.
+
   """
 
   def _compiler(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
@@ -53,9 +54,10 @@ class FXGraphImporter:
   ):
     """
     Args:
-      gm: The FX graph module that will be imported.
-      inputs: Input tensor(s) of the FX graph.
-      func_name: Name of the generated MLIR func.
+      gm (torch.fx.GraphModule): The FX graph module that will be imported.
+      inputs (List[torch.Tensor]): Input tensor(s) of the FX graph.
+      func_name (str): Name of the generated MLIR func.
+
     """
     self._symbol_table = {}
     self._gm = gm
@@ -65,11 +67,10 @@ class FXGraphImporter:
     self._module = ir.Module.create()
 
   def import_graph(self) -> ir.Module:
-    """
-    Import the FX graph, generate an MLIR module in high-level dialects.
+    """Import the FX graph, generate an MLIR module in high-level dialects.
 
     Returns:
-      An MLIR moduel in high-level dialects.
+      mlir.ir.Module: An MLIR moduel in high-level dialects.
 
     """
     with ir.InsertionPoint(self._module.body):
@@ -126,14 +127,14 @@ class FXGraphImporter:
 
 
 def Lowering(module: ir.Module):
-  """
-  Lower an MLIR module to LLVM dialect.
+  """Lower an MLIR module to LLVM dialect.
 
   Args:
-    module: An MLIR module that need to be lowered.
+    module (mlir.ir.Module): An MLIR module that need to be lowered.
 
   Returns:
-    An MLIR module in LLVM dialect.
+    mlir.ir.Module: An MLIR module in LLVM dialect.
+
   """
   print("-------------------------------------------------------------------")
   print("Bufferizing the module ...")
