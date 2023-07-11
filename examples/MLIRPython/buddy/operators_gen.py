@@ -1,3 +1,5 @@
+"""Generate the MLIR operations for the operators in the FX graph.
+"""
 from typing import Dict, Tuple, List
 
 import torch

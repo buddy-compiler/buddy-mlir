@@ -1,3 +1,5 @@
+"""The buddy compiler backend for torch dynamo.
+"""
 import operator
 from typing import List, Union, Callable
 
