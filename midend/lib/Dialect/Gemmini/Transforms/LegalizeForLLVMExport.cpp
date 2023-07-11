@@ -174,14 +174,12 @@ struct GemminiConfigExLowering : public ConvertOpToLLVMPattern<ConfigExOp> {
   }
 };
 
-struct GemminiConfigNormOpLowering : public ConvertOpToLLVMPattern<ConfigNormOp> {
+struct GemminiConfigNormLowering : public ConvertOpToLLVMPattern<ConfigNormOp> {
   using ConvertOpToLLVMPattern<ConfigNormOp>::ConvertOpToLLVMPattern;
   LogicalResult
   matchAndRewrite(ConfigNormOp configNormOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = configNormOp.getLoc();
-    // ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, 
-    // (((uint64_t) ((uint32_t) q_const)) << 32) | ((q_const_type & 1) << 18) | ((set_stats_id_only & 1) << 17) | ((act_msb & 1) << 16) | ((uint64_t)stat_id << 8) | CONFIG_BERT, ((uint64_t)((uint32_t)(igelu_qc)) << 32) | ((uint64_t)((uint32_t)(igelu_qb))), k_CONFIG)
     uint64_t rs1 = (((uint64_t) ((uint32_t)configNormOp.getQConst())) << 32) |
                    (configNormOp.getQConstType() & 1) << 18 |
                    (configNormOp.getSetStatsIdOnly() & 1) << 17 |
@@ -495,7 +493,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
 
     // Move-in D
     if (!dAddrNull && !noBias) {
-      const size_t dStride = repeatingBias ? 0 : strideD * sizeof(acc_t);
+      const size_t dStride = repeatingBias ? 0 : strideD * sizeOfAccT;
       Value strideValue = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getI64IntegerAttr(dStride));
       rewriter.create<ConfigLdOp>(loc, strideValue,
@@ -600,7 +598,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
     }
     // Move-out C
     if (!cAddrNull) {
-      const size_t sizeof_C = fullC ? sizeof(acc_t) : sizeof(elem_t);
+      const size_t sizeof_C = fullC ? sizeOfAccT : sizeOfElemT;
 
       for (size_t i0 = 0; i0 < i; i0++) {
         for (size_t j0 = 0; j0 < j; j0++) {
@@ -1622,7 +1620,7 @@ void mlir::populateGemminiLegalizeForLLVMExportPatterns(
   patterns.add<GemminiMvinLowering>(converter, addrLen);
   patterns.add<GemminiMvoutLowering>(converter, addrLen);
   patterns.add<GemminiConfigExLowering>(converter);
-  patterns.add<GemminiConfigNormOpLowering>(converter);
+  patterns.add<GemminiConfigNormLowering>(converter);
   patterns.add<GemminiPreloadZerosLowering>(converter, dim, addrLen);
   patterns.add<GemminiPreloadLowering>(converter, addrLen);
   patterns.add<GemminiComputePreloadedLowering>(converter, addrLen);
