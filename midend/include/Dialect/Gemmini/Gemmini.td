@@ -144,6 +144,32 @@ def MvinOp : Gemmini_Op<"mvin"> {
   let assemblyFormat = "$input $addr attr-dict `:` type($input) type($addr)";
 }
 
+def Mvin2Op : Gemmini_Op<"mvin2"> {
+  let summary = "Load operation";
+  let description = [{
+      Similar to Mvin
+          Move data from main memory to scratchpad
+      - MemRef to load in.
+        (including DRAM address, number of columns, number of rows)
+      - Local scratchpad or accumulator address.
+  }];
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr);
+  let assemblyFormat = "$input $addr attr-dict `:` type($input) type($addr)";
+}
+
+def Mvin3Op : Gemmini_Op<"mvin3"> {
+  let summary = "Load operation";
+  let description = [{
+      Similar to Mvin and Mvin2
+          Move data from main memory to scratchpad
+      - MemRef to load in.
+        (including DRAM address, number of columns, number of rows)
+      - Local scratchpad or accumulator address.
+  }];
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr);
+  let assemblyFormat = "$input $addr attr-dict `:` type($input) type($addr)";
+}
+
 def MvoutOp : Gemmini_Op<"mvout"> {
   let summary = "Store operation";
   let description = [{
@@ -306,6 +332,12 @@ class Gemmini_IntrOpBase<string mnemonic, list<Trait> traits = []> :
                   /*int numResults=*/0>;
 
 def Gemmini_Mvin_IntrOp : Gemmini_IntrOpBase<"mvin">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_Mvin2_IntrOp : Gemmini_IntrOpBase<"mvin2">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_Mvin3_IntrOp : Gemmini_IntrOpBase<"mvin3">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Gemmini_Mvout_IntrOp : Gemmini_IntrOpBase<"mvout">,

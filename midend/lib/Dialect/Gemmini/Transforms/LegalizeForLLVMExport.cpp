@@ -229,6 +229,72 @@ private:
   int64_t addrLen;
 };
 
+struct GemminiMvin2Lowering : public ConvertOpToLLVMPattern<Mvin2Op> {
+  using ConvertOpToLLVMPattern<Mvin2Op>::ConvertOpToLLVMPattern;
+  explicit GemminiMvin2Lowering(LLVMTypeConverter &typeConverter,
+                               int64_t addrLen)
+      : ConvertOpToLLVMPattern(typeConverter), addrLen(addrLen) {}
+  LogicalResult
+  matchAndRewrite(Mvin2Op mvin2Op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = mvin2Op.getInput();
+    Location loc = input.getLoc();
+    MemRefType memRefType =
+        mvin2Op.getOperandTypes().front().dyn_cast<MemRefType>();
+    llvm::ArrayRef<int64_t> memRefShape = memRefType.getShape();
+    TypeRange resultType = mlir::TypeRange(rewriter.getIndexType());
+    Value extractOp = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, resultType, input);
+    IntegerType i64Type = rewriter.getI64Type();
+    Value indexCastOp =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, extractOp);
+    Value spadAddrValue = mvin2Op.getAddr();
+    uint64_t number = getNumberFromValue(spadAddrValue);
+    uint64_t spadAddrInt = (uint64_t)memRefShape[0] << (addrLen + 16) |
+                           (uint64_t)memRefShape[1] << addrLen | number;
+    Value spad = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(spadAddrInt));
+    rewriter.replaceOpWithNewOp<Mvin2_IntrOp>(mvin2Op, indexCastOp, spad);
+    return success();
+  }
+  
+private:
+  int64_t addrLen;
+};
+
+struct GemminiMvin3Lowering : public ConvertOpToLLVMPattern<Mvin3Op> {
+  using ConvertOpToLLVMPattern<Mvin3Op>::ConvertOpToLLVMPattern;
+  explicit GemminiMvin3Lowering(LLVMTypeConverter &typeConverter,
+                                int64_t addrLen)
+      : ConvertOpToLLVMPattern(typeConverter), addrLen(addrLen) {}
+  LogicalResult
+  matchAndRewrite(Mvin3Op mvin3Op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = mvin3Op.getInput();
+    Location loc = input.getLoc();
+    MemRefType memRefType =
+        mvin3Op.getOperandTypes().front().dyn_cast<MemRefType>();
+    llvm::ArrayRef<int64_t> memRefShape = memRefType.getShape();
+    TypeRange resultType = mlir::TypeRange(rewriter.getIndexType());
+    Value extractOp = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, resultType, input);
+    IntegerType i64Type = rewriter.getI64Type();
+    Value indexCastOp =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, extractOp);
+    Value spadAddrValue = mvin3Op.getAddr();
+    uint64_t number = getNumberFromValue(spadAddrValue);
+    uint64_t spadAddrInt = (uint64_t)memRefShape[0] << (addrLen + 16) |
+                           (uint64_t)memRefShape[1] << addrLen | number;
+    Value spad = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(spadAddrInt));
+    rewriter.replaceOpWithNewOp<Mvin3_IntrOp>(mvin3Op, indexCastOp, spad);
+    return success();
+  }
+  
+private:
+  int64_t addrLen;
+};
+
 struct GemminiMvoutLowering : public ConvertOpToLLVMPattern<MvoutOp> {
   using ConvertOpToLLVMPattern<MvoutOp>::ConvertOpToLLVMPattern;
   explicit GemminiMvoutLowering(LLVMTypeConverter &typeConverter,
@@ -1618,6 +1684,8 @@ void mlir::populateGemminiLegalizeForLLVMExportPatterns(
   patterns.add<GemminiConfigStLowering>(converter);
   patterns.add<GemminiConfigLdLowering>(converter);
   patterns.add<GemminiMvinLowering>(converter, addrLen);
+  patterns.add<GemminiMvin2Lowering>(converter, addrLen);
+  patterns.add<GemminiMvin3Lowering>(converter, addrLen);
   patterns.add<GemminiMvoutLowering>(converter, addrLen);
   patterns.add<GemminiConfigExLowering>(converter);
   patterns.add<GemminiConfigNormLowering>(converter);
@@ -1635,14 +1703,14 @@ void mlir::configureGemminiegalizeForExportTarget(
     LLVMConversionTarget &target) {
   target.addLegalOp<
       Flush_IntrOp, ConfigSt_IntrOp, ConifgLd_IntrOp, ConfigEX_IntrOp,
-      Mvin_IntrOp, Mvout_IntrOp, Preload_IntrOp, ComputePreloaded_IntrOp,
+      Mvin_IntrOp, Mvin2_IntrOp, Mvin3_IntrOp, Mvout_IntrOp, Preload_IntrOp, ComputePreloaded_IntrOp,
       ComputeAccumulated_IntrOp, LoopWsConfigBounds_IntrOp,
       LoopWsConfigAddrsAB_IntrOp, LoopWsConfigAddrsDC_IntrOp,
       LoopWsConfigStridesAB_IntrOp, LoopWsConfigStridesDC_IntrOp, LoopWs_IntrOp,
       LoopConvWsConfig1_IntrOp, LoopConvWsConfig2_IntrOp,
       LoopConvWsConfig3_IntrOp, LoopConvWsConfig4_IntrOp,
       LoopConvWsConfig5_IntrOp, LoopConvWsConfig6_IntrOp, LoopConvWs_IntrOp, ConfigNorm_IntrOp>();
-  target.addIllegalOp<FlushOp, ConfigStOp, ConfigLdOp, ConfigExOp, MvinOp,
+  target.addIllegalOp<FlushOp, ConfigStOp, ConfigLdOp, ConfigExOp, MvinOp, Mvin2Op, Mvin3Op,
                       MvoutOp, PrintOp, PreloadZerosOp, PreloadOp,
                       ComputePreloadedOp, ComputeAccumulatedOp, TileMatMulOp,
                       TileConvOp, ConfigNormOp>();

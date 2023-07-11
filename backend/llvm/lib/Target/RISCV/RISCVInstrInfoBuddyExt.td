@@ -35,6 +35,18 @@ def MVIN : RVInstR<0b0000010, 0b011, OPC_CUSTOM_3, (outs),
   let rd = 0;              
 }
 
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in
+def MVIN2 : RVInstR<0b0000001, 0b011, OPC_CUSTOM_3, (outs),
+                   (ins GPR:$rs1, GPR:$rs2), "mvin","$rs1, $rs2"> {
+  let rd = 0;
+}
+
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in
+def MVIN3 : RVInstR<0b0001110, 0b011, OPC_CUSTOM_3, (outs),
+                   (ins GPR:$rs1, GPR:$rs2), "mvin","$rs1, $rs2"> {
+  let rd = 0;
+}
+
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in 
 def MVOUT : RVInstR<0b0000011, 0b011, OPC_CUSTOM_3, (outs),
                     (ins GPR:$rs1, GPR:$rs2), "mvout","$rs1, $rs2">{
