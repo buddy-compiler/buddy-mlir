@@ -140,6 +140,7 @@ def Lowering(module: ir.Module):
   pm = PassManager("builtin.module")
   pm.add("func.func(tosa-to-linalg)")
   pm.add("func.func(tosa-to-tensor)")
+  pm.add("func.func(tosa-to-arith)")
   pm.add("empty-tensor-to-alloc-tensor")
   pm.add("convert-elementwise-to-linalg")
   pm.add("arith-bufferize")

@@ -3,7 +3,7 @@ from typing import Dict, Tuple, List
 import torch
 
 import mlir.ir as ir
-from mlir.dialects import tosa
+from mlir.dialects import tosa, linalg, arith
 
 
 def _broadcast_shape(tensor_input1: ir.Value,
@@ -44,4 +44,25 @@ def AddOp(node: torch.fx.Node,
   return op
 
 
-operation_func = {"add.Tensor": AddOp}
+def AddMMOp(node: torch.fx.Node,
+            symbol_table: Dict[Tuple[str, int], ir.Operation]) -> ir.Operation:
+  input_ = symbol_table.get((str(node.args[0]), 0))
+  mat1 = symbol_table.get((str(node.args[1]), 0))
+  mat2 = symbol_table.get((str(node.args[2]), 0))
+  mat1_shp = ir.RankedTensorType(mat1.type).shape
+  mat2_shp = ir.RankedTensorType(mat2.type).shape
+  result_shp = [mat1_shp[0], mat2_shp[1]]
+  f32 = ir.F32Type.get()
+  element = ir.FloatAttr.get(f32, 0.0)
+  tensor_type = ir.RankedTensorType.get(result_shp, f32)
+  attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+  matmul_result_buffer = arith.ConstantOp(tensor_type, attr).result
+  # Generate matmul operation.
+  matmul_op_result = linalg.matmul(mat1, mat2, outs=[matmul_result_buffer])
+
+  add_result_tensor_type = ir.RankedTensorType.get(result_shp, f32)
+  op = tosa.AddOp(add_result_tensor_type, input_, matmul_op_result)
+  return op
+
+
+operation_func = {"add.Tensor": AddOp, "addmm.default": AddMMOp}
