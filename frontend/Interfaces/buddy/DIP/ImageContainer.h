@@ -184,7 +184,7 @@ Img<T, N>::Img(const Img<T, N> &m)
     return;
   } else {
     this->_size = new size_t[m.dims];
-    for (int i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++) {
       this->_size[i] = m._size[i];
     }
   }
@@ -389,7 +389,7 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
 template <typename T, std::size_t N> int Img<T, N>::channels() const {
   return dims <= 2 ? 1 : 3;
 }
-template <typename T, size_t N> int Img<T, N>::depth() const {}
+//template <typename T, size_t N> int Img<T, N>::depth() const {}
 
 template <typename T, size_t N> int Img<T, N>::_rows() const {
   return this->rows;
