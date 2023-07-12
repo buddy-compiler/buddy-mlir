@@ -21,7 +21,7 @@
 #ifndef FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 #define FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 
-#include "buddy/Core/Container.h"
+#include "Container.h"
 #include <cassert>
 #include <opencv2/opencv.hpp>
 // Image container.
@@ -80,9 +80,9 @@ public:
     @cols:New number of columns.
     @type:New matrix type.
   */
-  
+
   Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
-  
+
   // Move constructor.
   Img(Img<T, N> &&m);
   // Move assignment operator.
@@ -132,7 +132,7 @@ public:
   int rows, cols;
   // store the size of each dimension.
   size_t *_size;
-  
+
   T *data;
 };
 
@@ -347,8 +347,8 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
       this->dims = N;
       this->_size = new size_t[N];
       for (int i = 0; i < N; i++) {
-      this->_size[i] = this->sizes[i];
-  }
+        this->_size[i] = this->sizes[i];
+      }
     }
     // For RGB images, use NHWC layout by default.
     else if (N == 4) {
@@ -380,15 +380,11 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
         k++;
       }
     }
+  } else {
+    std::cerr << "RGB images must be arranged in either NHWC or NCHW layout."
+              << std::endl;
   }
-    else {
-      std::cerr << "RGB images must be arranged in either NHWC or NCHW layout."
-                << std::endl;
-    }
-  
 }
-
-
 
 template <typename T, std::size_t N> int Img<T, N>::channels() const {
   return dims <= 2 ? 1 : 3;
