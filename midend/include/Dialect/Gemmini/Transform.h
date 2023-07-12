@@ -33,6 +33,7 @@
 #define DIM 16
 #define ADDR_LEN 32
 #define ACC_SCALE_IDENTITY 1.0
+#define MVIN_SCALE_IDENTITY 1.0
 #define BANK_NUM 4
 #define BANK_ROWS 4096
 #define ACC_ROWS 1024 

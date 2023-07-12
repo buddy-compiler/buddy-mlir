@@ -62,6 +62,38 @@ scale_t_bits scale_t_to_scale_t_bits(scale_t x) {
   un.f = x;
   return un.b;
 }
+
+template<typename IntrOp=Mvin_IntrOp>
+void gemminiMvinOffset(const Value &mem, const size_t offset, const uint32_t SpAddr,
+                       const size_t cols, const size_t rows,
+                       ConversionPatternRewriter &rewriter) {
+  Location loc = mem.getLoc();
+  Value offsetOp = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getI64IntegerAttr(offset));
+  IntegerType i64Type = rewriter.getI64Type();
+  Value configPtr = rewriter.create<arith::AddIOp>(loc, i64Type, mem, offsetOp);
+  uint64_t spadAddrInt = (uint64_t)rows << (ADDR_LEN + 16) |
+                         (uint64_t)cols << ADDR_LEN | (uint64_t) SpAddr;
+  Value spad = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getI64IntegerAttr(spadAddrInt));
+  rewriter.create<IntrOp>(loc, configPtr, spad);
+}
+
+void gemminiMvoutOffset(const Value &mem, const size_t offset, const uint32_t SpAddr,
+                        const size_t cols, const size_t rows,
+                        ConversionPatternRewriter &rewriter) {
+  Location loc = mem.getLoc();
+  Value offsetOp = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getI64IntegerAttr(offset));
+  IntegerType i64Type = rewriter.getI64Type();
+  Value configPtr = rewriter.create<arith::AddIOp>(loc, i64Type, mem, offsetOp);
+  uint64_t spadAddrInt = (uint64_t)rows << (ADDR_LEN + 16) |
+                         (uint64_t)cols << ADDR_LEN | (uint64_t) SpAddr;
+  Value spad = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getI64IntegerAttr(spadAddrInt));
+  rewriter.create<Mvout_IntrOp>(loc, configPtr, spad);
+}
+
 }; // namespace
 
 template <typename OpTy>
@@ -680,35 +712,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
     }
   }
 
-  void gemminiMvinOffset(const Value &mem, const size_t offset, const uint32_t SpAddr,
-           const size_t cols, const size_t rows,
-           ConversionPatternRewriter &rewriter) const{
-    Location loc = mem.getLoc();
-    Value offsetOp = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(offset));
-    IntegerType i64Type = rewriter.getI64Type();
-    Value configPtr = rewriter.create<arith::AddIOp>(loc, i64Type, mem, offsetOp);
-    uint64_t spadAddrInt = (uint64_t)rows << (ADDR_LEN + 16) |
-                           (uint64_t)cols << ADDR_LEN | (uint64_t) SpAddr;
-    Value spad = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(spadAddrInt));
-    rewriter.create<Mvin_IntrOp>(loc, configPtr, spad);
-  }
 
-  void gemminiMvoutOffset(const Value &mem, const size_t offset, const uint32_t SpAddr,
-                         const size_t cols, const size_t rows,
-                         ConversionPatternRewriter &rewriter) const{
-    Location loc = mem.getLoc();
-    Value offsetOp = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(offset));
-    IntegerType i64Type = rewriter.getI64Type();
-    Value configPtr = rewriter.create<arith::AddIOp>(loc, i64Type, mem, offsetOp);
-    uint64_t spadAddrInt = (uint64_t)rows << (ADDR_LEN + 16) |
-                           (uint64_t)cols << ADDR_LEN | (uint64_t) SpAddr;
-    Value spad = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(spadAddrInt));
-    rewriter.create<Mvout_IntrOp>(loc, configPtr, spad);
-  }
 
   void inner(Value &a, Value &b, Value &pre, Value &out, scale_t aScaleFactor, scale_t bScaleFactor, scale_acc_t dScaleFactor, size_t i, size_t j,
              size_t k, size_t padI, size_t padJ, size_t padK, size_t strideA,
@@ -1219,7 +1223,7 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
         loc, rewriter.getI64IntegerAttr(stDramStride));
     rewriter.create<ConfigStOp>(loc, strideValue, act, llvm::APFloat(scale));
     rewriter.create<ConfigExOp>(
-        loc, /*dataflow = */ 1, /*act = */ 0, /*shift = */ 0,
+        loc, /*dataflow = */ WEIGHT_STATIONARY, /*act = */ 0, /*shift = */ 0,
         /*scale = */ llvm::APFloat((float)0), /*cStride = */ inputDilation,
         /*aStride = */ stride >> downsample,
         /*aTranspose = */ transInput3120, /*bTranspose*/ transWeight0132,
