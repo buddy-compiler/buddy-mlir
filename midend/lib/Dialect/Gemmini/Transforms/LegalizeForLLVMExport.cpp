@@ -168,8 +168,10 @@ struct GemminiConfigLdLowering : public ConvertOpToLLVMPattern<ConfigLdOp> {
                   ConversionPatternRewriter &rewriter) const override {
     Value rs2Value = configLdOp.getStride();
     float scale = configLdOp.getScale().convertToFloat();
+    uint64_t blockMvinStride = configLdOp.getBlockMvinStride();
+    uint64_t pixelRepeats = configLdOp.getPixelRepeats();
     uint64_t rs1 = (uint64_t)scale_t_to_scale_t_bits(scale) << 32 |
-                   ((uint64_t)16 << 16) | (uint64_t)1 << 8 |
+                   (blockMvinStride << 16) | pixelRepeats << 8 |
                    configLdOp.getId() << 3 | configLdOp.getShrunk() << 2 |
                    CONFIG_LD;
     Location loc = configLdOp.getLoc();
