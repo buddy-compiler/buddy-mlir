@@ -19,6 +19,10 @@ func.func @main() {
     gpu.host_register %cast_a : memref<*xf32>
     gpu.host_register %cast_b : memref<*xf32>
     gpu.host_register %cast_c : memref<*xf32>
+    // Use affine.for to describe the process of vector-add
+    // During the lowering process, the affine-parallelize pass was used firstly to make the affine.for loop parallel.
+    // Then lower affine and use scf-parallel-loop-tiling="parallel-loop-tile-sizes=32" to set gpu blocksize 32.
+    // Finally use a lower pipeline to make affine loop lower to gpu dialect.
     affine.for %idx0 = 0 to 8192 {
         %1 = affine.load %a[%idx0] : memref<8192xf32>
         %2 = affine.load %b[%idx0] : memref<8192xf32>
