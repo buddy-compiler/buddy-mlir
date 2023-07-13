@@ -109,19 +109,32 @@ linalg-matmul-optimize-lower:
 
 linalg-matmul-optimize-translate:
 	@${BUDDY_OPT} linalg-matmul.mlir ${MLIR_OPT_OPTIONS} \
-		--matmul-optimize="vec-size=16 kernel-m=2 kernel-n=4" -convert-linalg-to-loops \
-		-lower-affine -convert-scf-to-cf -convert-vector-to-llvm \
-		-finalize-memref-to-llvm -convert-arith-to-llvm \
-		-convert-func-to-llvm -reconcile-unrealized-casts | \
+		--matmul-optimize="vec-size=16 kernel-m=2 kernel-n=4" \
+		-convert-linalg-to-loops \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 linalg-matmul-optimize-run:
 	@${BUDDY_OPT} linalg-matmul.mlir ${MLIR_OPT_OPTIONS} \
-		--matmul-optimize="vec-size=16 kernel-m=2 kernel-n=4" -convert-linalg-to-loops \
-		-lower-affine -convert-scf-to-cf -convert-vector-to-llvm \
-		-finalize-memref-to-llvm -convert-arith-to-llvm \
-		-convert-func-to-llvm -reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+		-matmul-optimize="vec-size=16 kernel-m=2 kernel-n=4" \
+		-convert-linalg-to-loops \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 linalg-conv2d_nchw_fchw-lower:
 	@${MLIR_OPT} ./linalg-conv2d_nchw_fchw.mlir \
