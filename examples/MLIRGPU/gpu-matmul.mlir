@@ -1,6 +1,8 @@
 module attributes {gpu.container_module} {
   gpu.module @kernels {
     gpu.func @mutmal(%matA: memref<1024x1024xf32>, %matB: memref<1024x1024xf32>, %matC: memref<1024x1024xf32>) workgroup(%sharedA : memref<32x32xf32, #gpu.address_space<workgroup>>, %sharedB : memref<32x32xf32, #gpu.address_space<workgroup>>) kernel {
+      // a matmul implementation using shared memory
+      // get necessary variables
       %block_idx = gpu.block_id  x
       %block_idy = gpu.block_id  y
       %block_dimx = gpu.block_dim  x
@@ -20,17 +22,20 @@ module attributes {gpu.container_module} {
       %step = arith.constant 32 : index
 
       %sum_0 = arith.constant 0.0 : f32
+      // use affine.yield to reduce sum A[i0][k] * B[k][j0]
       %sum_res = affine.for %tile_k_iter = 0 to %step 
        iter_args(%sum_iter = %sum_0) -> (f32) {
         %k_index_start = arith.muli %tile_k_iter, %tile_k : index
         %A_k_index = arith.addi %thread_idx, %k_index_start : index
         %B_k_index = arith.addi %thread_idy, %k_index_start : index
-
+        // load tileA(size = block_dimx * tileK) and tileB(size = tileK * block_dimy) to shared memory
+        // affine for 0 to K, step = tileK
         %2 = memref.load %matA[%global_idy, %A_k_index] : memref<1024x1024xf32>
         memref.store %2, %sharedA[%thread_idy, %thread_idx] : memref<32x32xf32, #gpu.address_space<workgroup>>
         %3 = memref.load %matB[%B_k_index, %global_idx] : memref<1024x1024xf32>
         memref.store %3, %sharedB[%thread_idy, %thread_idx] : memref<32x32xf32, #gpu.address_space<workgroup>>
         gpu.barrier
+        // do reduction of tileA and tileB
         %sum_res_inner = affine.for %k_iter = 0 to %tile_k
           iter_args(%sum_iter_inner = %sum_0) -> (f32) {
           %4 = memref.load %sharedA[%thread_idy, %k_iter] : memref<32x32xf32, #gpu.address_space<workgroup>>
