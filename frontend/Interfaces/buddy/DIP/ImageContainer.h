@@ -21,7 +21,7 @@
 #ifndef FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 #define FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 
-#include "Container.h"
+#include "buddy/Core/Container.h"
 #include <cassert>
 #include <opencv2/opencv.hpp>
 // Image container.
