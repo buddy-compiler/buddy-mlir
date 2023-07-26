@@ -26,6 +26,9 @@
 int main() {
 
   Img<uchar, 2> grayimage=imread<uchar,2>("../../../../tests/Interface/core/TestGrayImage_8.bmp", 1);
+  //===--------------------------------------------------------------------===//
+  // Test copy constructor.
+  //===--------------------------------------------------------------------===//
   
   Img<uchar, 2> testOpenCVConstructor(grayimage);
   // CHECK: 15
@@ -33,6 +36,43 @@ int main() {
   // CHECK: 4, 4
   fprintf(stderr, "%ld, %ld\n", testOpenCVConstructor._size[0],
           testOpenCVConstructor._size[1]);
-  
 
+  Img<uchar, 2> testCopyConstructor1(testOpenCVConstructor);
+  // CHECK: 15
+  fprintf(stderr, "%d\n", testCopyConstructor1[0]);
+  Img<uchar, 2> testCopyConstructor2 = testOpenCVConstructor;
+  // CHECK: 15
+  fprintf(stderr, "%d\n", testCopyConstructor2[0]);
+  Img<uchar, 2> testCopyConstructor3 = Img<uchar, 2>(testOpenCVConstructor);
+  // CHECK: 15
+  fprintf(stderr, "%d\n", testCopyConstructor3[0]);
+  Img<uchar, 2> *testCopyConstructor4 =
+      new Img<uchar, 2>(testOpenCVConstructor);
+  // CHECK: 15
+  fprintf(stderr, "%d\n", testCopyConstructor4->getData()[0]);
+  delete testCopyConstructor4;
+
+  //===--------------------------------------------------------------------===//
+  // Test move constructor.
+  //===--------------------------------------------------------------------===//
+  // TODO: Add copy assignment operator test.
+  Img<uchar, 2> testMoveConstructor1(std::move(testCopyConstructor1));
+  // CHECK: 15
+  fprintf(stderr, "%d\n", testMoveConstructor1[0]);
+  Img<uchar, 2> testMoveConstructor2 = std::move(testMoveConstructor1);
+  // CHECK: 15
+  fprintf(stderr, "%d\n", testMoveConstructor2[0]);
+
+  //===--------------------------------------------------------------------===//
+  // Test overloading bracket operator.
+  //===--------------------------------------------------------------------===//
+  Img<uchar, 2> testBracketOperator1(grayimage);
+  // CHECK: 240
+  fprintf(stderr, "%d\n", testBracketOperator1[15]);
+  testBracketOperator1[15] = 90;
+  // CHECK: 90
+  fprintf(stderr, "%d\n", testBracketOperator1[15]);
+  const Img<uchar, 2> testBracketOperator2(grayimage);
+  // CHECK: 240
+  fprintf(stderr, "%d\n", testBracketOperator2[15]);
 }
