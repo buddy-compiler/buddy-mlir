@@ -23,7 +23,6 @@
 
 #include "buddy/Core/Container.h"
 #include <cassert>
-#include <opencv2/opencv.hpp>
 // Image container.
 // - T represents the type of the elements.
 // - N represents the number of dimensions.
@@ -81,7 +80,7 @@ public:
     @type:New matrix type.
   */
 
-  Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
+  //Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
 
   // Move constructor.
   Img(Img<T, N> &&m);
@@ -322,7 +321,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &&m) {
     m.allocated = m.aligned = m.data = nullptr;
   }
 }
-
+/*
 // Image Constructor from OpenCV Mat.
 template <typename T, size_t N>
 Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
@@ -385,7 +384,7 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
               << std::endl;
   }
 }
-
+*/
 template <typename T, std::size_t N> int Img<T, N>::channels() const {
   return dims <= 2 ? 1 : 3;
 }
