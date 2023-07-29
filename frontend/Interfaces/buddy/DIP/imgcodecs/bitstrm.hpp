@@ -167,7 +167,7 @@ inline unsigned BSWAP(unsigned v) {
          ((unsigned)v >> 24);
 }
 
-// ����Ϊbitstrm������Ķ���
+// 以下为bitstrm各种类的定义
 
 const int BS_DEF_BLOCK_SIZE = 1 << 15;
 
@@ -208,7 +208,6 @@ template <typename T, size_t N> void RBaseStream<T, N>::readBlock() {
 
   if (m_file == 0) {
     if (m_block_pos == 0 && m_current < m_end)
-      printf("1111111\n");
     return;
     // throw RBS_THROW_EOS;
   }
@@ -240,7 +239,7 @@ bool RBaseStream<T, N>::open(const String &filename) {
 template <typename T, size_t N>
 bool RBaseStream<T, N>::open(const Img<T, N> &buf) {
   close();
-  // �ж�buf�Ƿ�Ϊ��
+  // 判断buf是否为空
   // if (buf.empty())
   //   return false;
 
@@ -248,7 +247,7 @@ bool RBaseStream<T, N>::open(const Img<T, N> &buf) {
   m_start = buf.data;
 
   // m_end = m_start + buf.cols * buf.rows * buf.elemSize();
-  m_end = m_start + buf.cols * buf.rows * 1;
+  m_end = m_start + buf.cols * buf.rows * buf.elemsize();
   m_allocated = false;
   m_is_opened = true;
   setPos(0);
@@ -318,7 +317,7 @@ template <typename T, size_t N> int RLByteStream<T, N>::getByte() {
     current = this->m_current;
   }
 
-   //assert(current < this->m_end);
+  //assert(current < this->m_end);
 
   val = *((uchar *)current);
   this->m_current = current + 1;
@@ -377,7 +376,7 @@ template <typename T, size_t N> int RLByteStream<T, N>::getDWord() {
           (current[3] << 24);
     this->m_current = current + 4;
   } else {
-    printf("11111111211\n");
+    
     val = getByte();
     val |= getByte() << 8;
     val |= getByte() << 16;
@@ -612,5 +611,4 @@ void WMByteStream::putDWord(int val) {
     putByte(val);
   }
 }
-
 #endif /*_BITSTRM_H_*/
