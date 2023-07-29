@@ -80,7 +80,7 @@ public:
     @type:New matrix type.
   */
 
-  //Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
+  // Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
 
   // Move constructor.
   Img(Img<T, N> &&m);
@@ -110,10 +110,11 @@ public:
   int channels() const;
   int _cols() const;
   int _rows() const;
-  int type() const;
   bool empty() const;
   size_t total();
   T *_getData();
+  int _type;
+  size_t elemsize() const;
   // The template methods return a reference to the specified array element.
   // param row Index along the dimension 0
   // param col Index along the dimension 1
@@ -206,14 +207,15 @@ Img<T, N>::Img(const Img<T, N> &m)
 */
 template <typename T, size_t N>
 void Img<T, N>::create(int rows, int cols, int type) {
-  // type &= TYPE_MASK;
+
   // if (dims <= 2 && rows == this->rows && cols == this->cols &&
   //    type() == this->type && this->data)
   //  return;
+  this->_type = type;
   this->cols = cols;
   this->rows = rows;
   int sz[] = {rows, cols};
-  create(2, sz, type);
+  create(2, sz, _type);
 }
 /*
   @mdims: ndims New array dimensionality.
@@ -221,7 +223,7 @@ void Img<T, N>::create(int rows, int cols, int type) {
   @type: type New matrix type.
 */
 template <typename T, size_t N>
-void Img<T, N>::create(int ndims, const int *sizes, int _type) {
+void Img<T, N>::create(int ndims, const int *sizes, int type) {
   int i;
   if ((ndims == dims || (ndims == 1 && ndims <= 2))) {
     if (dims == 1 && (ndims == 1 && sizes[0] == _size[0]))
@@ -234,6 +236,7 @@ void Img<T, N>::create(int ndims, const int *sizes, int _type) {
     if (i == ndims && (ndims > 1 || _size[1] == 1))
       return;
   }
+  this->_type = type;
   this->dims = ndims;
   this->_size = new size_t[ndims];
   this->size = total();
@@ -259,6 +262,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
     return *this;
   }
   this->flags = m.flags;
+  this->_type = m._type;
   if (this->dims <= 2 && m.dims <= 2) {
     this->dims = m.dims;
     this->rows = m.rows;
@@ -287,7 +291,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
 //   avoid the double free error.
 template <typename T, size_t N>
 Img<T, N>::Img(Img<T, N> &&m)
-    : flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols) {
+    : flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols), _type(m._type) {
   this->aligned = m.aligned;
   this->allocated = m.allocated;
   this->data = m.data;
@@ -312,6 +316,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &&m) {
     delete[] this->allocated;
     // Steal members of the original object.
     std::swap(this->_sizes, m._sizes);
+    std::swap(this->_type, m._type);
     std::swap(this->size, m.size);
     std::swap(this->allocated, m.allocated);
     std::swap(this->aligned, m.aligned);
@@ -321,74 +326,76 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &&m) {
     m.allocated = m.aligned = m.data = nullptr;
   }
 }
-/*
-// Image Constructor from OpenCV Mat.
-template <typename T, size_t N>
-Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
-  if (image.channels() == 1) {
-    assert((N == 2) && "For gray images, the number of dimensions must be 2.");
-  } else if (image.channels() == 3) {
-    assert((N == 4) && "For RGB images, the number of dimensions must be 4, "
-                       "either in NHWC or NCHW layout.");
-  } else {
-    std::cerr << "Only 2-channel gray images and 3-channel RGB images are "
-                 "supported, but got images' channel equal to "
-              << image.channels() << "." << std::endl;
-  }
-  // Use default layout setting.
-  if (sizes == nullptr) {
-    // The size of the gray image is represented by height and width by default.
-    if (N == 2) {
-      this->sizes[0] = image.rows;
-      this->sizes[1] = image.cols;
-      this->rows = image.rows;
-      this->cols = image.cols;
-      this->dims = N;
-      this->_size = new size_t[N];
-      for (int i = 0; i < N; i++) {
-        this->_size[i] = this->sizes[i];
-      }
-    }
-    // For RGB images, use NHWC layout by default.
-    else if (N == 4) {
-      this->sizes[0] = 1;
-      this->sizes[1] = image.rows;
-      this->sizes[2] = image.cols;
-      this->sizes[3] = 3;
-    }
-  } else {
-    // Use custom layout setting.
-    for (size_t i = 0; i < N; i++) {
-      this->sizes[i] = sizes[i];
-    }
-  }
-  this->size = this->product(this->sizes);
-  this->setStrides();
-  this->allocated = new T[this->size];
-  this->aligned = this->allocated;
 
-  if (N == 2) {
-    size_t k = 0;
-    for (int i = 0; i < this->sizes[0]; i++) {
-      for (int j = 0; j < this->sizes[1]; j++) {
-        if (norm) {
-          this->aligned[k] = (T)image.at<uchar>(i, j) / 255;
-        } else {
-          this->aligned[k] = (T)image.at<uchar>(i, j);
-        }
-        k++;
-      }
-    }
-  } else {
-    std::cerr << "RGB images must be arranged in either NHWC or NCHW layout."
-              << std::endl;
-  }
-}
-*/
+// Image Constructor from OpenCV Mat.
+// template <typename T, size_t N>
+// Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>()
+// {
+//  if (image.channels() == 1) {
+//    assert((N == 2) && "For gray images, the number of dimensions must
+//    be 2.");
+//  } else if (image.channels() == 3) {
+//    assert((N == 4) && "For RGB images, the number of dimensions must be 4, "
+//                       "either in NHWC or NCHW layout.");
+//  } else {
+//    std::cerr << "Only 2-channel gray images and 3-channel RGB images are "
+//                 "supported, but got images' channel equal to "
+//              << image.channels() << "." << std::endl;
+//  }
+//  // Use default layout setting.
+//  if (sizes == nullptr) {
+//    // The size of the gray image is represented by height and width by
+//    default. if (N == 2) {
+//      this->sizes[0] = image.rows;
+//      this->sizes[1] = image.cols;
+//      this->rows = image.rows;
+//      this->cols = image.cols;
+//      this->dims = N;
+//      this->_size = new size_t[N];
+//      for (int i = 0; i < N; i++) {
+//        this->_size[i] = this->sizes[i];
+//      }
+//    }
+//    // For RGB images, use NHWC layout by default.
+//    else if (N == 4) {
+//      this->sizes[0] = 1;
+//      this->sizes[1] = image.rows;
+//      this->sizes[2] = image.cols;
+//      this->sizes[3] = 3;
+//    }
+//  } else {
+//    // Use custom layout setting.
+//    for (size_t i = 0; i < N; i++) {
+//      this->sizes[i] = sizes[i];
+//    }
+//  }
+//  this->size = this->product(this->sizes);
+//  this->setStrides();
+//  this->allocated = new T[this->size];
+//  this->aligned = this->allocated;
+//
+//  if (N == 2) {
+//    size_t k = 0;
+//    for (int i = 0; i < this->sizes[0]; i++) {
+//      for (int j = 0; j < this->sizes[1]; j++) {
+//        if (norm) {
+//          this->aligned[k] = (T)image.at<uchar>(i, j) / 255;
+//        } else {
+//          this->aligned[k] = (T)image.at<uchar>(i, j);
+//        }
+//        k++;
+//      }
+//    }
+//  } else {
+//    std::cerr << "RGB images must be arranged in either NHWC or NCHW layout."
+//              << std::endl;
+//  }
+//}
+
 template <typename T, std::size_t N> int Img<T, N>::channels() const {
-  return dims <= 2 ? 1 : 3;
+  return CV_MAT_CN(_type);
 }
-//template <typename T, size_t N> int Img<T, N>::depth() const {}
+template <typename T, size_t N> int Img<T, N>::depth() const {}
 
 template <typename T, size_t N> int Img<T, N>::_rows() const {
   return this->rows;
@@ -397,14 +404,19 @@ template <typename T, size_t N> int Img<T, N>::_cols() const {
   return this->cols;
 }
 
+template <typename T, size_t N> size_t Img<T, N>::elemsize() const {
+  return CV_ELEM_SIZE(_type);
+}
+
 template <typename T, size_t N> size_t Img<T, N>::total() {
   if (dims <= 2) {
-    return (size_t)rows * cols;
+    return (size_t)rows * cols * elemsize();
   }
   size_t p = 1;
   for (int i = 0; i < dims; i++)
     p *= this->_size[i];
   return p;
 }
+
 
 #endif // FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
