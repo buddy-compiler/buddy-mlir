@@ -267,8 +267,8 @@ template <typename T, size_t N>
 bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
   uchar *data = img.data;
   // int step = validateToInt(img.step);
-  int step = 4;
-  bool color = false;
+  int step =  this->m_width * img.elemsize();
+  bool color = img.channels() > 1;
   uchar gray_palette[256] = {0};
   bool result = false;
   int src_pitch =
@@ -293,6 +293,7 @@ bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
   uchar *_src = new uchar[src_pitch + 32];
   uchar *_bgr = NULL;
 
+
   if (!color) {
     if (m_bpp <= 8) {
       CvtPaletteToGray(m_palette, gray_palette, 1 << m_bpp);
@@ -308,14 +309,16 @@ bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
     /************************* 24 BPP ************************/
   case 24:
     for (y = 0; y < this->m_height; y++, data += step) {
-
       m_strm.getBytes(src, src_pitch);
-
-      memcpy(data, src, this->m_width * 3);
+      if (!color) {
+        icvCvt_BGR2Gray_8u_C3C1R(src, 0, data, 0, _Size(this->m_width, 1));
+      }  
+      else {
+        memcpy(data, src, this->m_width * 3);
+      }    
     }
     result = true;
     break;
-
     /************************* 8 BPP ************************/
   case 8:
     if (m_rle_code == BMP_RGB) {
@@ -412,5 +415,4 @@ bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
 
   return result;
 }
-
 #endif /*_GRFMT_BMP_H_*/
