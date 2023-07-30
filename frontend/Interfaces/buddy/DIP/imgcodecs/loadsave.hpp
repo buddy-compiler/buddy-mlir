@@ -132,6 +132,43 @@ Img<T, N> imread(const String &filename, int flags) {
   }
 }
 
+template <typename T, size_t N>
+static bool imwrite_(const String &filename, const Img<T, N> &img_vec,
+                     bool flipv) {
+  // bool isMultiImg = img_vec.size() > 1; 存储多张图片
+  std::vector<Img<T, N>> write_vec;
+
+  // ImageEncoder encoder = findEncoder(filename);
+  BmpEncoder<uchar, 2> encoder;
+
+  // for (size_t page = 0; page < img_vec.size(); page++) {
+  //  Mat image = img_vec[page];
+  //  CV_Assert(!image.empty());
+
+  //  CV_Assert(image.channels() == 1 || image.channels() == 3 ||
+  //            image.channels() == 4);
+
+  //  Mat temp;
+  //  if (!encoder->isFormatSupported(image.depth())) {
+  //    CV_Assert(encoder->isFormatSupported(CV_8U));
+  //    image.convertTo(temp, CV_8U);
+  //    image = temp;
+  //  }
+
+  //  if (flipv) {
+  //    flip(image, temp, 0);
+  //    image = temp;
+  //  }
+
+  //  write_vec.push_back(image);
+  //}
+  std::vector<int> params;
+  encoder.setDestination(filename);
+  bool code = false;
+  code = encoder.write(img_vec, params);
+  return code;
+}
+
 
 #endif
 
