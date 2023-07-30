@@ -4,7 +4,6 @@
 #include"buddy/DIP/ImageContainer.h"
 #include"buddy/DIP/imgcodecs/Replenishment.hpp"
 #include"buddy/DIP/imgcodecs/grfmt_bmp.hpp"
-
 /**
  * @struct ImageCodecInitializer
  *
@@ -28,7 +27,7 @@ template <typename T, size_t N> struct ImageCodecInitializer {
 template <typename T, size_t N>
 static ImageCodecInitializer<T, N> &getCodecs() {
 #ifdef CV_CXX11
-  static ImageCodecInitializer<T,N> g_codecs;
+  static ImageCodecInitializer<T, N> g_codecs;
   return g_codecs;
 #else
   // C++98 doesn't guarantee correctness of multi-threaded initialization of
@@ -40,7 +39,6 @@ static ImageCodecInitializer<T, N> &getCodecs() {
 #endif
 }
 
-
 /**
  * Find the decoders
  *
@@ -49,12 +47,13 @@ static ImageCodecInitializer<T, N> &getCodecs() {
  * @return Image decoder to parse image file.
  */
 template <typename T, size_t N>
-static std::unique_ptr<BaseImageDecoder<T, N>> findDecoder(const String &filename) {
+static std::unique_ptr<BaseImageDecoder<T, N>>
+findDecoder(const String &filename) {
 
   size_t i, maxlen = 0;
 
   /// iterate through list of registered codecs
-  ImageCodecInitializer<T,N> &codecs = getCodecs<T,N>();
+  ImageCodecInitializer<T, N> &codecs = getCodecs<T, N>();
   for (i = 0; i < codecs.decoders.size(); i++) {
     size_t len = codecs.decoders[i]->signatureLength();
     maxlen = std::max(maxlen, len);
@@ -82,15 +81,16 @@ static std::unique_ptr<BaseImageDecoder<T, N>> findDecoder(const String &filenam
   return nullptr;
 }
 
-
 template <typename T, size_t N>
 Img<T, N> imread(const String &filename, int flags) {
 
-  std::unique_ptr<BaseImageDecoder<uchar, 2>> decoder = findDecoder<uchar, 2>("TestGrayImage_24.bmp");
+  std::unique_ptr<BaseImageDecoder<uchar, 2>> decoder =
+      findDecoder<uchar, 2>("TestGrayImage_24.bmp");
 
   if (decoder) {
     // 转换为 BmpDecoder<T, N> 的指针
-    BmpDecoder<uchar, 2> *bmpDecoderPtr = dynamic_cast<BmpDecoder<uchar, 2> *>(decoder.get());
+    BmpDecoder<uchar, 2> *bmpDecoderPtr =
+        dynamic_cast<BmpDecoder<uchar, 2> *>(decoder.get());
     if (bmpDecoderPtr) {
       // 创建 BmpDecoder<T, N> 实例后，进行相关操作
       // 例如：调用成员函数，解码图像等
