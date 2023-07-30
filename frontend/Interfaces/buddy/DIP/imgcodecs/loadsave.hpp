@@ -85,7 +85,7 @@ template <typename T, size_t N>
 Img<T, N> imread(const String &filename, int flags) {
 
   std::unique_ptr<BaseImageDecoder<uchar, 2>> decoder =
-      findDecoder<uchar, 2>("TestGrayImage_24.bmp");
+      findDecoder<uchar, 2>(filename);
 
   if (decoder) {
     // 转换为 BmpDecoder<T, N> 的指针
