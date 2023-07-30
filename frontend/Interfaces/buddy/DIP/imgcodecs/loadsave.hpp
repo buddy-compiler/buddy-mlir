@@ -138,6 +138,7 @@ static bool imwrite_(const String &filename, const Img<T, N> &img_vec,
   // bool isMultiImg = img_vec.size() > 1; 存储多张图片
   std::vector<Img<T, N>> write_vec;
 
+  //TODO findEncoder
   // ImageEncoder encoder = findEncoder(filename);
   BmpEncoder<uchar, 2> encoder;
 
