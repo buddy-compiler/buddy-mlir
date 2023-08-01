@@ -91,42 +91,39 @@ protected:
   // ExifReader m_exif;
 };
 
-template <typename T, size_t N> using ImageDecoder = BaseImageDecoder<T, N>;
 
-///////////////////////////// base class for encoders
-///////////////////////////////
-// template <typename T, size_t N> class BaseImageEncoder {
-// public:
-//   BaseImageEncoder();
-//   virtual ~BaseImageEncoder() {}
-//   virtual bool isFormatSupported(int depth) const;
-//
-//   virtual bool setDestination(const String &filename);
-//   virtual bool setDestination(std::vector<uchar> &buf);
-//   virtual bool write(const Img<T, N> &img, const std::vector<int> &params) =
-//   0; virtual bool writemulti(const std::vector<Img<T, N>> &img_vec,
-//                           const std::vector<int> &params);
-//
-//   virtual String getDescription() const;
-//   virtual BaseImageEncoder newEncoder() const;
-//
-//   virtual void throwOnEror() const;
-//
-// protected:
-//   String m_description;
-//
-//   String m_filename;
-//   std::vector<uchar> *m_buf;
-//   bool m_buf_supported;
-//
-//   String m_last_error;
-// };
-//
-//
-// template <typename T, size_t N>
-// using ImageEncoder = BaseImageEncoder<T, N>;
+/////////////////////////// base class for encoders
+/////////////////////////////
+template <typename T, size_t N> class BaseImageEncoder {
+public:
+  BaseImageEncoder();
+  virtual ~BaseImageEncoder() {}
+  virtual bool isFormatSupported(int depth) const;
 
-// ������base class for decoders�Ķ���
+  virtual bool setDestination(const String &filename);
+  virtual bool setDestination(std::vector<uchar> &buf);
+  virtual bool write(const Img<T,N>&img, const std::vector<int> &params) = 0;
+  virtual bool writemulti(const std::vector<Img<T,N>> &img_vec,
+                          const std::vector<int> &params);
+
+  virtual String getDescription() const;
+  virtual std::unique_ptr<BaseImageEncoder<T, N>> newEncoder() const = 0;
+
+ 
+
+protected:
+  String m_description;
+
+  String m_filename;
+  std::vector<uchar> *m_buf;
+  bool m_buf_supported;
+
+  String m_last_error;
+};
+
+
+
+// 下面是base class for decoders的定义
 
 template <typename T, size_t N> BaseImageDecoder<T, N>::BaseImageDecoder() {
   m_width = m_height = 0;
@@ -170,10 +167,43 @@ int BaseImageDecoder<T, N>::setScale(const int &scale_denom) {
   return temp;
 }
 
-// template <typename T, size_t N>
-// std::unique_ptr<BaseImageDecoder<T, N>> BaseImageDecoder<T, N>::newDecoder()
-// const {
-//   return std::make_unique<BaseImageDecoder<T, N>>();
-// }
+//下面是 base class for encoders的定义
+
+template <typename T, size_t N> BaseImageEncoder<T,N>::BaseImageEncoder() {
+  m_buf = 0;
+  m_buf_supported = false;
+}
+
+template <typename T, size_t N>
+bool BaseImageEncoder<T,N>::isFormatSupported(int depth) const {
+  return depth == CV_8U;
+}
+
+template <typename T, size_t N>
+String BaseImageEncoder<T,N>::getDescription() const { return m_description; }
+
+template <typename T, size_t N>
+bool BaseImageEncoder<T,N>::setDestination(const String &filename) {
+  m_filename = filename;
+  m_buf = 0;
+  return true;
+}
+
+template <typename T, size_t N>
+bool BaseImageEncoder<T,N>::setDestination(std::vector<uchar> &buf) {
+  if (!m_buf_supported)
+    return false;
+  m_buf = &buf;
+  m_buf->clear();
+  m_filename = String();
+  return true;
+}
+
+template <typename T, size_t N>
+bool BaseImageEncoder<T,N>::writemulti(const std::vector<Img<T,N>> &,
+                                  const std::vector<int> &) {
+  return false;
+}
+
 
 #endif /*_GRFMT_BASE_H_*/
