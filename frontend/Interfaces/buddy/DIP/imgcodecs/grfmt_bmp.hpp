@@ -87,16 +87,18 @@ protected:
   int m_rgba_bit_offset[4];
 };
 
-// ... writer
-// class BmpEncoder CV_FINAL : public BaseImageEncoder {
-// public:
-//  BmpEncoder();
-//  ~BmpEncoder() CV_OVERRIDE;
-//
-//  bool write(const Mat &img, const std::vector<int> &params) CV_OVERRIDE;
-//
-//  ImageEncoder newEncoder() const CV_OVERRIDE;
-//};
+ //... writer
+template <typename T, size_t N>
+ class BmpEncoder  : public BaseImageEncoder<T,N> {
+ public:
+  BmpEncoder();
+  ~BmpEncoder() ;
+
+  bool write(const Img<T,N> &img, const std::vector<int> &params) ;
+
+  std::unique_ptr<BaseImageEncoder<T, N>> newEncoder() const override;
+};
+
 
 static const char *fmtSignBmp = "BM";
 
@@ -157,7 +159,7 @@ template <typename T, size_t N> bool BmpDecoder<T, N>::readHeader() {
     m_strm.skip(10);
     m_offset = m_strm.getDWord();
     int size = m_strm.getDWord();
-    //assert(size > 0); // overflow, 2Gb limit
+    assert(size > 0); // overflow, 2Gb limit
     initMask();
     if (size >= 36) {
       this->m_width = m_strm.getDWord();
@@ -248,6 +250,10 @@ template <typename T, size_t N> bool BmpDecoder<T, N>::readHeader() {
   } catch (...) {
     throw;
   }
+  std::cout << this->m_filename << " m_bpp = " << m_bpp << std::endl;
+  std::cout << " m_height = " << this->m_height << std::endl;
+  std::cout << " m_width = " << this->m_width << std::endl;
+
   // in 32 bit case alpha channel is used - so require CV_8UC4 type
   this->m_type =
       iscolor ? ((m_bpp == 32 && m_rle_code != BMP_RGB) ? CV_8UC4 : CV_8UC3)
@@ -259,6 +265,7 @@ template <typename T, size_t N> bool BmpDecoder<T, N>::readHeader() {
     this->m_width = this->m_height = -1;
     m_strm.close();
   }
+
 
   return result;
 }
@@ -415,4 +422,83 @@ bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
 
   return result;
 }
+
+//////////////////////////////////////////////////////
+template <typename T, size_t N>
+std::unique_ptr<BaseImageEncoder<T, N>> BmpEncoder<T, N>::newEncoder() const {
+  return std::make_unique<BmpEncoder<T, N>>();
+}
+
+template <typename T, size_t N> BmpEncoder<T,N>::BmpEncoder() {
+  this->m_description = "Windows bitmap (*.bmp;*.dib)";
+  this->m_buf_supported = true;
+}
+
+template <typename T, size_t N> BmpEncoder<T,N>::~BmpEncoder() {}
+
+
+template <typename T, size_t N>
+bool BmpEncoder<T,N>::write(const Img<T,N> &img, const std::vector<int> &) {
+  int width = img.cols, height = img.rows, channels = img.channels();
+  int fileStep = (width * channels + 3) & -4;
+  uchar zeropad[] = "\0\0\0\0";
+  WLByteStream strm;
+
+  //if (this->m_buf) {
+  //  if (!strm.open(*this->m_buf))
+  //    return false;
+  //} else if (!strm.open(this->m_filename))
+  //  return false;
+  strm.open(this->m_filename);
+
+  int bitmapHeaderSize = 40;
+  int paletteSize = channels > 1 ? 0 : 1024;
+  int headerSize = 14 /* fileheader */ + bitmapHeaderSize + paletteSize;
+  size_t fileSize = (size_t)fileStep * height + headerSize;
+  PaletteEntry palette[256];
+
+  /*if (this->m_buf)
+    this->m_buf->reserve(alignSize(fileSize + 16, 256));*/
+
+  // write signature 'BM'
+  strm.putBytes(fmtSignBmp, (int)strlen(fmtSignBmp));
+
+  // write file header
+  strm.putDWord(validateToInt(fileSize)); // file size
+  strm.putDWord(0);
+  strm.putDWord(headerSize);
+
+  // write bitmap header
+  strm.putDWord(bitmapHeaderSize);
+  strm.putDWord(width);
+  strm.putDWord(height);
+  strm.putWord(1);
+  strm.putWord(channels << 3);
+  strm.putDWord(BMP_RGB);
+  strm.putDWord(0);
+  strm.putDWord(0);
+  strm.putDWord(0);
+  strm.putDWord(0);
+  strm.putDWord(0);
+
+  if (channels == 1) {
+    FillGrayPalette(palette, 8);
+    strm.putBytes(palette, sizeof(palette));
+  }
+
+  width *= channels;
+
+
+  for (int y = height - 1; y >= 0; y--) {
+    strm.putBytes(img.data + (y*width), width);
+
+    if (fileStep > width)
+      strm.putBytes(zeropad, fileStep - width);
+  }
+
+  strm.close();
+  return true;
+}
+
+
 #endif /*_GRFMT_BMP_H_*/
