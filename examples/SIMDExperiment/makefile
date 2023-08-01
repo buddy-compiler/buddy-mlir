@@ -19,7 +19,7 @@ MTRIPLE := x86_64-apple-darwin
 endif
 
 conv2d-nchw-fchw-scalar-run:
-	@${MLIR_OPT} conv2d-nchw-fchw-scalar.mlir ${MLIR_OPT_OPTIONS} \
+	@${MLIR_OPT} conv2d-nchw-fchw-scalar.mlir \
 		-convert-linalg-to-loops \
 		-expand-strided-metadata \
 		-lower-affine \
@@ -32,8 +32,69 @@ conv2d-nchw-fchw-scalar-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
+# TODO: Accelerate winagrad by optimizing linalg.matmul and linalg.generic
+# in matrix transformation.
+conv2d-nchw-fchw-winagrad-run:
+	@${MLIR_OPT} conv2d-nchw-fchw-winagrad.mlir \
+		-convert-linalg-to-loops \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-convert-index-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+conv2d-nchw-fchw-im2col-tiling-run:
+	@${MLIR_OPT} conv2d-nchw-fchw-im2col-tiling.mlir \
+		-lower-affine \
+		-convert-linalg-to-loops \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-linalg-to-llvm \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+conv2d-nchw-fchw-im2col-run:
+	@${MLIR_OPT} conv2d-nchw-fchw-im2col.mlir \
+		-lower-affine \
+		-convert-linalg-to-loops \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-linalg-to-llvm \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
 conv2d-nchw-fchw-broadcast-run:
-	@${BUDDY_OPT} conv2d-nchw-fchw-broadcast.mlir ${MLIR_OPT_OPTIONS} \
+	@${MLIR_OPT} conv2d-nchw-fchw-broadcast.mlir \
 		-lower-affine \
 		-convert-scf-to-cf \
 		-convert-vector-to-llvm \
@@ -45,7 +106,7 @@ conv2d-nchw-fchw-broadcast-run:
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 matmul-scalar-run:
-	@${BUDDY_OPT} matmul-scalar.mlir ${MLIR_OPT_OPTIONS} \
+	@${MLIR_OPT} matmul-scalar.mlir \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
@@ -58,13 +119,34 @@ matmul-scalar-run:
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 matmul-broadcast-run:
-	@${BUDDY_OPT} matmul-broadcast.mlir ${MLIR_OPT_OPTIONS} \
+	@${MLIR_OPT} matmul-broadcast.mlir \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+matmul-transform-run:
+	@${MLIR_OPT} matmul-transform.mlir \
+		-test-transform-dialect-interpreter \
+		-test-transform-dialect-erase-schedule \
+		-convert-linalg-to-loops \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-linalg-to-llvm \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-math-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
