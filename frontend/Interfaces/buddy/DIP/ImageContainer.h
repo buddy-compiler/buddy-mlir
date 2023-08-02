@@ -22,6 +22,7 @@
 #define FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 
 #include "buddy/Core/Container.h"
+#include "buddy/DIP/imgcodecs/Replenishment.hpp"
 #include <cassert>
 // Image container.
 // - T represents the type of the elements.
@@ -85,7 +86,7 @@ public:
   // Move constructor.
   Img(Img<T, N> &&m);
   // Move assignment operator.
-  Img &operator=(const Img<T, N> &&other);
+  Img &operator=( Img<T, N> &&other);
 
   void create(int rows, int cols, int type);
   /*
@@ -179,7 +180,7 @@ Img<T, N>::Img(int ndims, const int *sizes, int type)
 */
 template <typename T, size_t N>
 Img<T, N>::Img(const Img<T, N> &m)
-    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols) {
+    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols),_type(m._type) {
   if (m._size == nullptr) {
     return;
   } else {
@@ -310,7 +311,7 @@ Img<T, N>::Img(Img<T, N> &&m)
 // - Assign the NULL pointer to the original aligned and allocated members to
 //   avoid the double free error.
 template <typename T, size_t N>
-Img<T, N> &Img<T, N>::operator=(const Img<T, N> &&m) {
+Img<T, N> &Img<T, N>::operator=( Img<T, N> &&m) {
   if (this != &m) {
     // Free the original aligned and allocated space.
     delete[] this->allocated;
