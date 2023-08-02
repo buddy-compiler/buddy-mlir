@@ -250,9 +250,6 @@ template <typename T, size_t N> bool BmpDecoder<T, N>::readHeader() {
   } catch (...) {
     throw;
   }
-  std::cout << this->m_filename << " m_bpp = " << m_bpp << std::endl;
-  std::cout << " m_height = " << this->m_height << std::endl;
-  std::cout << " m_width = " << this->m_width << std::endl;
 
   // in 32 bit case alpha channel is used - so require CV_8UC4 type
   this->m_type =
