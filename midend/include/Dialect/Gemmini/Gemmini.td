@@ -138,7 +138,6 @@ def ConfigNormOp : Gemmini_Op<"config_norm"> {
                        DefaultValuedAttr<I64Attr, "0">:$igeluQb,
                        DefaultValuedAttr<I64Attr, "0">:$igeluQc);
   let assemblyFormat = "attr-dict";
-                       
 }
 
 def MvinOp : Gemmini_Op<"mvin"> {
