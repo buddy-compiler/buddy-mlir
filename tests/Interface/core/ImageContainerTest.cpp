@@ -25,7 +25,7 @@
 #include<buddy/DIP/imgcodecs/loadsave.hpp>
 int main() {
 
-  Img<uchar, 2> grayimage=imread<uchar,2>("../../../../tests/Interface/core/TestGrayImage_8.bmp", 1);
+  Img<uchar, 2> grayimage=imread<uchar,2>("../../../../tests/Interface/core/TestGrayImage_8.bmp", IMREAD_GRAYSCALE);
   //===--------------------------------------------------------------------===//
   // Test copy constructor.
   //===--------------------------------------------------------------------===//
