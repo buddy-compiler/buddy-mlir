@@ -119,17 +119,24 @@ def ConfigExOp : Gemmini_Op<"config_ex"> {
 }
 
 def ConfigNormOp : Gemmini_Op<"config_norm"> {
-  let summary = "ConfigNormOp configures TODO pipeline";
+  let summary = "ConfigNormOp configures normalize pipeline";
   let description = [{
-    ConfigNormOp configures TODO pipeline
+    ConfigNormOp configures normalize pipeline
+    -qConst:
+    -qConstType:
+    -setStatsIdOnly:
+    -actMsg:
+    -StatsId:
+    -igeluQb:
+    -igeluQc:
   }];
   let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$qConst,
                        DefaultValuedAttr<I64Attr, "0">:$qConstType,
                        DefaultValuedAttr<I64Attr, "0">:$setStatsIdOnly,
                        DefaultValuedAttr<I64Attr, "0">:$actMsb,
                        DefaultValuedAttr<I64Attr, "0">:$StatsId,
-                       DefaultValuedAttr<I64Attr, "0">:$iguluQb,
-                       DefaultValuedAttr<I64Attr, "0">:$iguluQc);
+                       DefaultValuedAttr<I64Attr, "0">:$igeluQb,
+                       DefaultValuedAttr<I64Attr, "0">:$igeluQc);
   let assemblyFormat = "attr-dict";
                        
 }

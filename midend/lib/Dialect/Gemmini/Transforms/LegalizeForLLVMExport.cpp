@@ -219,7 +219,7 @@ struct GemminiConfigNormLowering : public ConvertOpToLLVMPattern<ConfigNormOp> {
                    (configNormOp.getSetStatsIdOnly() & 1) << 17 |
                    (configNormOp.getActMsb() & 1) << 16 |
                    configNormOp.getStatsId() << 8 | CONFIG_BERT;
-    uint64_t rs2 = (((uint64_t) ((uint32_t)configNormOp.getIguluQc())) << 32) | ((uint64_t) ((uint32_t)configNormOp.getIguluQb()));
+    uint64_t rs2 = (((uint64_t) ((uint32_t)configNormOp.getIgeluQc())) << 32) | ((uint64_t) ((uint32_t)configNormOp.getIgeluQb()));
     Value rs1Value = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(rs1));
     Value rs2Value = rewriter.create<arith::ConstantOp>(
