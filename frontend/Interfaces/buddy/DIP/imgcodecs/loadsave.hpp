@@ -20,7 +20,7 @@ template <typename T, size_t N> struct ImageCodecInitializer {
     encoders.push_back(std::make_unique<BmpEncoder<T, N>>());
 
     ///JPEG Support
-    decoders.push_back(std::make_unique<JpegDecoder<T, N>>());
+    //decoders.push_back(std::make_unique<JpegDecoder<T, N>>());
     //encoders.push_back(std::make_unique<JpegEncoder<T, N>>());
   }
 
@@ -89,7 +89,7 @@ findDecoder(const String &filename) {
 template <typename T, size_t N>
 Img<T, N> imread(const String &filename, int flags) {
 
-    std::cout << "imread:" << filename << std::endl;
+  //std::cout << "imread:" << filename << std::endl;
   std::unique_ptr<BaseImageDecoder<uchar, 2>> decoder =
       findDecoder<uchar, 2>(filename);
 
@@ -131,41 +131,40 @@ Img<T, N> imread(const String &filename, int flags) {
     }
 
     // 转换为 JpegDecoder<T, N> 的指针
-    JpegDecoder<uchar, 2> *JpegDecoderPtr =
-        dynamic_cast<JpegDecoder<uchar, 2> *>(decoder.get());
+    //JpegDecoder<uchar, 2> *JpegDecoderPtr =
+    //    dynamic_cast<JpegDecoder<uchar, 2> *>(decoder.get());
 
-    if (JpegDecoderPtr) {
-      // 创建 JpegDecoder<T, N> 实例后，进行相关操作
-      // 例如：调用成员函数，解码图像等
-      //定义图像是否缩放
-      int scale_denom = 1;
-      JpegDecoderPtr->setScale(scale_denom);
-      //设置图像路径
-      JpegDecoderPtr->setSource(filename);
-      //读取图像头
-      JpegDecoderPtr->readHeader();
-      _Size size(JpegDecoderPtr->width(), JpegDecoderPtr->height());
-      // grab the decoded type
-      int type = JpegDecoderPtr->type();
-      if ((flags & IMREAD_ANYDEPTH) == 0) {
-        type = CV_MAKETYPE(CV_8U, CV_MAT_CN(type));
-      }
-      if ((flags & IMREAD_COLOR) != 0 ||
-          ((flags & IMREAD_ANYCOLOR) != 0 && CV_MAT_CN(type) > 1)) {
-        type = CV_MAKETYPE(CV_MAT_DEPTH(type), 3);
-      } else {
-        type = CV_MAKETYPE(CV_MAT_DEPTH(type), 1);
-      }
-      //创建一个Img类
-      Img<uchar, 2> Image;
-      Image.create(size.width, size.height, type);
-      //读取图像数据
-      JpegDecoderPtr->readData(Image);
-      return Image;
-    }
+    //if (JpegDecoderPtr) {
+    //  // 创建 JpegDecoder<T, N> 实例后，进行相关操作
+    //  // 例如：调用成员函数，解码图像等
+    //  //定义图像是否缩放
+    //  int scale_denom = 1;
+    //  JpegDecoderPtr->setScale(scale_denom);
+    //  //设置图像路径
+    //  JpegDecoderPtr->setSource(filename);
+    //  //读取图像头
+    //  JpegDecoderPtr->readHeader();
+    //  _Size size(JpegDecoderPtr->width(), JpegDecoderPtr->height());
+    //  // grab the decoded type
+    //  int type = JpegDecoderPtr->type();
+    //  if ((flags & IMREAD_ANYDEPTH) == 0) {
+    //    type = CV_MAKETYPE(CV_8U, CV_MAT_CN(type));
+    //  }
+    //  if ((flags & IMREAD_COLOR) != 0 ||
+    //      ((flags & IMREAD_ANYCOLOR) != 0 && CV_MAT_CN(type) > 1)) {
+    //    type = CV_MAKETYPE(CV_MAT_DEPTH(type), 3);
+    //  } else {
+    //    type = CV_MAKETYPE(CV_MAT_DEPTH(type), 1);
+    //  }
+    //  //创建一个Img类
+    //  Img<uchar, 2> Image;
+    //  Image.create(size.width, size.height, type);
+    //  //读取图像数据
+    //  JpegDecoderPtr->readData(Image);
+    //  return Image;
+    //}
 
   }
-
 
 }
 template <typename T, size_t N>
@@ -234,4 +233,3 @@ static bool imwrite_(const String &filename, const Img<T, N> &img_vec,
 }
 
 #endif
-
