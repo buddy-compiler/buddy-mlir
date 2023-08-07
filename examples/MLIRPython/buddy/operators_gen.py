@@ -10,7 +10,7 @@ from mlir.dialects import tosa, linalg, arith
 
 def _broadcast_shape(tensor_input1: ir.Value,
                      tensor_input2: ir.Value) -> List[int]:
-  """Calculate the broadcast shape of two tensors with broadcastable shapes 
+  """Calculate the broadcast shape of two tensors with broadcastable shapes
   according to PyTorch's broadcast semantics: https://pytorch.org/docs/stable/notes/broadcasting.html"""
   shp1 = ir.RankedTensorType(tensor_input1.type).shape
   shp2 = ir.RankedTensorType(tensor_input2.type).shape
@@ -40,9 +40,9 @@ def AddOp(node: torch.fx.Node,
   input2 = symbol_table.get((str(node.args[1]), 0))
   broadcasted_shp = _broadcast_shape(input1, input2)
   sizes = broadcasted_shp
-  f32 = ir.F32Type.get()
-  addResultTensorType = ir.RankedTensorType.get(sizes, f32)
-  op = tosa.AddOp(addResultTensorType, input1, input2)
+  result_element_type = ir.RankedTensorType(input1.type).element_type
+  add_result_tensor_type = ir.RankedTensorType.get(sizes, result_element_type)
+  op = tosa.AddOp(add_result_tensor_type, input1, input2)
   return op
 
 
