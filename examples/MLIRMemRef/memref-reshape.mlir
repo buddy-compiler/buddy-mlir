@@ -24,8 +24,7 @@ module {
     
     %shape = memref.get_global @shape_gv : memref<1xi32>
     func.call @printMemrefF32(%cast) : (memref<*xf32>) -> ()
-    %1 = memref.reshape %mem(%shape) 
-                                  : (memref<4x4xf32>, memref<1xi32>) -> memref<16xf32>
+    %1 = memref.reshape %mem(%shape : (memref<4x4xf32>, memref<1xi32>) -> memref<16xf32>
     %cast_1 = memref.cast %1 : memref<16xf32> to memref<*xf32>
     func.call @printMemrefF32(%cast_1) : (memref<*xf32>) -> ()
     func.return 
