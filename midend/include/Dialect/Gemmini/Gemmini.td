@@ -122,13 +122,13 @@ def ConfigNormOp : Gemmini_Op<"config_norm"> {
   let summary = "ConfigNormOp configures normalize pipeline";
   let description = [{
     ConfigNormOp configures normalize pipeline
-    -qConst:
-    -qConstType:
-    -setStatsIdOnly:
-    -actMsg:
-    -StatsId:
-    -igeluQb:
-    -igeluQc:
+    -qConst: A constant value used for quantization during normalization.
+    -qConstType: Defines the type or format of the qConst.
+    -setStatsIdOnly: A flag to indicate if only the StatsId should be set, without applying any other normalization parameters.
+    -actMsg: A message or alert related to the normalization activity.
+    -StatsId: An identifier associated with the statistics or metrics of the normalization process.
+    -igeluQb: A parameter related to the Inverse Gaussian Error Linear Unit (IGELU) function for quantization. Specifies the 'b' value.
+    -igeluQc: Another parameter related to the IGELU function for quantization. Specifies the 'c' value.
   }];
   let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$qConst,
                        DefaultValuedAttr<I64Attr, "0">:$qConstType,
