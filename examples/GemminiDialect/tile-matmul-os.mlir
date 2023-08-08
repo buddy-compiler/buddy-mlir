@@ -1,3 +1,7 @@
+// RUN: buddy-opt %s \
+// RUN:     --lower-gemmini | \
+// RUN: FileCheck %s
+
 func.func @main() -> i8 {
   %i0 = arith.constant 0 : i8
   %i1I8 = arith.constant 1 : i8
@@ -20,6 +24,12 @@ func.func @main() -> i8 {
   gemmini.print %aArray : memref<64x64xi8>
   gemmini.print %bArray : memref<64x64xi8>
   gemmini.print %dArray : memref<64x64xi32>
+  // CHECK: "gemmini.intr.config_ld"
+  // CHECK: "gemmini.intr.mvin"
+  // CHECK: "gemmini.intr.preload"
+  // CHECK: "gemmini.intr.compute_preloaded"
+  // CHECK: "gemmini.intr.compute_accumulated"
+  // CHECK: "gemmini.intr.mvout"
   gemmini.tile_matmul  %aArray %bArray %cArray %dArray {dataflow=0} : memref<64x64xi8> memref<64x64xi8> memref<64x64xi8> memref <64x64xi32>
   gemmini.print %cArray : memref<64x64xi8>
   return %i0 : i8
