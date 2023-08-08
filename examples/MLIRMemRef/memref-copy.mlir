@@ -21,6 +21,13 @@ module {
     %dst = memref.alloc() : memref<4x4xf32>
     memref.copy %src, %dst : memref<4x4xf32> to memref<4x4xf32>
     %cast = memref.cast %dst : memref<4x4xf32> to memref<*xf32>
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data =
+    // CHECK-NEXT: [
+    // CHECK-SAME: [0,   1,   2,   3],
+    // CHECK-NEXT: [4,   5,   6,   7],
+    // CHECK-NEXT: [8,   9,   10,   12],
+    // CHECK-NEXT: [13,   14,   15,   16]
+    // CHECK-SAME: ]
     func.call @printMemrefF32(%cast) : (memref<*xf32>) -> ()
     func.return 
   }
