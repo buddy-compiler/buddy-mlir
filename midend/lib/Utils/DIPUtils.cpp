@@ -536,6 +536,8 @@ void affineTransformController(OpBuilder &builder, Location loc,
   Value xMm3 =
       builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
 
+  // RSV_BITS = reserved bits, how many bits should be reserved for fraction part
+  // TODO: make reserved bits configurable
   const int RSV_BITS = 5;
   Value c_rsv = builder.create<arith::ConstantOp>(
       loc, builder.getF32FloatAttr((float)(1 << RSV_BITS)));

@@ -62,7 +62,8 @@ Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                     VectorType vecType);
 
 // print values(for debug use)
-void printValues(OpBuilder &builder, Location loc, std::initializer_list<Value> values);
+void printValues(OpBuilder &builder, Location loc,
+                 std::initializer_list<Value> values);
 
 // Function for calculating complex addition of 2 input 1D complex vectors.
 // Separate vectors for real and imaginary parts are expected.

@@ -210,7 +210,8 @@ public:
     Value centerXF32 = indexToF32(rewriter, loc, centerX);
     Value centerYF32 = indexToF32(rewriter, loc, centerY);
 
-    auto affineMatrix = dip::getRotationMatrix(rewriter, loc, centerXF32, centerYF32, angleVal, c1F32);
+    auto affineMatrix = dip::getRotationMatrix(rewriter, loc, centerXF32,
+                                               centerYF32, angleVal, c1F32);
 
     Value deltaXI = rewriter.create<arith::SubIOp>(loc, outputCol, inputCol);
     Value deltaYI = rewriter.create<arith::SubIOp>(loc, outputRow, inputRow);
@@ -219,8 +220,10 @@ public:
     Value deltaXFDiv2 = indexToF32(rewriter, loc, deltaXIDiv2);
     Value deltaYFDiv2 = indexToF32(rewriter, loc, deltaYIDiv2);
 
-    affineMatrix[2] = rewriter.create<arith::AddFOp>(loc, affineMatrix[2], deltaXFDiv2);
-    affineMatrix[5] = rewriter.create<arith::AddFOp>(loc, affineMatrix[5], deltaYFDiv2);
+    affineMatrix[2] =
+        rewriter.create<arith::AddFOp>(loc, affineMatrix[2], deltaXFDiv2);
+    affineMatrix[5] =
+        rewriter.create<arith::AddFOp>(loc, affineMatrix[5], deltaYFDiv2);
 
     dip::affineTransformController(rewriter, loc, ctx, input, output,
                                    affineMatrix, stride);

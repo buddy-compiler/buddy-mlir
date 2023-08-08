@@ -112,12 +112,15 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal);
 
 // Get affine matrix used in rotation.
-SmallVector<Value, 6> getRotationMatrix(OpBuilder& builder, Location loc, Value centerX, Value centerY, Value angle, Value scale);
+SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
+                                        Value centerX, Value centerY,
+                                        Value angle, Value scale);
 
 // Controls affine transform application.
 void affineTransformController(OpBuilder &builder, Location loc,
                                MLIRContext *ctx, Value input, Value output,
-                               SmallVector<Value, 6> affineMatrix, int64_t stride);
+                               SmallVector<Value, 6> affineMatrix,
+                               int64_t stride);
 
 // Controls shear transform application.
 void shearTransformController(
