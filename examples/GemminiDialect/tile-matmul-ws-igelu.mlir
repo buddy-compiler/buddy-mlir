@@ -1,3 +1,7 @@
+// RUN: buddy-opt %s \
+// RUN:     --lower-gemmini | \
+// RUN: FileCheck %s
+
 memref.global "private" @g1 : memref<3x3xi8> = dense<[[1, 0, 0], [1, -1, 1], [-1, 0, 1]]>
 memref.global "private" @g2 : memref<3x3xi8> = dense<[[1, -1, 0], [1, 0, -1], [-1, -1, 0]]>
 
@@ -25,7 +29,17 @@ func.func @main() -> i8 {
   }
   gemmini.print %aArray : memref<3x3xi8>
   gemmini.print %bArray : memref<3x3xi8>
-  // gemmini.print %dArray : memref<3x3xi32>
+  // CHECK: "gemmini.intr.config_ex"
+  // CHECK: "gemmini.intr.config_st"
+  // CHECK: "gemmini.intr.config_ld"
+  // CHECK: "gemmini.intr.config_norm"
+  // CHECK: "gemmini.intr.loop_ws_config_bounds"
+  // CHECK: "gemmini.intr.loop_ws_config_addrs_ab"
+  // CHECK: "gemmini.intr.loop_ws_config_addrs_dc"
+  // CHECK: "gemmini.intr.loop_ws_config_strides_ab"
+  // CHECK: "gemmini.intr.loop_ws_config_strides_dc"
+  // CHECK: "gemmini.intr.loop_ws"
+  // CHECk: "gemmini.intr.flush"
   gemmini.tile_matmul %aArray %bArray %cArray %dArray {dataflow=1, act=3, bertScale=0.8:f32}: memref<3x3xi8> memref<3x3xi8> memref<3x3xi8> memref<3x3xi32>
   gemmini.print %cArray : memref<3x3xi8>
   return %i0 : i8
