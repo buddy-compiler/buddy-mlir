@@ -19,7 +19,6 @@ module {
     %mem = memref.get_global @gv : memref<3x4xf32>
 
     %new = memref.transpose %mem (i, j) -> (j, i) : memref<3x4xf32> to memref<4x3xf32, strided<[1, 4]>>
-
     %cast_1 = memref.cast %new : memref<4x3xf32, strided<[1, 4]>> to memref<*xf32>
     func.call @printMemrefF32(%cast_1) : (memref<*xf32>) -> ()
     func.return 

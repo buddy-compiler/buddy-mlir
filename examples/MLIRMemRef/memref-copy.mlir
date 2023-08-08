@@ -7,7 +7,6 @@
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
-
 module {
   memref.global "private" @gv : memref<4x4xf32> = dense<[[0., 1., 2., 3.],
                                                           [4., 5., 6., 7.],
@@ -19,7 +18,6 @@ module {
     %c0 = arith.constant 0 : index
     %c16 = arith.constant 16 : index
     %src = memref.get_global @gv : memref<4x4xf32>
-    
     %dst = memref.alloc() : memref<4x4xf32>
     memref.copy %src, %dst : memref<4x4xf32> to memref<4x4xf32>
     %cast = memref.cast %dst : memref<4x4xf32> to memref<*xf32>

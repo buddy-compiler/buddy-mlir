@@ -7,7 +7,6 @@
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
-
 module {
   memref.global "private" @gv : memref<4x4xf32> = dense<[[0., 1., 2., 3.],
                                                           [4., 5., 6., 7.],
@@ -21,7 +20,6 @@ module {
     %c16 = arith.constant 16 : index
     %mem = memref.get_global @gv : memref<4x4xf32>
     %cast = memref.cast %mem : memref<4x4xf32> to memref<*xf32>
-    
     %shape = memref.get_global @shape_gv : memref<1xi32>
     func.call @printMemrefF32(%cast) : (memref<*xf32>) -> ()
     %1 = memref.reshape %mem(%shape : (memref<4x4xf32>, memref<1xi32>) -> memref<16xf32>
