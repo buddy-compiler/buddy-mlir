@@ -18,5 +18,3 @@ a_int32 = torch.randint(10, (3, 2)).to(torch.int32)
 b_int32 = torch.randint(10, (2, 3)).to(torch.int32)
 c_int32 = torch.randint(10, (3, 3)).to(torch.int32)
 foo_mlir(c_int32, a_int32, b_int32)
-
-
