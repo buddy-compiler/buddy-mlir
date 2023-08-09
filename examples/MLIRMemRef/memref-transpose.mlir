@@ -9,8 +9,8 @@
 
 module {
   memref.global "private" @gv : memref<3x4xf32> = dense<[[0., 1., 2., 3.],
-                                                          [4., 5., 6., 7.],
-                                                          [8., 9., 10., 12.]]>
+                                                         [4., 5., 6., 7.],
+                                                         [8., 9., 10., 12.]]>
   func.func private @printMemrefF32(memref<*xf32>)
   func.func @main() {
     %c0 = arith.constant 0 : index
