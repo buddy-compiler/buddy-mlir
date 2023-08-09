@@ -34,6 +34,7 @@ func.func @main() {
         scf.reduce.return %0 : f32
     }
   }
+  // CHECK: 136
   vector.print %res : f32
   return
 }
