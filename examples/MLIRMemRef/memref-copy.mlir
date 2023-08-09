@@ -9,9 +9,9 @@
 
 module {
   memref.global "private" @gv : memref<4x4xf32> = dense<[[0., 1., 2., 3.],
-                                                          [4., 5., 6., 7.],
-                                                          [8., 9., 10., 12.],
-                                                          [13., 14., 15., 16.]]>
+                                                         [4., 5., 6., 7.],
+                                                         [8., 9., 10., 12.],
+                                                         [13., 14., 15., 16.]]>
   func.func private @printMemrefF32(memref<*xf32>)
 
   func.func @main() {
