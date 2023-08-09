@@ -149,6 +149,7 @@ def Lowering(module: ir.Module):
   print("-------------------------------------------------------------------")
   print("Bufferizing the module ...")
   pm = PassManager("builtin.module")
+  pm.add("func.func(tosa-to-linalg-named)")
   pm.add("func.func(tosa-to-linalg)")
   pm.add("func.func(tosa-to-tensor)")
   pm.add("func.func(tosa-to-arith)")
