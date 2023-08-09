@@ -33,7 +33,6 @@
 #define DIM 16
 #define ADDR_LEN 32
 #define ACC_SCALE_IDENTITY 1.0
-#define MVIN_SCALE_IDENTITY 1.0
 #define BANK_NUM 4
 #define BANK_ROWS 4096
 #define ACC_ROWS 1024 
@@ -48,7 +47,6 @@ typedef uint32_t scale_t_bits;
 typedef float scale_t;
 typedef int32_t scale_acc_t;
 typedef int32_t acc_t;
-typedef int8_t elem_t;
 
 namespace mlir {
 

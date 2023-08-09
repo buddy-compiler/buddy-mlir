@@ -602,7 +602,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
       for (size_t i0 = 0; i0 < i; i0++) {
         for (size_t j0 = 0; j0 < j; j0 += dBlocks) {
           const size_t biasRow = repeatingBias ? 0 : i0;
-          const size_t offset = (biasRow * strideD + j0) * DIM * sizeof (acc_t);
+          const size_t offset = (biasRow * strideD + j0) * DIM * sizeOfAccT;
           const uint32_t dSpAddrAcc = dSpAddrStart + (i0 * j + j0) * DIM;
           const size_t blocks = j0 + dBlocks <= j ? dBlocks : j - j0;
           const size_t cols = blocks * DIM - (j0 + blocks >= j ? padJ : 0);
@@ -619,7 +619,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
                                 llvm::APFloat((float)bScaleFactor));
     for (size_t j0 = 0; j0 < j; j0 += bBlocks) {
       for (size_t k0 = 0; k0 < k; k0++) {
-        const size_t offset = (k0 * strideB + j0) * DIM * sizeof (elem_t);
+        const size_t offset = (k0 * strideB + j0) * DIM * sizeOfElemT;
         const uint32_t bSpAddr = bSpAddrStart + (k0 * j + j0) * DIM;
         const size_t blocks = j0 + bBlocks <= j ? bBlocks : j - j0;
         const size_t cols = blocks * DIM - (j0 + blocks >= j ? padJ : 0);
@@ -636,7 +636,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
 
     for (size_t i0 = 0; i0 < i; i0++) {
       for (size_t k0 = 0; k0 < k; k0 += aBlocks) {
-        const size_t offset = (i0 * strideA + k0) * DIM * sizeof (elem_t);
+        const size_t offset = (i0 * strideA + k0) * DIM * sizeOfElemT;
         const uint32_t aSpAddr = aSpAddrStart + (i0 * k + k0) * DIM;
         const size_t blocks = k0 + aBlocks <= k ? aBlocks : k - k0;
         const size_t cols = blocks * DIM - (k0 + blocks >= k ? padK : 0);
