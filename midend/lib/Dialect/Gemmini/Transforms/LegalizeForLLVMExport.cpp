@@ -784,24 +784,24 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
       Add config norm op
     */
     if (act == IGELU) {
-      const acc_scale_t sqrt_2 = 1.41421356237;
-      const acc_scale_t S = bertScale;
-      const acc_scale_t S_erf = (-0.2888 * ((S*S) / 2));
+      const float sqrt_2 = 1.41421356237;
+      const float S = bertScale;
+      const float S_erf = (-0.2888 * ((S*S) / 2));
 
-      const acc_t qb = -1.769 / (S / sqrt_2);
-      const acc_t qc = 1.0 / S_erf;
+      const uint32_t qb = -1.769 / (S / sqrt_2);
+      const uint32_t qc = 1.0 / S_erf;
       rewriter.create<ConfigNormOp>(loc, 0, 0, 0, 0,0, qb, qc);
     }
 
     if (act == SOFTMAX) {
-      const scale_t a = 0.3585;
-      const scale_t b = 1.353;
-      const scale_t c = 0.344;
+      const float a = 0.3585;
+      const float b = 1.353;
+      const float c = 0.344;
 
-      const acc_t qln2 = (int) (0.693147 / bertScale);
-      const acc_t qln2_inv = 65536 / qln2;
-      const acc_t qb = b / bertScale;
-      const acc_t qc = c / (a*bertScale*bertScale);
+      const uint32_t qln2 = (int) (0.693147 / bertScale);
+      const uint32_t qln2_inv = 65536 / qln2;
+      const uint32_t qb = b / bertScale;
+      const uint32_t qc = c / (a*bertScale*bertScale);
       rewriter.create<ConfigNormOp>(loc, qln2, 0, 0, 1, 0, qb, qc);
       rewriter.create<ConfigNormOp>(loc, qln2_inv, 1, 0, 1, 0, qb, qc);
     }
