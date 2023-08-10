@@ -713,21 +713,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
       }
     }
   }
-
-
-
-  void inner(Value &a, Value &b, Value &pre, Value &out, scale_t aScaleFactor, scale_t bScaleFactor, scale_acc_t dScaleFactor, size_t i, size_t j,
-             size_t k, size_t padI, size_t padJ, size_t padK, size_t strideA,
-             size_t strideB, size_t strideD, size_t strideC, bool aTranspose,
-             bool bTranspose, bool fullC, bool lowD, bool noBias,
-             bool repeatingBias, int act, TileMatMulOp &tileMatMulOp,
-             ConversionPatternRewriter &rewriter) const {
-
-    gemminiLoopWs(i, j, k, padI, padJ, padK, a, b, pre, out, strideA, strideB,
-                  repeatingBias ? 0 : strideD, strideC, aTranspose, bTranspose,
-                  fullC, lowD, !noBias, act, tileMatMulOp, rewriter);
-  }
-
+  
   void tiledMatmulOuter(size_t dimI, size_t dimJ, size_t dimK, Value &A,
                         Value &B, Value &D, Value &C, size_t strideA,
                         size_t strideB, size_t strideD, size_t strideC,
