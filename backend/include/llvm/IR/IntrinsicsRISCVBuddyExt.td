@@ -18,13 +18,13 @@
 //
 //===----------------------------------------------------------------------===//
 let TargetPrefix = "riscv" in
-def int_riscv_mvin : Intrinsic<[],[llvm_i64_ty, llvm_i64_ty],[]>;
+def int_riscv_mvin : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty],[]>;
 
 let TargetPrefix = "riscv" in
-def int_riscv_mvin2 : Intrinsic<[],[llvm_i64_ty, llvm_i64_ty],[]>;
+def int_riscv_mvin2 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty],[]>;
 
 let TargetPrefix = "riscv" in
-def int_riscv_mvin3 : Intrinsic<[],[llvm_i64_ty, llvm_i64_ty],[]>;
+def int_riscv_mvin3 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty],[]>;
 
 let TargetPrefix = "riscv" in
 def int_riscv_mvout : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
