@@ -1,9 +1,12 @@
+
 #ifndef REPLEISHMENT
 #define REPLEISHMENT
+
 #include <cassert>
 #include <memory> // std::shared_ptr
 #include <string>
 #include <type_traits> // std::enable_if
+
 using namespace std;
 typedef unsigned long ulong;
 typedef unsigned char uchar;
