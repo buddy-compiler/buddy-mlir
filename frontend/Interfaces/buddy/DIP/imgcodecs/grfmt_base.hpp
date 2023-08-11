@@ -51,9 +51,7 @@ direct,
 #define _GRFMT_BASE_H_
 
 #include "buddy/DIP/imgcodecs/bitstrm.hpp"
-// #include "exif.hpp"
 #include "buddy/DIP/imgcodecs/utils.hpp"
-
 ///////////////////////////////// base class for decoders
 ///////////////////////////
 template <typename T, size_t N> class BaseImageDecoder {
@@ -63,7 +61,7 @@ public:
 
   int width() const { return m_width; }
   int height() const { return m_height; }
-  virtual int type() const { return m_type; }
+  virtual int type() { return m_type; }
 
   // ExifEntry_t getExifTag(const ExifTagName tag) const;
   virtual bool setSource(const String &filename);
@@ -91,7 +89,6 @@ protected:
   // ExifReader m_exif;
 };
 
-
 /////////////////////////// base class for encoders
 /////////////////////////////
 template <typename T, size_t N> class BaseImageEncoder {
@@ -102,14 +99,12 @@ public:
 
   virtual bool setDestination(const String &filename);
   virtual bool setDestination(std::vector<uchar> &buf);
-  virtual bool write(const Img<T,N>&img, const std::vector<int> &params) = 0;
-  virtual bool writemulti(const std::vector<Img<T,N>> &img_vec,
+  virtual bool write(const Img<T, N> &img, const std::vector<int> &params) = 0;
+  virtual bool writemulti(const std::vector<Img<T, N>> &img_vec,
                           const std::vector<int> &params);
 
   virtual String getDescription() const;
   virtual std::unique_ptr<BaseImageEncoder<T, N>> newEncoder() const = 0;
-
- 
 
 protected:
   String m_description;
@@ -120,10 +115,6 @@ protected:
 
   String m_last_error;
 };
-
-
-
-// 下面是base class for decoders的定义
 
 template <typename T, size_t N> BaseImageDecoder<T, N>::BaseImageDecoder() {
   m_width = m_height = 0;
@@ -167,30 +158,30 @@ int BaseImageDecoder<T, N>::setScale(const int &scale_denom) {
   return temp;
 }
 
-//下面是 base class for encoders的定义
-
-template <typename T, size_t N> BaseImageEncoder<T,N>::BaseImageEncoder() {
+template <typename T, size_t N> BaseImageEncoder<T, N>::BaseImageEncoder() {
   m_buf = 0;
   m_buf_supported = false;
 }
 
 template <typename T, size_t N>
-bool BaseImageEncoder<T,N>::isFormatSupported(int depth) const {
+bool BaseImageEncoder<T, N>::isFormatSupported(int depth) const {
   return depth == CV_8U;
 }
 
 template <typename T, size_t N>
-String BaseImageEncoder<T,N>::getDescription() const { return m_description; }
+String BaseImageEncoder<T, N>::getDescription() const {
+  return m_description;
+}
 
 template <typename T, size_t N>
-bool BaseImageEncoder<T,N>::setDestination(const String &filename) {
+bool BaseImageEncoder<T, N>::setDestination(const String &filename) {
   m_filename = filename;
   m_buf = 0;
   return true;
 }
 
 template <typename T, size_t N>
-bool BaseImageEncoder<T,N>::setDestination(std::vector<uchar> &buf) {
+bool BaseImageEncoder<T, N>::setDestination(std::vector<uchar> &buf) {
   if (!m_buf_supported)
     return false;
   m_buf = &buf;
@@ -200,10 +191,9 @@ bool BaseImageEncoder<T,N>::setDestination(std::vector<uchar> &buf) {
 }
 
 template <typename T, size_t N>
-bool BaseImageEncoder<T,N>::writemulti(const std::vector<Img<T,N>> &,
-                                  const std::vector<int> &) {
+bool BaseImageEncoder<T, N>::writemulti(const std::vector<Img<T, N>> &,
+                                        const std::vector<int> &) {
   return false;
 }
-
 
 #endif /*_GRFMT_BASE_H_*/
