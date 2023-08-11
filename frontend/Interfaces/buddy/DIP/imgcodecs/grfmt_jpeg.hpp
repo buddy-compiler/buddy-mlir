@@ -102,6 +102,13 @@ extern "C" {
 #include "buddy/DIP/imgcodecs/bitstrm.hpp"
 #include "buddy/DIP/imgcodecs/grfmt_base.hpp"
 
+/* Miscellaneous useful macros */
+
+#undef MAX
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#undef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 // IJG-based Jpeg codec
 
 /**
@@ -146,13 +153,14 @@ enum AppMarkerTypes {
   EOI = 0xD9
 };
 
-template <typename T, size_t N> class JpegDecoder  : public BaseImageDecoder<T,N> {
+template <typename T, size_t N>
+class JpegDecoder : public BaseImageDecoder<T, N> {
 public:
   JpegDecoder();
   virtual ~JpegDecoder();
 
-  bool readData(Img<T,N> &img) ;
-  bool readHeader() ;
+  bool readData(Img<T, N> &img);
+  bool readHeader();
   void close();
 
   std::unique_ptr<BaseImageDecoder<T, N>> newDecoder() const;
@@ -166,15 +174,15 @@ private:
   JpegDecoder &operator=(const JpegDecoder &); // assign disabled
 };
 
-//class JpegEncoder  : public BaseImageEncoder {
-//public:
-//  JpegEncoder();
-//  virtual ~JpegEncoder();
-//
-//  bool write(const Mat &img, const std::vector<int> &params) ;
-//  ImageEncoder newEncoder() const ;
-//};
+template <typename T, size_t N>
+class JpegEncoder : public BaseImageEncoder<T, N> {
+public:
+  JpegEncoder();
+  virtual ~JpegEncoder();
 
+  bool write(const Img<T, N> &img, const std::vector<int> &params);
+  std::unique_ptr<BaseImageEncoder<T, N>> newEncoder() const;
+};
 
 struct JpegErrorMgr {
   struct jpeg_error_mgr pub;
@@ -242,19 +250,17 @@ error_exit(j_common_ptr cinfo) {
   longjmp(err_mgr->setjmp_buffer, 1);
 }
 
-
 /************************ JPEG decoder *****************************/
-template <typename T, size_t N> JpegDecoder<T,N>::JpegDecoder() {
+template <typename T, size_t N> JpegDecoder<T, N>::JpegDecoder() {
   this->m_signature = "\xFF\xD8\xFF";
   m_state = 0;
   m_f = 0;
   this->m_buf_supported = true;
 }
 
+template <typename T, size_t N> JpegDecoder<T, N>::~JpegDecoder() { close(); }
 
-template <typename T, size_t N> JpegDecoder<T,N>::~JpegDecoder() { close(); }
-
-template <typename T, size_t N> void JpegDecoder<T,N>::close() {
+template <typename T, size_t N> void JpegDecoder<T, N>::close() {
   if (m_state) {
     JpegState *state = (JpegState *)m_state;
     jpeg_destroy_decompress(&state->cinfo);
@@ -276,9 +282,7 @@ std::unique_ptr<BaseImageDecoder<T, N>> JpegDecoder<T, N>::newDecoder() const {
   return std::make_unique<JpegDecoder<T, N>>();
 }
 
-
-
-template <typename T, size_t N> bool JpegDecoder<T,N>::readHeader() {
+template <typename T, size_t N> bool JpegDecoder<T, N>::readHeader() {
   volatile bool result = false;
   close();
 
@@ -290,11 +294,9 @@ template <typename T, size_t N> bool JpegDecoder<T,N>::readHeader() {
   if (setjmp(state->jerr.setjmp_buffer) == 0) {
     jpeg_create_decompress(&state->cinfo);
 
-    
-      m_f = fopen(this->m_filename.c_str(), "rb");
-      if (m_f)
-        jpeg_stdio_src(&state->cinfo, m_f);
-    
+    m_f = fopen(this->m_filename.c_str(), "rb");
+    if (m_f)
+      jpeg_stdio_src(&state->cinfo, m_f);
 
     if (state->cinfo.src != 0) {
       jpeg_save_markers(&state->cinfo, APP1, 0xffff);
@@ -302,7 +304,8 @@ template <typename T, size_t N> bool JpegDecoder<T,N>::readHeader() {
 
       state->cinfo.scale_num = 1;
       state->cinfo.scale_denom = this->m_scale_denom;
-      this->m_scale_denom = 1; // trick! to know which decoder used scale_denom see imread_
+      this->m_scale_denom =
+          1; // trick! to know which decoder used scale_denom see imread_
       jpeg_calc_output_dimensions(&state->cinfo);
       this->m_width = state->cinfo.output_width;
       this->m_height = state->cinfo.output_height;
@@ -316,7 +319,6 @@ template <typename T, size_t N> bool JpegDecoder<T,N>::readHeader() {
 
   return result;
 }
-
 
 #ifdef CV_MANUAL_JPEG_STD_HUFF_TABLES
 /***************************************************************************
@@ -431,7 +433,8 @@ static int my_jpeg_load_dht(struct jpeg_decompress_struct *info,
  ***************************************************************************/
 #endif // CV_MANUAL_JPEG_STD_HUFF_TABLES
 
-template <typename T, size_t N> bool JpegDecoder<T,N>::readData(Img<T,N> &img) {
+template <typename T, size_t N>
+bool JpegDecoder<T, N>::readData(Img<T, N> &img) {
   volatile bool result = false;
   size_t step = this->m_width * img.elemsize();
   bool color = img.channels() > 1;
@@ -472,7 +475,6 @@ template <typename T, size_t N> bool JpegDecoder<T,N>::readData(Img<T,N> &img) {
           cinfo->out_color_components = 4;
         }
       }
-
       // Check for Exif marker APP1
       jpeg_saved_marker_ptr exif_marker = NULL;
       jpeg_saved_marker_ptr cmarker = cinfo->marker_list;
@@ -482,45 +484,327 @@ template <typename T, size_t N> bool JpegDecoder<T,N>::readData(Img<T,N> &img) {
 
         cmarker = cmarker->next;
       }
-
-      //// Parse Exif data
-      //if (exif_marker) {
-      //  const std::streamsize offsetToTiffHeader =
-      //      6; // bytes from Exif size field to the first TIFF header
-
-      //  if (exif_marker->data_length > offsetToTiffHeader) {
-      //    m_exif.parseExif(exif_marker->data + offsetToTiffHeader,
-      //                     exif_marker->data_length - offsetToTiffHeader);
-      //  }
-      //}
-
       jpeg_start_decompress(cinfo);
-
       buffer = (*cinfo->mem->alloc_sarray)((j_common_ptr)cinfo, JPOOL_IMAGE,
                                            this->m_width * 4, 1);
-
-      uchar *data = img.data;
+      T *data = img.data;
       for (; this->m_height--; data += step) {
         jpeg_read_scanlines(cinfo, buffer, 1);
         if (color) {
-          if (cinfo->out_color_components == 3)
-            icvCvt_RGB2BGR_8u_C3R(buffer[0], 0, data, 0, _Size(this->m_width, 1));
-          else
-            icvCvt_CMYK2BGR_8u_C4C3R(buffer[0], 0, data, 0, _Size(this->m_width, 1));
+          if (cinfo->out_color_components == 3) {
+            int bgr_step = 0;
+            int rgb_step = 0;
+            _Size size(this->m_width, 1);
+            for (; size.height--;) {
+              for (int i = 0; i < size.width; i++, buffer[0] += 3, data += 3) {
+                uchar t0 = buffer[0][0], t1 = buffer[0][1], t2 = buffer[0][2];
+                data[2] = (T)t0;
+                data[1] = (T)t1;
+                data[0] = (T)t2;
+              }
+              buffer[0] += bgr_step - size.width * 3;
+              data += rgb_step - size.width * 3;
+            }
+          } else {
+            int cmyk_step = 0;
+            int bgr_step = 0;
+            _Size size(this->m_width, 1);
+            for (; size.height--;) {
+              for (int i = 0; i < size.width; i++, data += 3, buffer[0] += 4) {
+                int c = buffer[0][0], m = buffer[0][1], y = buffer[0][2],
+                    k = buffer[0][3];
+                c = k - ((255 - c) * k >> 8);
+                m = k - ((255 - m) * k >> 8);
+                y = k - ((255 - y) * k >> 8);
+                data[2] = (T)c;
+                data[1] = (T)m;
+                data[0] = (T)y;
+              }
+              data += bgr_step - size.width * 3;
+              buffer[0] += cmyk_step - size.width * 4;
+            }
+          }
         } else {
-          if (cinfo->out_color_components == 1)
-            memcpy(data, buffer[0], this->m_width);
-          else
-            icvCvt_CMYK2Gray_8u_C4C1R(buffer[0], 0, data, 0, _Size(this->m_width, 1));
+          if (cinfo->out_color_components == 1) {
+            for (int i = 0; i < this->m_width; i++) {
+              data[i] = (T)buffer[0][i];
+            }
+          } else {
+            int cmyk_step = 0;
+            int gray_step = 0;
+            _Size size(this->m_width, 1);
+            for (; size.height--;) {
+              for (int i = 0; i < size.width; i++, buffer[0] += 4) {
+                int c = buffer[0][0], m = buffer[0][1], y = buffer[0][2],
+                    k = buffer[0][3];
+                c = k - ((255 - c) * k >> 8);
+                m = k - ((255 - m) * k >> 8);
+                y = k - ((255 - y) * k >> 8);
+                int t = descale(y * cB + m * cG + c * cR, SCALE);
+                data[i] = (T)t;
+              }
+              data += gray_step;
+              buffer[0] += cmyk_step - size.width * 4;
+            }
+          }
         }
       }
-
       result = true;
       jpeg_finish_decompress(cinfo);
     }
   }
-
   close();
+  return result;
+}
+
+/////////////////////// JpegEncoder ///////////////////
+
+struct JpegDestination {
+  struct jpeg_destination_mgr pub;
+  std::vector<uchar> *buf, *dst;
+};
+
+METHODDEF(void)
+stub(j_compress_ptr) {}
+
+METHODDEF(void)
+term_destination(j_compress_ptr cinfo) {
+  JpegDestination *dest = (JpegDestination *)cinfo->dest;
+  size_t sz = dest->dst->size(),
+         bufsz = dest->buf->size() - dest->pub.free_in_buffer;
+  if (bufsz > 0) {
+    dest->dst->resize(sz + bufsz);
+    memcpy(&(*dest->dst)[0] + sz, &(*dest->buf)[0], bufsz);
+  }
+}
+
+METHODDEF(boolean)
+empty_output_buffer(j_compress_ptr cinfo) {
+  JpegDestination *dest = (JpegDestination *)cinfo->dest;
+  size_t sz = dest->dst->size(), bufsz = dest->buf->size();
+  dest->dst->resize(sz + bufsz);
+  memcpy(&(*dest->dst)[0] + sz, &(*dest->buf)[0], bufsz);
+
+  dest->pub.next_output_byte = &(*dest->buf)[0];
+  dest->pub.free_in_buffer = bufsz;
+  return TRUE;
+}
+
+static void jpeg_buffer_dest(j_compress_ptr cinfo,
+                             JpegDestination *destination) {
+  cinfo->dest = &destination->pub;
+
+  destination->pub.init_destination = stub;
+  destination->pub.empty_output_buffer = empty_output_buffer;
+  destination->pub.term_destination = term_destination;
+}
+
+template <typename T, size_t N> JpegEncoder<T, N>::JpegEncoder() {
+  this->m_description = "JPEG files (*.jpeg;*.jpg;*.jpe)";
+  this->m_buf_supported = true;
+}
+
+template <typename T, size_t N> JpegEncoder<T, N>::~JpegEncoder() {}
+
+template <typename T, size_t N>
+std::unique_ptr<BaseImageEncoder<T, N>> JpegEncoder<T, N>::newEncoder() const {
+  return std::make_unique<JpegEncoder<T, N>>();
+}
+
+template <typename T, size_t N>
+bool JpegEncoder<T, N>::write(const Img<T, N> &img,
+                              const std::vector<int> &params) {
+
+  this->m_last_error.clear();
+
+  struct fileWrapper {
+    FILE *f;
+
+    fileWrapper() : f(0) {}
+    ~fileWrapper() {
+      if (f)
+        fclose(f);
+    }
+  };
+  volatile bool result = false;
+  fileWrapper fw;
+  int width = img.cols, height = img.rows;
+  std::vector<uchar> out_buf(1 << 12);
+
+  // AutoBuffer<uchar> _buffer;
+  // uchar *buffer;
+  uchar *_buffer = nullptr;
+  uchar *buffer = nullptr;
+
+  struct jpeg_compress_struct cinfo;
+  JpegErrorMgr jerr;
+  JpegDestination dest;
+
+  cinfo.err = jpeg_std_error(&jerr.pub);
+  jerr.pub.error_exit = error_exit;
+  jpeg_create_compress(&cinfo);
+
+  if (!this->m_buf) {
+    fw.f = fopen(this->m_filename.c_str(), "wb");
+    if (!fw.f)
+      goto _exit_;
+    jpeg_stdio_dest(&cinfo, fw.f);
+  } else {
+    dest.dst = this->m_buf;
+    dest.buf = &out_buf;
+
+    jpeg_buffer_dest(&cinfo, &dest);
+
+    dest.pub.next_output_byte = &out_buf[0];
+    dest.pub.free_in_buffer = out_buf.size();
+  }
+
+  if (setjmp(jerr.setjmp_buffer) == 0) {
+    cinfo.image_width = width;
+    cinfo.image_height = height;
+
+    int _channels = img.channels();
+    int channels = _channels > 1 ? 3 : 1;
+    cinfo.input_components = channels;
+    cinfo.in_color_space = channels > 1 ? JCS_RGB : JCS_GRAYSCALE;
+
+    int quality = 95;
+    int progressive = 0;
+    int optimize = 0;
+    int rst_interval = 0;
+    int luma_quality = -1;
+    int chroma_quality = -1;
+
+    for (size_t i = 0; i < params.size(); i += 2) {
+      if (params[i] == IMWRITE_JPEG_QUALITY) {
+        quality = params[i + 1];
+        quality = MIN(MAX(quality, 0), 100);
+      }
+
+      if (params[i] == IMWRITE_JPEG_PROGRESSIVE) {
+        progressive = params[i + 1];
+      }
+
+      if (params[i] == IMWRITE_JPEG_OPTIMIZE) {
+        optimize = params[i + 1];
+      }
+
+      if (params[i] == IMWRITE_JPEG_LUMA_QUALITY) {
+        if (params[i + 1] >= 0) {
+          luma_quality = MIN(MAX(params[i + 1], 0), 100);
+
+          quality = luma_quality;
+
+          if (chroma_quality < 0) {
+            chroma_quality = luma_quality;
+          }
+        }
+      }
+
+      if (params[i] == IMWRITE_JPEG_CHROMA_QUALITY) {
+        if (params[i + 1] >= 0) {
+          chroma_quality = MIN(MAX(params[i + 1], 0), 100);
+        }
+      }
+
+      if (params[i] == IMWRITE_JPEG_RST_INTERVAL) {
+        rst_interval = params[i + 1];
+        rst_interval = MIN(MAX(rst_interval, 0), 65535L);
+      }
+    }
+
+    jpeg_set_defaults(&cinfo);
+    cinfo.restart_interval = rst_interval;
+
+    jpeg_set_quality(&cinfo, quality, TRUE /* limit to baseline-JPEG values */);
+    if (progressive)
+      jpeg_simple_progression(&cinfo);
+    if (optimize)
+      cinfo.optimize_coding = TRUE;
+
+#if JPEG_LIB_VERSION >= 70
+    if (luma_quality >= 0 && chroma_quality >= 0) {
+      cinfo.q_scale_factor[0] = jpeg_quality_scaling(luma_quality);
+      cinfo.q_scale_factor[1] = jpeg_quality_scaling(chroma_quality);
+      if (luma_quality != chroma_quality) {
+        /* disable subsampling - ref. Libjpeg.txt */
+        cinfo.comp_info[0].v_samp_factor = 1;
+        cinfo.comp_info[0].h_samp_factor = 1;
+        cinfo.comp_info[1].v_samp_factor = 1;
+        cinfo.comp_info[1].h_samp_factor = 1;
+      }
+      jpeg_default_qtables(&cinfo, TRUE);
+    }
+#endif // #if JPEG_LIB_VERSION >= 70
+
+    jpeg_start_compress(&cinfo, TRUE);
+
+    //_buffer.allocate(width * channels);
+    _buffer = new uchar[width * channels];
+    buffer = _buffer;
+    int step = width * img.elemsize();
+
+    for (int y = 0; y < height; y++) {
+      T *data = img.data + step * y;
+      uchar *ptr = nullptr;
+
+      if (_channels == 3) {
+        // icvCvt_BGR2RGB_8u_C3R(data, 0, buffer, 0, _Size(width, 1));
+        int bgr_step = 0;
+        int rgb_step = 0;
+        _Size size(width, 1);
+        for (; size.height--;) {
+          for (int i = 0; i < size.width; i++, data += 3, buffer += 3) {
+            uchar t0 = (uchar)data[0], t1 = (uchar)data[1], t2 = (uchar)data[2];
+            buffer[2] = t0;
+            buffer[1] = t1;
+            buffer[0] = t2;
+          }
+          data += bgr_step - size.width * 3;
+          buffer += rgb_step - size.width * 3;
+        }
+        ptr = buffer;
+
+      } else if (_channels == 4) {
+        // icvCvt_BGRA2BGR_8u_C4C3R(data, 0, buffer, 0, _Size(width, 1), 2);
+        int swap_rb = 2;
+        int bgra_step = 0;
+        int bgr_step = 0;
+        _Size size(width, 1);
+        for (; size.height--;) {
+          for (int i = 0; i < size.width; i++, buffer += 3, data += 4) {
+            uchar t0 = (uchar)data[swap_rb], t1 = (uchar)data[1];
+            buffer[0] = t0;
+            buffer[1] = t1;
+            t0 = (uchar)data[swap_rb ^ 2];
+            buffer[2] = t0;
+          }
+          buffer += bgr_step - size.width * 3;
+          data += bgra_step - size.width * 4;
+        }
+        ptr = buffer;
+      } else if (_channels == 1) {
+        for (int i = 0; i < width; i++) {
+          buffer[i] = (uchar)data[i];
+        }
+        ptr = buffer;
+      }
+      jpeg_write_scanlines(&cinfo, &ptr, 1);
+    }
+    jpeg_finish_compress(&cinfo);
+    result = true;
+  }
+
+_exit_:
+
+  if (!result) {
+    char jmsg_buf[JMSG_LENGTH_MAX];
+    jerr.pub.format_message((j_common_ptr)&cinfo, jmsg_buf);
+    this->m_last_error = jmsg_buf;
+  }
+
+  jpeg_destroy_compress(&cinfo);
+
   return result;
 }
 
