@@ -18,115 +18,121 @@
 //
 //===----------------------------------------------------------------------===//
 
-func.func @corr_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
+func.func @corr_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) attributes{llvm.emit_c_interface}
 {
   dip.corr_2d <CONSTANT_PADDING> %inputImage, %kernel, %outputImage, %centerX, %centerY, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
   return
 }
 
-func.func @corr_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32)
+func.func @corr_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %centerX : index, %centerY : index, %constantValue : f32) attributes{llvm.emit_c_interface}
 {
   dip.corr_2d <REPLICATE_PADDING> %inputImage, %kernel, %outputImage, %centerX, %centerY , %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
   return
 }
 
-func.func @rotate_2d(%inputImage : memref<?x?xf32>, %angle : f32, %outputImage : memref<?x?xf32>)
+func.func @corrfft_2d(%inputImageReal : memref<?x?xf32>, %inputImageImag : memref<?x?xf32>, %kernelReal : memref<?x?xf32>, %kernelImag : memref<?x?xf32>, %intermediateReal : memref<?x?xf32>, %intermediateImag : memref<?x?xf32>) attributes{llvm.emit_c_interface}
+{
+  dip.corrfft_2d %inputImageReal, %inputImageImag, %kernelReal, %kernelImag, %intermediateReal, %intermediateImag : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>
+  return
+}
+
+func.func @rotate_2d(%inputImage : memref<?x?xf32>, %angle : f32, %outputImage : memref<?x?xf32>) attributes{llvm.emit_c_interface}
 {
   dip.rotate_2d %inputImage, %angle, %outputImage : memref<?x?xf32>, f32, memref<?x?xf32>
   return
 }
 
-func.func @resize_2d_nearest_neighbour_interpolation(%inputImage : memref<?x?xf32>, %horizontal_scaling_factor : f32, %vertical_scaling_factor : f32, %outputImage : memref<?x?xf32>)
+func.func @resize_2d_nearest_neighbour_interpolation(%inputImage : memref<?x?xf32>, %horizontal_scaling_factor : f32, %vertical_scaling_factor : f32, %outputImage : memref<?x?xf32>) attributes{llvm.emit_c_interface}
 {
   dip.resize_2d NEAREST_NEIGHBOUR_INTERPOLATION %inputImage, %horizontal_scaling_factor, %vertical_scaling_factor, %outputImage : memref<?x?xf32>, f32, f32, memref<?x?xf32>
   return
 }
 
-func.func @resize_2d_bilinear_interpolation(%inputImage : memref<?x?xf32>, %horizontal_scaling_factor : f32, %vertical_scaling_factor : f32, %outputImage : memref<?x?xf32>)
+func.func @resize_2d_bilinear_interpolation(%inputImage : memref<?x?xf32>, %horizontal_scaling_factor : f32, %vertical_scaling_factor : f32, %outputImage : memref<?x?xf32>) attributes{llvm.emit_c_interface}
 {
   dip.resize_2d BILINEAR_INTERPOLATION %inputImage, %horizontal_scaling_factor, %vertical_scaling_factor, %outputImage : memref<?x?xf32>, f32, f32, memref<?x?xf32>
   return
 }
 
-func.func @erosion_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32)
+func.func @erosion_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32) attributes{llvm.emit_c_interface}
 {
   dip.erosion_2d <CONSTANT_PADDING> %inputImage, %kernel, %outputImage, %copymemref, %centerX, %centerY, %iterations, %constantValue: memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @erosion_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32)
+func.func @erosion_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32) attributes{llvm.emit_c_interface}
 {
   dip.erosion_2d <REPLICATE_PADDING> %inputImage, %kernel, %outputImage, %copymemref, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @dilation_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32)
+func.func @dilation_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32) attributes{llvm.emit_c_interface}
 {
   dip.dilation_2d <CONSTANT_PADDING> %inputImage,  %kernel, %outputImage, %copymemref, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @dilation_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32)
+func.func @dilation_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32) attributes{llvm.emit_c_interface}
 {
   dip.dilation_2d <REPLICATE_PADDING> %inputImage, %kernel, %outputImage, %copymemref, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @opening_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32)
+func.func @opening_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32) attributes{llvm.emit_c_interface}
 {
   dip.opening_2d <CONSTANT_PADDING> %inputImage, %kernel, %outputImage, %outputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @opening_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32)
+func.func @opening_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32) attributes{llvm.emit_c_interface}
 {
   dip.opening_2d <REPLICATE_PADDING> %inputImage, %kernel, %outputImage, %outputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @closing_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32)
+func.func @closing_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32) attributes{llvm.emit_c_interface}
 {
   dip.closing_2d <CONSTANT_PADDING> %inputImage, %kernel, %outputImage, %outputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @closing_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32)
+func.func @closing_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32) attributes{llvm.emit_c_interface}
 {
   dip.closing_2d <REPLICATE_PADDING> %inputImage,  %kernel, %outputImage, %outputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @tophat_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32)
+func.func @tophat_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32) attributes{llvm.emit_c_interface}
 {
   dip.tophat_2d <CONSTANT_PADDING> %inputImage, %kernel, %outputImage, %outputImage1, %outputImage2, %inputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @tophat_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32)
+func.func @tophat_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32) attributes{llvm.emit_c_interface}
 {
   dip.tophat_2d <REPLICATE_PADDING> %inputImage, %kernel, %outputImage, %outputImage1, %outputImage2, %inputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @bottomhat_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32)
+func.func @bottomhat_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue: f32) attributes{llvm.emit_c_interface}
 {
   dip.bottomhat_2d <CONSTANT_PADDING> %inputImage, %kernel, %outputImage, %outputImage1, %outputImage2, %inputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @bottomhat_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32)
+func.func @bottomhat_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>, %outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32) attributes{llvm.emit_c_interface}
 {
   dip.bottomhat_2d <REPLICATE_PADDING> %inputImage, %kernel, %outputImage, %outputImage1, %outputImage2, %inputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
 
-func.func @morphgrad_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index,%iterations : index, %constantValue: f32)
+func.func @morphgrad_2d_constant_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index,%iterations : index, %constantValue: f32) attributes{llvm.emit_c_interface}
 {
   dip.morphgrad_2d <CONSTANT_PADDING> %inputImage, %kernel, %outputImage, %outputImage1, %outputImage2,  %inputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index,index, f32
   return
 }
 
-func.func @morphgrad_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32)
+func.func @morphgrad_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %outputImage1 : memref<?x?xf32>,%outputImage2 : memref<?x?xf32>, %inputImage1 : memref<?x?xf32>, %copymemref : memref<?x?xf32>, %copymemref1 : memref<?x?xf32>, %centerX : index, %centerY : index, %iterations : index, %constantValue : f32) attributes{llvm.emit_c_interface}
 {
   dip.morphgrad_2d <REPLICATE_PADDING> %inputImage, %kernel, %outputImage, %outputImage1,%outputImage2, %inputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return

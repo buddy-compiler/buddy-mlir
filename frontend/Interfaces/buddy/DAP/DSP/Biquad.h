@@ -22,7 +22,7 @@
 #include "buddy/Core/Container.h"
 #include "buddy/DAP/AudioContainer.h"
 
-#include "cmath"
+#include <cmath>
 
 namespace dap {
 namespace detail {
@@ -39,7 +39,7 @@ void _mlir_ciface_buddy_biquad(MemRef<float, 1> *input,
 template <typename T, size_t N>
 void biquadLowpass(MemRef<T, N> &input, T frequency, T Q) {
 
-  const T K = tan(M_PIf32 * frequency);
+  const T K = tan(M_PI * frequency);
   const T K2 = K * K;
   const T norm = 1 / (1 + K / Q + K2);
   const T a0 = K2 * norm;

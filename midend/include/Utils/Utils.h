@@ -46,14 +46,88 @@ Value roundOff(OpBuilder &builder, Location loc, Value val);
 Value valBound(OpBuilder &builder, Location loc, Value val, Value lastElemF32,
                Value c0F32);
 
+// check if lb <= val < ub and returns Value 0 or 1
+Value inBound(OpBuilder &builder, Location loc, Value val, Value lb, Value ub);
+
 // Equivalent of std::iota.
 Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
               Value indexStart, Value strideVal, VectorType vecType, Value c0,
               int64_t stride);
 
+// Generate vector [0, 1, ..., length - 1] with f32 type
+Value iotaVec0F32(OpBuilder &builder, Location loc, int64_t length);
+
 // Cast index type value to f32 type and then expand it in a vector.
 Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                     VectorType vecType);
+
+// print values(for debug use)
+void printValues(OpBuilder &builder, Location loc,
+                 std::initializer_list<Value> values);
+
+// Function for calculating complex addition of 2 input 1D complex vectors.
+// Separate vectors for real and imaginary parts are expected.
+inline std::vector<Value> complexVecAddI(OpBuilder &builder, Location loc,
+                                         Value vec1Real, Value vec1Imag,
+                                         Value vec2Real, Value vec2Imag);
+
+// Function for calculating complex subtraction of 2 input 1D complex vectors.
+// Separate vectors for real and imaginary parts are expected.
+inline std::vector<Value> complexVecSubI(OpBuilder &builder, Location loc,
+                                         Value vec1Real, Value vec1Imag,
+                                         Value vec2Real, Value vec2Imag);
+
+// Function for calculating complex product of 2 input 1D complex vectors.
+// Separate vectors for real and imaginary parts are expected.
+std::vector<Value> complexVecMulI(OpBuilder &builder, Location loc,
+                                  Value vec1Real, Value vec1Imag,
+                                  Value vec2Real, Value vec2Imag);
+
+// Function for calculating Transpose of 2D input MemRef.
+void scalar2DMemRefTranspose(OpBuilder &builder, Location loc, Value memref1,
+                             Value memref2, Value memref1NumRows,
+                             Value memref1NumCols, Value memref2NumRows,
+                             Value memref2NumCols, Value c0);
+
+// Function for calculating Hadamard product of complex type 2D MemRefs.
+// Separate MemRefs for real and imaginary parts are expected.
+void vector2DMemRefMultiply(OpBuilder &builder, Location loc, Value memRef1Real,
+                            Value memRef1Imag, Value memRef2Real,
+                            Value memRef2Imag, Value memRef3Real,
+                            Value memRef3Imag, Value memRefNumRows,
+                            Value memRefNumCols, Value c0, VectorType vecType);
+
+// Function for implementing Cooley Tukey Butterfly algortihm for calculating
+// inverse of discrete Fourier transform of invidiual 1D components of 2D input
+// MemRef. Separate MemRefs for real and imaginary parts are expected.
+void idft1DCooleyTukeyButterfly(OpBuilder &builder, Location loc,
+                                Value memRefReal2D, Value memRefImag2D,
+                                Value memRefLength, Value strideVal,
+                                VectorType vecType, Value rowIndex, Value c0,
+                                Value c1, int64_t step);
+
+// Function for implementing Gentleman Sande Butterfly algortihm for calculating
+// discrete Fourier transform of invidiual 1D components of 2D input MemRef.
+// Separate MemRefs for real and imaginary parts are expected.
+void dft1DGentlemanSandeButterfly(OpBuilder &builder, Location loc,
+                                  Value memRefReal2D, Value memRefImag2D,
+                                  Value memRefLength, Value strideVal,
+                                  VectorType vecType, Value rowIndex, Value c0,
+                                  Value c1, int64_t step);
+
+// Function for applying inverse of discrete fourier transform on a 2D MemRef.
+// Separate MemRefs for real and imaginary parts are expected.
+void idft2D(OpBuilder &builder, Location loc, Value container2DReal,
+            Value container2DImag, Value container2DRows, Value container2DCols,
+            Value intermediateReal, Value intermediateImag, Value c0, Value c1,
+            Value strideVal, VectorType vecType);
+
+// Function for applying discrete fourier transform on a 2D MemRef. Separate
+// MemRefs for real and imaginary parts are expected.
+void dft2D(OpBuilder &builder, Location loc, Value container2DReal,
+           Value container2DImag, Value container2DRows, Value container2DCols,
+           Value intermediateReal, Value intermediateImag, Value c0, Value c1,
+           Value strideVal, VectorType vecType);
 
 } // namespace buddy
 
