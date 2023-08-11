@@ -76,8 +76,10 @@ struct PaletteEntry {
 #define descale(x, n) (((x) + (1 << ((n)-1))) >> (n))
 #define saturate(x) (uchar)(((x) & ~255) == 0 ? (x) : ~((x) >> 31))
 
+
 void icvCvt_BGR2Gray_8u_C3C1R(const uchar *bgr, int bgr_step, uchar *gray,
                               int gray_step, _Size size, int swap_rb = 0);
+
 void icvCvt_BGRA2Gray_8u_C4C1R(const uchar *bgra, int bgra_step, uchar *gray,
                                int gray_step, _Size size, int swap_rb = 0);
 void icvCvt_BGRA2Gray_16u_CnC1R(const ushort *bgra, int bgra_step, ushort *gray,
@@ -142,7 +144,7 @@ uchar *FillColorRow1(uchar *data, uchar *indices, int len,
 uchar *FillGrayRow1(uchar *data, uchar *indices, int len, uchar *palette);
 
 
-//������utils�Ķ���
+//下面是utils的定义
 
 #define SCALE 14
 #define cR (int)(0.299 * (1 << SCALE) + 0.5)
@@ -160,7 +162,7 @@ void icvCvt_BGR2Gray_8u_C3C1R(const uchar *bgr, int bgr_step, uchar *gray,
       std::swap(cBGR0, cBGR2);
     for (i = 0; i < size.width; i++, bgr += 3) {
       int t = descale(bgr[0] * cBGR0 + bgr[1] * cG + bgr[2] * cBGR2, SCALE);
-      gray[i] = (uchar)t;
+      gray[i] = t;
     }
 
     bgr += bgr_step - size.width * 3;
@@ -613,13 +615,6 @@ uchar *FillGrayRow1(uchar *data, uchar *indices, int len, uchar *palette) {
 
   return data;
 }
-
-
-
-
-
-
-
 
 
 #endif /*_UTILS_H_*/
