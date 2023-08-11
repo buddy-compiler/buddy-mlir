@@ -55,7 +55,6 @@ direct,
 #include "buddy/DIP/imgcodecs/utils.hpp"
 #include <stdio.h>
 #include <string.h>
-typedef unsigned long ulong;
 
 // class RBaseStream - base class for other reading streams.
 template <typename T, size_t N> class RBaseStream {
@@ -65,7 +64,7 @@ public:
   virtual ~RBaseStream();
 
   virtual bool open(const String &filename);
-  virtual bool open(const Img<T, N> &buf);
+  // virtual bool open(const Img<T, N> &buf);
   virtual void close();
   bool isOpened();
   void setPos(int pos);
@@ -167,8 +166,6 @@ inline unsigned BSWAP(unsigned v) {
          ((unsigned)v >> 24);
 }
 
-// 以下为bitstrm各种类的定义
-
 const int BS_DEF_BLOCK_SIZE = 1 << 15;
 
 bool bsIsBigEndian(void) {
@@ -208,7 +205,7 @@ template <typename T, size_t N> void RBaseStream<T, N>::readBlock() {
 
   if (m_file == 0) {
     if (m_block_pos == 0 && m_current < m_end)
-    return;
+      return;
     // throw RBS_THROW_EOS;
   }
 
@@ -234,25 +231,6 @@ bool RBaseStream<T, N>::open(const String &filename) {
     readBlock();
   }
   return m_file != 0;
-}
-
-template <typename T, size_t N>
-bool RBaseStream<T, N>::open(const Img<T, N> &buf) {
-  close();
-  // 判断buf是否为空
-  // if (buf.empty())
-  //   return false;
-
-  // assert(buf.isContinuous());
-  m_start = buf.data;
-
-  // m_end = m_start + buf.cols * buf.rows * buf.elemSize();
-  m_end = m_start + buf.cols * buf.rows * buf.elemsize();
-  m_allocated = false;
-  m_is_opened = true;
-  setPos(0);
-
-  return true;
 }
 
 template <typename T, size_t N> void RBaseStream<T, N>::close() {
@@ -317,7 +295,7 @@ template <typename T, size_t N> int RLByteStream<T, N>::getByte() {
     current = this->m_current;
   }
 
-  //assert(current < this->m_end);
+  // assert(current < this->m_end);
 
   val = *((uchar *)current);
   this->m_current = current + 1;
@@ -376,7 +354,7 @@ template <typename T, size_t N> int RLByteStream<T, N>::getDWord() {
           (current[3] << 24);
     this->m_current = current + 4;
   } else {
-    
+
     val = getByte();
     val |= getByte() << 8;
     val |= getByte() << 16;
@@ -530,6 +508,7 @@ void WLByteStream::putBytes(const void *buffer, int count) {
       l = count;
 
     if (l > 0) {
+
       memcpy(m_current, data, l);
       m_current += l;
       data += l;
@@ -611,4 +590,5 @@ void WMByteStream::putDWord(int val) {
     putByte(val);
   }
 }
+
 #endif /*_BITSTRM_H_*/
