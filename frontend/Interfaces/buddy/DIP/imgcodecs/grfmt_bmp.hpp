@@ -87,18 +87,17 @@ protected:
   int m_rgba_bit_offset[4];
 };
 
- //... writer
+//... writer
 template <typename T, size_t N>
- class BmpEncoder  : public BaseImageEncoder<T,N> {
- public:
+class BmpEncoder : public BaseImageEncoder<T, N> {
+public:
   BmpEncoder();
-  ~BmpEncoder() ;
+  ~BmpEncoder();
 
-  bool write(const Img<T,N> &img, const std::vector<int> &params) ;
+  bool write(const Img<T, N> &img, const std::vector<int> &params);
 
   std::unique_ptr<BaseImageEncoder<T, N>> newEncoder() const override;
 };
-
 
 static const char *fmtSignBmp = "BM";
 
@@ -250,7 +249,6 @@ template <typename T, size_t N> bool BmpDecoder<T, N>::readHeader() {
   } catch (...) {
     throw;
   }
-
   // in 32 bit case alpha channel is used - so require CV_8UC4 type
   this->m_type =
       iscolor ? ((m_bpp == 32 && m_rle_code != BMP_RGB) ? CV_8UC4 : CV_8UC3)
@@ -262,16 +260,13 @@ template <typename T, size_t N> bool BmpDecoder<T, N>::readHeader() {
     this->m_width = this->m_height = -1;
     m_strm.close();
   }
-
-
   return result;
 }
-
 template <typename T, size_t N>
 bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
-  uchar *data = img.data;
+  T *data = img.data;
   // int step = validateToInt(img.step);
-  int step =  this->m_width * img.elemsize();
+  int step = this->m_width * img.elemsize();
   bool color = img.channels() > 1;
   uchar gray_palette[256] = {0};
   bool result = false;
@@ -292,14 +287,12 @@ bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
     step = -step;
   }
 
-  /*AutoBuffer<uchar> _src, _bgr;
-  _src.allocate(src_pitch + 32);*/
   uchar *_src = new uchar[src_pitch + 32];
   uchar *_bgr = NULL;
 
-
   if (!color) {
     if (m_bpp <= 8) {
+
       CvtPaletteToGray(m_palette, gray_palette, 1 << m_bpp);
     }
     _bgr = new uchar[this->m_width * 3 + 32];
@@ -308,115 +301,116 @@ bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
   uchar *src = _src;
   uchar *bgr = _bgr;
   m_strm.setPos(m_offset);
-
   switch (m_bpp) {
+
+    /************************* 32 BPP ************************/
+  case 32:
+    for (y = 0; y < this->m_height; y++, data += step) {
+      m_strm.getBytes(src, src_pitch);
+      if (!color) {
+        int rgba_step = 0;
+        int gray_step = 0;
+        _Size size(this->m_width, 1);
+        int _swap_rb = 1;
+
+        for (; size.height--; data += gray_step) {
+          short cBGR0 = cB;
+          short cBGR2 = cR;
+          if (_swap_rb)
+            std::swap(cBGR0, cBGR2);
+          for (int i = 0; i < size.width; i++, src += 4) {
+            int t =
+                descale(src[0] * cBGR0 + src[1] * cG + src[2] * cBGR2, SCALE);
+            data[i] = (T)t;
+          }
+          src += rgba_step - size.width * 4;
+        }
+      } else if (img.channels() == 3) {
+        int swap_rb = 0;
+        int bgra_step = 0;
+        int bgr_step = 0;
+        _Size size(this->m_width, 1);
+        for (; size.height--;) {
+          for (int i = 0; i < size.width; i++, data += 3, src += 4) {
+            uchar t0 = src[swap_rb], t1 = src[1];
+            data[0] = (T)t0;
+            data[1] = (T)t1;
+            t0 = src[swap_rb ^ 2];
+            data[2] = (T)t0;
+          }
+          data += bgr_step - size.width * 3;
+          src += bgra_step - size.width * 4;
+        }
+      } else if (img.channels() == 4) {
+        bool has_bit_mask = (m_rgba_bit_offset[0] >= 0) &&
+                            (m_rgba_bit_offset[1] >= 0) &&
+                            (m_rgba_bit_offset[2] >= 0);
+        if (has_bit_mask) {
+          for (int i = 0; i < this->m_width; i++, data += 4, src += 4) {
+            uint _data = *((uint *)src);
+            data[0] = (T)((m_rgba_mask[2] & _data) >> m_rgba_bit_offset[2]);
+            data[1] = (T)((m_rgba_mask[1] & _data) >> m_rgba_bit_offset[1]);
+            data[2] = (T)((m_rgba_mask[0] & _data) >> m_rgba_bit_offset[0]);
+            if (m_rgba_bit_offset[3] >= 0)
+              data[3] = (T)((m_rgba_mask[3] & _data) >> m_rgba_bit_offset[3]);
+            else
+              data[3] = (T)255;
+          }
+        } else {
+          for (int i = 0; i < this->m_width * 4; i++) {
+            data[i] = (T)src[i];
+          }
+        }
+      }
+    }
+    result = true;
+    break;
     /************************* 24 BPP ************************/
   case 24:
     for (y = 0; y < this->m_height; y++, data += step) {
       m_strm.getBytes(src, src_pitch);
       if (!color) {
-        icvCvt_BGR2Gray_8u_C3C1R(src, 0, data, 0, _Size(this->m_width, 1));
-      }  
-      else {
-        memcpy(data, src, this->m_width * 3);
-      }    
+        int i;
+        int gray_step = 0;
+        int bgr_step = 0;
+        int _swap_rb = 0;
+        _Size size(this->m_width, 1);
+        for (; size.height--; data += gray_step) {
+          short cBGR0 = cB;
+          short cBGR2 = cR;
+          if (_swap_rb)
+            std::swap(cBGR0, cBGR2);
+          for (i = 0; i < size.width; i++, src += 3) {
+            int t =
+                descale(src[0] * cBGR0 + src[1] * cG + src[2] * cBGR2, SCALE);
+            data[i] = (T)t;
+          }
+          src += bgr_step - size.width * 3;
+        }
+      } else {
+        for (int k = 0; k < this->m_width * 3; k++) {
+          data[k] = (T)src[k];
+        }
+      }
     }
     result = true;
     break;
+
     /************************* 8 BPP ************************/
   case 8:
     if (m_rle_code == BMP_RGB) {
       for (y = 0; y < this->m_height; y++, data += step) {
         m_strm.getBytes(src, src_pitch);
-        if (color)
-          FillColorRow8(data, src, this->m_width, m_palette);
-        else
-          FillGrayRow8(data, src, this->m_width, gray_palette);
-      }
-      result = true;
-    } else if (m_rle_code == BMP_RLE8) // rle8 compression
-    {
-      uchar *line_end = data + width3;
-      int line_end_flag = 0;
-      y = 0;
-
-      for (;;) {
-        int code = m_strm.getWord();
-        int len = code & 255;
-        code >>= 8;
-        if (len != 0) // encoded mode
-        {
-          int prev_y = y;
-          len *= nch;
-
-          if (data + len > line_end)
-            goto decode_rle8_bad;
-
-          if (color)
-            data = FillUniColor(data, line_end, step, width3, y, this->m_height,
-                                len, m_palette[code]);
-          else
-            data = FillUniGray(data, line_end, step, width3, y, this->m_height,
-                               len, gray_palette[code]);
-
-          line_end_flag = y - prev_y;
-
-          if (y >= this->m_height)
-            break;
-        } else if (code > 2) // absolute mode
-        {
-          int prev_y = y;
-          int code3 = code * nch;
-
-          if (data + code3 > line_end)
-            goto decode_rle8_bad;
-          int sz = (code + 1) & (~1);
-          // assert((size_t)sz < _src.size());
-          m_strm.getBytes(src, sz);
-          if (color)
-            data = FillColorRow8(data, src, code, m_palette);
-          else
-            data = FillGrayRow8(data, src, code, gray_palette);
-
-          line_end_flag = y - prev_y;
-        } else {
-          int x_shift3 = (int)(line_end - data);
-          int y_shift = this->m_height - y;
-
-          if (code || !line_end_flag || x_shift3 < width3) {
-            if (code == 2) {
-              x_shift3 = m_strm.getByte() * nch;
-              y_shift = m_strm.getByte();
-            }
-
-            x_shift3 += (y_shift * width3) & ((code == 0) - 1);
-
-            if (y >= this->m_height)
-              break;
-
-            if (color)
-              data = FillUniColor(data, line_end, step, width3, y,
-                                  this->m_height, x_shift3, m_palette[0]);
-            else
-              data = FillUniGray(data, line_end, step, width3, y,
-                                 this->m_height, x_shift3, gray_palette[0]);
-
-            if (y >= this->m_height)
-              break;
+        if (!color) {
+          for (int i = 0; i < this->m_width; i++) {
+            data[i] = (T)gray_palette[src[i]];
           }
-
-          line_end_flag = 0;
-          if (y >= this->m_height)
-            break;
         }
       }
-
-      result = true;
-    decode_rle8_bad:;
     }
+    result = true;
     break;
   }
-
   return result;
 }
 
@@ -426,26 +420,25 @@ std::unique_ptr<BaseImageEncoder<T, N>> BmpEncoder<T, N>::newEncoder() const {
   return std::make_unique<BmpEncoder<T, N>>();
 }
 
-template <typename T, size_t N> BmpEncoder<T,N>::BmpEncoder() {
+template <typename T, size_t N> BmpEncoder<T, N>::BmpEncoder() {
   this->m_description = "Windows bitmap (*.bmp;*.dib)";
   this->m_buf_supported = true;
 }
 
-template <typename T, size_t N> BmpEncoder<T,N>::~BmpEncoder() {}
-
+template <typename T, size_t N> BmpEncoder<T, N>::~BmpEncoder() {}
 
 template <typename T, size_t N>
-bool BmpEncoder<T,N>::write(const Img<T,N> &img, const std::vector<int> &) {
+bool BmpEncoder<T, N>::write(const Img<T, N> &img, const std::vector<int> &) {
   int width = img.cols, height = img.rows, channels = img.channels();
   int fileStep = (width * channels + 3) & -4;
   uchar zeropad[] = "\0\0\0\0";
   WLByteStream strm;
 
-  //if (this->m_buf) {
-  //  if (!strm.open(*this->m_buf))
-  //    return false;
-  //} else if (!strm.open(this->m_filename))
-  //  return false;
+  // if (this->m_buf) {
+  //   if (!strm.open(*this->m_buf))
+  //     return false;
+  // } else if (!strm.open(this->m_filename))
+  //   return false;
   strm.open(this->m_filename);
 
   int bitmapHeaderSize = 40;
@@ -485,10 +478,12 @@ bool BmpEncoder<T,N>::write(const Img<T,N> &img, const std::vector<int> &) {
 
   width *= channels;
 
-
   for (int y = height - 1; y >= 0; y--) {
-    strm.putBytes(img.data + (y*width), width);
-
+    T *data = img.data + (y * width);
+    // strm.putBytes(img.data + (y * width), width);
+    for (int i = 0; i < width; i++) {
+      strm.putByte(data[i]);
+    }
     if (fileStep > width)
       strm.putBytes(zeropad, fileStep - width);
   }
@@ -496,6 +491,5 @@ bool BmpEncoder<T,N>::write(const Img<T,N> &img, const std::vector<int> &) {
   strm.close();
   return true;
 }
-
 
 #endif /*_GRFMT_BMP_H_*/
