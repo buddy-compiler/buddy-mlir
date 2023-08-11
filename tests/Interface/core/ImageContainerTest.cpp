@@ -21,7 +21,6 @@
 // RUN: buddy-image-container-test 2>&1 | FileCheck %s
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImageContainer.h>
-#include<buddy/DIP/imgcodecs/grfmt_bmp.hpp>
 #include<buddy/DIP/imgcodecs/loadsave.hpp>
 int main() {
 
