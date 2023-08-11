@@ -24,12 +24,12 @@
 #include "buddy/Core/Container.h"
 #include "buddy/DIP/imgcodecs/Replenishment.hpp"
 #include <cassert>
-// Image container.
-// - T represents the type of the elements.
-// - N represents the number of dimensions.
-// - image represents the OpenCV Mat object.
-// - norm indicates whether to perform normalization, and the normalization is
-//   disabled by default.
+//  Image container.
+//  - T represents the type of the elements.
+//  - N represents the number of dimensions.
+//  - image represents the OpenCV Mat object.
+//  - norm indicates whether to perform normalization, and the normalization is
+//    disabled by default.
 template <typename T, size_t N> class Img : public MemRef<T, N> {
 public:
   /*
@@ -49,9 +49,23 @@ public:
     CV_CN_MAX channels) matrices.
   */
   Img(int rows, int cols, int type);
+  /** @overload
+   @param rows Number of rows in a 2D array.
+   @param cols Number of columns in a 2D array.
+   @param type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel
+    matrices, or CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to
+    CV_CN_MAX channels) matrices.
+   @param data Pointer to the user data. Matrix constructors that take data and
+    step parameters do not allocate matrix data. Instead, they just initialize
+   the matrix header that points to the specified data, which means that no data
+   is copied. This operation is very efficient and can be used to process
+   external data using OpenCV functions. The external data is not automatically
+    deallocated, so you should take care of it.*/
+
+  Img(int rows, int cols, int type, void *get_data);
   /*
     @ndims:ndims Array dimensionality.
-    @sizes：sizes Array of integers specifying an n-dimensional array shape.
+    @sizes sizes Array of integers specifying an n-dimensional array shape.
     @type:type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel
     matrices, or CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to
     CV_CN_MAX channels) matrices.
@@ -68,7 +82,7 @@ public:
   //~Img();
 
   /*
-    @m：m Assigned, right-hand-side matrix. Matrix assignment is an O(1)
+    @m:m Assigned, right-hand-side matrix. Matrix assignment is an O(1)
     operation. This means that no data is copied but the data is shared and the
     reference counter, if any, is incremented. Before assigning new data, the
     old data is de-referenced via Mat::release .
@@ -86,7 +100,7 @@ public:
   // Move constructor.
   Img(Img<T, N> &&m);
   // Move assignment operator.
-  Img &operator=( Img<T, N> &&other);
+  Img &operator=(Img<T, N> &&other);
 
   void create(int rows, int cols, int type);
   /*
@@ -114,7 +128,7 @@ public:
   bool empty() const;
   size_t total();
   T *_getData();
-  int _type;
+
   size_t elemsize() const;
   // The template methods return a reference to the specified array element.
   // param row Index along the dimension 0
@@ -124,6 +138,8 @@ public:
   // param i1 Index along the dimension 1
   // param i2 Index along the dimension 2
   template <typename _Tp> _Tp &at(int i0, int i1, int i2);
+
+  int _type;
 
   int flags;
   //! the matrix dimensionality, >= 2
@@ -163,7 +179,7 @@ Img<T, N>::Img(int _rows, int _cols, int type)
 }
 /*
   @ndims:ndims Array dimensionality.
-  @sizes：sizes Array of integers specifying an n-dimensional array shape.
+  @sizes��sizes Array of integers specifying an n-dimensional array shape.
   @type:type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel
   matrices, or CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to
   CV_CN_MAX channels) matrices.
@@ -180,17 +196,20 @@ Img<T, N>::Img(int ndims, const int *sizes, int type)
 */
 template <typename T, size_t N>
 Img<T, N>::Img(const Img<T, N> &m)
-    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols),_type(m._type) {
+    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols),
+      _type(m._type) {
   if (m._size == nullptr) {
     return;
   } else {
     this->_size = new size_t[m.dims];
     for (size_t i = 0; i < N; i++) {
       this->_size[i] = m._size[i];
+      this->sizes[i] = m._size[i];
     }
   }
+  this->setStrides();
   this->size = total();
-  this->allocated = new T[this->size];
+  this->allocated = new T[total()];
   this->aligned = this->allocated;
   this->data = this->allocated;
   for (size_t i = 0; i < this->size; i++) {
@@ -243,7 +262,9 @@ void Img<T, N>::create(int ndims, const int *sizes, int type) {
   this->size = total();
   for (int i = 0; i < ndims; i++) {
     this->_size[i] = sizes[i];
+    this->sizes[i] = sizes[i];
   }
+  this->setStrides();
   if (total() > 0) {
     this->allocated = new T[total()];
     this->aligned = this->allocated;
@@ -252,7 +273,7 @@ void Img<T, N>::create(int ndims, const int *sizes, int type) {
 }
 
 /*
-@m：m Assigned, right-hand-side matrix. Matrix assignment is an O(1)
+@m:m Assigned, right-hand-side matrix. Matrix assignment is an O(1)
 operation. This means that no data is copied but the data is shared and the
 reference counter, if any, is incremented. Before assigning new data, the
 old data is de-referenced via Mat::release .
@@ -269,11 +290,15 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
     this->rows = m.rows;
     this->cols = m.cols;
     this->_size = m._size;
+    for (int i = 0; i < N ; i++) {
+      this->sizes[i] = m._size[i];
+    }
     this->size = total();
   } else {
   }
   // Allocate new space and deep copy.
-  T *ptr = new T[this->size];
+  this->setStrides();
+  T *ptr = new T[total()];
   for (size_t i = 0; i < this->size; i++) {
     ptr[i] = m.aligned[i];
   }
@@ -310,8 +335,7 @@ Img<T, N>::Img(Img<T, N> &&m)
 // - Steal members from the original object.
 // - Assign the NULL pointer to the original aligned and allocated members to
 //   avoid the double free error.
-template <typename T, size_t N>
-Img<T, N> &Img<T, N>::operator=( Img<T, N> &&m) {
+template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
   if (this != &m) {
     // Free the original aligned and allocated space.
     delete[] this->allocated;
@@ -324,8 +348,16 @@ Img<T, N> &Img<T, N>::operator=( Img<T, N> &&m) {
     std::swap(this->data, m.data);
     // Assign the NULL pointer to the original aligned and allocated members to
     // avoid the double free error.
+    this->sizes = m._size;
     m.allocated = m.aligned = m.data = nullptr;
   }
+}
+template <typename T, size_t N>
+Img<T, N>::Img(int rows, int cols, int type, void *get_data)
+    : MemRef<T, N>(), dims(2), rows(rows), cols(cols), _type(type),
+      data((T *)get_data) {
+  this->aligned = (T *)get_data;
+  this->allocated = (T *)get_data;
 }
 
 // Image Constructor from OpenCV Mat.
@@ -418,6 +450,5 @@ template <typename T, size_t N> size_t Img<T, N>::total() {
     p *= this->_size[i];
   return p;
 }
-
 
 #endif // FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
