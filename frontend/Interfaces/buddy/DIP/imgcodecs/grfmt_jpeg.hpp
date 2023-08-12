@@ -436,7 +436,7 @@ static int my_jpeg_load_dht(struct jpeg_decompress_struct *info,
 template <typename T, size_t N>
 bool JpegDecoder<T, N>::readData(Img<T, N> &img) {
   volatile bool result = false;
-  size_t step = this->m_width * img.elemsize();
+  size_t step = this->m_width * img.channels();
   bool color = img.channels() > 1;
 
   if (m_state && this->m_width && this->m_height) {
@@ -742,7 +742,7 @@ bool JpegEncoder<T, N>::write(const Img<T, N> &img,
     //_buffer.allocate(width * channels);
     _buffer = new uchar[width * channels];
     buffer = _buffer;
-    int step = width * img.elemsize();
+    int step = width * img.channels();
 
     for (int y = 0; y < height; y++) {
       T *data = img.data + step * y;
