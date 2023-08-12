@@ -83,8 +83,8 @@ typedef string String;
 #define CV_16FC4 CV_MAKETYPE(CV_16F, 4)
 #define CV_16FC(n) CV_MAKETYPE(CV_16F, (n))
 
-#define CV_ELEM_SIZE(type)                                                     \
-  (CV_MAT_CN(type) << ((0x569500 >> CV_MAT_DEPTH(type) * 3) & 7))
+#define CV_ELEM_SIZE1(type) ((0x28442211 >> CV_MAT_DEPTH(type) * 4) & 15)
+#define CV_ELEM_SIZE(type) (CV_MAT_CN(type) * CV_ELEM_SIZE1(type))
 
 //! Imread flags
 enum ImreadModes {
