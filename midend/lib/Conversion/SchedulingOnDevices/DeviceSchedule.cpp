@@ -32,6 +32,8 @@
 #include "Sche/ScheOps.h"
 
 #include <unordered_map>
+#include <vector>
+#include <algorithm>
 
 
 using namespace mlir;
@@ -47,7 +49,119 @@ typedef struct{
   StringRef targetId;
   StringRef targetConfig;
 } targetInfo;
-std::unordered_map<Region*, targetInfo> splitDevice(Region& region){return std::unordered_map<Region*, targetInfo>();}
+
+class ScheTargetNode{
+  public:
+    void update(){
+      updateUsedValue();
+      updateDefinedValue();
+      updateOperands();
+      updateReturnValue();
+    }
+
+    ValueRange getReturnValues(){
+      return return_;
+    }
+
+    ValueRange getOperands(){
+      return  operands_;
+    }
+
+    StringRef getTargetId(){
+      return target_id_;
+    }
+
+    StringRef getTargetConfig(){
+      return target_config_;
+    }
+
+    std::vector<Operation*> getOpList(){
+      return op_list_;
+    }
+
+    void setOpList(std::vector<Operation*> op_list){
+      op_list_ = op_list;
+    }
+
+    void setTargetInfo(StringRef target_id, StringRef target_config){
+      target_id_ = target_id;
+      target_config_ = target_config;
+    }
+
+
+  private:
+    std::vector<Operation*> op_list_; 
+    std::vector<Value> used_;
+    std::vector<Value> defined_;
+    std::vector<Value> operands_;
+    std::vector<Value> return_;
+
+    StringRef target_id_;
+    StringRef target_config_;
+
+
+    void updateUsedValue(){
+      for(auto&& op : op_list_){
+        for(auto&& operand : op->getOperands()){
+          used_.push_back(operand);
+        }
+      }
+    }
+    void updateDefinedValue(){
+      for(auto&& op : op_list_){
+        for(auto&& result : op->getResults()){
+          defined_.push_back(result);
+        }
+      }
+    }
+
+    void updateOperands(){
+      for(auto&& v : used_){
+        if(std::find(defined_.begin(), defined_.end(), v) != defined_.end()){
+          operands_.push_back(v);
+        }
+      }
+    }
+
+    void updateReturnValue(){
+      for(auto&& v : defined_){
+        for(auto&& user : v.getUsers()){
+          if (user->hasTrait<mlir::OpTrait::ReturnLike>()) {
+            return_.push_back(v);
+            break;
+          }
+          if(std::find(op_list_.begin(), op_list_.end(), user) == op_list_.end()){
+            return_.push_back(v);
+            break;
+          }
+        }
+      }
+    }
+};
+
+std::vector<ScheTargetNode> splitDevice(Region& region){
+  auto op_iter = region.getOps().begin();
+
+  ScheTargetNode node_cpu, node_gpu;
+  std::vector<Operation*> op_list_cpu, op_list_gpu;
+
+  op_list_cpu.push_back(&*op_iter++);
+  op_list_gpu.push_back(&*op_iter);
+
+  node_cpu.setOpList(op_list_cpu);
+  node_cpu.setTargetInfo("cpu", "");
+  node_cpu.update();
+  node_gpu.setOpList(op_list_gpu);
+  node_gpu.setTargetInfo("gpu", "");
+  node_gpu.update();
+
+
+  std::vector<ScheTargetNode> result;
+  result.push_back(node_cpu);
+  result.push_back(node_gpu);
+  return result;
+}
+
 class DeviceSchedulePattern : public OpRewritePattern<func::FuncOp>  {
 public:
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;
@@ -55,20 +169,48 @@ public:
   LogicalResult
   matchAndRewrite(func::FuncOp op, PatternRewriter &rewriter) const override {
     printf("begin\n");
+
     auto loc = op.getLoc();
 
     Region& region = op.getBody();
 
-    auto regionMap = splitDevice(region);
+    auto sche_target_node_list = splitDevice(region);
 
-    auto func_ref = function_ref();
+    rewriter.setInsertionPointToStart(&region.front());
+    for (auto&& node : sche_target_node_list) {
+      auto on_device_op = rewriter.create<sche::OnDeviceOp>(loc, node.getTargetId(), node.getTargetConfig(), node.getReturnValues().getTypes(), node.getOperands(), [&](OpBuilder& builder, Location loc, ValueRange valueRange){
+        IRMapping mp;
+        for(auto&& [a, b] : llvm::zip(node.getOperands(), valueRange)){
+          mp.map(a, b);
+        }
+        for(auto&& op : node.getOpList()){
+          auto new_op = builder.insert(op->clone(mp));
+          for(auto&& [a, b] : llvm::zip(op->getResults(), new_op->getResults())){
+            mp.map(a, b);
+          }
+          builder.setInsertionPointAfter(new_op);
+        }
+        std::vector<Value> return_values;
 
+        for(auto&& v : node.getReturnValues()){
+          auto new_v = mp.lookupOrNull<Value>(v);
+          assert(new_v != nullptr);
+          return_values.push_back(new_v);
+        }
+        
+        builder.create<func::ReturnOp>(loc, return_values);
+      });
 
-    for (auto iter = regionMap.begin(); iter != regionMap.end(); ++iter) {
-      Region* subRegion = iter->first;
-      auto targetInfo = iter->second;
-      rewriter.create<sche::OnDeviceOp>(loc, targetInfo.targetId, targetInfo.targetConfig, TypeRange{});
+      for(auto&& [a, b] : llvm::zip(node.getReturnValues(), on_device_op.getResults())){
+        a.replaceAllUsesWith(b);
+      }
+
+      for(auto op : node.getOpList()){
+        rewriter.eraseOp(op);
+      }
     }
+
+    op.print(llvm::outs());
 
     printf("finish\n");
     return success();
@@ -116,7 +258,7 @@ public:
 
 void DeviceSchedulePass::runOnOperation() {
   MLIRContext *context = &getContext();
-  ModuleOp module = getOperation();
+  // ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
   // clang-format off
@@ -130,12 +272,19 @@ void DeviceSchedulePass::runOnOperation() {
   // clang-format on
   target.addLegalOp<ModuleOp, func::ReturnOp>();
 
-  target.addIllegalOp<func::FuncOp>();
-
   RewritePatternSet patterns(context);
   populateDeviceScheduleConversionPatterns(patterns);
 
-  if (failed(applyPartialConversion(module, target, std::move(patterns))))
+  
+
+  auto moduleOp = getOperation();
+
+  target.addDynamicallyLegalOp<func::FuncOp>([](Operation *op) {
+    return op->hasAttr("sche.dispatched");
+  });
+  // matchAndRewrite(getOperation(), builder);
+
+  if (failed(applyPartialConversion(moduleOp, target, std::move(patterns))))
     signalPassFailure();
 }
 

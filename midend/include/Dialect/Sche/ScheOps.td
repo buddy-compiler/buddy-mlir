@@ -40,7 +40,7 @@ def Sche_OnDeviceOp : Sche_Op<"on_device", []> {
   // let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "llvm::StringRef":$targetId, "llvm::StringRef":$targetConfig, "mlir:: TypeRange": $resultTypes,
-                CArg<"mlir::function_ref<void(mlir::OpBuilder &, mlir::Location, mlir::ValueRange)>",
+                 "mlir::ValueRange":$args, CArg<"mlir::function_ref<void(mlir::OpBuilder &, mlir::Location, mlir::ValueRange)>",
                   "nullptr">:$bodyBuilder)>
   ];
 

@@ -34,20 +34,22 @@ namespace buddy::sche {
     using BodyBuilderFn = mlir::function_ref<void(OpBuilder&, Location, ValueRange)>;
     
     void OnDeviceOp::build(OpBuilder& builder, OperationState& result, llvm::StringRef targetId,
-                         llvm::StringRef targetConfig, TypeRange resultTypes,
+                         llvm::StringRef targetConfig, TypeRange resultTypes, ValueRange args,
                          BodyBuilderFn bodyBuilder) {
-    result.addAttribute("targetId", builder.getStringAttr(targetId));
-    result.addAttribute("targetConfig", builder.getStringAttr(targetConfig));
+    result.addAttribute(getTargetIdAttrName(result.name), builder.getStringAttr(targetId));
+    result.addAttribute(getTargetConfigAttrName(result.name), builder.getStringAttr(targetConfig));
+    result.addOperands(args);
 
     Region* bodyRegion = result.addRegion();
     bodyRegion->push_back(new Block());
     auto& bodyBlock = bodyRegion->front();
+    bodyBlock.addArguments(args.getTypes(), SmallVector<Location>(args.size(), result.location));
     result.addTypes(resultTypes);
 
     if (bodyBuilder) {
         OpBuilder::InsertionGuard guard(builder);
         builder.setInsertionPointToStart(&bodyBlock);
-        bodyBuilder(builder, result.location, bodyBlock.getArguments().drop_front());
+        bodyBuilder(builder, result.location, bodyBlock.getArguments());
     } else {
         llvm_unreachable("no body builder given for OnDevice op builder.");
     }
