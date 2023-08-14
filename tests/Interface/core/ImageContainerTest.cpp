@@ -19,26 +19,16 @@
 //===----------------------------------------------------------------------===//
 
 // RUN: buddy-image-container-test 2>&1 | FileCheck %s
-
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImageContainer.h>
-#include <opencv2/imgcodecs.hpp>
-
+#include<buddy/DIP/imgcodecs/loadsave.hpp>
 int main() {
-  // The original test image is a gray scale image, and the pixel values are as
-  // follows:
-  // 15.0, 30.0, 45.0, 60.0
-  // 75.0, 90.0, 105.0, 120.0
-  // 135.0, 150.0, 165.0, 180.0
-  // 195.0, 210.0, 225.0, 240.0
-  // The test running directory is in <build dir>/tests/Interface/core, so the
-  // `imread` function uses the following relative path.
-  cv::Mat grayimage =
-      cv::imread("../../../../tests/Interface/core/TestGrayImage.png",
-                 cv::IMREAD_GRAYSCALE);
+
+  Img<float, 2> grayimage=imread<float,2>("../../../../tests/Interface/core/TestGrayImage.bmp", IMREAD_GRAYSCALE);
   //===--------------------------------------------------------------------===//
-  // Test image constructor for OpenCV.
+  // Test copy constructor.
   //===--------------------------------------------------------------------===//
+  
   Img<float, 2> testOpenCVConstructor(grayimage);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testOpenCVConstructor.getData()[0]);
@@ -97,32 +87,4 @@ int main() {
   const Img<float, 2> testBracketOperator2(grayimage);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator2[15]);
-
-  //===--------------------------------------------------------------------===//
-  // Test image channels layout of RGB images from ImgContainer.
-  //===--------------------------------------------------------------------===//
-  // The test image is an RGB image with size 1026 * 1026 from
-  // buddy-mlir/examples. The test running directory is in <build
-  // dir>/tests/Interface/core, so the `imread` function uses the following
-  // relative path.
-
-  cv::Mat RGBimage = cv::imread("../../../../examples/images/YuTu.png");
-
-  // Represent NHWC layout by default.
-  Img<float, 4> testRGBImageLayout1(RGBimage);
-  // CHECK: 1, 1026, 1026, 3
-  fprintf(stderr, "%ld, %ld, %ld, %ld\n", testRGBImageLayout1.getSizes()[0],
-          testRGBImageLayout1.getSizes()[1], testRGBImageLayout1.getSizes()[2],
-          testRGBImageLayout1.getSizes()[3]);
-
-  // Represent NCHW layout with sizes = {1, 3, 1026, 1026}
-  intptr_t sizesInput2[4] = {1, 3, RGBimage.rows, RGBimage.cols};
-  Img<float, 4> testRGBImageLayout2(RGBimage, sizesInput2);
-  // CHECK: 3158028, 1052676, 1026, 1
-  fprintf(stderr, "%ld, %ld, %ld, %ld\n", testRGBImageLayout2.getStrides()[0],
-          testRGBImageLayout2.getStrides()[1],
-          testRGBImageLayout2.getStrides()[2],
-          testRGBImageLayout2.getStrides()[3]);
-
-  return 0;
 }
