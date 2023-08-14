@@ -26,20 +26,15 @@
 #include <buddy/DIP/DIP.h>
 #include <buddy/DIP/ImageContainer.h>
 #include <iostream>
-#include <opencv2/opencv.hpp>
+#include "buddy/DIP/imgcodecs/loadsave.hpp"
 
-using namespace cv;
+
 using namespace std;
 
 bool testImplementation(int argc, char *argv[]) {
+  
   // Read as grayscale image.
-  Mat image = imread(argv[1], IMREAD_GRAYSCALE);
-  if (image.empty()) {
-    cout << "Could not read the image: " << argv[1] << endl;
-  }
-
-  // Define memref container for image.
-  Img<float, 2> input(image);
+  Img<float, 2> input = imread<float,2>(argv[1], IMREAD_GRAYSCALE);
 
   intptr_t outputSize[2] = {250, 100}; // {image_cols, image_rows}
   std::vector<float> scalingRatios = {
@@ -65,10 +60,10 @@ bool testImplementation(int argc, char *argv[]) {
   //     scalingRatios);
 
   // Define cv::Mat with the output of Resize2D.
-  Mat outputImageResize2D(output.getSizes()[0], output.getSizes()[1], CV_32FC1,
+  Img<float, 2>outputImageResize2D(output.getSizes()[0], output.getSizes()[1], CV_32FC1,
                           output.getData());
 
-  imwrite(argv[2], outputImageResize2D);
+  imwrite_(argv[2], outputImageResize2D);
 
   return 1;
 }
