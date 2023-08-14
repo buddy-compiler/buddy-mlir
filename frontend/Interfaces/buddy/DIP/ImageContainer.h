@@ -129,14 +129,11 @@ public:
   size_t total();
 
   size_t elemsize() const;
+
   // The template methods return a reference to the specified array element.
   // param row Index along the dimension 0
   // param col Index along the dimension 1
-  template <typename _Tp> _Tp &at(int row, int col);
-  // param i0 Index along the dimension 0
-  // param i1 Index along the dimension 1
-  // param i2 Index along the dimension 2
-  template <typename _Tp> _Tp &at(int i0, int i1, int i2);
+  template <typename _Tp> _Tp at(int row, int col);
 
   int _type;
 
@@ -378,6 +375,16 @@ template <typename T, size_t N> size_t Img<T, N>::total() {
   for (int i = 0; i < dims; i++)
     p *= this->sizes[i];
   return p;
+}
+
+template <typename T, size_t N>
+template <typename _Tp>
+_Tp Img<T, N>::at(int row, int col) {
+  if (row < 0 ||col < 0) {
+    throw std::out_of_range("Index out of bounds");
+  }
+
+  return this->data + (row * cols * channels() + col * channels());
 }
 
 #endif // FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
