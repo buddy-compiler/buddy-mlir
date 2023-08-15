@@ -31,3 +31,76 @@ sparse-tensor-new-run:
 	TENSOR0=${SPARSE_MATRIX_A} TENSOR1=${SPARSE_MATRIX_B} \
 	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
 		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
+
+sparse-tensor-pack-lower:
+	@${MLIR_OPT} ./sparse-tensor-pack.mlir \
+		--sparse-compiler="enable-runtime-library=false" -o log.mlir
+sparse-tensor-pack-translate:
+	@${MLIR_OPT} ./sparse-tensor-pack.mlir \
+		--sparse-compiler="enable-runtime-library=false" | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+sparse-tensor-pack-run:
+	@${MLIR_OPT} ./sparse-tensor-pack.mlir \
+		--sparse-compiler="enable-runtime-library=false" | \
+	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
+		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
+
+sparse-tensor-dump-lower:
+	@${MLIR_OPT} ./sparse-tensor-dump.mlir \
+		--sparse-compiler="enable-runtime-library=true" -o log.mlir
+sparse-tensor-dump-translate:
+	@${MLIR_OPT} ./sparse-tensor-dump.mlir \
+		--sparse-compiler="enable-runtime-library=true" | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+sparse-tensor-dump-run:
+	@${MLIR_OPT} ./sparse-tensor-dump.mlir \
+		--sparse-compiler="enable-runtime-library=true" | \
+	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
+		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
+
+sparse-tensor-number-of-entries-lower:
+	@${MLIR_OPT} ./sparse-tensor-number-of-entries.mlir \
+		--sparse-compiler="enable-runtime-library=false" -o log.mlir
+sparse-tensor-number-of-entries-translate:
+	@${MLIR_OPT} ./sparse-tensor-number-of-entries.mlir \
+		--sparse-compiler="enable-runtime-library=false" | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+sparse-tensor-number-of-entries-run:
+	@${MLIR_OPT} ./sparse-tensor-number-of-entries.mlir \
+		--sparse-compiler="enable-runtime-library=false" | \
+	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
+		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
+
+sparse-tensor-insert-lower:
+	@${MLIR_OPT} ./sparse-tensor-insert.mlir \
+		--sparse-compiler="enable-runtime-library=true" -o log.mlir
+sparse-tensor-insert-translate:
+	@${MLIR_OPT} ./sparse-tensor-insert.mlir \
+		--sparse-compiler="enable-runtime-library=true" | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+sparse-tensor-insert-run:
+	@${MLIR_OPT} ./sparse-tensor-insert.mlir \
+		--sparse-compiler="enable-runtime-library=true" | \
+	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
+		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
+
+sparse-tensor-binary-lower:
+	@${MLIR_OPT} ./sparse-tensor-binary.mlir \
+		--sparse-compiler="enable-runtime-library=true" -o log.mlir
+sparse-tensor-binary-translate:
+	@${MLIR_OPT} ./sparse-tensor-binary.mlir \
+		--sparse-compiler="enable-runtime-library=true" | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+sparse-tensor-binary-run:
+	@${MLIR_OPT} ./sparse-tensor-binary.mlir \
+		--sparse-compiler="enable-runtime-library=true" | \
+	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
+		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
+
+# `sparse_tensor.expand/compress` are used by rewrite op to lower those high level linalg operation.
+# The below passes can make the rewrited code more readble.
+sparse-tensor-expand-lower:
+	@${MLIR_OPT} ./sparse-tensor-expand.mlir \
+		--linalg-generalize-named-ops \
+		--linalg-fuse-elementwise-ops \
+		--sparsification -o log.mlir

@@ -1,3 +1,7 @@
+// RUN: buddy-opt %s \
+// RUN:     --lower-gemmini | \
+// RUN: FileCheck %s
+
 memref.global "private" @gv1 : memref<4x4xi8> = dense<[[1, 2, 3, 4],
                                                        [5, 6, 7, 8],
                                                        [9, 10, 11, 12],
@@ -20,11 +24,17 @@ func.func @main() -> i64 {
   %cAccAddr = arith.constant 2147483648
   %cst4 = arith.constant 4 : i64
   %cst0 = arith.constant 0 : i64
+  // CHECK: "gemmini.intr.config_ld"
   gemmini.config_ld %cst4 {shrunk = true} : i64
+  // CHECK: "gemmini.intr.mvin"
   gemmini.mvin %arrayA %aAccAddr : memref<4x4xi8> i64
+  // CHECK: "gemmini.intr.config_ld"
   gemmini.config_ld %cst4 {shrunk = true} : i64
+  // CHECK: "gemmini.intr.mvin"
   gemmini.mvin %arrayB %bAccAddr : memref<4x4xi8> i64
+  // CHECK: "gemmini.intr.config_st"
   gemmini.config_st %cst4 : i64
+  // CHECK: "gemmini.intr.mvout"
   gemmini.mvout %arrayC %cAccAddr : memref<4x4xi8> i64
   gemmini.print %arrayC : memref<4x4xi8> 
   return %cst0 : i64

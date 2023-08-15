@@ -17,3 +17,9 @@ target_link_libraries(resize2D ${OpenCV_LIBS} BuddyLibDIP)
 
 add_executable(morph2D morph2D.cpp)
 target_link_libraries(morph2D ${OpenCV_LIBS} BuddyLibDIP)
+
+add_executable(dip-all DIPAll.cpp)
+target_link_libraries(dip-all ${OpenCV_LIBS} BuddyLibDIP)
+
+add_executable(opencv-all OpenCVAll.cpp)
+target_link_libraries(opencv-all ${OpenCV_LIBS})
