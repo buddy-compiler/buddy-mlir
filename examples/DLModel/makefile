@@ -78,7 +78,6 @@ sentiment-classification-run-rv: bert-rvv.o
 
 bert-rvv.o:
 	@${MLIR_OPT} ./bert-with-weights.mlir \
-		--test-linalg-transform-patterns="test-generalize-pad-tensor" \
 		--linalg-bufferize \
 		--convert-linalg-to-loops \
 		--func-bufferize \
