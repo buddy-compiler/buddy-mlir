@@ -31,20 +31,404 @@ template <typename T, size_t N> class Img : public MemRef<T, N> {
 public:
   Img();
 
+  /**
+   * @brief overload
+   * @param rows Number of rows in a 2D array.
+   * @param cols Number of columns in a 2D array.
+   * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
+   * matrices.
+   */
   Img(int rows, int cols, int type);
 
-  Img(int rows, int cols, int type, T *get_data);
+  /**
+   * @brief overload
+   * @param rows Number of rows in a 2D array.
+   * @param cols Number of columns in a 2D array.
+   * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
+   * matrices.
+   * @param data Pointer to the user data.
+   * they just initialize the matrix header that points to the specified data.
+   */
+  Img(int rows, int cols, int type, T *data);
 
+  /**
+   * @brief overload
+   * @param ndims Array dimensionality.
+   * @param sizes Array of integers specifying an n-dimensional array shape.
+   * @param type Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
+   * matrices.
+   */
   Img(int ndims, const int *sizes, int type);
 
+  /**
+   * @brief overload
+   * @param m Array that (as a whole or partly) is assigned to the constructed
+   * matrix.
+   */
   Img(const Img<T, N> &m);
 
+  /**
+   * @brief assignment operators
+   * @param m Assigned, right-hand-side matrix.
+   * matrix.
+   */
   Img &operator=(const Img<T, N> &m);
 
-  Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
-
+  /**
+   * @brief Move constructor.
+   * @param m Transfer resource ownership of m objects from one object
+   * to another while avoiding unnecessary data replication.
+   */
   Img(Img<T, N> &&m);
 
+  // Move assignment operator.
   Img &operator=(Img<T, N> &&other);
+
+  /**
+   * @brief Load image data from OpenCV Mat.
+   * @param image represents the OpenCV Mat object.
+   * @param norm indicates whether to perform.
+   */
+  Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
+
+  /**
+   * @brief Allocates new array data if needed.
+   * @param rows Number of rows in a 2D array.
+   * @param cols Number of columns in a 2D array.
+   * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
+   * matrices.
+   */
+  void create(int rows, int cols, int type);
+
+  /**
+   * @brief overload
+   * @param ndims Array dimensionality.
+   * @param sizes Array of integers specifying an n-dimensional array shape.
+   * @param type Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
+   * matrices.
+   */
+  void create(int ndims, int *sizes, int type);
+
+  int channels() const;
+
+  int _cols() const;
+
+  int _rows() const;
+
+  size_t total();
+
+  int _type;
+
+  int flags;
+  //! the matrix dimensionality, >= 2
+
+  int dims;
+  //! the number of rows and columns or (-1, -1) when the matrix has more than 2
+  //! dimensions
+
+  int rows, cols;
+};
+
+// Image Constructor from Img.
+template <typename T, size_t N>
+Img<T, N>::Img() : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {}
+
+/**
+ * @brief overload
+ * @param rows Number of rows in a 2D array.
+ * @param cols Number of columns in a 2D array.
+ * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
+ * matrices.
+ */
+template <typename T, size_t N>
+Img<T, N>::Img(int rows, int cols, int type)
+    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {
+  create(rows, cols, type);
+}
+
+/**
+ * @brief overload
+ * @param ndims Array dimensionality.
+ * @param sizes Array of integers specifying an n-dimensional array shape.
+ * @param type Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
+ * matrices.
+ */
+template <typename T, size_t N>
+Img<T, N>::Img(int ndims, const int *sizes, int type)
+    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {
+  create(ndims, sizes, type);
+}
+
+/**
+ * @brief overload
+ * @param m Array that (as a whole or partly) is assigned to the constructed
+ * matrix.
+ */
+template <typename T, size_t N>
+Img<T, N>::Img(const Img<T, N> &m)
+    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols),
+      _type(m._type) {
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = m.sizes[i];
+  }
+  this->setStrides();
+  this->size = total();
+  this->allocated = new T[total()];
+  this->aligned = this->allocated;
+  this->data = this->allocated;
+  for (size_t i = 0; i < this->size; i++) {
+    this->aligned[i] = m.aligned[i];
+  }
+}
+
+/**
+ * @brief Allocates new array data if needed.
+ * @param rows Number of rows in a 2D array.
+ * @param cols Number of columns in a 2D array.
+ * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
+ * matrices.
+ */
+template <typename T, size_t N>
+void Img<T, N>::create(int rows, int cols, int type) {
+
+  this->_type = type;
+  this->cols = cols;
+  this->rows = rows;
+  if (N <= 2) {
+    this->sizes[0] = cols;
+    this->sizes[1] = rows;
+    create(2, this->sizes, _type);
+  }
+}
+
+/**
+ * @brief overload
+ * @param ndims Array dimensionality.
+ * @param sizes Array of integers specifying an n-dimensional array shape.
+ * @param type Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
+ * matrices.
+ */
+template <typename T, size_t N>
+void Img<T, N>::create(int ndims, int *sizes, int type) {
+  int i;
+  this->_type = type;
+  this->dims = ndims;
+  this->size = total();
+  this->setStrides();
+  if (total() > 0) {
+    this->allocated = new T[total()];
+    this->aligned = this->allocated;
+    this->data = this->allocated;
+  }
+}
+
+/**
+ * @brief assignment operators
+ * @param m Assigned, right-hand-side matrix.
+ * matrix.
+ */
+template <typename T, size_t N>
+Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
+  if (this == &m) {
+    return *this;
+  }
+  this->flags = m.flags;
+  this->_type = m._type;
+  if (this->dims <= 2 && m.dims <= 2) {
+    this->dims = m.dims;
+    this->rows = m.rows;
+    this->cols = m.cols;
+    for (int i = 0; i < this->dims; i++) {
+      this->sizes[i] = m.sizes[i];
+    }
+    this->size = total();
+    // Allocate new space and deep copy.
+    this->setStrides();
+    T *ptr = new T[total()];
+    for (size_t i = 0; i < total(); i++) {
+      ptr[i] = m.aligned[i];
+    }
+    this->allocated = ptr;
+    this->aligned = ptr;
+    this->data = ptr;
+    return *this;
+  }
+}
+
+/**
+ * @brief overload
+ * @param rows Number of rows in a 2D array.
+ * @param cols Number of columns in a 2D array.
+ * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
+ * matrices.
+ * @param data Pointer to the user data.
+ * they just initialize the matrix header that points to the specified data.
+ */
+template <typename T, size_t N>
+Img<T, N>::Img(int rows, int cols, int type, T *data)
+    : MemRef<T, N>(), dims(2), rows(rows), cols(cols), _type(type) {
+
+  this->aligned = data;
+  this->sizes[0] = rows;
+  this->sizes[1] = cols;
+  this->size = total();
+  this->setStrides();
+}
+
+/**
+ * @brief Move constructor.
+ * @param m Transfer resource ownership of m objects from one object
+ * to another while avoiding unnecessary data replication.
+ */
+template <typename T, size_t N>
+Img<T, N>::Img(Img<T, N> &&m)
+    : flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols), _type(m._type) {
+  this->aligned = m.aligned;
+  this->allocated = m.allocated;
+  this->size = m.size;
+  std::swap(this->sizes, m.sizes);
+  std::swap(this->strides, m.strides);
+
+  // Assign the NULL pointer to the original aligned and allocated members to
+  // avoid the double free error.
+  m.allocated = m.aligned = nullptr;
+}
+
+// Move assignment operator.
+template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
+  if (this != &m) {
+    // Free the original aligned and allocated space.
+    delete[] this->allocated;
+    // Steal members of the original object.
+    std::swap(this->flags, m.flags);
+    std::swap(this->rows, m.rows);
+    std::swap(this->cols, m.cols);
+    std::swap(this->dims, m.dims);
+    std::swap(this->_type, m._type);
+    std::swap(this->size, m.size);
+    std::swap(this->allocated, m.allocated);
+    std::swap(this->aligned, m.aligned);
+    std::swap(this->sizes, m.sizes);
+    std::swap(this->strides, m.strides);
+    // Assign the NULL pointer to the original aligned and allocated members to
+    // avoid the double free error.
+    for (int i = 0; i < N; i++) {
+      this->sizes[i] = m.sizes[i];
+    }
+    m.allocated = m.aligned = nullptr;
+  }
+}
+
+// Image Constructor from OpenCV Mat.
+template <typename T, size_t N>
+Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
+  if (image.channels() == 1) {
+    assert((N == 2) && "For gray images, the number of dimensions must be 2.");
+  } else if (image.channels() == 3) {
+    assert((N == 4) && "For RGB images, the number of dimensions must be 4, "
+                       "either in NHWC or NCHW layout.");
+  } else {
+    std::cerr << "Only 2-channel gray images and 3-channel RGB images are "
+                 "supported, but got images' channel equal to "
+              << image.channels() << "." << std::endl;
+  }
+  // Use default layout setting.
+  if (sizes == nullptr) {
+    // The size of the gray image is represented by height and width by default.
+    if (N == 2) {
+      this->sizes[0] = image.rows;
+      this->sizes[1] = image.cols;
+    }
+    // For RGB images, use NHWC layout by default.
+    else if (N == 4) {
+      this->sizes[0] = 1;
+      this->sizes[1] = image.rows;
+      this->sizes[2] = image.cols;
+      this->sizes[3] = 3;
+    }
+  } else {
+    // Use custom layout setting.
+    for (size_t i = 0; i < N; i++) {
+      this->sizes[i] = sizes[i];
+    }
+  }
+  this->size = this->product(this->sizes);
+  this->setStrides();
+  this->allocated = new T[this->size];
+  this->aligned = this->allocated;
+  // Load gray image data from OpenCV Mat.
+  if (N == 2) {
+    size_t k = 0;
+    for (int i = 0; i < this->sizes[0]; i++) {
+      for (int j = 0; j < this->sizes[1]; j++) {
+        if (norm) {
+          this->aligned[k] = (T)image.at<uchar>(i, j) / 255;
+        } else {
+          this->aligned[k] = (T)image.at<uchar>(i, j);
+        }
+        k++;
+      }
+    }
+  } else if (N == 4) {
+    // Detect NHWC layout of RGB image data.
+    if (this->sizes[1] == image.rows && this->sizes[2] == image.cols &&
+        this->sizes[3] == 3) {
+      size_t k = 0;
+      for (int i = 0; i < image.rows; i++) {
+        for (int j = 0; j < image.cols; j++) {
+          for (int color = 0; color < 3; color++) {
+            if (norm) {
+              this->aligned[k] = (T)image.at<cv::Vec3b>(i, j)[2 - color] / 255;
+            } else {
+              this->aligned[k] = (T)image.at<cv::Vec3b>(i, j)[2 - color];
+            }
+            k++;
+          }
+        }
+      }
+    }
+    // Detect NCHW layout of RGB image data.
+    else if (this->sizes[2] == image.rows && this->sizes[3] == image.cols &&
+             this->sizes[1] == 3) {
+      size_t k = 0;
+      for (int color = 0; color < 3; color++) {
+        for (int i = 0; i < image.rows; i++) {
+          for (int j = 0; j < image.cols; j++) {
+            if (norm) {
+              this->aligned[k] = (T)image.at<cv::Vec3b>(i, j)[2 - color] / 255;
+            } else {
+              this->aligned[k] = (T)image.at<cv::Vec3b>(i, j)[2 - color];
+            }
+            k++;
+          }
+        }
+      }
+    } else {
+      std::cerr << "RGB images must be arranged in either NHWC or NCHW layout."
+                << std::endl;
+    }
+  }
+}
+
+template <typename T, size_t N> int Img<T, N>::channels() const {
+  return CV_MAT_CN(_type);
+}
+
+template <typename T, size_t N> int Img<T, N>::_rows() const {
+  return this->rows;
+}
+
+template <typename T, size_t N> int Img<T, N>::_cols() const {
+  return this->cols;
+}
+
+template <typename T, size_t N> size_t Img<T, N>::total() {
+  if (dims <= 2) {
+    return (size_t)rows * cols * channels();
+  }
+  size_t p = 1;
+  for (int i = 0; i < dims; i++)
+    p *= this->sizes[i];
+  return p;
 }
 #endif // FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
