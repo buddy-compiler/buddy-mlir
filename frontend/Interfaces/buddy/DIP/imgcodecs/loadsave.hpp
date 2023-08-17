@@ -44,7 +44,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file is modified from opencv's modules/imgcodecs/src/loadsave.cpp file
+// This file is modified from opencv's modules/imgcodecs/src/loadsave.hpp file
 //
 //===----------------------------------------------------------------------===//
 
