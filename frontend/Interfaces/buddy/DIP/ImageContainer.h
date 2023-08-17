@@ -23,7 +23,9 @@
 
 #include "buddy/Core/Container.h"
 #include <cassert>
+#include <opencv2/opencv.hpp>
 
+namespace dip {
 // Image container.
 // - T represents the type of the elements.
 // - N represents the number of dimensions.
@@ -58,7 +60,7 @@ public:
    * @param type Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
    * matrices.
    */
-  Img(int ndims, const int *sizes, int type);
+  Img(int ndims, intptr_t *sizes, int type);
 
   /**
    * @brief overload
@@ -107,7 +109,7 @@ public:
    * @param type Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
    * matrices.
    */
-  void create(int ndims, int *sizes, int type);
+  void create(int ndims, intptr_t *sizes, int type);
 
   int channels() const;
 
@@ -120,12 +122,12 @@ public:
   int _type;
 
   int flags;
-  //! the matrix dimensionality, >= 2
 
+  //! the matrix dimensionality, >= 2
   int dims;
+
   //! the number of rows and columns or (-1, -1) when the matrix has more than 2
   //! dimensions
-
   int rows, cols;
 };
 
@@ -154,7 +156,7 @@ Img<T, N>::Img(int rows, int cols, int type)
  * matrices.
  */
 template <typename T, size_t N>
-Img<T, N>::Img(int ndims, const int *sizes, int type)
+Img<T, N>::Img(int ndims, intptr_t *sizes, int type)
     : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {
   create(ndims, sizes, type);
 }
@@ -170,12 +172,11 @@ Img<T, N>::Img(const Img<T, N> &m)
       _type(m._type) {
   for (size_t i = 0; i < N; i++) {
     this->sizes[i] = m.sizes[i];
+    this->strides[i] = m.strides[i];
   }
-  this->setStrides();
   this->size = total();
   this->allocated = new T[total()];
   this->aligned = this->allocated;
-  this->data = this->allocated;
   for (size_t i = 0; i < this->size; i++) {
     this->aligned[i] = m.aligned[i];
   }
@@ -195,8 +196,6 @@ void Img<T, N>::create(int rows, int cols, int type) {
   this->cols = cols;
   this->rows = rows;
   if (N <= 2) {
-    this->sizes[0] = cols;
-    this->sizes[1] = rows;
     create(2, this->sizes, _type);
   }
 }
@@ -209,16 +208,16 @@ void Img<T, N>::create(int rows, int cols, int type) {
  * matrices.
  */
 template <typename T, size_t N>
-void Img<T, N>::create(int ndims, int *sizes, int type) {
-  int i;
+void Img<T, N>::create(int ndims, intptr_t *sizes, int type) {
   this->_type = type;
   this->dims = ndims;
   this->size = total();
   this->setStrides();
+  this->sizes[0] = cols;
+  this->sizes[1] = rows;
   if (total() > 0) {
     this->allocated = new T[total()];
     this->aligned = this->allocated;
-    this->data = this->allocated;
   }
 }
 
@@ -240,17 +239,16 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
     this->cols = m.cols;
     for (int i = 0; i < this->dims; i++) {
       this->sizes[i] = m.sizes[i];
+      this->strides[i] = m.strides[i];
     }
     this->size = total();
     // Allocate new space and deep copy.
-    this->setStrides();
     T *ptr = new T[total()];
     for (size_t i = 0; i < total(); i++) {
       ptr[i] = m.aligned[i];
     }
     this->allocated = ptr;
     this->aligned = ptr;
-    this->data = ptr;
     return *this;
   }
 }
@@ -339,73 +337,23 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
       this->sizes[0] = image.rows;
       this->sizes[1] = image.cols;
     }
-    // For RGB images, use NHWC layout by default.
-    else if (N == 4) {
-      this->sizes[0] = 1;
-      this->sizes[1] = image.rows;
-      this->sizes[2] = image.cols;
-      this->sizes[3] = 3;
-    }
-  } else {
-    // Use custom layout setting.
-    for (size_t i = 0; i < N; i++) {
-      this->sizes[i] = sizes[i];
-    }
-  }
-  this->size = this->product(this->sizes);
-  this->setStrides();
-  this->allocated = new T[this->size];
-  this->aligned = this->allocated;
-  // Load gray image data from OpenCV Mat.
-  if (N == 2) {
-    size_t k = 0;
-    for (int i = 0; i < this->sizes[0]; i++) {
-      for (int j = 0; j < this->sizes[1]; j++) {
-        if (norm) {
-          this->aligned[k] = (T)image.at<uchar>(i, j) / 255;
-        } else {
-          this->aligned[k] = (T)image.at<uchar>(i, j);
-        }
-        k++;
-      }
-    }
-  } else if (N == 4) {
-    // Detect NHWC layout of RGB image data.
-    if (this->sizes[1] == image.rows && this->sizes[2] == image.cols &&
-        this->sizes[3] == 3) {
+    this->size = this->product(this->sizes);
+    this->setStrides();
+    this->allocated = new T[this->size];
+    this->aligned = this->allocated;
+    // Load gray image data from OpenCV Mat.
+    if (N == 2) {
       size_t k = 0;
-      for (int i = 0; i < image.rows; i++) {
-        for (int j = 0; j < image.cols; j++) {
-          for (int color = 0; color < 3; color++) {
-            if (norm) {
-              this->aligned[k] = (T)image.at<cv::Vec3b>(i, j)[2 - color] / 255;
-            } else {
-              this->aligned[k] = (T)image.at<cv::Vec3b>(i, j)[2 - color];
-            }
-            k++;
+      for (int i = 0; i < this->sizes[0]; i++) {
+        for (int j = 0; j < this->sizes[1]; j++) {
+          if (norm) {
+            this->aligned[k] = (T)image.at<uchar>(i, j) / 255;
+          } else {
+            this->aligned[k] = (T)image.at<uchar>(i, j);
           }
+          k++;
         }
       }
-    }
-    // Detect NCHW layout of RGB image data.
-    else if (this->sizes[2] == image.rows && this->sizes[3] == image.cols &&
-             this->sizes[1] == 3) {
-      size_t k = 0;
-      for (int color = 0; color < 3; color++) {
-        for (int i = 0; i < image.rows; i++) {
-          for (int j = 0; j < image.cols; j++) {
-            if (norm) {
-              this->aligned[k] = (T)image.at<cv::Vec3b>(i, j)[2 - color] / 255;
-            } else {
-              this->aligned[k] = (T)image.at<cv::Vec3b>(i, j)[2 - color];
-            }
-            k++;
-          }
-        }
-      }
-    } else {
-      std::cerr << "RGB images must be arranged in either NHWC or NCHW layout."
-                << std::endl;
     }
   }
 }
@@ -431,4 +379,5 @@ template <typename T, size_t N> size_t Img<T, N>::total() {
     p *= this->sizes[i];
   return p;
 }
+} // namespace dip
 #endif // FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
