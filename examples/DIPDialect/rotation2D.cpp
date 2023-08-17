@@ -22,30 +22,26 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "buddy/DIP/imgcodecs/loadsave.hpp"
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/DIP.h>
 #include <buddy/DIP/ImageContainer.h>
 #include <iostream>
-#include <opencv2/opencv.hpp>
 
-using namespace cv;
 using namespace std;
 
 bool testImplementation(int argc, char *argv[]) {
   // Read as grayscale image.
-  Mat image = imread(argv[1], IMREAD_GRAYSCALE);
-  if (image.empty()) {
-    cout << "Could not read the image: " << argv[1] << endl;
-  }
+  dip::Img<float, 2> input =
+      dip::imread<float, 2>(argv[1], dip::IMGRD_GRAYSCALE);
 
-  // Define memref containers.
-  Img<float, 2> input(image);
   MemRef<float, 2> output = dip::Rotate2D(&input, 45, dip::ANGLE_TYPE::DEGREE);
 
-  // Define a cv::Mat with the output of Rotate2D.
-  Mat outputImageRotate2D(output.getSizes()[0], output.getSizes()[1], CV_32FC1,
-                          output.getData());
-  imwrite(argv[2], outputImageRotate2D);
+  // Define a Img with the output of Rotate2D.
+  dip::Img<float, 2> outputImageRotate2D(
+      output.getSizes()[0], output.getSizes()[1], IMG_32FC1, output.getData());
+  
+  dip::imwrite_(argv[2], outputImageRotate2D);
 
   return 1;
 }
