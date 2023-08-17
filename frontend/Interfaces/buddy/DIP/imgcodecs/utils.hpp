@@ -50,7 +50,7 @@
 #ifndef _UTILS_H_
 #define _UTILS_H_
 
-#include "Replenishment.hpp"
+#include "buddy/DIP/imgcodecs/Replenishment.hpp"
 
 namespace dip {
 int validateToInt(size_t sz) {

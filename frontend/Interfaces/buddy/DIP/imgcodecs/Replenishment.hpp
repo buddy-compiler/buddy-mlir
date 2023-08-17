@@ -142,19 +142,19 @@ namespace dip {
 enum ImreadModes {
   // If set, return the loaded image as is (with alpha channel,otherwise it gets
   // cropped).
-  IMGREAD_UNCHANGED = -1,
+  IMGRD_UNCHANGED = -1,
   // If set, always convert image to the single channel grayscale image (codec
   // internal conversion).
-  IMGREAD_GRAYSCALE = 0,
+  IMGRD_GRAYSCALE = 0,
   // If set, always convert image to the 3 channel BGR color image.
-  IMGREAD_COLOR = 1,
+  IMGRD_COLOR = 1,
   // If set, return 16-bit/32-bit image when the input has the corresponding
   // depth, otherwise convert it to 8-bit.
-  IMGREAD_ANYDEPTH = 2,
+  IMGRD_ANYDEPTH = 2,
   // If set, the image is read in any possible color format.
-  IMGREAD_ANYCOLOR = 4,
+  IMGRD_ANYCOLOR = 4,
   // If set, use the gdal driver for loading the image.
-  IMGREAD_LOAD_GDAL = 8,
+  IMGRD_LOAD_GDAL = 8,
 };
 
 class _Size {
