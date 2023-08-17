@@ -22,25 +22,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "buddy/DIP/imgcodecs/loadsave.hpp"
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/DIP.h>
 #include <buddy/DIP/ImageContainer.h>
 #include <iostream>
-#include <opencv2/opencv.hpp>
 
-using namespace cv;
 using namespace std;
 
 bool testImplementation(int argc, char *argv[]) {
   // Read as grayscale image.
-  Mat image = imread(argv[1], IMREAD_GRAYSCALE);
-  if (image.empty()) {
-    cout << "Could not read the image: " << argv[1] << endl;
-  }
+  dip::Img<float, 2> input =
+      dip::imread<float, 2>(argv[1], dip::IMGRD_GRAYSCALE);
 
-  // Define memref container for image.
-  Img<float, 2> input(image);
-  
   // Note : Both values in output image dimensions and scaling ratios must be
   // positive numbers.
 
@@ -57,11 +51,11 @@ bool testImplementation(int argc, char *argv[]) {
   //     &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION,
   //     scalingRatios);
 
-  // Define cv::Mat with the output of Resize2D.
-  Mat outputImageResize2D(output.getSizes()[0], output.getSizes()[1], CV_32FC1,
-                          output.getData());
+  // Define Img with the output of Resize2D.
+  dip::Img<float, 2> outputImageResize2D(
+      output.getSizes()[0], output.getSizes()[1], IMG_32FC1, output.getData());
 
-  imwrite(argv[2], outputImageResize2D);
+  dip::imwrite_(argv[2], outputImageResize2D);
 
   return 1;
 }
