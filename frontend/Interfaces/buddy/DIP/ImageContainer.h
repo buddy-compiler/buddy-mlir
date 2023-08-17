@@ -191,7 +191,6 @@ Img<T, N>::Img(const Img<T, N> &m)
  */
 template <typename T, size_t N>
 void Img<T, N>::create(int rows, int cols, int type) {
-
   this->_type = type;
   this->cols = cols;
   this->rows = rows;
@@ -265,7 +264,6 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
 template <typename T, size_t N>
 Img<T, N>::Img(int rows, int cols, int type, T *data)
     : MemRef<T, N>(), dims(2), rows(rows), cols(cols), _type(type) {
-
   this->aligned = data;
   this->sizes[0] = rows;
   this->sizes[1] = cols;
