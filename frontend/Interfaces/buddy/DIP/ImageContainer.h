@@ -129,6 +129,10 @@ public:
   //! the number of rows and columns or (-1, -1) when the matrix has more than 2
   //! dimensions
   int rows, cols;
+
+  // Used to assign addresses to image data
+  // A Memref::aligned member is a protected member that is not directly accessible from other classes or functions
+  T *_data;
 };
 
 // Image Constructor from Img.
@@ -177,6 +181,7 @@ Img<T, N>::Img(const Img<T, N> &m)
   this->size = total();
   this->allocated = new T[total()];
   this->aligned = this->allocated;
+  this->_data = this->allocated;
   for (size_t i = 0; i < this->size; i++) {
     this->aligned[i] = m.aligned[i];
   }
@@ -209,14 +214,15 @@ void Img<T, N>::create(int rows, int cols, int type) {
 template <typename T, size_t N>
 void Img<T, N>::create(int ndims, intptr_t *sizes, int type) {
   this->_type = type;
-  this->dims = ndims;
-  this->size = total();
-  this->setStrides();
+  this->dims = ndims; 
   this->sizes[0] = cols;
   this->sizes[1] = rows;
+  this->setStrides();
+  this->size = total();
   if (total() > 0) {
     this->allocated = new T[total()];
     this->aligned = this->allocated;
+    this->_data = this->allocated;
   }
 }
 
@@ -248,6 +254,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
     }
     this->allocated = ptr;
     this->aligned = ptr;
+    this->_data = ptr;
     return *this;
   }
 }
@@ -265,6 +272,7 @@ template <typename T, size_t N>
 Img<T, N>::Img(int rows, int cols, int type, T *data)
     : MemRef<T, N>(), dims(2), rows(rows), cols(cols), _type(type) {
   this->aligned = data;
+  this->_data = data;
   this->sizes[0] = rows;
   this->sizes[1] = cols;
   this->size = total();
@@ -281,6 +289,7 @@ Img<T, N>::Img(Img<T, N> &&m)
     : flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols), _type(m._type) {
   this->aligned = m.aligned;
   this->allocated = m.allocated;
+  this->_data = m._data;
   this->size = m.size;
   std::swap(this->sizes, m.sizes);
   std::swap(this->strides, m.strides);
@@ -304,6 +313,7 @@ template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
     std::swap(this->size, m.size);
     std::swap(this->allocated, m.allocated);
     std::swap(this->aligned, m.aligned);
+    std::swap(this->_data, m._data);
     std::swap(this->sizes, m.sizes);
     std::swap(this->strides, m.strides);
     // Assign the NULL pointer to the original aligned and allocated members to

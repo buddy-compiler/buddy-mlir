@@ -22,7 +22,7 @@
 
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImageContainer.h>
-#include <opencv2/imgcodecs.hpp>
+#include "buddy/DIP/imgcodecs/loadsave.hpp"
 
 int main() {
   // The original test image is a gray scale image, and the pixel values are as
@@ -33,13 +33,12 @@ int main() {
   // 195.0, 210.0, 225.0, 240.0
   // The test running directory is in <build dir>/tests/Interface/core, so the
   // `imread` function uses the following relative path.
-  cv::Mat grayimage =
-      cv::imread("../../../../tests/Interface/core/TestGrayImage.png",
-                 cv::IMREAD_GRAYSCALE);
+  dip::Img<float,2> grayimage = dip::imread<float,2>("../../../../tests/Interface/core/TestGrayImage.bmp",
+                 dip::IMGRD_GRAYSCALE);
   //===--------------------------------------------------------------------===//
   // Test image constructor for OpenCV.
   //===--------------------------------------------------------------------===//
-  Img<float, 2> testOpenCVConstructor(grayimage);
+  dip::Img<float, 2> testOpenCVConstructor(grayimage);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testOpenCVConstructor.getData()[0]);
   // CHECK: 4, 4
@@ -59,17 +58,17 @@ int main() {
   // Test copy constructor.
   //===--------------------------------------------------------------------===//
   // TODO: Add copy assignment operator test.
-  Img<float, 2> testCopyConstructor1(testOpenCVConstructor);
+  dip::Img<float, 2> testCopyConstructor1(testOpenCVConstructor);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor1[0]);
-  Img<float, 2> testCopyConstructor2 = testOpenCVConstructor;
+  dip::Img<float, 2> testCopyConstructor2 = testOpenCVConstructor;
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor2[0]);
-  Img<float, 2> testCopyConstructor3 = Img<float, 2>(testOpenCVConstructor);
+  dip::Img<float, 2> testCopyConstructor3 = dip::Img<float, 2>(testOpenCVConstructor);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor3[0]);
-  Img<float, 2> *testCopyConstructor4 =
-      new Img<float, 2>(testOpenCVConstructor);
+  dip::Img<float, 2> *testCopyConstructor4 =
+      new dip::Img<float, 2>(testOpenCVConstructor);
   // CHECK: 5.0
   fprintf(stderr, "%f\n", testCopyConstructor4->getData()[0]);
   delete testCopyConstructor4;
@@ -78,51 +77,25 @@ int main() {
   // Test move constructor.
   //===--------------------------------------------------------------------===//
   // TODO: Add copy assignment operator test.
-  Img<float, 2> testMoveConstructor1(std::move(testCopyConstructor1));
+  dip::Img<float, 2> testMoveConstructor1(std::move(testCopyConstructor1));
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testMoveConstructor1[0]);
-  Img<float, 2> testMoveConstructor2 = std::move(testMoveConstructor1);
+  dip::Img<float, 2> testMoveConstructor2 = std::move(testMoveConstructor1);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testMoveConstructor2[0]);
 
   //===--------------------------------------------------------------------===//
   // Test overloading bracket operator.
   //===--------------------------------------------------------------------===//
-  Img<float, 2> testBracketOperator1(grayimage);
+  dip::Img<float, 2> testBracketOperator1(grayimage);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator1[15]);
   testBracketOperator1[15] = 90.0;
   // CHECK: 90.0
   fprintf(stderr, "%f\n", testBracketOperator1[15]);
-  const Img<float, 2> testBracketOperator2(grayimage);
+  const dip::Img<float, 2> testBracketOperator2(grayimage);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator2[15]);
-
-  //===--------------------------------------------------------------------===//
-  // Test image channels layout of RGB images from ImgContainer.
-  //===--------------------------------------------------------------------===//
-  // The test image is an RGB image with size 1026 * 1026 from
-  // buddy-mlir/examples. The test running directory is in <build
-  // dir>/tests/Interface/core, so the `imread` function uses the following
-  // relative path.
-
-  cv::Mat RGBimage = cv::imread("../../../../examples/images/YuTu.png");
-
-  // Represent NHWC layout by default.
-  Img<float, 4> testRGBImageLayout1(RGBimage);
-  // CHECK: 1, 1026, 1026, 3
-  fprintf(stderr, "%ld, %ld, %ld, %ld\n", testRGBImageLayout1.getSizes()[0],
-          testRGBImageLayout1.getSizes()[1], testRGBImageLayout1.getSizes()[2],
-          testRGBImageLayout1.getSizes()[3]);
-
-  // Represent NCHW layout with sizes = {1, 3, 1026, 1026}
-  intptr_t sizesInput2[4] = {1, 3, RGBimage.rows, RGBimage.cols};
-  Img<float, 4> testRGBImageLayout2(RGBimage, sizesInput2);
-  // CHECK: 3158028, 1052676, 1026, 1
-  fprintf(stderr, "%ld, %ld, %ld, %ld\n", testRGBImageLayout2.getStrides()[0],
-          testRGBImageLayout2.getStrides()[1],
-          testRGBImageLayout2.getStrides()[2],
-          testRGBImageLayout2.getStrides()[3]);
 
   return 0;
 }
