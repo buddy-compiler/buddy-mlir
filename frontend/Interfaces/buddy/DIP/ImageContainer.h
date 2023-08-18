@@ -77,16 +77,6 @@ public:
   Img &operator=(const Img<T, N> &m);
 
   /**
-   * @brief Move constructor.
-   * @param m Transfer resource ownership of m objects from one object
-   * to another while avoiding unnecessary data replication.
-   */
-  //Img(Img<T, N> &&m);
-
-  // Move assignment operator.
-  //Img &operator=(Img<T, N> &&other);
-
-  /**
    * @brief Load image data from OpenCV Mat.
    * @param image represents the OpenCV Mat object.
    * @param norm indicates whether to perform.
