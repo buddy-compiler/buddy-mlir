@@ -296,7 +296,7 @@ Img<T, N>::Img(Img<T, N> &&m)
 
   // Assign the NULL pointer to the original aligned and allocated members to
   // avoid the double free error.
-  m.allocated = m.aligned = nullptr;
+  m.allocated = m.aligned = m._data = nullptr;
 }
 
 // Move assignment operator.
@@ -318,10 +318,7 @@ template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
     std::swap(this->strides, m.strides);
     // Assign the NULL pointer to the original aligned and allocated members to
     // avoid the double free error.
-    for (int i = 0; i < N; i++) {
-      this->sizes[i] = m.sizes[i];
-    }
-    m.allocated = m.aligned = nullptr;
+    m.allocated = m.aligned = m._data = nullptr;
   }
 }
 
