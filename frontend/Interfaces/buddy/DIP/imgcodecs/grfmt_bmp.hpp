@@ -53,6 +53,7 @@
 
 #include "buddy/DIP/imgcodecs/grfmt_base.hpp"
 #include "buddy/Core/Container.h"
+
 namespace dip {
 enum BmpCompression {
   BMP_RGB = 0,
