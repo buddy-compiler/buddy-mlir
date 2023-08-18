@@ -81,10 +81,10 @@ public:
    * @param m Transfer resource ownership of m objects from one object
    * to another while avoiding unnecessary data replication.
    */
-  Img(Img<T, N> &&m);
+  //Img(Img<T, N> &&m);
 
   // Move assignment operator.
-  Img &operator=(Img<T, N> &&other);
+  //Img &operator=(Img<T, N> &&other);
 
   /**
    * @brief Load image data from OpenCV Mat.
@@ -178,8 +178,8 @@ Img<T, N>::Img(const Img<T, N> &m)
     this->sizes[i] = m.sizes[i];
     this->strides[i] = m.strides[i];
   }
-  this->size = total();
-  this->allocated = new T[total()];
+  this->size = m.size;
+  this->allocated = new T[this->size];
   this->aligned = this->allocated;
   this->_data = this->allocated;
   for (size_t i = 0; i < this->size; i++) {
@@ -199,6 +199,8 @@ void Img<T, N>::create(int rows, int cols, int type) {
   this->_type = type;
   this->cols = cols;
   this->rows = rows;
+  this->sizes[0] = cols;
+  this->sizes[1] = rows;
   if (N <= 2) {
     create(2, this->sizes, _type);
   }
@@ -213,10 +215,7 @@ void Img<T, N>::create(int rows, int cols, int type) {
  */
 template <typename T, size_t N>
 void Img<T, N>::create(int ndims, intptr_t *sizes, int type) {
-  this->_type = type;
   this->dims = ndims; 
-  this->sizes[0] = cols;
-  this->sizes[1] = rows;
   this->setStrides();
   this->size = total();
   if (total() > 0) {
@@ -277,49 +276,6 @@ Img<T, N>::Img(int rows, int cols, int type, T *data)
   this->sizes[1] = cols;
   this->size = total();
   this->setStrides();
-}
-
-/**
- * @brief Move constructor.
- * @param m Transfer resource ownership of m objects from one object
- * to another while avoiding unnecessary data replication.
- */
-template <typename T, size_t N>
-Img<T, N>::Img(Img<T, N> &&m)
-    : flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols), _type(m._type) {
-  this->aligned = m.aligned;
-  this->allocated = m.allocated;
-  this->_data = m._data;
-  this->size = m.size;
-  std::swap(this->sizes, m.sizes);
-  std::swap(this->strides, m.strides);
-
-  // Assign the NULL pointer to the original aligned and allocated members to
-  // avoid the double free error.
-  m.allocated = m.aligned = m._data = nullptr;
-}
-
-// Move assignment operator.
-template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
-  if (this != &m) {
-    // Free the original aligned and allocated space.
-    delete[] this->allocated;
-    // Steal members of the original object.
-    std::swap(this->flags, m.flags);
-    std::swap(this->rows, m.rows);
-    std::swap(this->cols, m.cols);
-    std::swap(this->dims, m.dims);
-    std::swap(this->_type, m._type);
-    std::swap(this->size, m.size);
-    std::swap(this->allocated, m.allocated);
-    std::swap(this->aligned, m.aligned);
-    std::swap(this->_data, m._data);
-    std::swap(this->sizes, m.sizes);
-    std::swap(this->strides, m.strides);
-    // Assign the NULL pointer to the original aligned and allocated members to
-    // avoid the double free error.
-    m.allocated = m.aligned = m._data = nullptr;
-  }
 }
 
 // Image Constructor from OpenCV Mat.
