@@ -16,17 +16,15 @@ with ir.Location.unknown(ctx):
       tensor_type = ir.RankedTensorType.get([1, 13], ir.F32Type.get())
       output_shape = [1, 13]
       generic_map = ir.AffineMap.get_permutation([i for i in range(len(output_shape))])
-      op = linalg.GenericOp([tensor_type], [op4, op4], [op4],
-                            ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))])), ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))])), ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))]))]),
+      print(ir.AffineMap.get(2, 0, [ir.AffineAddExpr.get(ir.AffineExpr.get_dim(0), ir.AffineExpr.get_constant(64))]))
+      op = linalg.GenericOp([tensor_type], [], [op4],
+                            ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))]))]),
                             ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*len(output_shape)))
-      block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(op4.result.type).element_type, ir.RankedTensorType(op4.result.type).element_type, ir.RankedTensorType(op4.result.type).element_type])
-      mul_op = arith.MulFOp(block.arguments[0], block.arguments[1])
-      block.append(mul_op)
-      block.append(linalg.YieldOp([mul_op.result]))
+      block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(op4.result.type).element_type])
+      block.append(linalg.YieldOp([block.arguments[0]]))
       op = math.RsqrtOp(op4.result)
-      print(op)
-      print(op4.result)
-      print(op.result)
+      tensor_type = ir.RankedTensorType.get([13, 1], ir.F32Type.get())
+      output = tensor.EmptyOp([13, 1], ir.F32Type.get())
       # op4 = tensor.EmptyOp([1, 1], ir.F32Type.get())
       # op = linalg.ReduceOp([ir.RankedTensorType.get([1, 1], ir.F32Type.get())], [op3.result], [op4.result], ir._denseI64ArrayAttr([1], ctx))
       # block = ir.Block.create_at_start(op.regions[0], [ir.RankedTensorType(op3.result.type).element_type, ir.RankedTensorType(op4.result.type).element_type])

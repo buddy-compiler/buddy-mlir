@@ -1,6 +1,6 @@
 #map = affine_map<(d0, d1) -> (d0, d1)>
 module{
-  func.func @forward() -> tensor<1x13xf32> {
+  func.func @forward() -> tensor<13x1xf32> {
     %0 = tensor.empty() : tensor<1x13xi1>
     %1 = tensor.empty() : tensor<1x13xf32>
     %2 = arith.extui %0 : tensor<1x13xi1> to tensor<1x13xi32>
@@ -11,6 +11,7 @@ module{
       linalg.yield %5 : f32
     } -> tensor<1x13xf32>
     %5 = math.rsqrt %4 : tensor<1x13xf32>
-    return %5 : tensor<1x13xf32>
+    %6 = "linalg.transpose"(%5) {permutation = array<i64: 0, 1>} : (tensor<1x13xf32>) -> tensor<13x1xf32>
+    return %6 : tensor<13x1xf32>
   }
 }

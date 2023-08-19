@@ -576,25 +576,178 @@ def MulOp(node: torch.fx.Node,
         mul_op = arith.MulFOp(block.arguments[0], block.arguments[1])
         block.append(mul_op)
         block.append(linalg.YieldOp([mul_op.result]))
-
-  # if dtype == "torch.float32":
-  #   tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
-  #   output = tensor.EmptyOp(output_shape, ir.F32Type.get())
-  #   generic_map = ir.AffineMap.get_permutation([i for i in range(len(output_shape))])
-  #   op = linalg.GenericOp([tensor_type], [input1], [output],
-  #                        ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))])), ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))]))]),
-  #                         ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*len(output_shape)))
-  #   block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(output.result.type).element_type])
-  #   rsqrt_op = math.RsqrtOp(block.arguments[0])
-  #   block.append(rsqrt_op)
-  #   block.append(linalg.YieldOp([rsqrt_op.result]))
   
   return op
 
+def TOp(node: torch.fx.Node,
+            symbol_table: Dict[Tuple[str, int], ir.Operation],
+            ctx: ir.Context) -> ir.Operation:
+  assert len(node.args) == 1
+  input1 = symbol_table.get((str(node.args[0]), 0))
+  if input1 is None:
+    return
+  
+  input_shape = list(ir.RankedTensorType(input1.type).shape)
+  output_shape = list(node.meta['tensor_meta'].shape)
+  dtype = str(node.meta['tensor_meta'].dtype)
+  if len(input_shape) == 2:
+    if dtype == "torch.float32":
+      tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
+      output = tensor.EmptyOp(output_shape, ir.F32Type.get())
+      generic_map = ir.AffineMap.get_permutation([0, 1])
+      op = linalg.GenericOp([tensor_type], [input1], [output],
+                            ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([0, 1])), ir.AffineMapAttr.get(generic_map.get_submap([1, 0]))]),
+                            ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*len(output_shape)))
+      block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(output.result.type).element_type])
+      block.append(linalg.YieldOp([block.arguments[0]]))
 
+  return op
+
+def MMOp(node: torch.fx.Node,
+            symbol_table: Dict[Tuple[str, int], ir.Operation],
+            ctx: ir.Context) -> ir.Operation:
+  assert len(node.args) == 2
+  input1 = symbol_table.get((str(node.args[0]), 0))
+  input2 = symbol_table.get((str(node.args[1]), 0))
+  if input1 is None or input2 is None:
+    return
+  
+  output_shape = list(node.meta['tensor_meta'].shape)
+  dtype = str(node.meta['tensor_meta'].dtype)
+  if dtype == "torch.float32":
+    tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
+    output = tensor.EmptyOp(output_shape, ir.F32Type.get())
+    generic_map = ir.AffineMap.get_permutation([0, 1, 2])
+    op = linalg.GenericOp([tensor_type], [input1, input2], [output],
+                          ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([0, 2])), ir.AffineMapAttr.get(generic_map.get_submap([2, 1])), ir.AffineMapAttr.get(generic_map.get_submap([0, 1]))]),
+                          ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*2+[ir.Attribute.parse('#linalg.iterator_type<reduction>')]))
+    block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(input2.type).element_type, ir.RankedTensorType(output.result.type).element_type])
+    mul_op = arith.MulFOp(block.arguments[0], block.arguments[1])
+    block.append(mul_op)
+    block.append(linalg.YieldOp([mul_op.result]))
+
+  return op
+
+def TransposeOp(node: torch.fx.Node,
+            symbol_table: Dict[Tuple[str, int], ir.Operation],
+            ctx: ir.Context) -> ir.Operation:
+  assert len(node.args) == 3
+  input1 = symbol_table.get((str(node.args[0]), 0))
+  if input1 is None:
+    return
+  dim1 = int(node.args[1])
+  dim2 = int(node.args[2])
+  output_shape = list(node.meta['tensor_meta'].shape)
+  dtype = str(node.meta['tensor_meta'].dtype)
+  if dtype == "torch.float32":
+    tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
+    output = tensor.EmptyOp(output_shape, ir.F32Type.get())
+    generic_map = ir.AffineMap.get_permutation([i for i in range(len(output_shape))])
+    input1_map = [i for i in range(len(output_shape))]
+    input1_map[dim1], input1_map[dim2] = input1_map[dim2], input1_map[dim1]
+    output_map = [i for i in range(len(output_shape))]
+    op = linalg.GenericOp([tensor_type], [input1], [output],
+                          ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap(input1_map)), ir.AffineMapAttr.get(generic_map.get_submap(output_map))]),
+                          ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*len(output_shape)))
+    block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(output.result.type).element_type])
+    block.append(linalg.YieldOp([block.arguments[0]]))
+
+  return op
+
+def IndexOp(node: torch.fx.Node,
+            symbol_table: Dict[Tuple[str, int], ir.Operation],
+            ctx: ir.Context) -> ir.Operation:
+  assert len(node.args) == 2
+  input1 = symbol_table.get((str(node.args[0]), 0))
+  if input1 is None:
+    return
+  input1_shape = ir.RankedTensorType(input1).shape
+  input2 = node.args[0]
+  output_shape = list(node.meta['tensor_meta'].shape)
+  dtype = str(node.meta['tensor_meta'].dtype)
+  if len(input2) < len(input1_shape):
+    if dtype == "torch.float32":
+      tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
+      output = tensor.EmptyOp(output_shape, ir.F32Type.get())
+      loops = ir.RankedTensorType(input2[0]).shape
+      generic_map = ir.AffineMap.get_permutation([i for i in range(len(output_shape))])
+      input_map = [ir.AffineMapAttr.get(generic_map.get_submap([j for j in range(len(loops))])) for i in range(len(input2))] + [ir.AffineMapAttr.get(generic_map.get_submap([j for j in range(len(output_shape))]))]
+      operands = [symbol_table.get((str(i), 0)) for i in input2]
+      op = linalg.GenericOp([tensor_type], operands, [output],
+                            ir.ArrayAttr.get(input_map),
+                            ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*len(output_shape)))
+      arguments = [ir.RankedTensorType(i.type).element_type for i in input2] + [ir.RankedTensorType(output.result.type).element_type]
+      block = ir.Block.create_at_start(op.region, arguments)
+      index = []
+      for i in block.arguments:
+        indexcast_op = arith.IndexCastOp(ir.IndexType.get(), i)
+        block.append(indexcast_op)
+        index.append(indexcast_op.result)
+      for i in range(len(input2), len(output_shape)):
+        index_op = linalg.IndexOp(ir._i64Attr(i, ctx))
+        block.append(index_op)
+        index.append(index_op.result)
+      value = tensor.ExtractOp(input1, index)
+      block.append(value)
+      block.append(linalg.YieldOp([value.result]))
+
+  return op
+
+def NegOp(node: torch.fx.Node,
+            symbol_table: Dict[Tuple[str, int], ir.Operation],
+            ctx: ir.Context) -> ir.Operation:
+  assert len(node.args) == 1
+  input1 = symbol_table.get((str(node.args[0]), 0))
+  if input1 is None:
+    return
+
+  output_shape = list(node.meta['tensor_meta'].shape)
+  dtype = str(node.meta['tensor_meta'].dtype)
+  if dtype == "torch.float32":
+    tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
+    output = tensor.EmptyOp(output_shape, ir.F32Type.get())
+    generic_map = ir.AffineMap.get_permutation([i for i in range(len(output_shape))])
+    op = linalg.GenericOp([tensor_type], [input1], [output],
+                          ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))])), ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))]))]),
+                          ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*len(output_shape)))
+    block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(output.result.type).element_type])
+    neg_op = arith.NegFOp(block.arguments[0])
+    block.append(neg_op)
+    block.append(linalg.YieldOp([neg_op.result]))
+
+  return op
+
+def CatOp(node: torch.fx.Node,
+            symbol_table: Dict[Tuple[str, int], ir.Operation],
+            ctx: ir.Context) -> ir.Operation:
+  assert len(node.args) == 2
+  input1 = symbol_table.get((str(node.args[0][0]), 0))
+  input2 = symbol_table.get((str(node.args[0][1]), 0))
+  dim = int(node.args[1])
+  if input1 is None or input2 is None:
+    return
+
+  output_shape = list(node.meta['tensor_meta'].shape)
+  if dim < 0:
+    dim = len(output_shape) + dim
+  dtype = str(node.meta['tensor_meta'].dtype)
+  if dtype == "torch.float32":
+    tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
+    output = tensor.EmptyOp(output_shape, ir.F32Type.get())
+    generic_map = ir.AffineMap.get_permutation([i for i in range(len(output_shape))])
+    op = linalg.GenericOp([tensor_type], [input1], [output],
+                          ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))])), ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))]))]),
+                          ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*len(output_shape)))
+    block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(output.result.type).element_type])
+    neg_op = arith.NegFOp(block.arguments[0])
+    block.append(neg_op)
+    block.append(linalg.YieldOp([neg_op.result]))
+
+  return op
 
 operation_func = {"arange.start": ArangeOp, "arange.default": ArangeOp, "unsqueeze.default": UnsqueezeOp, "view.default": ViewOp,
                   "ones.default": OnesOp, "full.default": FullOp, "add.Tensor": AddOp, "lt.Tensor": LtOp, "embedding.default": EmbeddingOp,
                   "masked_fill.Scalar": MaskedFillOp, "slice.Tensor": SliceOp, "expand.default": ExpandOp, "_to_copy.default": ToCopyOp,
-                  "rsub.Scalar": RSubOp, "pow.Tensor_Scalar": PowOp, "mean.dim": MeanOp, "rsqrt.default": RSqrtOp, "mul.Tensor": MulOp}
+                  "rsub.Scalar": RSubOp, "pow.Tensor_Scalar": PowOp, "mean.dim": MeanOp, "rsqrt.default": RSqrtOp, "mul.Tensor": MulOp,
+                  "t.default": TOp, "mm.default": MMOp, "transpose.int": TransposeOp, "index.Tensor": IndexOp, "neg.default": NegOp}
 type_dict = {"torch.int64": ir.IntegerType, "torch.float32": ir.F32Type}
