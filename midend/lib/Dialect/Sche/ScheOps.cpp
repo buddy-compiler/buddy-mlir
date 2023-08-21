@@ -43,7 +43,7 @@ namespace buddy::sche {
     Region* bodyRegion = result.addRegion();
     bodyRegion->push_back(new Block());
     auto& bodyBlock = bodyRegion->front();
-    bodyBlock.addArguments(args.getTypes(), SmallVector<Location>(args.size(), result.location));
+    // bodyBlock.addArguments(args.getTypes(), SmallVector<Location>(args.size(), result.location));
     result.addTypes(resultTypes);
 
     if (bodyBuilder) {

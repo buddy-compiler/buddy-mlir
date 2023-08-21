@@ -24,6 +24,8 @@
 include "ScheDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
+
 // include "mlir/IR/EnumAttr.td"
 
 //===----------------------------------------------------------------------===//
@@ -62,6 +64,33 @@ def Sche_LaunchFuncOp : Sche_Op<"launch_func"> {
   let assemblyFormat = [{
     $func `(` $inputs `)` attr-dict `:` functional-type($inputs, results)
   }];
+}
+
+def Sche_ReturnOp : Sche_Op<"return", [ReturnLike, Terminator]>{
+  let summary = "Function return operation";
+  let description = [{
+    The `func.return` operation represents a return operation within a function.
+    The operation takes variable number of operands and produces no results.
+    The operand number and types must match the signature of the function
+    that contains the operation.
+
+    Example:
+
+    ```mlir
+    func.func @foo() : (i32, f8) {
+      ...
+      return %0, %1 : i32, f8
+    }
+    ```
+  }];
+
+  let arguments = (ins Variadic<AnyType>:$operands);
+
+  let builders = [OpBuilder<(ins), [{
+    build($_builder, $_state, std::nullopt);
+  }]>];
+
+  let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
 }
 
 //===----------------------------------------------------------------------===//

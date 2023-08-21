@@ -35,7 +35,6 @@
 #include <vector>
 #include <algorithm>
 
-
 using namespace mlir;
 using namespace buddy;
 
@@ -117,7 +116,7 @@ class ScheTargetNode{
 
     void updateOperands(){
       for(auto&& v : used_){
-        if(std::find(defined_.begin(), defined_.end(), v) != defined_.end()){
+        if(std::find(defined_.begin(), defined_.end(), v) == defined_.end()){
           operands_.push_back(v);
         }
       }
@@ -146,6 +145,7 @@ std::vector<ScheTargetNode> splitDevice(Region& region){
   std::vector<Operation*> op_list_cpu, op_list_gpu;
 
   op_list_cpu.push_back(&*op_iter++);
+  op_list_cpu.push_back(&*op_iter++);
   op_list_gpu.push_back(&*op_iter);
 
   node_cpu.setOpList(op_list_cpu);
@@ -154,7 +154,6 @@ std::vector<ScheTargetNode> splitDevice(Region& region){
   node_gpu.setOpList(op_list_gpu);
   node_gpu.setTargetInfo("gpu", "");
   node_gpu.update();
-
 
   std::vector<ScheTargetNode> result;
   result.push_back(node_cpu);
@@ -167,50 +166,67 @@ public:
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;
 
   LogicalResult
-  matchAndRewrite(func::FuncOp op, PatternRewriter &rewriter) const override {
+  matchAndRewrite(func::FuncOp func, PatternRewriter &rewriter) const override {
     printf("begin\n");
 
-    auto loc = op.getLoc();
+    auto loc = func.getLoc();
+    auto ctx = rewriter.getContext();
 
-    Region& region = op.getBody();
+    Region& region = func.getBody();
+
+    assert(region.hasOneBlock());
 
     auto sche_target_node_list = splitDevice(region);
 
-    rewriter.setInsertionPointToStart(&region.front());
-    for (auto&& node : sche_target_node_list) {
-      auto on_device_op = rewriter.create<sche::OnDeviceOp>(loc, node.getTargetId(), node.getTargetConfig(), node.getReturnValues().getTypes(), node.getOperands(), [&](OpBuilder& builder, Location loc, ValueRange valueRange){
-        IRMapping mp;
-        for(auto&& [a, b] : llvm::zip(node.getOperands(), valueRange)){
+    rewriter.updateRootInPlace(func, [&](){
+      IRMapping mp;
+      rewriter.setInsertionPointToStart(&region.front());
+      for (auto&& node : sche_target_node_list) {
+        llvm::SmallVector<Value> operands;
+        for(auto v : node.getOperands()){
+          auto new_v = mp.lookupOrNull<Value>(v);
+          new_v = new_v ? new_v : v;
+          operands.push_back(new_v);
+        }
+        auto on_device_op = rewriter.create<sche::OnDeviceOp>(loc, node.getTargetId(), node.getTargetConfig(), 
+                                    node.getReturnValues().getTypes(), operands, [&](OpBuilder& builder, Location loc, ValueRange valueRange){
+          IRMapping mp_2;
+          for(auto&& [a, b] : llvm::zip(node.getOperands(), valueRange)){
+            mp_2.map(a, b);
+          }
+          for(auto&& op : node.getOpList()){
+            auto new_op = builder.insert(op->clone(mp_2));
+            for(auto&& [a, b] : llvm::zip(op->getResults(), new_op->getResults())){
+              mp_2.map(a, b);
+            }
+            builder.setInsertionPointAfter(new_op);
+          }
+          std::vector<Value> return_values;
+
+          for(auto&& v : node.getReturnValues()){
+            auto new_v = mp_2.lookupOrNull<Value>(v);
+            assert(new_v != nullptr);
+            return_values.push_back(new_v);
+          }
+          
+          builder.create<sche::ReturnOp>(loc, return_values);
+        });
+
+        for(auto&& [a, b] : llvm::zip(node.getReturnValues(), on_device_op.getResults())){
+          a.replaceAllUsesWith(b);
           mp.map(a, b);
         }
-        for(auto&& op : node.getOpList()){
-          auto new_op = builder.insert(op->clone(mp));
-          for(auto&& [a, b] : llvm::zip(op->getResults(), new_op->getResults())){
-            mp.map(a, b);
-          }
-          builder.setInsertionPointAfter(new_op);
-        }
-        std::vector<Value> return_values;
 
-        for(auto&& v : node.getReturnValues()){
-          auto new_v = mp.lookupOrNull<Value>(v);
-          assert(new_v != nullptr);
-          return_values.push_back(new_v);
+        //TODO:更改删除方法，将原op记录下来，然后删除
+        for(auto op : node.getOpList()){
+          rewriter.eraseOp(op);
         }
-        
-        builder.create<func::ReturnOp>(loc, return_values);
-      });
-
-      for(auto&& [a, b] : llvm::zip(node.getReturnValues(), on_device_op.getResults())){
-        a.replaceAllUsesWith(b);
       }
 
-      for(auto op : node.getOpList()){
-        rewriter.eraseOp(op);
-      }
-    }
+      func.getOperation()->setAttr("sche.dispatched", rewriter.getUnitAttr());
+    });
 
-    op.print(llvm::outs());
+    func.print(llvm::outs());
 
     printf("finish\n");
     return success();
