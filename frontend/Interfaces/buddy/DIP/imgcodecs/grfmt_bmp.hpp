@@ -286,7 +286,7 @@ bool BmpDecoder<T, N>::readData(dip::Img<T, N> &img) {
         int rgba_step = 0;
         int gray_step = 0;
         _Size size(this->m_width, 1);
-        int _swap_rb = 1;
+        int _swap_rb = 0;
 
         for (; size.height--; data += gray_step) {
           short cBGR0 = cB;
