@@ -1,6 +1,7 @@
 add_mlir_library(BuddyUtils
   Utils.cpp
   DIPUtils.cpp
+  ResizeUtils.cpp
   AffineTransformUtils.cpp
   )
 
