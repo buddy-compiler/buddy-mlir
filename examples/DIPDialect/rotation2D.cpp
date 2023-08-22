@@ -32,15 +32,14 @@ using namespace std;
 
 bool testImplementation(int argc, char *argv[]) {
   // Read as grayscale image.
-  Img<float, 2> input =
-      dip::imread<float, 2>(argv[1], dip::IMGRD_GRAYSCALE);
+  Img<float, 2> input = dip::imread<float, 2>(argv[1], dip::IMGRD_GRAYSCALE);
 
   MemRef<float, 2> output = dip::Rotate2D(&input, 45, dip::ANGLE_TYPE::DEGREE);
 
   // Define a Img with the output of Rotate2D.
-  Img<float, 2> outputImageRotate2D(
-      output.getSizes()[0], output.getSizes()[1], IMG_32FC1, output.getData());
-  
+  Img<float, 2> outputImageRotate2D(output.getSizes()[0], output.getSizes()[1],
+                                    IMG_32FC1, output.getData());
+
   dip::imwrite_(argv[2], outputImageRotate2D);
 
   return 1;
