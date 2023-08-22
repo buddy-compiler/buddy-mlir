@@ -129,6 +129,11 @@ findDecoder(const String &filename) {
 template <typename T, size_t N>
 Img<T, N> imread(const String &filename, int flags) {
   std::unique_ptr<BaseImageDecoder<T, N>> decoder = findDecoder<T, N>(filename);
+  
+  if (!decoder) {
+    throw std::runtime_error("Decoder not found for the given image.");
+  }
+
   if (decoder) {
     // Converts a pointer to BmpDecoder<T, N>
     BmpDecoder<T, N> *bmpDecoderPtr =
