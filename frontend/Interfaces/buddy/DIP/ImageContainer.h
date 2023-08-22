@@ -108,19 +108,21 @@ public:
 
   size_t total();
 
-  int _type;
-
   int flags;
 
-  //! the matrix dimensionality, >= 2
+  // the matrix dimensionality, >= 2
   int dims;
 
-  //! the number of rows and columns or (-1, -1) when the matrix has more than 2
-  //! dimensions
+  // the number of rows and columns or (-1, -1) when the matrix has more than 2
+  // dimensions
   int rows, cols;
 
+  // Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel matrices.
+  int _type;
+
   // Used to assign addresses to image data
-  // A Memref::aligned member is a protected member that is not directly accessible from other classes or functions
+  // A Memref::aligned member is a protected member that is not directly
+  // accessible from other classes or functions
   T *_data;
 };
 
@@ -204,7 +206,7 @@ void Img<T, N>::create(int rows, int cols, int type) {
  */
 template <typename T, size_t N>
 void Img<T, N>::create(int ndims, intptr_t *sizes, int type) {
-  this->dims = ndims; 
+  this->dims = ndims;
   this->setStrides();
   this->size = total();
   if (total() > 0) {
@@ -309,7 +311,7 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
 }
 
 template <typename T, size_t N> int Img<T, N>::channels() const {
-  return CV_MAT_CN(_type);
+  return IMG_MAT_CN(_type);
 }
 
 template <typename T, size_t N> int Img<T, N>::_rows() const {
