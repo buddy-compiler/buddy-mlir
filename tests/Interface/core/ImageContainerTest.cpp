@@ -33,13 +33,13 @@ int main() {
   // 195.0, 210.0, 225.0, 240.0
   // The test running directory is in <build dir>/tests/Interface/core, so the
   // `imread` function uses the following relative path.
-  dip::Img<float, 2> grayimage = dip::imread<float, 2>(
+  Img<float, 2> grayimage = dip::imread<float, 2>(
       "../../../../tests/Interface/core/TestGrayImage.bmp",
       dip::IMGRD_GRAYSCALE);
   //===--------------------------------------------------------------------===//
   // Test image constructor for OpenCV.
   //===--------------------------------------------------------------------===//
-  dip::Img<float, 2> testOpenCVConstructor(grayimage);
+  Img<float, 2> testOpenCVConstructor(grayimage);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testOpenCVConstructor.getData()[0]);
   // CHECK: 4, 4
@@ -58,7 +58,7 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test copy constructor.
   //===--------------------------------------------------------------------===//
-  dip::Img<float, 2> testCopyConstructor1(testOpenCVConstructor);
+  Img<float, 2> testCopyConstructor1(testOpenCVConstructor);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor1[0]);
   // CHECK: 4, 4
@@ -74,7 +74,7 @@ int main() {
   // CHECK: 60.0
   fprintf(stderr, "%f\n", testCopyConstructor1[3]);
 
-  dip::Img<float, 2> testCopyConstructor2 = testOpenCVConstructor;
+  Img<float, 2> testCopyConstructor2 = testOpenCVConstructor;
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor2[0]);
   // CHECK: 4, 4
@@ -89,12 +89,12 @@ int main() {
   fprintf(stderr, "%ld\n", testCopyConstructor2.getSize());
   // CHECK: 60.0
   fprintf(stderr, "%f\n", testCopyConstructor2[3]);
-  dip::Img<float, 2> testCopyConstructor3 =
-      dip::Img<float, 2>(testOpenCVConstructor);
+  Img<float, 2> testCopyConstructor3 =
+      Img<float, 2>(testOpenCVConstructor);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor3[0]);
-  dip::Img<float, 2> *testCopyConstructor4 =
-      new dip::Img<float, 2>(testOpenCVConstructor);
+  Img<float, 2> *testCopyConstructor4 =
+      new Img<float, 2>(testOpenCVConstructor);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor4->getData()[0]);
   delete testCopyConstructor4;
@@ -102,7 +102,7 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test move constructor.
   //===--------------------------------------------------------------------===//
-  dip::Img<float, 2> testMoveConstructor1(std::move(testCopyConstructor1));
+  Img<float, 2> testMoveConstructor1(std::move(testCopyConstructor1));
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testMoveConstructor1[0]);
   // CHECK: 4, 4
@@ -118,7 +118,7 @@ int main() {
   // CHECK: 60.0
   fprintf(stderr, "%f\n", testMoveConstructor1[3]);
 
-  dip::Img<float, 2> testMoveConstructor2 = std::move(testMoveConstructor1);
+  Img<float, 2> testMoveConstructor2 = std::move(testMoveConstructor1);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testMoveConstructor2[0]);
   // CHECK: 4, 4
@@ -136,13 +136,13 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test overloading bracket operator.
   //===--------------------------------------------------------------------===//
-  dip::Img<float, 2> testBracketOperator1(grayimage);
+  Img<float, 2> testBracketOperator1(grayimage);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator1[15]);
   testBracketOperator1[15] = 90.0;
   // CHECK: 90.0
   fprintf(stderr, "%f\n", testBracketOperator1[15]);
-  const dip::Img<float, 2> testBracketOperator2(grayimage);
+  const Img<float, 2> testBracketOperator2(grayimage);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator2[15]);
 

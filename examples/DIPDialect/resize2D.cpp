@@ -32,7 +32,7 @@ using namespace std;
 
 bool testImplementation(int argc, char *argv[]) {
   // Read as grayscale image.
-  dip::Img<float, 2> input =
+  Img<float, 2> input =
       dip::imread<float, 2>(argv[1], dip::IMGRD_GRAYSCALE);
 
   // Note : Both values in output image dimensions and scaling ratios must be
@@ -52,7 +52,7 @@ bool testImplementation(int argc, char *argv[]) {
   //     scalingRatios);
 
   // Define Img with the output of Resize2D.
-  dip::Img<float, 2> outputImageResize2D(
+  Img<float, 2> outputImageResize2D(
       output.getSizes()[0], output.getSizes()[1], IMG_32FC1, output.getData());
 
   dip::imwrite_(argv[2], outputImageResize2D);

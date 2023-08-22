@@ -25,7 +25,6 @@
 #include <cassert>
 #include <opencv2/opencv.hpp>
 
-namespace dip {
 // Image container.
 // - T represents the type of the elements.
 // - N represents the number of dimensions.
@@ -330,5 +329,4 @@ template <typename T, size_t N> size_t Img<T, N>::total() {
     p *= this->sizes[i];
   return p;
 }
-} // namespace dip
 #endif // FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER

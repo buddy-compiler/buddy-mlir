@@ -249,7 +249,7 @@ template <typename T, size_t N> bool BmpDecoder<T, N>::readHeader() {
 }
 
 template <typename T, size_t N>
-bool BmpDecoder<T, N>::readData(dip::Img<T, N> &img) {
+bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
   T *data = img._data;
   int step = this->m_width * img.channels();
   bool color = img.channels() > 1;

@@ -72,7 +72,7 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   intptr_t sizesOutput[2] = {image.rows, image.cols};
 
   // Define memref containers.
-  dip::Img<float, 2> input(image);
+  Img<float, 2> input(image);
   MemRef<float, 2> kernel(kernelAlign, sizesKernel);
   MemRef<float, 2> output1(sizesOutput);
   MemRef<float, 2> output2(sizesOutput);

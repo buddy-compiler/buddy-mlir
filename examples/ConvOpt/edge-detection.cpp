@@ -33,7 +33,7 @@ using namespace std;
 
 // Declare the conv2d C interface.
 extern "C" {
-void _mlir_ciface_conv_2d(dip::Img<float, 2> *input, MemRef<float, 2> *kernel,
+void _mlir_ciface_conv_2d(Img<float, 2> *input, MemRef<float, 2> *kernel,
                           MemRef<float, 2> *output);
 }
 
@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
   buddyReadStart = clock();
   // Read as grayscale image.
   Mat buddyInputMat = imread(argv[1], IMREAD_GRAYSCALE);
-  dip::Img<float, 2> buddyInputMemRef(buddyInputMat);
+  Img<float, 2> buddyInputMemRef(buddyInputMat);
   clock_t buddyReadEnd;
   buddyReadEnd = clock();
   double buddyReadTime =

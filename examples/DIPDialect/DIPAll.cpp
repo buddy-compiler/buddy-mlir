@@ -25,7 +25,7 @@
 int main() {
   cv::Mat yutu =
       cv::imread("../../examples/images/YuTu.png", cv::IMREAD_GRAYSCALE);
-  dip::Img<float, 2> input(yutu);
+  Img<float, 2> input(yutu);
 
   //===--------------------------------------------------------------------===//
   // Test function resize
