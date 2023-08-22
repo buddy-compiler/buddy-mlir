@@ -68,7 +68,7 @@ namespace dip {
 #define IMG_CN_SHIFT 3
 #define IMG_DEPTH_MAX (1 << IMG_CN_SHIFT)
 #define IMG_MAT_CN_MASK ((IMG_CN_MAX - 1) << IMG_CN_SHIFT)
-#define IMG_MAT_CN(flags) ((((flags)&IMG_MAT_CN_MASK) >> IMG_CN_SHIFT) + 1)
+#define IMG_MAT_CN(_type) ((((_type)&IMG_MAT_CN_MASK) >> IMG_CN_SHIFT) + 1)
 
 #define IMG_8U 0
 #define IMG_8S 1

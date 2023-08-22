@@ -22,9 +22,11 @@
 #define FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 
 #include "buddy/Core/Container.h"
+#include "buddy/DIP/imgcodecs/Replenishment.hpp"
 #include <cassert>
 #include <opencv2/opencv.hpp>
 
+using namespace dip;
 // Image container.
 // - T represents the type of the elements.
 // - N represents the number of dimensions.
@@ -225,10 +227,9 @@ template <typename T, size_t N>
 Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
   if (this == &m) {
     return *this;
-  }
-  this->flags = m.flags;
-  this->_type = m._type;
-  if (this->dims <= 2 && m.dims <= 2) {
+  } else {
+    this->flags = m.flags;
+    this->_type = m._type;
     this->dims = m.dims;
     this->rows = m.rows;
     this->cols = m.cols;
@@ -245,8 +246,8 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
     this->allocated = ptr;
     this->aligned = ptr;
     this->_data = ptr;
-    return *this;
   }
+  return *this;
 }
 
 /**
