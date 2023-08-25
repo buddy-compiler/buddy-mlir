@@ -31,15 +31,22 @@
 using namespace std;
 
 bool testImplementation(int argc, char *argv[]) {
-  // Read as grayscale image.
+  // Read as grayscale image and Define memref container for image. 
   Img<float, 2> input = dip::imread<float, 2>(argv[1], dip::IMGRD_GRAYSCALE);
 
+  intptr_t outputSize[2] = {250, 100}; // {image_cols, image_rows}
+  std::vector<float> scalingRatios = {
+      0.25, 0.1}; // {col_scaling_ratio, row_scaling_ratio}
+
+  // dip::Resize2D() can be called with either scaling ratios
+  // (Output image dimension / Input image dimension) for both dimensions or
+  // the output image dimensions.
   // Note : Both values in output image dimensions and scaling ratios must be
   // positive numbers.
 
   MemRef<float, 2> output = dip::Resize2D(
       &input, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
-      {224, 224} /*{image_cols, image_rows}*/);
+      outputSize);
   // MemRef<float, 2> output = dip::Resize2D(
   //     &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION, outputSize);
 
