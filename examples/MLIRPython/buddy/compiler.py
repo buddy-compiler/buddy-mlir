@@ -108,7 +108,7 @@ class FXGraphImporter:
           else:
             if node.target is operator.getitem:
               self._symbol_table[(str(node.name),
-                                  0)] = self._symbol_table[(node.args[0],
+                                  0)] = self._symbol_table[(str(node.args[0]),
                                                             node.args[1])]
             else:
               self._import_op(node)
@@ -130,7 +130,7 @@ class FXGraphImporter:
     op_ret: Union[ir.Operation,
                   tuple] = operation_func[op_name](node, self._symbol_table)
     if isinstance(op_ret, tuple):
-      for i, operation in op_ret:
+      for i, operation in enumerate(op_ret):
         self._symbol_table[(str(node.name), i)] = operation.result
     else:
       self._symbol_table[(str(node.name), 0)] = op_ret.result

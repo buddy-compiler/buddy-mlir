@@ -24,7 +24,7 @@ def _broadcast_shape(tensor_input1: ir.Value,
   return shp1
 
 
-def AddOp(node: torch.fx.Node,
+def add_op(node: torch.fx.Node,
           symbol_table: Dict[Tuple[str, int], ir.Operation]) -> ir.Operation:
   """Map aten.add.Tensor to tosa.add.
 
@@ -46,7 +46,7 @@ def AddOp(node: torch.fx.Node,
   return op
 
 
-def AddMMOp(node: torch.fx.Node,
+def addmm_op(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation]) -> ir.Operation:
   """Map aten.addmm.default to MLIR operation.
 
@@ -78,4 +78,4 @@ def AddMMOp(node: torch.fx.Node,
   return op
 
 
-operation_func = {"add.Tensor": AddOp, "addmm.default": AddMMOp}
+operation_func = {"add.Tensor": add_op, "addmm.default": addmm_op}
