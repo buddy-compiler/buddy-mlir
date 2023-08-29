@@ -125,7 +125,10 @@ void Text<T, N>::tokenize(const std::string &vocab, long long length) {
     processToken(token, tokenCnt);
     token.clear();
   }
-  this->aligned[tokenCnt] = 102; // [SEP] NLP Separator Marker
+  // [SEP] NLP Separator Marker
+  for (long long i = tokenCnt; i < length; i++) {
+    this->aligned[i] = 102;
+  }
 }
 
 template <typename T, size_t N>

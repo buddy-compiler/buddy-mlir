@@ -57,6 +57,12 @@ int main() {
   fprintf(stderr, "%lld\n", pureStrContainer.getData()[7]);
   // CHECK: 102
   fprintf(stderr, "%lld\n", pureStrContainer.getData()[8]);
+	// CHECK: 102
+  fprintf(stderr, "%lld\n", pureStrContainer.getData()[9]);
+	// CHECK: 102
+  fprintf(stderr, "%lld\n", pureStrContainer.getData()[10]);
+	// CHECK: 102
+  fprintf(stderr, "%lld\n", pureStrContainer.getData()[11]);
 
   //===--------------------------------------------------------------------===//
   // Test text constructor for punctuation.
@@ -84,6 +90,10 @@ int main() {
   fprintf(stderr, "%lld\n", puncStrContainer.getData()[8]);
   // CHECK: 102
   fprintf(stderr, "%lld\n", puncStrContainer.getData()[9]);
+	// CHECK: 102
+  fprintf(stderr, "%lld\n", puncStrContainer.getData()[10]);
+	// CHECK: 102
+  fprintf(stderr, "%lld\n", puncStrContainer.getData()[11]);
 
   //===--------------------------------------------------------------------===//
   // Test text constructor for corner cases.
@@ -113,4 +123,6 @@ int main() {
   fprintf(stderr, "%lld\n", cornerStrContainer.getData()[9]);
   // CHECK: 102
   fprintf(stderr, "%lld\n", cornerStrContainer.getData()[10]);
+	// CHECK: 102
+  fprintf(stderr, "%lld\n", cornerStrContainer.getData()[11]);
 }
