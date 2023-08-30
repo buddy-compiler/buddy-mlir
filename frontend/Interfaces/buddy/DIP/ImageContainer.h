@@ -104,10 +104,6 @@ public:
 
   int channels() const;
 
-  int _cols() const;
-
-  int _rows() const;
-
   size_t total();
 
   int flags;
@@ -120,12 +116,12 @@ public:
   int rows, cols;
 
   // Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel matrices.
-  int _type;
+  int type;
 
   // Used to assign addresses to image data
   // A Memref::aligned member is a protected member that is not directly
   // accessible from other classes or functions
-  T *_data;
+  T *data;
 };
 
 // Image Constructor from Img.
@@ -166,7 +162,7 @@ Img<T, N>::Img(int ndims, intptr_t *sizes, int type)
 template <typename T, size_t N>
 Img<T, N>::Img(const Img<T, N> &m)
     : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols),
-      _type(m._type) {
+      type(m.type) {
   for (size_t i = 0; i < N; i++) {
     this->sizes[i] = m.sizes[i];
     this->strides[i] = m.strides[i];
@@ -174,7 +170,7 @@ Img<T, N>::Img(const Img<T, N> &m)
   this->size = m.size;
   this->allocated = new T[this->size];
   this->aligned = this->allocated;
-  this->_data = this->allocated;
+  this->data = this->allocated;
   for (size_t i = 0; i < this->size; i++) {
     this->aligned[i] = m.aligned[i];
   }
@@ -189,13 +185,13 @@ Img<T, N>::Img(const Img<T, N> &m)
  */
 template <typename T, size_t N>
 void Img<T, N>::create(int rows, int cols, int type) {
-  this->_type = type;
+  this->type = type;
   this->cols = cols;
   this->rows = rows;
   this->sizes[0] = cols;
   this->sizes[1] = rows;
   if (N <= 2) {
-    create(2, this->sizes, _type);
+    create(2, this->sizes, this->type);
   }
 }
 
@@ -214,7 +210,7 @@ void Img<T, N>::create(int ndims, intptr_t *sizes, int type) {
   if (total() > 0) {
     this->allocated = new T[total()];
     this->aligned = this->allocated;
-    this->_data = this->allocated;
+    this->data = this->allocated;
   }
 }
 
@@ -229,7 +225,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
     return *this;
   } else {
     this->flags = m.flags;
-    this->_type = m._type;
+    this->type = m.type;
     this->dims = m.dims;
     this->rows = m.rows;
     this->cols = m.cols;
@@ -245,7 +241,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
     }
     this->allocated = ptr;
     this->aligned = ptr;
-    this->_data = ptr;
+    this->data = ptr;
   }
   return *this;
 }
@@ -261,9 +257,9 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
  */
 template <typename T, size_t N>
 Img<T, N>::Img(int rows, int cols, int type, T *data)
-    : MemRef<T, N>(), dims(2), rows(rows), cols(cols), _type(type) {
+    : MemRef<T, N>(), dims(2), rows(rows), cols(cols), type(type) {
   this->aligned = data;
-  this->_data = data;
+  this->data = data;
   this->sizes[0] = rows;
   this->sizes[1] = cols;
   this->size = total();
@@ -312,15 +308,7 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
 }
 
 template <typename T, size_t N> int Img<T, N>::channels() const {
-  return IMG_MAT_CN(_type);
-}
-
-template <typename T, size_t N> int Img<T, N>::_rows() const {
-  return this->rows;
-}
-
-template <typename T, size_t N> int Img<T, N>::_cols() const {
-  return this->cols;
+  return IMG_MAT_CN(type);
 }
 
 template <typename T, size_t N> size_t Img<T, N>::total() {

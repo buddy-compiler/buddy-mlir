@@ -250,7 +250,7 @@ template <typename T, size_t N> bool BmpDecoder<T, N>::readHeader() {
 
 template <typename T, size_t N>
 bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
-  T *data = img._data;
+  T *data = img.data;
   int step = this->m_width * img.channels();
   bool color = img.channels() > 1;
   uchar gray_palette[256] = {0};
@@ -440,7 +440,7 @@ bool BmpEncoder<T, N>::write(const Img<T, N> &img, const std::vector<int> &) {
   }
   width *= channels;
   for (int y = height - 1; y >= 0; y--) {
-    T *data = img._data + (y * width);
+    T *data = img.data + (y * width);
     for (int i = 0; i < width; i++) {
       strm.putByte((uchar)data[i]);
     }
