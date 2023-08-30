@@ -1,3 +1,4 @@
+
 //===- ImageContainer.h ---------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -76,6 +77,12 @@ public:
    * matrix.
    */
   Img &operator=(const Img<T, N> &m);
+
+  // Move constructor.
+  Img(Img<T, N> &&m);
+
+  // Move assignment operator.
+  Img &operator=(Img<T, N> &&m);
 
   /**
    * @brief Load image data from OpenCV Mat.
@@ -174,6 +181,58 @@ Img<T, N>::Img(const Img<T, N> &m)
   for (size_t i = 0; i < this->size; i++) {
     this->aligned[i] = m.aligned[i];
   }
+}
+
+// Move Constructor.
+// This constructor is used to initialize a MemRef object from a rvalue.
+// The move constructor steals the resources of the original object.
+// Note that the original object no longer owns the members and spaces.
+// Steal members from the original object.
+// Assign the NULL pointer to the original aligned and allocated members to
+// avoid the double free error.
+template <typename T, size_t N>
+Img<T, N>::Img(Img<T, N> &&m)
+    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols),
+      type(m.type) {
+  this->aligned = m.aligned;
+  this->allocated = m.allocated;
+  this->data = m.data;
+  this->size = m.size;
+  std::swap(this->sizes, m.sizes);
+  std::swap(this->strides, m.strides);
+  // Assign the NULL pointer to the original aligned and allocated members to
+  // avoid the double free error.
+  m.allocated = m.aligned = m.data = nullptr;
+}
+
+// Move Assignment Operator.
+// Note that the original object no longer owns the members and spaces.
+// Check if they are the same object.
+// Free the data space of this object to avoid memory leaks.
+// Steal members from the original object.
+// Assign the NULL pointer to the original aligned and allocated members to
+// avoid the double free error.
+template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
+  if (this != &m) {
+    // Free the original aligned and allocated space.
+    delete[] this->allocated;
+    // Steal members of the original object.
+    std::swap(this->flags, m.flags);
+    std::swap(this->type, m.type);
+    std::swap(this->cols, m.cols);
+    std::swap(this->rows, m.rows);
+    std::swap(this->dims, m.dims);
+    std::swap(this->size, m.size);
+    std::swap(this->allocated, m.allocated);
+    std::swap(this->aligned, m.aligned);
+    std::swap(this->data, m.data);
+    std::swap(this->sizes, m.sizes);
+    std::swap(this->strides, m.strides);
+    // Assign the NULL pointer to the original aligned and allocated members to
+    // avoid the double free error.
+    m.allocated = m.aligned = m.data = nullptr;
+  }
+  return *this;
 }
 
 /**
