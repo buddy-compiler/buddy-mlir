@@ -52,23 +52,23 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
       module = fx_importer.import_graph(ctx)
       module = Lowering(module)
     return gm.forward
-  # params = {
-  #     **dict(gm.named_parameters(remove_duplicate=False)),
-  #     **dict(gm.named_buffers(remove_duplicate=False)),
-  # }
-  # params_flat, params_spec = pytree.tree_flatten(params)
-  # params_flat = list(params_flat)
-  # with open("params_shape.txt", 'w') as file:
-  #   for i, param in enumerate(params_flat):
-  #     file.write("arg{} ".format(i))
-  #     param_size = 1
-  #     for s in param.shape:
-  #       param_size *= s
-  #     file.write(str(param_size)+"\n")
-  #     if not os.path.exists("params_data"):
-  #       os.mkdir("params_data")
-  #     param_data = param.detach().numpy().reshape([-1])
-  #     param_data.tofile("params_data/arg{}.data".format(i))
+  params = {
+      **dict(gm.named_parameters(remove_duplicate=False)),
+      **dict(gm.named_buffers(remove_duplicate=False)),
+  }
+  params_flat, params_spec = pytree.tree_flatten(params)
+  params_flat = list(params_flat)
+  with open("params_shape.txt", 'w') as file:
+    for i, param in enumerate(params_flat):
+      file.write("arg{} ".format(i))
+      param_size = 1
+      for s in param.shape:
+        param_size *= s
+      file.write(str(param_size)+"\n")
+      if not os.path.exists("params_data"):
+        os.mkdir("params_data")
+      param_data = param.detach().numpy().reshape([-1])
+      param_data.tofile("params_data/arg{}.data".format(i))
   return aot_module_simplified(gm, inputs, fw_compiler=_compiler)
 
 class FXGraphImporter:
