@@ -13,5 +13,5 @@
 # Clangd cache
 .cache
 
-#model params
-*.data
+# model params
+examples/MLIRLlama/params_data/
