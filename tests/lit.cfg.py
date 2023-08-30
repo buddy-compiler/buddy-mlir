@@ -58,6 +58,7 @@ tools = [
     'buddy-translate',
     'buddy-container-test',
     'buddy-audio-container-test',
+    'buddy-text-container-test',
     'mlir-cpu-runner',
 ]
 tools.extend([
