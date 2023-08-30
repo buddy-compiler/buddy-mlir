@@ -1,9 +1,10 @@
 #!/bin/bash
-BUDDY_OPT := ../../build/bin/buddy-opt
+BUDDY_OPT := ../../../build/bin/buddy-opt
 MLIR_OPT := ../../../llvm/build/bin/mlir-opt
-MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
-LLC := ../../llvm/build/bin/llc
+MLIR_TRANSLATE := ../../../llvm/build/bin/mlir-translate
+MLIR_CPU_RUNNER := ../../../llvm/build/bin/mlir-cpu-runner
+LLC := ../../../llvm/build/bin/llc
+LLVM_AS := ../../../llvm/build/bin/llvm-as
 OPT_FLAG := -O0
 
 resnet-18-lower:
@@ -33,14 +34,35 @@ resnet-18-lower:
 		-o ./log.mlir
 
 bert-lower:
-	@${MLIR_OPT} ./test.mlir \
+	@${MLIR_OPT} ./llama.mlir \
 		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${MLIR_OPT} \
+		--arith-expand \
 		--empty-tensor-to-alloc-tensor \
-		--test-linalg-transform-patterns="test-generalize-pad-tensor" \
 		--linalg-bufferize \
 		--convert-linalg-to-loops \
 		--func-bufferize \
 		--arith-bufferize \
 		--tensor-bufferize \
-		-o ./log.mlir
+		--finalizing-bufferize \
+		--convert-vector-to-scf \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-vector-to-llvm \
+		--memref-expand \
+		--arith-expand \
+		--convert-arith-to-llvm \
+		--finalize-memref-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-math-to-libm \
+		--convert-func-to-llvm \
+		--llvm-request-c-wrappers \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} \
+		-mlir-to-llvmir | \
+	${LLVM_AS} | \
+	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o test.o
+llama-compile:
+	g++ -g llama_run.cc test.o ../../../llvm/build/lib/libmlir_c_runner_utils.so -o llama

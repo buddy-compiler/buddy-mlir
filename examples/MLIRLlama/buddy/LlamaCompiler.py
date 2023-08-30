@@ -9,6 +9,8 @@ import mlir.ir as ir
 import mlir.dialects.func as func
 from mlir.passmanager import PassManager
 from .OperatorsGen import operation_func
+import torch.utils._pytree as pytree
+import os
 
 def DynamoCompiler(gm: torch.fx.GraphModule,
                    inputs: List[torch.Tensor]) -> Callable:
@@ -29,9 +31,7 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
 
   def _compiler(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
     """Compile a FX graph in Aten/Prims IR to MLIR."""
-    print(gm)
-    print("Custom Compiler from FX Graph to MLIR:")
-    print("-------------------------------------------------------------------")
+    # print(gm)
     # get parameters
     # flat_params = torch._guards.TracingContext.get().params_flat
     # fw_metadata = torch._guards.TracingContext.get().fw_metadata
@@ -41,18 +41,34 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
     #     if out_info.base_idx is not None
     # ]
     # Initialize the MLIR context.
-    ops = []
-    for node in gm.graph.nodes:
-      if node.op != "placeholder" and node.op != "output":
-        ops.append(node.target.__name__)
-    print(set(ops))
+    # ops = []
+    # for node in gm.graph.nodes:
+    #   if node.op != "placeholder" and node.op != "output":
+    #     ops.append(node.target.__name__)
+    # print(set(ops))
     ctx = ir.Context()
     with ir.Location.unknown(ctx):
       fx_importer = FXGraphImporter(gm, inputs)
       module = fx_importer.import_graph(ctx)
       module = Lowering(module)
     return gm.forward
-
+  # params = {
+  #     **dict(gm.named_parameters(remove_duplicate=False)),
+  #     **dict(gm.named_buffers(remove_duplicate=False)),
+  # }
+  # params_flat, params_spec = pytree.tree_flatten(params)
+  # params_flat = list(params_flat)
+  # with open("params_shape.txt", 'w') as file:
+  #   for i, param in enumerate(params_flat):
+  #     file.write("arg{} ".format(i))
+  #     param_size = 1
+  #     for s in param.shape:
+  #       param_size *= s
+  #     file.write(str(param_size)+"\n")
+  #     if not os.path.exists("params_data"):
+  #       os.mkdir("params_data")
+  #     param_data = param.detach().numpy().reshape([-1])
+  #     param_data.tofile("params_data/arg{}.data".format(i))
   return aot_module_simplified(gm, inputs, fw_compiler=_compiler)
 
 class FXGraphImporter:
@@ -62,7 +78,7 @@ class FXGraphImporter:
       self,
       gm: torch.fx.GraphModule,
       inputs: List[torch.Tensor],
-      func_name: str = "main",
+      func_name: str = "forward",
   ):
     """
     Args:
@@ -103,7 +119,6 @@ class FXGraphImporter:
         args_list = list(args)
         for node in self._gm.graph.nodes:
           if node.op == "output":
-            continue
             output_node_args = node.args[0]
             returns = []
             for output_arg in output_node_args:
@@ -123,7 +138,6 @@ class FXGraphImporter:
 
         return self._symbol_table.get(("output", 0))
 
-    print("Printing the generated MLIR...")
     print(self._module)
     return self._module
 
@@ -139,8 +153,9 @@ class FXGraphImporter:
       return
     op_ret: Union[ir.Operation,
                   tuple] = operation_func[op_name](node, self._symbol_table, ctx)
-    if op_ret is None:
-      return
+    # if op_ret is None:
+    #   return
+    assert op_ret is not None
     if isinstance(op_ret, tuple):
       for i, operation in op_ret:
         self._symbol_table[(str(node.name), i)] = operation.result
@@ -158,8 +173,6 @@ def Lowering(module: ir.Module):
     mlir.ir.Module: An MLIR module in LLVM dialect.
 
   """
-  print("-------------------------------------------------------------------")
-  print("Bufferizing the module ...")
   pm = PassManager("builtin.module")
   pm.add("func.func(tosa-to-linalg)")
   pm.add("func.func(tosa-to-tensor)")
@@ -172,9 +185,7 @@ def Lowering(module: ir.Module):
   pm.add("func.func(tensor-bufferize)")
   pm.add("func-bufferize")
   pm.run(module.operation)
-  print(module)
-  print("-------------------------------------------------------------------")
-  print("Lowering the module to LLVM dialect ...")
+  #print(module)
   pm.add("func.func(buffer-deallocation)")
   pm.add("func.func(convert-linalg-to-loops)")
   pm.add("convert-scf-to-cf")
@@ -185,5 +196,5 @@ def Lowering(module: ir.Module):
   pm.add("convert-func-to-llvm")
   pm.add("reconcile-unrealized-casts")
   pm.run(module.operation)
-  print(module)
+  #print(module)
   return module
