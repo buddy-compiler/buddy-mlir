@@ -19,7 +19,7 @@ endif()
 #-------------------------------------------------------------------------------
 
 project(buddy-mlir LANGUAGES CXX C)
-  
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
@@ -61,14 +61,18 @@ else()
     #-------------------------------------------------------------------------------
     # MLIR/LLVM Configuration
     #-------------------------------------------------------------------------------
-    
+
+    # Allow passing external LLVM source, instead of forcing user using the vendored one
+    if (NOT LLVM_PROJECT_SOURCE_DIR)
+      set(LLVM_PROJECT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/llvm")
+      message(STATUS "Using LLVM Project ${LLVM_PROJECT_SOURCE_DIR}")
+    endif()
+
     set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
-    set(MLIR_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include)
+    set(MLIR_INCLUDE_DIR ${MLIR_MAIN_SRC_DIR}/include)
     set(MLIR_GENERATED_INCLUDE_DIR ${LLVM_BINARY_DIR}/tools/mlir/include)
     set(LLVM_MLIR_BINARY_DIR ${CMAKE_BINARY_DIR}/bin)
     set(MLIR_INCLUDE_DIRS "${MLIR_INCLUDE_DIR};${MLIR_GENERATED_INCLUDE_DIR}")
-    set(LLVM_PROJECT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/llvm")
-    set(LLVM_MLIR_SOURCE_DIR "${LLVM_MAIN_SRC_DIR}/../mlir")
 endif()
 
 #-------------------------------------------------------------------------------
@@ -97,7 +101,7 @@ include_directories(${BUDDY_MIDEND_INCLUDE_DIR})
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Interface)
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/midend/include/Dialect)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/backend/include)
+include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/backend/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/lib)
 include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
