@@ -112,7 +112,6 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   Mat outputImageReplicatePaddingopening(sizesOutput[0], sizesOutput[1],
                                          CV_32FC1, output2.getData());
   imwrite(argv[3], outputImageReplicatePaddingopening);
-
   Mat o2 = imread(argv[3], IMREAD_GRAYSCALE);
   // Define a cv::mat to store the output of Opencv's opening.
   Mat opencvReplicatePaddingopening;

@@ -61,7 +61,7 @@ bool testImplementation(int argc, char *argv[]) {
   Img<float, 2> outputImageResize2D(output.getSizes()[0], output.getSizes()[1],
                                     IMG_32FC1, output.getData());
 
-  dip::imwrite_(argv[2], outputImageResize2D);
+  dip::imwrite(argv[2], outputImageResize2D);
 
   return 1;
 }

@@ -40,7 +40,7 @@ bool testImplementation(int argc, char *argv[]) {
   Img<float, 2> outputImageRotate2D(output.getSizes()[0], output.getSizes()[1],
                                     IMG_32FC1, output.getData());
 
-  dip::imwrite_(argv[2], outputImageRotate2D);
+  dip::imwrite(argv[2], outputImageRotate2D);
 
   return 1;
 }
