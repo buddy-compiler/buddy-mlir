@@ -125,10 +125,6 @@ public:
   // Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel matrices.
   int type;
 
-  // Used to assign addresses to image data
-  // A Memref::aligned member is a protected member that is not directly
-  // accessible from other classes or functions
-  T *data;
 };
 
 // Image Constructor from Img.
@@ -177,7 +173,6 @@ Img<T, N>::Img(const Img<T, N> &m)
   this->size = m.size;
   this->allocated = new T[this->size];
   this->aligned = this->allocated;
-  this->data = this->allocated;
   for (size_t i = 0; i < this->size; i++) {
     this->aligned[i] = m.aligned[i];
   }
@@ -196,13 +191,12 @@ Img<T, N>::Img(Img<T, N> &&m)
       type(m.type) {
   this->aligned = m.aligned;
   this->allocated = m.allocated;
-  this->data = m.data;
   this->size = m.size;
   std::swap(this->sizes, m.sizes);
   std::swap(this->strides, m.strides);
   // Assign the NULL pointer to the original aligned and allocated members to
   // avoid the double free error.
-  m.allocated = m.aligned = m.data = nullptr;
+  m.allocated = m.aligned = nullptr;
 }
 
 // Move Assignment Operator.
@@ -225,12 +219,11 @@ template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
     std::swap(this->size, m.size);
     std::swap(this->allocated, m.allocated);
     std::swap(this->aligned, m.aligned);
-    std::swap(this->data, m.data);
     std::swap(this->sizes, m.sizes);
     std::swap(this->strides, m.strides);
     // Assign the NULL pointer to the original aligned and allocated members to
     // avoid the double free error.
-    m.allocated = m.aligned = m.data = nullptr;
+    m.allocated = m.aligned = nullptr;
   }
   return *this;
 }
@@ -269,7 +262,6 @@ void Img<T, N>::create(int ndims, intptr_t *sizes, int type) {
   if (total() > 0) {
     this->allocated = new T[total()];
     this->aligned = this->allocated;
-    this->data = this->allocated;
   }
 }
 
@@ -300,7 +292,6 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
     }
     this->allocated = ptr;
     this->aligned = ptr;
-    this->data = ptr;
   }
   return *this;
 }
@@ -318,7 +309,6 @@ template <typename T, size_t N>
 Img<T, N>::Img(int rows, int cols, int type, T *data)
     : MemRef<T, N>(), dims(2), rows(rows), cols(cols), type(type) {
   this->aligned = data;
-  this->data = data;
   this->sizes[0] = rows;
   this->sizes[1] = cols;
   this->size = total();

@@ -93,7 +93,7 @@ class BmpEncoder : public BaseImageEncoder<T, N> {
 public:
   BmpEncoder();
   ~BmpEncoder();
-  bool write(const Img<T, N> &img, const std::vector<int> &params);
+  bool write(Img<T, N> &img, const std::vector<int> &params);
   std::unique_ptr<BaseImageEncoder<T, N>> newEncoder() const override;
 };
 
@@ -250,7 +250,7 @@ template <typename T, size_t N> bool BmpDecoder<T, N>::readHeader() {
 
 template <typename T, size_t N>
 bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
-  T *data = img.data;
+  T *data = img.getData();
   int step = this->m_width * img.channels();
   bool color = img.channels() > 1;
   uchar gray_palette[256] = {0};
@@ -402,7 +402,7 @@ template <typename T, size_t N> BmpEncoder<T, N>::BmpEncoder() {
 template <typename T, size_t N> BmpEncoder<T, N>::~BmpEncoder() {}
 
 template <typename T, size_t N>
-bool BmpEncoder<T, N>::write(const Img<T, N> &img, const std::vector<int> &) {
+bool BmpEncoder<T, N>::write(Img<T, N> &img, const std::vector<int> &) {
   int width = img.cols, height = img.rows, channels = img.channels();
   int fileStep = (width * channels + 3) & -4;
   uchar zeropad[] = "\0\0\0\0";
@@ -440,7 +440,7 @@ bool BmpEncoder<T, N>::write(const Img<T, N> &img, const std::vector<int> &) {
   }
   width *= channels;
   for (int y = height - 1; y >= 0; y--) {
-    T *data = img.data + (y * width);
+    T *data = img.getData() + (y * width);
     for (int i = 0; i < width; i++) {
       strm.putByte((uchar)data[i]);
     }

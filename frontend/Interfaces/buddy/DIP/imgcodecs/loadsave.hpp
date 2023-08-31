@@ -206,7 +206,7 @@ static std::unique_ptr<BaseImageEncoder<T, N>> findEncoder(const String &_ext) {
 }
 
 template <typename T, size_t N>
-static bool imwrite_(const String &filename, const Img<T, N> &img_vec) {
+static bool imwrite_(const String &filename,Img<T, N> &img_vec) {
   std::unique_ptr<BaseImageEncoder<T, N>> encoder = findEncoder<T, N>(filename);
   if (encoder) {
     // Convert to a pointer of BmpEncoder<T, N>

@@ -102,7 +102,7 @@ public:
 
   virtual bool setDestination(const String &filename);
   virtual bool setDestination(std::vector<uchar> &buf);
-  virtual bool write(const Img<T, N> &img, const std::vector<int> &params) = 0;
+  virtual bool write(Img<T, N> &img, const std::vector<int> &params) = 0;
   virtual bool writemulti(const std::vector<Img<T, N>> &img_vec,
                           const std::vector<int> &params);
 
