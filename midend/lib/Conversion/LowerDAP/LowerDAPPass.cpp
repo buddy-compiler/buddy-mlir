@@ -120,9 +120,15 @@ public:
     Value Vecb1 = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, b1);
     Value Vecb2 = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, b2);
 
+    IntegerType i1 = IntegerType::get(ctx, 1);
+    VectorType vectorMaskTy = VectorType::get({stride}, i1);
+    Value zr = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+
     // A biquad filter expression:
     // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
     // FIR part
+    Value zeroPadding =
+        rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zr);
     rewriter.create<scf::ForOp>(
         loc, c2, N, strideVal, ValueRange{std::nullopt},
         [&](OpBuilder &builder, Location loc, Value ivs, ValueRange iargs) {
@@ -130,21 +136,68 @@ public:
           Value idx1 = builder.create<SubIOp>(loc, idx0, c1);
           Value idx2 = builder.create<SubIOp>(loc, idx0, c2);
 
-          Value inputVec0 =
-              builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx0});
-          Value inputVec1 =
-              builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx1});
-          Value inputVec2 =
-              builder.create<LoadOp>(loc, vectorTy32, input, ValueRange{idx2});
+          Value endDistance = builder.create<arith::SubIOp>(loc, N, idx0);
+          Value cond = builder.create<CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                              endDistance, strideVal);
 
-          Value outputVec =
-              builder.create<LoadOp>(loc, vectorTy32, output, ValueRange{idx0});
-          Value resVec0 =
-              builder.create<FMAOp>(loc, inputVec0, Vecb0, outputVec);
-          Value resVec1 = builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
-          Value resVec2 = builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
-          builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
-          builder.create<scf::YieldOp>(loc, std::nullopt);
+          builder.create<scf::IfOp>(
+              loc, cond,
+              // Handle Tail Processing
+              [&](OpBuilder &builder, Location loc) {
+                Value elementCount = builder.create<SubIOp>(loc, N, idx0);
+                Value tailMask = builder.create<vector::CreateMaskOp>(
+                    loc, vectorMaskTy, elementCount);
+                Value inputVec0 = builder.create<vector::MaskedLoadOp>(
+                    loc, vectorTy32, input, ValueRange{idx0}, tailMask,
+                    zeroPadding);
+
+                Value inputVec1 = builder.create<vector::MaskedLoadOp>(
+                    loc, vectorTy32, input, ValueRange{idx1}, tailMask,
+                    zeroPadding);
+
+                Value inputVec2 = builder.create<vector::MaskedLoadOp>(
+                    loc, vectorTy32, input, ValueRange{idx2}, tailMask,
+                    zeroPadding);
+
+                Value outputVec =
+                    rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zr);
+
+                Value resVec0 =
+                    builder.create<FMAOp>(loc, inputVec0, Vecb0, outputVec);
+                Value resVec1 =
+                    builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
+
+                Value resVec2 =
+                    builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
+
+                builder.create<vector::MaskedStoreOp>(
+                    loc, output, ValueRange{idx0}, tailMask, resVec2);
+
+                builder.create<scf::YieldOp>(loc);
+              },
+
+              // Without Tail Processing
+              [&](OpBuilder &builder, Location loc) {
+                Value inputVec0 = builder.create<LoadOp>(loc, vectorTy32, input,
+                                                         ValueRange{idx0});
+                Value inputVec1 = builder.create<LoadOp>(loc, vectorTy32, input,
+                                                         ValueRange{idx1});
+                Value inputVec2 = builder.create<LoadOp>(loc, vectorTy32, input,
+                                                         ValueRange{idx2});
+
+                Value outputVec =
+                    builder.create<vector::BroadcastOp>(loc, vectorTy32, zr);
+                Value resVec0 =
+                    builder.create<FMAOp>(loc, inputVec0, Vecb0, outputVec);
+                Value resVec1 =
+                    builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
+                Value resVec2 =
+                    builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
+                builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
+
+                builder.create<scf::YieldOp>(loc);
+              });
+          builder.create<scf::YieldOp>(loc);
         });
 
     // IIR part
@@ -204,6 +257,8 @@ public:
     VectorType vectorTy32 = VectorType::get({stride}, f32);
 
     Value zr = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+    IntegerType i1 = IntegerType::get(ctx, 1);
+    VectorType vectorMaskTy = VectorType::get({stride}, i1);
 
     // loop over every row in SOS matrix
     rewriter.create<scf::ForOp>(
@@ -247,6 +302,9 @@ public:
           // A biquad filter expression:
           // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
           // FIR part
+
+          Value zeroPadding =
+              builder.create<vector::BroadcastOp>(loc, vectorTy32, zr);
           builder.create<scf::ForOp>(
               loc, c2, N, strideVal, ValueRange{std::nullopt},
               [&](OpBuilder &builder, Location loc, Value iv,
@@ -255,24 +313,69 @@ public:
                 Value idx1 = builder.create<SubIOp>(loc, idx0, c1);
                 Value idx2 = builder.create<SubIOp>(loc, idx0, c2);
 
-                Value inputVec0 = builder.create<LoadOp>(loc, vectorTy32, input,
-                                                         ValueRange{idx0});
-                Value inputVec1 = builder.create<LoadOp>(loc, vectorTy32, input,
-                                                         ValueRange{idx1});
-                Value inputVec2 = builder.create<LoadOp>(loc, vectorTy32, input,
-                                                         ValueRange{idx2});
+                Value endDistance = builder.create<arith::SubIOp>(loc, N, idx0);
+                Value cond = builder.create<CmpIOp>(
+                    loc, arith::CmpIPredicate::slt, endDistance, strideVal);
 
-                Value outputVec =
-                    rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zr);
-                Value resVec0 =
-                    builder.create<FMAOp>(loc, inputVec0, Vecb0, outputVec);
-                Value resVec1 =
-                    builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
-                Value resVec2 =
-                    builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
-                builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
+                builder.create<scf::IfOp>(
+                    loc, cond,
+                    // Handle Tail Processing
+                    [&](OpBuilder &builder, Location loc) {
+                      Value elementCount = builder.create<SubIOp>(loc, N, idx0);
+                      Value tailMask = builder.create<vector::CreateMaskOp>(
+                          loc, vectorMaskTy, elementCount);
+                      Value inputVec0 = builder.create<vector::MaskedLoadOp>(
+                          loc, vectorTy32, input, ValueRange{idx0}, tailMask,
+                          zeroPadding);
 
-                builder.create<scf::YieldOp>(loc, std::nullopt);
+                      Value inputVec1 = builder.create<vector::MaskedLoadOp>(
+                          loc, vectorTy32, input, ValueRange{idx1}, tailMask,
+                          zeroPadding);
+
+                      Value inputVec2 = builder.create<vector::MaskedLoadOp>(
+                          loc, vectorTy32, input, ValueRange{idx2}, tailMask,
+                          zeroPadding);
+
+                      Value outputVec = rewriter.create<vector::BroadcastOp>(
+                          loc, vectorTy32, zr);
+
+                      Value resVec0 = builder.create<FMAOp>(loc, inputVec0,
+                                                            Vecb0, outputVec);
+                      Value resVec1 =
+                          builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
+
+                      Value resVec2 =
+                          builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
+
+                      builder.create<vector::MaskedStoreOp>(
+                          loc, output, ValueRange{idx0}, tailMask, resVec2);
+
+                      builder.create<scf::YieldOp>(loc);
+                    },
+
+                    // Without Tail Processing
+                    [&](OpBuilder &builder, Location loc) {
+                      Value inputVec0 = builder.create<LoadOp>(
+                          loc, vectorTy32, input, ValueRange{idx0});
+                      Value inputVec1 = builder.create<LoadOp>(
+                          loc, vectorTy32, input, ValueRange{idx1});
+                      Value inputVec2 = builder.create<LoadOp>(
+                          loc, vectorTy32, input, ValueRange{idx2});
+
+                      Value outputVec = builder.create<vector::BroadcastOp>(
+                          loc, vectorTy32, zr);
+                      Value resVec0 = builder.create<FMAOp>(loc, inputVec0,
+                                                            Vecb0, outputVec);
+                      Value resVec1 =
+                          builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
+                      Value resVec2 =
+                          builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
+                      builder.create<StoreOp>(loc, resVec2, output,
+                                              ValueRange{idx0});
+
+                      builder.create<scf::YieldOp>(loc);
+                    });
+                builder.create<scf::YieldOp>(loc);
               });
 
           // IIR part
