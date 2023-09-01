@@ -172,7 +172,7 @@ void Text<T, N>::tokenize(const std::string &vocab, long long length, bool lower
   this->aligned[tokenCnt++] = sep;
   // Padding the rest token
   for (long long i = tokenCnt; i < length; i++) {
-    this->aligned[i] = pad;
+    this->aligned[i] = sep;
   }
 }
 
