@@ -11,8 +11,8 @@ elseif (HAVE_NEON)
 endif ()
 
 add_custom_command(OUTPUT resize4d.o
-        COMMAND ${CMAKE_BINARY_DIR}/bin/buddy-opt ${BUDDY_EXAMPLES_DIR}/Resize4D/resize4d.mlir
-        -lower-dip="DIP-strip-mining=${SPLITING_SIZE}"
+        COMMAND ${CMAKE_BINARY_DIR}/bin/buddy-opt ${BUDDY_EXAMPLES_DIR}/Resize4D/resize4d_test1.mlir
+        # -lower-dip="DIP-strip-mining=${SPLITING_SIZE}"
         -arith-expand
         -lower-affine
         -convert-scf-to-cf

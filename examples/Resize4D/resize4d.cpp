@@ -1,4 +1,4 @@
-//====- resize2D.cpp - Example of buddy-opt tool =============================//
+//====- resize4D.cpp - Example of buddy-opt tool =============================//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements a 2D resize example with dip.resize_2d operation.
-// The dip.resize_2d operation will be compiled into an object file with the
+// This file implements a 4D resize example with dip.resize_4d operation.
+// The dip.resize_4d operation will be compiled into an object file with the
 // buddy-opt tool.
 // This file will be linked with the object file to generate the executable
 // file.
@@ -31,39 +31,30 @@
 using namespace cv;
 using namespace std;
 
-bool testImplementation(int argc, char *argv[]) {
+void testImplementation(int argc, char *argv[]) {
   // Read as grayscale image.
-  Mat image = imread(argv[1], IMREAD_GRAYSCALE);
+  Mat image = imread(argv[1], IMREAD_COLOR);
   if (image.empty()) {
     cout << "Could not read the image: " << argv[1] << endl;
   }
 
   // Define memref container for image.
-  Img<float, 2> input(image);
+  Img<float, 4> input(image);
   
   // Note : Both values in output image dimensions and scaling ratios must be
   // positive numbers.
 
-  MemRef<float, 2> output = dip::Resize2D(
+  MemRef<float, 4> output = dip::Resize4D(
       &input, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
-      {224, 224} /*{image_cols, image_rows}*/);
-  // MemRef<float, 2> output = dip::Resize2D(
-  //     &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION, outputSize);
+      {1 , 224 , 224 , 3} /*{image_cols, image_rows}*/);
 
-  // MemRef<float, 2> output = dip::Resize2D(
-  //     &input, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
-  //     scalingRatios);
-  // MemRef<float, 2> output = dip::Resize2D(
-  //     &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION,
-  //     scalingRatios);
-
-  // Define cv::Mat with the output of Resize2D.
-  Mat outputImageResize2D(output.getSizes()[0], output.getSizes()[1], CV_32FC1,
+  // Define cv::Mat with the output of Resize4D.
+  Mat outputImageResize4D(output.getSizes()[1], output.getSizes()[2], CV_32FC3,
                           output.getData());
 
-  imwrite(argv[2], outputImageResize2D);
+  imwrite(argv[2], outputImageResize4D);
 
-  return 1;
+  return;
 }
 
 int main(int argc, char *argv[]) {
