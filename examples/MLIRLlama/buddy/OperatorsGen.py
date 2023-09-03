@@ -235,7 +235,7 @@ def LtOp(node: torch.fx.Node,
   input2 = symbol_table.get((str(node.args[1]), 0))
   output_shape = list(node.meta['tensor_meta'].shape)
   dtype = str(node.meta['tensor_meta'].dtype)
-  value = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), 3)
+  value = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), 2)
   shp1 = list(ir.RankedTensorType(ir.Value(input1).type).shape)
   shp2 = list(ir.RankedTensorType(ir.Value(input2).type).shape)
   if dtype == "torch.bool":
@@ -359,7 +359,7 @@ def ExpandOp(node: torch.fx.Node,
           offset[i] = j
           offset_attr = ir._denseI64ArrayAttr(offset, ctx)
           op = tensor.InsertSliceOp(extract_tensor.result, empty_tensor.result, [], [], [], offset_attr, size_attr, stride_attr)
-        input1 = op.result
+          empty_tensor = op
   return op
 
 def ToCopyOp(node: torch.fx.Node,
@@ -483,7 +483,11 @@ def MeanOp(node: torch.fx.Node,
                               ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))])), ir.AffineMapAttr.get(generic_map.get_submap(output_map))]),
                               ir.ArrayAttr.get(loop_type))
         block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(output.result.type).element_type])
-        addf_op = arith.AddFOp(block.arguments[0], block.arguments[1])
+        value = arith.ConstantOp(ir.F32Type.get(), ir.FloatAttr.get(ir.F32Type.get(), list(ir.RankedTensorType(input1.type).shape)[dim]))
+        divf_op = arith.DivFOp(block.arguments[0], value.result)
+        addf_op = arith.AddFOp(divf_op.result, block.arguments[1])
+        block.append(value)
+        block.append(divf_op)
         block.append(addf_op)
         block.append(linalg.YieldOp([addf_op.result]))
   
@@ -1117,5 +1121,7 @@ operation_func = {"arange.start": ArangeOp, "arange.default": ArangeOp, "unsquee
                   "clone.default": CloneOp, "silu.default": SiluOp}
 # operation_func = {"arange.start": ArangeOp, "arange.default": ArangeOp, "unsqueeze.default": UnsqueezeOp, "view.default": ViewOp,
 #                   "ones.default": OnesOp, "full.default": FullOp, "add.Tensor": AddOp, "lt.Tensor": LtOp, "embedding.default": EmbeddingOp,
-#                   }
+#                   "masked_fill.Scalar": MaskedFillOp, "slice.Tensor": SliceOp, "squeeze.dim": SqueezeOp, "expand.default": ExpandOp, 
+#                   "_to_copy.default": ToCopyOp, "rsub.Scalar": RSubOp, "pow.Tensor_Scalar": PowOp, "mean.dim": MeanOp, "rsqrt.default": RSqrtOp, 
+#                   "mul.Tensor": MulOp, "t.default": TOp, "mm.default": MMOp}
 type_dict = {"torch.int64": ir.IntegerType, "torch.float32": ir.F32Type}

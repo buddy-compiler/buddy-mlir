@@ -11,6 +11,7 @@ from mlir.passmanager import PassManager
 from .OperatorsGen import operation_func
 import torch.utils._pytree as pytree
 import os
+from torch._subclasses import FakeTensorMode
 
 def DynamoCompiler(gm: torch.fx.GraphModule,
                    inputs: List[torch.Tensor]) -> Callable:
@@ -28,7 +29,6 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
     Callable: A compiled function that equivalent to the FX graph.
 
   """
-
   def _compiler(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
     """Compile a FX graph in Aten/Prims IR to MLIR."""
     # print(gm)
@@ -46,29 +46,30 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
     #   if node.op != "placeholder" and node.op != "output":
     #     ops.append(node.target.__name__)
     # print(set(ops))
+    print(gm.graph)
     ctx = ir.Context()
     with ir.Location.unknown(ctx):
       fx_importer = FXGraphImporter(gm, inputs)
       module = fx_importer.import_graph(ctx)
       module = Lowering(module)
     return gm.forward
-  params = {
-      **dict(gm.named_parameters(remove_duplicate=False)),
-      **dict(gm.named_buffers(remove_duplicate=False)),
-  }
-  params_flat, params_spec = pytree.tree_flatten(params)
-  params_flat = list(params_flat)
-  with open("params_shape.txt", 'w') as file:
-    for i, param in enumerate(params_flat):
-      file.write("arg{} ".format(i))
-      param_size = 1
-      for s in param.shape:
-        param_size *= s
-      file.write(str(param_size)+"\n")
-      if not os.path.exists("params_data"):
-        os.mkdir("params_data")
-      param_data = param.detach().numpy().reshape([-1])
-      param_data.tofile("params_data/arg{}.data".format(i))
+  # params = {
+  #     **dict(gm.named_parameters(remove_duplicate=False)),
+  #     **dict(gm.named_buffers(remove_duplicate=False)),
+  # }
+  # params_flat, params_spec = pytree.tree_flatten(params)
+  # params_flat = list(params_flat)
+  # with open("params_shape.txt", 'w') as file:
+  #   for i, param in enumerate(params_flat):
+  #     file.write("arg{} ".format(i))
+  #     param_size = []
+  #     for i in param.shape:
+  #       param_size.append(str(i))
+  #     file.write(",".join(param_size)+"\n")
+  #     if not os.path.exists("params_data"):
+  #       os.mkdir("params_data")
+  #     param_data = param.detach().numpy().reshape([-1])
+  #     param_data.tofile("params_data/arg{}.data".format(i))
   return aot_module_simplified(gm, inputs, fw_compiler=_compiler)
 
 class FXGraphImporter:
@@ -125,6 +126,8 @@ class FXGraphImporter:
               op = self._symbol_table.get((str(output_arg), 0))
               returns.append(op)
 
+            # for model llama2, we only need output[0] to get next token
+            returns = [returns[0]]
             self._symbol_table[("output", 0)] = returns
           elif node.op == "placeholder":
             self._import_placeholder(node, args_list)
@@ -153,8 +156,6 @@ class FXGraphImporter:
       return
     op_ret: Union[ir.Operation,
                   tuple] = operation_func[op_name](node, self._symbol_table, ctx)
-    # if op_ret is None:
-    #   return
     assert op_ret is not None
     if isinstance(op_ret, tuple):
       for i, operation in op_ret:

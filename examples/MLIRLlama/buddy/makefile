@@ -33,7 +33,7 @@ resnet-18-lower:
 		--reconcile-unrealized-casts \
 		-o ./log.mlir
 
-bert-lower:
+llama-lower:
 	@${MLIR_OPT} ./llama.mlir \
 		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${MLIR_OPT} \
@@ -57,12 +57,12 @@ bert-lower:
 		--convert-arith-to-llvm \
 		--convert-math-to-llvm \
 		--convert-math-to-libm \
-		--convert-func-to-llvm \
 		--llvm-request-c-wrappers \
+		--convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} \
 		-mlir-to-llvmir | \
 	${LLVM_AS} | \
-	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o test.o
+	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
 llama-compile:
-	g++ -g llama_run.cc test.o ../../../llvm/build/lib/libmlir_c_runner_utils.so -o llama
+	g++ -g llama_run.cc llama.o Container.h ../../../llvm/build/lib/libmlir_c_runner_utils.so -o llama

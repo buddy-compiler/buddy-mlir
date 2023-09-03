@@ -3,7 +3,7 @@ if(BUDDY_EXAMPLES)
   add_subdirectory(DIPDialect)
   add_subdirectory(DAPDialect)
 endif()
-
+add_subdirectory(MLIRLlama)
 if(BUDDY_DSL_EXAMPLES)
   add_subdirectory(ToyDSL)
 endif()
