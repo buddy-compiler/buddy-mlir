@@ -1,5 +1,4 @@
-//===- Grfmt_base.hpp ---------------------------------------------------===//
-////////////////////////////////////////////////////////////////////////////////////////
+//===- Grfmt_base.h ---------------------------------------------------===//
 //
 //  IMPORTANT: READ BEFORE DOWNLOADING, COPYING, INSTALLING OR USING.
 //
@@ -51,8 +50,8 @@
 #ifndef _GRFMT_BASE_H_
 #define _GRFMT_BASE_H_
 
-#include "buddy/DIP/imgcodecs/bitstrm.hpp"
-#include "buddy/DIP/imgcodecs/utils.hpp"
+#include "buddy/DIP/imgcodecs/bitstrm.h"
+#include "buddy/DIP/imgcodecs/utils.h"
 
 namespace dip {
 ///////////////////////////////// base class for decoders

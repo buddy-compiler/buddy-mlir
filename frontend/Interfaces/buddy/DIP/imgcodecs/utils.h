@@ -1,5 +1,4 @@
-//===- Utilis.hpp ---------------------------------------------------===//
-////////////////////////////////////////////////////////////////////////////////////////
+//===- Utilis.h ---------------------------------------------------===//
 //
 //  IMPORTANT: READ BEFORE DOWNLOADING, COPYING, INSTALLING OR USING.
 //
@@ -50,7 +49,7 @@
 #ifndef _UTILS_H_
 #define _UTILS_H_
 
-#include "buddy/DIP/imgcodecs/Replenishment.hpp"
+#include "buddy/DIP/imgcodecs/replenishment.h"
 
 namespace dip {
 int validateToInt(size_t sz) {

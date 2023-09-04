@@ -1,5 +1,4 @@
-//===- Grfmt_bmp.hpp ---------------------------------------------------===//
-////////////////////////////////////////////////////////////////////////////////////////
+//===- Grfmt_bmp.h ---------------------------------------------------===//
 //
 //  IMPORTANT: READ BEFORE DOWNLOADING, COPYING, INSTALLING OR USING.
 //
@@ -51,7 +50,7 @@
 #ifndef _GRFMT_BMP_H_
 #define _GRFMT_BMP_H_
 
-#include "buddy/DIP/imgcodecs/grfmt_base.hpp"
+#include "buddy/DIP/imgcodecs/grfmt_base.h"
 #include "buddy/Core/Container.h"
 
 namespace dip {

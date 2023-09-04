@@ -1,5 +1,4 @@
-//===- Bitstrm.hpp ---------------------------------------------------===//
-////////////////////////////////////////////////////////////////////////////////////////
+//===- Bitstrm.h ---------------------------------------------------===//
 //
 //  IMPORTANT: READ BEFORE DOWNLOADING, COPYING, INSTALLING OR USING.
 //
@@ -51,8 +50,8 @@
 #define _BITSTRM_H_
 
 #include "buddy/DIP/ImageContainer.h"
-#include "buddy/DIP/imgcodecs/Replenishment.hpp"
-#include "buddy/DIP/imgcodecs/utils.hpp"
+#include "buddy/DIP/imgcodecs/replenishment.h"
+#include "buddy/DIP/imgcodecs/utils.h"
 #include <stdio.h>
 #include <string.h>
 

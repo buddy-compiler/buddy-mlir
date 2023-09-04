@@ -1,5 +1,4 @@
-//===- Loadsave.hpp ---------------------------------------------------===//
-////////////////////////////////////////////////////////////////////////////////////////
+//===- Loadsave.h ---------------------------------------------------===//
 //
 //  IMPORTANT: READ BEFORE DOWNLOADING, COPYING, INSTALLING OR USING.
 //
@@ -51,8 +50,8 @@
 #ifndef _LOADSAVE_H_
 #define _LOADSAVE_H_
 
-#include "buddy/DIP/imgcodecs/Replenishment.hpp"
-#include "buddy/DIP/imgcodecs/grfmt_bmp.hpp"
+#include "buddy/DIP/imgcodecs/replenishment.h"
+#include "buddy/DIP/imgcodecs/grfmt_bmp.h"
 
 namespace dip {
 template <typename T, size_t N> struct ImageCodecInitializer {

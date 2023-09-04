@@ -20,7 +20,7 @@
 
 // RUN: buddy-image-container-test 2>&1 | FileCheck %s
 
-#include "buddy/DIP/imgcodecs/loadsave.hpp"
+#include "buddy/DIP/imgcodecs/loadsave.h"
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImageContainer.h>
 

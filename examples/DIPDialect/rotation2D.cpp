@@ -22,7 +22,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buddy/DIP/imgcodecs/loadsave.hpp"
+#include "buddy/DIP/imgcodecs/loadsave.h"
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/DIP.h>
 #include <buddy/DIP/ImageContainer.h>

@@ -1,4 +1,3 @@
-
 //===- ImageContainer.h ---------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +22,7 @@
 #define FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER
 
 #include "buddy/Core/Container.h"
-#include "buddy/DIP/imgcodecs/Replenishment.hpp"
+#include "buddy/DIP/imgcodecs/replenishment.h"
 #include <cassert>
 #include <opencv2/opencv.hpp>
 
