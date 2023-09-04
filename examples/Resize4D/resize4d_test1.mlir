@@ -168,8 +168,8 @@ module {
     %16 = arith.subi %dim_2, %c1 : index
     %17 = arith.index_cast %16 : index to i32
     %18 = arith.sitofp %17 : i32 to f32
-    affine.for %batch = #map(%c0) to #map(%c1) {
-      affine.for %color = #map(%c0) to #map(%3) {     
+    affine.for %batch = #map(%c0) to #map(%dim_batch1) {
+      affine.for %color = #map(%c0) to #map(%dim_color1) {     
         affine.for %arg4 = #map(%c0) to #map(%dim_1) {
           affine.for %arg5 = #map(%c0) to #map(%3) step 32 {
             %19 = arith.index_cast %arg4 : index to i32
@@ -225,8 +225,8 @@ module {
         }
       }
     }
-    affine.for %batch1 = #map(%c0) to #map(%c1) {
-      affine.for %color1 = #map(%c0) to #map(%3) {   
+    affine.for %batch1 = #map(%c0) to #map(%dim_batch2) {
+      affine.for %color1 = #map(%c0) to #map(%dim_color2) {   
         affine.for %arg4 = #map(%c0) to #map(%dim_1) {
           affine.for %arg5 = #map(%3) to #map(%dim_2) step 32 {
             %19 = arith.index_cast %arg4 : index to i32
