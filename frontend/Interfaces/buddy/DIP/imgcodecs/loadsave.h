@@ -50,8 +50,8 @@
 #ifndef _LOADSAVE_H_
 #define _LOADSAVE_H_
 
-#include "buddy/DIP/imgcodecs/replenishment.h"
 #include "buddy/DIP/imgcodecs/grfmt_bmp.h"
+#include "buddy/DIP/imgcodecs/replenishment.h"
 
 namespace dip {
 template <typename T, size_t N> struct ImageCodecInitializer {
@@ -128,7 +128,7 @@ findDecoder(const String &filename) {
 template <typename T, size_t N>
 Img<T, N> imread(const String &filename, int flags) {
   std::unique_ptr<BaseImageDecoder<T, N>> decoder = findDecoder<T, N>(filename);
-  
+
   if (!decoder) {
     throw std::runtime_error("Decoder not found for the given image.");
   }
@@ -138,6 +138,8 @@ Img<T, N> imread(const String &filename, int flags) {
     BmpDecoder<T, N> *bmpDecoderPtr =
         dynamic_cast<BmpDecoder<T, N> *>(decoder.get());
     if (bmpDecoderPtr) {
+      // Create an Img instance
+      Img<T, N> Image;
       // After creating the BmpDecoder<T, N> instance, perform related
       // operations Defines whether the image is scaled or not
       int scale_denom = 1;
@@ -148,19 +150,14 @@ Img<T, N> imread(const String &filename, int flags) {
       bmpDecoderPtr->readHeader();
       _Size size(bmpDecoderPtr->width(), bmpDecoderPtr->height());
       // grab the decoded type
-      int type = bmpDecoderPtr->type();
-      if ((flags & IMGRD_ANYDEPTH) == 0) {
-        type = IMG_MAKETYPE(IMG_8U, IMG_MAT_CN(type));
-      }
+      Image.channels = bmpDecoderPtr->channels();
       if ((flags & IMGRD_COLOR) != 0 ||
-          ((flags & IMGRD_ANYCOLOR) != 0 && IMG_MAT_CN(type) > 1)) {
-        type = IMG_MAKETYPE(IMG_MAT_DEPTH(type), 3);
+          ((flags & IMGRD_ANYCOLOR) != 0 && Image.channels > 1)) {
+        Image.channels = 3;
       } else {
-        type = IMG_MAKETYPE(IMG_MAT_DEPTH(type), 1);
+        Image.channels = 1;
       }
-      // Create an Img instance
-      Img<T, N> Image;
-      Image.create(size.height, size.width, type);
+      Image.create(size.height, size.width);
       bmpDecoderPtr->readData(Image);
       return Image;
     }
@@ -205,7 +202,7 @@ static std::unique_ptr<BaseImageEncoder<T, N>> findEncoder(const String &_ext) {
 }
 
 template <typename T, size_t N>
-static bool imwrite(const String &filename,Img<T, N> &img_vec) {
+static bool imwrite(const String &filename, Img<T, N> &img_vec) {
   std::unique_ptr<BaseImageEncoder<T, N>> encoder = findEncoder<T, N>(filename);
   if (encoder) {
     // Convert to a pointer of BmpEncoder<T, N>

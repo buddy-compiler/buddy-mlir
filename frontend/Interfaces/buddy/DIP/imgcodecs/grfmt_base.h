@@ -63,7 +63,7 @@ public:
 
   int width() const { return m_width; }
   int height() const { return m_height; }
-  virtual int type() { return m_type; }
+  virtual int channels() { return m_channels; }
 
   // ExifEntry_t getExifTag(const ExifTagName tag) const;
   virtual bool setSource(const String &filename);
@@ -82,7 +82,7 @@ public:
 protected:
   int m_width;  // width  of the image ( filled by readHeader )
   int m_height; // height of the image ( filled by readHeader )
-  int m_type;
+  int m_channels;
   int m_scale_denom;
   String m_filename;
   String m_signature;
@@ -97,30 +97,25 @@ template <typename T, size_t N> class BaseImageEncoder {
 public:
   BaseImageEncoder();
   virtual ~BaseImageEncoder() {}
-  virtual bool isFormatSupported(int depth) const;
-
   virtual bool setDestination(const String &filename);
   virtual bool setDestination(std::vector<uchar> &buf);
   virtual bool write(Img<T, N> &img, const std::vector<int> &params) = 0;
   virtual bool writemulti(const std::vector<Img<T, N>> &img_vec,
                           const std::vector<int> &params);
-
   virtual String getDescription() const;
   virtual std::unique_ptr<BaseImageEncoder<T, N>> newEncoder() const = 0;
 
 protected:
   String m_description;
-
   String m_filename;
   std::vector<uchar> *m_buf;
   bool m_buf_supported;
-
   String m_last_error;
 };
 
 template <typename T, size_t N> BaseImageDecoder<T, N>::BaseImageDecoder() {
   m_width = m_height = 0;
-  m_type = -1;
+  m_channels = -1;
   m_buf_supported = false;
   m_scale_denom = 1;
 }
@@ -163,11 +158,6 @@ int BaseImageDecoder<T, N>::setScale(const int &scale_denom) {
 template <typename T, size_t N> BaseImageEncoder<T, N>::BaseImageEncoder() {
   m_buf = 0;
   m_buf_supported = false;
-}
-
-template <typename T, size_t N>
-bool BaseImageEncoder<T, N>::isFormatSupported(int depth) const {
-  return depth == IMG_8U;
 }
 
 template <typename T, size_t N>

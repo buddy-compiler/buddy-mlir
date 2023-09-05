@@ -31,7 +31,7 @@
 using namespace std;
 
 bool testImplementation(int argc, char *argv[]) {
-  // Read as grayscale image and Define memref container for image. 
+  // Read as grayscale image and Define memref container for image.
   Img<float, 2> input = dip::imread<float, 2>(argv[1], dip::IMGRD_GRAYSCALE);
 
   intptr_t outputSize[2] = {250, 100}; // {image_cols, image_rows}
@@ -59,8 +59,7 @@ bool testImplementation(int argc, char *argv[]) {
 
   // Define Img with the output of Resize2D.
   Img<float, 2> outputImageResize2D(output.getSizes()[0], output.getSizes()[1],
-                                    IMG_32FC1, output.getData());
-
+                                    output.getData());
   dip::imwrite(argv[2], outputImageResize2D);
 
   return 1;

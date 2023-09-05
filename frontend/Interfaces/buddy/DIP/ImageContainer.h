@@ -38,30 +38,24 @@ public:
    * @brief overload
    * @param rows Number of rows in a 2D array.
    * @param cols Number of columns in a 2D array.
-   * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
-   * matrices.
    */
-  Img(int rows, int cols, int type);
+  Img(int rows, int cols);
 
   /**
    * @brief overload
    * @param rows Number of rows in a 2D array.
    * @param cols Number of columns in a 2D array.
-   * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
-   * matrices.
    * @param data Pointer to the user data.
    * they just initialize the matrix header that points to the specified data.
    */
-  Img(int rows, int cols, int type, T *data);
+  Img(int rows, int cols, T *data);
 
   /**
    * @brief overload
    * @param ndims Array dimensionality.
    * @param sizes Array of integers specifying an n-dimensional array shape.
-   * @param type Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
-   * matrices.
    */
-  Img(int ndims, intptr_t *sizes, int type);
+  Img(int ndims, intptr_t *sizes);
 
   /**
    * @brief overload
@@ -94,21 +88,15 @@ public:
    * @brief Allocates new array data if needed.
    * @param rows Number of rows in a 2D array.
    * @param cols Number of columns in a 2D array.
-   * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
-   * matrices.
    */
-  void create(int rows, int cols, int type);
+  void create(int rows, int cols);
 
   /**
    * @brief overload
    * @param ndims Array dimensionality.
    * @param sizes Array of integers specifying an n-dimensional array shape.
-   * @param type Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
-   * matrices.
    */
-  void create(int ndims, intptr_t *sizes, int type);
-
-  int channels() const;
+  void create(int ndims, intptr_t *sizes);
 
   size_t total();
 
@@ -121,39 +109,35 @@ public:
   // dimensions
   int rows, cols;
 
-  // Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel matrices.
-  int type;
-
+  // create 1-4 channel matrices.
+  int channels;
 };
 
 // Image Constructor from Img.
 template <typename T, size_t N>
-Img<T, N>::Img() : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {}
+Img<T, N>::Img()
+    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0), channels(1) {}
 
 /**
  * @brief overload
  * @param rows Number of rows in a 2D array.
  * @param cols Number of columns in a 2D array.
- * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
- * matrices.
  */
 template <typename T, size_t N>
-Img<T, N>::Img(int rows, int cols, int type)
-    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {
-  create(rows, cols, type);
+Img<T, N>::Img(int rows, int cols)
+    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0), channels(1) {
+  create(rows, cols);
 }
 
 /**
  * @brief overload
  * @param ndims Array dimensionality.
  * @param sizes Array of integers specifying an n-dimensional array shape.
- * @param type Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
- * matrices.
  */
 template <typename T, size_t N>
-Img<T, N>::Img(int ndims, intptr_t *sizes, int type)
-    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {
-  create(ndims, sizes, type);
+Img<T, N>::Img(int ndims, intptr_t *sizes)
+    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0), channels(1) {
+  create(ndims, sizes);
 }
 
 /**
@@ -164,7 +148,7 @@ Img<T, N>::Img(int ndims, intptr_t *sizes, int type)
 template <typename T, size_t N>
 Img<T, N>::Img(const Img<T, N> &m)
     : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols),
-      type(m.type) {
+      channels(m.channels) {
   for (size_t i = 0; i < N; i++) {
     this->sizes[i] = m.sizes[i];
     this->strides[i] = m.strides[i];
@@ -187,7 +171,7 @@ Img<T, N>::Img(const Img<T, N> &m)
 template <typename T, size_t N>
 Img<T, N>::Img(Img<T, N> &&m)
     : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols),
-      type(m.type) {
+      channels(m.channels) {
   this->aligned = m.aligned;
   this->allocated = m.allocated;
   this->size = m.size;
@@ -211,7 +195,7 @@ template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
     delete[] this->allocated;
     // Steal members of the original object.
     std::swap(this->flags, m.flags);
-    std::swap(this->type, m.type);
+    std::swap(this->channels, m.channels);
     std::swap(this->cols, m.cols);
     std::swap(this->rows, m.rows);
     std::swap(this->dims, m.dims);
@@ -231,18 +215,14 @@ template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
  * @brief Allocates new array data if needed.
  * @param rows Number of rows in a 2D array.
  * @param cols Number of columns in a 2D array.
- * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
- * matrices.
  */
-template <typename T, size_t N>
-void Img<T, N>::create(int rows, int cols, int type) {
-  this->type = type;
+template <typename T, size_t N> void Img<T, N>::create(int rows, int cols) {
   this->cols = cols;
   this->rows = rows;
   this->sizes[0] = cols;
   this->sizes[1] = rows;
   if (N <= 2) {
-    create(2, this->sizes, this->type);
+    create(2, this->sizes);
   }
 }
 
@@ -250,11 +230,9 @@ void Img<T, N>::create(int rows, int cols, int type) {
  * @brief overload
  * @param ndims Array dimensionality.
  * @param sizes Array of integers specifying an n-dimensional array shape.
- * @param type Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
- * matrices.
  */
 template <typename T, size_t N>
-void Img<T, N>::create(int ndims, intptr_t *sizes, int type) {
+void Img<T, N>::create(int ndims, intptr_t *sizes) {
   this->dims = ndims;
   this->setStrides();
   this->size = total();
@@ -275,7 +253,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
     return *this;
   } else {
     this->flags = m.flags;
-    this->type = m.type;
+    this->channels = m.channels;
     this->dims = m.dims;
     this->rows = m.rows;
     this->cols = m.cols;
@@ -299,14 +277,12 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
  * @brief overload
  * @param rows Number of rows in a 2D array.
  * @param cols Number of columns in a 2D array.
- * @param type Array type. Use IMG_8UC1, ..., IMG_64FC4 to create 1-4 channel
- * matrices.
  * @param data Pointer to the user data.
  * they just initialize the matrix header that points to the specified data.
  */
 template <typename T, size_t N>
-Img<T, N>::Img(int rows, int cols, int type, T *data)
-    : MemRef<T, N>(), dims(2), rows(rows), cols(cols), type(type) {
+Img<T, N>::Img(int rows, int cols, T *data)
+    : MemRef<T, N>(), dims(2), rows(rows), cols(cols), channels(1) {
   this->aligned = data;
   this->sizes[0] = rows;
   this->sizes[1] = cols;
@@ -355,13 +331,9 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
   }
 }
 
-template <typename T, size_t N> int Img<T, N>::channels() const {
-  return IMG_MAT_CN(type);
-}
-
 template <typename T, size_t N> size_t Img<T, N>::total() {
   if (dims <= 2) {
-    return (size_t)rows * cols * channels();
+    return (size_t)rows * cols * channels;
   }
   size_t p = 1;
   for (int i = 0; i < dims; i++)
