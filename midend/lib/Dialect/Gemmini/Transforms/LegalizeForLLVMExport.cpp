@@ -43,6 +43,12 @@ int64_t getNumberFromValue(Value &value) {
       .getInt();
 }
 
+int ceil_divide_int(int a, int b){
+    int c = (a % b == 0) ? ((int)(a/b)) :(((int)(a/b)) + 1); 
+    if(a < b) c = 1;
+    return c;
+}
+
 acc_scale_t_bits acc_scale_t_to_acc_scale_t_bits(acc_scale_t x) {
   union {
     acc_scale_t_bits b;
@@ -1146,6 +1152,7 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                    int outChannels, int outRowDim, int outColDim,
                    int poolOutRowDim, int poolOutColDim,
                    int stride, int padding, int kernelDim, int kernelDilation,
+                   int inStride, int weightStride, int outStride,
                    int poolSize, int poolStride, int poolPadding,
                    int batches, int porows,
                    int pocols, int pochs, int krows, int kcols, int kchs,
@@ -1156,8 +1163,7 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                    bool transWeight1203, bool transWeight0132, bool noBias,
                    bool noPool, bool downsample, bool inputDilated, bool dw,
                    TileConvOp &tileConvOp,
-                   ConversionPatternRewriter &rewriter,
-                   int inStride = 1, int weightStride = 1, int outStride = 1
+                   ConversionPatternRewriter &rewriter
                    ) const {
     Location loc = tileConvOp.getLoc();
     if (dw) {
@@ -1204,8 +1210,8 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     const int maxPixelsPerRow = 1;
 #endif
     // Calculate spad address offsets
-    const int outChannelsPerBank = ochs / DIM + (ochs % DIM != 0);
-    const int inChannelsPerBank = kchs / DIM + (kchs % DIM != 0);
+    const int outChannelsPerBank = ochs / dim + (ochs % dim != 0);
+    const int inChannelsPerBank = kchs / dim + (kchs % dim != 0);
     const int bRows = transWeight0132 ? inChannelsPerBank * kcols * krows * ochs :
                                       outChannelsPerBank * kcols * krows * kchs;
 
@@ -1214,8 +1220,8 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
 
     const uint32_t aSpAddrStart = 0;
     const uint32_t bSpAddrStart = BANK_NUM * BANK_ROWS - bRows;
-    const uint32_t dSpAddrStart = (1 << (ADDR_LEN - 1)) + dSpAddrRow;
-    const uint32_t cSpAddrStart = (3 << (ADDR_LEN - 2)) + cSpAddrRow;
+    const uint32_t dSpAddrStart = (1 << (addrLen - 1)) + dSpAddrRow;
+    const uint32_t cSpAddrStart = (3 << (addrLen - 2)) + cSpAddrRow;
 
     if (bias != 0) {
       dSpAddrRow = (dSpAddrRow + ACC_ROWS / 2) % ACC_ROWS;
@@ -1239,10 +1245,12 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     }
     // Only rectangular convolutions will use the following C code
     // mvin bias
+    const size_t maxBlockLen = MAX_BYTES / (dim * 1);
+    const size_t maxBlockLenAcc = MAX_BYTES / (dim * 4);
     if (bias != NULL) {
       // TODO we probably don't need quite this many nested loops for this part
-      const int maxOchsPerMvin = ochs < MAX_BLOCK_LEN_ACC * DIM ? ochs :
-                                                                MAX_BLOCK_LEN_ACC * DIM;
+      const int maxOchsPerMvin = ochs < maxBlockLenAcc * dim ? ochs :
+                                                                maxBlockLenAcc * dim;
       Value zeroValue = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0));
       //      rewriter.create<ConfigLdOp>(loc, zeroValue, llvm::APFloat(MVIN_SCALE_IDENTITY), false, )
       // TODO: configLd op 这里不够用，需要加block_mvinStride和pixel_repeats，应该不难
@@ -1250,35 +1258,35 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
       rewriter.create<ConfigLdOp>(loc, zeroValue, llvm::APFloat(MVIN_SCALE_IDENTITY), false, 2, batches * orows * ocols);
       for (int b = 0; b < batches; b++)
         for (int orow = 0; orow < orows; orow++)
-          for (int ocol = 0; ocol < ocols; ocol += DIM) {
-            const int I = ocols - ocol > DIM ? DIM : ocols - ocol;
+          for (int ocol = 0; ocol < ocols; ocol += dim) {
+            const int I = ocols - ocol > dim ? dim : ocols - ocol;
             for (int och = 0; och < ochs; och += maxOchsPerMvin) {
               const int J = ochs - och > maxOchsPerMvin ? maxOchsPerMvin : ochs - och;
-              const uint32_t dSpAddr = dSpAddrStart + (och / DIM) * batches * orows * ocols + b * orows * ocols + orow * ocols + ocol;
+              const uint32_t dSpAddr = dSpAddrStart + (och / dim) * batches * orows * ocols + b * orows * ocols + orow * ocols + ocol;
 //              const acc_t * bias_dram_addr = noBias ? NULL : bias + och;
 //              gemmini_extended_mvin3(bias_dram_addr,
 //                                     dSpAddr,
 //                                     J, I);
               if (noBias) {
 //                Value zero = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0));
-                gemminiMvinOffset<Mvin3_IntrOp>(zeroValue, 0, dSpAddr, J, I, rewriter);
+                gemminiMvinOffset<Mvin3_IntrOp>(zeroValue, 0, dSpAddr, J, I, addrLen, rewriter);
               } else {
-                gemminiMvinOffset<Mvin3_IntrOp>(bias, och, dSpAddr, J, I, rewriter);
+                gemminiMvinOffset<Mvin3_IntrOp>(bias, och, dSpAddr, J, I, addrLen, rewriter);
               }
             }
           }
     }
     // mvin input
     if (input != NULL){
-      int maxChsPerMvin = ichs < MAX_BLOCK_LEN * DIM ? ichs :
-                                                        MAX_BLOCK_LEN * DIM;
+      int maxChsPerMvin = ichs < maxBlockLen * dim ? ichs :
+                                                        maxBlockLen * dim;
       if (transInput3120) {
-        maxChsPerMvin = batches < MAX_BLOCK_LEN * DIM ? batches :
-                                                         MAX_BLOCK_LEN * DIM;
+        maxChsPerMvin = batches < maxBlockLen * dim ? batches :
+                                                         maxBlockLen * dim;
       }
       const int dramStride = transInput3120 ?
-                                            batchSize * sizeof(elem_t) :
-                                            inChannels * sizeof(elem_t);
+                                            batchSize * sizeOfElemT :
+                                            inChannels * sizeOfElemT;
       const int spadStride = transInput3120 ?
                                              ichs * (irows >> downsample) * (icols >> downsample) :
                                              batches * (irows >> downsample) * (icols >> downsample);
@@ -1292,12 +1300,12 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
           const int irowPadded = irow + UNDILATED(upad);
           for (int icol = -UNDILATED(lpad); icol < icolsUnpadded + UNDILATED(rpad);) {
             // TODO There might be some unnecessary mvins here at the edge of the image
-            int I = icolsUnpadded - icol > (DIM << downsample) ?
-                                                                (DIM << downsample) : icolsUnpadded - icol;
+            int I = icolsUnpadded - icol > (dim << downsample) ?
+                                                                (dim << downsample) : icolsUnpadded - icol;
             if (icol < 0) {
-              I = -icol > DIM ? DIM : -icol;
+              I = -icol > dim ? dim : -icol;
             } else if (icol >= icolsUnpadded) {
-              I = icolsUnpadded + UNDILATED(rpad) - icol > DIM ? DIM : icolsUnpadded + UNDILATED(rpad) - icol;
+              I = icolsUnpadded + UNDILATED(rpad) - icol > dim ? dim : icolsUnpadded + UNDILATED(rpad) - icol;
             }
             const int icolPadded = icol + UNDILATED(lpad);
             for (int ich = 0; ich < ichs; ich += ich_it) {
@@ -1306,9 +1314,9 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                 K = batches - b > maxChsPerMvin ? maxChsPerMvin : batches - b;
               }
 #define DS(x) ((x) >> (downsample))
-              uint32_t aSpAddr = aSpAddrStart + (ich / DIM) * batches * DS(irows) * DS(icols) + b * DS(irows) * DS(icols) + DS(irowPadded) * DS(icols) + DS(icolPadded);
+              uint32_t aSpAddr = aSpAddrStart + (ich / dim) * batches * DS(irows) * DS(icols) + b * DS(irows) * DS(icols) + DS(irowPadded) * DS(icols) + DS(icolPadded);
               if (transInput3120) {
-                aSpAddr = aSpAddrStart + (b / DIM) * ichs * DS(irows) * DS(icols) + ich * DS(irows) * DS(icols) + DS(irowPadded) * DS(icols) + DS(icolPadded);
+                aSpAddr = aSpAddrStart + (b / dim) * ichs * DS(irows) * DS(icols) + ich * DS(irows) * DS(icols) + DS(irowPadded) * DS(icols) + DS(icolPadded);
               }
               const bool is_zeros = irow < 0 || irow >= irowsUnpadded || icol < 0 || icol >= icolsUnpadded;
 //              const elem_t * in = input + (b*inRowDim*inColDim + irow*inColDim + icol) * inStride + ich;
@@ -1325,7 +1333,7 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
 //              gemmini_extended_mvin(in,
 //                                    aSpAddr,
 //                                    K, I >> downsample);
-              gemminiMvinOffset(memAddr, offset, aSpAddr, K, I >> downsample, rewriter);
+              gemminiMvinOffset(memAddr, offset, aSpAddr, K, I >> downsample, addrLen, rewriter);
             }
             icol += I;
           }
@@ -1333,19 +1341,19 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     }
     // mvin weights
     if (weights != NULL) {
-      int max_chs_per_mvin = ochs < MAX_BLOCK_LEN * DIM ? ochs :
-                                                        MAX_BLOCK_LEN * DIM;
+      int max_chs_per_mvin = ochs < maxBlockLen * dim ? ochs :
+                                                        maxBlockLen * dim;
       if (transWeight0132) {
-        max_chs_per_mvin = kchs < MAX_BLOCK_LEN * DIM ? kchs :
-                                                      MAX_BLOCK_LEN * DIM;
+        max_chs_per_mvin = kchs < maxBlockLen * dim ? kchs :
+                                                      maxBlockLen * dim;
       }
-      size_t dramStride = weightStride * sizeof(elem_t);
+      size_t dramStride = weightStride * sizeOfElemT;
       if (dw) {
-        dramStride = sizeof(elem_t);
+        dramStride = sizeOfElemT;
       } else if (transWeight1203) {
-        dramStride = kernelDim * kernelDim * outChannels * sizeof(elem_t);
+        dramStride = kernelDim * kernelDim * outChannels * sizeOfElemT;
       } else if (transWeight0132) {
-        dramStride = inChannels * sizeof(elem_t);
+        dramStride = inChannels * sizeOfElemT;
       }
       const size_t spadBlockStride = transWeight0132 ?
                                                        krows * kcols * ochs : krows * kcols * kchs;
@@ -1354,21 +1362,21 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
       Value dramStrideValue = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(dramStride));
       rewriter.create<ConfigLdOp>(loc, dramStrideValue, llvm::APFloat(MVIN_SCALE_IDENTITY), false, 2, spadBlockStride);
 
-      const size_t och_it = transWeight0132 ? DIM : max_chs_per_mvin;
-      const size_t kch_it = transWeight0132 ? max_chs_per_mvin : DIM;
+      const size_t och_it = transWeight0132 ? dim : max_chs_per_mvin;
+      const size_t kch_it = transWeight0132 ? max_chs_per_mvin : dim;
       for (int och = 0; och < ochs; och += och_it) {
         for (int krow = 0; krow < krows; krow++)
           for (int kcol = 0; kcol < kcols; kcol++)
             for (int kch = 0; kch < kchs; kch += kch_it) {
-              int K = kchs - kch > DIM ? DIM : kchs - kch;
+              int K = kchs - kch > dim ? dim : kchs - kch;
               int J = ochs - och > max_chs_per_mvin ? max_chs_per_mvin : ochs - och;
               if (transWeight0132) {
-                K = ochs - och > DIM ? DIM : ochs - och;
+                K = ochs - och > dim ? dim : ochs - och;
                 J = kchs - kch > max_chs_per_mvin ? max_chs_per_mvin : kchs - kch;
               }
-              uint32_t bSpAddr = bSpAddrStart + (och / DIM) * krows * kcols * kchs + krow * kcols * kchs + kcol * kchs + kch;
+              uint32_t bSpAddr = bSpAddrStart + (och / dim) * krows * kcols * kchs + krow * kcols * kchs + kcol * kchs + kch;
               if (transWeight0132) {
-                bSpAddr = bSpAddrStart + (kch / DIM) * krows * kcols * ochs + krow * kcols * ochs + kcol * ochs + och;
+                bSpAddr = bSpAddrStart + (kch / dim) * krows * kcols * ochs + krow * kcols * ochs + kcol * ochs + och;
               }
               size_t offset = (krow*kernelDim*inChannels + kcol*inChannels + kch) * weightStride + och;
               if (dw) {
@@ -1378,15 +1386,15 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
               } else if (transWeight0132) {
                 offset = (krow * kernelDim * outChannels + kcol * outChannels + och) * inChannels + kch;
               }
-              gemminiMvinOffset<Mvin2_IntrOp>(weights, offset, bSpAddr, J, K, rewriter);
+              gemminiMvinOffset<Mvin2_IntrOp>(weights, offset, bSpAddr, J, K, addrLen, rewriter);
 //              gemmini_extended_mvin2(w, bSpAddr, J, K);
             }
       }
     }
     // Compute
     {
-      const int b_it = transInput3120 ? DIM : 1;
-      const int ocol_it = transInput3120 ? 1 : (DIM << inputDilated);
+      const int b_it = transInput3120 ? dim : 1;
+      const int ocol_it = transInput3120 ? 1 : (dim << inputDilated);
       if (transInput3120) {
         rewriter.create<ConfigExOp>(
             loc, /*dataflow = */ OUTPUT_STATIONARY, /*act = */ 0, /*shift = */ 0,
@@ -1397,10 +1405,10 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
 //        gemmini_extended3_config_ex(0, 0, 0, 0, orows * ocols, irows * icols, 0,
 //                                    0, true);
       }
-      for (int och = 0; och < ochs; och += DIM) {
+      for (int och = 0; och < ochs; och += dim) {
         for (int krow = 0; krow < krows; krow++) {
           for (int kcol = 0; kcol < kcols; kcol += maxPixelsPerRow) {
-            for (int kch = 0; kch < kchs; kch += DIM) {
+            for (int kch = 0; kch < kchs; kch += dim) {
               bool newWeights = true;
               for (int b = 0; b < batches; b += b_it) {
                 for (int orow = 0; orow < orows; orow++) {
@@ -1428,7 +1436,7 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                                            : kcols - kcol;
                     const uint32_t cSpAddr =
                         cSpAddrStart +
-                        (och / DIM) * batches * orows * ocols +
+                        (och / dim) * batches * orows * ocols +
                         b * orows * ocols + orow * ocols + ocol;
                     // Over here, construct a new matrix
                     //
@@ -1440,41 +1448,41 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                     //     - I = ocols
                     //     - J = ochs
                     //     - K = kchs
-                    int I = UNDILATED(ocols - ocol > (DIM << inputDilated)
-                                          ? (DIM << inputDilated)
+                    int I = UNDILATED(ocols - ocol > (dim << inputDilated)
+                                          ? (dim << inputDilated)
                                           : ocols - ocol);
-                    const int J = ochs - och > DIM ? DIM : ochs - och;
+                    const int J = ochs - och > dim ? dim : ochs - och;
                     const int K =
-                        pixels * (kchs - kch > DIM ? DIM : kchs - kch);
+                        pixels * (kchs - kch > dim ? dim : kchs - kch);
                     if (transInput3120) {
-                      I = batches - b > DIM ? DIM : batches - b;
+                      I = batches - b > dim ? dim : batches - b;
                     }
                     uint32_t aSpAddr =
                         aSpAddrStart +
-                        (kch / DIM) * batches * DS(irows) * DS(icols) +
+                        (kch / dim) * batches * DS(irows) * DS(icols) +
                         b * DS(irows) * DS(icols) + DS(irow) * DS(icols) +
                         DS(icol);
                     if (transInput3120) {
                       aSpAddr = aSpAddrStart +
-                                  (b / DIM) * kchs * DS(irows) * DS(icols) +
+                                  (b / dim) * kchs * DS(irows) * DS(icols) +
                                   kch * DS(irows) * DS(icols) +
                                   DS(irow) * DS(icols) + DS(icol);
                     }
                     const int krow_ = wrot180 ? krows - krow - 1 : krow;
                     const int kcol_ = wrot180 ? kcols - kcol - 1 : kcol;
                     uint32_t bSpAddr =
-                        bSpAddrStart + (och / DIM) * krows * kcols * kchs +
+                        bSpAddrStart + (och / dim) * krows * kcols * kchs +
                         krow_ * kcols * kchs + kcol_ * kchs + kch;
                     if (transWeight0132) {
                       bSpAddr = bSpAddrStart +
-                                  (kch / DIM) * krows * kcols * ochs +
+                                  (kch / dim) * krows * kcols * ochs +
                                   krow_ * kcols * ochs + kcol_ * ochs + och;
                     }
                     const uint32_t perSpAddr =
                         newWeights ? bSpAddr : GARBAGE_ADDR;
 
                     Value garbageAddrOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(GARBAGE_ADDR));
-                    Value dimOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(DIM));
+                    Value dimOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(dim));
                     Value iOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(I));
                     Value jOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(J));
                     Value kOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(K));
@@ -1517,12 +1525,12 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
       if (noPool) {
         for (int b = 0; b < batches; b++)
           for (int orow = 0; orow < orows; orow++)
-            for (int ocol = 0; ocol < ocols; ocol += DIM) {
-              const int I = ocols - ocol > DIM ? DIM : ocols - ocol;
-              for (int och = 0; och < ochs; och += DIM) {
-                const int J = ochs - och > DIM ? DIM : ochs - och;
+            for (int ocol = 0; ocol < ocols; ocol += dim) {
+              const int I = ocols - ocol > dim ? dim : ocols - ocol;
+              for (int och = 0; och < ochs; och += dim) {
+                const int J = ochs - och > dim ? dim : ochs - och;
                 const uint32_t cSpAddr =
-                    cSpAddrStart + (och / DIM) * batches * orows * ocols +
+                    cSpAddrStart + (och / dim) * batches * orows * ocols +
                     b * orows * ocols + orow * ocols + ocol;
                 size_t outOffset =
                     (b * outRowDim * outColDim +
@@ -1536,7 +1544,7 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                             outChannels +
                         och;
                 }
-                gemminiMvoutOffset(output, outOffset, cSpAddr, J, I, rewriter);
+                gemminiMvoutOffset(output, outOffset, cSpAddr, J, I, addrLen, rewriter);
 //                gemmini_extended_mvout(out, cSpAddr, J, I);
               }
             }
@@ -1547,9 +1555,11 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     }
   }
 
-  void tiledConv(int batchSize, int inDim, int inChannels, int outChannels,
-                 int outDim, int stride, int inputDilation, int kernelDilation,
-                 int padding, int kernelDim, bool wrot180, bool transOutput1203,
+  void tiledConv(int batchSize, int inRowDim, int inColDim, int inChannels, int outChannels,
+                 int outRowDim, int outColDim, int stride, int inputDilation, int kernelDilation,
+                 int padding, int kernelDim, 
+                 int inStride, int weightStride, int outStride, 
+                 bool wrot180, bool transOutput1203,
                  bool transInput3120, bool transWeight1203,
                  bool transWeight0132, int batches, int porows, int pocols,
                  int pochs, int krows, int kcols, int kchs, const Value &input,
@@ -1564,7 +1574,7 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
       poolStride = 1;
       poolPadding = 0;
     }
-    const bool downsample = stride == 2 && kernelDim == 1 && inDim % 2 == 0 &&
+    const bool downsample = stride == 2 && kernelDim == 1 && inRowDim % 2 == 0 && inColDim % 2 == 0 &&
                             padding == 0 && noPool && inputDilation == 1 &&
                             !transInput3120;
     const int inputDilated = inputDilation == 2;
@@ -1581,13 +1591,37 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
         /*aStride = */ stride >> downsample,
         /*aTranspose = */ transInput3120, /*bTranspose*/ transWeight0132,
         /*setOnlyStrides = */ false);
-    const int poolOutDim =
-        (outDim + 2 * poolPadding - poolSize) / poolStride + 1;
-    const int dilatedInDim = inDim + (inputDilation - 1) * (inDim - 1);
+    const int poolOutRowDim =
+        (outRowDim + 2 * poolPadding - poolSize) / poolStride + 1;
+    const int poolOutColDim =
+        (outColDim + 2 * poolPadding - poolSize) / poolStride + 1;
+    const int dilatedInRowDim = inRowDim + (inputDilation - 1) * (inRowDim - 1);
+    const int dilatedInColDim = inColDim + (inputDilation - 1) * (inColDim - 1);
+
+    size_t aSpadId = 0;
+    size_t bSpadId = 0;
+
+    int porowEnd = poolOutRowDim;
+	  int porowStart = 0;
+    bool a_reuse = false;
+    bool b_reuse = false;
+    size_t num_kch = ceil_divide_int(inChannels, kchs);
+    size_t num_poch = ceil_divide_int(outChannels, pochs);
+    size_t num_b = ceil_divide_int(batchSize, batches);
+    size_t num_porow = ceil_divide_int((porowEnd - porowStart), porows);
+    size_t num_pocol = ceil_divide_int(poolOutColDim, pocols);
+    size_t num_krow = ceil_divide_int(kernelDim, krows);
+    size_t num_kcol = ceil_divide_int(kernelDim, kcols);
+
+    if(num_kch * num_poch * num_krow * num_kcol <= 2) 
+      b_reuse = true;
+    if(num_kch * num_krow * num_kcol * num_b * num_porow * num_pocol <= 2)
+      a_reuse = true;
+
     for (int b = 0; b < batchSize; b += batches) {
-      for (int porow = 0; porow < poolOutDim; porow += porows) {
+      for (int porow = 0; porow < porowEnd; porow += porows) {
         const int orow = porow * poolStride - poolPadding;
-        for (int pocol = 0; pocol < poolOutDim; pocol += pocols) {
+        for (int pocol = 0; pocol < poolOutColDim; pocol += pocols) {
           const int ocol = pocol * poolStride - poolPadding;
           for (int poch = 0; poch < outChannels; poch += pochs) {
             for (int krow = 0; krow < kernelDim; krow += krows) {
@@ -1602,8 +1636,8 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
 
                 for (int kch = 0; kch < inChannels; kch += kchs) {
                   TypedAttr offsetAttr =
-                      rewriter.getI64IntegerAttr(((b * poolOutDim * poolOutDim +
-                                                   porow * poolOutDim + pocol) *
+                      rewriter.getI64IntegerAttr(((b * poolOutRowDim * poolOutColDim +
+                                                   porow * poolOutColDim + pocol) *
                                                       outChannels +
                                                   poch) *
                                                  sizeOfElemT);
@@ -1614,7 +1648,7 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                       offsetValue);
                   if (transOutput1203) {
                     offsetAttr = rewriter.getI64IntegerAttr(
-                        ((porow * poolOutDim * batchSize + pocol * batchSize +
+                        ((porow * poolOutColDim * batchSize + pocol * batchSize +
                           b) *
                              outChannels +
                          poch) *
@@ -1645,9 +1679,9 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                   const int batches_ =
                       batchSize - b > batches ? batches : batchSize - b;
                   const int porows_ =
-                      poolOutDim - porow > porows ? porows : poolOutDim - porow;
+                      poolOutRowDim - porow > porows ? porows : poolOutRowDim - porow;
                   const int pocols_ =
-                      poolOutDim - pocol > pocols ? pocols : poolOutDim - pocol;
+                      poolOutColDim - pocol > pocols ? pocols : poolOutColDim - pocol;
                   const int pochs_ =
                       outChannels - poch > pochs ? pochs : outChannels - poch;
                   const int krows_ =
@@ -1662,10 +1696,10 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
 
                   const int plpad = ocol < 0 ? -ocol : 0;
                   const int prpad =
-                      ocol + ocols_ > outDim ? ocol + ocols_ - outDim : 0;
+                      ocol + ocols_ > outColDim ? ocol + ocols_ - outColDim : 0;
                   const int pupad = orow < 0 ? -orow : 0;
                   const int pdpad =
-                      orow + orows_ > outDim ? orow + orows_ - outDim : 0;
+                      orow + orows_ > outRowDim ? orow + orows_ - outRowDim : 0;
 
                   const int dilatedKrows_ =
                       krows_ + (kernelDilation - 1) * (krows_ - 1);
@@ -1678,12 +1712,12 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                       (orows_ - pupad - pdpad) * stride + dilatedKrows_ - 1;
 
                   int lpad = icol < 0 ? -icol : 0;
-                  int rpad = icol + icols_ > dilatedInDim
-                                 ? icol + icols_ - dilatedInDim
+                  int rpad = icol + icols_ > dilatedInColDim
+                                 ? icol + icols_ - dilatedInColDim
                                  : 0;
                   int upad = irow < 0 ? -irow : 0;
-                  int dpad = irow + irows_ > dilatedInDim
-                                 ? irow + irows_ - dilatedInDim
+                  int dpad = irow + irows_ > dilatedInRowDim
+                                 ? irow + irows_ - dilatedInRowDim
                                  : 0;
 
                   if (inputDilated) {
@@ -1736,8 +1770,8 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                         offsetValue);
                   }
                   offsetAttr = rewriter.getI64IntegerAttr(
-                      ((b * inDim * inDim +
-                        ((irow + upad) >> inputDilated) * inDim +
+                      ((b * inRowDim * inColDim +
+                        ((irow + upad) >> inputDilated) * inColDim +
                         ((icol + lpad) >> inputDilated)) *
                            inChannels +
                        kch) *
@@ -1749,8 +1783,8 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                       offsetValue);
                   if (transInput3120) {
                     offsetAttr = rewriter.getI64IntegerAttr(
-                        ((kch * inDim * inDim +
-                          ((irow + upad) >> inputDilated) * inDim +
+                        ((kch * inRowDim * inColDim +
+                          ((irow + upad) >> inputDilated) * inColDim +
                           ((icol + lpad) >> inputDilated)) *
                              batchSize +
                          b) *
@@ -1760,9 +1794,11 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                                                         input, offsetValue);
                   }
 
-                  spTiledConv(batchSize, inDim, inDim, inChannels, outChannels, outDim, outDim,
-                              poolOutDim, poolOutDim, stride, padding, kernelDim,
-                              kernelDilation, poolSize, poolStride, poolPadding,
+                  spTiledConv(batchSize, inRowDim, inColDim, inChannels, outChannels, outRowDim, outColDim,
+                              poolOutRowDim, poolOutColDim, stride, padding, kernelDim,
+                              kernelDilation, 
+                              inStride, weightStride, outStride,
+                              poolSize, poolStride, poolPadding,
                               batches_, porows_, pocols_, pochs_, krows_,
                               kcols_, kchs_, lpad, rpad, upad, dpad, plpad,
                               prpad, pupad, pdpad, in, weightsSlice, out, bias_,
@@ -1826,9 +1862,9 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
 public:
   using ConvertOpToLLVMPattern<TileConvOp>::ConvertOpToLLVMPattern;
   explicit GemminiTileConvLowering(LLVMTypeConverter &typeConverter,
-                                   int64_t dim, size_t sizeOfElemT,
+                                   int64_t dim, int64_t addrLen, size_t sizeOfElemT,
                                    size_t sizeOfAccT)
-      : ConvertOpToLLVMPattern(typeConverter), dim(dim),
+      : ConvertOpToLLVMPattern(typeConverter), dim(dim), addrLen(addrLen),
         sizeOfElemT(sizeOfElemT), sizeOfAccT(sizeOfAccT) {}
   LogicalResult
   matchAndRewrite(TileConvOp tileConvOp, OpAdaptor adaptor,
@@ -1846,21 +1882,24 @@ public:
     ArrayRef<int64_t> weightsShape = weightsType.getShape();
     ArrayRef<int64_t> biasShape = biasType.getShape();
     // inDim
-    if (inputShape[1] != inputShape[2]) {
-      llvm::outs() << "inDim error.\n";
-      return failure();
-    }
+    // if (inputShape[1] != inputShape[2]) {
+    //   llvm::outs() << "inDim error.\n";
+    //   return failure();
+    // }
     // outChannels
-    if (biasShape[0] != outputShape[1] || biasShape[0] != weightsShape[1]) {
-      llvm::outs() << "outChannels error.\n";
-      return failure();
-    }
-    Value outDimValue = tileConvOp.getOutDim();
-    int outDim = getNumberFromValue(outDimValue);
+    // if (biasShape[0] != outputShape[1] || biasShape[0] != weightsShape[1]) {
+    //   llvm::outs() << "outChannels error.\n";
+    //   return failure();
+    // }
+    Value outRowDimValue = tileConvOp.getOutRowDim();
+    int outRowDim = getNumberFromValue(outRowDimValue);
+    Value outColDimValue = tileConvOp.getOutColDim();
+    int outColDim = getNumberFromValue(outColDimValue);
     Value kernelDimValue = tileConvOp.getKernelDim();
     int kernelDim = getNumberFromValue(kernelDimValue);
     int batchSize = inputShape[0];
-    int inDim = inputShape[1];
+    int inRowDim = inputShape[1];
+    int inColDim = inputShape[2];
     int inChannels = inputShape[3];
     int outChannels = biasShape[0];
     int stride = tileConvOp.getStride();
@@ -1901,13 +1940,15 @@ public:
       poolStride = 1;
       poolPadding = 0;
     }
-    const int poolOutDim =
-        (outDim + 2 * poolPadding - poolSize) / poolStride + 1;
+    const int poolOutRowDim =
+        (outRowDim + 2 * poolPadding - poolSize) / poolStride + 1;
+    const int poolOutColDim =
+        (outColDim + 2 * poolPadding - poolSize) / poolStride + 1;
     const bool downsample = stride == 2 && kernelDim == 1 && padding == 0 &&
-                            noPool && inDim % 2 == 0;
-    int args[] = {batchSize, poolOutDim, poolOutDim, outChannels,
+                            noPool && inRowDim % 2 == 0 && inColDim % 2 == 0;
+    int args[] = {batchSize, poolOutRowDim, poolOutColDim, outChannels,
                   kernelDim, kernelDim,  inChannels};
-    const int maxArgs[] = {batchSize, poolOutDim, poolOutDim, outChannels,
+    const int maxArgs[] = {batchSize, poolOutRowDim, poolOutColDim, outChannels,
                            kernelDim, kernelDim,  inChannels};
     const int orowsIdx = 1;
     const int ocolsIdx = 2;
@@ -2015,9 +2056,15 @@ public:
     const int krows = args[4];
     const int kcols = args[5];
     const int kchs = args[6];
-    tiledConv(batchSize, inDim, inChannels, outChannels, outDim, stride,
-              inputDilation, kernelDilation, padding, kernelDim, wrot180,
-              transOutput1203, transInput3120, transWeight1203, transWeight0132,
+
+    const int inStride = inChannels;
+    const int outStride = outChannels;
+    const int weightStride = outChannels;
+    tiledConv(batchSize, inRowDim, inColDim, inChannels, outChannels, outRowDim, outColDim, 
+              stride,
+              inputDilation, kernelDilation, padding, kernelDim, 
+              inStride, weightStride, outStride,
+              wrot180, transOutput1203, transInput3120, transWeight1203, transWeight0132,
               batches, orows, ocols, ochs, krows, kcols, kchs, inputIndexCastOp,
               weightsIndexCastOp, biasIndexCastOp, outputIndexCastOp, act,
               scale, poolSize, noPool ? 0 : poolStride, poolPadding, tileConvOp,
@@ -2027,6 +2074,7 @@ public:
 
 private:
   int64_t dim;
+  int64_t addrLen;
   
   size_t sizeOfElemT;
   size_t sizeOfAccT;
@@ -2053,7 +2101,7 @@ void mlir::populateGemminiLegalizeForLLVMExportPatterns(
   patterns.add<GemminiComputeAccumulatedLowering>(converter, addrLen);
   patterns.add<GemminiTileMatMulLowering>(converter, dim, addrLen, sizeOfElemT,
                                           sizeOfAccT);
-  patterns.add<GemminiTileConvLowering>(converter, dim, sizeOfElemT,
+  patterns.add<GemminiTileConvLowering>(converter, dim, addrLen, sizeOfElemT,
                                         sizeOfAccT);
 }
 

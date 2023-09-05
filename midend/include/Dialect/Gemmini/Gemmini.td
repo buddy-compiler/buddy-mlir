@@ -305,7 +305,7 @@ def TileConvOp : Gemmini_Op<"tile_conv"> {
                        MemRefRankOf<[AnyType], [2]>:$weights,
                        MemRefRankOf<[AnyType], [1]>:$bias,
                        MemRefRankOf<[AnyType], [2]>:$output,
-                       I64:$outDim, I64:$kernelDim,
+                       I64:$outRowDim, I64:$outColDim, I64:$kernelDim,
                        DefaultValuedAttr<F32Attr, "1.0">:$scale,
                        DefaultValuedAttr<I64Attr, "1">:$stride,
                        DefaultValuedAttr<I64Attr, "1">:$inputDilation, 
@@ -321,8 +321,8 @@ def TileConvOp : Gemmini_Op<"tile_conv"> {
                        DefaultValuedAttr<I64Attr, "0">:$poolStride, 
                        DefaultValuedAttr<I64Attr, "0">:$poolPadding);
   let assemblyFormat = [{
-    $input $weights $bias $output $outDim $kernelDim attr-dict `:` type($input)
-    type($weights) type($bias) type($output) type($outDim) type($kernelDim)
+    $input $weights $bias $output $outRowDim $outColDim $kernelDim attr-dict `:` type($input)
+    type($weights) type($bias) type($output) type($outRowDim) type($outColDim) type($kernelDim)
   }];
 }
 
