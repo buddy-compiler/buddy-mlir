@@ -149,10 +149,10 @@ std::vector<ScheTargetNode> splitDevice(Region& region){
   op_list_gpu.push_back(&*op_iter);
 
   node_cpu.setOpList(op_list_cpu);
-  node_cpu.setTargetInfo("cpu", "");
+  node_cpu.setTargetInfo("gpu1", "");
   node_cpu.update();
   node_gpu.setOpList(op_list_gpu);
-  node_gpu.setTargetInfo("gpu", "");
+  node_gpu.setTargetInfo("gpu2", "");
   node_gpu.update();
 
   std::vector<ScheTargetNode> result;
