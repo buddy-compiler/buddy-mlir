@@ -60,11 +60,11 @@ int main() {
     fprintf(stderr, "%lld\n", pureStrContainer.getData()[7]);
     // CHECK: 102
     fprintf(stderr, "%lld\n", pureStrContainer.getData()[8]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", pureStrContainer.getData()[9]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", pureStrContainer.getData()[10]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", pureStrContainer.getData()[11]);
 
     //===--------------------------------------------------------------------===//
@@ -93,9 +93,9 @@ int main() {
     fprintf(stderr, "%lld\n", puncStrContainer.getData()[8]);
     // CHECK: 102
     fprintf(stderr, "%lld\n", puncStrContainer.getData()[9]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", puncStrContainer.getData()[10]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", puncStrContainer.getData()[11]);
 
     //===--------------------------------------------------------------------===//
@@ -126,7 +126,7 @@ int main() {
     fprintf(stderr, "%lld\n", cornerStrContainer.getData()[9]);
     // CHECK: 102
     fprintf(stderr, "%lld\n", cornerStrContainer.getData()[10]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", cornerStrContainer.getData()[11]);
 
     //===--------------------------------------------------------------------===//
@@ -155,9 +155,9 @@ int main() {
     fprintf(stderr, "%lld\n", chineseStrContainer.getData()[8]);
     // CHECK: 102
     fprintf(stderr, "%lld\n", chineseStrContainer.getData()[9]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", chineseStrContainer.getData()[10]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", chineseStrContainer.getData()[11]);
     //===--------------------------------------------------------------------===//
     // Test text constructor for lower cases.
@@ -183,11 +183,11 @@ int main() {
     fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[7]);
     // CHECK: 102
     fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[8]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[9]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[10]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[11]);
     //===--------------------------------------------------------------------===//
     // Test text constructor for root and affix process.
@@ -207,16 +207,16 @@ int main() {
     fprintf(stderr, "%lld\n", affixStrContainer.getData()[4]);
     // CHECK: 102
     fprintf(stderr, "%lld\n", affixStrContainer.getData()[5]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", affixStrContainer.getData()[6]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", affixStrContainer.getData()[7]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", affixStrContainer.getData()[8]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", affixStrContainer.getData()[9]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", affixStrContainer.getData()[10]);
-    // CHECK: 0
+    // CHECK: 102
     fprintf(stderr, "%lld\n", affixStrContainer.getData()[11]);
 }
