@@ -28,4 +28,5 @@ target_link_libraries(buddy-opt
   LowerGemminiPass
   LowerLinalgToGemminiPass
   SchedulingOnDevices
+  LowerSche
   )

@@ -35,19 +35,19 @@ include "mlir/Interfaces/ControlFlowInterfaces.td"
 def Sche_OnDeviceOp : Sche_Op<"on_device", []> {
   let summary = "Mark the region of operations running on target device.";
 
-  let arguments = (ins StrAttr: $targetId, StrAttr: $targetConfig, Variadic<AnyType>);
+  let arguments = (ins StrAttr: $targetId, StrAttr: $targetConfig, Variadic<AnyType>: $operands);
   let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$region);
 
   // let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "llvm::StringRef":$targetId, "llvm::StringRef":$targetConfig, "mlir:: TypeRange": $resultTypes,
-                 "mlir::ValueRange":$args, CArg<"mlir::function_ref<void(mlir::OpBuilder &, mlir::Location, mlir::ValueRange)>",
+                 "mlir::ValueRange":$operands, CArg<"mlir::function_ref<void(mlir::OpBuilder &, mlir::Location, mlir::ValueRange)>",
                   "nullptr">:$bodyBuilder)>
   ];
 
   let assemblyFormat = [{
-    `(`operands`)` attr-dict functional-type(operands, results) $region
+    `(`$operands`)` attr-dict functional-type(operands, results) $region
   }];
 }
 

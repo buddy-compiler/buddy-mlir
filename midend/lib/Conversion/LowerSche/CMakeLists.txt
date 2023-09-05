@@ -1,3 +1,3 @@
-add_mlir_library(SchedulingOnDevices
-	DeviceSchedule.cpp
+add_mlir_library(LowerSche
+	LowerSchePass.cpp
   )

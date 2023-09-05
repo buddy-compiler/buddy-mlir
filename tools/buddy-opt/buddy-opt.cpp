@@ -62,6 +62,7 @@ void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
 void registerDeviceSchedulePass();
+void registerLowerSchePass();
 } // namespace buddy
 } // namespace mlir
 
@@ -85,6 +86,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerMatMulOptimizePass();
   mlir::buddy::registerConvOptimizePass();
   mlir::buddy::registerDeviceSchedulePass();
+  mlir::buddy::registerLowerSchePass();;
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
