@@ -48,6 +48,7 @@ config.excludes = [
     'MLIRSCF',
     'MLIRSparseTensor',
     'MLIRTOSA',
+    'MLIRTransform',
     'Pooling',
     'RISCVBuddyExt',
     'RVVDialect',

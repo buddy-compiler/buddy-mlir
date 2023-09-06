@@ -187,142 +187,46 @@ public:
                                << inElemTy << "is passed";
     }
 
-    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
-    FloatType f32 = FloatType::getF32(ctx);
-    VectorType vectorTy32 = VectorType::get({stride}, f32);
-
     // Create constant indices.
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
-    Value c0F32 = indexToF32(rewriter, loc, c0);
     Value c1F32 = indexToF32(rewriter, loc, c1);
-    Value c1F32Vec = rewriter.create<vector::SplatOp>(loc, vectorTy32, c1F32);
 
     // Get input image dimensions.
     Value inputRow = rewriter.create<memref::DimOp>(loc, input, c0);
     Value inputCol = rewriter.create<memref::DimOp>(loc, input, c1);
 
-    // Create f32 type vectors from input dimensions.
-    Value inputRowF32Vec = castAndExpand(rewriter, loc, inputRow, vectorTy32);
-    Value inputColF32Vec = castAndExpand(rewriter, loc, inputCol, vectorTy32);
-
     // Get output image dimensions.
     Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
     Value outputCol = rewriter.create<memref::DimOp>(loc, output, c1);
 
-    // Obtain extreme allocatable value(s) in input and output for bounding
-    // purpose.
-    Value inputRowLastElem = rewriter.create<arith::SubIOp>(loc, inputRow, c1);
-    Value inputRowLastElemF32 = indexToF32(rewriter, loc, inputRowLastElem);
+    // let alpha = scale * cos(angle), beta = scale * sin(angle)
+    // the affine matrix would be as follow:
+    // [[alpha, beta, (1 - alpha) * centerx - beta * centery],
+    //  [-beta, alpha, beta * centerx + (1 - alpha) * centery]]
+    Value centerX = rewriter.create<arith::ShRSIOp>(loc, inputCol, c1);
+    Value centerY = rewriter.create<arith::ShRSIOp>(loc, inputRow, c1);
+    Value centerXF32 = indexToF32(rewriter, loc, centerX);
+    Value centerYF32 = indexToF32(rewriter, loc, centerY);
 
-    Value inputColLastElem = rewriter.create<arith::SubIOp>(loc, inputCol, c1);
-    Value inputColLastElemF32 = indexToF32(rewriter, loc, inputColLastElem);
+    auto affineMatrix = dip::getRotationMatrix(rewriter, loc, centerXF32,
+                                               centerYF32, angleVal, c1F32);
 
-    Value outputRowLastElem =
-        rewriter.create<arith::SubIOp>(loc, outputRow, c1);
-    Value outputRowLastElemF32 = indexToF32(rewriter, loc, outputRowLastElem);
+    Value deltaXI = rewriter.create<arith::SubIOp>(loc, outputCol, inputCol);
+    Value deltaYI = rewriter.create<arith::SubIOp>(loc, outputRow, inputRow);
+    Value deltaXIDiv2 = rewriter.create<arith::ShRSIOp>(loc, deltaXI, c1);
+    Value deltaYIDiv2 = rewriter.create<arith::ShRSIOp>(loc, deltaYI, c1);
+    Value deltaXFDiv2 = indexToF32(rewriter, loc, deltaXIDiv2);
+    Value deltaYFDiv2 = indexToF32(rewriter, loc, deltaYIDiv2);
 
-    Value outputColLastElem =
-        rewriter.create<arith::SubIOp>(loc, outputCol, c1);
-    Value outputColLastElemF32 = indexToF32(rewriter, loc, outputColLastElem);
+    affineMatrix[2] =
+        rewriter.create<arith::AddFOp>(loc, affineMatrix[2], deltaXFDiv2);
+    affineMatrix[5] =
+        rewriter.create<arith::AddFOp>(loc, affineMatrix[5], deltaYFDiv2);
 
-    // Determine lower bound for second call of rotation function (this is done
-    // for efficient tail processing).
-    Value inputColStrideRatio =
-        rewriter.create<arith::DivUIOp>(loc, inputCol, strideVal);
-    Value inputColMultiple =
-        rewriter.create<arith::MulIOp>(loc, strideVal, inputColStrideRatio);
-
-    // Bounds for first call to rotation function (doesn't involve tail
-    // processing).
-    SmallVector<Value, 8> lowerBounds1(2, c0);
-    SmallVector<Value, 8> upperBounds1{inputRow, inputColMultiple};
-
-    // Bounds for second call to rotation function (involves tail processing).
-    SmallVector<Value, 8> lowerBounds2{c0, inputColMultiple};
-    SmallVector<Value, 8> upperBounds2{inputRow, inputCol};
-
-    SmallVector<int64_t, 8> steps{1, stride};
-    Value strideTailVal =
-        rewriter.create<arith::SubIOp>(loc, inputCol, inputColMultiple);
-
-    // Get input image center.
-    Value inputCenterY = dip::getCenter(rewriter, loc, ctx, inputRow);
-    Value inputCenterX = dip::getCenter(rewriter, loc, ctx, inputCol);
-
-    Value inputCenterYF32Vec =
-        castAndExpand(rewriter, loc, inputCenterY, vectorTy32);
-    Value inputCenterXF32Vec =
-        castAndExpand(rewriter, loc, inputCenterX, vectorTy32);
-
-    // Get output image center.
-    Value outputCenterY = dip::getCenter(rewriter, loc, ctx, outputRow);
-    Value outputCenterX = dip::getCenter(rewriter, loc, ctx, outputCol);
-
-    Value outputCenterYF32Vec =
-        castAndExpand(rewriter, loc, outputCenterY, vectorTy32);
-    Value outputCenterXF32Vec =
-        castAndExpand(rewriter, loc, outputCenterX, vectorTy32);
-
-    // Get sin(angle) which will be used in further calculations.
-    Value sinVal = rewriter.create<math::SinOp>(loc, angleVal);
-    Value sinVec =
-        rewriter.create<vector::BroadcastOp>(loc, vectorTy32, sinVal);
-
-    // Get tan(angle / 2) which will be used in further calculations.
-    Value tanVal = dip::customTanVal(rewriter, loc, angleVal);
-    Value tanVec =
-        rewriter.create<vector::BroadcastOp>(loc, vectorTy32, tanVal);
-
-    // Determine the condition for chosing ideal rotation strategy.
-    Value tanBound =
-        rewriter.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)8.10f, f32);
-    Value tanValAbs = rewriter.create<math::AbsFOp>(loc, tanVal);
-    Value transformCond = rewriter.create<arith::CmpFOp>(
-        loc, arith::CmpFPredicate::OGT, tanBound, tanValAbs);
-
-    // For both rotation strategies, tail processing is handled in second call.
-    rewriter.create<scf::IfOp>(
-        loc, transformCond,
-        [&](OpBuilder &builder, Location loc) {
-          dip::shearTransformController(
-              builder, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
-              input, output, sinVec, tanVec, inputRowF32Vec, inputColF32Vec,
-              inputCenterYF32Vec, inputCenterXF32Vec, outputCenterYF32Vec,
-              outputCenterXF32Vec, outputRowLastElemF32, outputColLastElemF32,
-              inputRowLastElemF32, inputColLastElemF32, c0, c0F32, c1F32Vec,
-              vectorTy32, stride, f32);
-
-          dip::shearTransformController(
-              builder, loc, ctx, lowerBounds2, upperBounds2, steps,
-              strideTailVal, input, output, sinVec, tanVec, inputRowF32Vec,
-              inputColF32Vec, inputCenterYF32Vec, inputCenterXF32Vec,
-              outputCenterYF32Vec, outputCenterXF32Vec, outputRowLastElemF32,
-              outputColLastElemF32, inputRowLastElemF32, inputColLastElemF32,
-              c0, c0F32, c1F32Vec, vectorTy32, stride, f32);
-
-          builder.create<scf::YieldOp>(loc);
-        },
-        [&](OpBuilder &builder, Location loc) {
-          dip::standardRotateController(
-              builder, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
-              input, output, sinVec, angleVal, inputRowF32Vec, inputColF32Vec,
-              inputCenterYF32Vec, inputCenterXF32Vec, outputCenterYF32Vec,
-              outputCenterXF32Vec, outputRowLastElemF32, outputColLastElemF32,
-              inputRowLastElemF32, inputColLastElemF32, c0, c0F32, c1F32Vec,
-              vectorTy32, stride, f32);
-
-          dip::standardRotateController(
-              builder, loc, ctx, lowerBounds2, upperBounds2, steps,
-              strideTailVal, input, output, sinVec, angleVal, inputRowF32Vec,
-              inputColF32Vec, inputCenterYF32Vec, inputCenterXF32Vec,
-              outputCenterYF32Vec, outputCenterXF32Vec, outputRowLastElemF32,
-              outputColLastElemF32, inputRowLastElemF32, inputColLastElemF32,
-              c0, c0F32, c1F32Vec, vectorTy32, stride, f32);
-
-          builder.create<scf::YieldOp>(loc);
-        });
+    dip::affineTransformController(rewriter, loc, ctx, input, output,
+                                   affineMatrix, stride);
 
     // Remove the origin rotation operation.
     rewriter.eraseOp(op);
