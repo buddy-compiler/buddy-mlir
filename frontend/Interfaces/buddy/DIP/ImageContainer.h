@@ -100,7 +100,7 @@ public:
 
   size_t total();
 
-  int channels() const;
+  int channels();
 
   int flags;
 
@@ -276,7 +276,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
  */
 template <typename T, size_t N>
 Img<T, N>::Img(int rows, int cols, T *data)
-    : MemRef<T, N>(), flags(0) ,dims(2), rows(rows), cols(cols) {
+    : MemRef<T, N>(), flags(0), dims(2), rows(rows), cols(cols) {
   this->aligned = data;
   this->sizes[0] = rows;
   this->sizes[1] = cols;
@@ -325,13 +325,27 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
   }
 }
 
-template <typename T, size_t N> int Img<T, N>::channels() const {
+template <typename T, size_t N> int Img<T, N>::channels() {
   if (N == 2) {
     assert(this->flags == IMGRD_GRAYSCALE);
     return 1;
   } else {
-    return this->sizes[2];
+    switch (this->flags) {
+    case IMGRD_COLOR:
+      this->sizes[2] = 3;
+      break;
+    case IMGRD_UNCHANGED:
+      this->sizes[2] = 4;
+      break;
+    case IMGRD_GRAYSCALE:
+      this->sizes[2] = 1;
+      break;
+    default:
+      throw std::runtime_error("Unknown flag value");
+      break;
+    }
   }
+  return this->sizes[2];
 }
 
 template <typename T, size_t N> size_t Img<T, N>::total() {

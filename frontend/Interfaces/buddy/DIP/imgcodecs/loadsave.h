@@ -137,7 +137,7 @@ Img<T, N> imread(const String &filename, int flags) {
     // Converts a pointer to BmpDecoder<T, N>
     BmpDecoder<T, N> *bmpDecoderPtr =
         dynamic_cast<BmpDecoder<T, N> *>(decoder.get());
-    if (bmpDecoderPtr) { 
+    if (bmpDecoderPtr) {
       // After creating the BmpDecoder<T, N> instance, perform related
       // operations Defines whether the image is scaled or not
       int scale_denom = 1;
@@ -147,15 +147,19 @@ Img<T, N> imread(const String &filename, int flags) {
       // Read image head
       bmpDecoderPtr->readHeader();
       _Size size(bmpDecoderPtr->width(), bmpDecoderPtr->height());
-      // grab the decoded type
-      if (N == 2) {
-        // Create an Img instance
-        Img<T, N> Image;
-        Image.flags = flags;
-        Image.create(size.height, size.width);
-        bmpDecoderPtr->readData(Image);
-        return Image;
+      int channels = bmpDecoderPtr->channels();
+      // Create an Img instance
+      Img<T, N> Image;
+      Image.flags = flags;
+      if ((flags & IMGRD_COLOR) != 0 ||
+          ((flags & IMGRD_ANYCOLOR) != 0 && channels > 1)) {
+        Image.flags = IMGRD_COLOR;
+      } else {
+        Image.flags = IMGRD_GRAYSCALE;
       }
+      Image.create(size.height, size.width);
+      bmpDecoderPtr->readData(Image);
+      return Image;
     }
   }
 }
