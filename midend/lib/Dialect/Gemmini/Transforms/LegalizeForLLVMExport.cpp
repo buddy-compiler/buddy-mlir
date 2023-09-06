@@ -1230,18 +1230,21 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     if (output != 0) {
       cSpAddrRow = (cSpAddrRow + ACC_ROWS / 2) % ACC_ROWS;
     }
-    gemminiLoopConvWs(
-        batchSize, inRowDim, inChannels, outChannels, outRowDim, poolOutRowDim, stride,
-        padding, kernelDim, kernelDilation, poolSize, poolStride, poolPadding,
-        batches, porows, pocols, pochs, krows, kcols, kchs, lpad, rpad, upad,
-        dpad, plpad, prpad, pupad, pdpad, orows, ocols, weights, output, bias,
-        input, noBias, noPool, downsample, wrot180, inputDilated, act,
-        transOutput1203, transWeight1203, transWeight0132, transInput3120,
-        maxPixelsPerRow, dw, tileConvOp, rewriter);
+    if (inRowDim == inColDim && outRowDim == outColDim && poolOutRowDim == poolOutColDim) {
+      gemminiLoopConvWs(
+          batchSize, inRowDim, inChannels, outChannels, outRowDim,
+          poolOutRowDim, stride, padding, kernelDim, kernelDilation, poolSize,
+          poolStride, poolPadding, batches, porows, pocols, pochs, krows, kcols,
+          kchs, lpad, rpad, upad, dpad, plpad, prpad, pupad, pdpad, orows,
+          ocols, weights, output, bias, input, noBias, noPool, downsample,
+          wrot180, inputDilated, act, transOutput1203, transWeight1203,
+          transWeight0132, transInput3120, maxPixelsPerRow, dw, tileConvOp,
+          rewriter);
+      return;
+    }
     if (!noPool) {
-      // TODO: Exit, but now I don't known how to do
-      //      printf("Pooling with rectangular convolutions is currently not supported.\n");
-      //      exit(1);
+         llvm::outs() << "Pooling with rectangular convolutions is currently not supported.\n";
+         return;
     }
     // Only rectangular convolutions will use the following C code
     // mvin bias
