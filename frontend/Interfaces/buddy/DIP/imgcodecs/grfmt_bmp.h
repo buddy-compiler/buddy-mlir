@@ -249,8 +249,8 @@ template <typename T, size_t N> bool BmpDecoder<T, N>::readHeader() {
 template <typename T, size_t N>
 bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
   T *data = img.getData();
-  int step = this->m_width * img.channels;
-  bool color = img.channels > 1;
+  int step = this->m_width * img.channels();
+  bool color = img.channels() > 1;
   uchar gray_palette[256] = {0};
   bool result = false;
   int src_pitch =
@@ -298,7 +298,7 @@ bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
           }
           src += rgba_step - size.width * 4;
         }
-      } else if (img.channels == 3) {
+      } else if (img.channels() == 3) {
         int swap_rb = 0;
         int bgra_step = 0;
         int bgr_step = 0;
@@ -314,7 +314,7 @@ bool BmpDecoder<T, N>::readData(Img<T, N> &img) {
           data += bgr_step - size.width * 3;
           src += bgra_step - size.width * 4;
         }
-      } else if (img.channels == 4) {
+      } else if (img.channels() == 4) {
         bool has_bit_mask = (m_rgba_bit_offset[0] >= 0) &&
                             (m_rgba_bit_offset[1] >= 0) &&
                             (m_rgba_bit_offset[2] >= 0);
@@ -401,7 +401,7 @@ template <typename T, size_t N> BmpEncoder<T, N>::~BmpEncoder() {}
 
 template <typename T, size_t N>
 bool BmpEncoder<T, N>::write(Img<T, N> &img, const std::vector<int> &) {
-  int width = img.cols, height = img.rows, channels = img.channels;
+  int width = img.cols, height = img.rows, channels = img.channels();
   int fileStep = (width * channels + 3) & -4;
   uchar zeropad[] = "\0\0\0\0";
   WLByteStream strm;

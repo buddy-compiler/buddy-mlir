@@ -100,6 +100,8 @@ public:
 
   size_t total();
 
+  int channels() const;
+
   int flags;
 
   // the matrix dimensionality, >= 2
@@ -108,15 +110,11 @@ public:
   // the number of rows and columns or (-1, -1) when the matrix has more than 2
   // dimensions
   int rows, cols;
-
-  // create 1-4 channel matrices.
-  int channels;
 };
 
 // Image Constructor from Img.
 template <typename T, size_t N>
-Img<T, N>::Img()
-    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0), channels(1) {}
+Img<T, N>::Img() : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {}
 
 /**
  * @brief overload
@@ -125,7 +123,7 @@ Img<T, N>::Img()
  */
 template <typename T, size_t N>
 Img<T, N>::Img(int rows, int cols)
-    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0), channels(1) {
+    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {
   create(rows, cols);
 }
 
@@ -136,7 +134,7 @@ Img<T, N>::Img(int rows, int cols)
  */
 template <typename T, size_t N>
 Img<T, N>::Img(int ndims, intptr_t *sizes)
-    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0), channels(1) {
+    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {
   create(ndims, sizes);
 }
 
@@ -147,8 +145,7 @@ Img<T, N>::Img(int ndims, intptr_t *sizes)
  */
 template <typename T, size_t N>
 Img<T, N>::Img(const Img<T, N> &m)
-    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols),
-      channels(m.channels) {
+    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols) {
   for (size_t i = 0; i < N; i++) {
     this->sizes[i] = m.sizes[i];
     this->strides[i] = m.strides[i];
@@ -170,8 +167,7 @@ Img<T, N>::Img(const Img<T, N> &m)
 // avoid the double free error.
 template <typename T, size_t N>
 Img<T, N>::Img(Img<T, N> &&m)
-    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols),
-      channels(m.channels) {
+    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols) {
   this->aligned = m.aligned;
   this->allocated = m.allocated;
   this->size = m.size;
@@ -195,7 +191,6 @@ template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
     delete[] this->allocated;
     // Steal members of the original object.
     std::swap(this->flags, m.flags);
-    std::swap(this->channels, m.channels);
     std::swap(this->cols, m.cols);
     std::swap(this->rows, m.rows);
     std::swap(this->dims, m.dims);
@@ -253,7 +248,6 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
     return *this;
   } else {
     this->flags = m.flags;
-    this->channels = m.channels;
     this->dims = m.dims;
     this->rows = m.rows;
     this->cols = m.cols;
@@ -282,7 +276,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
  */
 template <typename T, size_t N>
 Img<T, N>::Img(int rows, int cols, T *data)
-    : MemRef<T, N>(), dims(2), rows(rows), cols(cols), channels(1) {
+    : MemRef<T, N>(), flags(0) ,dims(2), rows(rows), cols(cols) {
   this->aligned = data;
   this->sizes[0] = rows;
   this->sizes[1] = cols;
@@ -331,9 +325,18 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
   }
 }
 
+template <typename T, size_t N> int Img<T, N>::channels() const {
+  if (N == 2) {
+    assert(this->flags == IMGRD_GRAYSCALE);
+    return 1;
+  } else {
+    return this->sizes[2];
+  }
+}
+
 template <typename T, size_t N> size_t Img<T, N>::total() {
   if (dims <= 2) {
-    return (size_t)rows * cols * channels;
+    return (size_t)rows * cols * channels();
   }
   size_t p = 1;
   for (int i = 0; i < dims; i++)
