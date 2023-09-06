@@ -1231,18 +1231,18 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     if (output != 0) {
       cSpAddrRow = (cSpAddrRow + ACC_ROWS / 2) % ACC_ROWS;
     }
-//    if (inRowDim == inColDim && outRowDim == outColDim && poolOutRowDim == poolOutColDim) {
-//      gemminiLoopConvWs(
-//          batchSize, inRowDim, inChannels, outChannels, outRowDim,
-//          poolOutRowDim, stride, padding, kernelDim, kernelDilation, poolSize,
-//          poolStride, poolPadding, batches, porows, pocols, pochs, krows, kcols,
-//          kchs, lpad, rpad, upad, dpad, plpad, prpad, pupad, pdpad, orows,
-//          ocols, weights, output, bias, input, noBias, noPool, downsample,
-//          wrot180, inputDilated, act, transOutput1203, transWeight1203,
-//          transWeight0132, transInput3120, maxPixelsPerRow, dw, tileConvOp,
-//          rewriter);
-//      return;
-//    }
+    if (inRowDim == inColDim && outRowDim == outColDim && poolOutRowDim == poolOutColDim) {
+      gemminiLoopConvWs(
+          batchSize, inRowDim, inChannels, outChannels, outRowDim,
+          poolOutRowDim, stride, padding, kernelDim, kernelDilation, poolSize,
+          poolStride, poolPadding, batches, porows, pocols, pochs, krows, kcols,
+          kchs, lpad, rpad, upad, dpad, plpad, prpad, pupad, pdpad, orows,
+          ocols, weights, output, bias, input, noBias, noPool, downsample,
+          wrot180, inputDilated, act, transOutput1203, transWeight1203,
+          transWeight0132, transInput3120, maxPixelsPerRow, dw, tileConvOp,
+          rewriter);
+      return;
+    }
     if (!noPool) {
          llvm::outs() << "Pooling with rectangular convolutions is currently not supported.\n";
          return;
@@ -1852,16 +1852,7 @@ public:
     ArrayRef<int64_t> outputShape = outputType.getShape();
     ArrayRef<int64_t> weightsShape = weightsType.getShape();
     ArrayRef<int64_t> biasShape = biasType.getShape();
-    // inDim
-    // if (inputShape[1] != inputShape[2]) {
-    //   llvm::outs() << "inDim error.\n";
-    //   return failure();
-    // }
-    // outChannels
-    // if (biasShape[0] != outputShape[1] || biasShape[0] != weightsShape[1]) {
-    //   llvm::outs() << "outChannels error.\n";
-    //   return failure();
-    // }
+
     Value outRowDimValue = tileConvOp.getOutRowDim();
     int outRowDim = getNumberFromValue(outRowDimValue);
     Value outColDimValue = tileConvOp.getOutColDim();
