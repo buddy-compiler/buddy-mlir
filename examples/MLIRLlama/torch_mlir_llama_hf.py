@@ -8,25 +8,40 @@ tokenizer = LlamaTokenizer.from_pretrained('/home/wlq/torch-mlir/examples/llama-
 model = LlamaForCausalLM.from_pretrained('/home/wlq/torch-mlir/examples/llama-hf/llama-2-7B-hf', torchscript=True)
 prompt = "Hey, are you conscious? Can you talk to me?"
 inputs = tokenizer(prompt, return_tensors="pt")
-#generate_ids = model.generate(inputs.input_ids, max_length=30)
+# generate_ids = model.generate(inputs.input_ids, max_length=30)
+# print(tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0])
+# print(len(generate_ids))
+# print(generate_ids)
+# print("-----------------------")
 inputs = inputs.input_ids
+print(inputs)
 model.eval()
 # scripted_module = torch.jit.trace(model, inputs)
 # graph = scripted_module.graph.copy()
 # torch._C._jit_pass_inline(graph)
 # print(graph)
 model_opt = dynamo.optimize(DynamoCompiler)(model)
-model_opt(inputs)
-#import pickle
-#
-#with open('Llama2-graph.pkl', 'rb') as file:
-#    gm = pickle.load(file)
-#for node in gm.graph.nodes:
-#    print(node.__dict__)
-#    if node.op == "call_function":
-#        print(node.target.__name__)
-#        continue
-#    print(node.op)
+# for (name, module) in model_opt.named_modules():
+#     print(name, module)
+# features_in_hook = []
+# features_out_hook = []
+
+# def hook(module, fea_in, fea_out):
+#     features_in_hook.append(fea_in)
+#     features_out_hook.append(fea_out)
+#     return None
+
+# layer_name = '_orig_mod.model.layers.0.self_attn.v_proj'
+# for (name, module) in model_opt.named_modules():
+#     if name == layer_name:
+#         module.register_forward_hook(hook=hook)
+result = model_opt(inputs)
+# print("------------------")
+# print(features_in_hook)
+# print(features_out_hook)
+# print("------------------")
+print(result[0].shape)
+print(result[0])
 exit()
 getattr_nodes = graph.findAllNodes("prim::GetAttr", recurse=True)
 

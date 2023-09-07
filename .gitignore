@@ -12,3 +12,10 @@
 
 # Clangd cache
 .cache
+
+# model params
+examples/MLIRLlama/params_data/
+examples/MLIRLlama/params_shape.txt
+examples/MLIRLlama/testllama.out
+examples/MLIRLlama/wlq.out
+examples/MLIRLlama/buddy/__pycache__/

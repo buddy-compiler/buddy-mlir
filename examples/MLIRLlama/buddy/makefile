@@ -1,9 +1,10 @@
 #!/bin/bash
-BUDDY_OPT := ../../build/bin/buddy-opt
+BUDDY_OPT := ../../../build/bin/buddy-opt
 MLIR_OPT := ../../../llvm/build/bin/mlir-opt
-MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
-LLC := ../../llvm/build/bin/llc
+MLIR_TRANSLATE := ../../../llvm/build/bin/mlir-translate
+MLIR_CPU_RUNNER := ../../../llvm/build/bin/mlir-cpu-runner
+LLC := ../../../llvm/build/bin/llc
+LLVM_AS := ../../../llvm/build/bin/llvm-as
 OPT_FLAG := -O0
 
 resnet-18-lower:
@@ -32,7 +33,36 @@ resnet-18-lower:
 		--reconcile-unrealized-casts \
 		-o ./log.mlir
 
-bert-lower:
-	@${MLIR_OPT} ./test.mlir \
-		-pass-pipeline="builtin.module(func.func(scf-bufferize),func.func(empty-tensor-to-alloc-tensor),func.func(linalg-bufferize),func-bufferize,arith-bufferize,func.func(tensor-bufferize),func.func(finalizing-bufferize),func.func(buffer-deallocation),func.func(convert-vector-to-scf{ full-unroll=1 }),convert-vector-to-llvm,finalize-memref-to-llvm,cse,func.func(lower-affine),func.func(arith-expand),func.func(convert-math-to-llvm),convert-math-to-libm,convert-linalg-to-llvm,expand-strided-metadata,finalize-memref-to-llvm,convert-scf-to-cf,convert-cf-to-llvm,cse,lower-affine,func.func(convert-arith-to-llvm),convert-func-to-llvm,canonicalize,convert-openmp-to-llvm,cse,reconcile-unrealized-casts)" \
-		-o ./log.mlir
+llama-lower:
+	@${MLIR_OPT} ./llama.mlir \
+		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${MLIR_OPT} \
+		--arith-expand \
+		--empty-tensor-to-alloc-tensor \
+		--linalg-bufferize \
+		--convert-linalg-to-loops \
+		--func-bufferize \
+		--arith-bufferize \
+		--tensor-bufferize \
+		--finalizing-bufferize \
+		--convert-vector-to-scf \
+		--convert-scf-to-cf \
+		--expand-strided-metadata \
+		--lower-affine \
+		--convert-vector-to-llvm \
+		--memref-expand \
+		--arith-expand \
+		--convert-arith-to-llvm \
+		--finalize-memref-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-math-to-libm \
+		--llvm-request-c-wrappers \
+		--convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} \
+		-mlir-to-llvmir | \
+	${LLVM_AS} | \
+	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
+llama-compile:
+	g++ -g llama_run.cc llama.o Container.h ../../../llvm/build/lib/libmlir_c_runner_utils.so -o llama
