@@ -146,18 +146,17 @@ Img<T, N> imread(const String &filename, int flags) {
       bmpDecoderPtr->setSource(filename);
       // Read image head
       bmpDecoderPtr->readHeader();
-      _Size size(bmpDecoderPtr->width(), bmpDecoderPtr->height());
       int channels = bmpDecoderPtr->channels();
-      // Create an Img instance
-      Img<T, N> Image;
-      Image.flags = flags;
       if ((flags & IMGRD_COLOR) != 0 ||
           ((flags & IMGRD_ANYCOLOR) != 0 && channels > 1)) {
-        Image.flags = IMGRD_COLOR;
+        channels = 3;
       } else {
-        Image.flags = IMGRD_GRAYSCALE;
+        channels = 1;
       }
-      Image.create(size.height, size.width);
+      // Create an Img instance
+      intptr_t sizes[3] = {bmpDecoderPtr->height(), bmpDecoderPtr->width(),
+                           channels};
+      Img<T, N> Image(sizes);
       bmpDecoderPtr->readData(Image);
       return Image;
     }
@@ -204,6 +203,11 @@ static std::unique_ptr<BaseImageEncoder<T, N>> findEncoder(const String &_ext) {
 template <typename T, size_t N>
 static bool imwrite(const String &filename, Img<T, N> &img_vec) {
   std::unique_ptr<BaseImageEncoder<T, N>> encoder = findEncoder<T, N>(filename);
+
+  if (!encoder) {
+    throw std::runtime_error("Encoder not found for the given image.");
+  }
+
   if (encoder) {
     // Convert to a pointer of BmpEncoder<T, N>
     BmpEncoder<T, N> *bmpEncoderPtr =
@@ -216,6 +220,8 @@ static bool imwrite(const String &filename, Img<T, N> &img_vec) {
       return code;
     }
   }
+
+  return true;
 }
 } // namespace dip
 #endif

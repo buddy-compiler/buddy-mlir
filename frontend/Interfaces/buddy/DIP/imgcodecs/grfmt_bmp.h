@@ -401,7 +401,8 @@ template <typename T, size_t N> BmpEncoder<T, N>::~BmpEncoder() {}
 
 template <typename T, size_t N>
 bool BmpEncoder<T, N>::write(Img<T, N> &img, const std::vector<int> &) {
-  int width = img.cols, height = img.rows, channels = img.channels();
+  int width = img.getSizes()[1], height = img.getSizes()[0],
+      channels = img.channels();
   int fileStep = (width * channels + 3) & -4;
   uchar zeropad[] = "\0\0\0\0";
   WLByteStream strm;

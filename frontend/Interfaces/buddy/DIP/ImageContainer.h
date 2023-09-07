@@ -36,26 +36,17 @@ public:
 
   /**
    * @brief overload
-   * @param rows Number of rows in a 2D array.
-   * @param cols Number of columns in a 2D array.
-   */
-  Img(int rows, int cols);
-
-  /**
-   * @brief overload
-   * @param rows Number of rows in a 2D array.
-   * @param cols Number of columns in a 2D array.
+   * @param sizes Array of integers specifying an n-dimensional array shape.
    * @param data Pointer to the user data.
    * they just initialize the matrix header that points to the specified data.
    */
-  Img(int rows, int cols, T *data);
+  Img(intptr_t *sizes, T *data);
 
   /**
    * @brief overload
-   * @param ndims Array dimensionality.
    * @param sizes Array of integers specifying an n-dimensional array shape.
    */
-  Img(int ndims, intptr_t *sizes);
+  Img(intptr_t *sizes);
 
   /**
    * @brief overload
@@ -85,57 +76,24 @@ public:
   Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
 
   /**
-   * @brief Allocates new array data if needed.
-   * @param rows Number of rows in a 2D array.
-   * @param cols Number of columns in a 2D array.
-   */
-  void create(int rows, int cols);
-
-  /**
    * @brief overload
-   * @param ndims Array dimensionality.
    * @param sizes Array of integers specifying an n-dimensional array shape.
    */
-  void create(int ndims, intptr_t *sizes);
-
-  size_t total();
+  void create(intptr_t *sizes);
 
   int channels();
-
-  int flags;
-
-  // the matrix dimensionality, >= 2
-  int dims;
-
-  // the number of rows and columns or (-1, -1) when the matrix has more than 2
-  // dimensions
-  int rows, cols;
 };
 
 // Image Constructor from Img.
-template <typename T, size_t N>
-Img<T, N>::Img() : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {}
+template <typename T, size_t N> Img<T, N>::Img() : MemRef<T, N>() {}
 
 /**
  * @brief overload
- * @param rows Number of rows in a 2D array.
- * @param cols Number of columns in a 2D array.
- */
-template <typename T, size_t N>
-Img<T, N>::Img(int rows, int cols)
-    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {
-  create(rows, cols);
-}
-
-/**
- * @brief overload
- * @param ndims Array dimensionality.
  * @param sizes Array of integers specifying an n-dimensional array shape.
  */
 template <typename T, size_t N>
-Img<T, N>::Img(int ndims, intptr_t *sizes)
-    : MemRef<T, N>(), flags(0), dims(0), rows(0), cols(0) {
-  create(ndims, sizes);
+Img<T, N>::Img(intptr_t *sizes) : MemRef<T, N>() {
+  create(sizes);
 }
 
 /**
@@ -144,8 +102,7 @@ Img<T, N>::Img(int ndims, intptr_t *sizes)
  * matrix.
  */
 template <typename T, size_t N>
-Img<T, N>::Img(const Img<T, N> &m)
-    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols) {
+Img<T, N>::Img(const Img<T, N> &m) : MemRef<T, N>() {
   for (size_t i = 0; i < N; i++) {
     this->sizes[i] = m.sizes[i];
     this->strides[i] = m.strides[i];
@@ -165,9 +122,7 @@ Img<T, N>::Img(const Img<T, N> &m)
 // Steal members from the original object.
 // Assign the NULL pointer to the original aligned and allocated members to
 // avoid the double free error.
-template <typename T, size_t N>
-Img<T, N>::Img(Img<T, N> &&m)
-    : MemRef<T, N>(), flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols) {
+template <typename T, size_t N> Img<T, N>::Img(Img<T, N> &&m) : MemRef<T, N>() {
   this->aligned = m.aligned;
   this->allocated = m.allocated;
   this->size = m.size;
@@ -190,10 +145,6 @@ template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
     // Free the original aligned and allocated space.
     delete[] this->allocated;
     // Steal members of the original object.
-    std::swap(this->flags, m.flags);
-    std::swap(this->cols, m.cols);
-    std::swap(this->rows, m.rows);
-    std::swap(this->dims, m.dims);
     std::swap(this->size, m.size);
     std::swap(this->allocated, m.allocated);
     std::swap(this->aligned, m.aligned);
@@ -207,32 +158,17 @@ template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
 }
 
 /**
- * @brief Allocates new array data if needed.
- * @param rows Number of rows in a 2D array.
- * @param cols Number of columns in a 2D array.
- */
-template <typename T, size_t N> void Img<T, N>::create(int rows, int cols) {
-  this->cols = cols;
-  this->rows = rows;
-  this->sizes[0] = cols;
-  this->sizes[1] = rows;
-  if (N <= 2) {
-    create(2, this->sizes);
-  }
-}
-
-/**
  * @brief overload
- * @param ndims Array dimensionality.
  * @param sizes Array of integers specifying an n-dimensional array shape.
  */
-template <typename T, size_t N>
-void Img<T, N>::create(int ndims, intptr_t *sizes) {
-  this->dims = ndims;
+template <typename T, size_t N> void Img<T, N>::create(intptr_t *sizes) {
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
   this->setStrides();
-  this->size = total();
-  if (total() > 0) {
-    this->allocated = new T[total()];
+  this->size = this->product(this->sizes);
+  if (this->size > 0) {
+    this->allocated = new T[this->size];
     this->aligned = this->allocated;
   }
 }
@@ -247,18 +183,14 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
   if (this == &m) {
     return *this;
   } else {
-    this->flags = m.flags;
-    this->dims = m.dims;
-    this->rows = m.rows;
-    this->cols = m.cols;
-    for (int i = 0; i < this->dims; i++) {
+    for (size_t i = 0; i < N; i++) {
       this->sizes[i] = m.sizes[i];
       this->strides[i] = m.strides[i];
     }
-    this->size = total();
+    this->size = m.size;
     // Allocate new space and deep copy.
-    T *ptr = new T[total()];
-    for (size_t i = 0; i < total(); i++) {
+    T *ptr = new T[this->size];
+    for (size_t i = 0; i < this->size; i++) {
       ptr[i] = m.aligned[i];
     }
     this->allocated = ptr;
@@ -269,19 +201,18 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
 
 /**
  * @brief overload
- * @param rows Number of rows in a 2D array.
- * @param cols Number of columns in a 2D array.
+ * @param sizes Array of integers specifying an n-dimensional array shape.
  * @param data Pointer to the user data.
  * they just initialize the matrix header that points to the specified data.
  */
 template <typename T, size_t N>
-Img<T, N>::Img(int rows, int cols, T *data)
-    : MemRef<T, N>(), flags(0), dims(2), rows(rows), cols(cols) {
-  this->aligned = data;
-  this->sizes[0] = rows;
-  this->sizes[1] = cols;
-  this->size = total();
+Img<T, N>::Img(intptr_t *sizes, T *data) : MemRef<T, N>() {
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
+  this->size = this->product(this->sizes);
   this->setStrides();
+  this->aligned = data;
 }
 
 // Image Constructor from OpenCV Mat.
@@ -327,34 +258,9 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
 
 template <typename T, size_t N> int Img<T, N>::channels() {
   if (N == 2) {
-    assert(this->flags == IMGRD_GRAYSCALE);
     return 1;
-  } else {
-    switch (this->flags) {
-    case IMGRD_COLOR:
-      this->sizes[2] = 3;
-      break;
-    case IMGRD_UNCHANGED:
-      this->sizes[2] = 4;
-      break;
-    case IMGRD_GRAYSCALE:
-      this->sizes[2] = 1;
-      break;
-    default:
-      throw std::runtime_error("Unknown flag value");
-      break;
-    }
   }
   return this->sizes[2];
 }
 
-template <typename T, size_t N> size_t Img<T, N>::total() {
-  if (dims <= 2) {
-    return (size_t)rows * cols * channels();
-  }
-  size_t p = 1;
-  for (int i = 0; i < dims; i++)
-    p *= this->sizes[i];
-  return p;
-}
 #endif // FRONTEND_INTERFACES_BUDDY_DIP_IMAGECONTAINER

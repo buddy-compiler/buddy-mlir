@@ -37,8 +37,10 @@ bool testImplementation(int argc, char *argv[]) {
   MemRef<float, 2> output = dip::Rotate2D(&input, 45, dip::ANGLE_TYPE::DEGREE);
 
   // Define a Img with the output of Rotate2D.
-  Img<float, 2> outputImageRotate2D(output.getSizes()[0], output.getSizes()[1],
-                                    output.getData());
+  intptr_t sizes[2] = {output.getSizes()[0], output.getSizes()[1]};
+
+  Img<float, 2> outputImageRotate2D(sizes, output.getData());
+
   dip::imwrite(argv[2], outputImageRotate2D);
 
   return 1;

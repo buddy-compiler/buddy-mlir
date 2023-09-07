@@ -58,8 +58,10 @@ bool testImplementation(int argc, char *argv[]) {
   //     scalingRatios);
 
   // Define Img with the output of Resize2D.
-  Img<float, 2> outputImageResize2D(output.getSizes()[0], output.getSizes()[1],
-                                    output.getData());
+  intptr_t sizes[2] = {output.getSizes()[0], output.getSizes()[1]};
+
+  Img<float, 2> outputImageResize2D(sizes, output.getData());
+  
   dip::imwrite(argv[2], outputImageResize2D);
 
   return 1;
