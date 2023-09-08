@@ -15,6 +15,7 @@ inputs = tokenizer(prompt, return_tensors="pt")
 # print("-----------------------")
 inputs = inputs.input_ids
 print(inputs)
+
 model.eval()
 # scripted_module = torch.jit.trace(model, inputs)
 # graph = scripted_module.graph.copy()
@@ -35,7 +36,7 @@ model_opt = dynamo.optimize(DynamoCompiler)(model)
 # for (name, module) in model_opt.named_modules():
 #     if name == layer_name:
 #         module.register_forward_hook(hook=hook)
-result = model_opt(inputs)
+result = model_opt(torch.tensor([[1 for i in range(80)]], dtype=torch.int64))
 # print("------------------")
 # print(features_in_hook)
 # print(features_out_hook)

@@ -1,3 +1,5 @@
-add_executable(llamaRun llama_run.cc llama.o)
-#link_directories(/home/wlq/buddy-mlir/examples/MLIRLlama/buddy)
-target_link_libraries(llamaRun /home/wlq/buddy-mlir/llvm/build/lib/libmlir_c_runner_utils.so)
+add_executable(llamaRun llama_run.cc llama.o TextContainer.h)
+find_package(OpenMP REQUIRED)
+set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} ${OPENMP_C_FLAGS})
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${OPENMP_CXX_FLAGS})
+target_link_libraries(llamaRun /home/wlq/buddy-mlir/llvm/build/lib/libmlir_c_runner_utils.so OpenMP::OpenMP_CXX)
