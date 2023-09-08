@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <numeric>
 #include <stdexcept>
@@ -36,8 +37,10 @@
 template <typename T, size_t N> class MemRef {
 public:
   // Constructor from shape.
-  MemRef(intptr_t sizes[N], T init = T(0));
-  MemRef(std::vector<size_t> sizes, T init = T(0));
+  MemRef(intptr_t sizes[N]);
+  MemRef(std::vector<size_t> sizes);
+  MemRef(intptr_t sizes[N], T init);
+  MemRef(std::vector<size_t> sizes, T init);
   // Constructor from data.
   MemRef(const T *data, intptr_t sizes[N], intptr_t offset = 0);
   // Constructor from a unique_ptr, taking over.
@@ -95,10 +98,8 @@ protected:
 };
 
 // MemRef Shape Constructor.
-// Construct a MemRef object from the data shape and initial value.
-// The default initial value is 0.
-template <typename T, std::size_t N>
-MemRef<T, N>::MemRef(intptr_t sizes[N], T init) {
+// Construct a MemRef object from the data shape and (optional)initial value.
+template <typename T, std::size_t N> MemRef<T, N>::MemRef(intptr_t sizes[N]) {
   for (size_t i = 0; i < N; i++) {
     this->sizes[i] = sizes[i];
   }
@@ -106,11 +107,10 @@ MemRef<T, N>::MemRef(intptr_t sizes[N], T init) {
   size = product(sizes);
   allocated = new T[size];
   aligned = allocated;
-  std::fill(aligned, aligned + size, init);
 }
 
 template <typename T, std::size_t N>
-MemRef<T, N>::MemRef(std::vector<size_t> sizes, T init) {
+MemRef<T, N>::MemRef(std::vector<size_t> sizes) {
   if (sizes.size() != N) {
     throw std::runtime_error("Invalid number of dimensions.");
   }
@@ -121,6 +121,15 @@ MemRef<T, N>::MemRef(std::vector<size_t> sizes, T init) {
   size = product(this->sizes);
   allocated = new T[size];
   aligned = allocated;
+}
+
+template <typename T, std::size_t N>
+MemRef<T, N>::MemRef(intptr_t sizes[N], T init) : MemRef(sizes) {
+  std::fill(aligned, aligned + size, init);
+}
+
+template <typename T, std::size_t N>
+MemRef<T, N>::MemRef(std::vector<size_t> sizes, T init) : MemRef(sizes) {
   std::fill(aligned, aligned + size, init);
 }
 
