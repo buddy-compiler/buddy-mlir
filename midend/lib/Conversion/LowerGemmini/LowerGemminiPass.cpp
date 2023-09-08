@@ -176,7 +176,6 @@ public:
   // Override explicitly to allow conditional dialect dependence.
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<LLVM::LLVMDialect>();
-    registry.insert<LLVM::LLVMDialect>();
     registry.insert<arith::ArithDialect>();
     registry.insert<memref::MemRefDialect>();
     registry.insert<scf::SCFDialect>();
@@ -203,7 +202,7 @@ void LowerGemminiToLLVMPass::runOnOperation() {
   LLVMTypeConverter converter(context);
   RewritePatternSet patterns(context);
   LLVMConversionTarget target(*context);
-  configureGemminiegalizeForExportTarget(target);
+  configureGemminiLegalizeForExportTarget(target);
   populateGemminiLegalizeForLLVMExportPatterns(
       converter, patterns, dim, addrLen, sizeOfElemT, sizeOfAccT);
   populateAffineToStdConversionPatterns(patterns);
