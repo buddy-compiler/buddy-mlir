@@ -1380,7 +1380,7 @@ void mlir::populateGemminiLegalizeForLLVMExportPatterns(
                                         sizeOfAccT);
 }
 
-void mlir::configureGemminiLegalizeForExportTarget(
+void mlir::configureGemminiegalizeForExportTarget(
     LLVMConversionTarget &target) {
   target.addLegalOp<
       Flush_IntrOp, ConfigSt_IntrOp, ConifgLd_IntrOp, ConfigEX_IntrOp,
