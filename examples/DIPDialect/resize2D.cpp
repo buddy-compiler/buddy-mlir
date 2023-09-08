@@ -60,8 +60,8 @@ bool testImplementation(int argc, char *argv[]) {
   // Define Img with the output of Resize2D.
   intptr_t sizes[2] = {output.getSizes()[0], output.getSizes()[1]};
 
-  Img<float, 2> outputImageResize2D(sizes, output.getData());
-  
+  Img<float, 2> outputImageResize2D(output.getData(),sizes);
+
   dip::imwrite(argv[2], outputImageResize2D);
 
   return 1;

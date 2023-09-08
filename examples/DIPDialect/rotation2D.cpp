@@ -39,7 +39,7 @@ bool testImplementation(int argc, char *argv[]) {
   // Define a Img with the output of Rotate2D.
   intptr_t sizes[2] = {output.getSizes()[0], output.getSizes()[1]};
 
-  Img<float, 2> outputImageRotate2D(sizes, output.getData());
+  Img<float, 2> outputImageRotate2D(output.getData(),sizes);
 
   dip::imwrite(argv[2], outputImageRotate2D);
 

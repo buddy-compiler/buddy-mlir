@@ -32,7 +32,7 @@ using namespace dip;
 // - N represents the number of dimensions.
 template <typename T, size_t N> class Img : public MemRef<T, N> {
 public:
-  Img();
+  Img(){};
 
   /**
    * @brief overload
@@ -40,13 +40,13 @@ public:
    * @param data Pointer to the user data.
    * they just initialize the matrix header that points to the specified data.
    */
-  Img(intptr_t *sizes, T *data);
+  Img(T *data, intptr_t sizes[N]);
 
   /**
    * @brief overload
    * @param sizes Array of integers specifying an n-dimensional array shape.
    */
-  Img(intptr_t *sizes);
+  Img(intptr_t sizes[N]);
 
   /**
    * @brief overload
@@ -75,26 +75,15 @@ public:
    */
   Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
 
-  /**
-   * @brief overload
-   * @param sizes Array of integers specifying an n-dimensional array shape.
-   */
-  void create(intptr_t *sizes);
-
   int channels();
 };
-
-// Image Constructor from Img.
-template <typename T, size_t N> Img<T, N>::Img() : MemRef<T, N>() {}
 
 /**
  * @brief overload
  * @param sizes Array of integers specifying an n-dimensional array shape.
  */
 template <typename T, size_t N>
-Img<T, N>::Img(intptr_t *sizes) : MemRef<T, N>() {
-  create(sizes);
-}
+Img<T, N>::Img(intptr_t sizes[N]) : MemRef<T, N>(sizes) {}
 
 /**
  * @brief overload
@@ -102,18 +91,7 @@ Img<T, N>::Img(intptr_t *sizes) : MemRef<T, N>() {
  * matrix.
  */
 template <typename T, size_t N>
-Img<T, N>::Img(const Img<T, N> &m) : MemRef<T, N>() {
-  for (size_t i = 0; i < N; i++) {
-    this->sizes[i] = m.sizes[i];
-    this->strides[i] = m.strides[i];
-  }
-  this->size = m.size;
-  this->allocated = new T[this->size];
-  this->aligned = this->allocated;
-  for (size_t i = 0; i < this->size; i++) {
-    this->aligned[i] = m.aligned[i];
-  }
-}
+Img<T, N>::Img(const Img<T, N> &m) : MemRef<T, N>(m) {}
 
 // Move Constructor.
 // This constructor is used to initialize a MemRef object from a rvalue.
@@ -122,16 +100,8 @@ Img<T, N>::Img(const Img<T, N> &m) : MemRef<T, N>() {
 // Steal members from the original object.
 // Assign the NULL pointer to the original aligned and allocated members to
 // avoid the double free error.
-template <typename T, size_t N> Img<T, N>::Img(Img<T, N> &&m) : MemRef<T, N>() {
-  this->aligned = m.aligned;
-  this->allocated = m.allocated;
-  this->size = m.size;
-  std::swap(this->sizes, m.sizes);
-  std::swap(this->strides, m.strides);
-  // Assign the NULL pointer to the original aligned and allocated members to
-  // avoid the double free error.
-  m.allocated = m.aligned = nullptr;
-}
+template <typename T, size_t N>
+Img<T, N>::Img(Img<T, N> &&m) : MemRef<T, N>(m) {}
 
 // Move Assignment Operator.
 // Note that the original object no longer owns the members and spaces.
@@ -141,36 +111,7 @@ template <typename T, size_t N> Img<T, N>::Img(Img<T, N> &&m) : MemRef<T, N>() {
 // Assign the NULL pointer to the original aligned and allocated members to
 // avoid the double free error.
 template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
-  if (this != &m) {
-    // Free the original aligned and allocated space.
-    delete[] this->allocated;
-    // Steal members of the original object.
-    std::swap(this->size, m.size);
-    std::swap(this->allocated, m.allocated);
-    std::swap(this->aligned, m.aligned);
-    std::swap(this->sizes, m.sizes);
-    std::swap(this->strides, m.strides);
-    // Assign the NULL pointer to the original aligned and allocated members to
-    // avoid the double free error.
-    m.allocated = m.aligned = nullptr;
-  }
-  return *this;
-}
-
-/**
- * @brief overload
- * @param sizes Array of integers specifying an n-dimensional array shape.
- */
-template <typename T, size_t N> void Img<T, N>::create(intptr_t *sizes) {
-  for (size_t i = 0; i < N; i++) {
-    this->sizes[i] = sizes[i];
-  }
-  this->setStrides();
-  this->size = this->product(this->sizes);
-  if (this->size > 0) {
-    this->allocated = new T[this->size];
-    this->aligned = this->allocated;
-  }
+  MemRef<T, N>::operator=(m);
 }
 
 /**
@@ -180,23 +121,7 @@ template <typename T, size_t N> void Img<T, N>::create(intptr_t *sizes) {
  */
 template <typename T, size_t N>
 Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
-  if (this == &m) {
-    return *this;
-  } else {
-    for (size_t i = 0; i < N; i++) {
-      this->sizes[i] = m.sizes[i];
-      this->strides[i] = m.strides[i];
-    }
-    this->size = m.size;
-    // Allocate new space and deep copy.
-    T *ptr = new T[this->size];
-    for (size_t i = 0; i < this->size; i++) {
-      ptr[i] = m.aligned[i];
-    }
-    this->allocated = ptr;
-    this->aligned = ptr;
-  }
-  return *this;
+  MemRef<T, N>::operator=(m);
 }
 
 /**
@@ -206,14 +131,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
  * they just initialize the matrix header that points to the specified data.
  */
 template <typename T, size_t N>
-Img<T, N>::Img(intptr_t *sizes, T *data) : MemRef<T, N>() {
-  for (size_t i = 0; i < N; i++) {
-    this->sizes[i] = sizes[i];
-  }
-  this->size = this->product(this->sizes);
-  this->setStrides();
-  this->aligned = data;
-}
+Img<T, N>::Img(T *data, intptr_t sizes[N]) : MemRef<T, N>(data, sizes) {}
 
 // Image Constructor from OpenCV Mat.
 template <typename T, size_t N>
