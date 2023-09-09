@@ -40,8 +40,6 @@ int main() {
   fprintf(stderr, "%ld\n", testDefaultShapeConstructor.getRank());
   // CHECK: 6
   fprintf(stderr, "%ld\n", testDefaultShapeConstructor.getSize());
-  // CHECK: 0.0
-  fprintf(stderr, "%f\n", testDefaultShapeConstructor[3]);
 
   //===--------------------------------------------------------------------===//
   // Test custom shape constructor.

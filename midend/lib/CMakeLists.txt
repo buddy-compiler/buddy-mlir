@@ -5,7 +5,7 @@ add_subdirectory(Utils)
 
 add_mlir_library(static_mlir_async_runtime
   STATIC
-  ${LLVM_MLIR_SOURCE_DIR}/lib/ExecutionEngine/AsyncRuntime.cpp
+  ${MLIR_MAIN_SRC_DIR}/lib/ExecutionEngine/AsyncRuntime.cpp
 
   EXCLUDE_FROM_LIBMLIR
 
