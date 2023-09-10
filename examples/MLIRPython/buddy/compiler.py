@@ -1,13 +1,17 @@
 """The buddy compiler backend for torch dynamo.
 """
+import json
 import operator
-from typing import List, Union, Callable
+from typing import Callable, List, Union
 
-import torch
-from torch._functorch.aot_autograd import aot_module_simplified
-import mlir.ir as ir
 import mlir.dialects.func as func
+import mlir.ir as ir
+import torch
+from iree import compiler as ireec
+from iree import runtime as ireert
 from mlir.passmanager import PassManager
+from torch._functorch.aot_autograd import aot_module_simplified
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from .operators_gen import operation_func
 
@@ -31,18 +35,43 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
 
   def _compiler(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
     """Compile a FX graph in Aten/Prims IR to MLIR."""
-    print("Custom Compiler from FX Graph to MLIR:")
-    print("-------------------------------------------------------------------")
-    gm.graph.print_tabular()
+    # print("Custom Compiler from FX Graph to MLIR:")
+    # print("-------------------------------------------------------------------")
+    # gm.graph.print_tabular()
     # Initialize the MLIR context.
     ctx = ir.Context()
     with ir.Location.unknown(ctx):
       fx_importer = FXGraphImporter(gm, inputs)
       module = fx_importer.import_graph()
       module = Lowering(module)
+
     return gm.forward
 
-  return aot_module_simplified(gm, inputs, fw_compiler=_compiler)
+    # compiled_flatbuffer = ireec.compile_str(str(module), target_backends=["vmvx"])
+    # runtime_config = ireert.Config("local-task")
+    # ctx = ireert.SystemContext(config=runtime_config)
+    # vm_module = ireert.VmModule.copy_buffer(ctx.instance, compiled_flatbuffer)
+    # ctx.add_vm_module(vm_module)
+
+    # return lambda *args: ctx.modules.module["main"](*args).to_host()
+
+  args_dict = {
+      **gm.state_dict(), "input_ids": inputs[0],
+      "token_type_ids": inputs[1],
+      "attention_mask": inputs[2]
+  }
+  with open("bert_parameters.bin", "wb") as args_f, \
+       open("bert_parameters_shape.txt", "w+") as shape_f, \
+       open("bert_parameters_dtype.txt", "w+") as dtype_f:
+    for value in args_dict.values():
+      dtype_f.write(f"{value.dtype}\n")
+      shape_f.write(" ".join([str(dim) for dim in value.shape]) + "\n")
+      args_f.write(value.numpy().tobytes())    
+
+  return aot_module_simplified(gm,
+                               inputs,
+                               fw_compiler=_compiler,
+                               decompositions=inductor_decomp.copy())
 
 
 class FXGraphImporter:
@@ -83,6 +112,8 @@ class FXGraphImporter:
         match dtype:
           case torch.int32:
             mlir_dtype = ir.IntegerType.get_signless(32)
+          case torch.int64:
+            mlir_dtype = ir.IntegerType.get_signless(64)
           case torch.float32:
             mlir_dtype = ir.F32Type.get()
           case _:
@@ -115,8 +146,8 @@ class FXGraphImporter:
 
         return self._symbol_table.get(("output", 0))
 
-    print("Printing the generated MLIR...")
-    print(self._module)
+    # print("Printing the generated MLIR...")
+    # print(self._module)
     return self._module
 
   def _import_placeholder(self, node: torch.fx.Node, args_list):
@@ -146,8 +177,8 @@ def Lowering(module: ir.Module):
     mlir.ir.Module: An MLIR module in LLVM dialect.
 
   """
-  print("-------------------------------------------------------------------")
-  print("Bufferizing the module ...")
+  # print("-------------------------------------------------------------------")
+  # print("Bufferizing the module ...")
   pm = PassManager("builtin.module")
   pm.add("func.func(tosa-to-linalg-named)")
   pm.add("func.func(tosa-to-linalg)")
@@ -160,18 +191,21 @@ def Lowering(module: ir.Module):
   pm.add("func.func(tensor-bufferize)")
   pm.add("func-bufferize")
   pm.run(module.operation)
-  print(module)
-  print("-------------------------------------------------------------------")
-  print("Lowering the module to LLVM dialect ...")
+  # print(module)
+  # print("-------------------------------------------------------------------")
+  # print("Lowering the module to LLVM dialect ...")
   pm.add("func.func(buffer-deallocation)")
   pm.add("func.func(convert-linalg-to-loops)")
+  pm.add("convert-math-to-llvm")
+  pm.add("convert-math-to-libm")
   pm.add("convert-scf-to-cf")
   pm.add("convert-linalg-to-llvm")
   pm.add("convert-arith-to-llvm")
   pm.add("expand-strided-metadata")
   pm.add("finalize-memref-to-llvm")
+  pm.add("func.func(llvm-request-c-wrappers)")
   pm.add("convert-func-to-llvm")
   pm.add("reconcile-unrealized-casts")
   pm.run(module.operation)
-  print(module)
+  # print(module)
   return module
