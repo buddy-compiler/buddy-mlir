@@ -8,6 +8,7 @@ import mlir.ir as ir
 from mlir.dialects import tosa, linalg, arith, tensor, math
 import copy
 import numpy
+from .global_var import *
 
 
 def _broadcast_shape(tensor_input1: ir.Value,
@@ -1111,6 +1112,22 @@ def SiluOp(node: torch.fx.Node,
     block.append(linalg.YieldOp([div_op.result]))
 
   return op
+
+def ParamToConstantOp(node: torch.fx.Node,
+                      index: int,
+                      ) -> ir.Operation:
+  dtype = str(node.meta['tensor_meta'].dtype)
+  if dtype == "torch.float32":
+    param_data = numpy.fromfile(global_var_get_value("params-write-path")+"/params_data/arg"+str(index)+".data", dtype=numpy.float32)
+  output_shape = list(node.meta['tensor_meta'].shape)
+  param_data = param_data.reshape(output_shape)
+  if dtype == "torch.float32":
+    tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
+  attr = ir.DenseFPElementsAttr.get(param_data, signless=True, type=tensor_type)
+  op = arith.ConstantOp(tensor_type, attr)
+  return op
+
+
 
 operation_func = {"arange.start": ArangeOp, "arange.default": ArangeOp, "unsqueeze.default": UnsqueezeOp, "view.default": ViewOp,
                   "ones.default": OnesOp, "full.default": FullOp, "add.Tensor": AddOp, "lt.Tensor": LtOp, "embedding.default": EmbeddingOp,

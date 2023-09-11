@@ -8,10 +8,11 @@ from torch._functorch.aot_autograd import aot_module_simplified
 import mlir.ir as ir
 import mlir.dialects.func as func
 from mlir.passmanager import PassManager
-from .OperatorsGen import operation_func
+from .OperatorsGen import operation_func, ParamToConstantOp
 import torch.utils._pytree as pytree
 import os
 from torch._subclasses import FakeTensorMode
+from .global_var import *
 
 def DynamoCompiler(gm: torch.fx.GraphModule,
                    inputs: List[torch.Tensor]) -> Callable:
@@ -31,22 +32,6 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
   """
   def _compiler(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
     """Compile a FX graph in Aten/Prims IR to MLIR."""
-    # print(gm)
-    # get parameters
-    # flat_params = torch._guards.TracingContext.get().params_flat
-    # fw_metadata = torch._guards.TracingContext.get().fw_metadata
-    # aliased_input_args = [
-    #     out_info.base_idx
-    #     for out_info in fw_metadata.output_info
-    #     if out_info.base_idx is not None
-    # ]
-    # Initialize the MLIR context.
-    # ops = []
-    # for node in gm.graph.nodes:
-    #   if node.op != "placeholder" and node.op != "output":
-    #     ops.append(node.target.__name__)
-    # print(set(ops))
-    print(gm.graph)
     ctx = ir.Context()
     with ir.Location.unknown(ctx):
       fx_importer = FXGraphImporter(gm, inputs)
@@ -59,17 +44,17 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
   # }
   # params_flat, params_spec = pytree.tree_flatten(params)
   # params_flat = list(params_flat)
-  # with open("params_shape.txt", 'w') as file:
+  # with open(global_var_get_value('params-write-path')+"params_shape.txt", 'w') as file:
   #   for i, param in enumerate(params_flat):
   #     file.write("arg{} ".format(i))
   #     param_size = []
   #     for i in param.shape:
   #       param_size.append(str(i))
   #     file.write(",".join(param_size)+"\n")
-  #     if not os.path.exists("params_data"):
+  #     if not os.path.exists(global_var_get_value('params-write-path')+"params_data"):
   #       os.mkdir("params_data")
   #     param_data = param.detach().numpy().reshape([-1])
-  #     param_data.tofile("params_data/arg{}.data".format(i))
+  #     param_data.tofile(global_var_get_value('params-write-path')+"params_data/arg{}.data".format(i))
   return aot_module_simplified(gm, inputs, fw_compiler=_compiler)
 
 class FXGraphImporter:
@@ -91,7 +76,16 @@ class FXGraphImporter:
     self._symbol_table = {}
     self._gm = gm
     self._func_name = func_name
-    self._inputs = inputs
+
+    # decide wether or not write params to mlir func
+    if global_var_get_value('param-to-mlir'):
+      #print('write params to mlir func file')
+      # for llama2 the final input in inputs is input sentence
+      self._inputs = [inputs[-1]]
+      self._params = inputs[:-1]
+    else:
+      self._inputs = inputs
+      self._params = []
     self._num_input_visited = 0
     self._module = ir.Module.create()
   def import_graph(self,
@@ -145,8 +139,11 @@ class FXGraphImporter:
     return self._module
 
   def _import_placeholder(self, node: torch.fx.Node, args_list):
-    placeholder_name = args_list[self._num_input_visited]
-    self._symbol_table[(str(node.name), 0)] = placeholder_name
+    if self._num_input_visited < len(self._params):
+      self._symbol_table[(str(node.name), 0)] = ParamToConstantOp(node, self._num_input_visited).result
+    else:
+      placeholder_name = args_list[self._num_input_visited-len(self._params)]
+      self._symbol_table[(str(node.name), 0)] = placeholder_name
     self._num_input_visited += 1
 
   def _import_op(self, node: torch.fx.Node,
