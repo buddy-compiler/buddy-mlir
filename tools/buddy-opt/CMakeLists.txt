@@ -20,7 +20,6 @@ target_link_libraries(buddy-opt
   BuddyRVV
   LowerRVVPass
   MatMulOptimization
-  BatchMatMulOptimization
   ConvOptimization
   VectorExp
   LowerVectorExpPass

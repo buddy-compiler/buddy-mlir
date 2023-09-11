@@ -66,6 +66,7 @@ public:
     Value A = op->getOperand(0);
     Value B = op->getOperand(1);
     Value C = op->getOperand(2);
+    
     // Get ElementType of input and output.
     auto A_elementType = A.getType().cast<MemRefType>().getElementType();
 

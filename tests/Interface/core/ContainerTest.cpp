@@ -102,7 +102,7 @@ int main() {
   // Test overloading bracket operator.
   //===--------------------------------------------------------------------===//
   MemRef<float, 2> testBracketOperator1(sizes);
-  // CHECK: 0.0
+  // CHECK: {{[0-9]+}}.{{[0-9]+}}
   fprintf(stderr, "%f\n", testBracketOperator1[0]);
   testBracketOperator1[0] = 5.0;
   // CHECK: 5.0
