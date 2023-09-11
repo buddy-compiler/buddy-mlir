@@ -54,6 +54,7 @@ void registerLowerBudPass();
 void registerLowerDIPPass();
 void registerLowerDAPPass();
 void registerLowerRVVPass();
+void registerBatchMatMulOptimizePass();
 void registerMatMulOptimizePass();
 void registerConvOptimizePass();
 void registerLowerVectorExpPass();
@@ -80,6 +81,7 @@ int main(int argc, char **argv) {
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulOptimizePass();
+  mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerConvOptimizePass();
 
   mlir::DialectRegistry registry;
