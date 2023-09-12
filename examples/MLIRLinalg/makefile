@@ -138,7 +138,7 @@ linalg-matmul-optimize-run:
 
 linalg-batch-matmul-optimize-run:
 	@${BUDDY_OPT} linalg-matmul.mlir ${MLIR_OPT_OPTIONS} \
-		-batchmatmul-optimize="step-placeholder=64" \
+		-batchmatmul-optimize="vector-size=64" \
 		-convert-linalg-to-loops \
 		-expand-strided-metadata \
 		-lower-affine \
@@ -174,12 +174,12 @@ linalg-batch-matmul-run:
 
 linalg-batch-matmul-optimize-lower:
 	@${BUDDY_OPT} linalg-batch-matmul.mlir ${MLIR_OPT_OPTIONS} \
-		-batchmatmul-optimize="step-placeholder=64" \
+		-batchmatmul-optimize="vector-size=64" \
 		-o ./log.mlir
 
 linalg-batch-matmul-optimize-translate:
 	@${BUDDY_OPT} linalg-batch-matmul.mlir ${MLIR_OPT_OPTIONS} \
-		-batchmatmul-optimize="step-placeholder=64" \
+		-batchmatmul-optimize="vector-size=64" \
 		-convert-linalg-to-loops \
 		-expand-strided-metadata \
 		-lower-affine \
