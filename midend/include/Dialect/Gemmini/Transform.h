@@ -50,7 +50,7 @@ void populateGemminiLegalizeForLLVMExportPatterns(LLVMTypeConverter &converter,
                                                   RewritePatternSet &patterns,
                                                   int64_t dim, int64_t addrLen, 
                                                   size_t sizeOfElemT, size_t sizeOfAccT);
-void configureGemminiegalizeForExportTarget(LLVMConversionTarget &target);
+void configureGemminiLegalizeForExportTarget(LLVMConversionTarget &target);
 
 } // namespace mlir
 
