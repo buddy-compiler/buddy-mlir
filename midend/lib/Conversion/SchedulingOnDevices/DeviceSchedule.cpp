@@ -24,6 +24,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Pass/Pass.h"
 
 #include "Bud/BudDialect.h"
@@ -161,7 +162,7 @@ std::vector<ScheTargetNode> splitDevice(Region& region){
   return result;
 }
 
-class DeviceSchedulePattern : public OpRewritePattern<func::FuncOp>  {
+class FuncOpDeviceSchedulePattern : public OpRewritePattern<func::FuncOp>  {
 public:
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;
 
@@ -234,11 +235,100 @@ public:
   }
 };
 
+class ForOpDeviceSchedulePattern : public OpRewritePattern<scf::ForOp>  {
+public:
+  using OpRewritePattern<scf::ForOp>::OpRewritePattern;
+
+  LogicalResult
+  matchAndRewrite(scf::ForOp forOp, PatternRewriter &rewriter) const override {
+    printf("begin\n");
+
+    auto loc = forOp.getLoc();
+    auto ctx = rewriter.getContext();
+    auto op = forOp.getOperation();
+
+    auto devices = op->getAttr("sche.devices").dyn_cast_or_null<ArrayAttr>();
+    assert(devices != nullptr);
+    Value upperBound = forOp.getUpperBound();
+    Value lowerBound = forOp.getLowerBound();
+    Value step = forOp.getStep();
+
+    rewriter.setInsertionPoint(op);
+    auto range = rewriter.create<arith::SubIOp>(loc, upperBound, lowerBound);
+    Value stepRange = rewriter.create<arith::DivSIOp>(loc, range.getResult(), step);
+    stepRange = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI32Type(), stepRange);
+    stepRange = rewriter.create<arith::SIToFPOp>(loc, rewriter.getF32Type(), stepRange);
+    Value half = rewriter.create<arith::ConstantOp>(loc, rewriter.getF32FloatAttr(0.5)); //用于四舍五入
+    auto start = lowerBound;
+    for(auto device_info : devices.getValue()){
+      auto dict_attr = device_info.dyn_cast_or_null<DictionaryAttr>();
+      assert(dict_attr != nullptr);
+      auto targetId = dict_attr.get("targetId");
+      auto targetConfig = dict_attr.get("targetConfig");
+      assert(targetId.isa<StringAttr>() && targetConfig.isa<StringAttr>() && dict_attr.get("duty_ratio").isa<FloatAttr>());
+      
+      auto duty_ratio = rewriter.create<arith::ConstantOp>(loc, rewriter.getF32Type(), dict_attr.get("duty_ratio").dyn_cast<FloatAttr>());
+      Value duty_value = rewriter.create<arith::MulFOp>(loc, stepRange, duty_ratio.getResult());
+      duty_value = rewriter.create<arith::AddFOp>(loc, half, duty_value);
+      duty_value = rewriter.create<arith::FPToSIOp>(loc, rewriter.getI32Type(), duty_value);
+      duty_value = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), duty_value);
+      duty_value = rewriter.create<arith::MulIOp>(loc, duty_value, step);
+      Value end = rewriter.create<arith::AddIOp>(loc, start, duty_value);
+
+      if(targetId.dyn_cast<StringAttr>().getValue() == "cpu"){
+        auto sub_forOp = rewriter.create<scf::ForOp>(loc, start, end, step, forOp.getInitArgs(), [&](OpBuilder& builder, Location loc, Value iv, ValueRange iterArgs){
+          Block &bodyBlock = forOp.getLoopBody().front();//原始for的bodyBlock
+          IRMapping mp;
+          mp.map(bodyBlock.getArgument(0), iv);
+          for(auto&& [a, b] : llvm::zip(bodyBlock.getArguments().drop_front(), iterArgs)){
+            mp.map(a, b);
+          }
+          for(auto&& op_ : bodyBlock.getOperations()){
+            builder.insert(op_.clone(mp));
+          }
+        });
+      }
+      else if(targetId.dyn_cast<StringAttr>().getValue() == "gpu"){
+        auto on_device_op = rewriter.create<sche::OnDeviceOp>(loc, targetId.dyn_cast<StringAttr>().getValue(), targetConfig.dyn_cast<StringAttr>().getValue(), 
+                                    forOp.getResults().getTypes(), ValueRange{}, [&](OpBuilder& builder, Location loc, ValueRange valueRange){
+                                      auto sub_forOp = builder.create<scf::ForOp>(loc, start, end, step, forOp.getInitArgs(), [&](OpBuilder& builder, Location loc, Value iv, ValueRange iterArgs){
+                                        Block &bodyBlock = forOp.getLoopBody().front();//原始for的bodyBlock
+                                        IRMapping mp;
+                                        mp.map(bodyBlock.getArgument(0), iv);
+                                        for(auto&& [a, b] : llvm::zip(bodyBlock.getArguments().drop_front(), iterArgs)){
+                                          mp.map(a, b);
+                                        }
+                                        for(auto&& op_ : bodyBlock.getOperations()){
+                                          builder.insert(op_.clone(mp));
+                                        }
+                                      });
+                                      builder.create<sche::ReturnOp>(loc, sub_forOp.getResults());
+                                    });
+        for(auto&& [a, b] : llvm::zip(forOp.getResults(), on_device_op.getResults())){
+            a.replaceAllUsesWith(b);
+          }
+      }
+
+      start = end;
+    }
+
+    rewriter.eraseOp(op);
+    
+
+    op->getParentOp()->print(llvm::outs());
+
+    printf("finish\n");
+    return success();
+
+  }
+};
+
 } // end anonymous namespace
 
 void populateDeviceScheduleConversionPatterns(RewritePatternSet &patterns) {
   // clang-format off
-  patterns.add<DeviceSchedulePattern>(patterns.getContext());
+  patterns.add<FuncOpDeviceSchedulePattern>(patterns.getContext());
+  patterns.add<ForOpDeviceSchedulePattern>(patterns.getContext());
   // clang-format on
 }
 
@@ -266,7 +356,8 @@ public:
         vector::VectorDialect,
         memref::MemRefDialect,
         LLVM::LLVMDialect,
-        buddy::sche::ScheDialect>();
+        buddy::sche::ScheDialect,
+        scf::SCFDialect>();
     // clang-format on
   }
 };
@@ -284,7 +375,8 @@ void DeviceSchedulePass::runOnOperation() {
       vector::VectorDialect,
       memref::MemRefDialect,
       LLVM::LLVMDialect,
-      buddy::sche::ScheDialect>();
+      buddy::sche::ScheDialect,
+      scf::SCFDialect>();
   // clang-format on
   target.addLegalOp<ModuleOp, func::ReturnOp>();
 
@@ -295,10 +387,13 @@ void DeviceSchedulePass::runOnOperation() {
 
   auto moduleOp = getOperation();
 
-  target.addDynamicallyLegalOp<func::FuncOp>([](Operation *op) {
-    return op->hasAttr("sche.dispatched");
+  // target.addDynamicallyLegalOp<func::FuncOp>([](Operation *op) {
+  //   return op->hasAttr("sche.dispatched");
+  // });
+  target.addDynamicallyLegalOp<scf::ForOp>([&](Operation *op) {
+    // op->setAttr("sche.dispatched", UnitAttr::get(context));;
+    return !op->hasAttr("sche.devices");
   });
-  // matchAndRewrite(getOperation(), builder);
 
   if (failed(applyPartialConversion(moduleOp, target, std::move(patterns))))
     signalPassFailure();
