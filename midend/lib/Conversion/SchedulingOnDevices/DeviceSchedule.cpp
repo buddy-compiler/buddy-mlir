@@ -246,9 +246,8 @@ public:
     auto loc = forOp.getLoc();
     auto ctx = rewriter.getContext();
     auto op = forOp.getOperation();
-
-    auto devices = op->getAttr("sche.devices").dyn_cast_or_null<ArrayAttr>();
-    assert(devices != nullptr);
+    assert(op->getAttr("sche.devices").isa<ArrayAttr>());
+    auto devices = op->getAttr("sche.devices").dyn_cast_or_null<ArrayAttr>().getValue();
     Value upperBound = forOp.getUpperBound();
     Value lowerBound = forOp.getLowerBound();
     Value step = forOp.getStep();
@@ -258,22 +257,30 @@ public:
     Value stepRange = rewriter.create<arith::DivSIOp>(loc, range.getResult(), step);
     stepRange = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI32Type(), stepRange);
     stepRange = rewriter.create<arith::SIToFPOp>(loc, rewriter.getF32Type(), stepRange);
-    Value half = rewriter.create<arith::ConstantOp>(loc, rewriter.getF32FloatAttr(0.5)); //用于四舍五入
     auto start = lowerBound;
-    for(auto device_info : devices.getValue()){
+    auto end = lowerBound;
+
+    //构建不同硬件上的for循环,要求最后一个device负载最多
+    for(auto i = 0; i < devices.size(); i++){
+      auto device_info = devices[i];
       auto dict_attr = device_info.dyn_cast_or_null<DictionaryAttr>();
       assert(dict_attr != nullptr);
       auto targetId = dict_attr.get("targetId");
       auto targetConfig = dict_attr.get("targetConfig");
       assert(targetId.isa<StringAttr>() && targetConfig.isa<StringAttr>() && dict_attr.get("duty_ratio").isa<FloatAttr>());
-      
-      auto duty_ratio = rewriter.create<arith::ConstantOp>(loc, rewriter.getF32Type(), dict_attr.get("duty_ratio").dyn_cast<FloatAttr>());
-      Value duty_value = rewriter.create<arith::MulFOp>(loc, stepRange, duty_ratio.getResult());
-      duty_value = rewriter.create<arith::AddFOp>(loc, half, duty_value);
-      duty_value = rewriter.create<arith::FPToSIOp>(loc, rewriter.getI32Type(), duty_value);
-      duty_value = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), duty_value);
-      duty_value = rewriter.create<arith::MulIOp>(loc, duty_value, step);
-      Value end = rewriter.create<arith::AddIOp>(loc, start, duty_value);
+  
+      //最后一个for循环的upperBound是原upperBound，前面的for循环向零取整
+      if(i == devices.size() - 1){
+        end = upperBound;
+      }
+      else{     
+        auto duty_ratio = rewriter.create<arith::ConstantOp>(loc, rewriter.getF32Type(), dict_attr.get("duty_ratio").dyn_cast<FloatAttr>());
+        Value duty_value = rewriter.create<arith::MulFOp>(loc, stepRange, duty_ratio.getResult());
+        duty_value = rewriter.create<arith::FPToSIOp>(loc, rewriter.getI32Type(), duty_value);
+        duty_value = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), duty_value);
+        duty_value = rewriter.create<arith::MulIOp>(loc, duty_value, step);
+        end = rewriter.create<arith::AddIOp>(loc, start, duty_value);
+      }
 
       if(targetId.dyn_cast<StringAttr>().getValue() == "cpu"){
         auto sub_forOp = rewriter.create<scf::ForOp>(loc, start, end, step, forOp.getInitArgs(), [&](OpBuilder& builder, Location loc, Value iv, ValueRange iterArgs){
