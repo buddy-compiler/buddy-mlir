@@ -1,6 +1,8 @@
 
 global _global_dict
-_global_dict = {"param-to-mlir":False, "params-write-path":"/home/wlq/buddy-mlir/examples/MLIRLlama"}
+_global_dict = {"param-to-mlir":False, 
+                "params-write-path":"/buddy-mlir-for-transformer/examples/MLIRLlama",
+                "params-pack":True}
 
 def global_var_set_value(key, value):
     _global_dict[key] = value

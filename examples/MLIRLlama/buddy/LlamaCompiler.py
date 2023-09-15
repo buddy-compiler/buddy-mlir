@@ -2,17 +2,19 @@
 """
 import operator
 from typing import List, Union, Callable
-from torch import _inductor
 import torch
 from torch._functorch.aot_autograd import aot_module_simplified
 import mlir.ir as ir
 import mlir.dialects.func as func
 from mlir.passmanager import PassManager
-from .OperatorsGen import operation_func, ParamToConstantOp
+from .OperatorsGen import operation_func, ParamToConstantOp, ParamExtract
 import torch.utils._pytree as pytree
 import os
-from torch._subclasses import FakeTensorMode
 from .global_var import *
+import numpy
+import shutil
+import copy
+import functools
 
 def DynamoCompiler(gm: torch.fx.GraphModule,
                    inputs: List[torch.Tensor]) -> Callable:
@@ -32,29 +34,42 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
   """
   def _compiler(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
     """Compile a FX graph in Aten/Prims IR to MLIR."""
+    # for node in gm.graph.nodes:
+    #     print(node.__dict__)
     ctx = ir.Context()
     with ir.Location.unknown(ctx):
       fx_importer = FXGraphImporter(gm, inputs)
       module = fx_importer.import_graph(ctx)
       module = Lowering(module)
     return gm.forward
-  # params = {
-  #     **dict(gm.named_parameters(remove_duplicate=False)),
-  #     **dict(gm.named_buffers(remove_duplicate=False)),
-  # }
-  # params_flat, params_spec = pytree.tree_flatten(params)
-  # params_flat = list(params_flat)
-  # with open(global_var_get_value('params-write-path')+"params_shape.txt", 'w') as file:
-  #   for i, param in enumerate(params_flat):
-  #     file.write("arg{} ".format(i))
-  #     param_size = []
-  #     for i in param.shape:
-  #       param_size.append(str(i))
-  #     file.write(",".join(param_size)+"\n")
-  #     if not os.path.exists(global_var_get_value('params-write-path')+"params_data"):
-  #       os.mkdir("params_data")
-  #     param_data = param.detach().numpy().reshape([-1])
-  #     param_data.tofile(global_var_get_value('params-write-path')+"params_data/arg{}.data".format(i))
+  
+  def param_write_to_file(model_params):
+    shutil.rmtree(global_var_get_value('params-write-path')+"/params_data")
+    os.mkdir(global_var_get_value('params-write-path')+"/params_data")
+    if global_var_get_value("params-pack"):
+      all_param = numpy.array([])
+      all_param = numpy.concatenate([param.detach().numpy().reshape([-1]) for param in model_params])
+      print(all_param.shape)
+      all_param.tofile(global_var_get_value('params-write-path')+"/params_data/arg0.data")
+    else:
+      for i, param in enumerate(model_params):
+        param = param.detach().numpy().reshape([-1])
+        param.tofile(global_var_get_value('params-write-path')+"/params_data/arg{}.data".format(i))
+  
+  params = {
+      **dict(gm.named_parameters(remove_duplicate=False)),
+      **dict(gm.named_buffers(remove_duplicate=False)),
+  }
+  params_flat, params_spec = pytree.tree_flatten(params)
+  params_flat = list(params_flat)
+  with open(global_var_get_value('params-write-path')+"/params_shape.txt", 'w') as file:
+    for i, param in enumerate(params_flat):
+      file.write("arg{} ".format(i))
+      param_size = []
+      for j in param.shape:
+        param_size.append(str(j))
+      file.write(",".join(param_size)+"\n")
+  #param_write_to_file(params_flat)
   return aot_module_simplified(gm, inputs, fw_compiler=_compiler)
 
 class FXGraphImporter:
@@ -76,6 +91,7 @@ class FXGraphImporter:
     self._symbol_table = {}
     self._gm = gm
     self._func_name = func_name
+    self._offset = 0
 
     # decide wether or not write params to mlir func
     if global_var_get_value('param-to-mlir'):
@@ -86,6 +102,7 @@ class FXGraphImporter:
     else:
       self._inputs = inputs
       self._params = []
+    
     self._num_input_visited = 0
     self._module = ir.Module.create()
   def import_graph(self,
@@ -98,6 +115,21 @@ class FXGraphImporter:
     """
     with ir.InsertionPoint(self._module.body):
       arguments = []
+      if global_var_get_value("params-pack"):
+        tensor_size = 0
+        for i, param in enumerate(self._inputs[:-1]):
+          tensor_size += functools.reduce(lambda x, y : x*y, list(param.shape))
+        print(tensor_size)
+        self._tensor_size = tensor_size
+        if str(self._inputs[0].dtype) == "torch.bool":
+          dtype = ir.IntegerType.get_signless(1)
+        elif str(self._inputs[0].dtype) == "torch.float32":
+          dtype = ir.F32Type.get()
+        elif str(self._inputs[0].dtype) == "torch.int64":
+          dtype = ir.IntegerType.get_signless(64)
+        tensor_arg = ir.RankedTensorType.get([tensor_size], dtype)
+        arguments.append(tensor_arg)
+        self._inputs = [self._inputs[-1]]
       for arg in self._inputs:
         shape_list = list(arg.shape)
         if str(arg.dtype) == "torch.bool":
@@ -124,7 +156,7 @@ class FXGraphImporter:
             returns = [returns[0]]
             self._symbol_table[("output", 0)] = returns
           elif node.op == "placeholder":
-            self._import_placeholder(node, args_list)
+            self._import_placeholder(node, args_list, ctx)
           else:
             if node.target is operator.getitem:
               self._symbol_table[(str(node.name),
@@ -138,12 +170,20 @@ class FXGraphImporter:
     print(self._module)
     return self._module
 
-  def _import_placeholder(self, node: torch.fx.Node, args_list):
+  def _import_placeholder(self, node: torch.fx.Node, args_list, ctx):
     if self._num_input_visited < len(self._params):
       self._symbol_table[(str(node.name), 0)] = ParamToConstantOp(node, self._num_input_visited).result
     else:
-      placeholder_name = args_list[self._num_input_visited-len(self._params)]
-      self._symbol_table[(str(node.name), 0)] = placeholder_name
+      if global_var_get_value("params-pack") and self._offset < self._tensor_size:
+        params_node = args_list[0]
+        self._symbol_table[(str(node.name), 0)] = ParamExtract(node, self._offset, params_node, ctx).result
+        self._offset += functools.reduce(lambda x, y : x*y, list(node.meta['tensor_meta'].shape))
+      elif global_var_get_value("params-pack"):
+        placeholder_name = args_list[1]
+        self._symbol_table[(str(node.name), 0)] = placeholder_name
+      else:
+        placeholder_name = args_list[self._num_input_visited-len(self._params)]
+        self._symbol_table[(str(node.name), 0)] = placeholder_name
     self._num_input_visited += 1
 
   def _import_op(self, node: torch.fx.Node,
@@ -158,7 +198,9 @@ class FXGraphImporter:
       for i, operation in op_ret:
         self._symbol_table[(str(node.name), i)] = operation.result
     else:
-      self._symbol_table[(str(node.name), 0)] = op_ret.result
+      if str(node.target.__name__) != "bmm.default":
+        op_ret = op_ret.result
+      self._symbol_table[(str(node.name), 0)] = op_ret
 
 
 def Lowering(module: ir.Module):

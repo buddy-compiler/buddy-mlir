@@ -9,6 +9,7 @@ from mlir.dialects import tosa, linalg, arith, tensor, math
 import copy
 import numpy
 from .global_var import *
+import functools
 
 
 def _broadcast_shape(tensor_input1: ir.Value,
@@ -381,9 +382,9 @@ def ToCopyOp(node: torch.fx.Node,
                             ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))])), ir.AffineMapAttr.get(generic_map.get_submap([i for i in range(len(output_shape))]))]),
                             ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*len(output_shape)))
       block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(output.result.type).element_type])
-      bitcast_op = arith.BitcastOp(ir.IntegerType.get_signless(32), block.arguments[0])
-      trunc_op = arith.TruncIOp(ir.IntegerType.get_signless(1), bitcast_op.result)
-      block.append(bitcast_op)
+      fptosi_op = arith.FPToSIOp(ir.IntegerType.get_signless(32), block.arguments[0])
+      trunc_op = arith.TruncIOp(ir.IntegerType.get_signless(1), fptosi_op.result)
+      block.append(fptosi_op)
       block.append(trunc_op)
       block.append(linalg.YieldOp([trunc_op.result]))
   elif dtype == "torch.float32":
@@ -396,10 +397,10 @@ def ToCopyOp(node: torch.fx.Node,
                             ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*len(output_shape)))
       block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(output.result.type).element_type])
       exti_op = arith.ExtUIOp(ir.IntegerType.get_signless(32), block.arguments[0])
-      bitcast_op = arith.BitcastOp(ir.F32Type.get(), exti_op.result)
+      sitofp_op = arith.SIToFPOp(ir.F32Type.get(), exti_op.result)
       block.append(exti_op)
-      block.append(bitcast_op)
-      block.append(linalg.YieldOp([bitcast_op.result]))
+      block.append(sitofp_op)
+      block.append(linalg.YieldOp([sitofp_op.result]))
   
   return op
 
@@ -826,7 +827,7 @@ def SqueezeOp(node: torch.fx.Node,
 
 def BMMOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) -> ir.Operation:
+            ctx: ir.Context):
   assert len(node.args) == 2
   input1 = symbol_table.get((str(node.args[0]), 0))
   input2 = symbol_table.get((str(node.args[1]), 0))
@@ -838,24 +839,27 @@ def BMMOp(node: torch.fx.Node,
   if dtype == "torch.float32":
     tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
     output = tensor.EmptyOp(output_shape, ir.F32Type.get())
-    generic_map = ir.AffineMap.get_permutation([0, 1, 2])
-    zero_fill = linalg.GenericOp([tensor_type], [], [output],
-                                      ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 2]))]),
-                                      ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*3))
-    block = ir.Block.create_at_start(zero_fill.region, [ir.RankedTensorType(output.result.type).element_type])
-    zero_op = arith.ConstantOp(ir.F32Type.get(), ir.FloatAttr.get(ir.F32Type.get(), 0))
-    block.append(zero_op)
-    block.append(linalg.YieldOp([zero_op.result]))
-    generic_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
-    op = linalg.GenericOp([tensor_type], [input1, input2], [zero_fill],
-                          ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 3])), ir.AffineMapAttr.get(generic_map.get_submap([0, 3, 2])), ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 2]))]),
-                          ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*3+[ir.Attribute.parse('#linalg.iterator_type<reduction>')]))
-    block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(input2.type).element_type, ir.RankedTensorType(output.result.type).element_type])
-    mul_op = arith.MulFOp(block.arguments[0], block.arguments[1])
-    add_op = arith.AddFOp(mul_op.result, block.arguments[2])
-    block.append(mul_op)
-    block.append(add_op)
-    block.append(linalg.YieldOp([add_op.result]))
+    # use linalg.generic implementation
+    # generic_map = ir.AffineMap.get_permutation([0, 1, 2])
+    # zero_fill = linalg.GenericOp([tensor_type], [], [output],
+    #                                   ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 2]))]),
+    #                                   ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*3))
+    # block = ir.Block.create_at_start(zero_fill.region, [ir.RankedTensorType(output.result.type).element_type])
+    # zero_op = arith.ConstantOp(ir.F32Type.get(), ir.FloatAttr.get(ir.F32Type.get(), 0))
+    # block.append(zero_op)
+    # block.append(linalg.YieldOp([zero_op.result]))
+    # generic_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
+    # op = linalg.GenericOp([tensor_type], [input1, input2], [zero_fill],
+    #                       ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 3])), ir.AffineMapAttr.get(generic_map.get_submap([0, 3, 2])), ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 2]))]),
+    #                       ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*3+[ir.Attribute.parse('#linalg.iterator_type<reduction>')]))
+    # block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(input2.type).element_type, ir.RankedTensorType(output.result.type).element_type])
+    # mul_op = arith.MulFOp(block.arguments[0], block.arguments[1])
+    # add_op = arith.AddFOp(mul_op.result, block.arguments[2])
+    # block.append(mul_op)
+    # block.append(add_op)
+    # block.append(linalg.YieldOp([add_op.result]))
+    # linalg.BatchMatmulOp()
+    op = linalg.batch_matmul(input1, input2, outs=[output])
 
   return op
 
@@ -1127,7 +1131,28 @@ def ParamToConstantOp(node: torch.fx.Node,
   op = arith.ConstantOp(tensor_type, attr)
   return op
 
-
+def ParamExtract(node: torch.fx.Node,
+                offset,
+                params_mlir_node,
+                ctx: ir.Context) -> ir.Operation:
+  dtype = str(node.meta['tensor_meta'].dtype)
+  output_shape = list(node.meta['tensor_meta'].shape)
+  extract_size = functools.reduce(lambda x, y : x*y, output_shape)
+  if dtype == "torch.float32":
+    offset_attr = ir._denseI64ArrayAttr([offset], ctx)
+    size_attr = ir._denseI64ArrayAttr([extract_size], ctx)
+    stride = [1]
+    stride_attr = ir._denseI64ArrayAttr(stride, ctx)
+    tensor_type = ir.RankedTensorType.get([extract_size], ir.F32Type.get())
+    extract_slice_op = tensor.ExtractSliceOp(tensor_type, params_mlir_node, [], [], [], offset_attr, size_attr, stride_attr)
+    if len(output_shape) == 1:
+      return extract_slice_op
+    tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
+    axis = ir.ArrayAttr.get([ir.IntegerAttr.get(ir.IntegerType.get_signless(64), i) for i in range(len(output_shape))], ctx)
+    axis = ir.ArrayAttr.get([axis], ctx)
+    expand_shape_op = tensor.ExpandShapeOp(tensor_type, extract_slice_op.result, axis)
+  
+  return expand_shape_op
 
 operation_func = {"arange.start": ArangeOp, "arange.default": ArangeOp, "unsqueeze.default": UnsqueezeOp, "view.default": ViewOp,
                   "ones.default": OnesOp, "full.default": FullOp, "add.Tensor": AddOp, "lt.Tensor": LtOp, "embedding.default": EmbeddingOp,

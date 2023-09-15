@@ -18,17 +18,19 @@
 // This file implements the batchmatmul optimization.
 //
 //===----------------------------------------------------------------------===//
-
+#include "llvm/Support/Debug.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/ValueRange.h"
 #include "llvm/ADT/ArrayRef.h"
 #include <cstdint>
+#include <iostream>
 #include <mlir/Dialect/Affine/Analysis/AffineAnalysis.h>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
@@ -38,6 +40,8 @@
 #include <mlir/IR/TypeUtilities.h>
 #include <mlir/IR/Value.h>
 #include <mlir/Pass/Pass.h>
+
+#define DEBUG_TYPE "batchmatmuloptimize"
 
 using namespace mlir;
 using namespace vector;
@@ -61,14 +65,12 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
-
     // Get input A, B, C.
     Value A = op->getOperand(0);
     Value B = op->getOperand(1);
     Value C = op->getOperand(2);
     // Get ElementType of input and output.
     auto A_elementType = A.getType().cast<MemRefType>().getElementType();
-
     // Some constants.
     const Value c0 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
@@ -113,7 +115,6 @@ public:
                                       1, 0, {d0}, rewriter.getContext()))),
             rewriter.getNamedAttr("reductions", rewriter.getArrayAttr({})),
             rewriter.getNamedAttr("steps", rewriter.getI64ArrayAttr(1))});
-
     auto body = new Block();
     rewriter.setInsertionPointToStart(body);
     body->addArgument(rewriter.getIndexType(), loc);

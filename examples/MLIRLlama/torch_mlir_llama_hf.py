@@ -4,8 +4,8 @@ from transformers import LlamaModel, LlamaConfig
 import torch._dynamo as dynamo
 from buddy.LlamaCompiler import DynamoCompiler
 
-tokenizer = LlamaTokenizer.from_pretrained('/home/wlq/torch-mlir/examples/llama-hf/llama-2-7B-hf')
-model = LlamaForCausalLM.from_pretrained('/home/wlq/torch-mlir/examples/llama-hf/llama-2-7B-hf', torchscript=True)
+tokenizer = LlamaTokenizer.from_pretrained('/llama-2-7B-hf')
+model = LlamaForCausalLM.from_pretrained('/llama-2-7B-hf', torchscript=True)
 prompt = "Hey, are you conscious? Can you talk to me?"
 inputs = tokenizer(prompt, return_tensors="pt")
 # generate_ids = model.generate(inputs.input_ids, max_length=30)
