@@ -106,6 +106,7 @@ llama-ompopt:
 		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${MLIR_OPT} \
 		--arith-expand \
+		--eliminate-empty-tensors \
 		--empty-tensor-to-alloc-tensor \
 		--linalg-bufferize \
 		--convert-linalg-to-affine-loops \
@@ -122,17 +123,18 @@ llama-ompopt:
 		--convert-vector-to-llvm \
 		--memref-expand \
 		--arith-expand \
-		--convert-arith-to-llvm \
-		--finalize-memref-to-llvm \
-		--convert-scf-to-cf \
-		--llvm-request-c-wrappers \
-		--convert-openmp-to-llvm \
-		--convert-arith-to-llvm \
-		--convert-math-to-llvm \
-		--convert-math-to-libm \
-		--convert-func-to-llvm \
-		--reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} \
-		-mlir-to-llvmir | \
-	${LLVM_AS} | \
-	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
+		-o llama_lower.mlir
+		# --convert-arith-to-llvm \
+		# --finalize-memref-to-llvm \
+		# --convert-scf-to-cf \
+		# --llvm-request-c-wrappers \
+		# --convert-openmp-to-llvm \
+		# --convert-arith-to-llvm \
+		# --convert-math-to-llvm \
+		# --convert-math-to-libm \
+		# --convert-func-to-llvm \
+		# --reconcile-unrealized-casts | \
+	# ${MLIR_TRANSLATE} \
+	# 	-mlir-to-llvmir | \
+	# ${LLVM_AS} | \
+	# ${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
