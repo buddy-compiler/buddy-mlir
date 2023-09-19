@@ -122,7 +122,7 @@ public:
 
     rewriter.create<affine::AffinePrefetchOp>(
         loc, A, AffineMap::get(3, 0, {d0, d1, d2}, rewriter.getContext()),
-        ArrayRef<Value>{ivBatch, c0, c0}, false, 3, true);
+        ArrayRef<Value>{ivBatch, M, K}, false, 3, true);
     affine::buildAffineLoopNest(
         rewriter, loc, {c0}, {K}, 1,
         [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
@@ -174,7 +174,7 @@ public:
                                         rewriter.getContext()),
                                     ValueRange{ivBatch, ivA_row, ivB_col});
                             Value result_vec;
-                            if (A_elementType.isIntOrFloat() && 0) { // bug
+                            if (A_elementType.isa<IntegerType>()) {
                               Value add_vec = builder.create<arith::MulIOp>(
                                   loc, a_vec, b_vec);
                               result_vec = builder.create<arith::AddIOp>(
@@ -220,7 +220,7 @@ public:
                                                b_col_idx_tail},
                                     mask_vec, c0_dynamicType_vec);
                             Value result_vec_tail;
-                            if (A_elementType.isIntOrFloat() && 0) { // bug
+                            if (A_elementType.isa<IntegerType>()) {
                               Value add_vec = builder.create<arith::MulIOp>(
                                   loc, a_vec, b_vec_tail);
                               result_vec_tail = builder.create<arith::AddIOp>(
