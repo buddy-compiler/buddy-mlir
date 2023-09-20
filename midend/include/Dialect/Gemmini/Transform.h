@@ -26,11 +26,7 @@
 #define CONFIG_EX 0
 #define ACC_SCALE_IDENTITY 1.0
 #define BANK_NUM 4
-#define BANK_ROWS 4096
-#define ACC_ROWS 1024 
 #define MAX_BYTES 64
-#define MAX_BLOCK_LEN (MAX_BYTES/(DIM*1))
-#define MAX_BLOCK_LEN_ACC (MAX_BYTES/(DIM*4))
 #define HAS_FIRST_LAYER_OPTIMIZATIONS
 
 typedef uint32_t acc_scale_t_bits;
@@ -46,10 +42,10 @@ class LLVMTypeConverter;
 class RewritePatternSet;
 using OwningRewritePatternList = RewritePatternSet;
 
-void populateGemminiLegalizeForLLVMExportPatterns(LLVMTypeConverter &converter,
-                                                  RewritePatternSet &patterns,
-                                                  int64_t dim, int64_t addrLen, 
-                                                  size_t sizeOfElemT, size_t sizeOfAccT);
+void populateGemminiLegalizeForLLVMExportPatterns(
+    LLVMTypeConverter &converter, RewritePatternSet &patterns, int64_t dim,
+    int64_t addrLen, size_t sizeOfElemT, size_t sizeOfAccT, int64_t accRows,
+    int64_t bankRows);
 void configureGemminiLegalizeForExportTarget(LLVMConversionTarget &target);
 
 } // namespace mlir

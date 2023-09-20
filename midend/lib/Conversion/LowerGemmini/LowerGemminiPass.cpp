@@ -172,6 +172,11 @@ public:
   Option<std::string> accType{*this, "acc_t",
                               llvm::cl::desc("The type of acc_t."),
                               llvm::cl::init("i32")};
+  Option<int64_t> accRows{*this, "acc_rows", llvm::cl::desc("The row of acc."),
+                          llvm::cl::init(1024)};
+  Option<int64_t> bankRows{*this, "bank_rows",
+                           llvm::cl::desc("The row of the bank."),
+                           llvm::cl::init(4096)};
 
   // Override explicitly to allow conditional dialect dependence.
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -204,8 +209,9 @@ void LowerGemminiToLLVMPass::runOnOperation() {
   RewritePatternSet patterns(context);
   LLVMConversionTarget target(*context);
   configureGemminiLegalizeForExportTarget(target);
-  populateGemminiLegalizeForLLVMExportPatterns(
-      converter, patterns, dim, addrLen, sizeOfElemT, sizeOfAccT);
+  populateGemminiLegalizeForLLVMExportPatterns(converter, patterns, dim,
+                                               addrLen, sizeOfElemT, sizeOfAccT,
+                                               accRows, bankRows);
   populateAffineToStdConversionPatterns(patterns);
   populateSCFToControlFlowConversionPatterns(patterns);
   mlir::arith::populateArithToLLVMConversionPatterns(converter, patterns);

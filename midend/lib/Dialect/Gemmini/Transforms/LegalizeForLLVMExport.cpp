@@ -130,13 +130,16 @@ struct GemminiConfigStLowering : public ConvertOpToLLVMPattern<ConfigStOp> {
 
 struct GemminiConfigLdLowering : public ConvertOpToLLVMPattern<ConfigLdOp> {
   using ConvertOpToLLVMPattern<ConfigLdOp>::ConvertOpToLLVMPattern;
+  explicit GemminiConfigLdLowering(LLVMTypeConverter &typeConverter,
+                                   int64_t dim)
+      : ConvertOpToLLVMPattern(typeConverter), dim(dim) {}
   LogicalResult
   matchAndRewrite(ConfigLdOp configLdOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value rs2Value = configLdOp.getStride();
     float scale = configLdOp.getScale().convertToFloat();
     uint64_t rs1 = (uint64_t)scale_t_to_scale_t_bits(scale) << 32 |
-                   ((uint64_t)16 << 16) | (uint64_t)1 << 8 |
+                   ((uint64_t)dim << 16) | (uint64_t)1 << 8 |
                    configLdOp.getId() << 3 | configLdOp.getShrunk() << 2 |
                    CONFIG_LD;
     Location loc = configLdOp.getLoc();
@@ -146,6 +149,9 @@ struct GemminiConfigLdLowering : public ConvertOpToLLVMPattern<ConfigLdOp> {
                                                  rs2Value);
     return success();
   }
+
+private:
+  int64_t dim;
 };
 
 struct GemminiConfigExLowering : public ConvertOpToLLVMPattern<ConfigExOp> {
@@ -504,8 +510,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
                                                      preAttr);
           } else {
             size_t biasRow = repeatingBias ? 0 : i0 * tileI * dim;
-            size_t offset =
-                (biasRow * strideD + j0 * tileJ * dim) * sizeofD * sizeOfElemT;
+            size_t offset = (biasRow * strideD + j0 * tileJ * dim) * sizeofD;
             IntegerAttr offsetAttr = rewriter.getI64IntegerAttr(offset);
             Value offsetValue = rewriter.create<arith::ConstantOp>(
                 loc, rewriter.getI64Type(), offsetAttr);
@@ -515,8 +520,8 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
 
           Value out;
           if (k0 == K0 - 1) {
-            size_t offset = (i0 * tileI * dim * strideC + j0 * tileJ * dim) *
-                            sizeofC * sizeOfElemT;
+            size_t offset =
+                (i0 * tileI * dim * strideC + j0 * tileJ * dim) * sizeofC;
             IntegerAttr offsetAttr = rewriter.getI64IntegerAttr(offset);
             Value offsetValue = rewriter.create<arith::ConstantOp>(
                 loc, rewriter.getI64Type(), offsetAttr);
@@ -594,25 +599,19 @@ public:
   using ConvertOpToLLVMPattern<TileMatMulOp>::ConvertOpToLLVMPattern;
   explicit GemminiTileMatMulLowering(LLVMTypeConverter &typeConverter,
                                      int64_t dim, size_t sizeOfElemT,
-                                     size_t sizeOfAccT)
-      : ConvertOpToLLVMPattern(typeConverter), dim(dim),
-        sizeOfElemT(sizeOfElemT), sizeOfAccT(sizeOfAccT) {}
+                                     size_t sizeOfAccT, int64_t accRows,
+                                     int64_t bankRows)
+      : ConvertOpToLLVMPattern(typeConverter), dim(dim), accRows(accRows),
+        bankRows(bankRows), sizeOfElemT(sizeOfElemT), sizeOfAccT(sizeOfAccT) {}
 
   LogicalResult
   matchAndRewrite(TileMatMulOp tileMatMulOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-#define partitionRows (BANK_NUM * BANK_ROWS / 2)
-#define matsInPartition (partition_rows / dim)
-#define matsInAcc (ACC_ROWS / dim)
-#define maxTileIJ ((size_t)sqrt(mats_in_acc))
-#define maxTileK (matsInPartition / maxTileIJ)
-
-#define dbPartitionRows ((BANK_NUM * BANK_ROWS / 2) / 2)
-#define dbMatsInPartition (dbPartitionRows / dim)
-#define dbMatsInAcc ((ACC_ROWS / 2) / dim)
-#define dbMaxTileIJ ((size_t)sqrt(dbMatsInAcc))
-#define dbMaxTileK (dbMatsInPartition / dbMaxTileIJ)
-
+    size_t dbPartitionRows = ((BANK_NUM * bankRows / 2) / 2);
+    size_t dbMatsInPartition = (dbPartitionRows / dim);
+    size_t dbMatsInAcc((accRows / 2) / dim);
+    size_t dbMaxTileIJ((size_t)sqrt(dbMatsInAcc));
+    size_t dbMaxTileK(dbMatsInPartition / dbMaxTileIJ);
     Value aArray = tileMatMulOp.getAArray();
     Value bArray = tileMatMulOp.getBArray();
     Value cArray = tileMatMulOp.getCArray();
@@ -668,7 +667,7 @@ public:
         rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, typeRange,
                                                                 dArray);
     Value dArrayindexCastOp =
-        rewriter.create<arith::IndexCastOp>(loc, i64Type, dArrayExtractOp); 
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, dArrayExtractOp);
     llvm::ArrayRef<int64_t> aArrayShape = aArrayType.getShape();
     llvm::ArrayRef<int64_t> bArrayShape = bArrayType.getShape();
     llvm::ArrayRef<int64_t> cArrayShape = cArrayType.getShape();
@@ -695,8 +694,8 @@ public:
     size_t dimIPaded = (dimI / dim + (dimI % dim != 0)) * dim;
     size_t dimJPaded = (dimJ / dim + (dimJ % dim != 0)) * dim;
     size_t dimKPaded = (dimK / dim + (dimK % dim != 0)) * dim;
-    size_t maxSpadRows = BANK_NUM * BANK_ROWS / 2;
-    size_t maxAccRows = ACC_ROWS / 2;
+    size_t maxSpadRows = BANK_NUM * bankRows / 2;
+    size_t maxAccRows = accRows / 2;
     size_t tileI, tileJ, tileK;
     if (act == LAYERNORM || act == SOFTMAX) {
       tileI = 1;
@@ -756,6 +755,8 @@ public:
 
 private:
   int64_t dim;
+  int64_t accRows;
+  int64_t bankRows;
   size_t sizeOfElemT;
   size_t sizeOfAccT;
 };
@@ -1153,10 +1154,11 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
 public:
   using ConvertOpToLLVMPattern<TileConvOp>::ConvertOpToLLVMPattern;
   explicit GemminiTileConvLowering(LLVMTypeConverter &typeConverter,
-                                   int64_t dim, size_t sizeOfElemT,
+                                   int64_t dim, int64_t accRows,
+                                   int64_t bankRows, size_t sizeOfElemT,
                                    size_t sizeOfAccT)
-      : ConvertOpToLLVMPattern(typeConverter), dim(dim),
-        sizeOfElemT(sizeOfElemT), sizeOfAccT(sizeOfAccT) {}
+      : ConvertOpToLLVMPattern(typeConverter), dim(dim), accRows(accRows),
+        bankRows(bankRows), sizeOfElemT(sizeOfElemT), sizeOfAccT(sizeOfAccT) {}
   LogicalResult
   matchAndRewrite(TileConvOp tileConvOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
@@ -1240,8 +1242,8 @@ public:
     const int ocolsIdx = 2;
     const int outChannelsIdx = 3;
     const int inChannelsIdx = 6;
-    const int maxSpadRows = (BANK_NUM * BANK_ROWS / 2);
-    const int maxAccRows = (ACC_ROWS / 2);
+    const int maxSpadRows = (BANK_NUM * bankRows / 2);
+    const int maxAccRows = (accRows / 2);
     int spadRows = tiledConvTotalSpadRows(
         false, stride, inputDilation, kernelDilation, downsample,
         transWeight0132, transInput3120, args[0], args[1], args[2], args[3],
@@ -1354,19 +1356,22 @@ public:
 
 private:
   int64_t dim;
+  int64_t accRows;
+  int64_t bankRows;
   size_t sizeOfElemT;
   size_t sizeOfAccT;
 };
 
 void mlir::populateGemminiLegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns, int64_t dim,
-    int64_t addrLen, size_t sizeOfElemT, size_t sizeOfAccT) {
+    int64_t addrLen, size_t sizeOfElemT, size_t sizeOfAccT, int64_t accRows,
+    int64_t bankRows) {
   patterns
       .add<ForwardOperands<func::CallOp>, ForwardOperands<func::CallIndirectOp>,
            ForwardOperands<func::ReturnOp>>(converter, &converter.getContext());
   patterns.add<GemminiFlushLowering>(converter);
   patterns.add<GemminiConfigStLowering>(converter);
-  patterns.add<GemminiConfigLdLowering>(converter);
+  patterns.add<GemminiConfigLdLowering>(converter, dim);
   patterns.add<GemminiMvinLowering>(converter, addrLen);
   patterns.add<GemminiMvoutLowering>(converter, addrLen);
   patterns.add<GemminiConfigExLowering>(converter);
@@ -1375,9 +1380,9 @@ void mlir::populateGemminiLegalizeForLLVMExportPatterns(
   patterns.add<GemminiComputePreloadedLowering>(converter, addrLen);
   patterns.add<GemminiComputeAccumulatedLowering>(converter, addrLen);
   patterns.add<GemminiTileMatMulLowering>(converter, dim, sizeOfElemT,
-                                          sizeOfAccT);
-  patterns.add<GemminiTileConvLowering>(converter, dim, sizeOfElemT,
-                                        sizeOfAccT);
+                                          sizeOfAccT, accRows, bankRows);
+  patterns.add<GemminiTileConvLowering>(converter, dim, accRows, bankRows,
+                                        sizeOfElemT, sizeOfAccT);
 }
 
 void mlir::configureGemminiLegalizeForExportTarget(
