@@ -172,11 +172,11 @@ class FXGraphImporter:
 
   def _import_placeholder(self, node: torch.fx.Node, args_list, ctx):
     if self._num_input_visited < len(self._params):
-      self._symbol_table[(str(node.name), 0)] = ParamToConstantOp(node, self._num_input_visited).result
+      self._symbol_table[(str(node.name), 0)] = ParamToConstantOp(node, self._num_input_visited)
     else:
       if global_var_get_value("params-pack") and self._offset < self._tensor_size:
         params_node = args_list[0]
-        self._symbol_table[(str(node.name), 0)] = ParamExtract(node, self._offset, params_node, ctx).result
+        self._symbol_table[(str(node.name), 0)] = ParamExtract(node, self._offset, params_node, ctx)
         self._offset += functools.reduce(lambda x, y : x*y, list(node.meta['tensor_meta'].shape))
       elif global_var_get_value("params-pack"):
         placeholder_name = args_list[1]
@@ -196,10 +196,8 @@ class FXGraphImporter:
     assert op_ret is not None
     if isinstance(op_ret, tuple):
       for i, operation in op_ret:
-        self._symbol_table[(str(node.name), i)] = operation.result
+        self._symbol_table[(str(node.name), i)] = operation
     else:
-      if str(node.target.__name__) != "bmm.default":
-        op_ret = op_ret.result
       self._symbol_table[(str(node.name), 0)] = op_ret
 
 

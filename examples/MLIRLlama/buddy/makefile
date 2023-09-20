@@ -102,7 +102,7 @@ llama-batchmatmulopt:
 	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
 
 llama-ompopt:
-	@${MLIR_OPT} ./llama.mlir \
+	@${MLIR_OPT} ./test_lower.mlir \
 		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${MLIR_OPT} \
 		--arith-expand \
@@ -123,18 +123,54 @@ llama-ompopt:
 		--convert-vector-to-llvm \
 		--memref-expand \
 		--arith-expand \
-		-o llama_lower.mlir
-		# --convert-arith-to-llvm \
-		# --finalize-memref-to-llvm \
-		# --convert-scf-to-cf \
-		# --llvm-request-c-wrappers \
-		# --convert-openmp-to-llvm \
-		# --convert-arith-to-llvm \
-		# --convert-math-to-llvm \
-		# --convert-math-to-libm \
-		# --convert-func-to-llvm \
-		# --reconcile-unrealized-casts | \
-	# ${MLIR_TRANSLATE} \
-	# 	-mlir-to-llvmir | \
-	# ${LLVM_AS} | \
-	# ${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
+		--convert-arith-to-llvm \
+		--finalize-memref-to-llvm \
+		--convert-scf-to-cf \
+		--llvm-request-c-wrappers \
+		--convert-openmp-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-math-to-libm \
+		--convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} \
+		-mlir-to-llvmir | \
+	${LLVM_AS} | \
+	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
+
+llama-dealloctest:
+	@${MLIR_OPT} ./test_no_dealloc.mlir \
+		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${MLIR_OPT} \
+		--arith-expand \
+		--eliminate-empty-tensors \
+		--empty-tensor-to-alloc-tensor \
+		--linalg-bufferize \
+		--convert-linalg-to-affine-loops \
+		--affine-loop-fusion \
+		--affine-parallelize \
+		--lower-affine \
+		--convert-scf-to-openmp \
+		--func-bufferize \
+		--arith-bufferize \
+		--tensor-bufferize \
+		--finalizing-bufferize \
+		--convert-vector-to-scf \
+		--expand-strided-metadata \
+		--convert-vector-to-llvm \
+		--memref-expand \
+		--arith-expand \
+		--convert-arith-to-llvm \
+		--finalize-memref-to-llvm \
+		--convert-scf-to-cf \
+		--llvm-request-c-wrappers \
+		--convert-openmp-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-math-to-libm \
+		--convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} \
+		-mlir-to-llvmir | \
+	${LLVM_AS} | \
+	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama_no_dealloc.o
