@@ -41,7 +41,6 @@ int main() {
     std::string pureStr = "buddy compiler is a domain specific compiler";
     Text<long long, 2> pureStrContainer(pureStr);
     pureStrContainer.tokenize(vocabDir, 12);
-    pureStrContainer.revert();
     // CHECK: 101
     fprintf(stderr, "%lld\n", pureStrContainer.getData()[0]);
     // CHECK: 8937

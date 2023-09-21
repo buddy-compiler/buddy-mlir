@@ -50,8 +50,20 @@ public:
   // Special tokens (e.g., [CLS] and [SEP]) are added at the beginning and end
   // of the tokenized sequence.
   void tokenize(const std::string &vocab, long long length, bool lower = true,bool affix = false);
+  // LLAMA Tokenizer
+  // This function initializes the necessary memory references and sets up the
+  // structure for storing tokenized data. 
+  // Different from the base tokenizer,this function implements the tokenize 
+  // by scoring the substring and select the best matching token.
+  // And we read the string at once,replace all whitespace with a special 
+  // mark — thick underline.
+  void tokenizeLlama(const std::string &vocab, long long length);
+  
   // Revert the ids into tokens.
-  std::string revert();
+  // This function initializes the convert from Text memref to the string
+  // which we have processed.
+  // We find the tokens using ids and replace thick underline with whitespaces.
+  std::string revert(Text<long long, 2> input);
 
 private:
   // Check if a character is a whitespace character.
@@ -79,6 +91,25 @@ private:
       else
           return false;
   }
+  // Replace all " " with "▁"
+  std::string replaceAllSpace(const std::string &str) {
+    std::string tar;
+    int index = 0;
+    int rIndex = 0;
+    std::string replace = "▁";
+    while(str[index]){ 
+        if(str[index] != ' '){ 
+            tar.append(str,index,1);
+            rIndex++;
+        }
+        if(str[index] == ' ' && str[index-1] != ' '){ 
+            tar.append(replace);
+            rIndex+=3;
+        }
+            index++;
+        }
+        return tar;
+  } 
   // Process a token and store its corresponding value in the container.
   // This function takes a token as input and find its corresponding value in
   // the token-to-id map.
@@ -102,7 +133,7 @@ private:
   // [SEP] NLP Separator Marker
   int sep = 102;
   // The maximum input characters we can accept in one word
-  long unsigned int maxInputChars = 200;
+  int maxInputChars = 200;
   // The string member of the text container.
   std::string str;
   // Token-ID map holds the given vocabulary.
@@ -118,9 +149,64 @@ private:
 template <typename T, size_t N>
 Text<T, N>::Text(const std::string &str) : MemRef<T, N>(), str(str) {}
 
+template <typename T, size_t N>
+void Text<T, N>::tokenizeLlama(const std::string &vocab, long long length) {
+    // Initialize MemRef container members.
+    this->offset = 0;
+    this->sizes[0] = 1;
+    this->sizes[1] = length;
+    this->setStrides();
+    this->size = this->product(this->sizes);
+    this->allocated = new T[this->size];
+    this->aligned = this->allocated;
+    // Load Vocab
+    loadVocab(vocab);
+    str = replaceAllSpace(str);
+    std::vector<long long> res;
+    std::vector<float> score;
+    std::vector<long long> prev;
+    int len = str.length();
+    score.resize(len + 1);
+    prev.resize(len + 1);
+    // Forward pass
+    // We set the square of string's length as our score,using dynamic 
+    // programming as the main algorithm to adapt the longest charactors. 
+    for (int i = 0; i < len; i++) {
+        for (int sub_len = 1; sub_len <= len - i; sub_len++) {
+            auto sub = str.substr(i, sub_len);
+            auto token = tokenToIdMap.find(sub);
+            if (token != tokenToIdMap.end()) {
+                int token_score = sub.length() * sub.length();
+                int local_score = score[i] + token_score;
+                int next = i + sub_len;
+                if (score[next] < local_score) {
+                    score[next] = local_score;
+                    prev[next] = (*token).second;
+                }
+            }
+        }
+    }
+    // Backward pass
+    int i = len;
+    int tokenCnt = 0;
+    while (i > 0) {
+        long long token_id = prev[i];
+        res.push_back(token_id);
+        auto token = idToTokenVec[token_id];
+        i -= token.length();
+    }
+    // Reverse the data for correct
+    std::reverse(res.begin(), res.end());
+    for(i = 0;i < res.size();i++)
+        this->aligned[i] = res[i];
+    // Parse the last token if exists.
+    for(;i < length;i++)
+        this->aligned[i] = 0;
+}
+
 // Tokenizer
 template <typename T, size_t N>
-void Text<T, N>::tokenize(const std::string &vocab, long long length, bool lower,bool affix) {
+void Text<T, N>::tokenize(const std::string &vocab, long long length, bool lower, bool affix) {
   // Initialize MemRef container members.
   this->offset = 0;
   this->sizes[0] = 1;
@@ -177,36 +263,21 @@ void Text<T, N>::tokenize(const std::string &vocab, long long length, bool lower
 }
 
 // todo:change this function for decoding id
-// A question is that if model generate a sentence whose first word is a affix,what should we do.
 template <typename T, size_t N>
-std::string Text<T, N>::revert(){
+std::string Text<T, N>::revert(Text<long long, 2> input){
     std::string dst;
-    bool preEnd = false;
-    for(long unsigned int i = 0; i < this->size; i++){
-        int id = this->getData()[i];
-        int pos = 0;
-        if(id == unk || id == cls)
+    for(auto i = 0; i < this->size; i++){
+        int id = input.getData()[i];
+        if(id == 0)
             continue;
-        if(id == sep)
-            break;
         std::string token = this->idToTokenVec[id];
-        if(token[0] == '#' && token[1] == '#'){
-            pos = 2;
-        }
-        else if(isPunctuation(token[0])){
-            preEnd = false;
-        }
-        else{
-            preEnd = true;
-        }
-        if(preEnd == true){
+        if(token.find("▁")!= std::string::npos) {
             dst.append(" ");
-            preEnd = false;
+            dst.append(token,3);
         }
-        dst.append(token,pos);
+        else
+            dst.append(token);
     }
-    if(dst[0] == ' ')
-        dst.erase(dst.begin());
     return dst;
 }
 
@@ -233,9 +304,9 @@ void Text<T, N>::processToken(const std::string &token, long long &tokenCnt, boo
             tokenCnt++;
             return;
         }
-        long unsigned int start = 0;
+        int start = 0;
         while (start < token.size()) {
-            long unsigned int end = token.size();
+            int end = token.size();
             std::string cur_substr = "";
             while (start < end) {
                 std::string substr;
