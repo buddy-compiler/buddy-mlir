@@ -56,6 +56,7 @@ void registerLowerDAPPass();
 void registerLowerRVVPass();
 void registerBatchMatMulOptimizePass();
 void registerMatMulOptimizePass();
+void registerBatchMatMulOptimizePass();
 void registerConvOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
@@ -83,6 +84,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerMatMulOptimizePass();
   mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerConvOptimizePass();
+  mlir::buddy::registerBatchMatMulOptimizePass();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
