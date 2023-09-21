@@ -92,6 +92,19 @@ enum ImwriteFlags {
   IMWRITE_JPEG_LUMA_QUALITY = 5,
   // Separate chroma quality level, 0 - 100, default is 0 - don't  use.
   IMWRITE_JPEG_CHROMA_QUALITY = 6,
+  // Use this value for normal data.
+  IMWRITE_PNG_STRATEGY_DEFAULT = 0,
+  // Use this value for data produced by a filter (or predictor).Filtered data
+  // consists mostly of small values with a somewhat random //distribution. In
+  // this case, the compression algorithm is tuned to compress them better.
+  IMWRITE_PNG_STRATEGY_FILTERED = 1,
+  // Use this value to force Huffman encoding only (no string match).
+  IMWRITE_PNG_STRATEGY_HUFFMAN_ONLY = 2,
+  // Use this value to limit match distances to one (run-length encoding).
+  IMWRITE_PNG_STRATEGY_RLE = 3,
+  // Using this value prevents the use of dynamic Huffman codes, allowing for a
+  // simpler decoder for special applications.
+  IMWRITE_PNG_STRATEGY_FIXED = 4,
 };
 
 class _Size {

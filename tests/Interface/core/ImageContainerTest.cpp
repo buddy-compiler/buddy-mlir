@@ -34,7 +34,7 @@ int main() {
   // The test running directory is in <build dir>/tests/Interface/core, so the
   // `imread` function uses the following relative path.
   Img<float, 2> grayimage = dip::imread<float, 2>(
-      "../../../../tests/Interface/core/TestGrayImage.bmp",
+      "../../../../tests/Interface/core/TestGrayImage.png",
       dip::IMGRD_GRAYSCALE);
   //===--------------------------------------------------------------------===//
   // Test image constructor for OpenCV.
