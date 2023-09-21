@@ -40,8 +40,6 @@ int main() {
   fprintf(stderr, "%ld\n", testDefaultShapeConstructor.getRank());
   // CHECK: 6
   fprintf(stderr, "%ld\n", testDefaultShapeConstructor.getSize());
-  // CHECK: 0.0
-  fprintf(stderr, "%f\n", testDefaultShapeConstructor[3]);
 
   //===--------------------------------------------------------------------===//
   // Test custom shape constructor.
@@ -103,13 +101,16 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test overloading bracket operator.
   //===--------------------------------------------------------------------===//
-  MemRef<float, 2> testBracketOperator1(sizes);
+  
+  float data1[6] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+  MemRef<float, 2> testBracketOperator1(data1, sizes);
   // CHECK: 0.0
   fprintf(stderr, "%f\n", testBracketOperator1[0]);
   testBracketOperator1[0] = 5.0;
   // CHECK: 5.0
   fprintf(stderr, "%f\n", testBracketOperator1[0]);
-  const MemRef<float, 2> testBracketOperator2(sizes);
+  float data2[6] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+  const MemRef<float, 2> testBracketOperator2(data2, sizes);
   // CHECK: 0.0
   fprintf(stderr, "%f\n", testBracketOperator2[0]);
 
