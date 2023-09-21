@@ -133,7 +133,7 @@ private:
   // [SEP] NLP Separator Marker
   int sep = 102;
   // The maximum input characters we can accept in one word
-  int maxInputChars = 200;
+  long unsigned int maxInputChars = 200;
   // The string member of the text container.
   std::string str;
   // Token-ID map holds the given vocabulary.
@@ -187,8 +187,7 @@ void Text<T, N>::tokenizeLlama(const std::string &vocab, long long length) {
         }
     }
     // Backward pass
-    int i = len;
-    int tokenCnt = 0;
+    long unsigned int i = len;
     while (i > 0) {
         long long token_id = prev[i];
         res.push_back(token_id);
@@ -266,7 +265,7 @@ void Text<T, N>::tokenize(const std::string &vocab, long long length, bool lower
 template <typename T, size_t N>
 std::string Text<T, N>::revert(Text<long long, 2> input){
     std::string dst;
-    for(auto i = 0; i < this->size; i++){
+    for(long unsigned int i = 0; i < this->size; i++){
         int id = input.getData()[i];
         if(id == 0)
             continue;
@@ -304,9 +303,9 @@ void Text<T, N>::processToken(const std::string &token, long long &tokenCnt, boo
             tokenCnt++;
             return;
         }
-        int start = 0;
+        long unsigned int start = 0;
         while (start < token.size()) {
-            int end = token.size();
+            long unsigned int end = token.size();
             std::string cur_substr = "";
             while (start < end) {
                 std::string substr;
