@@ -25,6 +25,11 @@ using namespace mlir;
 
 namespace buddy {
 
+// Inserts a constant op with value 0 into a location `loc` based on type
+// `type`. Supported types are : f32, f64, integer types.
+Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
+                           Type elemTy);
+
 // Function to test whether a value is equivalent to zero or not.
 Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
                Value zeroElem);
