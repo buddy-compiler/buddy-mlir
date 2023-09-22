@@ -27,6 +27,8 @@
 #include <mlir/IR/Value.h>
 #include <mlir/Pass/Pass.h>
 
+#include "Utils/Utils.h"
+
 using namespace mlir;
 using namespace vector;
 
@@ -53,19 +55,16 @@ public:
     Value B = op->getOperand(1);
     Value C = op->getOperand(2);
     // Get shape of input and output
-    // ShapedType ATy = A.getType().cast<ShapedType>();
-    // Type eleTy = ATy.getElementType();
+    ShapedType ATy = A.getType().cast<ShapedType>();
+    Type eleTy = ATy.getElementType();
     // ShapedType BTy = B.getType().cast<ShapedType>();
     // ShapedType CTy = C.getType().cast<ShapedType>();
 
     auto ctx = op->getContext();
-    // Currently use f32 as the element type.
-    // TODO: replace f32 with input type.
-    FloatType f32 = mlir::FloatType::getF32(ctx);
     // Get i1 as the element type for mask vector.
     IntegerType i1 = IntegerType::get(ctx, 1);
     // Define `*Type`.
-    VectorType vectorTy = mlir::VectorType::get({vecSize}, f32);
+    VectorType vectorTy = mlir::VectorType::get({vecSize}, eleTy);
     VectorType vectorMaskTy = VectorType::get({vecSize}, i1);
     // Some constants.
     const Value c0 =
@@ -73,10 +72,9 @@ public:
     const Value c1 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
     const Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
-    const Value c0F32 = rewriter.create<arith::ConstantFloatOp>(
-        loc, APFloat::getZero(f32.getFloatSemantics()), f32);
     // Create pass through vector.
-    Value c0F32Vec = rewriter.create<SplatOp>(loc, vectorTy, c0F32);
+    const Value c0Ele = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
+    Value passthruVec = rewriter.create<SplatOp>(loc, vectorTy, c0Ele);
 
     // Create DimOp.
     const Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);
@@ -127,6 +125,8 @@ public:
           Value cVec = builder.create<affine::AffineVectorLoadOp>(
               loc, vectorTy, C, CVectorMap, ValueRange{ivs[0], ivs[1], iv});
           // FMA = Fused Multiply + Add
+          // FMAOp only supports floating point type input.
+          // TODO: Write a utils function for FMA to support both int and float.
           Value resultVector = builder.create<FMAOp>(loc, aVec, bVec, cVec);
           builder.create<affine::AffineVectorStoreOp>(
               loc, resultVector, C, CVectorMap, ValueRange{ivs[0], ivs[1], iv});
@@ -141,10 +141,10 @@ public:
           // Masked load input and output.
           Value bVecTail = builder.create<MaskedLoadOp>(
               loc, vectorTy, B, ValueRange{ivs[0], bColIdxTail},
-              maskVec, c0F32Vec);
+              maskVec, passthruVec);
           Value cVecTail = builder.create<MaskedLoadOp>(
               loc, vectorTy, C, ValueRange{ivs[1], bColIdxTail},
-              maskVec, c0F32Vec);
+              maskVec, passthruVec);
           // FMA.
           Value resultVecTail =
               builder.create<FMAOp>(loc, aVec, bVecTail, cVecTail);

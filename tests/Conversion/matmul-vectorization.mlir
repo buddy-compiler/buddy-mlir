@@ -10,11 +10,19 @@
 
 module{
   func.func private @printMemrefF32(memref<*xf32>)
+  func.func private @printMemrefF64(memref<*xf64>)
 
-  func.func @matmul(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
+  func.func @matmul_f32(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
     linalg.matmul 
       ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
       outs(%c:memref<?x?xf32>)
+    return
+  }
+
+  func.func @matmul_f64(%a : memref<?x?xf64>, %b : memref<?x?xf64>, %c : memref<?x?xf64>) {
+    linalg.matmul 
+      ins(%a, %b: memref<?x?xf64>, memref<?x?xf64>)
+      outs(%c:memref<?x?xf64>)
     return
   }
 
@@ -24,26 +32,22 @@ module{
     %cN = arith.constant 4 : index
     %cK = arith.constant 4 : index
 
+    // -------------------------------------------------------------------------
+    // Test f32 as element type.
+    // -------------------------------------------------------------------------
+
     // Set Init Value.
-    %cf1 = arith.constant 1.0 : f32
+    %cf1_32 = arith.constant 1.0 : f32
 
-    %A = memref.alloc(%cM, %cK) : memref<?x?xf32>
-    %B = memref.alloc(%cK, %cN) : memref<?x?xf32>
-    %C = memref.alloc(%cM, %cN) : memref<?x?xf32>
+    %A_f32 = memref.alloc(%cM, %cK) : memref<?x?xf32>
+    %B_f32 = memref.alloc(%cK, %cN) : memref<?x?xf32>
+    %C_f32 = memref.alloc(%cM, %cN) : memref<?x?xf32>
 
-    linalg.fill
-    ins(%cf1 : f32)
-    outs(%A:memref<?x?xf32>)
+    linalg.fill ins(%cf1_32 : f32) outs(%A_f32 : memref<?x?xf32>)
+    linalg.fill ins(%cf1_32 : f32) outs(%B_f32 : memref<?x?xf32>)
+    linalg.fill ins(%cf1_32 : f32) outs(%C_f32 : memref<?x?xf32>)
 
-    linalg.fill
-    ins(%cf1 : f32)
-    outs(%B:memref<?x?xf32>)
-
-    linalg.fill
-    ins(%cf1 : f32)
-    outs(%C:memref<?x?xf32>)
-
-    call @matmul(%A, %B, %C) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
+    call @matmul_f32(%A_f32, %B_f32, %C_f32) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
 
     // Print output.
     // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data =
@@ -53,12 +57,45 @@ module{
     // CHECK-NEXT:  [5, 5, 5, 5],
     // CHECK-NEXT:  [5, 5, 5, 5]
     // CHECK-SAME: ]
-    %print_C = memref.cast %C : memref<?x?xf32> to memref<*xf32>
-    call @printMemrefF32(%print_C) : (memref<*xf32>) -> ()
+    %print_C_f32 = memref.cast %C_f32 : memref<?x?xf32> to memref<*xf32>
+    call @printMemrefF32(%print_C_f32) : (memref<*xf32>) -> ()
 
-    memref.dealloc %C : memref<?x?xf32>
-    memref.dealloc %B : memref<?x?xf32>
-    memref.dealloc %A : memref<?x?xf32>
+    memref.dealloc %C_f32 : memref<?x?xf32>
+    memref.dealloc %B_f32 : memref<?x?xf32>
+    memref.dealloc %A_f32 : memref<?x?xf32>
+
+    // -------------------------------------------------------------------------
+    // Test f64 as element type.
+    // -------------------------------------------------------------------------
+
+    // Set Init Value.
+    %cf1_64 = arith.constant 1.0 : f64
+
+    %A_f64 = memref.alloc(%cM, %cK) : memref<?x?xf64>
+    %B_f64 = memref.alloc(%cK, %cN) : memref<?x?xf64>
+    %C_f64 = memref.alloc(%cM, %cN) : memref<?x?xf64>
+
+    linalg.fill ins(%cf1_64 : f64) outs(%A_f64 : memref<?x?xf64>)
+    linalg.fill ins(%cf1_64 : f64) outs(%B_f64 : memref<?x?xf64>)
+    linalg.fill ins(%cf1_64 : f64) outs(%C_f64 : memref<?x?xf64>)
+
+    call @matmul_f64(%A_f64, %B_f64, %C_f64) : (memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>) -> ()
+
+    // Print output.
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data =
+    // CHECK-NEXT: [
+    // CHECK-SAME:  [5, 5, 5, 5],
+    // CHECK-NEXT:  [5, 5, 5, 5],
+    // CHECK-NEXT:  [5, 5, 5, 5],
+    // CHECK-NEXT:  [5, 5, 5, 5]
+    // CHECK-SAME: ]
+    %print_C_f64 = memref.cast %C_f64 : memref<?x?xf64> to memref<*xf64>
+    call @printMemrefF64(%print_C_f64) : (memref<*xf64>) -> ()
+
+    memref.dealloc %C_f64 : memref<?x?xf64>
+    memref.dealloc %B_f64 : memref<?x?xf64>
+    memref.dealloc %A_f64 : memref<?x?xf64>
+
     return 
   }
 }
