@@ -18,19 +18,17 @@
 // This file implements the batchmatmul optimization.
 //
 //===----------------------------------------------------------------------===//
-#include "llvm/Support/Debug.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/ValueRange.h"
 #include "llvm/ADT/ArrayRef.h"
 #include <cstdint>
-#include <iostream>
 #include <mlir/Dialect/Affine/Analysis/AffineAnalysis.h>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
@@ -40,8 +38,6 @@
 #include <mlir/IR/TypeUtilities.h>
 #include <mlir/IR/Value.h>
 #include <mlir/Pass/Pass.h>
-
-#define DEBUG_TYPE "batchmatmuloptimize"
 
 using namespace mlir;
 using namespace vector;
@@ -55,27 +51,29 @@ namespace {
 class BatchMatMulOptimizePattern : public ConversionPattern {
 public:
   explicit BatchMatMulOptimizePattern(MLIRContext *context,
-                                      int64_t stepPlaceHolderParam)
+                                      int64_t affineVectorSizeParam)
       : ConversionPattern(linalg::BatchMatmulOp::getOperationName(), 1,
                           context) {
-    stepPlaceHolder = stepPlaceHolderParam;
+    affineVectorSize = affineVectorSizeParam;
   }
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
+
     // Get input A, B, C.
     Value A = op->getOperand(0);
     Value B = op->getOperand(1);
     Value C = op->getOperand(2);
     // Get ElementType of input and output.
     auto A_elementType = A.getType().cast<MemRefType>().getElementType();
+
     // Some constants.
     const Value c0 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
     const Value step = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIndexAttr(stepPlaceHolder));
+        loc, rewriter.getIndexAttr(affineVectorSize));
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
     const AffineExpr d2 = rewriter.getAffineDimExpr(2);
@@ -84,7 +82,7 @@ public:
     const Value c0_dynamicType = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getZeroAttr(A_elementType));
     const Value c0_dynamicType_vec = rewriter.create<vector::SplatOp>(
-        loc, VectorType::get({stepPlaceHolder}, A_elementType), c0_dynamicType);
+        loc, VectorType::get({affineVectorSize}, A_elementType), c0_dynamicType);
 
     // Dims
     Value BATCH = rewriter.create<memref::DimOp>(loc, A, 0); // Batch size
@@ -115,6 +113,7 @@ public:
                                       1, 0, {d0}, rewriter.getContext()))),
             rewriter.getNamedAttr("reductions", rewriter.getArrayAttr({})),
             rewriter.getNamedAttr("steps", rewriter.getI64ArrayAttr(1))});
+
     auto body = new Block();
     rewriter.setInsertionPointToStart(body);
     body->addArgument(rewriter.getIndexType(), loc);
@@ -123,7 +122,7 @@ public:
 
     rewriter.create<affine::AffinePrefetchOp>(
         loc, A, AffineMap::get(3, 0, {d0, d1, d2}, rewriter.getContext()),
-        ArrayRef<Value>{ivBatch, c0, c0}, false, 3, true);
+        ArrayRef<Value>{ivBatch, M, K}, false, 3, true);
     affine::buildAffineLoopNest(
         rewriter, loc, {c0}, {K}, 1,
         [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
@@ -133,7 +132,7 @@ public:
               [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
                 Value ivA_row = ivRange.front();
                 Value applied_n = builder.create<affine::AffineApplyOp>(
-                    loc, AffineMap::get(1, 0, d0.ceilDiv(stepPlaceHolder)),
+                    loc, AffineMap::get(1, 0, d0.ceilDiv(affineVectorSize)),
                     ValueRange{N});
                 affine::buildAffineLoopNest(
                     builder, loc, {c0}, {applied_n}, 1,
@@ -143,7 +142,7 @@ public:
                           loc, A, ValueRange{ivBatch, ivA_row, ivB_row});
                       Value a_vec = builder.create<vector::BroadcastOp>(
                           loc,
-                          VectorType::get({stepPlaceHolder}, A_elementType),
+                          VectorType::get({affineVectorSize}, A_elementType),
                           a_ele);
                       Value b_col_cur =
                           builder.create<arith::MulIOp>(loc, ivB_col, step);
@@ -157,25 +156,25 @@ public:
                             Value b_vec =
                                 builder.create<affine::AffineVectorLoadOp>(
                                     loc,
-                                    VectorType::get({stepPlaceHolder},
+                                    VectorType::get({affineVectorSize},
                                                     A_elementType),
                                     B,
                                     AffineMap::get(
-                                        3, 0, {d0, d1, d2 * stepPlaceHolder},
+                                        3, 0, {d0, d1, d2 * affineVectorSize},
                                         rewriter.getContext()),
                                     ValueRange{ivBatch, ivB_row, ivB_col});
                             Value c_vec =
                                 builder.create<affine::AffineVectorLoadOp>(
                                     loc,
-                                    VectorType::get({stepPlaceHolder},
+                                    VectorType::get({affineVectorSize},
                                                     A_elementType),
                                     C,
                                     AffineMap::get(
-                                        3, 0, {d0, d1, d2 * stepPlaceHolder},
+                                        3, 0, {d0, d1, d2 * affineVectorSize},
                                         rewriter.getContext()),
                                     ValueRange{ivBatch, ivA_row, ivB_col});
                             Value result_vec;
-                            if (A_elementType.isIntOrFloat() && 0) { // bug
+                            if (A_elementType.isa<IntegerType>()) {
                               Value add_vec = builder.create<arith::MulIOp>(
                                   loc, a_vec, b_vec);
                               result_vec = builder.create<arith::AddIOp>(
@@ -187,7 +186,7 @@ public:
                             builder.create<affine::AffineVectorStoreOp>(
                                 loc, result_vec, C,
                                 AffineMap::get(3, 0,
-                                               {d0, d1, d2 * stepPlaceHolder},
+                                               {d0, d1, d2 * affineVectorSize},
                                                rewriter.getContext()),
                                 ValueRange{ivBatch, ivA_row, ivB_col});
                             builder.create<scf::YieldOp>(loc);
@@ -196,7 +195,7 @@ public:
                             Value mask_vec =
                                 builder.create<vector::CreateMaskOp>(
                                     loc,
-                                    VectorType::get({stepPlaceHolder},
+                                    VectorType::get({affineVectorSize},
                                                     rewriter.getI1Type()),
                                     ValueRange{tail_len});
                             Value b_col_idx_tail =
@@ -205,7 +204,7 @@ public:
                             Value b_vec_tail =
                                 builder.create<vector::MaskedLoadOp>(
                                     loc,
-                                    VectorType::get({stepPlaceHolder},
+                                    VectorType::get({affineVectorSize},
                                                     A_elementType),
                                     B,
                                     ValueRange{ivBatch, ivB_row,
@@ -214,14 +213,14 @@ public:
                             Value c_vec_tail =
                                 builder.create<vector::MaskedLoadOp>(
                                     loc,
-                                    VectorType::get({stepPlaceHolder},
+                                    VectorType::get({affineVectorSize},
                                                     A_elementType),
                                     C,
                                     ValueRange{ivBatch, ivA_row,
                                                b_col_idx_tail},
                                     mask_vec, c0_dynamicType_vec);
                             Value result_vec_tail;
-                            if (A_elementType.isIntOrFloat() && 0) { // bug
+                            if (A_elementType.isa<IntegerType>()) {
                               Value add_vec = builder.create<arith::MulIOp>(
                                   loc, a_vec, b_vec_tail);
                               result_vec_tail = builder.create<arith::AddIOp>(
@@ -250,7 +249,7 @@ public:
   }
 
 private:
-  int64_t stepPlaceHolder;
+  int64_t affineVectorSize;
 };
 } // end anonymous namespace
 
@@ -269,8 +268,8 @@ public:
   StringRef getDescription() const final { return "BatchMatMul Optimization."; }
   BatchMatMulOptimizePass() = default;
   BatchMatMulOptimizePass(const BatchMatMulOptimizePass &) {}
-  explicit BatchMatMulOptimizePass(int64_t stepPlaceHolderParam) {
-    stepPlaceHolder = stepPlaceHolderParam;
+  explicit BatchMatMulOptimizePass(int64_t affineVectorSizeParam) {
+    affineVectorSize = affineVectorSizeParam;
   }
 
   void runOnOperation() override;
@@ -280,9 +279,9 @@ public:
                     affine::AffineDialect, VectorDialect>();
   }
 
-  Option<int64_t> stepPlaceHolder{
-      *this, "step-placeholder",
-      llvm::cl::desc("Affine step placeholder size."), llvm::cl::init(64)};
+  Option<int64_t> affineVectorSize{
+      *this, "vector-size",
+      llvm::cl::desc("Affine Vector size."), llvm::cl::init(64)};
 };
 } // end anonymous namespace.
 
@@ -298,7 +297,7 @@ void BatchMatMulOptimizePass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<BatchMatMulOptimizePattern>(context, stepPlaceHolder);
+  patterns.add<BatchMatMulOptimizePattern>(context, affineVectorSize);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
