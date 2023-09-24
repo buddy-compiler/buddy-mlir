@@ -642,27 +642,21 @@ def MMOp(node: torch.fx.Node,
   dtype = str(node.meta['tensor_meta'].dtype)
   if dtype == "torch.float32":
     tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
-    output = tensor.EmptyOp(output_shape, ir.F32Type.get())
-    # linalg.generic implementation
-    # generic_map = ir.AffineMap.get_permutation([0, 1])
-    # zero_fill = linalg.GenericOp([tensor_type], [], [output],
-    #                                   ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([0, 1]))]),
-    #                                   ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*2))
-    # block = ir.Block.create_at_start(zero_fill.region, [ir.RankedTensorType(output.result.type).element_type])
-    # zero_op = arith.ConstantOp(ir.F32Type.get(), ir.FloatAttr.get(ir.F32Type.get(), 0))
-    # block.append(zero_op)
-    # block.append(linalg.YieldOp([zero_op.result]))
+    f32 = ir.F32Type.get()
+    element = ir.FloatAttr.get(f32, 0.0)
+    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+    matmul_result_buffer = arith.ConstantOp(tensor_type, attr).result
     # generic_map = ir.AffineMap.get_permutation([0, 1, 2])
-    # op = linalg.GenericOp([tensor_type], [input1, input2], [zero_fill],
+    # op = linalg.GenericOp([tensor_type], [input1, input2], [matmul_result_buffer],
     #                       ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([0, 2])), ir.AffineMapAttr.get(generic_map.get_submap([2, 1])), ir.AffineMapAttr.get(generic_map.get_submap([0, 1]))]),
     #                       ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*2+[ir.Attribute.parse('#linalg.iterator_type<reduction>')]))
-    # block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(input2.type).element_type, ir.RankedTensorType(output.result.type).element_type])
+    # block = ir.Block.create_at_start(op.region, [ir.RankedTensorType(input1.type).element_type, ir.RankedTensorType(input2.type).element_type, ir.RankedTensorType(matmul_result_buffer.type).element_type])
     # mul_op = arith.MulFOp(block.arguments[0], block.arguments[1])
-    # add_op = arith.AddFOp(mul_op.result, block.arguments[2])
+    # add_op = arith.AddFOp(block.arguments[2], mul_op.result)
     # block.append(mul_op)
     # block.append(add_op)
     # block.append(linalg.YieldOp([add_op.result]))
-    op = linalg.matmul(input1, input2, outs=[output])
+    op = linalg.matmul(input1, input2, outs=[matmul_result_buffer])
   return op
 
 def TransposeOp(node: torch.fx.Node,
@@ -841,14 +835,14 @@ def BMMOp(node: torch.fx.Node,
     tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
     output = tensor.EmptyOp(output_shape, ir.F32Type.get())
     # use linalg.generic implementation
-    # generic_map = ir.AffineMap.get_permutation([0, 1, 2])
-    # zero_fill = linalg.GenericOp([tensor_type], [], [output],
-    #                                   ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 2]))]),
-    #                                   ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*3))
-    # block = ir.Block.create_at_start(zero_fill.region, [ir.RankedTensorType(output.result.type).element_type])
-    # zero_op = arith.ConstantOp(ir.F32Type.get(), ir.FloatAttr.get(ir.F32Type.get(), 0))
-    # block.append(zero_op)
-    # block.append(linalg.YieldOp([zero_op.result]))
+    generic_map = ir.AffineMap.get_permutation([0, 1, 2])
+    zero_fill = linalg.GenericOp([tensor_type], [], [output],
+                                      ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 2]))]),
+                                      ir.ArrayAttr.get([ir.Attribute.parse('#linalg.iterator_type<parallel>')]*3))
+    block = ir.Block.create_at_start(zero_fill.region, [ir.RankedTensorType(output.result.type).element_type])
+    zero_op = arith.ConstantOp(ir.F32Type.get(), ir.FloatAttr.get(ir.F32Type.get(), 0))
+    block.append(zero_op)
+    block.append(linalg.YieldOp([zero_op.result]))
     # generic_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
     # op = linalg.GenericOp([tensor_type], [input1, input2], [zero_fill],
     #                       ir.ArrayAttr.get([ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 3])), ir.AffineMapAttr.get(generic_map.get_submap([0, 3, 2])), ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 2]))]),
@@ -860,7 +854,7 @@ def BMMOp(node: torch.fx.Node,
     # block.append(add_op)
     # block.append(linalg.YieldOp([add_op.result]))
     # linalg.BatchMatmulOp()
-    op = linalg.batch_matmul(input1, input2, outs=[output])
+    op = linalg.batch_matmul(input1, input2, outs=[zero_fill.result])
 
   return op
 

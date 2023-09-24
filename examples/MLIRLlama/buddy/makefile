@@ -102,7 +102,7 @@ llama-batchmatmulopt:
 	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
 
 llama-ompopt:
-	@${MLIR_OPT} ./test_lower.mlir \
+	@${MLIR_OPT} ./llama_lower.mlir \
 		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${MLIR_OPT} \
 		--arith-expand \
@@ -117,6 +117,7 @@ llama-ompopt:
 		--func-bufferize \
 		--arith-bufferize \
 		--tensor-bufferize \
+		--buffer-deallocation \
 		--finalizing-bufferize \
 		--convert-vector-to-scf \
 		--expand-strided-metadata \
@@ -138,8 +139,8 @@ llama-ompopt:
 	${LLVM_AS} | \
 	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
 
-llama-dealloctest:
-	@${MLIR_OPT} ./test_no_dealloc.mlir \
+llama-linalg:
+	@${MLIR_OPT} ./llama_linalg.mlir \
 		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${MLIR_OPT} \
 		--arith-expand \
@@ -154,6 +155,7 @@ llama-dealloctest:
 		--func-bufferize \
 		--arith-bufferize \
 		--tensor-bufferize \
+		--buffer-deallocation \
 		--finalizing-bufferize \
 		--convert-vector-to-scf \
 		--expand-strided-metadata \
@@ -173,4 +175,42 @@ llama-dealloctest:
 	${MLIR_TRANSLATE} \
 		-mlir-to-llvmir | \
 	${LLVM_AS} | \
-	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama_no_dealloc.o
+	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama_linalg.o
+
+llama-matmul:
+	@${MLIR_OPT} ./llama_matmul.mlir \
+	-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${MLIR_OPT} \
+		--arith-expand \
+		--eliminate-empty-tensors \
+		--empty-tensor-to-alloc-tensor \
+		--linalg-bufferize \
+		--convert-linalg-to-affine-loops \
+		--affine-loop-fusion \
+		--affine-parallelize \
+		--lower-affine \
+		--convert-scf-to-openmp \
+		--func-bufferize \
+		--arith-bufferize \
+		--tensor-bufferize \
+		--buffer-deallocation \
+		--finalizing-bufferize \
+		--convert-vector-to-scf \
+		--expand-strided-metadata \
+		--convert-vector-to-llvm \
+		--memref-expand \
+		--arith-expand \
+		--convert-arith-to-llvm \
+		--finalize-memref-to-llvm \
+		--convert-scf-to-cf \
+		--llvm-request-c-wrappers \
+		--convert-openmp-to-llvm \
+		--convert-arith-to-llvm \
+		--convert-math-to-llvm \
+		--convert-math-to-libm \
+		--convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} \
+		-mlir-to-llvmir | \
+	${LLVM_AS} | \
+	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama_matmul.o
