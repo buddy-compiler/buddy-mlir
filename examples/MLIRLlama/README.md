@@ -77,69 +77,55 @@ $ ninja
 $ ninja check-buddy
 ```
 
-If you want to add domain-specific framework support, please add the following cmake options:
+### Install python packages
 
-| Framework  | Enable Option | Other Options |
-| -------------- | ------------- | ------------- |
-| OpenCV  | `-DBUDDY_ENABLE_OPENCV=ON`  | Add `-DOpenCV_DIR=</PATH/TO/OPENCV/BUILD/>` or install OpenCV release version on your local device. |
-
-<h3 id="one-step">One-step building strategy</h3>
-
-If you only want to use our tools and integrate them more easily into your projects, you can choose to use the one-step build strategy.
-
+You should install transformers and torch with same versions in requirements.txt as possible.
 ```
-$ cmake -G Ninja -Bbuild \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
-    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
-    -DLLVM_EXTERNAL_PROJECTS="buddy-mlir" \
-    -DLLVM_EXTERNAL_BUDDY_MLIR_SOURCE_DIR="$PWD" \
-    -DLLVM_ENABLE_ASSERTIONS=ON \
-    -DCMAKE_BUILD_TYPE=RELEASE \
-    llvm/llvm
-$ cd build
-$ ninja check-mlir check-clang
-$ ninja
-$ ninja check-buddy
-```
-## Dialects
-
-### Bud Dialect
-
-Bud dialect is designed for testing and demonstrating.
-
-### DIP Dialect
-
-DIP dialect is designed for digital image processing abstraction.
-
-## Tools
-
-### buddy-opt
-
-The buddy-opt is the driver for dialects and optimization in buddy-mlir project. 
-
-### buddy-lsp-server
-
-This program should be a drop-in replacement for `mlir-lsp-server`, supporting new dialects defined in buddy-mlir. To use it, please directly modify mlir LSP server path in VSCode settings (or similar settings for other editors) to:
-
-```json
-{
-    "mlir.server_path": "YOUR_BUDDY_MLIR_BUILD/bin/buddy-lsp-server",
-}
+transformers == 4.33.1
+torch == 2.2.0
 ```
 
-After modification, your editor should have correct completion and error prompts for new dialects such as `rvv` and `gemmini`.
+### Set environment variable
 
-### AutoConfig Mechanism
+If you want to use c++ to call mlir function and get llvm openmp support, you should set environment variable.
 
-The `AutoConfig` mechanism is designed to detect the target hardware and configure the toolchain automatically.
+```
+export LD_LIBRARY_PATH=$HOME/buddy-mlir/llvm/build/runtimes/runtimes-bins/openmp/runtime/src:$HOME/buddy-mlir/llvm/build/lib:$LD_LIBRARY_PATH
+export LIBRARY_PATH=$HOME/buddy-mlir/llvm/build/runtimes/runtimes-bins/openmp/runtime/src:$HOME/buddy-mlir/llvm/build/lib:$LIBRARY_PATH
+```
 
-## Examples
+If you want to lower llama model to mlir, you should set PYTHONPATH, because we implement llama lower by using mlir pybind.
+```
+export PYTHONPATH=$HOME/buddy-mlir/llvm/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
+``` 
 
-The purpose of the examples is to give users a better understanding of how to use the passes and the interfaces in buddy-mlir. Currently, we provide three types of examples.
+### run llama model lower
 
-- IR level conversion and transformation examples.
-- Domain-specific application level examples.
-- Testing and demonstrating examples.
+First, you should download llama model. You can get model from [meta ai](https://ai.meta.com/llama/)
+And then in file torch_mlir_llama_hf.py, you should change '/llama-2-7B-hf' to your model path in your server.
+```
+tokenizer = LlamaTokenizer.from_pretrained('/llama-2-7B-hf')
+model = LlamaForCausalLM.from_pretrained('/llama-2-7B-hf', torchscript=True)
+```
+There are many params in llama model, we get them from model and store in your disk. In the step lower llama.mlir for inference, params will be read for inference. You can change buddy/global_var.py to config the store location for params.
+```
+"params-write-path":"/buddy-mlir-for-transformer/examples/MLIRLlama"
+```
+Run torch_mlir_llama_hf.py, and then you can get the llama mlir output.
+```
+python torch_mlir_llama_hf.py > buddy/llama.mlir
+```
 
-For more details, please see the [documentation of the examples](./examples/README.md).
+### lower llama.mlir for inference
+
+```
+cd buddy
+make llama-ompopt
+cd $HOME/buddy-mlir/build
+ninja
+cd bin
+./llamaRun
+```
+
+we recommand you choose llama-ompopt to make. This will use openmp to accelarate inference. We also provide other choice in makefile to run inference.
+Such as, llama-lower, it's nearly no optimization, llama-batchmatmulopt, it provides vectorize optimization for batchmatmul op.

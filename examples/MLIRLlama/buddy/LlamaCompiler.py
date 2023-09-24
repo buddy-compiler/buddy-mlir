@@ -49,7 +49,7 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
     if global_var_get_value("params-pack"):
       all_param = numpy.array([])
       all_param = numpy.concatenate([param.detach().numpy().reshape([-1]) for param in model_params])
-      print(all_param.shape)
+      #print(all_param.shape)
       all_param.tofile(global_var_get_value('params-write-path')+"/params_data/arg0.data")
     else:
       for i, param in enumerate(model_params):
@@ -119,7 +119,7 @@ class FXGraphImporter:
         tensor_size = 0
         for i, param in enumerate(self._inputs[:-1]):
           tensor_size += functools.reduce(lambda x, y : x*y, list(param.shape))
-        print(tensor_size)
+        #print(tensor_size)
         self._tensor_size = tensor_size
         if str(self._inputs[0].dtype) == "torch.bool":
           dtype = ir.IntegerType.get_signless(1)
