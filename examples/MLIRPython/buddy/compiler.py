@@ -118,6 +118,7 @@ class FXGraphImporter:
 
   def _import_op(self, node: torch.fx.Node):
     op_name = node.target.__name__
+
     op_ret: Union[ir.Operation,
                   tuple] = operation_func[op_name](node, self._symbol_table)
     if isinstance(op_ret, tuple):
