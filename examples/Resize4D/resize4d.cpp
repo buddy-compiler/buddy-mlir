@@ -47,9 +47,8 @@ void testImplementation(int argc, char *argv[]) {
   MemRef<float, 4> output = dip::Resize4D(
       &input, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
       {1 , 224 , 224 , 3} /*{image_cols, image_rows}*/);
-
-  // Define cv::Mat with the output of Resize4D.
-  Mat outputImageResize4D(output.getSizes()[1], output.getSizes()[2], CV_32FC3,
+  
+  Mat outputImageResize4D(output.getSizes()[1], output.getSizes()[2], CV_32FC1,
                           output.getData());
 
   imwrite(argv[2], outputImageResize4D);

@@ -213,15 +213,11 @@ inline MemRef<float, 4> Resize4D_Impl(Img<float, 4> *input,
                                       std::vector<float> scalingRatios,
                                       intptr_t outputSize[4]) {
   MemRef<float, 4> output(outputSize);
-  
+
   if (type == INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION) {
     detail::_mlir_ciface_resize_4d_nearest_neighbour_interpolation(
         input, scalingRatios[0], scalingRatios[1], &output);
-  } 
-  // else if (type == INTERPOLATION_TYPE::BILINEAR_INTERPOLATION) {
-  //   detail::_mlir_ciface_resize_2d_bilinear_interpolation(
-  //       input, scalingRatios[0], scalingRatios[1], &output);
-  // } 
+  }
   else {
     throw std::invalid_argument(
         "Please chose a supported type of interpolation "

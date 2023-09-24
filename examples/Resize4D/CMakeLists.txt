@@ -11,8 +11,8 @@ elseif (HAVE_NEON)
 endif ()
 
 add_custom_command(OUTPUT resize4d.o
-        COMMAND ${CMAKE_BINARY_DIR}/bin/buddy-opt ${BUDDY_EXAMPLES_DIR}/Resize4D/resize4d_test1.mlir
-        # -lower-dip="DIP-strip-mining=${SPLITING_SIZE}"
+        COMMAND ${CMAKE_BINARY_DIR}/bin/buddy-opt ${BUDDY_EXAMPLES_DIR}/Resize4D/resize4d.mlir
+        -lower-dip="DIP-strip-mining=${SPLITING_SIZE}"
         -arith-expand
         -lower-affine
         -convert-scf-to-cf
@@ -41,9 +41,9 @@ if(BUDDY_ENABLE_OPENCV)
   include_directories(${OpenCV_INCLUDE_DIRS})
 endif()
 
-add_executable(resize4d resize4d.cpp)
-add_dependencies(resize4d 
+add_executable(resize4D resize4d.cpp)
+add_dependencies(resize4D 
                 buddy-opt
                 buddy-translate
                 )
-target_link_libraries(resize4d ${OpenCV_LIBS} Resize4D)
+target_link_libraries(resize4D ${OpenCV_LIBS} Resize4D)

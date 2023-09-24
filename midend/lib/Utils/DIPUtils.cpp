@@ -53,6 +53,11 @@ checkDIPCommonTypes<dip::Rotate2DOp>(dip::Rotate2DOp,
 template DIP_ERROR
 checkDIPCommonTypes<dip::Resize2DOp>(dip::Resize2DOp,
                                      const std::vector<Value> &args);
+
+template DIP_ERROR
+checkDIPCommonTypes<dip::Resize4DOp>(dip::Resize4DOp,
+                                     const std::vector<Value> &args);
+
 template DIP_ERROR
 checkDIPCommonTypes<dip::Erosion2DOp>(dip::Erosion2DOp,
                                       const std::vector<Value> &args);
@@ -107,7 +112,8 @@ DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args) {
       return DIP_ERROR::UNSUPPORTED_TYPE;
     }
   } else if (op->getName().stripDialect() == "rotate_2d" ||
-             op->getName().stripDialect() == "resize_2d") {
+             op->getName().stripDialect() == "resize_2d" ||
+             op->getName().stripDialect() == "resize_4d") {
     auto inElemTy = getElementType(0);
     auto outElemTy = getElementType(1);
 
@@ -355,6 +361,35 @@ std::vector<Value> extractIndices(OpBuilder &builder, Location loc, Value xVec,
 // Fill appropriate pixel data in its corresponding co-ordinate of the output
 // image.
 void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
+                Value xVec, Value yVec, Value input, Value output, Value c0,
+                Value strideVal, Value outputRowLastElemF32,
+                Value outputColLastElemF32, Value inputRowLastElemF32,
+                Value inputColLastElemF32, Value c0F32) {
+  builder.create<affine::AffineForOp>(
+      loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
+      builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, ValueRange ivs,
+          ValueRange iterArg) {
+        std::vector<Value> origIndices =
+            extractIndices(builder, loc, xVec, yVec, ivs[0],
+                           inputColLastElemF32, inputRowLastElemF32, c0F32);
+        std::vector<Value> resIndices =
+            extractIndices(builder, loc, resXVec, resYVec, ivs[0],
+                           outputColLastElemF32, outputRowLastElemF32, c0F32);
+
+        Value pixelVal = builder.create<memref::LoadOp>(
+            loc, builder.getF32Type(), input,
+            ValueRange{origIndices[1], origIndices[0]});
+        builder.create<memref::StoreOp>(
+            loc, pixelVal, output, ValueRange{resIndices[1], resIndices[0]});
+
+        builder.create<affine::AffineYieldOp>(loc);
+      });
+}
+
+// Fill appropriate pixel data in its corresponding co-ordinate of the output
+// image.
+void fillPixelsFor4D(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
                 Value xVec, Value yVec, Value input, Value output, Value c0,
                 Value strideVal, Value outputRowLastElemF32,
                 Value outputColLastElemF32, Value inputRowLastElemF32,
@@ -745,6 +780,39 @@ void NearestNeighbourInterpolationResizing(
     Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
     int64_t stride, Value c0, Value c0F32) {
+  affine::buildAffineLoopNest(
+      builder, loc, lowerBounds, upperBounds, steps,
+      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+        Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
+        Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
+        Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
+                             c0, stride);
+
+        Value resXVecInterm = builder.create<arith::MulFOp>(
+            loc, xVec, horizontalScalingFactorVec);
+        Value resYVecInterm =
+            builder.create<arith::MulFOp>(loc, yVec, verticalScalingFactorVec);
+
+        Value resXVec = roundOff(builder, loc, resXVecInterm);
+        Value resYVec = roundOff(builder, loc, resYVecInterm);
+
+        fillPixels(builder, loc, xVec, yVec, resXVec, resYVec, input, output,
+                   c0, strideVal, outputRowLastElemF32, outputColLastElemF32,
+                   inputRowLastElemF32, inputColLastElemF32, c0F32);
+      });
+}
+
+// Helper function for resizing an image using nearest neighbour interpolation
+// mechanism.
+void NearestNeighbourInterpolationResizing4D(
+    OpBuilder &builder, Location loc, MLIRContext *ctx,
+    SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
+    SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
+    Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
+    Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value inputRowLastElemF32, Value inputColLastElemF32, 
+    
+    VectorType vectorTy32, int64_t stride, Value c0, Value c0F32) {
   affine::buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
