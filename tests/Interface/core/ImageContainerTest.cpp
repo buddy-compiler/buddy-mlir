@@ -20,9 +20,9 @@
 
 // RUN: buddy-image-container-test 2>&1 | FileCheck %s
 
+#include "buddy/DIP/imgcodecs/loadsave.h"
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImageContainer.h>
-#include <opencv2/imgcodecs.hpp>
 
 int main() {
   // The original test image is a gray scale image, and the pixel values are as
@@ -33,9 +33,9 @@ int main() {
   // 195.0, 210.0, 225.0, 240.0
   // The test running directory is in <build dir>/tests/Interface/core, so the
   // `imread` function uses the following relative path.
-  cv::Mat grayimage =
-      cv::imread("../../../../tests/Interface/core/TestGrayImage.png",
-                 cv::IMREAD_GRAYSCALE);
+  Img<float, 2> grayimage = dip::imread<float, 2>(
+      "../../../../tests/Interface/core/TestGrayImage.bmp",
+      dip::IMGRD_GRAYSCALE);
   //===--------------------------------------------------------------------===//
   // Test image constructor for OpenCV.
   //===--------------------------------------------------------------------===//
@@ -58,33 +58,81 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test copy constructor.
   //===--------------------------------------------------------------------===//
-  // TODO: Add copy assignment operator test.
   Img<float, 2> testCopyConstructor1(testOpenCVConstructor);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor1[0]);
+  // CHECK: 4, 4
+  fprintf(stderr, "%ld, %ld\n", testCopyConstructor1.getSizes()[0],
+          testCopyConstructor1.getSizes()[1]);
+  // CHECK: 4, 1
+  fprintf(stderr, "%ld, %ld\n", testCopyConstructor1.getStrides()[0],
+          testCopyConstructor1.getStrides()[1]);
+  // CHECK: 2
+  fprintf(stderr, "%ld\n", testCopyConstructor1.getRank());
+  // CHECK: 16
+  fprintf(stderr, "%ld\n", testCopyConstructor1.getSize());
+  // CHECK: 60.0
+  fprintf(stderr, "%f\n", testCopyConstructor1[3]);
+
   Img<float, 2> testCopyConstructor2 = testOpenCVConstructor;
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor2[0]);
-  Img<float, 2> testCopyConstructor3 = Img<float, 2>(testOpenCVConstructor);
+  // CHECK: 4, 4
+  fprintf(stderr, "%ld, %ld\n", testCopyConstructor2.getSizes()[0],
+          testCopyConstructor2.getSizes()[1]);
+  // CHECK: 4, 1
+  fprintf(stderr, "%ld, %ld\n", testCopyConstructor2.getStrides()[0],
+          testCopyConstructor2.getStrides()[1]);
+  // CHECK: 2
+  fprintf(stderr, "%ld\n", testCopyConstructor2.getRank());
+  // CHECK: 16
+  fprintf(stderr, "%ld\n", testCopyConstructor2.getSize());
+  // CHECK: 60.0
+  fprintf(stderr, "%f\n", testCopyConstructor2[3]);
+  Img<float, 2> testCopyConstructor3 =
+      Img<float, 2>(testOpenCVConstructor);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor3[0]);
   Img<float, 2> *testCopyConstructor4 =
       new Img<float, 2>(testOpenCVConstructor);
-  // CHECK: 5.0
+  // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor4->getData()[0]);
   delete testCopyConstructor4;
 
   //===--------------------------------------------------------------------===//
   // Test move constructor.
   //===--------------------------------------------------------------------===//
-  // TODO: Add copy assignment operator test.
   Img<float, 2> testMoveConstructor1(std::move(testCopyConstructor1));
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testMoveConstructor1[0]);
+  // CHECK: 4, 4
+  fprintf(stderr, "%ld, %ld\n", testMoveConstructor1.getSizes()[0],
+          testMoveConstructor1.getSizes()[1]);
+  // CHECK: 4, 1
+  fprintf(stderr, "%ld, %ld\n", testMoveConstructor1.getStrides()[0],
+          testMoveConstructor1.getStrides()[1]);
+  // CHECK: 2
+  fprintf(stderr, "%ld\n", testMoveConstructor1.getRank());
+  // CHECK: 16
+  fprintf(stderr, "%ld\n", testMoveConstructor1.getSize());
+  // CHECK: 60.0
+  fprintf(stderr, "%f\n", testMoveConstructor1[3]);
+
   Img<float, 2> testMoveConstructor2 = std::move(testMoveConstructor1);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testMoveConstructor2[0]);
-
+  // CHECK: 4, 4
+  fprintf(stderr, "%ld, %ld\n", testMoveConstructor2.getSizes()[0],
+          testMoveConstructor2.getSizes()[1]);
+  // CHECK: 4, 1
+  fprintf(stderr, "%ld, %ld\n", testMoveConstructor2.getStrides()[0],
+          testMoveConstructor2.getStrides()[1]);
+  // CHECK: 2
+  fprintf(stderr, "%ld\n", testMoveConstructor2.getRank());
+  // CHECK: 16
+  fprintf(stderr, "%ld\n", testMoveConstructor2.getSize());
+  // CHECK: 60.0
+  fprintf(stderr, "%f\n", testMoveConstructor2[3]);
   //===--------------------------------------------------------------------===//
   // Test overloading bracket operator.
   //===--------------------------------------------------------------------===//
@@ -97,32 +145,6 @@ int main() {
   const Img<float, 2> testBracketOperator2(grayimage);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator2[15]);
-
-  //===--------------------------------------------------------------------===//
-  // Test image channels layout of RGB images from ImgContainer.
-  //===--------------------------------------------------------------------===//
-  // The test image is an RGB image with size 1026 * 1026 from
-  // buddy-mlir/examples. The test running directory is in <build
-  // dir>/tests/Interface/core, so the `imread` function uses the following
-  // relative path.
-
-  cv::Mat RGBimage = cv::imread("../../../../examples/images/YuTu.png");
-
-  // Represent NHWC layout by default.
-  Img<float, 4> testRGBImageLayout1(RGBimage);
-  // CHECK: 1, 1026, 1026, 3
-  fprintf(stderr, "%ld, %ld, %ld, %ld\n", testRGBImageLayout1.getSizes()[0],
-          testRGBImageLayout1.getSizes()[1], testRGBImageLayout1.getSizes()[2],
-          testRGBImageLayout1.getSizes()[3]);
-
-  // Represent NCHW layout with sizes = {1, 3, 1026, 1026}
-  intptr_t sizesInput2[4] = {1, 3, RGBimage.rows, RGBimage.cols};
-  Img<float, 4> testRGBImageLayout2(RGBimage, sizesInput2);
-  // CHECK: 3158028, 1052676, 1026, 1
-  fprintf(stderr, "%ld, %ld, %ld, %ld\n", testRGBImageLayout2.getStrides()[0],
-          testRGBImageLayout2.getStrides()[1],
-          testRGBImageLayout2.getStrides()[2],
-          testRGBImageLayout2.getStrides()[3]);
 
   return 0;
 }
