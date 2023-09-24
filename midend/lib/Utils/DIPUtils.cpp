@@ -358,6 +358,31 @@ std::vector<Value> extractIndices(OpBuilder &builder, Location loc, Value xVec,
           F32ToIndex(builder, loc, yPosBound)};
 }
 
+// Extract values present at a particular index in two vectors for using
+// those values to load an element from a memref.
+std::vector<Value> extractIndices4D(OpBuilder &builder, Location loc, Value xVec,
+                                  Value yVec, Value vecIndex, Value xUpperBound,
+                                  Value yUpperBound, Value BatchUpperBound,
+                                  Value ColorUpperBound, Value c0F32) {
+  Value xPos = builder.create<vector::ExtractElementOp>(loc, xVec, vecIndex);
+  Value yPos = builder.create<vector::ExtractElementOp>(loc, yVec, vecIndex);
+  // to do
+  Value BatchPos = builder.create<vector::ExtractElementOp>(loc, yVec, vecIndex);
+  Value ColorPos = builder.create<vector::ExtractElementOp>(loc, yVec, vecIndex);
+
+  Value xPosBound = valBound(builder, loc, xPos, xUpperBound, c0F32);
+  Value yPosBound = valBound(builder, loc, yPos, yUpperBound, c0F32);
+  // to do
+  Value BatchPosBound = valBound(builder, loc, xPos, BatchUpperBound, c0F32);
+  Value ColorPosBound = valBound(builder, loc, yPos, ColorUpperBound, c0F32);
+  return {F32ToIndex(builder, loc, BatchPosBound),
+          F32ToIndex(builder, loc, xPosBound),
+          F32ToIndex(builder, loc, yPosBound),
+          F32ToIndex(builder, loc, ColorPosBound)};
+}
+
+
+
 // Fill appropriate pixel data in its corresponding co-ordinate of the output
 // image.
 void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
@@ -389,28 +414,31 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
 
 // Fill appropriate pixel data in its corresponding co-ordinate of the output
 // image.
-void fillPixelsFor4D(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
+void fillPixels4D(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
                 Value xVec, Value yVec, Value input, Value output, Value c0,
-                Value strideVal, Value outputRowLastElemF32,
-                Value outputColLastElemF32, Value inputRowLastElemF32,
-                Value inputColLastElemF32, Value c0F32) {
+                Value strideVal, 
+                Value outputRowLastElemF32, Value outputColLastElemF32, 
+                Value outputBatchLastElemF32, Value outputColorLastElemF32, 
+                Value inputRowLastElemF32, Value inputColLastElemF32, 
+                Value inputBatchLastElemF32, Value inputColorLastElemF32,
+                Value c0F32) {
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
       [&](OpBuilder &builder, Location loc, ValueRange ivs,
           ValueRange iterArg) {
         std::vector<Value> origIndices =
-            extractIndices(builder, loc, xVec, yVec, ivs[0],
-                           inputColLastElemF32, inputRowLastElemF32, c0F32);
+            extractIndices4D(builder, loc, xVec, yVec, ivs[0],
+                           inputColLastElemF32, inputRowLastElemF32, inputBatchLastElemF32, inputColorLastElemF32, c0F32);
         std::vector<Value> resIndices =
-            extractIndices(builder, loc, resXVec, resYVec, ivs[0],
-                           outputColLastElemF32, outputRowLastElemF32, c0F32);
+            extractIndices4D(builder, loc, resXVec, resYVec, ivs[0],
+                           outputColLastElemF32, outputRowLastElemF32, outputBatchLastElemF32, outputColorLastElemF32, c0F32);
 
         Value pixelVal = builder.create<memref::LoadOp>(
             loc, builder.getF32Type(), input,
-            ValueRange{origIndices[1], origIndices[0]});
+            ValueRange{origIndices[0], origIndices[2], origIndices[1], origIndices[3]});
         builder.create<memref::StoreOp>(
-            loc, pixelVal, output, ValueRange{resIndices[1], resIndices[0]});
+            loc, pixelVal, output, ValueRange{resIndices[0], resIndices[2], resIndices[1], resIndices[3]});
 
         builder.create<affine::AffineYieldOp>(loc);
       });
@@ -802,7 +830,7 @@ void NearestNeighbourInterpolationResizing(
       });
 }
 
-// Helper function for resizing an image using nearest neighbour interpolation
+// Helper function for resizing 4D an image using nearest neighbour interpolation
 // mechanism.
 void NearestNeighbourInterpolationResizing4D(
     OpBuilder &builder, Location loc, MLIRContext *ctx,
@@ -810,8 +838,9 @@ void NearestNeighbourInterpolationResizing4D(
     SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
     Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
     Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value outputBatchLastElemF32, Value outputColorLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, 
-    
+    Value inputBatchLastElemF32, Value inputColorLastElemF32, 
     VectorType vectorTy32, int64_t stride, Value c0, Value c0F32) {
   affine::buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
@@ -829,9 +858,9 @@ void NearestNeighbourInterpolationResizing4D(
         Value resXVec = roundOff(builder, loc, resXVecInterm);
         Value resYVec = roundOff(builder, loc, resYVecInterm);
 
-        fillPixels(builder, loc, xVec, yVec, resXVec, resYVec, input, output,
-                   c0, strideVal, outputRowLastElemF32, outputColLastElemF32,
-                   inputRowLastElemF32, inputColLastElemF32, c0F32);
+        fillPixels4D(builder, loc, xVec, yVec, resXVec, resYVec, input, output,
+                   c0, strideVal, outputRowLastElemF32, outputColLastElemF32, outputBatchLastElemF32, outputColorLastElemF32,
+                   inputRowLastElemF32, inputColLastElemF32, inputBatchLastElemF32, inputColorLastElemF32, c0F32);
       });
 }
 
