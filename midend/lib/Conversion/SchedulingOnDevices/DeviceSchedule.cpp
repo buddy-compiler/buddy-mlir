@@ -26,6 +26,8 @@
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include  "mlir/Dialect/Tosa/IR/TosaOps.h"
 
 #include "Bud/BudDialect.h"
 #include "Bud/BudOps.h"
@@ -224,7 +226,8 @@ public:
         }
       }
 
-      func.getOperation()->setAttr("sche.dispatched", rewriter.getUnitAttr());
+      // func.getOperation()->setAttr("sche.dispatched", rewriter.getUnitAttr());
+      func.getOperation()->removeAttr("sche.devices");
     });
 
     func.print(llvm::outs());
@@ -246,6 +249,7 @@ public:
     auto loc = forOp.getLoc();
     auto ctx = rewriter.getContext();
     auto op = forOp.getOperation();
+    assert(op->getNumResults() == 0);
     assert(op->getAttr("sche.devices").isa<ArrayAttr>());
     auto devices = op->getAttr("sche.devices").dyn_cast_or_null<ArrayAttr>().getValue();
     Value upperBound = forOp.getUpperBound();
@@ -268,7 +272,8 @@ public:
       auto targetId = dict_attr.get("targetId");
       auto targetConfig = dict_attr.get("targetConfig");
       assert(targetId.isa<StringAttr>() && targetConfig.isa<StringAttr>() && dict_attr.get("duty_ratio").isa<FloatAttr>());
-  
+
+      rewriter.setInsertionPoint(op);
       //最后一个for循环的upperBound是原upperBound，前面的for循环向零取整
       if(i == devices.size() - 1){
         end = upperBound;
@@ -283,6 +288,7 @@ public:
       }
 
       if(targetId.dyn_cast<StringAttr>().getValue() == "cpu"){
+        rewriter.setInsertionPointAfter(op);
         auto sub_forOp = rewriter.create<scf::ForOp>(loc, start, end, step, forOp.getInitArgs(), [&](OpBuilder& builder, Location loc, Value iv, ValueRange iterArgs){
           Block &bodyBlock = forOp.getLoopBody().front();//原始for的bodyBlock
           IRMapping mp;
@@ -311,14 +317,128 @@ public:
                                       });
                                       builder.create<sche::ReturnOp>(loc, sub_forOp.getResults());
                                     });
-        for(auto&& [a, b] : llvm::zip(forOp.getResults(), on_device_op.getResults())){
-            a.replaceAllUsesWith(b);
-          }
       }
 
       start = end;
     }
 
+    rewriter.eraseOp(op);
+    
+
+    op->getParentOp()->print(llvm::outs());
+
+    printf("finish\n");
+    return success();
+
+  }
+};
+
+class ReduceSumOpDeviceSchedulePattern : public OpRewritePattern<tosa::ReduceSumOp>  {
+public:
+  using OpRewritePattern<tosa::ReduceSumOp>::OpRewritePattern;
+
+  LogicalResult
+  matchAndRewrite(tosa::ReduceSumOp reduceSumOp, PatternRewriter &rewriter) const override {
+    printf("begin\n");
+
+    auto loc = reduceSumOp.getLoc();
+    auto ctx = rewriter.getContext();
+    auto op = reduceSumOp.getOperation();
+    
+    assert(op->getAttr("sche.devices").isa<ArrayAttr>());
+    auto devices = op->getAttr("sche.devices").dyn_cast_or_null<ArrayAttr>().getValue();
+    
+    auto reduce_axis = reduceSumOp.getAxis();
+    auto input = reduceSumOp.getInput();
+    Type input_type = input.getType();
+    assert(input_type.isa<TensorType>());
+    TensorType input_tensor_type = input_type.dyn_cast<TensorType>();
+    assert(input_tensor_type.hasRank());
+    auto input_shape = input_tensor_type.getShape();
+    auto rank = input_shape.size();
+    auto split_axis = op->getAttr("sche.axis").dyn_cast_or_null<IntegerAttr>().getInt();
+
+    //use for sliceOp
+    SmallVector<int64_t> size_shape;
+    SmallVector<int64_t> start_shape;
+    SmallVector<int64_t> result_shape;
+    for(auto i=0; i<rank; i++){
+      size_shape.push_back(input_shape[i]);
+      result_shape.push_back(input_shape[i]);
+      start_shape.push_back(0);
+    }
+    //构建不同硬件上的for循环,要求最后一个device负载最多
+    auto start = 0;
+    auto end = 0;
+    auto range = input_shape[split_axis];
+    SmallVector<Value> inter_results; //中间结果
+
+    rewriter.setInsertionPoint(op);
+    
+    for(auto i = 0; i < devices.size(); i++){
+      auto device_info = devices[i];
+      auto dict_attr = device_info.dyn_cast_or_null<DictionaryAttr>();
+      assert(dict_attr != nullptr);
+      auto targetId = dict_attr.get("targetId");
+      auto targetConfig = dict_attr.get("targetConfig");
+      assert(targetId.isa<StringAttr>() && targetConfig.isa<StringAttr>() && dict_attr.get("duty_ratio").isa<FloatAttr>());
+  
+      //最后一个for循环的upperBound是原upperBound，前面的for循环向零取整
+      if(i == devices.size() - 1){
+        end = input_shape[split_axis];
+      }
+      else{     
+        auto duty_ratio = dict_attr.get("duty_ratio").dyn_cast<FloatAttr>().getValueAsDouble();
+        end = start + (int)(duty_ratio * range);
+      }
+      if(end == start) continue;
+      size_shape[split_axis] = end - start;
+      start_shape[split_axis] = start;
+      result_shape[split_axis] = end - start;
+      result_shape[reduce_axis] = 1;
+      if(targetId.dyn_cast<StringAttr>().getValue() == "gpu"){
+        rewriter.setInsertionPoint(op);
+      }else{
+        rewriter.setInsertionPointAfter(op);
+      }
+      Value result = rewriter.create<tosa::SliceOp>(loc, RankedTensorType::get(size_shape, input_tensor_type.getElementType()), input, start_shape, size_shape);
+      if(targetId.dyn_cast<StringAttr>().getValue() == "cpu"){
+        result = rewriter.create<tosa::ReduceSumOp>(loc, RankedTensorType::get(result_shape, input_tensor_type.getElementType()), result, reduce_axis);
+        inter_results.push_back(result);
+      }
+      else if(targetId.dyn_cast<StringAttr>().getValue() == "gpu"){
+        auto on_device_op = rewriter.create<sche::OnDeviceOp>
+            (loc, targetId.dyn_cast<StringAttr>().getValue(), 
+              targetConfig.dyn_cast<StringAttr>().getValue(), 
+              TypeRange{RankedTensorType::get(result_shape, input_tensor_type.getElementType())}, 
+              ValueRange{}, 
+              [&](OpBuilder& builder, Location loc, ValueRange valueRange){
+                result = rewriter.create<tosa::ReduceSumOp>
+                        (loc, RankedTensorType::get(result_shape, input_tensor_type.getElementType()), 
+                        result, reduce_axis);
+                builder.create<sche::ReturnOp>(loc, ValueRange{result});
+        });
+        inter_results.push_back(on_device_op.getResult(0));
+          
+      }
+
+      start = end;
+    }
+
+    rewriter.setInsertionPoint(*(reduceSumOp.getOutput().user_begin()));
+    Value res = inter_results[0];
+    if(reduce_axis == split_axis){
+      for(int i=1; i<inter_results.size(); i++){
+        res = rewriter.create<tosa::AddOp>(loc, res.getType(), res, inter_results[i]);
+      }
+    }
+    else{
+      for(int i=1; i<inter_results.size(); i++){
+        res = rewriter.create<tosa::ConcatOp>(loc, ValueRange{res, inter_results[i]}, split_axis);
+      }
+    }
+    
+    reduceSumOp.getOutput().replaceAllUsesWith(res);
     rewriter.eraseOp(op);
     
 
@@ -336,6 +456,7 @@ void populateDeviceScheduleConversionPatterns(RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<FuncOpDeviceSchedulePattern>(patterns.getContext());
   patterns.add<ForOpDeviceSchedulePattern>(patterns.getContext());
+  patterns.add<ReduceSumOpDeviceSchedulePattern>(patterns.getContext());
   // clang-format on
 }
 
@@ -364,7 +485,8 @@ public:
         memref::MemRefDialect,
         LLVM::LLVMDialect,
         buddy::sche::ScheDialect,
-        scf::SCFDialect>();
+        scf::SCFDialect,
+        linalg::LinalgDialect>();
     // clang-format on
   }
 };
@@ -383,9 +505,10 @@ void DeviceSchedulePass::runOnOperation() {
       memref::MemRefDialect,
       LLVM::LLVMDialect,
       buddy::sche::ScheDialect,
-      scf::SCFDialect>();
+      scf::SCFDialect,
+      tosa::TosaDialect>();
   // clang-format on
-  target.addLegalOp<ModuleOp, func::ReturnOp>();
+  target.addLegalOp<ModuleOp, linalg::ReduceOp>();
 
   RewritePatternSet patterns(context);
   populateDeviceScheduleConversionPatterns(patterns);
@@ -394,10 +517,10 @@ void DeviceSchedulePass::runOnOperation() {
 
   auto moduleOp = getOperation();
 
-  // target.addDynamicallyLegalOp<func::FuncOp>([](Operation *op) {
-  //   return op->hasAttr("sche.dispatched");
-  // });
-  target.addDynamicallyLegalOp<scf::ForOp>([&](Operation *op) {
+  target.addDynamicallyLegalOp<func::FuncOp>([](Operation *op) {
+    return !op->hasAttr("sche.devices");
+  });
+  target.addDynamicallyLegalOp<scf::ForOp, tosa::ReduceSumOp>([&](Operation *op) {
     // op->setAttr("sche.dispatched", UnitAttr::get(context));;
     return !op->hasAttr("sche.devices");
   });
