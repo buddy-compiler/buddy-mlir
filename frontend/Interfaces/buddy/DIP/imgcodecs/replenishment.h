@@ -77,23 +77,6 @@ enum ImreadModes {
   IMGRD_ANYCOLOR = 4,
 };
 
-// Imwrite flags
-enum ImwriteFlags {
-  // For JPEG, it can be a quality from 0 to 100 (the higher is the
-  // better). Default value is 95.
-  IMWRITE_JPEG_QUALITY = 1,
-  // Enable JPEG features, 0 or 1, default is False.
-  IMWRITE_JPEG_PROGRESSIVE = 2,
-  // Enable JPEG features, 0 or 1, default is False.
-  IMWRITE_JPEG_OPTIMIZE = 3,
-  // JPEG restart interval, 0 - 65535, default is 0 - no restart.
-  IMWRITE_JPEG_RST_INTERVAL = 4,
-  // Separate luma quality level, 0 - 100, default is 0 - don't use.
-  IMWRITE_JPEG_LUMA_QUALITY = 5,
-  // Separate chroma quality level, 0 - 100, default is 0 - don't  use.
-  IMWRITE_JPEG_CHROMA_QUALITY = 6,
-};
-
 class _Size {
 public:
   _Size(){};
