@@ -74,7 +74,7 @@ llama-batchmatmulopt:
 	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
 
 llama-ompopt:
-	@${MLIR_OPT} ./llama_matmul.mlir \
+	@${MLIR_OPT} ./llama.mlir \
 		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${MLIR_OPT} \
 		--arith-expand \

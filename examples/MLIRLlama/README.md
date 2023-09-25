@@ -28,10 +28,11 @@ $ cd buddy-mlir
 $ mkdir llvm/build
 $ cd llvm/build
 $ cmake -G Ninja ../llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang;lld;openmp" \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
-    -DLLVM_ENABLE_RUNTIMES="openmp" \
+    -DLLVM_ENABLE_RUNTIMES=all \
+    -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
     -DMLIR_ENABLE_BINDINGS_PYTHON=True \
     -DPython3_EXECUTABLE=/root/anaconda3/bin/python \
     -DCMAKE_BUILD_TYPE=RELEASE
