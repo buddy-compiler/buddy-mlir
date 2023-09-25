@@ -663,45 +663,6 @@ bool JpegEncoder<T, N>::write(Img<T, N> &img,
     int rst_interval = 0;
     int luma_quality = -1;
     int chroma_quality = -1;
-
-    for (size_t i = 0; i < params.size(); i += 2) {
-      if (params[i] == IMWRITE_JPEG_QUALITY) {
-        quality = params[i + 1];
-        quality = MIN(MAX(quality, 0), 100);
-      }
-
-      if (params[i] == IMWRITE_JPEG_PROGRESSIVE) {
-        progressive = params[i + 1];
-      }
-
-      if (params[i] == IMWRITE_JPEG_OPTIMIZE) {
-        optimize = params[i + 1];
-      }
-
-      if (params[i] == IMWRITE_JPEG_LUMA_QUALITY) {
-        if (params[i + 1] >= 0) {
-          luma_quality = MIN(MAX(params[i + 1], 0), 100);
-
-          quality = luma_quality;
-
-          if (chroma_quality < 0) {
-            chroma_quality = luma_quality;
-          }
-        }
-      }
-
-      if (params[i] == IMWRITE_JPEG_CHROMA_QUALITY) {
-        if (params[i + 1] >= 0) {
-          chroma_quality = MIN(MAX(params[i + 1], 0), 100);
-        }
-      }
-
-      if (params[i] == IMWRITE_JPEG_RST_INTERVAL) {
-        rst_interval = params[i + 1];
-        rst_interval = MIN(MAX(rst_interval, 0), 65535L);
-      }
-    }
-
     jpeg_set_defaults(&cinfo);
     cinfo.restart_interval = rst_interval;
 

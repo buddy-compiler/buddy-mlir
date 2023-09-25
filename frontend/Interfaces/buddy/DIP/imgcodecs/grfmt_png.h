@@ -334,7 +334,7 @@ bool PngEncoder<T, N>::write(Img<T, N> &img, const std::vector<int> &params) {
 
         int compression_level =
             -1; // Invalid value to allow setting 0-9 as valid
-        int compression_strategy = IMWRITE_PNG_STRATEGY_RLE; // Default strategy
+        int compression_strategy = 3; // Default strategy
         bool isBilevel = false;
 
         if (f) {
