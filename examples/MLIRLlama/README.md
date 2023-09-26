@@ -91,8 +91,8 @@ torch == 2.2.0
 If you want to use c++ to call mlir function and get llvm openmp support, you should set environment variable.
 
 ```
-export LD_LIBRARY_PATH=$HOME/buddy-mlir/llvm/build/runtimes/runtimes-bins/openmp/runtime/src:$HOME/buddy-mlir/llvm/build/lib:$LD_LIBRARY_PATH
-export LIBRARY_PATH=$HOME/buddy-mlir/llvm/build/runtimes/runtimes-bins/openmp/runtime/src:$HOME/buddy-mlir/llvm/build/lib:$LIBRARY_PATH
+export LD_LIBRARY_PATH=$HOME/buddy-mlir/llvm/build/lib:$LD_LIBRARY_PATH
+export LIBRARY_PATH=$HOME/buddy-mlir/llvm/build/lib:$LIBRARY_PATH
 ```
 
 If you want to lower llama model to mlir, you should set PYTHONPATH, because we implement llama lower by using mlir pybind.
@@ -127,6 +127,12 @@ ninja
 cd bin
 ./llamaRun
 ```
-
+When you run llamaRun, you should provide the model params data path and vocab file. In our repo, we have provided vocab file and you should provide params data path in your server. You should input these path in command line.
+```
+please input vocab file path
+/buddy-mlir/examples/MLIRLlama/vocab.txt
+please input params file directory
+/buddy-mlir/examples/MLIRLlama/params_data
+```
 we recommand you choose llama-ompopt to make. This will use openmp to accelarate inference. We also provide other choice in makefile to run inference.
 Such as, llama-lower, it's nearly no optimization, llama-batchmatmulopt, it provides vectorize optimization for batchmatmul op.

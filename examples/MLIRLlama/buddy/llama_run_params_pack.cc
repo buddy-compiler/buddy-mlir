@@ -3,7 +3,6 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
-#include <omp.h>
 using namespace std;
 using namespace chrono;
 using namespace buddy;
@@ -17,8 +16,9 @@ int main() {
   //
   // The test running directory is in <build dir>/tests/Interface/core, so the
   // vocabulary directory uses the following relative path.
-  std::string vocabDir =
-      "/buddy-mlir-for-transformer/examples/MLIRLlama/vocab.txt";
+  std::string vocabDir;
+  std::cout<<"please input vocab file path"<<std::endl;
+  getline(std::cin, vocabDir);
   //===--------------------------------------------------------------------===//
   // Test text constructor for pure string.
   //===--------------------------------------------------------------------===//
@@ -54,9 +54,12 @@ int main() {
   // CHECK: 2
   fprintf(stderr, "%lld\n", pureStrContainer.getData()[13]);
   auto start = system_clock::now();
+  std::cout<<"please input params file directory"<<std::endl;
+  std::string params_path;
+  getline(std::cin, params_path);
   MemRef<float, 1> arg0({intptr_t(6755192832)});
   ifstream in0(
-      "/buddy-mlir-for-transformer/examples/MLIRLlama/params_data/arg0.data",
+      params_path+"/arg0.data",
       ios::in | ios::binary);
   in0.read((char *)(arg0.getData()), sizeof(float) * (arg0.getSize()));
   in0.close();
