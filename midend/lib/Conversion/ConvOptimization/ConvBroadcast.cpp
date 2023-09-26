@@ -20,4 +20,19 @@
 
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/Dialect/Linalg/Transforms/Transforms.h>
+#include <mlir/IR/IntegerSet.h>
+#include <mlir/Pass/Pass.h>
 
+using namespace mlir;
+using namespace vector;
+
+//===--------------------------------------------
+// Rewrite Pattern
+//===--------------------------------------------
+
+// namespace {
+//     class ConvBroadcastOptimizePattern : public ConversionPattern {
+
+//     }
+// } // end anonymous namespace
