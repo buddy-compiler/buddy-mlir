@@ -9,3 +9,4 @@ def global_var_set_value(key, value):
 
 def global_var_get_value(key):
     return _global_dict[key]
+    

@@ -1156,9 +1156,4 @@ operation_func = {"arange.start": ArangeOp, "arange.default": ArangeOp, "unsquee
                   "t.default": TOp, "mm.default": MMOp, "transpose.int": TransposeOp, "index.Tensor": IndexOp, "neg.default": NegOp,
                   "cat.default": CatOp, "squeeze.dim": SqueezeOp, "bmm.default": BMMOp, "div.Tensor": DivOp, "_softmax.default": SoftmaxOp,
                   "clone.default": CloneOp, "silu.default": SiluOp}
-# operation_func = {"arange.start": ArangeOp, "arange.default": ArangeOp, "unsqueeze.default": UnsqueezeOp, "view.default": ViewOp,
-#                   "ones.default": OnesOp, "full.default": FullOp, "add.Tensor": AddOp, "lt.Tensor": LtOp, "embedding.default": EmbeddingOp,
-#                   "masked_fill.Scalar": MaskedFillOp, "slice.Tensor": SliceOp, "squeeze.dim": SqueezeOp, "expand.default": ExpandOp, 
-#                   "_to_copy.default": ToCopyOp, "rsub.Scalar": RSubOp, "pow.Tensor_Scalar": PowOp, "mean.dim": MeanOp, "rsqrt.default": RSqrtOp, 
-#                   "mul.Tensor": MulOp, "t.default": TOp, "mm.default": MMOp}
 type_dict = {"torch.int64": ir.IntegerType, "torch.float32": ir.F32Type}

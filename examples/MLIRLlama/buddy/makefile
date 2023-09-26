@@ -110,3 +110,4 @@ llama-ompopt:
 		-mlir-to-llvmir | \
 	${LLVM_AS} | \
 	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
+	
