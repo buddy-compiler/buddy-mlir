@@ -69,7 +69,7 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
       for j in param.shape:
         param_size.append(str(j))
       file.write(",".join(param_size)+"\n")
-  #param_write_to_file(params_flat)
+  param_write_to_file(params_flat)
   return aot_module_simplified(gm, inputs, fw_compiler=_compiler)
 
 class FXGraphImporter:
