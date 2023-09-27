@@ -34,7 +34,8 @@ int main() {
     //
     // The test running directory is in <build dir>/tests/Interface/core, so the
     // vocabulary directory uses the following relative path.
-    std::string vocabDir = "../../../../tests/Interface/core/vocab.txt";
+    std::string vocabDir = "../../../../tests/Interface/core/vocab.txt"; 
+    std::string vocabDir2 = "../../../../tests/Interface/core/vocab_llama.txt"; 
     //===--------------------------------------------------------------------===//
     // Test text constructor for pure string.
     //===--------------------------------------------------------------------===//
@@ -218,4 +219,38 @@ int main() {
     fprintf(stderr, "%lld\n", affixStrContainer.getData()[10]);
     // CHECK: 102
     fprintf(stderr, "%lld\n", affixStrContainer.getData()[11]);
+    //===--------------------------------------------------------------------===//
+    // Test text constructor for pure string using Llama tokenizer.
+    //===--------------------------------------------------------------------===//
+    //std::string pureStrLlama = "buddy compiler is a domain specific compiler";
+    std::string pureStrLlama = "buddy compiler is a domain specific compiler";
+    Text<long long, 2> pureStrLlamaContainer(pureStrLlama);
+    pureStrLlamaContainer.tokenizeLlama(vocabDir2, 12);
+    std::string result = pureStrLlamaContainer.revert(pureStrLlamaContainer);
+    // CHECK: 1
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[0]);
+    // CHECK: 15841
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[1]);
+    // CHECK: 4518
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[2]);
+    // CHECK: 6516
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[3]);
+    // CHECK: 338
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[4]);
+    // CHECK: 263
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[5]);
+    // CHECK: 5354
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[6]);
+    // CHECK: 2702
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[7]);
+    // CHECK: 6516
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[8]);
+    // CHECK: 2
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[9]);
+    // CHECK: 2
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[10]);
+    // CHECK: 2
+    fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[11]);
+    // CHECK: buddy compiler is a domain specific compiler
+    fprintf(stderr, "%s\n" , result.c_str());
 }

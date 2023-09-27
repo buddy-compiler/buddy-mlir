@@ -65,6 +65,11 @@ public:
   // We find the tokens using ids and replace thick underline with whitespaces.
   std::string revert(Text<long long, 2> input);
 
+  // Get sequence length
+  long long getTokenCnt() { return this->tokenCnt;}
+  // Set sequence length
+  void setTokenCnt(long long cnt) {this->tokenCnt = cnt;}
+
 private:
   // Check if a character is a whitespace character.
   bool isWhitespace(char s) const {
@@ -143,6 +148,8 @@ private:
   // ID-Token vector holds the given vocabulary.
   // It is faster to find elements by index.
   std::vector<std::string> idToTokenVec;
+  // Record token count. 
+  long long tokenCnt;
 };
 
 // Text Constructor with string.
@@ -187,7 +194,7 @@ void Text<T, N>::tokenizeLlama(const std::string &vocab, long long length) {
         }
     }
     // Backward pass
-    long unsigned int i = len;
+    int i = len;
     while (i > 0) {
         long long token_id = prev[i];
         res.push_back(token_id);
@@ -196,11 +203,13 @@ void Text<T, N>::tokenizeLlama(const std::string &vocab, long long length) {
     }
     // Reverse the data for correct
     std::reverse(res.begin(), res.end());
-    for(i = 0;i < res.size();i++)
-        this->aligned[i] = res[i];
+    this->aligned[0] = 1;
+    tokenCnt = 1;
+    for(;tokenCnt < (long long)res.size()+1;tokenCnt++)
+        this->aligned[tokenCnt] = res[tokenCnt-1];
     // Parse the last token if exists.
-    for(;i < length;i++)
-        this->aligned[i] = 0;
+    for(long long i = tokenCnt;i < length;i++)
+        this->aligned[i] = 2;
 }
 
 // Tokenizer
@@ -218,7 +227,7 @@ void Text<T, N>::tokenize(const std::string &vocab, long long length, bool lower
   // Tokenize string and convert to MemRef container object.
   // Mark the beginning of our token.
   this->aligned[0] = cls;
-  long long tokenCnt = 1;
+  tokenCnt = 1;
   std::string token;
   for (size_t i = 0;i < str.size(); i++) {
     char s = str[i];
@@ -267,8 +276,10 @@ std::string Text<T, N>::revert(Text<long long, 2> input){
     std::string dst;
     for(long unsigned int i = 0; i < this->size; i++){
         int id = input.getData()[i];
-        if(id == 0)
+        if(id == 0 || id == 1 )
             continue;
+        if(id == 2)
+            break;
         std::string token = this->idToTokenVec[id];
         if(token.find("▁")!= std::string::npos) {
             dst.append(" ");
