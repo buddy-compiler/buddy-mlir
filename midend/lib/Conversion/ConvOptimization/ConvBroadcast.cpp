@@ -148,15 +148,47 @@ public:
                         loc, resultVector, output, outputVectorMap,
                         ValueRange{ivs[0], iv});
                       builder.create<scf::YieldOp>(loc);
+                    },
+                    // The else branch (the current column reaches the tail).
+                    [&](OpBuilder &builder, Location loc) {
+                      // Create mask according to the tail.
+                      Value tailMask = builder.create<CreateMaskOp>(loc, vectorMaskTy, tail);
+                      // Calculate the index of the input and output.
+                      Value inputRow = nestedBuilder.create<arith::AddIOp>(loc, ivs[0], ivs[1]);
+                      Value outputCol = nestedBuilder.create<arith::MulIOp>(loc, iv, cStride);
+                      Value inputCol = nestedBuilder.create<arith::AddIOp>(loc, ivs[2], outputCol);
+                      // Masked load input and output.
+                      Value maskedInputVec = builder.create<MaskedLoadOp>(
+                        loc, vectorTy32, input,
+                        ValueRange{inputRow, inputCol}, tailMask,
+                        passThroughVec
+                      );
+                      Value maskedOutputVec = builder.create<MaskedLoadOp>(
+                        loc, vectorTy32, output,
+                        ValueRange{ivs[0], outputCol}, tailMask,
+                        passThroughVec
+                      );
+                      // FMA
+                      Value resultVec = builder.create<FMAOp>(loc, maskedInputVec, kernelVector, maskedOutputVec);
+                      // Masked store the result to output.
+                      builder.create<MaskedStoreOp>(
+                        loc, output, ValueRange{ivs[0], outputCol},
+                        tailMask, resultVec
+                      );
+                      builder.create<scf::YieldOp>(loc);
                     }
                   );
+                  builder.create<scf::YieldOp>(loc);
                 }
               );
-              }
+              nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);
+            }
         );
       }
     );
-    return failure();
+    // Remove the origin convolution operation
+    rewriter.eraseOp(op);
+    return success();
   }
 
 private:
