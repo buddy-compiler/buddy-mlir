@@ -26,6 +26,7 @@
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Pass/Pass.h"
 
 #include "Bud/BudDialect.h"
@@ -83,10 +84,8 @@ public:
       auto t = v.getType();
       t.print(llvm::outs());
       if(t.isa<TensorType>()){
-        printf("0\n");
         auto shape = t.dyn_cast<TensorType>().getShape();
         auto ele_type = t.dyn_cast<TensorType>().getElementType();
-        printf("0 finish\n");
         auto to_memref_op = rewriter.create<bufferization::ToMemrefOp>(loc, MemRefType::get(shape, ele_type), v);
         mp.map(v, to_memref_op.getResult());
         // v.replaceAllUsesWith(to_memref_op.getResult());
@@ -110,9 +109,7 @@ public:
         auto host_register_op = rewriter.create<gpu::HostRegisterOp>(loc, v);
       }
       else if(t.isa<MemRefType>()){
-        printf("1\n");
         auto memref_type = t.dyn_cast<MemRefType>();
-        printf("1 finish\n");
         auto memref_cast_op = rewriter.create<memref::CastOp>(loc, UnrankedMemRefType::get(memref_type.getElementType(), memref_type.getMemorySpace()), v);
         auto host_register_op = rewriter.create<gpu::HostRegisterOp>(loc, memref_cast_op.getResult());
       }
@@ -125,10 +122,8 @@ public:
       auto t = v.getType();
       //TODO:必须要有rank
       if(t.isa<TensorType>()){
-        printf("2\n");
         auto shape = t.dyn_cast<TensorType>().getShape();
         auto ele_type = t.dyn_cast<TensorType>().getElementType();
-        printf("2 finish\n");
         mem_type = MemRefType::get(shape, ele_type);
       }
       else if(t.isa<VectorType>()){
@@ -137,9 +132,7 @@ public:
         mem_type = MemRefType::get(shape, ele_type);
       }
       else if(t.isa<MemRefType>()){
-        printf("3\n");
         mem_type = t.dyn_cast<MemRefType>();
-        printf("3 finish\n");
       }
       else{
         mem_type = MemRefType::get({1}, t);
@@ -159,11 +152,9 @@ public:
     auto block_z = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
     
 
-    auto gpu_launch_op = rewriter.create<gpu::LaunchOp>(loc, grid_x, grid_y, grid_z, block_x, block_y, block_z);
+    auto gpu_launch_op = rewriter.create<gpu::LaunchOp>(loc, grid_x, grid_y, grid_z, block_x, block_y, block_z, nullptr, gpu::AsyncTokenType::get(rewriter.getContext()));
 
-    // rewriter.eraseOp(op);
     auto& body = gpu_launch_op.getBody();
-    // body.push_back(new Block());
     auto& bodyBlock = body.front();
 
     rewriter.setInsertionPointToStart(&bodyBlock);
@@ -171,13 +162,10 @@ public:
     auto idx0_gpu = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
 
     for(auto v : operands){
-      // v.print(llvm::outs());
       auto t = v.getType();
-      // t.print(llvm::outs());
       if(t.isa<TensorType>()){
         auto to_tensor_op = rewriter.create<bufferization::ToTensorOp>(loc, t, mp.lookup<Value>(v));
         mp.map(v, to_tensor_op.getResult());
-        // to_memref_op.print(llvm::outs());
       }
       else if(t.isa<VectorType>()){
         llvm::SmallVector<Value> indices(t.dyn_cast<VectorType>().getShape().size(), idx0_gpu);
@@ -185,8 +173,84 @@ public:
         mp.map(v, transfer_read_op.getResult());
       }
     }
+    //scf::for lower
+    assert(op->getAttr("sche.source").isa<StringAttr>());
+    auto sche_source = op->getAttr("sche.source").dyn_cast_or_null<StringAttr>().strref();
+    if(sche_source == "scf.for"){
+      Operation& op_ = onDeviceOp.getRegion().front().front();
+      auto for_op = dyn_cast<scf::ForOp>(op_);
+      // for_op.print(llvm::outs());
+      Value upperBound = for_op.getUpperBound();
+      Value lowerBound = for_op.getLowerBound();
+      Value step = for_op.getStep();
 
-    for(auto&& op_ : onDeviceOp.getRegion().front().getOperations()){
+      //计算需要在一个block中的步长范围
+      auto range = rewriter.create<arith::SubIOp>(loc, upperBound, lowerBound);
+      Value stepRange = rewriter.create<arith::DivSIOp>(loc, range.getResult(), step);
+      // stepRange = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI32Type(), stepRange);
+      Value stepRangeInBlock = rewriter.create<arith::DivSIOp>(loc, stepRange, grid_x);
+      Value start = rewriter.create<arith::MulIOp>(loc, stepRangeInBlock, gpu_launch_op.getBlockIds().x);
+      Value rem = rewriter.create<arith::RemSIOp>(loc, stepRange, grid_x);
+      Value cmp_rem_blkId = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, rem, gpu_launch_op.getBlockIds().x);
+      auto idx1 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
+      stepRangeInBlock = rewriter.create<scf::IfOp>(loc, cmp_rem_blkId, [&](OpBuilder& builder, Location loc)
+      {
+        auto add_op = builder.create<arith::AddIOp>(loc, stepRangeInBlock, idx1);
+        builder.create<scf::YieldOp>(loc, ValueRange{add_op.getResult()});
+      }, 
+      [&](OpBuilder& builder, Location loc)
+      {
+        builder.create<scf::YieldOp>(loc, ValueRange{stepRangeInBlock});
+      }).getResults()[0];
+      start = rewriter.create<scf::IfOp>(loc, cmp_rem_blkId, 
+      [&](OpBuilder& builder, Location loc)
+      {
+        auto add_op = builder.create<arith::AddIOp>(loc, start, gpu_launch_op.getBlockIds().x);
+        builder.create<scf::YieldOp>(loc, ValueRange{add_op.getResult()});
+      }, 
+      [&](OpBuilder& builder, Location loc)
+      {
+        auto add_op = builder.create<arith::AddIOp>(loc, start, rem);
+        builder.create<scf::YieldOp>(loc, ValueRange{add_op.getResult()});
+      }).getResults()[0];
+
+      //一个thread中的步长范围
+      Value stepRangeInThread = rewriter.create<arith::DivSIOp>(loc, stepRangeInBlock, block_x);
+      rem = rewriter.create<arith::RemSIOp>(loc, stepRangeInBlock, block_x);
+      Value cmp_rem_threadId = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, rem, gpu_launch_op.getThreadIds().x);
+      stepRangeInThread = rewriter.create<scf::IfOp>(loc, cmp_rem_threadId, [&](OpBuilder& builder, Location loc){
+        auto add_op = builder.create<arith::AddIOp>(loc, stepRangeInThread, idx1);
+        builder.create<scf::YieldOp>(loc, ValueRange{add_op.getResult()});
+      }, 
+      [&](OpBuilder& builder, Location loc)
+      {
+        builder.create<scf::YieldOp>(loc, ValueRange{stepRangeInThread});
+      }).getResults()[0];
+      Value end = rewriter.create<arith::AddIOp>(loc, start, stepRangeInThread);
+
+      auto sub_forOp = rewriter.create<scf::ForOp>(loc, start, end, idx1, for_op.getInitArgs(), 
+                                                    [&](OpBuilder& builder, Location loc, 
+                                                    Value iv, ValueRange iterArgs)
+      {
+        Block &bodyBlock = for_op.getLoopBody().front();//原始for的bodyBlock
+        IRMapping mp;
+        iv = builder.create<arith::MulIOp>(loc, iv, gpu_launch_op.getBlockIds().x);
+        iv = builder.create<arith::AddIOp>(loc, iv, gpu_launch_op.getThreadIds().x);
+        iv = builder.create<arith::MulIOp>(loc, iv, step);
+        mp.map(bodyBlock.getArgument(0), iv);
+        for(auto&& [a, b] : llvm::zip(bodyBlock.getArguments().drop_front(), iterArgs)){
+          mp.map(a, b);
+        }
+        for(auto&& op_ : bodyBlock.getOperations()){
+          builder.insert(op_.clone(mp));
+        }
+      });
+
+      rewriter.create<gpu::TerminatorOp>(loc);
+      printf("asdasdasdasdasdasdasdasd\n");
+    }
+    else{
+      for(auto&& op_ : onDeviceOp.getRegion().front().getOperations()){
       op_.print(llvm::outs());
       if(!op_.hasTrait<OpTrait::ReturnLike>()){
         auto new_op = rewriter.clone(op_, mp);
@@ -222,6 +286,8 @@ public:
       }
     }
     rewriter.create<gpu::TerminatorOp>(loc);
+    }
+
 
     rewriter.setInsertionPointAfter(gpu_launch_op);
     int i = 0;
@@ -250,7 +316,7 @@ public:
       }
     }
 
-
+    rewriter.create<gpu::WaitOp>(loc, (Type)nullptr, ValueRange{gpu_launch_op.getAsyncToken()});
     rewriter.eraseOp(op);
 
 
@@ -316,7 +382,8 @@ void LowerSchePass::runOnOperation() {
       memref::MemRefDialect,
       LLVM::LLVMDialect,
       gpu::GPUDialect,
-      bufferization::BufferizationDialect>();
+      bufferization::BufferizationDialect,
+      scf::SCFDialect>();
   // clang-format on
   target.addLegalOp<ModuleOp, func::ReturnOp>();
 

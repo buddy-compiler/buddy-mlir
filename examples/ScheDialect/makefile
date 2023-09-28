@@ -13,4 +13,9 @@ sche-addf-vector-lower:
 
 sche-scf-for-lower:
 	@${BUDDY_OPT} ./sche-scf-for.mlir \
+		--device-schedule \
+		--lower-sche -o ./log.mlir
+
+sche-reduce-add-lower:
+	@${BUDDY_OPT} ./sche-reduce-add.mlir \
 		--device-schedule -o ./log.mlir

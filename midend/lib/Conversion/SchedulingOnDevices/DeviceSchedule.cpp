@@ -77,11 +77,11 @@ class ScheTargetNode{
       return target_config_;
     }
 
-    std::vector<Operation*> getOpList(){
+    SmallVector<Operation*> getOpList(){
       return op_list_;
     }
 
-    void setOpList(std::vector<Operation*> op_list){
+    void setOpList(SmallVector<Operation*> op_list){
       op_list_ = op_list;
     }
 
@@ -92,11 +92,11 @@ class ScheTargetNode{
 
 
   private:
-    std::vector<Operation*> op_list_; 
-    std::vector<Value> used_;
-    std::vector<Value> defined_;
-    std::vector<Value> operands_;
-    std::vector<Value> return_;
+    SmallVector<Operation*> op_list_; 
+    SmallVector<Value> used_;
+    SmallVector<Value> defined_;
+    SmallVector<Value> operands_;
+    SmallVector<Value> return_;
 
     StringRef target_id_;
     StringRef target_config_;
@@ -105,14 +105,16 @@ class ScheTargetNode{
     void updateUsedValue(){
       for(auto&& op : op_list_){
         for(auto&& operand : op->getOperands()){
-          used_.push_back(operand);
+          if(std::find(used_.begin(), used_.end(), operand) == used_.end())
+            used_.push_back(operand);
         }
       }
     }
     void updateDefinedValue(){
       for(auto&& op : op_list_){
         for(auto&& result : op->getResults()){
-          defined_.push_back(result);
+          if(std::find(defined_.begin(), defined_.end(), result) == defined_.end())
+            defined_.push_back(result);
         }
       }
     }
@@ -120,7 +122,8 @@ class ScheTargetNode{
     void updateOperands(){
       for(auto&& v : used_){
         if(std::find(defined_.begin(), defined_.end(), v) == defined_.end()){
-          operands_.push_back(v);
+          if(std::find(operands_.begin(), operands_.end(), v) == operands_.end())
+            operands_.push_back(v);
         }
       }
     }
@@ -129,11 +132,13 @@ class ScheTargetNode{
       for(auto&& v : defined_){
         for(auto&& user : v.getUsers()){
           if (user->hasTrait<mlir::OpTrait::ReturnLike>()) {
-            return_.push_back(v);
+            if(std::find(return_.begin(), return_.end(), v) == return_.end())
+              return_.push_back(v);
             break;
           }
           if(std::find(op_list_.begin(), op_list_.end(), user) == op_list_.end()){
-            return_.push_back(v);
+            if(std::find(return_.begin(), return_.end(), v) == return_.end())
+              return_.push_back(v);
             break;
           }
         }
@@ -141,24 +146,25 @@ class ScheTargetNode{
     }
 };
 
-std::vector<ScheTargetNode> splitDevice(Region& region){
+SmallVector<ScheTargetNode*> splitDevice(Region& region){
   auto op_iter = region.getOps().begin();
 
-  ScheTargetNode node_cpu, node_gpu;
-  std::vector<Operation*> op_list_cpu, op_list_gpu;
+  ScheTargetNode* node_cpu =new ScheTargetNode();
+  ScheTargetNode* node_gpu =new ScheTargetNode();
+  SmallVector<Operation*> op_list_cpu, op_list_gpu;
 
   op_list_cpu.push_back(&*op_iter++);
   op_list_cpu.push_back(&*op_iter++);
   op_list_gpu.push_back(&*op_iter);
 
-  node_cpu.setOpList(op_list_cpu);
-  node_cpu.setTargetInfo("gpu1", "");
-  node_cpu.update();
-  node_gpu.setOpList(op_list_gpu);
-  node_gpu.setTargetInfo("gpu2", "");
-  node_gpu.update();
+  node_cpu->setOpList(op_list_cpu);
+  node_cpu->setTargetInfo("gpu1", "");
+  node_cpu->update();
+  node_gpu->setOpList(op_list_gpu);
+  node_gpu->setTargetInfo("gpu2", "");
+  node_gpu->update();
 
-  std::vector<ScheTargetNode> result;
+  SmallVector<ScheTargetNode*> result;
   result.push_back(node_cpu);
   result.push_back(node_gpu);
   return result;
@@ -186,27 +192,27 @@ public:
       rewriter.setInsertionPointToStart(&region.front());
       for (auto&& node : sche_target_node_list) {
         llvm::SmallVector<Value> operands;
-        for(auto v : node.getOperands()){
+        for(auto v : node->getOperands()){
           auto new_v = mp.lookupOrNull<Value>(v);
           new_v = new_v ? new_v : v;
           operands.push_back(new_v);
         }
-        auto on_device_op = rewriter.create<sche::OnDeviceOp>(loc, node.getTargetId(), node.getTargetConfig(), 
-                                    node.getReturnValues().getTypes(), operands, [&](OpBuilder& builder, Location loc, ValueRange valueRange){
+        auto on_device_op = rewriter.create<sche::OnDeviceOp>(loc, node->getTargetId(), node->getTargetConfig(), 
+                                    node->getReturnValues().getTypes(), operands, [&](OpBuilder& builder, Location loc, ValueRange valueRange){
           IRMapping mp_2;
-          for(auto&& [a, b] : llvm::zip(node.getOperands(), valueRange)){
+          for(auto&& [a, b] : llvm::zip(node->getOperands(), valueRange)){
             mp_2.map(a, b);
           }
-          for(auto&& op : node.getOpList()){
+          for(auto&& op : node->getOpList()){
             auto new_op = builder.insert(op->clone(mp_2));
             for(auto&& [a, b] : llvm::zip(op->getResults(), new_op->getResults())){
               mp_2.map(a, b);
             }
             builder.setInsertionPointAfter(new_op);
           }
-          std::vector<Value> return_values;
+          SmallVector<Value> return_values;
 
-          for(auto&& v : node.getReturnValues()){
+          for(auto&& v : node->getReturnValues()){
             auto new_v = mp_2.lookupOrNull<Value>(v);
             assert(new_v != nullptr);
             return_values.push_back(new_v);
@@ -214,22 +220,23 @@ public:
           
           builder.create<sche::ReturnOp>(loc, return_values);
         });
+        on_device_op.getOperation()->setAttr("sche.source", rewriter.getStringAttr("func"));
 
-        for(auto&& [a, b] : llvm::zip(node.getReturnValues(), on_device_op.getResults())){
+        for(auto&& [a, b] : llvm::zip(node->getReturnValues(), on_device_op.getResults())){
           a.replaceAllUsesWith(b);
           mp.map(a, b);
         }
 
         //TODO:更改删除方法，将原op记录下来，然后删除
-        for(auto op : node.getOpList()){
+        for(auto op : node->getOpList()){
           rewriter.eraseOp(op);
         }
+        delete(node);
       }
 
       // func.getOperation()->setAttr("sche.dispatched", rewriter.getUnitAttr());
       func.getOperation()->removeAttr("sche.devices");
     });
-
     func.print(llvm::outs());
 
     printf("finish\n");
@@ -302,10 +309,30 @@ public:
         });
       }
       else if(targetId.dyn_cast<StringAttr>().getValue() == "gpu"){
+        // auto ops = forOp.getRegion().front().getOperations();
+        Block &bodyBlock = forOp.getLoopBody().front();//原始for的bodyBlock
+        SmallVector<Operation*> op_list;
+        ScheTargetNode node;
+        for(auto it = bodyBlock.begin(); it != bodyBlock.end(); it++){
+          op_list.push_back(&*it);
+        }
+        node.setOpList(op_list);
+        node.update();
+        SmallVector<Value> operands_;
+        for(Value v : node.getOperands()){
+          bool contain = 0;
+          for(Value v_ : bodyBlock.getArguments()){
+            if(v==v_){
+              contain = 1;
+              break;
+            }
+            if(!contain) operands_.push_back(v);
+          }
+        }
+        
         auto on_device_op = rewriter.create<sche::OnDeviceOp>(loc, targetId.dyn_cast<StringAttr>().getValue(), targetConfig.dyn_cast<StringAttr>().getValue(), 
-                                    forOp.getResults().getTypes(), ValueRange{}, [&](OpBuilder& builder, Location loc, ValueRange valueRange){
+                                    forOp.getResults().getTypes(), operands_, [&](OpBuilder& builder, Location loc, ValueRange valueRange){
                                       auto sub_forOp = builder.create<scf::ForOp>(loc, start, end, step, forOp.getInitArgs(), [&](OpBuilder& builder, Location loc, Value iv, ValueRange iterArgs){
-                                        Block &bodyBlock = forOp.getLoopBody().front();//原始for的bodyBlock
                                         IRMapping mp;
                                         mp.map(bodyBlock.getArgument(0), iv);
                                         for(auto&& [a, b] : llvm::zip(bodyBlock.getArguments().drop_front(), iterArgs)){
@@ -317,13 +344,13 @@ public:
                                       });
                                       builder.create<sche::ReturnOp>(loc, sub_forOp.getResults());
                                     });
+        on_device_op.getOperation()->setAttr("sche.source", rewriter.getStringAttr("scf.for"));
       }
 
       start = end;
     }
 
     rewriter.eraseOp(op);
-    
 
     op->getParentOp()->print(llvm::outs());
 
