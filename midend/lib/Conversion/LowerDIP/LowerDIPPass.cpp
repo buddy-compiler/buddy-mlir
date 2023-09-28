@@ -795,8 +795,7 @@ public:
     VectorType vectorTy32 = VectorType::get({stride}, inElemTy);
     IntegerType i1 = IntegerType::get(ctx, 1);
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
-    Value zeroPaddingElem =
-        dip::insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
+    Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
     Value zeroPaddingVec =
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
@@ -1001,8 +1000,7 @@ public:
     VectorType vectorTy32 = VectorType::get({stride}, inElemTy);
     IntegerType i1 = IntegerType::get(ctx, 1);
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
-    Value zeroPaddingElem =
-        dip::insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
+    Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
     Value zeroPaddingVec =
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
@@ -1203,8 +1201,7 @@ public:
     VectorType vectorTy32 = VectorType::get({stride}, inElemTy);
     IntegerType i1 = IntegerType::get(ctx, 1);
     VectorType vectorMaskTy = VectorType::get({stride}, i1);
-    Value zeroPaddingElem =
-        dip::insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
+    Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, inElemTy);
     Value zeroPaddingVec =
         rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
