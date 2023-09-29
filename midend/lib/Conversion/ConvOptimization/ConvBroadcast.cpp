@@ -60,6 +60,8 @@ public:
     // Create constant index.
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value c2 = rewriter.create<arith::ConstantIndexOp>(loc, 2);
+    Value c3 = rewriter.create<arith::ConstantIndexOp>(loc, 3);
     Value cStride = rewriter.create<arith::ConstantIndexOp>(loc, stride);
     Value f0 = rewriter.create<arith::ConstantFloatOp>(
       loc, APFloat::getZero(f32.getFloatSemantics()), f32
@@ -74,8 +76,11 @@ public:
     // Create DimOp.
     Value kernelRow = rewriter.create<memref::DimOp>(loc, kernel, c0);
     Value kernelCol = rewriter.create<memref::DimOp>(loc, kernel, c1);
-    Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
-    Value outputCol = rewriter.create<memref::DimOp>(loc, output, c1);
+    Value outputRow = rewriter.create<memref::DimOp>(loc, output, c1);
+    Value outputCol = rewriter.create<memref::DimOp>(loc, output, c2);
+    Value batch = rewriter.create<memref::DimOp>(loc, input, c0);
+    Value feature = rewriter.create<memref::DimOp>(loc, kernel, c3);
+    Value channel = rewriter.create<memref::DimOp>(loc, kernel, c2);
     // Size of strip mining.
     AffineExpr d0;
     bindDims(ctx, d0);
