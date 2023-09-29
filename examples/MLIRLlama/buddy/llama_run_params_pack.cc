@@ -22,7 +22,7 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test text constructor for pure string.
   //===--------------------------------------------------------------------===//
-  std::string pureStr = "Hey, are you conscious? Can you talk to me?";
+  std::string pureStr = "Hey, please say hello world to me!";
   Text<long long, 2> pureStrContainer(pureStr);
   pureStrContainer.tokenize(vocabDir, 80);
   // CHECK: 1
