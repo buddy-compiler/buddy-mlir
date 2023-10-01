@@ -5,3 +5,5 @@ __pycache__/
 
 #obj file
 *.o
+*.out
+llamaRun

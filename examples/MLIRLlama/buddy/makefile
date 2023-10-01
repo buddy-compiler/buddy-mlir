@@ -110,3 +110,6 @@ llama-ompopt:
 		-mlir-to-llvmir | \
 	${LLVM_AS} | \
 	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
+
+llama-make:
+	g++ llama.o llama_run_params_pack.cc -I../../../frontend/Interfaces -lomp -lmlir_c_runner_utils -o llamaRun

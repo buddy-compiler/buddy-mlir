@@ -34,7 +34,7 @@ $ cmake -G Ninja ../llvm \
     -DLLVM_ENABLE_RUNTIMES=all \
     -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
     -DMLIR_ENABLE_BINDINGS_PYTHON=True \
-    -DPython3_EXECUTABLE=/root/anaconda3/bin/python \
+    -DPython3_EXECUTABLE=/Path/To/Python/Interpreter \
     -DCMAKE_BUILD_TYPE=RELEASE
 $ ninja check-mlir check-clang
 ```
@@ -116,15 +116,13 @@ Run torch_mlir_llama_hf.py, and then you can get the llama mlir output.
 ```
 python torch_mlir_llama_hf.py > buddy/llama.mlir
 ```
-
+In your path for "params-write-path", you will get params_data directory, such as "/buddy-mlir-for-transformer/examples/MLIRLlama/params_data", which will store model params.
 ### lower llama.mlir for inference
 
 ```
 cd buddy
 make llama-ompopt
-cd $HOME/buddy-mlir/build
-ninja
-cd bin
+make llama-make
 ./llamaRun
 ```
 When you run llamaRun, you should provide the model params data path and vocab file. In our repo, we have provided vocab file and you should provide params data path in your server. You should input these path in command line.

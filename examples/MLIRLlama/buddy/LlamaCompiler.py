@@ -44,7 +44,8 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
     return gm.forward
   
   def param_write_to_file(model_params):
-    shutil.rmtree(global_var_get_value('params-write-path')+"/params_data")
+    if os.path.exists(global_var_get_value('params-write-path')+"/params_data"):
+      shutil.rmtree(global_var_get_value('params-write-path')+"/params_data")
     os.mkdir(global_var_get_value('params-write-path')+"/params_data")
     if global_var_get_value("params-pack"):
       all_param = numpy.array([])
