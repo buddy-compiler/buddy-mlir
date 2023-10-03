@@ -24,6 +24,7 @@
 #include <mlir/Dialect/Math/IR/Math.h>
 #include <mlir/IR/IntegerSet.h>
 #include <mlir/Pass/Pass.h>
+#include <iostream>
 
 #include "Utils/Utils.h"
 
@@ -67,8 +68,6 @@ public:
       loc, APFloat::getZero(f32.getFloatSemantics()), f32
     );
 
-    // Create pass through vector.
-    Value passThroughVec = rewriter.create<SplatOp>(loc, vectorTy32, f0);
     // Get input, kernel and output.
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
@@ -85,112 +84,68 @@ public:
     AffineExpr d0;
     bindDims(ctx, d0);
     AffineMap stripMap = AffineMap::get(1, 0, {d0.ceilDiv(stride)}, ctx);
-    SmallVector<Value, 8> lowerBounds(3, c0);
-    SmallVector<Value, 8> uperBounds{outputRow, kernelRow, kernelCol};
-    SmallVector<int64_t, 8> steps(3, 1);
-    affine::buildAffineLoopNest(
-      rewriter, loc, lowerBounds, uperBounds, steps,
-      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-        // Create strip mining loop.
-        builder.create<affine::AffineForOp>(
-          loc, ValueRange{c0}, builder.getDimIdentityMap(),
-          ValueRange{outputCol}, stripMap, /*Step=*/1, std::nullopt,
-          [&](OpBuilder &nestedBuilder, Location nestedLoc,Value iv,
-              ValueRange itrArgs) {
-              // Vectorize the kernel.
-              // Broadcast element of the kernel.
-              Value kernelValue = builder.create<memref::LoadOp>(
-                loc, kernel, ValueRange{ivs[1], ivs[2]}
-              );
-              // Coefficients handle, if kernel item == 0, skip compute
-              Value kernelNonZeroCond = buddy::zeroCond(
-                builder, loc, f32, kernelValue, buddy::indexToF32(builder, loc, c0)
-              );
-              builder.create<scf::IfOp>(
-                loc, kernelNonZeroCond,
-                [&](OpBuilder &builder, Location loc) {
-                  Value kernelVector = builder.create<vector::BroadcastOp>(
-                    loc, vectorTy32, kernelValue
-                  );
-                  // Load input vector from memref.
-                  AffineExpr m, n, k, j;
-                  bindDims(ctx, m, n, k, j);
-                  AffineMap inputVectorMap = AffineMap::get(
-                    4, 0,
-                    {m + n, k + j * stride}, ctx
-                  );
-                  // Calculate the tail.
-                  Value currCol =
-                      nestedBuilder.create<arith::MulIOp>(loc, iv, cStride);
-                  Value tail = nestedBuilder.create<arith::SubIOp>(
-                    loc, outputCol, currCol);
-                  Value tailCond = rewriter.create<arith::CmpIOp>(
-                    loc, arith::CmpIPredicate::sge, tail, cStride);
-                  // If the current column does not reach the tail.
-                  builder.create<scf::IfOp>(
-                    loc, tailCond,
-                    [&](OpBuilder &builder, Location loc) {
-                      Value inputVector = 
-                        nestedBuilder.create<affine::AffineVectorLoadOp>(
-                          loc, vectorTy32, input, inputVectorMap,
-                          ValueRange{ivs[0], ivs[1], ivs[2], iv});
-                      // Define AffineMap.
-                      // The `outputVector` and `resultVector` share the 
-                      // same AffineMap.
-                      AffineExpr x, y;
-                      bindDims(ctx, x, y);
-                      AffineMap outputVectorMap = AffineMap::get(
-                        2, 0,
-                        {x, y * stride}, ctx);
-                      Value outputVector = 
-                        nestedBuilder.create<affine::AffineVectorLoadOp>(
-                          loc, vectorTy32, output, outputVectorMap,
-                          ValueRange{ivs[0], iv});
-                      // Multiply InputVector and KernelBroadcastVector then Add OutputVector to OutputVector
-                      Value resultVector = nestedBuilder.create<FMAOp>(
-                        loc, inputVector, kernelVector, outputVector);
-                      nestedBuilder.create<affine::AffineVectorStoreOp>(
-                        loc, resultVector, output, outputVectorMap,
-                        ValueRange{ivs[0], iv});
-                      builder.create<scf::YieldOp>(loc);
-                    },
-                    // The else branch (the current column reaches the tail).
-                    [&](OpBuilder &builder, Location loc) {
-                      // Create mask according to the tail.
-                      Value tailMask = builder.create<CreateMaskOp>(loc, vectorMaskTy, tail);
-                      // Calculate the index of the input and output.
-                      Value inputRow = nestedBuilder.create<arith::AddIOp>(loc, ivs[0], ivs[1]);
-                      Value outputCol = nestedBuilder.create<arith::MulIOp>(loc, iv, cStride);
-                      Value inputCol = nestedBuilder.create<arith::AddIOp>(loc, ivs[2], outputCol);
-                      // Masked load input and output.
-                      Value maskedInputVec = builder.create<MaskedLoadOp>(
-                        loc, vectorTy32, input,
-                        ValueRange{inputRow, inputCol}, tailMask,
-                        passThroughVec
-                      );
-                      Value maskedOutputVec = builder.create<MaskedLoadOp>(
-                        loc, vectorTy32, output,
-                        ValueRange{ivs[0], outputCol}, tailMask,
-                        passThroughVec
-                      );
-                      // FMA
-                      Value resultVec = builder.create<FMAOp>(loc, maskedInputVec, kernelVector, maskedOutputVec);
-                      // Masked store the result to output.
-                      builder.create<MaskedStoreOp>(
-                        loc, output, ValueRange{ivs[0], outputCol},
-                        tailMask, resultVec
-                      );
-                      builder.create<scf::YieldOp>(loc);
-                    }
-                  );
-                  builder.create<scf::YieldOp>(loc);
-                }
-              );
-              nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);
-            }
-        );
-      }
-    );
+    SmallVector<Value, 8> lowerBounds(6, c0);
+    SmallVector<Value, 8> uperBounds{batch, outputRow, kernelRow, kernelCol, channel, feature};
+    SmallVector<int64_t, 8> steps(6, 1);
+    affine::buildAffineLoopNest(rewriter, loc, lowerBounds, uperBounds, steps,
+    [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+      // Create stride loop.
+      builder.create<affine::AffineForOp>(
+        loc, ValueRange{c0}, builder.getDimIdentityMap(),
+        ValueRange{outputCol}, stripMap, 1, std::nullopt,
+        [&](OpBuilder &nestedBuilder, Location channelLoc, Value iv, ValueRange itrArgs) {
+          // Get element frome kernel.
+          Value kernelValue = builder.create<memref::LoadOp>(
+            loc, kernel, ValueRange{ivs[2], ivs[3], ivs[4], ivs[5]}
+          );
+          // Coefficients handle, if kernel item == 0, skip compute
+          Value kernelNonZeroCond = buddy::zeroCond(
+            builder, loc, f32, kernelValue, buddy::indexToF32(builder, loc, c0)
+          );
+          builder.create<scf::IfOp>(loc, kernelNonZeroCond,
+          [&](OpBuilder &builder, Location loc) {
+            // Broadcast element of the kernel.
+            Value kernelVector = builder.create<vector::BroadcastOp>(
+              loc, vectorTy32, kernelValue
+            );
+            // Calculate the tail.
+            Value currCol = nestedBuilder.create<arith::MulIOp>(loc, iv, cStride);
+            Value tail = nestedBuilder.create<arith::SubIOp>(loc, outputCol, currCol);
+
+            Value inputRowTailIdx = builder.create<arith::AddIOp>(loc, ivs[1], ivs[2]);
+            //Value outputColTailIdx = builder.create<arith::MulIOp>(loc, iv, cStride);
+            Value inputColTailIdx = builder.create<arith::AddIOp>(loc, ivs[3], currCol);
+            Value tailMask = builder.create<CreateMaskOp>(loc, vectorMaskTy, tail);
+            // Define AffineMap (d0, d1, d2, d3) -> (d2)
+            AffineExpr d0, d1, d2, d3;
+            bindDims(ctx, d0, d1, d2, d3);
+            AffineMap tansposeMap = AffineMap::get(4, 0, {d2}, ctx);
+            SmallVector<bool> inBounds(1, true);
+            // Load input/output vector from memref.
+            Value inputVector = builder.create<vector::TransferReadOp>(
+              loc, vectorTy32, input, ValueRange{ivs[0], inputRowTailIdx, inputColTailIdx, ivs[4]},
+              AffineMapAttr::get(tansposeMap), f0, tailMask, ArrayAttr::get(ctx, builder.getBoolAttr(true))
+            );
+            Value outputVector = builder.create<vector::TransferReadOp>(
+              loc, vectorTy32, output, ValueRange{ivs[0], ivs[1], currCol, ivs[5]},
+              AffineMapAttr::get(tansposeMap), f0, tailMask, ArrayAttr::get(ctx, builder.getBoolAttr(true))
+            );
+            
+            // Multiply input vector and kernel vector then Add OutputVector(FMA).
+            Value resultVector = builder.create<FMAOp>(
+              loc, inputVector, kernelVector, outputVector
+            );
+            // Store result vector to output.
+            builder.create<vector::TransferWriteOp>(
+              loc, resultVector, output, ValueRange{ivs[0], ivs[1], currCol, ivs[5]},
+              AffineMapAttr::get(tansposeMap), tailMask, ArrayAttr::get(ctx, builder.getBoolAttr(true))
+            );
+            builder.create<scf::YieldOp>(loc);
+          });
+          nestedBuilder.create<affine::AffineYieldOp>(channelLoc);
+        }
+      );
+    });
     // Remove the origin convolution operation
     rewriter.eraseOp(op);
     return success();
@@ -233,8 +188,8 @@ public:
                       affine::AffineDialect, VectorDialect, func::FuncDialect>();
   }
 
-  Option<int64_t> stride{*this, "strip-mining",
-                         llvm::cl::desc("Strip mining size."),
+  Option<int64_t> stride{*this, "stride",
+                         llvm::cl::desc("Stride size."),
                          llvm::cl::init(32)};
   ListOption<int64_t> tile{*this, "tile-sizes", llvm::cl::desc("Tile sizes"),
                            llvm::cl::ZeroOrMore};
