@@ -3,7 +3,7 @@
 // RUN:     -convert-linalg-to-loops -convert-vector-to-scf -lower-affine \
 // RUN:     -convert-scf-to-cf -convert-vector-to-llvm \
 // RUN:     -finalize-memref-to-llvm -convert-arith-to-llvm \
-// RUN:     -convert-func-to-llvm -convert-cf-to-llvm -reconcile-unrealized-cas \
+// RUN:     -convert-func-to-llvm -convert-cf-to-llvm -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_lib \
 // RUN:     -shared-libs=%mlir_c_runner_utils_lib \
