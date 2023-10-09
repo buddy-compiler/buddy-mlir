@@ -40,7 +40,6 @@ def DynamoCompiler(gm: torch.fx.GraphModule,
     with ir.Location.unknown(ctx):
       fx_importer = FXGraphImporter(gm, inputs)
       module = fx_importer.import_graph(ctx)
-      module = Lowering(module)
     return gm.forward
   
   def param_write_to_file(model_params):
@@ -200,40 +199,3 @@ class FXGraphImporter:
         self._symbol_table[(str(node.name), i)] = operation
     else:
       self._symbol_table[(str(node.name), 0)] = op_ret
-
-
-def Lowering(module: ir.Module):
-  """Lower an MLIR module to LLVM dialect.
-
-  Args:
-    module (mlir.ir.Module): An MLIR module that need to be lowered.
-
-  Returns:
-    mlir.ir.Module: An MLIR module in LLVM dialect.
-
-  """
-  pm = PassManager("builtin.module")
-  pm.add("func.func(tosa-to-linalg)")
-  pm.add("func.func(tosa-to-tensor)")
-  pm.add("func.func(tosa-to-arith)")
-  pm.add("func.func(tosa-to-arith)")
-  pm.add("empty-tensor-to-alloc-tensor")
-  pm.add("convert-elementwise-to-linalg")
-  pm.add("arith-bufferize")
-  pm.add("func.func(linalg-bufferize)")
-  pm.add("func.func(tensor-bufferize)")
-  pm.add("func-bufferize")
-  pm.run(module.operation)
-  #print(module)
-  pm.add("func.func(buffer-deallocation)")
-  pm.add("func.func(convert-linalg-to-loops)")
-  pm.add("convert-scf-to-cf")
-  pm.add("convert-linalg-to-llvm")
-  pm.add("convert-arith-to-llvm")
-  pm.add("expand-strided-metadata")
-  pm.add("finalize-memref-to-llvm")
-  pm.add("convert-func-to-llvm")
-  pm.add("reconcile-unrealized-casts")
-  pm.run(module.operation)
-  #print(module)
-  return module

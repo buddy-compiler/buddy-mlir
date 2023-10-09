@@ -1,17 +1,16 @@
 import torch
 from transformers import LlamaForCausalLM, LlamaTokenizer
 from transformers import LlamaModel, LlamaConfig
-# import torch._dynamo as dynamo
-# from buddy.LlamaCompiler import DynamoCompiler
+import torch._dynamo as dynamo
+from buddy.LlamaCompiler import DynamoCompiler
 
 tokenizer = LlamaTokenizer.from_pretrained('/llama-2-7B-hf')
 model = LlamaForCausalLM.from_pretrained('/llama-2-7B-hf', torchscript=True)
 prompt = "Hey, please say hello world to me!"
 inputs = tokenizer(prompt, return_tensors="pt")
-print(inputs.input_ids)
+#print(inputs.input_ids)
 generate_ids = model.generate(inputs.input_ids, max_length=30)
-print(tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0])
-exit()
+#print(tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0])
 # print(len(generate_ids))
 # print(generate_ids)
 # print("-----------------------")
