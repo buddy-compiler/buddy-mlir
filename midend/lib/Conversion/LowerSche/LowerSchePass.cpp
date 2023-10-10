@@ -52,10 +52,10 @@ public:
 
   LogicalResult
   matchAndRewrite(sche::LaunchFuncOp op, PatternRewriter &rewriter) const override {
-    printf("begin\n");
+    // printf("begin\n");
     auto loc = op.getLoc();
 
-    printf("finish\n");
+    // printf("finish\n");
     return success();
 
   }
@@ -68,7 +68,7 @@ public:
 
   LogicalResult
   matchAndRewrite(sche::OnDeviceOp onDeviceOp, PatternRewriter &rewriter) const override {
-    printf("begin\n");
+    // printf("begin\n");
     auto loc = onDeviceOp.getLoc();
 
     auto op = onDeviceOp.getOperation();
@@ -80,9 +80,9 @@ public:
 
     auto operands = op->getOperands();
     for(auto v : operands){
-      v.print(llvm::outs());
+      // v.print(llvm::outs());
       auto t = v.getType();
-      t.print(llvm::outs());
+      // t.print(llvm::outs());
       if(t.isa<TensorType>()){
         auto shape = t.dyn_cast<TensorType>().getShape();
         auto ele_type = t.dyn_cast<TensorType>().getElementType();
@@ -247,11 +247,11 @@ public:
       });
 
       rewriter.create<gpu::TerminatorOp>(loc);
-      printf("asdasdasdasdasdasdasdasd\n");
+      // printf("asdasdasdasdasdasdasdasd\n");
     }
     else{
       for(auto&& op_ : onDeviceOp.getRegion().front().getOperations()){
-      op_.print(llvm::outs());
+      // op_.print(llvm::outs());
       if(!op_.hasTrait<OpTrait::ReturnLike>()){
         auto new_op = rewriter.clone(op_, mp);
         for(auto&& [a, b] : llvm::zip(op_.getResults(), new_op->getResults())){
@@ -259,16 +259,16 @@ public:
         }
       }else{
         int i=0;
-        printf("asdasd\n");
+        // printf("asdasd\n");
         for(auto res : op_.getOperands()){
           auto t = res.getType();
-          t.print(llvm::outs());
+          // t.print(llvm::outs());
           //TODO:必须要有rank
           if(t.isa<TensorType>()){
-            printf("4\n");
+            // printf("4\n");
             auto shape = t.dyn_cast<TensorType>().getShape();
             auto ele_type = t.dyn_cast<TensorType>().getElementType();
-            printf("4 finish\n");
+            // printf("4 finish\n");
             auto to_memref_op = rewriter.create<bufferization::ToMemrefOp>(loc, MemRefType::get(shape, ele_type), mp.lookupOrNull<Value>(res));
             auto copy_op = rewriter.create<memref::CopyOp>(loc, to_memref_op.getResult(), result_memrefs[i++]);
           }
@@ -295,10 +295,10 @@ public:
       auto t = v.getType();
       //TODO:必须要有rank
       if(t.isa<TensorType>()){
-        printf("5\n");
+        // printf("5\n");
         auto shape = t.dyn_cast_or_null<TensorType>().getShape();
         auto ele_type = t.dyn_cast_or_null<TensorType>().getElementType();
-        printf("5 finish\n");
+        // printf("5 finish\n");
         auto to_tensor_op = rewriter.create<bufferization::ToTensorOp>(loc, t, result_memrefs[i++]);
         v.replaceAllUsesWith(to_tensor_op.getResult());
       }
@@ -320,10 +320,10 @@ public:
     rewriter.eraseOp(op);
 
 
-    op->getParentOp()->print(llvm::outs());
+    // op->getParentOp()->print(llvm::outs());
 
 
-    printf("finish\n");
+    // printf("finish\n");
     return success();
 
   }

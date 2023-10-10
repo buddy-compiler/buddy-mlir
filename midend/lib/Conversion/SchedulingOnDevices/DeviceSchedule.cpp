@@ -176,7 +176,7 @@ public:
 
   LogicalResult
   matchAndRewrite(func::FuncOp func, PatternRewriter &rewriter) const override {
-    printf("begin\n");
+    // printf("begin\n");
 
     auto loc = func.getLoc();
     auto ctx = rewriter.getContext();
@@ -237,9 +237,9 @@ public:
       // func.getOperation()->setAttr("sche.dispatched", rewriter.getUnitAttr());
       func.getOperation()->removeAttr("sche.devices");
     });
-    func.print(llvm::outs());
+    // func.print(llvm::outs());
 
-    printf("finish\n");
+    // printf("finish\n");
     return success();
 
   }
@@ -251,7 +251,7 @@ public:
 
   LogicalResult
   matchAndRewrite(scf::ForOp forOp, PatternRewriter &rewriter) const override {
-    printf("begin\n");
+    // printf("begin\n");
 
     auto loc = forOp.getLoc();
     auto ctx = rewriter.getContext();
@@ -352,9 +352,9 @@ public:
 
     rewriter.eraseOp(op);
 
-    op->getParentOp()->print(llvm::outs());
+    // op->getParentOp()->print(llvm::outs());
 
-    printf("finish\n");
+    // printf("finish\n");
     return success();
 
   }
@@ -366,7 +366,7 @@ public:
 
   LogicalResult
   matchAndRewrite(tosa::ReduceSumOp reduceSumOp, PatternRewriter &rewriter) const override {
-    printf("begin\n");
+    // printf("begin\n");
 
     auto loc = reduceSumOp.getLoc();
     auto ctx = rewriter.getContext();
@@ -469,9 +469,9 @@ public:
     rewriter.eraseOp(op);
     
 
-    op->getParentOp()->print(llvm::outs());
+    // op->getParentOp()->print(llvm::outs());
 
-    printf("finish\n");
+    // printf("finish\n");
     return success();
 
   }

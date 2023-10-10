@@ -5,25 +5,28 @@ func.func @main() {
   %c8 = arith.constant 8 : index
 
   %lb = arith.constant 0 : index
-  %ub = arith.constant 40000 : index
+  %ub = arith.constant 100 : index
 
-  %A = memref.alloc() : memref<40000xf32>
+  %A = memref.alloc() : memref<100xf32>
+  %A_cast0 = memref.cast %A : memref<100xf32> to memref<*xf32>
 
   scf.for %iv = %lb to %ub step %c1 {
     %0 = arith.muli %iv, %c8 : index
     %1 = arith.addi %iv, %0  : index
     %2 = arith.index_cast %1 : index to i32
     %3 = arith.sitofp %2 : i32 to f32
-    %4 = memref.load %A[%iv] : memref<40000xf32>
+    %4 = memref.load %A[%iv] : memref<100xf32>
     %5 = arith.addf %3, %4 : f32
-    memref.store %5, %A[%iv] : memref<40000xf32>
+    memref.store %5, %A[%iv] : memref<100xf32>
   } {sche.devices = [{targetId = "cpu", targetConfig = "", duty_ratio = 0.2:f32}, {targetId = "gpu", targetConfig = "", duty_ratio = 0.8:f32}]}
 
-  %res = memref.load %A[%c1] : memref<40000xf32>
+  // %res = memref.load %A[%c1] : memref<40000xf32>
   // CHECK: 10
-  vector.print %res : f32
+  call @printMemrefF32(%A_cast0) : (memref<*xf32>) -> ()
 
-  memref.dealloc %A : memref<40000xf32>
+  memref.dealloc %A : memref<100xf32>
 
   return
 }
+
+func.func private @printMemrefF32(%ptr : memref<*xf32>)
