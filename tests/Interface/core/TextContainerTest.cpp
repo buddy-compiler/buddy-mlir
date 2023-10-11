@@ -34,76 +34,75 @@ int main() {
     //
     // The test running directory is in <build dir>/tests/Interface/core, so the
     // vocabulary directory uses the following relative path.
-    std::string vocabDir = "../../../../tests/Interface/core/vocab.txt"; 
-    std::string vocabDir2 = "../../../../tests/Interface/core/vocab_llama.txt"; 
+    std::string vocabDir = "/root/buddy-mlir/tests/Interface/core/vocab_bert.txt"; 
     //===--------------------------------------------------------------------===//
     // Test text constructor for pure string.
     //===--------------------------------------------------------------------===//
     std::string pureStr = "buddy compiler is a domain specific compiler";
-    Text<long long, 2> pureStrContainer(pureStr);
-    pureStrContainer.tokenize(vocabDir, 12);
+    Text<long long, 2> pureStrBertContainer(pureStr);
+    pureStrBertContainer.tokenizeBert(vocabDir, 12);
     // CHECK: 101
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[0]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[0]);
     // CHECK: 8937
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[1]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[1]);
     // CHECK: 21624
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[2]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[2]);
     // CHECK: 2003
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[3]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[3]);
     // CHECK: 1037
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[4]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[4]);
     // CHECK: 5884
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[5]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[5]);
     // CHECK: 3563
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[6]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[6]);
     // CHECK: 21624
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[7]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[7]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[8]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[8]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[9]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[9]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[10]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[10]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", pureStrContainer.getData()[11]);
+    fprintf(stderr, "%lld\n", pureStrBertContainer.getData()[11]);
 
     //===--------------------------------------------------------------------===//
     // Test text constructor for punctuation.
     //===--------------------------------------------------------------------===//
     std::string puncStr = "buddy compiler: a domain specific compiler!";
-    Text<long long, 2> puncStrContainer(puncStr);
-    puncStrContainer.tokenize(vocabDir, 12);
+    Text<long long, 2> puncStrBertContainer(puncStr);
+    puncStrBertContainer.tokenizeBert(vocabDir, 12);
     // CHECK: 101
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[0]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[0]);
     // CHECK: 8937
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[1]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[1]);
     // CHECK: 21624
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[2]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[2]);
     // CHECK: 1024
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[3]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[3]);
     // CHECK: 1037
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[4]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[4]);
     // CHECK: 5884
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[5]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[5]);
     // CHECK: 3563
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[6]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[6]);
     // CHECK: 21624
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[7]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[7]);
     // CHECK: 999
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[8]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[8]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[9]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[9]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[10]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[10]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", puncStrContainer.getData()[11]);
+    fprintf(stderr, "%lld\n", puncStrBertContainer.getData()[11]);
 
     //===--------------------------------------------------------------------===//
     // Test text constructor for corner cases.
     //===--------------------------------------------------------------------===//
     std::string cornerStr = "  buddy compiler : a domain specific compiler!!  ";
     Text<long long, 2> cornerStrContainer(cornerStr);
-    cornerStrContainer.tokenize(vocabDir, 12);
+    cornerStrContainer.tokenizeBert(vocabDir, 12);
     // CHECK: 101
     fprintf(stderr, "%lld\n", cornerStrContainer.getData()[0]);
     // CHECK: 8937
@@ -133,103 +132,109 @@ int main() {
     // Test text constructor for chinese cases.
     //===--------------------------------------------------------------------===//
     std::string chineseStr = "我，中国北京人！";
-    Text<long long, 2> chineseStrContainer(chineseStr);
-    chineseStrContainer.tokenize(vocabDir, 12);
+    Text<long long, 2> chineseStrBertContainer(chineseStr);
+    chineseStrBertContainer.tokenizeBert(vocabDir, 12);
     // CHECK: 101
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[0]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[0]);
     // CHECK: 1855
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[1]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[1]);
     // CHECK: 1989
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[2]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[2]);
     // CHECK: 1746
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[3]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[3]);
     // CHECK: 1799
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[4]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[4]);
     // CHECK: 1781
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[5]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[5]);
     // CHECK: 1755
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[6]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[6]);
     // CHECK: 1756
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[7]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[7]);
     // CHECK: 1986
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[8]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[8]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[9]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[9]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[10]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[10]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", chineseStrContainer.getData()[11]);
+    fprintf(stderr, "%lld\n", chineseStrBertContainer.getData()[11]);
     //===--------------------------------------------------------------------===//
     // Test text constructor for lower cases.
     //===--------------------------------------------------------------------===//
     std::string toLowerStr = "BUDDY COMPILER IS A DOMAIN SPECIFIC COMPILER";
-    Text<long long, 2> toLowerStrContainer(toLowerStr);
-    toLowerStrContainer.tokenize(vocabDir, 12, true);
+    Text<long long, 2> toLowerStrBertContainer(toLowerStr);
+    toLowerStrBertContainer.tokenizeBert(vocabDir, 12, true);
     // CHECK: 101
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[0]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[0]);
     // CHECK: 8937
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[1]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[1]);
     // CHECK: 21624
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[2]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[2]);
     // CHECK: 2003
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[3]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[3]);
     // CHECK: 1037
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[4]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[4]);
     // CHECK: 5884
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[5]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[5]);
     // CHECK: 3563
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[6]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[6]);
     // CHECK: 21624
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[7]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[7]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[8]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[8]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[9]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[9]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[10]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[10]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", toLowerStrContainer.getData()[11]);
+    fprintf(stderr, "%lld\n", toLowerStrBertContainer.getData()[11]);
     //===--------------------------------------------------------------------===//
     // Test text constructor for root and affix process.
     //===--------------------------------------------------------------------===//
     std::string affixStr = "it is colourless";
-    Text<long long, 2> affixStrContainer(affixStr);
-    affixStrContainer.tokenize(vocabDir, 12,false,true);
+    Text<long long, 2> affixStrBertContainer(affixStr);
+    affixStrBertContainer.tokenizeBert(vocabDir, 12,false,true);
     // CHECK: 101
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[0]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[0]);
     // CHECK: 2009
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[1]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[1]);
     // CHECK: 2003
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[2]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[2]);
     // CHECK: 6120
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[3]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[3]);
     // CHECK: 3238
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[4]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[4]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[5]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[5]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[6]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[6]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[7]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[7]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[8]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[8]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[9]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[9]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[10]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[10]);
     // CHECK: 102
-    fprintf(stderr, "%lld\n", affixStrContainer.getData()[11]);
+    fprintf(stderr, "%lld\n", affixStrBertContainer.getData()[11]);
+    // The map of string-to-id used in the test cases:
+    // bud: 8619, dy:4518, compiler: 6516, is: 338, a: 263, domain: 5354
+    // specific: 2702, ":": 29901, "!": 29991 
+    //
+    // The test running directory is in <build dir>/tests/Interface/core, so the
+    // vocabulary directory uses the following relative path.
+    vocabDir = "../../../../tests/Interface/core/vocab_llama.txt"; 
     //===--------------------------------------------------------------------===//
     // Test text constructor for pure string using Llama tokenizer.
     //===--------------------------------------------------------------------===//
-    //std::string pureStrLlama = "buddy compiler is a domain specific compiler";
     std::string pureStrLlama = "buddy compiler is a domain specific compiler";
     Text<long long, 2> pureStrLlamaContainer(pureStrLlama);
-    pureStrLlamaContainer.tokenizeLlama(vocabDir2, 12);
-    std::string result = pureStrLlamaContainer.revert(pureStrLlamaContainer);
+    pureStrLlamaContainer.tokenizeLlama(vocabDir, 12);
+    std::string pureStrLlamaResult = pureStrLlamaContainer.revert(pureStrLlamaContainer);
     // CHECK: 1
     fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[0]);
-    // CHECK: 15841
+    // CHECK: 8619
     fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[1]);
     // CHECK: 4518
     fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[2]);
@@ -252,5 +257,38 @@ int main() {
     // CHECK: 2
     fprintf(stderr, "%lld\n", pureStrLlamaContainer.getData()[11]);
     // CHECK: buddy compiler is a domain specific compiler
-    fprintf(stderr, "%s\n" , result.c_str());
+    fprintf(stderr, "%s\n" , pureStrLlamaResult.c_str());
+    //===--------------------------------------------------------------------===//
+    // Test text constructor for punctuation.
+    //===--------------------------------------------------------------------===//
+    std::string puncStrLlama = "buddy compiler: a domain specific compiler!";
+    Text<long long, 2> puncStrLlamaContainer(puncStrLlama);
+    puncStrLlamaContainer.tokenizeLlama(vocabDir, 12);
+    std::string puncStrLlamaResult = puncStrLlamaContainer.revert(puncStrLlamaContainer);
+    // CHECK: 1
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[0]);
+    // CHECK: 8619
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[1]);
+    // CHECK: 4518
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[2]);
+    // CHECK: 6516
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[3]);
+    // CHECK: 29901
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[4]);
+    // CHECK: 263
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[5]);
+    // CHECK: 5354
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[6]);
+    // CHECK: 2702
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[7]);
+    // CHECK: 6516
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[8]);
+    // CHECK: 29991
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[9]);
+    // CHECK: 2
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[10]);
+    // CHECK: 2
+    fprintf(stderr, "%lld\n", puncStrLlamaContainer.getData()[11]);
+    // CHECK: buddy compiler: a domain specific compiler!
+    fprintf(stderr, "%s\n" , puncStrLlamaResult.c_str());
 }

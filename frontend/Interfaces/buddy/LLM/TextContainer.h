@@ -49,7 +49,7 @@ public:
   // allocated memory.
   // Special tokens (e.g., [CLS] and [SEP]) are added at the beginning and end
   // of the tokenized sequence.
-  void tokenize(const std::string &vocab, long long length, bool lower = true,bool affix = false);
+  void tokenizeBert(const std::string &vocab, long long length, bool lower = true,bool affix = false);
   // LLAMA Tokenizer
   // This function initializes the necessary memory references and sets up the
   // structure for storing tokenized data. 
@@ -69,6 +69,11 @@ public:
   long long getTokenCnt() { return this->tokenCnt;}
   // Set sequence length
   void setTokenCnt(long long cnt) {this->tokenCnt = cnt;}
+  // Get the token string by index
+  std::string getStr(long long idx) { 
+    std::string str = this->idToTokenVec[idx];
+    return str;
+   }
 
 private:
   // Check if a character is a whitespace character.
@@ -100,16 +105,14 @@ private:
   std::string replaceAllSpace(const std::string &str) {
     std::string tar;
     int index = 0;
-    int rIndex = 0;
     std::string replace = "▁";
+    tar.append(replace);
     while(str[index]){ 
         if(str[index] != ' '){ 
             tar.append(str,index,1);
-            rIndex++;
         }
         if(str[index] == ' ' && str[index-1] != ' '){ 
             tar.append(replace);
-            rIndex+=3;
         }
             index++;
         }
@@ -130,13 +133,13 @@ private:
   // Load vocab into class
   void loadVocab(const std::string &token);
   // [UNK] NLP Padding Marker
-  int pad = 0;
+  int pad;
   // [UNK] NLP Unknown Marker
-  int unk = 100;
+  int unk;
   // [CLS] NLP Classification Marker
-  int cls = 101;
+  int cls;
   // [SEP] NLP Separator Marker
-  int sep = 102;
+  int sep;
   // The maximum input characters we can accept in one word
   long unsigned int maxInputChars = 200;
   // The string member of the text container.
@@ -166,6 +169,10 @@ void Text<T, N>::tokenizeLlama(const std::string &vocab, long long length) {
     this->size = this->product(this->sizes);
     this->allocated = new T[this->size];
     this->aligned = this->allocated;
+    this->unk = 0;
+    this->cls = 1;
+    this->sep = 2;
+    this->pad = 2;
     // Load Vocab
     loadVocab(vocab);
     str = replaceAllSpace(str);
@@ -203,18 +210,18 @@ void Text<T, N>::tokenizeLlama(const std::string &vocab, long long length) {
     }
     // Reverse the data for correct
     std::reverse(res.begin(), res.end());
-    this->aligned[0] = 1;
-    tokenCnt = 1;
+    this->aligned[0] = cls;
+    tokenCnt = cls;
     for(;tokenCnt < (long long)res.size()+1;tokenCnt++)
         this->aligned[tokenCnt] = res[tokenCnt-1];
     // Parse the last token if exists.
     for(long long i = tokenCnt;i < length;i++)
-        this->aligned[i] = 2;
+        this->aligned[i] = pad;
 }
 
 // Tokenizer
 template <typename T, size_t N>
-void Text<T, N>::tokenize(const std::string &vocab, long long length, bool lower, bool affix) {
+void Text<T, N>::tokenizeBert(const std::string &vocab, long long length, bool lower, bool affix) {
   // Initialize MemRef container members.
   this->offset = 0;
   this->sizes[0] = 1;
@@ -223,6 +230,10 @@ void Text<T, N>::tokenize(const std::string &vocab, long long length, bool lower
   this->size = this->product(this->sizes);
   this->allocated = new T[this->size];
   this->aligned = this->allocated;
+  this->pad = 0;
+  this->unk = 100;
+  this->cls = 101;
+  this->sep = 102;
   loadVocab(vocab);
   // Tokenize string and convert to MemRef container object.
   // Mark the beginning of our token.
@@ -270,7 +281,6 @@ void Text<T, N>::tokenize(const std::string &vocab, long long length, bool lower
   }
 }
 
-// todo:change this function for decoding id
 template <typename T, size_t N>
 std::string Text<T, N>::revert(Text<long long, 2> input){
     std::string dst;
@@ -288,6 +298,8 @@ std::string Text<T, N>::revert(Text<long long, 2> input){
         else
             dst.append(token);
     }
+    // if(dst[0] == ' ')
+    //     dst.erase(0,1);
     return dst;
 }
 
