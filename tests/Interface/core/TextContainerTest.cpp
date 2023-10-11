@@ -34,7 +34,7 @@ int main() {
     //
     // The test running directory is in <build dir>/tests/Interface/core, so the
     // vocabulary directory uses the following relative path.
-    std::string vocabDir = "/root/buddy-mlir/tests/Interface/core/vocab_bert.txt"; 
+    std::string vocabDir = "../../../../tests/Interface/core/vocab_bert.txt"; 
     //===--------------------------------------------------------------------===//
     // Test text constructor for pure string.
     //===--------------------------------------------------------------------===//
