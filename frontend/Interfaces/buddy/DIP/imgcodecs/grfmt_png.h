@@ -1,11 +1,10 @@
-//===- Grfmt_png.hpp ---------------------------------------------------===//
+//===-----------------------grfmt_png.h----------------------------===//
 //
-//  IMPORTANT: READ BEFORE DOWNLOADING, COPYING, INSTALLING OR USING.
+// IMPORTANT: READ BEFORE DOWNLOADING, COPYING, INSTALLING OR USING.
 //
-//  By downloading, copying, installing or using the software you agree to this
-//  license. If you do not agree to this license, do not download, install, copy
-//  or use the software.
-//
+// By downloading, copying, installing or using the software you agree to
+// this license. If you do not agree to this license, do not download,
+// install, copy or use the software.
 //
 //                        Intel License Agreement
 //                For Open Source Computer Vision Library
@@ -16,17 +15,17 @@
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-//   * Redistribution's of source code must retain the above copyright notice,
-//     this list of conditions and the following disclaimer.
+//  * Redistribution's of source code must retain the above copyright notice,
+//  this list of conditions and the following disclaimer.
 //
-//   * Redistribution's in binary form must reproduce the above copyright
-//   notice,
-//     this list of conditions and the following disclaimer in the documentation
-//     and/or other materials provided with the distribution.
+//  * Redistribution's in binary form must reproduce the above copyright
+//  notice,
+//  this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
 //
-//   * The name of Intel Corporation may not be used to endorse or promote
-//   products
-//     derived from this software without specific prior written permission.
+//  * The name of Intel Corporation may not be used to endorse or promote
+//  products
+//  derived from this software without specific prior written permission.
 //
 // This software is provided by the copyright holders and contributors "as is"
 // and any express or implied warranties, including, but not limited to, the
@@ -41,11 +40,12 @@
 // possibility of such damage.
 //
 //
-//===----------------------------------------------------------------------===//
+//----------------------------------------------------------------------//
 //
-// This file is modified from opencv's modules/imgcodecs/src/grfmt_png.hpp file
+// This file is modified from opencv's
+// modules/imgcodecs/src/grfmt_png.hpp file
 //
-//===----------------------------------------------------------------------===//
+//----------------------------------------------------------------------//
 
 #ifndef _GRFMT_PNG_H_
 #define _GRFMT_PNG_H_
@@ -268,7 +268,8 @@ bool PngDecoder<T, N>::readData(Img<T, N> &img) {
       for (int i = 0; i < img.getSize(); i++) {
         data[i] = (T)myArry[i];
       }
-
+      delete[] myArry;
+      delete[] _buffer;
 #ifdef PNG_eXIf_SUPPORTED
       png_uint_32 num_exif = 0;
       png_bytep exif = 0;
@@ -376,7 +377,8 @@ bool PngEncoder<T, N>::write(Img<T, N> &img, const std::vector<int> &params) {
 
           png_write_image(png_ptr, buffer);
           png_write_end(png_ptr, info_ptr);
-
+          delete[] myArry;
+          delete[] buffer;
           result = true;
         }
       }
