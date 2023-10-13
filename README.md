@@ -46,6 +46,18 @@ $ cmake -G Ninja ../llvm \
     -DCMAKE_BUILD_TYPE=RELEASE
 ```
 
+To enable MLIR Python bindings, please use the following configuration:
+
+```
+$ cmake -G Ninja ../llvm \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+    -DPython3_EXECUTABLE=[path_to_python_executable]
+```
+
 If your target machine has lld installed, you can use the following configuration:
 
 ```
@@ -72,6 +84,18 @@ $ cmake -G Ninja .. \
     -DCMAKE_BUILD_TYPE=RELEASE
 $ ninja
 $ ninja check-buddy
+```
+
+To utilize the Buddy Compiler Python package, please ensure that the MLIR Python bindings are enabled and use the following configuration:
+
+```
+$ cmake -G Ninja .. \
+    -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
+    -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+    -DPython3_EXECUTABLE=[path_to_python_executable]
 ```
 
 If you want to add domain-specific framework support, please add the following cmake options:
