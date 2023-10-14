@@ -19,7 +19,7 @@
 # ===---------------------------------------------------------------------------
 
 import operator
-from typing import Callable, List, Union
+from typing import Any, List, Union, Optional, Callable
 
 import mlir.dialects.func as func
 import mlir.ir as ir
@@ -31,43 +31,64 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 from buddy.operators_gen import operation_func
 
 
-def dynamo_compiler(
-    gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
-) -> Callable:
-    """The main entry point of buddy compiler for torch dynamo. It takes a FX
-    graph module and a list of inputs as parameters. The compiler will first use
-    PyTorch's AOT autograd to lower FX graph in Torch IR to Aten/Prims IR. Then
-    it will map the operators in Aten/Prims IR to MLIR operations and generate an
-    MLIR module. Finally, It will lower the MLIR module to LLVM dialect.
+class BuddyDynamoCompiler:
+    def __init__(
+        self,
+        func_name: str = "main",
+        aot_autograd_decomposition: Optional[dict] = None,
+    ) -> None:
+        self.func_name = func_name
+        self.aot_autograd_decoposition = aot_autograd_decomposition
+        self._bufferize_pipelines = [
+            "func.func(tosa-to-linalg-named)",
+            "func.func(tosa-to-linalg)",
+            "func.func(tosa-to-tensor)",
+            "func.func(tosa-to-arith)",
+            "empty-tensor-to-alloc-tensor",
+            "convert-elementwise-to-linalg",
+            "arith-bufferize",
+            "func.func(linalg-bufferize)",
+            "func.func(tensor-bufferize)",
+            "func-bufferize",
+        ]
+        self._llvm_lower_pipelines = [
+            "func.func(buffer-deallocation)",
+            "func.func(convert-linalg-to-loops)",
+            "convert-math-to-llvm",
+            "convert-math-to-libm",
+            "convert-scf-to-cf",
+            "convert-linalg-to-llvm",
+            "convert-arith-to-llvm",
+            "expand-strided-metadata",
+            "finalize-memref-to-llvm",
+            "func.func(llvm-request-c-wrappers)",
+            "convert-func-to-llvm",
+            "reconcile-unrealized-casts",
+        ]
 
-    Args:
-      gm (torch.fx.GraphModule): The FX graph module to be compiled.
-      inputs (List[torch.Tensor]): The inputs of the FX graph module.
+    def __call__(
+        self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
+    ) -> Any:
+        def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
+            """Compile a FX graph in Aten/Prims IR to MLIR."""
+            # Initialize the MLIR context.
+            ctx = ir.Context()
+            with ir.Location.unknown(ctx):
+                fx_importer = FXGraphImporter(_gm, _inputs)
+                llvm_lowerer = LLVMLowerer(
+                    self._bufferize_pipelines, self._llvm_lower_pipelines
+                )
+                module = fx_importer.import_graph()
+                module = llvm_lowerer.lower(module)
 
-    Returns:
-      Callable: A compiled function that equivalent to the FX graph.
+            return _gm.forward
 
-    """
-
-    def _compiler(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
-        """Compile a FX graph in Aten/Prims IR to MLIR."""
-        print("Custom Compiler from FX Graph to MLIR:")
-        print(
-            "-------------------------------------------------------------------"
+        return aot_module_simplified(
+            gm,
+            inputs,
+            fw_compiler=_compiler,
+            decompositions=self.aot_autograd_decoposition,
         )
-        gm.graph.print_tabular()
-        # Initialize the MLIR context.
-        ctx = ir.Context()
-        with ir.Location.unknown(ctx):
-            fx_importer = FXGraphImporter(gm, inputs)
-            module = fx_importer.import_graph()
-            module = Lowering(module)
-
-        return gm.forward
-
-    return aot_module_simplified(
-        gm, inputs, fw_compiler=_compiler, decompositions=inductor_decomp.copy()
-    )
 
 
 class FXGraphImporter:
@@ -77,7 +98,7 @@ class FXGraphImporter:
         self,
         gm: torch.fx.GraphModule,
         inputs: List[torch.Tensor],
-        func_name: str = "main",
+        func_name: str = "forward",
     ):
         """
         Args:
@@ -112,6 +133,8 @@ class FXGraphImporter:
                         mlir_dtype = ir.IntegerType.get_signless(64)
                     case torch.float32:
                         mlir_dtype = ir.F32Type.get()
+                    case torch.bool:
+                        mlir_dtype = ir.IntegerType.get_signless(1)
                     case _:
                         raise NotImplementedError(
                             f"Unsupported dtype {dtype} for argument {arg}"
@@ -145,8 +168,6 @@ class FXGraphImporter:
 
                 return self._symbol_table.get(("output", 0))
 
-        print("Printing the generated MLIR...")
-        print(self._module)
         return self._module
 
     def _import_placeholder(self, node: torch.fx.Node, args_list):
@@ -167,45 +188,33 @@ class FXGraphImporter:
             self._symbol_table[(str(node.name), 0)] = op_ret.result
 
 
-def Lowering(module: ir.Module):
-    """Lower an MLIR module to LLVM dialect.
+class LLVMLowerer:
+    def __init__(
+        self, bufferizing_pipelines: List[str], llvm_lower_pipelines: List[str]
+    ) -> None:
+        self._bufferizing_pipelines = bufferizing_pipelines
+        self._llvm_lower_pipelines = llvm_lower_pipelines
 
-    Args:
-      module (mlir.ir.Module): An MLIR module that need to be lowered.
+    def lower(self, module: ir.Module) -> Any:
+        """Lower an MLIR module to LLVM dialect.
 
-    Returns:
-      mlir.ir.Module: An MLIR module in LLVM dialect.
+        Args:
+        module (mlir.ir.Module): An MLIR module that need to be lowered.
 
-    """
-    print("-------------------------------------------------------------------")
-    print("Bufferizing the module ...")
-    pm = PassManager("builtin.module")
-    pm.add("func.func(tosa-to-linalg-named)")
-    pm.add("func.func(tosa-to-linalg)")
-    pm.add("func.func(tosa-to-tensor)")
-    pm.add("func.func(tosa-to-arith)")
-    pm.add("empty-tensor-to-alloc-tensor")
-    pm.add("convert-elementwise-to-linalg")
-    pm.add("arith-bufferize")
-    pm.add("func.func(linalg-bufferize)")
-    pm.add("func.func(tensor-bufferize)")
-    pm.add("func-bufferize")
-    pm.run(module.operation)
-    print(module)
-    print("-------------------------------------------------------------------")
-    print("Lowering the module to LLVM dialect ...")
-    pm.add("func.func(buffer-deallocation)")
-    pm.add("func.func(convert-linalg-to-loops)")
-    pm.add("convert-math-to-llvm")
-    pm.add("convert-math-to-libm")
-    pm.add("convert-scf-to-cf")
-    pm.add("convert-linalg-to-llvm")
-    pm.add("convert-arith-to-llvm")
-    pm.add("expand-strided-metadata")
-    pm.add("finalize-memref-to-llvm")
-    pm.add("func.func(llvm-request-c-wrappers)")
-    pm.add("convert-func-to-llvm")
-    pm.add("reconcile-unrealized-casts")
-    pm.run(module.operation)
-    print(module)
-    return module
+        Returns:
+        mlir.ir.Module: An MLIR module in LLVM dialect.
+
+        """
+        pm = PassManager("builtin.module")
+        # bufferize
+        for pipeline in self._bufferizing_pipelines:
+            pm.add(pipeline)
+        pm.run(module.operation)
+
+        # lower to LLVM dialect
+        for pipeline in self._llvm_lower_pipelines:
+            pm.add(pipeline)
+        pm.run(module.operation)
+        print(module)
+        
+        return module

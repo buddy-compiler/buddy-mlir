@@ -1,11 +1,16 @@
-from buddy.compiler import dynamo_compiler
 import torch
 import torch._dynamo as dynamo
+from buddy.compiler import BuddyDynamoCompiler
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 def foo(c, a, b):
     return torch.addmm(c, a, b)
 
+
+dynamo_compiler = BuddyDynamoCompiler(
+    func_name="forward", aot_autograd_decomposition=inductor_decomp
+)
 
 foo_mlir = dynamo.optimize(dynamo_compiler)(foo)
 
