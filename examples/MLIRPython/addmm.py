@@ -1,13 +1,13 @@
-from buddy.compiler import DynamoCompiler
+from buddy.compiler import dynamo_compiler
 import torch
 import torch._dynamo as dynamo
 
 
 def foo(c, a, b):
-  return torch.addmm(c, a, b)
+    return torch.addmm(c, a, b)
 
 
-foo_mlir = dynamo.optimize(DynamoCompiler)(foo)
+foo_mlir = dynamo.optimize(dynamo_compiler)(foo)
 
 a_float32 = torch.randn(3, 2)
 b_float32 = torch.randn(2, 3)

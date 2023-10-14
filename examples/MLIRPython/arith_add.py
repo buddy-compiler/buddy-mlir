@@ -1,13 +1,13 @@
-from buddy import compiler
+from buddy.compiler import dynamo_compiler
 import torch
 import torch._dynamo as dynamo
 
 
 def foo(x, y):
-  return x + y
+    return x + y
 
 
-foo_mlir = dynamo.optimize(compiler.DynamoCompiler)(foo)
+foo_mlir = dynamo.optimize(dynamo_compiler)(foo)
 float32_in1 = torch.randn(10).to(torch.float32)
 float32_in2 = torch.randn(10).to(torch.float32)
 foo_mlir(float32_in1, float32_in2)
