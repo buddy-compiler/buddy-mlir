@@ -19,26 +19,25 @@
 # ===---------------------------------------------------------------------------
 
 import operator
-from typing import Any, List, Union, Optional, Callable
+from typing import Any, List, Union, Optional
 
 import mlir.dialects.func as func
 import mlir.ir as ir
 import torch
 from mlir.passmanager import PassManager
 from torch._functorch.aot_autograd import aot_module_simplified
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
-from buddy.operators_gen import operation_func
 
 
 class BuddyDynamoCompiler:
     def __init__(
         self,
+        operators_registry: dict,
         func_name: str = "main",
         aot_autograd_decomposition: Optional[dict] = None,
     ) -> None:
-        self.func_name = func_name
-        self.aot_autograd_decoposition = aot_autograd_decomposition
+        self._operators_registry = operators_registry
+        self._func_name = func_name
+        self._aot_autograd_decoposition = aot_autograd_decomposition
         self._bufferize_pipelines = [
             "func.func(tosa-to-linalg-named)",
             "func.func(tosa-to-linalg)",
@@ -74,7 +73,9 @@ class BuddyDynamoCompiler:
             # Initialize the MLIR context.
             ctx = ir.Context()
             with ir.Location.unknown(ctx):
-                fx_importer = FXGraphImporter(_gm, _inputs)
+                fx_importer = FXGraphImporter(
+                    _gm, _inputs, self._operators_registry
+                )
                 llvm_lowerer = LLVMLowerer(
                     self._bufferize_pipelines, self._llvm_lower_pipelines
                 )
@@ -87,7 +88,7 @@ class BuddyDynamoCompiler:
             gm,
             inputs,
             fw_compiler=_compiler,
-            decompositions=self.aot_autograd_decoposition,
+            decompositions=self._aot_autograd_decoposition,
         )
 
 
@@ -98,6 +99,7 @@ class FXGraphImporter:
         self,
         gm: torch.fx.GraphModule,
         inputs: List[torch.Tensor],
+        operators_registry: dict,
         func_name: str = "forward",
     ):
         """
@@ -113,6 +115,7 @@ class FXGraphImporter:
         self._inputs = inputs
         self._num_input_visited = 0
         self._module = ir.Module.create()
+        self._operators_registry = operators_registry
 
     def import_graph(self) -> ir.Module:
         """Import the FX graph, generate an MLIR module in high-level dialects.
@@ -178,9 +181,9 @@ class FXGraphImporter:
     def _import_op(self, node: torch.fx.Node):
         op_name = node.target.__name__
 
-        op_ret: Union[ir.Operation, tuple] = operation_func[op_name](
-            node, self._symbol_table
-        )
+        op_ret: ir.Operation | ir.Value | tuple = self._operators_registry[
+            op_name
+        ](node, self._symbol_table)
         if isinstance(op_ret, tuple):
             for i, operation in enumerate(op_ret):
                 self._symbol_table[(str(node.name), i)] = operation.result
@@ -216,5 +219,5 @@ class LLVMLowerer:
             pm.add(pipeline)
         pm.run(module.operation)
         print(module)
-        
+
         return module

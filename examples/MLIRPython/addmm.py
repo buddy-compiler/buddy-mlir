@@ -2,6 +2,12 @@ import torch
 import torch._dynamo as dynamo
 from buddy.compiler import BuddyDynamoCompiler
 from torch._inductor.decomposition import decompositions as inductor_decomp
+from buddy.operators.tosa_operators import (
+    operators_registry as tosa_operators_registry,
+)
+from buddy.operators.math_operators import (
+    operators_registry as math_operators_registry,
+)
 
 
 def foo(c, a, b):
@@ -9,7 +15,9 @@ def foo(c, a, b):
 
 
 dynamo_compiler = BuddyDynamoCompiler(
-    func_name="forward", aot_autograd_decomposition=inductor_decomp
+    func_name="forward",
+    aot_autograd_decomposition=inductor_decomp,
+    operators_registry={**tosa_operators_registry, **math_operators_registry},
 )
 
 foo_mlir = dynamo.optimize(dynamo_compiler)(foo)

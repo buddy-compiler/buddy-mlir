@@ -2,7 +2,7 @@ import array
 from typing import Dict, List, Union, Tuple
 
 import mlir.ir as ir
-from mlir.dialects import tosa, math, tensor
+from mlir.dialects import tosa, tensor
 import torch
 
 
@@ -193,12 +193,6 @@ def div_op(node, symbol_table):
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
 
     return _gen_arith_binary_op(input1, input2, _inner_op)
-
-
-def erf_op(node, symbol_table):
-    input_ = symbol_table.get((str(node.args[0]), 0))
-    op = math.ErfOp(input_)
-    return op
 
 
 def tanh_op(node, symbol_table):
@@ -629,7 +623,7 @@ def sum_op(node, symbol_table):
 # div, embedding, erf, exp, expand, getitem, gt, inductor_lookup_seed
 # inductor_random, inductor_seeds, mul, permute, reshape, rsqrt
 # select, slice, sub, tanh, unsqueeze, var_mean
-operation_func = {
+operators_registry = {
     "add.Tensor": add_op,
     "mul.Tensor": mul_op,
     "sub.Tensor": sub_op,
@@ -640,7 +634,6 @@ operation_func = {
     "bmm.default": bmm_op,
     "clone.default": clone_op,
     "div.Tensor": div_op,
-    "erf.default": erf_op,
     "exp.default": exp_op,
     "expand.default": expand_op,
     "var_mean.correction": var_mean_op,
