@@ -38,6 +38,7 @@ class BuddyDynamoCompiler:
         self._operators_registry = operators_registry
         self._func_name = func_name
         self._aot_autograd_decoposition = aot_autograd_decomposition
+        self._lowered_module = None
         self._bufferize_pipelines = [
             "func.func(tosa-to-linalg-named)",
             "func.func(tosa-to-linalg)",
@@ -65,6 +66,11 @@ class BuddyDynamoCompiler:
             "reconcile-unrealized-casts",
         ]
 
+    
+    @property
+    def lowered_module(self):
+        return self._lowered_module
+
     def __call__(
         self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
     ) -> Any:
@@ -79,8 +85,8 @@ class BuddyDynamoCompiler:
                 llvm_lowerer = LLVMLowerer(
                     self._bufferize_pipelines, self._llvm_lower_pipelines
                 )
-                module = fx_importer.import_graph()
-                module = llvm_lowerer.lower(module)
+                imported_module = fx_importer.import_graph()
+                self._lowered_module = llvm_lowerer.lower(imported_module)
 
             return _gm.forward
 
@@ -218,6 +224,5 @@ class LLVMLowerer:
         for pipeline in self._llvm_lower_pipelines:
             pm.add(pipeline)
         pm.run(module.operation)
-        print(module)
 
         return module
