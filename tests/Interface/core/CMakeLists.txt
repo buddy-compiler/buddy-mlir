@@ -3,20 +3,22 @@ _add_test_executable(buddy-container-test
 )
 
 if(BUDDY_ENABLE_OPENCV)
-find_package(OpenCV REQUIRED CONFIG)
+  find_package(OpenCV REQUIRED CONFIG)
+  include_directories(${OpenCV_INCLUDE_DIRS})
+endif()
+
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
-include_directories(${OpenCV_INCLUDE_DIRS})
-include_directories(${JPEG_INCLUDE_DIRS})
-include_directories(${PNG_INCLUDE_DIRS})
+add_library(DIP_LIB INTERFACE)
+target_link_libraries(DIP_LIB INTERFACE ${JPEG_LIBRARY} ${PNG_LIBRARY})
+
 _add_test_executable(buddy-image-container-test
   ImageContainerTest.cpp
   LINK_LIBS
     ${OpenCV_LIBS}
-    ${JPEG_LIBRARY}
-    ${PNG_LIBRARY}
+    DIP_LIB
 )
-endif()
+
 
 _add_test_executable(buddy-audio-container-test
   AudioContainerTest.cpp
