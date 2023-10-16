@@ -11,6 +11,10 @@ func.func @main() {
   %A_cast0 = memref.cast %A : memref<100xf32> to memref<*xf32>
 
   scf.for %iv = %lb to %ub step %c1 {
+    memref.store %c0, %A[%iv] : memref<100xf32>
+  }
+  
+  scf.for %iv = %lb to %ub step %c1 {
     %0 = arith.muli %iv, %c8 : index
     %1 = arith.addi %iv, %0  : index
     %2 = arith.index_cast %1 : index to i32

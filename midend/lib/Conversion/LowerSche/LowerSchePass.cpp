@@ -68,7 +68,6 @@ public:
 
   LogicalResult
   matchAndRewrite(sche::OnDeviceOp onDeviceOp, PatternRewriter &rewriter) const override {
-    // printf("begin\n");
     auto loc = onDeviceOp.getLoc();
 
     auto op = onDeviceOp.getOperation();
@@ -143,11 +142,11 @@ public:
       auto host_register_op = rewriter.create<gpu::HostRegisterOp>(loc, memref_cast_op.getResult());
     }
 
-    auto grid_x = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
+    auto grid_x = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(3)).getResult();
     auto grid_y = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
     auto grid_z = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
 
-    auto block_x = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
+    auto block_x = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(3)).getResult();
     auto block_y = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
     auto block_z = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
     
@@ -185,58 +184,38 @@ public:
       Value step = for_op.getStep();
 
       //计算需要在一个block中的步长范围
-      auto range = rewriter.create<arith::SubIOp>(loc, upperBound, lowerBound);
-      Value stepRange = rewriter.create<arith::DivSIOp>(loc, range.getResult(), step);
+      auto range = rewriter.create<arith::SubIOp>(loc, upperBound, lowerBound); //ti
+      Value stepRange = rewriter.create<arith::DivSIOp>(loc, range.getResult(), step);//ti
       // stepRange = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI32Type(), stepRange);
-      Value stepRangeInBlock = rewriter.create<arith::DivSIOp>(loc, stepRange, grid_x);
+      Value stepRangeInBlock = rewriter.create<arith::DivSIOp>(loc, stepRange, gpu_launch_op.getGridSizeX());//ti
       Value start = rewriter.create<arith::MulIOp>(loc, stepRangeInBlock, gpu_launch_op.getBlockIds().x);
-      Value rem = rewriter.create<arith::RemSIOp>(loc, stepRange, grid_x);
+      start = rewriter.create<arith::AddIOp>(loc, start, lowerBound);
+      Value rem = rewriter.create<arith::RemSIOp>(loc, stepRange, gpu_launch_op.getGridSizeX());//ti
       Value cmp_rem_blkId = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, rem, gpu_launch_op.getBlockIds().x);
+      Value cmp_rem_blkId_index = rewriter.create<arith::IndexCastUIOp>(loc, rewriter.getIndexType(), cmp_rem_blkId);
       auto idx1 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
-      stepRangeInBlock = rewriter.create<scf::IfOp>(loc, cmp_rem_blkId, [&](OpBuilder& builder, Location loc)
-      {
-        auto add_op = builder.create<arith::AddIOp>(loc, stepRangeInBlock, idx1);
-        builder.create<scf::YieldOp>(loc, ValueRange{add_op.getResult()});
-      }, 
-      [&](OpBuilder& builder, Location loc)
-      {
-        builder.create<scf::YieldOp>(loc, ValueRange{stepRangeInBlock});
-      }).getResults()[0];
-      start = rewriter.create<scf::IfOp>(loc, cmp_rem_blkId, 
-      [&](OpBuilder& builder, Location loc)
-      {
-        auto add_op = builder.create<arith::AddIOp>(loc, start, gpu_launch_op.getBlockIds().x);
-        builder.create<scf::YieldOp>(loc, ValueRange{add_op.getResult()});
-      }, 
-      [&](OpBuilder& builder, Location loc)
-      {
-        auto add_op = builder.create<arith::AddIOp>(loc, start, rem);
-        builder.create<scf::YieldOp>(loc, ValueRange{add_op.getResult()});
-      }).getResults()[0];
-
+      stepRangeInBlock = rewriter.create<arith::AddIOp>(loc, cmp_rem_blkId_index, stepRangeInBlock);
+      Value min = rewriter.create<arith::MinUIOp>(loc, gpu_launch_op.getBlockIds().x, rem);
+      start = rewriter.create<arith::AddIOp>(loc, start, min);
       //一个thread中的步长范围
-      Value stepRangeInThread = rewriter.create<arith::DivSIOp>(loc, stepRangeInBlock, block_x);
-      rem = rewriter.create<arith::RemSIOp>(loc, stepRangeInBlock, block_x);
+      Value stepRangeInThread = rewriter.create<arith::DivSIOp>(loc, stepRangeInBlock, block_x);//ti
+      rem = rewriter.create<arith::RemSIOp>(loc, stepRangeInBlock, block_x);//ti
       Value cmp_rem_threadId = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, rem, gpu_launch_op.getThreadIds().x);
-      stepRangeInThread = rewriter.create<scf::IfOp>(loc, cmp_rem_threadId, [&](OpBuilder& builder, Location loc){
-        auto add_op = builder.create<arith::AddIOp>(loc, stepRangeInThread, idx1);
-        builder.create<scf::YieldOp>(loc, ValueRange{add_op.getResult()});
-      }, 
-      [&](OpBuilder& builder, Location loc)
-      {
-        builder.create<scf::YieldOp>(loc, ValueRange{stepRangeInThread});
-      }).getResults()[0];
+      Value cmp_rem_threadId_index = rewriter.create<arith::IndexCastUIOp>(loc, rewriter.getIndexType(), cmp_rem_threadId);
+      stepRangeInThread = rewriter.create<arith::AddIOp>(loc, cmp_rem_threadId_index, stepRangeInThread);
+
       Value end = rewriter.create<arith::AddIOp>(loc, start, stepRangeInThread);
 
-      auto sub_forOp = rewriter.create<scf::ForOp>(loc, start, end, idx1, for_op.getInitArgs(), 
+      auto sub_forOp = rewriter.create<scf::ForOp>(loc, idx0, stepRangeInThread, idx1, for_op.getInitArgs(), 
                                                     [&](OpBuilder& builder, Location loc, 
                                                     Value iv, ValueRange iterArgs)
       {
         Block &bodyBlock = for_op.getLoopBody().front();//原始for的bodyBlock
         IRMapping mp;
-        iv = builder.create<arith::MulIOp>(loc, iv, gpu_launch_op.getBlockIds().x);
+        iv = builder.create<arith::MulIOp>(loc, iv, gpu_launch_op.getBlockSizeX());
         iv = builder.create<arith::AddIOp>(loc, iv, gpu_launch_op.getThreadIds().x);
         iv = builder.create<arith::MulIOp>(loc, iv, step);
+        iv = builder.create<arith::AddIOp>(loc, iv, start);
         mp.map(bodyBlock.getArgument(0), iv);
         for(auto&& [a, b] : llvm::zip(bodyBlock.getArguments().drop_front(), iterArgs)){
           mp.map(a, b);
@@ -247,7 +226,6 @@ public:
       });
 
       rewriter.create<gpu::TerminatorOp>(loc);
-      // printf("asdasdasdasdasdasdasdasd\n");
     }
     else{
       for(auto&& op_ : onDeviceOp.getRegion().front().getOperations()){
@@ -259,16 +237,13 @@ public:
         }
       }else{
         int i=0;
-        // printf("asdasd\n");
         for(auto res : op_.getOperands()){
           auto t = res.getType();
           // t.print(llvm::outs());
           //TODO:必须要有rank
           if(t.isa<TensorType>()){
-            // printf("4\n");
             auto shape = t.dyn_cast<TensorType>().getShape();
             auto ele_type = t.dyn_cast<TensorType>().getElementType();
-            // printf("4 finish\n");
             auto to_memref_op = rewriter.create<bufferization::ToMemrefOp>(loc, MemRefType::get(shape, ele_type), mp.lookupOrNull<Value>(res));
             auto copy_op = rewriter.create<memref::CopyOp>(loc, to_memref_op.getResult(), result_memrefs[i++]);
           }
@@ -295,10 +270,8 @@ public:
       auto t = v.getType();
       //TODO:必须要有rank
       if(t.isa<TensorType>()){
-        // printf("5\n");
         auto shape = t.dyn_cast_or_null<TensorType>().getShape();
         auto ele_type = t.dyn_cast_or_null<TensorType>().getElementType();
-        // printf("5 finish\n");
         auto to_tensor_op = rewriter.create<bufferization::ToTensorOp>(loc, t, result_memrefs[i++]);
         v.replaceAllUsesWith(to_tensor_op.getResult());
       }
@@ -323,7 +296,6 @@ public:
     // op->getParentOp()->print(llvm::outs());
 
 
-    // printf("finish\n");
     return success();
 
   }
