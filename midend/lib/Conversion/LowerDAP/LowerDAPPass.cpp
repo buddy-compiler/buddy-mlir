@@ -204,6 +204,10 @@ public:
     VectorType vectorTy32 = VectorType::get({stride}, f32);
 
     Value zr = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+    // calculate the upper bound of the FIR part <scf::ForOp>
+    Value strictN = rewriter.create<SubIOp>(loc, N, c2);
+    Value strideRem = rewriter.create<RemSIOp>(loc, strictN, strideVal);
+    Value upperN = rewriter.create<SubIOp>(loc, N, strideRem);
 
     // loop over every row in SOS matrix
     rewriter.create<scf::ForOp>(
@@ -245,10 +249,10 @@ public:
               builder.create<vector::BroadcastOp>(loc, vectorTy32, b2);
 
           // A biquad filter expression:
-          // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
+          // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2];
           // FIR part
           builder.create<scf::ForOp>(
-              loc, c2, N, strideVal, ValueRange{std::nullopt},
+              loc, c2, upperN, strideVal, ValueRange{std::nullopt},
               [&](OpBuilder &builder, Location loc, Value iv,
                   ValueRange itrargs) {
                 Value idx0 = iv;
@@ -273,6 +277,32 @@ public:
                 builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
 
                 builder.create<scf::YieldOp>(loc, std::nullopt);
+              });
+
+          // process the remain data of FIR part
+          Value idx1 = builder.create<SubIOp>(loc, upperN, c1);
+          Value idx2 = builder.create<SubIOp>(loc, upperN, c2);
+          Value in1 = 
+              builder.create<memref::LoadOp>(loc, input, ValueRange{idx1});
+          Value in2 = 
+              builder.create<memref::LoadOp>(loc, input, ValueRange{idx2});
+
+          builder.create<scf::ForOp>(
+              loc, upperN, N, c1, ValueRange{in1, in2}, 
+              [&](OpBuilder &builder, Location loc, Value iv,
+                  ValueRange itrargs) {
+                Value in0 = 
+                    builder.create<memref::LoadOp>(loc, input, ValueRange{iv});
+
+                Value temp0 = builder.create<MulFOp>(loc, b0, in0);
+                Value temp1 = builder.create<MulFOp>(loc, b1, in1);
+                Value temp2 = builder.create<MulFOp>(loc, b2, in2);
+                Value sum0 = builder.create<AddFOp>(loc, temp0, temp1);
+                Value sum1 = builder.create<AddFOp>(loc, sum0, temp2);
+                
+                builder.create<memref::StoreOp>(loc, sum1, output, ValueRange{iv});
+
+                builder.create<scf::YieldOp>(loc, std::vector<Value>{in0, in1});
               });
 
           // IIR part
