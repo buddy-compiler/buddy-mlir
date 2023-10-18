@@ -7,8 +7,6 @@ if(BUDDY_ENABLE_OPENCV)
   include_directories(${OpenCV_INCLUDE_DIRS})
 endif()
 
-find_package(JPEG REQUIRED)
-find_package(PNG REQUIRED)
 add_library(DIP_LIB INTERFACE)
 target_link_libraries(DIP_LIB INTERFACE ${JPEG_LIBRARY} ${PNG_LIBRARY})
 

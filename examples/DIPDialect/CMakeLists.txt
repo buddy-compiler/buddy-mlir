@@ -3,8 +3,6 @@ if(BUDDY_ENABLE_OPENCV)
   include_directories(${OpenCV_INCLUDE_DIRS})
 endif()
 
-find_package(JPEG REQUIRED)
-find_package(PNG REQUIRED)
 add_library(DIP_LIBS INTERFACE)
 target_link_libraries(DIP_LIBS INTERFACE ${JPEG_LIBRARY} ${PNG_LIBRARY} BuddyLibDIP)
 
