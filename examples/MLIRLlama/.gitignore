@@ -1,0 +1,7 @@
+
+# model params
+params_data/
+__pycache__/
+
+#obj file
+*.o

@@ -36,8 +36,10 @@ resnet-18-lower:
 		--convert-math-to-llvm \
 		--llvm-request-c-wrappers \
 		--convert-func-to-llvm \
-		--reconcile-unrealized-casts \
-		-o ./log.mlir
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} \
+		-mlir-to-llvmir | \
+	${LLC} -mtriple=x86_64 -filetype=obj --relocation-model=pic ${OPT_FLAG} -o resnet18.o
 
 bert-stat:
 	@${MLIR_OPT} ./Bert.mlir --print-op-stats  > /dev/null
