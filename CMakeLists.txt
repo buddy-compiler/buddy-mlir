@@ -63,11 +63,9 @@ else()
     # MLIR/LLVM Configuration
     #-------------------------------------------------------------------------------
 
-    # Allow passing external LLVM source, instead of forcing user using the vendored one
-    if (NOT LLVM_PROJECT_SOURCE_DIR)
-      set(LLVM_PROJECT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/llvm")
-      message(STATUS "Using LLVM Project ${LLVM_PROJECT_SOURCE_DIR}")
-    endif()
+    # Allow using out-of-tree llvm directory
+    set(LLVM_PROJECT_SOURCE_DIR ${LLVM_MAIN_SRC_DIR}/..)
+    message(STATUS "Using LLVM Project ${LLVM_PROJECT_SOURCE_DIR}")
 
     set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
     set(MLIR_INCLUDE_DIR ${MLIR_MAIN_SRC_DIR}/include)

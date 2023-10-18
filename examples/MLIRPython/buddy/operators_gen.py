@@ -10,7 +10,7 @@ from mlir.dialects import tosa, linalg, arith
 
 def _broadcast_shape(tensor_input1: ir.Value,
                      tensor_input2: ir.Value) -> List[int]:
-  """Calculate the broadcast shape of two tensors with broadcastable shapes 
+  """Calculate the broadcast shape of two tensors with broadcastable shapes
   according to PyTorch's broadcast semantics: https://pytorch.org/docs/stable/notes/broadcasting.html"""
   shp1 = ir.RankedTensorType(tensor_input1.type).shape
   shp2 = ir.RankedTensorType(tensor_input2.type).shape
@@ -40,9 +40,9 @@ def AddOp(node: torch.fx.Node,
   input2 = symbol_table.get((str(node.args[1]), 0))
   broadcasted_shp = _broadcast_shape(input1, input2)
   sizes = broadcasted_shp
-  f32 = ir.F32Type.get()
-  addResultTensorType = ir.RankedTensorType.get(sizes, f32)
-  op = tosa.AddOp(addResultTensorType, input1, input2)
+  result_element_type = ir.RankedTensorType(input1.type).element_type
+  add_result_tensor_type = ir.RankedTensorType.get(sizes, result_element_type)
+  op = tosa.AddOp(add_result_tensor_type, input1, input2)
   return op
 
 
@@ -63,17 +63,18 @@ def AddMMOp(node: torch.fx.Node,
   mat2 = symbol_table.get((str(node.args[2]), 0))
   mat1_shp = ir.RankedTensorType(mat1.type).shape
   mat2_shp = ir.RankedTensorType(mat2.type).shape
-  result_shp = [mat1_shp[0], mat2_shp[1]]
-  f32 = ir.F32Type.get()
-  element = ir.FloatAttr.get(f32, 0.0)
-  tensor_type = ir.RankedTensorType.get(result_shp, f32)
-  attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
-  matmul_result_buffer = arith.ConstantOp(tensor_type, attr).result
-  # Generate matmul operation.
-  matmul_op_result = linalg.matmul(mat1, mat2, outs=[matmul_result_buffer])
+  mat1 = tosa.ReshapeOp(mat1, [1, *mat1_shp]).output
+  mat2 = tosa.ReshapeOp(mat2, [1, *mat2_shp]).output
 
-  add_result_tensor_type = ir.RankedTensorType.get(result_shp, f32)
-  op = tosa.AddOp(add_result_tensor_type, input_, matmul_op_result)
+  matmul_result_shp = [1, mat1_shp[0], mat2_shp[1]]
+  result_element_type = ir.RankedTensorType(input_.type).element_type
+  matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, result_element_type)
+  matmul_op = tosa.MatMulOp(matmul_result_type, mat1, mat2)
+  matmul_result = tosa.ReshapeOp(matmul_op.c, matmul_result_shp[1:])
+
+  add_result_shp = [mat1_shp[0], mat2_shp[1]]
+  add_result_tensor_type = ir.RankedTensorType.get(add_result_shp, result_element_type)
+  op = tosa.AddOp(add_result_tensor_type, input_, matmul_result)
   return op
 
 
