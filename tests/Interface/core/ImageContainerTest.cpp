@@ -188,7 +188,7 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test move constructor.
   //===--------------------------------------------------------------------===//
-  Img<float, 2> testMoveConstructor3(std::move(testCopyConstructor1));
+  Img<float, 2> testMoveConstructor3(std::move(testCopyConstructor5));
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testMoveConstructor3[0]);
   // CHECK: 4, 4
