@@ -2,7 +2,8 @@ import torch
 from transformers import LlamaForCausalLM, LlamaTokenizer
 from transformers import LlamaModel, LlamaConfig
 import torch._dynamo as dynamo
-from buddy.LlamaCompiler import DynamoCompiler
+from buddy.LlamaCompiler import BuddyDynamoCompiler, ParamsFromDynamo
+from torch._functorch.aot_autograd import aot_autograd_decompositions
 
 tokenizer = LlamaTokenizer.from_pretrained('/llama-2-7B-hf')
 model = LlamaForCausalLM.from_pretrained('/llama-2-7B-hf', torchscript=True)
@@ -16,9 +17,11 @@ generate_ids = model.generate(inputs.input_ids, max_length=30)
 # print("-----------------------")
 inputs = inputs.input_ids
 #print(inputs)
-
+dynamo_compiler = ParamsFromDynamo(
+    file_path="/buddy-mlir/examples/MLIRLlama", aot_autograd_decomposition=aot_autograd_decompositions
+)
 model.eval()
-model_opt = dynamo.optimize(DynamoCompiler)(model)
+model_opt = dynamo.optimize(dynamo_compiler)(model)
 # for (name, module) in model_opt.named_modules():
 #     print(name, module)
 # features_in_hook = []

@@ -8,7 +8,7 @@ import mlir.ir as ir
 from mlir.dialects import tosa, linalg, arith, tensor, math
 import copy
 import numpy
-from .global_var import *
+from ..global_var import *
 import functools
 
 
@@ -30,7 +30,7 @@ def _broadcast_shape(tensor_input1: ir.Value,
 
 def AddOp(node: torch.fx.Node,
           symbol_table: Dict[Tuple[str, int], ir.Operation],
-          ctx: ir.Context) :
+          ctx=None) :
   """Map aten.add.Tensor to tosa.add.
 
   Args:
@@ -46,18 +46,18 @@ def AddOp(node: torch.fx.Node,
   if isinstance(node.args[1], torch.fx.Node):
     input2 = symbol_table.get((str(node.args[1]), 0))
     if dtype == "torch.int64":
-      dtype = type_dict[dtype].get_signless(64)
+      dtype = ir.IntegerType.get_signless(64)
     elif dtype == "torch.float32":
-      dtype = type_dict[dtype].get()
+      dtype = ir.F32Type.get()
   else:
     if dtype == "torch.int64":
       data = numpy.array(node.args[1], dtype=numpy.int64)
-      dtype = type_dict[dtype].get_signless(64)
+      dtype = ir.IntegerType.get_signless(64)
       tensor_type = ir.RankedTensorType.get(list(data.shape), dtype)
       attr = ir.DenseElementsAttr.get(data, signless=True, type=tensor_type)
     elif dtype == "torch.float32":
       data = numpy.array(node.args[1], dtype=numpy.float32)
-      dtype = type_dict[dtype].get()
+      dtype =ir.F32Type.get()
       tensor_type = ir.RankedTensorType.get(list(data.shape), dtype)
       attr = ir.DenseElementsAttr.get(data, signless=True, type=tensor_type)
     input2 = arith.ConstantOp(tensor_type, attr).result
@@ -102,14 +102,14 @@ def AddMMOp(node: torch.fx.Node,
 
 def ArangeOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   if node.target.__name__ == "arange.start":
     start = int(node.args[0])
     end = int(node.args[1])
     stride = int(node.meta['tensor_meta'].stride[0])
     dtype = str(node.meta['tensor_meta'].dtype)
     shape = list(node.meta['tensor_meta'].shape)
-    dtype = type_dict[dtype].get_signless(64)
+    dtype = ir.IntegerType.get_signless(64)
     tensor_type = ir.RankedTensorType.get(shape, dtype)
     attr = ir.DenseElementsAttr.get(numpy.array([i for i in range(start, end, stride)]), signless=True, type=tensor_type)
     op = arith.ConstantOp(tensor_type, attr)
@@ -120,7 +120,7 @@ def ArangeOp(node: torch.fx.Node,
     stride = int(node.meta['tensor_meta'].stride[0])
     dtype = str(node.meta['tensor_meta'].dtype)
     shape = list(node.meta['tensor_meta'].shape)
-    dtype = type_dict[dtype].get_signless(64)
+    dtype = ir.IntegerType.get_signless(64)
     tensor_type = ir.RankedTensorType.get(shape, dtype)
     attr = ir.DenseElementsAttr.get(numpy.array([i for i in range(start, end, stride)]), signless=True, type=tensor_type)
     op = arith.ConstantOp(tensor_type, attr)
@@ -129,7 +129,7 @@ def ArangeOp(node: torch.fx.Node,
 
 def UnsqueezeOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
 
   input_node = symbol_table.get((str(node.args[0]), 0))
   if input_node is None:
@@ -144,7 +144,7 @@ def UnsqueezeOp(node: torch.fx.Node,
 
 def ViewOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   input_node = symbol_table.get((str(node.args[0]), 0))
   if input_node is None:
     return
@@ -168,7 +168,7 @@ def ViewOp(node: torch.fx.Node,
 
 def EmbeddingOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   input1 = symbol_table.get((str(node.args[0]), 0))
   input2 = symbol_table.get((str(node.args[1]), 0))
   output_shape = list(node.meta['tensor_meta'].shape)
@@ -193,7 +193,7 @@ def EmbeddingOp(node: torch.fx.Node,
 
 def OnesOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   output_shape = list(node.args[0])
   dtype = str(node.meta['tensor_meta'].dtype)
   if dtype == "torch.bool":
@@ -201,7 +201,7 @@ def OnesOp(node: torch.fx.Node,
     tensor_type = ir.RankedTensorType.get(output_shape, element.type)
     attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
   elif dtype == "torch.int64":
-    dtype = type_dict[dtype].get_signless(64)
+    dtype = ir.IntegerType.get_signless(64)
     tensor_type = ir.RankedTensorType.get(output_shape, dtype)
     attr = ir.DenseElementsAttr.get(numpy.ones(output_shape), signless=True, type=tensor_type)
   op = arith.ConstantOp(tensor_type, attr)
@@ -210,7 +210,7 @@ def OnesOp(node: torch.fx.Node,
 
 def FullOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   output_shape = list(node.args[0])
   value = node.args[1]
   dtype = str(node.meta['tensor_meta'].dtype)
@@ -219,11 +219,11 @@ def FullOp(node: torch.fx.Node,
     tensor_type = ir.RankedTensorType.get(output_shape, element.type)
     attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
   elif dtype == "torch.int64":
-    dtype = type_dict[dtype].get_signless(64)
+    dtype = ir.IntegerType.get_signless(64)
     tensor_type = ir.RankedTensorType.get(output_shape, dtype)
     attr = ir.DenseElementsAttr.get(numpy.full(output_shape, value, dtype=numpy.int64), signless=True, type=tensor_type)
   elif dtype == "torch.float32":
-    dtype = type_dict[dtype].get()
+    dtype = ir.F32Type.get()
     tensor_type = ir.RankedTensorType.get(output_shape, dtype)
     attr = ir.DenseElementsAttr.get(numpy.full(output_shape, value, dtype=numpy.float32), signless=True, type=tensor_type)
   op = arith.ConstantOp(tensor_type, attr)
@@ -232,7 +232,7 @@ def FullOp(node: torch.fx.Node,
 
 def LtOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   input1 = symbol_table.get((str(node.args[0]), 0))
   input2 = symbol_table.get((str(node.args[1]), 0))
   output_shape = list(node.meta['tensor_meta'].shape)
@@ -261,7 +261,7 @@ def LtOp(node: torch.fx.Node,
 
 def MaskedFillOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   input1 = symbol_table.get((str(node.args[0]), 0))
   input2 = symbol_table.get((str(node.args[1]), 0))
   if input1 is None or input2 is None:
@@ -288,7 +288,7 @@ def MaskedFillOp(node: torch.fx.Node,
 
 def SliceOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   input1 = symbol_table.get((str(node.args[0]), 0))
   if input1 is None:
     return
@@ -322,7 +322,7 @@ def SliceOp(node: torch.fx.Node,
 
 def ExpandOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   input1 = symbol_table.get((str(node.args[0]), 0))
   assert isinstance(node.args[1], list)
 
@@ -366,7 +366,7 @@ def ExpandOp(node: torch.fx.Node,
 
 def ToCopyOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   input1 = symbol_table.get((str(node.args[0]), 0))
   if input1 is None:
     return
@@ -406,7 +406,7 @@ def ToCopyOp(node: torch.fx.Node,
 
 def RSubOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   input1 = symbol_table.get((str(node.args[0]), 0))
   value = node.args[1]
   output_shape = list(node.meta['tensor_meta'].shape)
@@ -429,7 +429,7 @@ def RSubOp(node: torch.fx.Node,
 
 def PowOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   input1 = symbol_table.get((str(node.args[0]), 0))
   if input1 is None:
     return
@@ -455,7 +455,7 @@ def PowOp(node: torch.fx.Node,
 
 def MeanOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   input1 = symbol_table.get((str(node.args[0]), 0))
   if input1 is None:
     return
@@ -497,7 +497,7 @@ def MeanOp(node: torch.fx.Node,
 
 def RSqrtOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 1
   input1 = symbol_table.get((str(node.args[0]), 0))
   if input1 is None:
@@ -522,7 +522,7 @@ def RSqrtOp(node: torch.fx.Node,
 
 def MulOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 2
   if isinstance(node.args[0], torch.fx.Node):
     input1 = symbol_table.get((str(node.args[0]), 0))
@@ -607,7 +607,7 @@ def MulOp(node: torch.fx.Node,
 
 def TOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 1
   input1 = symbol_table.get((str(node.args[0]), 0))
   if input1 is None:
@@ -631,7 +631,7 @@ def TOp(node: torch.fx.Node,
 
 def MMOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 2
   input1 = symbol_table.get((str(node.args[0]), 0))
   input2 = symbol_table.get((str(node.args[1]), 0))
@@ -661,7 +661,7 @@ def MMOp(node: torch.fx.Node,
 
 def TransposeOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 3
   input1 = symbol_table.get((str(node.args[0]), 0))
   if input1 is None:
@@ -687,7 +687,7 @@ def TransposeOp(node: torch.fx.Node,
 
 def IndexOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 2
   input1 = symbol_table.get((str(node.args[0]), 0))
   if input1 is None:
@@ -726,7 +726,7 @@ def IndexOp(node: torch.fx.Node,
 
 def NegOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 1
   input1 = symbol_table.get((str(node.args[0]), 0))
   if input1 is None:
@@ -750,7 +750,7 @@ def NegOp(node: torch.fx.Node,
 
 def CatOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 2
   input1 = symbol_table.get((str(node.args[0][0]), 0))
   input2 = symbol_table.get((str(node.args[0][1]), 0))
@@ -780,7 +780,7 @@ def CatOp(node: torch.fx.Node,
 
 def SqueezeOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 2
   input1 = symbol_table.get((str(node.args[0]), 0))
   dim = int(node.args[1])
@@ -822,7 +822,7 @@ def SqueezeOp(node: torch.fx.Node,
 
 def BMMOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context):
+            ctx=None):
   assert len(node.args) == 2
   input1 = symbol_table.get((str(node.args[0]), 0))
   input2 = symbol_table.get((str(node.args[1]), 0))
@@ -860,7 +860,7 @@ def BMMOp(node: torch.fx.Node,
 
 def DivOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 2
   if isinstance(node.args[0], torch.fx.Node):
     input1 = symbol_table.get((str(node.args[0]), 0))
@@ -945,7 +945,7 @@ def DivOp(node: torch.fx.Node,
 
 def SoftmaxOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 3
   assert node.args[2] == False
   input1 = symbol_table.get((str(node.args[0]), 0))
@@ -1060,7 +1060,7 @@ def SoftmaxOp(node: torch.fx.Node,
 
 def CloneOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context):
+            ctx=None):
   assert len(node.args) == 1
   input1 = symbol_table.get((str(node.args[0]), 0))
   if input1 is None:
@@ -1082,7 +1082,7 @@ def CloneOp(node: torch.fx.Node,
 
 def SiluOp(node: torch.fx.Node,
             symbol_table: Dict[Tuple[str, int], ir.Operation],
-            ctx: ir.Context) :
+            ctx=None) :
   assert len(node.args) == 1
   input1 = symbol_table.get((str(node.args[0]), 0))
   if input1 is None:
@@ -1129,7 +1129,7 @@ def ParamToConstantOp(node: torch.fx.Node,
 def ParamExtract(node: torch.fx.Node,
                 offset,
                 params_mlir_node,
-                ctx: ir.Context) :
+                ctx=None) :
   dtype = str(node.meta['tensor_meta'].dtype)
   output_shape = list(node.meta['tensor_meta'].shape)
   extract_size = functools.reduce(lambda x, y : x*y, output_shape)
@@ -1149,11 +1149,10 @@ def ParamExtract(node: torch.fx.Node,
   
   return expand_shape_op.result
 
-operation_func = {"arange.start": ArangeOp, "arange.default": ArangeOp, "unsqueeze.default": UnsqueezeOp, "view.default": ViewOp,
+operators_registry = {"arange.start": ArangeOp, "arange.default": ArangeOp, "unsqueeze.default": UnsqueezeOp, "view.default": ViewOp,
                   "ones.default": OnesOp, "full.default": FullOp, "add.Tensor": AddOp, "lt.Tensor": LtOp, "embedding.default": EmbeddingOp,
                   "masked_fill.Scalar": MaskedFillOp, "slice.Tensor": SliceOp, "expand.default": ExpandOp, "_to_copy.default": ToCopyOp,
                   "rsub.Scalar": RSubOp, "pow.Tensor_Scalar": PowOp, "mean.dim": MeanOp, "rsqrt.default": RSqrtOp, "mul.Tensor": MulOp,
                   "t.default": TOp, "mm.default": MMOp, "transpose.int": TransposeOp, "index.Tensor": IndexOp, "neg.default": NegOp,
                   "cat.default": CatOp, "squeeze.dim": SqueezeOp, "bmm.default": BMMOp, "div.Tensor": DivOp, "_softmax.default": SoftmaxOp,
                   "clone.default": CloneOp, "silu.default": SiluOp}
-type_dict = {"torch.int64": ir.IntegerType, "torch.float32": ir.F32Type}

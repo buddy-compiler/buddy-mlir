@@ -93,23 +93,24 @@ llama-ompopt:
 		--finalizing-bufferize \
 		--convert-vector-to-scf \
 		--expand-strided-metadata \
-		--convert-vector-to-llvm \
-		--memref-expand \
-		--arith-expand \
-		--convert-arith-to-llvm \
-		--finalize-memref-to-llvm \
-		--convert-scf-to-cf \
-		--llvm-request-c-wrappers \
-		--convert-openmp-to-llvm \
-		--convert-arith-to-llvm \
-		--convert-math-to-llvm \
-		--convert-math-to-libm \
-		--convert-func-to-llvm \
-		--reconcile-unrealized-casts | \
-	${MLIR_TRANSLATE} \
-		-mlir-to-llvmir | \
-	${LLVM_AS} | \
-	${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
+		-o llama_memref.mlir
+	# 	--convert-vector-to-llvm \
+	# 	--memref-expand \
+	# 	--arith-expand \
+	# 	--convert-arith-to-llvm \
+	# 	--finalize-memref-to-llvm \
+	# 	--convert-scf-to-cf \
+	# 	--llvm-request-c-wrappers \
+	# 	--convert-openmp-to-llvm \
+	# 	--convert-arith-to-llvm \
+	# 	--convert-math-to-llvm \
+	# 	--convert-math-to-libm \
+	# 	--convert-func-to-llvm \
+	# 	--reconcile-unrealized-casts | \
+	# ${MLIR_TRANSLATE} \
+	# 	-mlir-to-llvmir | \
+	# ${LLVM_AS} | \
+	# ${LLC} -filetype=obj --relocation-model=pic ${OPT_FLAG} -o llama.o
 
 llama-make:
 	g++ llama.o llama_run_params_pack.cc -I../../../frontend/Interfaces -lomp -lmlir_c_runner_utils -o llamaRun
