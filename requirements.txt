@@ -1,0 +1,3 @@
+--pre --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+torch == 2.2.0.dev20231015+cpu 
+transformers == 4.33.1

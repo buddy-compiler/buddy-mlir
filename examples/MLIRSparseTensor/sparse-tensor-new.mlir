@@ -42,5 +42,9 @@ func.func @main() {
   %val_buf_1 = memref.cast %val1 : memref<?xi32> to memref<*xi32>
   call @printMemrefI32(%val_buf_1) : (memref<*xi32>) -> ()
 
+  %c2 = arith.constant 2 : index
+  %file2 = call @getTensorFilename(%c2) : (index) -> (!Filename)
+  sparse_tensor.out %1, %file2 : tensor<4x4xi32, #SparseMatrix>, !Filename
+
   return
 }

@@ -43,6 +43,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
 
     set(LLVM_MLIR_BINARY_DIR ${MLIR_DIR}/../../../bin)
     set(LLVM_MLIR_SOURCE_DIR ${MLIR_DIR}/../../../../mlir)
+    set(LLVM_PROJECT_BUILD_DIR ${MLIR_DIR}/../../../)
     set(LLVM_PROJECT_SOURCE_DIR ${MLIR_DIR}/../../../../)
 
     list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
@@ -62,11 +63,9 @@ else()
     # MLIR/LLVM Configuration
     #-------------------------------------------------------------------------------
 
-    # Allow passing external LLVM source, instead of forcing user using the vendored one
-    if (NOT LLVM_PROJECT_SOURCE_DIR)
-      set(LLVM_PROJECT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/llvm")
-      message(STATUS "Using LLVM Project ${LLVM_PROJECT_SOURCE_DIR}")
-    endif()
+    # Allow using out-of-tree llvm directory
+    set(LLVM_PROJECT_SOURCE_DIR ${LLVM_MAIN_SRC_DIR}/..)
+    message(STATUS "Using LLVM Project ${LLVM_PROJECT_SOURCE_DIR}")
 
     set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
     set(MLIR_INCLUDE_DIR ${MLIR_MAIN_SRC_DIR}/include)
@@ -86,6 +85,7 @@ set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include/)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include/)
+set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 
@@ -154,6 +154,17 @@ if(BUDDY_DSL_EXAMPLES)
     # add macros to generate ANTLR Cpp code from grammar
     find_package(ANTLR REQUIRED)
 endif()
+
+#-------------------------------------------------------------------------------
+# Initialize Python packages
+#-------------------------------------------------------------------------------
+if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
+  file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy)
+  file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler)
+  file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/__init__.py "")
+  file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/__init__.py "")
+endif()
+
 #-------------------------------------------------------------------------------
 # Directory setup
 #-------------------------------------------------------------------------------

@@ -72,15 +72,23 @@ class FXGraphImporter:
     """Import the FX graph, generate an MLIR module in high-level dialects.
 
     Returns:
-      mlir.ir.Module: An MLIR moduel in high-level dialects.
+      mlir.ir.Module: An MLIR module in high-level dialects.
 
     """
     with ir.InsertionPoint(self._module.body):
       arguments = []
       for arg in self._inputs:
         shape_list = list(arg.shape)
-        f32 = ir.F32Type.get()
-        tensor_arg = ir.RankedTensorType.get(shape_list, f32)
+        dtype = arg.dtype
+        match dtype:
+          case torch.int32:
+            mlir_dtype = ir.IntegerType.get_signless(32)
+          case torch.float32:
+            mlir_dtype = ir.F32Type.get()
+          case _:
+            raise NotImplementedError(
+                f"Unsupported dtype {dtype} for argument {arg}")
+        tensor_arg = ir.RankedTensorType.get(shape_list, mlir_dtype)
         arguments.append(tensor_arg)
 
       @func.FuncOp.from_py_func(*arguments, name=self._func_name)
@@ -141,6 +149,7 @@ def Lowering(module: ir.Module):
   print("-------------------------------------------------------------------")
   print("Bufferizing the module ...")
   pm = PassManager("builtin.module")
+  pm.add("func.func(tosa-to-linalg-named)")
   pm.add("func.func(tosa-to-linalg)")
   pm.add("func.func(tosa-to-tensor)")
   pm.add("func.func(tosa-to-arith)")
