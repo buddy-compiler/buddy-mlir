@@ -7,14 +7,13 @@ if(BUDDY_ENABLE_OPENCV)
   include_directories(${OpenCV_INCLUDE_DIRS})
 endif()
 
-add_library(DIP_LIB INTERFACE)
-target_link_libraries(DIP_LIB INTERFACE ${JPEG_LIBRARY} ${PNG_LIBRARY})
+set(DIP_LIBS ${JPEG_LIBRARY} ${PNG_LIBRARY})
 
 _add_test_executable(buddy-image-container-test
   ImageContainerTest.cpp
   LINK_LIBS
     ${OpenCV_LIBS}
-    DIP_LIB
+    ${DIP_LIBS}
 )
 
 _add_test_executable(buddy-audio-container-test
