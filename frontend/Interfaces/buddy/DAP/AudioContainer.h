@@ -55,7 +55,17 @@ protected:
 
 template <typename T, size_t N> bool Audio<T, N>::save(std::string filename) {
   if (!this->audioFile.samples) {
-    this->audioFile.samples.reset(this->data->release());
+    auto temp = this->data->release();
+    if constexpr (std::is_same_v<T, float>) {
+      for (int i = 0; i < audioFile.numSamples; i++) {
+        if (temp[i] != temp[i]) { // To handle NaN values
+          temp[i] = 0.9999999;
+        } else { // Clamp the values between -1.0 to 1.0
+          temp[i] = std::clamp(temp[i], float(-1.0), float(0.9999999));
+        }
+      }
+    }
+    this->audioFile.samples.reset(temp);
   }
   return this->audioFile.save(filename);
 }

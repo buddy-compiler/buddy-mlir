@@ -22,31 +22,31 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "buddy/DIP/imgcodecs/loadsave.h"
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/DIP.h>
 #include <buddy/DIP/ImageContainer.h>
 #include <iostream>
-#include <opencv2/opencv.hpp>
 
-using namespace cv;
 using namespace std;
 
 bool testImplementation(int argc, char *argv[]) {
-  // Read as grayscale image.
-  Mat image = imread(argv[1], IMREAD_GRAYSCALE);
-  if (image.empty()) {
-    cout << "Could not read the image: " << argv[1] << endl;
-  }
+  // Read as grayscale image and Define memref container for image.
+  Img<float, 2> input = dip::imread<float, 2>(argv[1], dip::IMGRD_GRAYSCALE);
 
-  // Define memref container for image.
-  Img<float, 2> input(image);
-  
+  intptr_t outputSize[2] = {250, 100}; // {image_cols, image_rows}
+  std::vector<float> scalingRatios = {
+      0.25, 0.1}; // {col_scaling_ratio, row_scaling_ratio}
+
+  // dip::Resize2D() can be called with either scaling ratios
+  // (Output image dimension / Input image dimension) for both dimensions or
+  // the output image dimensions.
   // Note : Both values in output image dimensions and scaling ratios must be
   // positive numbers.
 
   MemRef<float, 2> output = dip::Resize2D(
       &input, dip::INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION,
-      {224, 224} /*{image_cols, image_rows}*/);
+      outputSize);
   // MemRef<float, 2> output = dip::Resize2D(
   //     &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION, outputSize);
 
@@ -57,11 +57,12 @@ bool testImplementation(int argc, char *argv[]) {
   //     &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION,
   //     scalingRatios);
 
-  // Define cv::Mat with the output of Resize2D.
-  Mat outputImageResize2D(output.getSizes()[0], output.getSizes()[1], CV_32FC1,
-                          output.getData());
+  // Define Img with the output of Resize2D.
+  intptr_t sizes[2] = {output.getSizes()[0], output.getSizes()[1]};
 
-  imwrite(argv[2], outputImageResize2D);
+  Img<float, 2> outputImageResize2D(output.getData(),sizes);
+
+  dip::imwrite(argv[2], outputImageResize2D);
 
   return 1;
 }
