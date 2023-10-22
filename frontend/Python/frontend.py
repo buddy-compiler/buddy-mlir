@@ -20,6 +20,7 @@
 
 import operator
 from typing import Any, List, Union, Optional
+import functools
 
 import mlir.dialects.func as func
 import mlir.ir as ir
@@ -30,6 +31,7 @@ import torch.utils._pytree as pytree
 
 from .ops.math import ops_registry as math_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
+from .ops.linalg import ops_registry as linalg_ops_registry
 
 
 class DynamoCompiler:
@@ -48,6 +50,7 @@ class DynamoCompiler:
         func_name: str = "forward",
         primary_registry: dict = {},
         aot_autograd_decomposition: Optional[dict] = None,
+        param_pack: bool = True,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -62,8 +65,10 @@ class DynamoCompiler:
         self._aot_autograd_decomposition = aot_autograd_decomposition
         self._imported_module = None
         self._imported_params = None
+        self._param_pack = param_pack
         self._ops_registry = {}
         self._ops_registry.update(math_ops_registry)
+        self._ops_registry.update(linalg_ops_registry)
         self._ops_registry.update(tosa_ops_registry)
         self._ops_registry.update(primary_registry)
 
@@ -93,11 +98,19 @@ class DynamoCompiler:
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
+            func_params = _inputs[: len(self.imported_params)]
+            func_inputs = _inputs[len(self.imported_params) :]
+
             # Initializes the MLIR context.
             ctx = ir.Context()
             with ir.Location.unknown(ctx):
                 fx_importer = FXGraphImporter(
-                    _gm, _inputs, self._func_name, self._ops_registry
+                    _gm,
+                    func_params,
+                    func_inputs,
+                    self._param_pack,
+                    self._func_name,
+                    self._ops_registry,
                 )
                 self._imported_module = fx_importer.import_graph()
             # TODO: Lower to LLVM dialect and use JIT engine to execute.
@@ -168,7 +181,9 @@ class FXGraphImporter:
     def __init__(
         self,
         gm: torch.fx.GraphModule,
+        params: List[torch.Tensor],
         inputs: List[torch.Tensor],
+        param_pack: bool = True,
         func_name: str = "forward",
         ops_registry: dict = {},
     ):
@@ -184,7 +199,9 @@ class FXGraphImporter:
         self._symbol_table = {}
         self._gm = gm
         self._func_name = func_name
+        self._params = params
         self._inputs = inputs
+        self._param_pack = param_pack
         self._num_input_visited = 0
         self._module = ir.Module.create()
         self._ops_registry = ops_registry
@@ -223,7 +240,24 @@ class FXGraphImporter:
         """
         with ir.InsertionPoint(self._module.body):
             arguments = []
-            for arg in self._inputs:
+            if self._param_pack:
+                tensor_size = 0
+                for param in self._params:
+                    tensor_size += functools.reduce(
+                        lambda x, y: x * y, list(param.shape)
+                    )
+                self._params_size = tensor_size
+                self._offset = 0
+                if tensor_size != 0:
+                    dtype = self._torch_dtype_to_mlir_dtype(
+                        self._params[0].dtype
+                    )
+                    tensor_arg = ir.RankedTensorType.get([tensor_size], dtype)
+                    arguments.append(tensor_arg)
+                inputs = self._inputs
+            else:
+                inputs = self._params + self._inputs
+            for arg in inputs:
                 shape_list = list(arg.shape)
                 torch_dtype = arg.dtype
                 mlir_dtype = self._torch_dtype_to_mlir_dtype(torch_dtype)
@@ -240,7 +274,7 @@ class FXGraphImporter:
                         for output_arg in output_node_args:
                             op = self._symbol_table.get((str(output_arg), 0))
                             returns.append(op)
-
+                        returns = returns[0]
                         self._symbol_table[("output", 0)] = returns
                     elif node.op == "placeholder":
                         self._import_placeholder(node, args_list)
@@ -266,7 +300,20 @@ class FXGraphImporter:
             node (torch.fx.Node): The FX node representing the placeholder.
             args_list (List[torch.Tensor]): List of input tensors.
         """
-        placeholder_name = args_list[self._num_input_visited]
+        if self._num_input_visited < len(self._params):
+            placeholder_name = self._ops_registry["param.extract"](
+                node, self._offset, args_list[0], None
+            )
+            self._offset += functools.reduce(
+                lambda x, y: x * y, list(node.meta["tensor_meta"].shape)
+            )
+        else:
+            if len(self._params) > 0:
+                placeholder_name = args_list[
+                    self._num_input_visited - len(self._params) + 1
+                ]
+            else:
+                placeholder_name = args_list[self._num_input_visited]
         self._symbol_table[(str(node.name), 0)] = placeholder_name
         self._num_input_visited += 1
 
@@ -283,11 +330,13 @@ class FXGraphImporter:
         op_name = getattr(node.target, "__name__", None)
         if op_name is None:
             raise ValueError("node.target does not have a __name__ attribute")
-        op_ret: ir.Operation | ir.Value | tuple = self._ops_registry[op_name](
-            node, self._symbol_table
+        op_ret: ir.Operation | ir.Value | tuple | ir.OpResult = (
+            self._ops_registry[op_name](node, self._symbol_table)
         )
         if isinstance(op_ret, tuple):
             for i, operation in enumerate(op_ret):
                 self._symbol_table[(str(node.name), i)] = operation.result
+        elif isinstance(op_ret, ir.OpResult):
+            self._symbol_table[(str(node.name), 0)] = op_ret
         else:
             self._symbol_table[(str(node.name), 0)] = op_ret.result

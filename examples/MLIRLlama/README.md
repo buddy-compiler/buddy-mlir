@@ -103,36 +103,31 @@ export PYTHONPATH=$HOME/buddy-mlir/llvm/build/tools/mlir/python_packages/mlir_co
 ### run llama model lower
 
 First, you should download llama model. You can get model from [meta ai](https://ai.meta.com/llama/)
-And then in file torch_mlir_llama_hf.py, you should change '/llama-2-7B-hf' to your model path in your server.
+And then in file torch_mlir_llama_hf.py, you should change '/path-to-llama2' to your model path in your server.
 ```
-tokenizer = LlamaTokenizer.from_pretrained('/llama-2-7B-hf')
-model = LlamaForCausalLM.from_pretrained('/llama-2-7B-hf', torchscript=True)
+tokenizer = LlamaTokenizer.from_pretrained('/path-to-llama2')
+model = LlamaForCausalLM.from_pretrained('/path-to-llama2', torchscript=True)
 ```
-There are many params in llama model, we get them from model and store in your disk. In the step lower llama.mlir for inference, params will be read for inference. You can change buddy/global_var.py to config the store location for params.
+There are many params in llama model, we get them from model and store in your disk. In the step lower llama.mlir for inference, params will be read for inference. In test_llama2.py, you can save llama.mlir and model params by variable gm and params.
+
+Run test_llama2.py, and then you can get the llama mlir and model params file.
 ```
-"params-write-path":"/buddy-mlir-for-transformer/examples/MLIRLlama"
-```
-Run torch_mlir_llama_hf.py, and then you can get the llama mlir output.
-```
-python torch_mlir_llama_hf.py > buddy/llama.mlir
+python test_llama2.py > llama.mlir
 ```
 
 ### lower llama.mlir for inference
 
 ```
-cd buddy
 make llama-ompopt
-cd $HOME/buddy-mlir/build
-ninja
-cd bin
+make llama-make
 ./llamaRun
 ```
 When you run llamaRun, you should provide the model params data path and vocab file. In our repo, we have provided vocab file and you should provide params data path in your server. You should input these path in command line.
 ```
 please input vocab file path
-/buddy-mlir/examples/MLIRLlama/vocab.txt
+/path to vocab.txt
 please input params file directory
-/buddy-mlir/examples/MLIRLlama/params_data
+/path to model params
 ```
 we recommand you choose llama-ompopt to make. This will use openmp to accelarate inference. We also provide other choice in makefile to run inference.
 Such as, llama-lower, it's nearly no optimization, llama-batchmatmulopt, it provides vectorize optimization for batchmatmul op.

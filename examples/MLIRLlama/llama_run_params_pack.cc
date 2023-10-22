@@ -59,7 +59,7 @@ int main() {
   getline(std::cin, params_path);
   MemRef<float, 1> arg0({intptr_t(6755192832)});
   ifstream in0(
-      params_path+"/arg0.data",
+      params_path,
       ios::in | ios::binary);
   in0.read((char *)(arg0.getData()), sizeof(float) * (arg0.getSize()));
   in0.close();
