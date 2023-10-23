@@ -319,8 +319,7 @@ def reshape_op(node, symbol_table):
     Import the reshape operation.
     From PyTorch `aten.reshape.default` operator to MLIR TOSA `reshape` operation.
 
-    Note: If the new shape contains one and only one `-1`, the size of the
-          new shape will be inferred automatically.
+    Note: If the new shape contains one and only one `-1`, the size of the new shape will be inferred automatically.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
     new_shape = node.args[1]
