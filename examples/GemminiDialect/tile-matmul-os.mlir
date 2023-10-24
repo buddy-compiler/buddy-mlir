@@ -21,6 +21,7 @@ func.func @main() -> i8 {
       memref.store %i2I32, %dArray[%i, %j] : memref<64x64xi32>
     }
   }
+  
   gemmini.print %aArray : memref<64x64xi8>
   gemmini.print %bArray : memref<64x64xi8>
   gemmini.print %dArray : memref<64x64xi32>

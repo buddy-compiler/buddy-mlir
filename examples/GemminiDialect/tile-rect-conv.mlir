@@ -21,6 +21,7 @@ func.func @main() -> i64 {
   %0 = arith.constant 0 : i64
   %3 = arith.constant 3 : i64
   %8 = arith.constant 8 : i64
+  
   %input = memref.get_global @input : memref<1x5x10x1xi8>
   %weight = memref.get_global @weight : memref<9x2xi8>
   %bias = memref.get_global @bias : memref<2xi32>

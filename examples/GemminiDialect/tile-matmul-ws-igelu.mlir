@@ -27,6 +27,7 @@ func.func @main() -> i8 {
       memref.store %dI32, %dArray[%i3, %j3] : memref<3x3xi32>
     }
   }
+  
   gemmini.print %aArray : memref<3x3xi8>
   gemmini.print %bArray : memref<3x3xi8>
   // CHECK: "gemmini.intr.config_ex"
