@@ -10,7 +10,7 @@ extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *, Mem
 
 int main() {
   // Guide the user to enter the VOCAB path
-  string vocabDir = "/home/limeng/buddy-mlir/tests/Interface/core/vocab_llama.txt";
+  string vocabDir = "../../tests/Interface/core/vocab_llama.txt";
   // cout<<"please input vocab file path"<<endl;
   // getline(cin, vocabDir);
   // Initialize the container
