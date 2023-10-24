@@ -43,6 +43,7 @@ config.excludes = [
     'FrontendGen',
     'MLIREmitC',
     'MLIRGPU',
+    'MLIRLlama',
     'MLIRPDL',
     'MLIRPython',
     'MLIRSCF',
