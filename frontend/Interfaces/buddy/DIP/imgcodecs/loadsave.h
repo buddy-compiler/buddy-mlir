@@ -51,6 +51,7 @@
 #define _LOADSAVE_H_
 
 #include "buddy/DIP/imgcodecs/grfmt_bmp.h"
+#include "buddy/DIP/imgcodecs/grfmt_jpeg.h"
 #include "buddy/DIP/imgcodecs/replenishment.h"
 
 namespace dip {
@@ -59,9 +60,13 @@ template <typename T, size_t N> struct ImageCodecInitializer {
    * Default Constructor for the ImageCodecInitializer
    */
   ImageCodecInitializer() {
-    /// BMP Support
+    // BMP Support
     decoders.push_back(std::make_unique<BmpDecoder<T, N>>());
     encoders.push_back(std::make_unique<BmpEncoder<T, N>>());
+
+    // JPEG Support
+    decoders.push_back(std::make_unique<JpegDecoder<T, N>>());
+    encoders.push_back(std::make_unique<JpegEncoder<T, N>>());
   }
   std::vector<std::unique_ptr<BaseImageDecoder<T, N>>> decoders;
   std::vector<std::unique_ptr<BaseImageEncoder<T, N>>> encoders;
@@ -118,7 +123,6 @@ findDecoder(const String &filename) {
   /// compare signature against all decoders
   for (i = 0; i < codecs.decoders.size(); i++) {
     if (codecs.decoders[i]->checkSignature(signature))
-
       return codecs.decoders[i]->newDecoder();
   }
   /// If no decoder was found, return base type
@@ -158,6 +162,32 @@ Img<T, N> imread(const String &filename, int flags) {
                            channels};
       Img<T, N> Image(sizes);
       bmpDecoderPtr->readData(Image);
+      return Image;
+    }
+    // Converts a pointer to JpegDecoder<T, N>
+    JpegDecoder<T, N> *JpegDecoderPtr =
+        dynamic_cast<JpegDecoder<T, N> *>(decoder.get());
+    if (JpegDecoderPtr) {
+      // After creating the JpegDecoder<T, N> instance, perform related
+      // operations Defines whether the image is scaled or not
+      int scale_denom = 1;
+      JpegDecoderPtr->setScale(scale_denom);
+      // Set image path
+      JpegDecoderPtr->setSource(filename);
+      // Read image head
+      JpegDecoderPtr->readHeader();
+      int channels = JpegDecoderPtr->channels();
+      if ((flags & IMGRD_COLOR) != 0 ||
+          ((flags & IMGRD_ANYCOLOR) != 0 && channels > 1)) {
+        channels = 3;
+      } else {
+        channels = 1;
+      }
+      // Create an Img instance
+      intptr_t sizes[3] = {JpegDecoderPtr->height(), JpegDecoderPtr->width(),
+                           channels};
+      Img<T, N> Image(sizes);
+      JpegDecoderPtr->readData(Image);
       return Image;
     }
   }
@@ -219,6 +249,18 @@ static bool imwrite(const String &filename, Img<T, N> &img_vec) {
       code = bmpEncoderPtr->write(img_vec, params);
       return code;
     }
+
+    // Convert to a pointer of JpegEncoder<T, N>
+    JpegEncoder<T, N> *jpegEncoderPtr =
+        dynamic_cast<JpegEncoder<T, N> *>(encoder.get());
+    if (jpegEncoderPtr) {
+      jpegEncoderPtr->setDestination(filename);
+      bool code = false;
+      std::vector<int> params;
+      code = jpegEncoderPtr->write(img_vec, params);
+      return code;
+    }
+
   }
 
   return true;
