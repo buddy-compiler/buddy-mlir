@@ -44,7 +44,7 @@ int64_t getNumberFromValue(Value &value) {
 }
 
 int ceil_divide_int(int a, int b){
-    int c = (a % b == 0) ? ((int)(a/b)) :(((int)(a/b)) + 1); 
+    int c = (a % b == 0) ? ((int)(a/b)) : (((int)(a/b)) + 1); 
     if(a < b) c = 1;
     return c;
 }
