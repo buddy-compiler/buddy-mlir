@@ -19,65 +19,167 @@
 # ===---------------------------------------------------------------------------
 
 import operator
-from typing import Callable, List, Union
+from typing import Any, List, Union, Optional
 
 import mlir.dialects.func as func
 import mlir.ir as ir
-from mlir.passmanager import PassManager
 import torch
+import torch._dynamo as dynamo
 from torch._functorch.aot_autograd import aot_module_simplified
+import torch.utils._pytree as pytree
 
-from .ops_gen import operation_func
+from .ops.math import ops_registry as math_ops_registry
+from .ops.tosa import ops_registry as tosa_ops_registry
 
 
-def dynamo_importer(
-    gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
-) -> Callable:
-    """The main entry point of buddy compiler for torch dynamo. It takes a FX
-    graph module and a list of inputs as parameters. The compiler will first use
-    PyTorch's AOT autograd to lower FX graph in Torch IR to Aten/Prims IR. Then
-    it will map the operators in Aten/Prims IR to MLIR operations and generate
-    an MLIR module. Finally, It will lower the MLIR module to LLVM dialect.
+class DynamoCompiler:
+    """
+    Dynamo Compiler is one of the frontends of Buddy Compiler.
+    Dynamo Compiler acts as a custom compiler for the Torch Dynamo framework,
+    which converts an FX Graph into an equivalent MLIR module.
 
-    Args:
-      gm (torch.fx.GraphModule): The FX graph module to be compiled.
-      inputs (List[torch.Tensor]): The inputs of the FX graph module.
-
-    Returns:
-      Callable: A compiled function that equivalent to the FX graph.
-
+    Attributes:
+        imported_module: The imported MLIR module after compilation.
+        imported_params: The imported parameters from the model.
     """
 
-    def _compiler(gm: torch.fx.GraphModule, inputs: List[torch.Tensor]):
-        """Compile a FX graph in Aten/Prims IR to MLIR."""
-        # Custom Compiler from FX Graph to MLIR
-        # Initialize the MLIR context.
-        ctx = ir.Context()
-        with ir.Location.unknown(ctx):
-            fx_importer = FXGraphImporter(gm, inputs)
-            module = fx_importer.import_graph()
-            # TODO: design an interface that return the `module` directly.
-            module.dump()
-        return gm.forward
+    def __init__(
+        self,
+        func_name: str = "forward",
+        primary_registry: dict = {},
+        aot_autograd_decomposition: Optional[dict] = None,
+    ) -> None:
+        """
+        Initializes the Dynamo Compiler.
 
-    return aot_module_simplified(gm, inputs, fw_compiler=_compiler)
+        Args:
+            func_name (str, optional): The function name to be used.
+            primary_registry (dict, optional): The primary operations registry.
+            aot_autograd_decomposition (Optional[dict], optional):
+                The ahead-of-time autograd decomposition dictionary.
+        """
+        self._func_name = func_name
+        self._aot_autograd_decomposition = aot_autograd_decomposition
+        self._imported_module = None
+        self._imported_params = None
+        self._ops_registry = {}
+        self._ops_registry.update(math_ops_registry)
+        self._ops_registry.update(tosa_ops_registry)
+        self._ops_registry.update(primary_registry)
+
+    @property
+    def imported_module(self):
+        """Returns the imported MLIR module after compilation."""
+        return self._imported_module
+
+    @property
+    def imported_params(self):
+        """Returns the imported parameters from the model."""
+        return self._imported_params
+
+    def _compile_fx(
+        self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
+    ) -> Any:
+        """
+        Compiles the provided FX Graph to MLIR module.
+
+        Args:
+            gm (torch.fx.GraphModule): The GraphModule to be compiled.
+            inputs (List[torch.Tensor]): The input tensors.
+
+        Returns:
+            Any: The result of the ahead-of-time compiled module.
+        """
+
+        def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
+            """Compile a FX graph in Aten/Prims IR to MLIR."""
+            # Initializes the MLIR context.
+            ctx = ir.Context()
+            with ir.Location.unknown(ctx):
+                fx_importer = FXGraphImporter(
+                    _gm, _inputs, self._func_name, self._ops_registry
+                )
+                self._imported_module = fx_importer.import_graph()
+            # TODO: Lower to LLVM dialect and use JIT engine to execute.
+            return _gm.forward
+
+        params = {
+            **dict(gm.named_parameters(remove_duplicate=False)),
+            **dict(gm.named_buffers(remove_duplicate=False)),
+        }
+        params_flat, params_spec = pytree.tree_flatten(params)
+        self._imported_params = params_flat
+
+        return aot_module_simplified(
+            gm,
+            inputs,
+            fw_compiler=_compiler,
+            decompositions=self._aot_autograd_decomposition,
+        )
+
+    def __call__(
+        self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
+    ) -> Any:
+        """
+        A callable method that wraps around the `_compile_fx` method.
+
+        Args:
+            gm (torch.fx.GraphModule): The GraphModule to be compiled.
+            inputs (List[torch.Tensor]): The input tensors.
+
+        Returns:
+            Any: The result of the ahead-of-time compiled module.
+        """
+        return self._compile_fx(gm, inputs)
+
+    def importer(self, model, data):
+        """
+        Imports the provided model as MLIR module and flat parameters.
+
+        Args:
+            model: The model to be imported.
+            data: The data for the model.
+
+        Returns:
+            module: The imported MLIR module.
+            params: The imported flat parameters.
+        """
+        model_opt = dynamo.optimize(self._compile_fx)(model)
+        model_opt(*data)
+        module = self._imported_module
+        params = self._imported_params
+        return module, params
 
 
 class FXGraphImporter:
-    """The FX graph importer class."""
+    """
+    Imports an FX graph and generates an MLIR module in high-level dialects.
+
+    Attributes:
+        _symbol_table (dict): A dictionary to keep track of the symbols.
+        _gm (torch.fx.GraphModule): The FX graph module to be imported.
+        _func_name (str): Name of the generated MLIR function.
+        _inputs (List[torch.Tensor]): Input tensor(s) of the FX graph.
+        _num_input_visited (int): Number of input nodes that have been visited.
+        _module (mlir.ir.Module): The generated MLIR module.
+        _ops_registry (dict): Registry for the candidate operations.
+    """
 
     def __init__(
         self,
         gm: torch.fx.GraphModule,
         inputs: List[torch.Tensor],
         func_name: str = "forward",
+        ops_registry: dict = {},
     ):
         """
-        Args:
-          gm (torch.fx.GraphModule): The FX graph module that will be imported.
-          inputs (List[torch.Tensor]): Input tensor(s) of the FX graph.
-          func_name (str): Name of the generated MLIR func.
+        Initializes the FX Graph importer.
 
+        Args:
+            gm (torch.fx.GraphModule): The FX graph that will be imported.
+            inputs (List[torch.Tensor]): Input tensor(s) of the FX graph.
+            func_name (str): Name of the generated MLIR function.
+            ops_registry (dict): Registry for the candidate operations.
         """
         self._symbol_table = {}
         self._gm = gm
@@ -85,20 +187,47 @@ class FXGraphImporter:
         self._inputs = inputs
         self._num_input_visited = 0
         self._module = ir.Module.create()
+        self._ops_registry = ops_registry
 
-    def import_graph(self) -> ir.Module:
-        """Import the FX graph, generate an MLIR module in high-level dialects.
+    def _torch_dtype_to_mlir_dtype(self, dtype: torch.dtype) -> ir.Type:
+        """
+        Converts a torch dtype to the corresponding MLIR dtype.
+
+        Args:
+            dtype (torch.dtype): The torch data type.
 
         Returns:
-          mlir.ir.Module: An MLIR moduel in high-level dialects.
+            mlir.ir.Type: The corresponding MLIR data type.
 
+        Raises:
+            NotImplementedError: If the given dtype is not supported.
+        """
+        match dtype:
+            case torch.int32:
+                return ir.IntegerType.get_signless(32)
+            case torch.int64:
+                return ir.IntegerType.get_signless(64)
+            case torch.float32:
+                return ir.F32Type.get()
+            case torch.bool:
+                return ir.IntegerType.get_signless(1)
+            case _:
+                raise NotImplementedError(f"Unsupported dtype {dtype}")
+
+    def import_graph(self) -> ir.Module:
+        """
+        Imports FX graph and generates an MLIR module in high-level dialects.
+
+        Returns:
+            mlir.ir.Module: An MLIR module in high-level dialects.
         """
         with ir.InsertionPoint(self._module.body):
             arguments = []
             for arg in self._inputs:
                 shape_list = list(arg.shape)
-                f32 = ir.F32Type.get()
-                tensor_arg = ir.RankedTensorType.get(shape_list, f32)
+                torch_dtype = arg.dtype
+                mlir_dtype = self._torch_dtype_to_mlir_dtype(torch_dtype)
+                tensor_arg = ir.RankedTensorType.get(shape_list, mlir_dtype)
                 arguments.append(tensor_arg)
 
             @func.FuncOp.from_py_func(*arguments, name=self._func_name)
@@ -111,6 +240,7 @@ class FXGraphImporter:
                         for output_arg in output_node_args:
                             op = self._symbol_table.get((str(output_arg), 0))
                             returns.append(op)
+
                         self._symbol_table[("output", 0)] = returns
                     elif node.op == "placeholder":
                         self._import_placeholder(node, args_list)
@@ -118,25 +248,46 @@ class FXGraphImporter:
                         if node.target is operator.getitem:
                             self._symbol_table[
                                 (str(node.name), 0)
-                            ] = self._symbol_table[(node.args[0], node.args[1])]
+                            ] = self._symbol_table[
+                                (str(node.args[0]), node.args[1])
+                            ]
                         else:
                             self._import_op(node)
+
                 return self._symbol_table.get(("output", 0))
 
         return self._module
 
     def _import_placeholder(self, node: torch.fx.Node, args_list):
+        """
+        Imports a placeholder node from the FX graph.
+
+        Args:
+            node (torch.fx.Node): The FX node representing the placeholder.
+            args_list (List[torch.Tensor]): List of input tensors.
+        """
         placeholder_name = args_list[self._num_input_visited]
         self._symbol_table[(str(node.name), 0)] = placeholder_name
         self._num_input_visited += 1
 
     def _import_op(self, node: torch.fx.Node):
-        op_name = node.target.__name__
-        op_ret: Union[ir.Operation, tuple] = operation_func[op_name](
+        """
+        Imports an operation node from the FX graph.
+
+        Args:
+            node (torch.fx.Node): The FX node representing the operation.
+
+        Raises:
+            ValueError: If the node target doesn't have a __name__ attribute.
+        """
+        op_name = getattr(node.target, "__name__", None)
+        if op_name is None:
+            raise ValueError("node.target does not have a __name__ attribute")
+        op_ret: ir.Operation | ir.Value | tuple = self._ops_registry[op_name](
             node, self._symbol_table
         )
         if isinstance(op_ret, tuple):
-            for i, operation in op_ret:
+            for i, operation in enumerate(op_ret):
                 self._symbol_table[(str(node.name), i)] = operation.result
         else:
             self._symbol_table[(str(node.name), 0)] = op_ret.result

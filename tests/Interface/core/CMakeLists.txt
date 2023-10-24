@@ -16,7 +16,6 @@ _add_test_executable(buddy-image-container-test
     ${DIP_LIBS}
 )
 
-
 _add_test_executable(buddy-audio-container-test
   AudioContainerTest.cpp
 )
