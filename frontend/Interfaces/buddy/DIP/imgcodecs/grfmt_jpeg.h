@@ -603,7 +603,8 @@ std::unique_ptr<BaseImageEncoder<T, N>> JpegEncoder<T, N>::newEncoder() const {
 }
 
 template <typename T, size_t N>
-bool JpegEncoder<T, N>::write(Img<T, N> &img, const std::vector<int> &params) {
+bool JpegEncoder<T, N>::write(Img<T, N> &img,
+                              const std::vector<int> &params) {
 
   this->m_last_error.clear();
 
@@ -662,10 +663,7 @@ bool JpegEncoder<T, N>::write(Img<T, N> &img, const std::vector<int> &params) {
     int rst_interval = 0;
     int luma_quality = -1;
     int chroma_quality = -1;
-<<<<<<< HEAD
-=======
 
->>>>>>> upstream/main
     jpeg_set_defaults(&cinfo);
     cinfo.restart_interval = rst_interval;
 
