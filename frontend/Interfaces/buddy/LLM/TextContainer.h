@@ -97,6 +97,8 @@ private:
   }
   // Check if a char is component of multi-bytes string.
   // Using lookup table to determine the number of bytes of a character.
+  // If the number of bytes is 1, return false(0), otherwise return the
+  // number of bytes.
   int isMutiBytesChar(char s) {
     const size_t lookup[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 3, 4};
     int8_t highbits = static_cast<uint8_t>(s) >> 4;
@@ -269,14 +271,14 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
         processToken(token, tokenCnt, false);
         token.clear();
       }
-      if (int j = isMutiBytesChar(s)) {
-        token.append(str, i, j);
+      if (int bytes = isMutiBytesChar(s)) {
+        token.append(str, i, bytes);
         // If it doesn't divide by affix, divide the Chinese words one by one.
         if (!affix) {
           processToken(token, tokenCnt, false);
           token.clear();
         }
-        i += j - 1;
+        i += bytes - 1;
       }
     } else {
       token += s;
