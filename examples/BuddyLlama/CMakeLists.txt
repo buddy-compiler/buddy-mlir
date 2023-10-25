@@ -1,4 +1,5 @@
 add_custom_target(llama ALL
+    COMMAND "python" ${BUDDY_EXAMPLES_DIR}/BuddyLlama/test-llama2.py
     COMMAND "${LLVM_MLIR_BINARY_DIR}/mlir-opt" ${BUDDY_EXAMPLES_DIR}/BuddyLlama/llama.mlir 
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             "${LLVM_MLIR_BINARY_DIR}/mlir-opt"

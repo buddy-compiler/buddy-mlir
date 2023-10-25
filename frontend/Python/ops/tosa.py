@@ -322,7 +322,9 @@ def reshape_op(node, symbol_table):
     Note: If the new shape contains one and only one `-1`, the size of the new shape will be inferred automatically.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    new_shape = node.args[1]
+    new_shape = []
+    for i in node.args[1]:
+        new_shape.append(i)
     total_size = 1
     now_shape = ir.RankedTensorType(input1.type).shape
     for dim_siz in now_shape:

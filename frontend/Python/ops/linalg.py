@@ -32,8 +32,20 @@ import functools
 def arange_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import tensor arange operation.
+    From PyTorch `aten.arange.default` and `aten.arange.start` operator to MLIR arith `constant` operation.
+
+    Note: this function init an output tensor according input range.
+
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation representing the result tensor of ranging the start and end from input node.
+    """
     if node.target.__name__ == "arange.start":
         start = int(node.args[0])
         end = int(node.args[1])
@@ -64,14 +76,28 @@ def arange_op(
         )
         op = arith.ConstantOp(tensor_type, attr)
 
-    return op.result
+    return op
 
 
 def unsqueeze_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the unsqueeze operation.
+    From PyTorch `aten.unsqueeze.default` operator to MLIR TOSA `reshape` operation.
+
+    Note: "unsqueeze" means inserting a new dimension of size 1 at the specified
+          position. For more information, please refer to
+          https://pytorch.org/docs/stable/generated/torch.unsqueeze.html
+
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the reshape op.
+    """
     input_node = symbol_table.get((str(node.args[0]), 0))
     if input_node is None:
         return
@@ -79,18 +105,29 @@ def unsqueeze_op(
     input_shape = ir.RankedTensorType(input_node.type).shape
     input_shape.insert(axis, 1)
     tensor_type = ir._denseI64ArrayAttr(
-        numpy.array(input_shape, dtype=numpy.int64), ctx
+        numpy.array(input_shape, dtype=numpy.int64), None
     )
     op = tosa.ReshapeOp(input_node, tensor_type)
 
-    return op.result
+    return op
 
 
 def view_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor view operation.
+    From PyTorch `aten.view.default` operator to MLIR TOSA `reshape` operation.
+
+    Note: If the new shape contains one and only one `-1`, the size of the new shape will be inferred automatically.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the reshape op.
+    """
     input_node = symbol_table.get((str(node.args[0]), 0))
     if input_node is None:
         return
@@ -108,18 +145,29 @@ def view_op(
             output_shape[i] = nums
 
     tensor_type = ir._denseI64ArrayAttr(
-        numpy.array(output_shape, dtype=numpy.int64), ctx
+        numpy.array(output_shape, dtype=numpy.int64), None
     )
     op = tosa.ReshapeOp(input_node, tensor_type)
 
-    return op.result
+    return op
 
 
 def embedding_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the embedding operation.
+    From PyTorch `aten.embedding.default` operator to MLIR linalg `generic` operation.
+
+    Note: In this op, input node1's value is as index to get input node2's row slice.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     input1 = symbol_table.get((str(node.args[0]), 0))
     input2 = symbol_table.get((str(node.args[1]), 0))
     output_shape = list(node.meta["tensor_meta"].shape)
@@ -150,21 +198,32 @@ def embedding_op(
             ],
         )
         index1 = arith.IndexCastOp(ir.IndexType.get(), block.arguments[0])
-        index2 = linalg.IndexOp(ir._i64Attr(2, ctx))
+        index2 = linalg.IndexOp(ir._i64Attr(2, None))
         value = tensor.ExtractOp(input1, [index1.result, index2.result])
         block.append(index1)
         block.append(index2)
         block.append(value)
         block.append(linalg.YieldOp([value.result]))
 
-    return op.result
+    return op
 
 
 def ones_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor ones operation.
+    From PyTorch `aten.ones.default` operator to MLIR arith `constant` operation.
+
+    Note: This op, input node1's value is as index to get input node2's row slice.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the arith.constant op.
+    """
     output_shape = list(node.args[0])
     dtype = str(node.meta["tensor_meta"].dtype)
     if dtype == "torch.bool":
@@ -179,14 +238,25 @@ def ones_op(
         )
     op = arith.ConstantOp(tensor_type, attr)
 
-    return op.result
+    return op
 
 
 def full_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor full operation.
+    From PyTorch `aten.full.default` operator to MLIR arith `constant` operation.
+
+    Note: This op, input node1's value is the shape of output tensor, input node2's value is the value of all elements in output tensor.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the arith.constant op.
+    """
     output_shape = list(node.args[0])
     value = node.args[1]
     dtype = str(node.meta["tensor_meta"].dtype)
@@ -212,14 +282,25 @@ def full_op(
         )
     op = arith.ConstantOp(tensor_type, attr)
 
-    return op.result
+    return op
 
 
 def lt_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor less than operation.
+    From PyTorch `aten.lt.Tensor` operator to MLIR arith `constant` operation.
+
+    Note: This op, campare two input nodes, and output bool tensor to represent compare result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     input1 = symbol_table.get((str(node.args[0]), 0))
     input2 = symbol_table.get((str(node.args[1]), 0))
     output_shape = list(node.meta["tensor_meta"].shape)
@@ -298,14 +379,25 @@ def lt_op(
                 block.append(cmpop)
                 block.append(linalg.YieldOp([cmpop.result]))
 
-    return op.result
+    return op
 
 
 def masked_fill_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor masked fill operation.
+    From PyTorch `aten.masked_fill.Scalar` operator to MLIR linalg `generic` operation.
+
+    Note: This op, input node2 is a bool tensor. Select input node1's value or input node3's value by true or false in input node2's value.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     input1 = symbol_table.get((str(node.args[0]), 0))
     input2 = symbol_table.get((str(node.args[1]), 0))
     if input1 is None or input2 is None:
@@ -364,14 +456,25 @@ def masked_fill_op(
         block.append(select_op)
         block.append(linalg.YieldOp([select_op.result]))
 
-    return op.result
+    return op
 
 
 def slice_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor slice operation.
+    From PyTorch `aten.slice.Tensor` operator to MLIR tensor `extract_slice` operation.
+
+    Note: This op, get the slice of input node1.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the tensor.extract_slice op.
+    """
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
         return
@@ -387,12 +490,12 @@ def slice_op(
         step = node.args[4]
     offset = [0 for x in input_shape]
     offset[dim] = start
-    offset_attr = ir._denseI64ArrayAttr(offset, ctx)
+    offset_attr = ir._denseI64ArrayAttr(offset, None)
     output_shape = list(node.meta["tensor_meta"].shape)
-    size_attr = ir._denseI64ArrayAttr(output_shape, ctx)
+    size_attr = ir._denseI64ArrayAttr(output_shape, None)
     stride = [1 for x in output_shape]
     stride[dim] = step
-    stride_attr = ir._denseI64ArrayAttr(stride, ctx)
+    stride_attr = ir._denseI64ArrayAttr(stride, None)
     dtype = str(node.meta["tensor_meta"].dtype)
     if dtype == "torch.float32":
         tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
@@ -405,14 +508,25 @@ def slice_op(
         tensor_type, input1, [], [], [], offset_attr, size_attr, stride_attr
     )
 
-    return op.result
+    return op
 
 
 def expand_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor expand operation.
+    From PyTorch `aten.expand.default` operator to MLIR tensor `extract_slice` operation.
+
+    Note: This op, based on expand shape, create a new tensor and extract slice from origin tensor.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the tensor.extract_slice op.
+    """
     input1 = symbol_table.get((str(node.args[0]), 0))
     assert isinstance(node.args[1], list)
 
@@ -428,9 +542,9 @@ def expand_op(
     elif dtype == "torch.float32":
         empty_tensor = tensor.EmptyOp(output_shape, ir.F32Type.get())
     if list(input_shape) == list(node.args[1]):
-        offset_attr = ir._denseI64ArrayAttr([0 for x in input_shape], ctx)
-        size_attr = ir._denseI64ArrayAttr(output_shape, ctx)
-        stride_attr = ir._denseI64ArrayAttr([1 for x in input_shape], ctx)
+        offset_attr = ir._denseI64ArrayAttr([0 for x in input_shape], None)
+        size_attr = ir._denseI64ArrayAttr(output_shape, None)
+        stride_attr = ir._denseI64ArrayAttr([1 for x in input_shape], None)
         if dtype == "torch.bool":
             tensor_type = ir.RankedTensorType.get(
                 output_shape, ir.IntegerType.get_signless(1)
@@ -457,11 +571,11 @@ def expand_op(
             if input_shape[i] != output_shape[i]:
                 for j in range(output_shape[i]):
                     offset = [0 for x in input_shape]
-                    offset_attr = ir._denseI64ArrayAttr(offset, ctx)
+                    offset_attr = ir._denseI64ArrayAttr(offset, None)
                     size_attr = ir._denseI64ArrayAttr(
-                        [1] * (i + 1) + [x for x in output_shape[i + 1 :]], ctx
+                        [1] * (i + 1) + [x for x in output_shape[i + 1 :]], None
                     )
-                    stride_attr = ir._denseI64ArrayAttr([1] * len(offset), ctx)
+                    stride_attr = ir._denseI64ArrayAttr([1] * len(offset), None)
                     if dtype == "torch.bool":
                         tensor_type = ir.RankedTensorType.get(
                             [1] * (i + 1) + [x for x in output_shape[i + 1 :]],
@@ -483,7 +597,7 @@ def expand_op(
                         stride_attr,
                     )
                     offset[i] = j
-                    offset_attr = ir._denseI64ArrayAttr(offset, ctx)
+                    offset_attr = ir._denseI64ArrayAttr(offset, None)
                     op = tensor.InsertSliceOp(
                         extract_tensor.result,
                         empty_tensor.result,
@@ -495,14 +609,25 @@ def expand_op(
                         stride_attr,
                     )
                     empty_tensor = op
-    return op.result
+    return op
 
 
 def to_copy_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor copy operation.
+    From PyTorch `aten._to_copy.default` operator to MLIR linalg `generic` operation.
+
+    Note: This op, will convert input node's value type, such as float32 to bool.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
         return
@@ -606,14 +731,25 @@ def to_copy_op(
             block.append(sitofp_op)
             block.append(linalg.YieldOp([sitofp_op.result]))
 
-    return op.result
+    return op
 
 
 def rsub_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor rsub operation.
+    From PyTorch `aten.rsub.Scalar` operator to MLIR linalg `generic` operation.
+
+    Note: This op, compute input node1 rsub input node2
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     input1 = symbol_table.get((str(node.args[0]), 0))
     value = node.args[1]
     output_shape = list(node.meta["tensor_meta"].shape)
@@ -664,14 +800,25 @@ def rsub_op(
             block.append(subf_op)
             block.append(linalg.YieldOp([subf_op.result]))
 
-    return op.result
+    return op
 
 
 def pow_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor copy operation.
+    From PyTorch `aten.pow.Tensor_Scalar` operator to MLIR linalg `generic` operation.
+
+    Note: This op, compute input node's power result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
         return
@@ -726,14 +873,25 @@ def pow_op(
                 block.append(fpowi_op)
                 block.append(linalg.YieldOp([fpowi_op.result]))
 
-    return op.result
+    return op
 
 
 def mean_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor copy operation.
+    From PyTorch `aten.mean.dim` operator to MLIR linalg `generic` operation.
+
+    Note: This op, compute input node's mean result in a specified dim.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
         return
@@ -806,14 +964,25 @@ def mean_op(
                 block.append(addf_op)
                 block.append(linalg.YieldOp([addf_op.result]))
 
-    return op.result
+    return op
 
 
 def rsqrt_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor rsqrt operation.
+    From PyTorch `aten.rsqrt.default` operator to MLIR linalg `generic` operation.
+
+    Note: This op, compute input node's rsqrt result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     assert len(node.args) == 1
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
@@ -858,18 +1027,29 @@ def rsqrt_op(
                 ir.RankedTensorType(output.result.type).element_type,
             ],
         )
-        rsqrt_op = math.RsqrtOp(block.arguments[0])
-        block.append(rsqrt_op)
-        block.append(linalg.YieldOp([rsqrt_op.result]))
+        math_rsqrt_op = math.RsqrtOp(block.arguments[0])
+        block.append(math_rsqrt_op)
+        block.append(linalg.YieldOp([math_rsqrt_op.result]))
 
-    return op.result
+    return op
 
 
 def mul_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor mul operation.
+    From PyTorch `aten.mul.Tensor` operator to MLIR linalg `generic` operation.
+
+    Note: This op, compute input node's mul result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     assert len(node.args) == 2
     if isinstance(node.args[0], torch.fx.Node):
         input1 = symbol_table.get((str(node.args[0]), 0))
@@ -930,9 +1110,9 @@ def mul_op(
                         ir.RankedTensorType(output.result.type).element_type,
                     ],
                 )
-                mul_op = arith.MulFOp(block.arguments[0], input2.result)
-                block.append(mul_op)
-                block.append(linalg.YieldOp([mul_op.result]))
+                mulf_op = arith.MulFOp(block.arguments[0], input2.result)
+                block.append(mulf_op)
+                block.append(linalg.YieldOp([mulf_op.result]))
             else:
                 tensor_type = ir.RankedTensorType.get(
                     output_shape, ir.F32Type.get()
@@ -1108,18 +1288,29 @@ def mul_op(
                         ir.RankedTensorType(output.result.type).element_type,
                     ],
                 )
-                mul_op = arith.MulFOp(block.arguments[0], block.arguments[1])
-                block.append(mul_op)
-                block.append(linalg.YieldOp([mul_op.result]))
+                mulf_op = arith.MulFOp(block.arguments[0], block.arguments[1])
+                block.append(mulf_op)
+                block.append(linalg.YieldOp([mulf_op.result]))
 
-    return op.result
+    return op
 
 
 def t_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor tanspose operation.
+    From PyTorch `aten.t.default` operator to MLIR linalg `generic` operation.
+
+    Note: This op, compute input node's transpose result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     assert len(node.args) == 1
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
@@ -1159,14 +1350,25 @@ def t_op(
             )
             block.append(linalg.YieldOp([block.arguments[0]]))
 
-    return op.result
+    return op
 
 
 def matmul_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor matmul operation.
+    From PyTorch `aten.mm.default` operator to MLIR linalg `matmul` operation.
+
+    Note: This op, compute input node's matrix multiplication result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.matmul op.
+    """
     assert len(node.args) == 2
     input1 = symbol_table.get((str(node.args[0]), 0))
     input2 = symbol_table.get((str(node.args[1]), 0))
@@ -1188,8 +1390,19 @@ def matmul_op(
 def transpose_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor transpose operation.
+    From PyTorch `aten.transpose.int` operator to MLIR linalg `generic` operation.
+
+    Note: This op, compute input node's transpose result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     assert len(node.args) == 3
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
@@ -1231,14 +1444,25 @@ def transpose_op(
         )
         block.append(linalg.YieldOp([block.arguments[0]]))
 
-    return op.result
+    return op
 
 
 def index_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor index operation.
+    From PyTorch `aten.index.Tensor` operator to MLIR linalg `generic` operation.
+
+    Note: This op, get input node slice result by input index.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     assert len(node.args) == 2
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
@@ -1292,21 +1516,32 @@ def index_op(
                 block.append(indexcast_op)
                 index.append(indexcast_op.result)
             for i in range(len(loops), len(output_shape) - len(input2) + 1):
-                index_op = linalg.IndexOp(ir._i64Attr(i, ctx))
+                index_op = linalg.IndexOp(ir._i64Attr(i, None))
                 block.append(index_op)
                 index.append(index_op.result)
             value = tensor.ExtractOp(input1, index)
             block.append(value)
             block.append(linalg.YieldOp([value.result]))
 
-    return op.result
+    return op
 
 
 def neg_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor neg operation.
+    From PyTorch `aten.neg.default` operator to MLIR linalg `matmul` operation.
+
+    Note: This op, compute input node's neg result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     assert len(node.args) == 1
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
@@ -1350,18 +1585,29 @@ def neg_op(
                 ir.RankedTensorType(output.result.type).element_type,
             ],
         )
-        neg_op = arith.NegFOp(block.arguments[0])
-        block.append(neg_op)
-        block.append(linalg.YieldOp([neg_op.result]))
+        negf_op = arith.NegFOp(block.arguments[0])
+        block.append(negf_op)
+        block.append(linalg.YieldOp([negf_op.result]))
 
-    return op.result
+    return op
 
 
 def cat_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor concate operation.
+    From PyTorch `aten.cat.default` operator to MLIR tensor `insert_slice` operation.
+
+    Note: This op, concate two input tensor.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the tensor.insert_slice op.
+    """
     assert len(node.args) == 2
     input1 = symbol_table.get((str(node.args[0][0]), 0))
     input2 = symbol_table.get((str(node.args[0][1]), 0))
@@ -1376,10 +1622,10 @@ def cat_op(
     if dtype == "torch.float32":
         output = tensor.EmptyOp(output_shape, ir.F32Type.get())
         offset = [0 for x in output_shape]
-        offset_attr = ir._denseI64ArrayAttr(offset, ctx)
+        offset_attr = ir._denseI64ArrayAttr(offset, None)
         input1_shape = ir.RankedTensorType(input1.type).shape
-        size_attr = ir._denseI64ArrayAttr(input1_shape, ctx)
-        stride_attr = ir._denseI64ArrayAttr([1] * len(offset), ctx)
+        size_attr = ir._denseI64ArrayAttr(input1_shape, None)
+        stride_attr = ir._denseI64ArrayAttr([1] * len(offset), None)
         insert_input1 = tensor.InsertSliceOp(
             input1,
             output.result,
@@ -1391,9 +1637,9 @@ def cat_op(
             stride_attr,
         )
         offset[dim] += input1_shape[dim]
-        offset_attr = ir._denseI64ArrayAttr(offset, ctx)
+        offset_attr = ir._denseI64ArrayAttr(offset, None)
         input2_shape = ir.RankedTensorType(input2.type).shape
-        size_attr = ir._denseI64ArrayAttr(input2_shape, ctx)
+        size_attr = ir._denseI64ArrayAttr(input2_shape, None)
         insert_input2 = tensor.InsertSliceOp(
             input2,
             insert_input1.result,
@@ -1405,14 +1651,25 @@ def cat_op(
             stride_attr,
         )
 
-    return insert_input2.result
+    return insert_input2
 
 
 def squeeze_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor squeeze operation.
+    From PyTorch `aten.squeeze.dim` operator to MLIR linalg `generic` operation.
+
+    Note: This op, reduce the input tensor's shape dims by specified dim.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     assert len(node.args) == 2
     input1 = symbol_table.get((str(node.args[0]), 0))
     dim = int(node.args[1])
@@ -1429,9 +1686,9 @@ def squeeze_op(
         output = tensor.EmptyOp(output_shape, ir.F32Type.get())
         if input1_shape[dim] != 1:
             offset = [0 for x in output_shape]
-            offset_attr = ir._denseI64ArrayAttr(offset, ctx)
-            size_attr = ir._denseI64ArrayAttr(input1_shape, ctx)
-            stride_attr = ir._denseI64ArrayAttr([1] * len(offset), ctx)
+            offset_attr = ir._denseI64ArrayAttr(offset, None)
+            size_attr = ir._denseI64ArrayAttr(input1_shape, None)
+            stride_attr = ir._denseI64ArrayAttr([1] * len(offset), None)
             op = tensor.InsertSliceOp(
                 input1,
                 output.result,
@@ -1481,14 +1738,25 @@ def squeeze_op(
             )
             block.append(linalg.YieldOp([block.arguments[0]]))
 
-    return op.result
+    return op
 
 
 def batch_matmul_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor batch matmul operation.
+    From PyTorch `aten.bmm.default` operator to MLIR linalg `batch_matmul` operation.
+
+    Note: This op, compute input node's batch matrix multiplication result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.batch_matmul op.
+    """
     assert len(node.args) == 2
     input1 = symbol_table.get((str(node.args[0]), 0))
     input2 = symbol_table.get((str(node.args[1]), 0))
@@ -1530,8 +1798,19 @@ def batch_matmul_op(
 def div_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor divsion operation.
+    From PyTorch `aten.div.Tensor` operator to MLIR linalg `generic` operation.
+
+    Note: This op, compute input node's division result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     assert len(node.args) == 2
     if isinstance(node.args[0], torch.fx.Node):
         input1 = symbol_table.get((str(node.args[0]), 0))
@@ -1592,9 +1871,9 @@ def div_op(
                         ir.RankedTensorType(output.result.type).element_type,
                     ],
                 )
-                div_op = arith.DivFOp(block.arguments[0], input2.result)
-                block.append(div_op)
-                block.append(linalg.YieldOp([div_op.result]))
+                divf_op = arith.DivFOp(block.arguments[0], input2.result)
+                block.append(divf_op)
+                block.append(linalg.YieldOp([divf_op.result]))
             else:
                 tensor_type = ir.RankedTensorType.get(
                     output_shape, ir.F32Type.get()
@@ -1770,18 +2049,29 @@ def div_op(
                         ir.RankedTensorType(output.result.type).element_type,
                     ],
                 )
-                div_op = arith.DivFOp(block.arguments[0], block.arguments[1])
-                block.append(div_op)
-                block.append(linalg.YieldOp([div_op.result]))
+                divf_op = arith.DivFOp(block.arguments[0], block.arguments[1])
+                block.append(divf_op)
+                block.append(linalg.YieldOp([divf_op.result]))
 
-    return op.result
+    return op
 
 
 def softmax_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor softmax operation.
+    From PyTorch `aten._softmax.default` operator to MLIR linalg `generic` operation.
+
+    Note: This op, compute input node's softmax result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     assert len(node.args) == 3
     assert node.args[2] == False
     input1 = symbol_table.get((str(node.args[0]), 0))
@@ -2038,14 +2328,25 @@ def softmax_op(
         block.append(div_op)
         block.append(linalg.YieldOp([div_op.result]))
 
-    return op.result
+    return op
 
 
 def clone_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor clone operation.
+    From PyTorch `aten.clone.default` operator to MLIR tensor `extract_slice` operation.
+
+    Note: This op, clone input tensor to a new tensor.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the tensor.extract_slice op.
+    """
     assert len(node.args) == 1
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
@@ -2055,24 +2356,35 @@ def clone_op(
     dtype = str(node.meta["tensor_meta"].dtype)
     if dtype == "torch.float32":
         offset = [0 for x in output_shape]
-        offset_attr = ir._denseI64ArrayAttr(offset, ctx)
-        size_attr = ir._denseI64ArrayAttr(output_shape, ctx)
+        offset_attr = ir._denseI64ArrayAttr(offset, None)
+        size_attr = ir._denseI64ArrayAttr(output_shape, None)
         stride = [1 for x in output_shape]
-        stride_attr = ir._denseI64ArrayAttr(stride, ctx)
+        stride_attr = ir._denseI64ArrayAttr(stride, None)
         tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
 
         op = tensor.ExtractSliceOp(
             tensor_type, input1, [], [], [], offset_attr, size_attr, stride_attr
         )
 
-    return op.result
+    return op
 
 
 def silu_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
-    ctx=None,
 ):
+    """
+    Import the tensor silu activation operation.
+    From PyTorch `aten.silu.default` operator to MLIR linalg `generic` operation.
+
+    Note: This op, compute input node's silu activation result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
     assert len(node.args) == 1
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
@@ -2130,18 +2442,33 @@ def silu_op(
         block.append(div_op)
         block.append(linalg.YieldOp([div_op.result]))
 
-    return op.result
+    return op
 
 
-def param_extract(node: torch.fx.Node, offset, params_mlir_node, ctx=None):
+def param_extract(
+    node: torch.fx.Node,
+    offset,
+    params_mlir_node,
+):
+    """
+    Extract param from packed params.
+
+    Note: This function, extract slice from packed params tensor, and expand shape by param node shape.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation return the tensor.expand_shape op.
+    """
     dtype = str(node.meta["tensor_meta"].dtype)
     output_shape = list(node.meta["tensor_meta"].shape)
     extract_size = functools.reduce(lambda x, y: x * y, output_shape)
     if dtype == "torch.float32":
-        offset_attr = ir._denseI64ArrayAttr([offset], ctx)
-        size_attr = ir._denseI64ArrayAttr([extract_size], ctx)
+        offset_attr = ir._denseI64ArrayAttr([offset], None)
+        size_attr = ir._denseI64ArrayAttr([extract_size], None)
         stride = [1]
-        stride_attr = ir._denseI64ArrayAttr(stride, ctx)
+        stride_attr = ir._denseI64ArrayAttr(stride, None)
         tensor_type = ir.RankedTensorType.get([extract_size], ir.F32Type.get())
         extract_slice_op = tensor.ExtractSliceOp(
             tensor_type,
@@ -2154,21 +2481,21 @@ def param_extract(node: torch.fx.Node, offset, params_mlir_node, ctx=None):
             stride_attr,
         )
         if len(output_shape) == 1:
-            return extract_slice_op.result
+            return extract_slice_op
         tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
         axis = ir.ArrayAttr.get(
             [
                 ir.IntegerAttr.get(ir.IntegerType.get_signless(64), i)
                 for i in range(len(output_shape))
             ],
-            ctx,
+            None,
         )
-        axis = ir.ArrayAttr.get([axis], ctx)
+        axis = ir.ArrayAttr.get([axis], None)
         expand_shape_op = tensor.ExpandShapeOp(
             tensor_type, extract_slice_op.result, axis
         )
 
-    return expand_shape_op.result
+    return expand_shape_op
 
 
 ops_registry = {

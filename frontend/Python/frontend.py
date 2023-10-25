@@ -303,8 +303,8 @@ class FXGraphImporter:
         """
         if self._num_input_visited < len(self._params):
             placeholder_name = self._ops_registry["param.extract"](
-                node, self._offset, args_list[0], None
-            )
+                node, self._offset, args_list[0]
+            ).result
             self._offset += functools.reduce(
                 lambda x, y: x * y, list(node.meta["tensor_meta"].shape)
             )
