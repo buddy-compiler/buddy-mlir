@@ -41,11 +41,11 @@ int main() {
   Text<size_t, 2> pureStrContainer(pureStr);
   pureStrContainer.tokenizeLlama(vocabDir, 80);
   auto buddyTokenizeEnd = system_clock::now();
-  auto buddyTokenizeTime = duration_cast<seconds>(buddyTokenizeEnd - buddyTokenizeStart);
+  auto buddyTokenizeTime = duration_cast<milliseconds>(buddyTokenizeEnd - buddyTokenizeStart);
   // Print the tokenized result
   cout << "Get User input:" << pureStrContainer.revert(pureStrContainer)
        << endl;
-  cout << "[Buddy] Tokenize input time: " << buddyTokenizeTime.count() * 1000 << "ms"
+  cout << "[Buddy] Tokenize input time: " << buddyTokenizeTime.count() << "ms"
        << endl;
 
   // Read the params
