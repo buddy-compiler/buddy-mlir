@@ -43,7 +43,7 @@ int main() {
   double buddyTokenizeTime =
       (double)(buddyTokenizeEnd - buddyTokenizeStart) / CLOCKS_PER_SEC;
   // Print the tokenized result
-  cout << "Get User input:" << pureStrContainer.revert(pureStrContainer)
+  cout << "Get User input:" << pureStrContainer.revertLlama(pureStrContainer)
        << endl;
   cout << "[Buddy] Tokenize input time: " << buddyTokenizeTime * 1000 << "ms"
        << endl;
@@ -105,7 +105,7 @@ int main() {
   clock_t buddyEnd = clock();
   buddyReadTime = (double)(buddyEnd - buddyStart) / CLOCKS_PER_SEC;
   // Print the result
-  cout << "[Buddy] Result: " << pureStrContainer.revert(pureStrContainer)
+  cout << "[Buddy] Result: " << pureStrContainer.revertLlama(pureStrContainer)
        << endl;
   cout << "[Buddy] Llama exection time: " << buddyReadTime << "s" << endl;
   return 0;
