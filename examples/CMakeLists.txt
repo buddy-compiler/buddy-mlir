@@ -4,6 +4,10 @@ if(BUDDY_EXAMPLES)
   add_subdirectory(DAPDialect)
 endif()
 
+if(BUDDY_LLAMA_EXAMPLES)
+  add_subdirectory(BuddyLlama)
+endif()
+
 if(BUDDY_DSL_EXAMPLES)
   add_subdirectory(ToyDSL)
 endif()

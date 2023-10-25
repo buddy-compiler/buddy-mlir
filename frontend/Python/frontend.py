@@ -145,20 +145,21 @@ class DynamoCompiler:
         """
         return self._compile_fx(gm, inputs)
 
-    def importer(self, model, data):
+    def importer(self, model, *args, **kwargs):
         """
         Imports the provided model as MLIR module and flat parameters.
 
         Args:
             model: The model to be imported.
-            data: The data for the model.
+            args: Arguments for the model.
+            kwargs: Keyword arguments for the model.
 
         Returns:
             module: The imported MLIR module.
             params: The imported flat parameters.
         """
         model_opt = dynamo.optimize(self._compile_fx)(model)
-        model_opt(*data)
+        model_opt(*args, **kwargs)
         module = self._imported_module
         params = self._imported_params
         return module, params

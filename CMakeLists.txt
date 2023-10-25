@@ -42,6 +42,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
     message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
     set(LLVM_MLIR_BINARY_DIR ${MLIR_DIR}/../../../bin)
+    set(LLVM_MLIR_LIBRARY_DIR ${MLIR_DIR}/../../../lib)
     set(LLVM_MLIR_SOURCE_DIR ${MLIR_DIR}/../../../../mlir)
     set(LLVM_PROJECT_BUILD_DIR ${MLIR_DIR}/../../../)
     set(LLVM_PROJECT_SOURCE_DIR ${MLIR_DIR}/../../../../)
