@@ -80,21 +80,6 @@ public:
   }
 
 private:
-  // Check if a character is a whitespace character.
-  // Using standard library functions isspace.
-  bool isWhitespace(char s) const {
-    return isspace(static_cast<unsigned char>(s));
-  }
-  // Check if a character is a punctuation character.
-  // Using standard library functions ispunct.
-  bool isPunctuation(char s) const {
-    return ispunct(static_cast<unsigned char>(s));
-  }
-  // Change character from uppercase to lowercase
-  // Using standard library functions tolower.
-  char toLower(char s) const {
-    return static_cast<char>(tolower(static_cast<unsigned char>(s)));
-  }
   // Check if a char is component of multi-bytes string.
   // Using lookup table to determine the number of bytes of a character.
   // If the number of bytes is 1, return false(0), otherwise return the
@@ -259,14 +244,14 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
   for (size_t i = 0; i < str.size(); i++) {
     char s = str[i];
     if (lower) {
-      s = toLower(s);
+      s = tolower(s);
     }
-    if (isWhitespace(s) || isPunctuation(s) || isMutiBytesChar(s)) {
+    if (isspace(s) || ispunct(s) || isMutiBytesChar(s)) {
       if (!token.empty()) {
         processToken(token, tokenCnt, affix);
         token.clear();
       }
-      if (isPunctuation(s)) {
+      if (ispunct(s)) {
         token = s;
         processToken(token, tokenCnt, false);
         token.clear();
