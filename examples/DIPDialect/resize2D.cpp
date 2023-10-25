@@ -27,6 +27,7 @@
 #include <buddy/DIP/DIP.h>
 #include <buddy/DIP/ImageContainer.h>
 #include <iostream>
+#include <math.h>
 
 using namespace std;
 

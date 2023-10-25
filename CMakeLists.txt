@@ -92,6 +92,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
+if(BUDDY_ENABLE_OPENCV)
+  add_definitions(-DBUDDY_ENABLE_OPENCV)
+endif()
+
 # Generate libraries into `lib` of build directory.
 set(LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
