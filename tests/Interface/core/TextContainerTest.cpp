@@ -34,7 +34,8 @@ int main() {
   //
   // The test running directory is in <build dir>/tests/Interface/core, so the
   // vocabulary directory uses the following relative path.
-  std::string vocabDir = "../../../../tests/Interface/core/vocab_bert.txt";
+  std::string vocabDir = "/root/buddy-mlir/tests/Interface/core/vocab_bert.txt";
+  // std::string vocabDir = "../../../../tests/Interface/core/vocab_bert.txt";
   //===--------------------------------------------------------------------===//
   // Test text constructor for pure string.
   //===--------------------------------------------------------------------===//
@@ -129,7 +130,9 @@ int main() {
   fprintf(stderr, "%ld\n", cornerStrContainer.getData()[11]);
 
   //===--------------------------------------------------------------------===//
-  // Test text constructor for chinese cases.
+  // Test text constructor for mutibyteschar cases.
+  // Specially, the Chinese characters are included.
+  // Select Chinese characters for testing.
   //===--------------------------------------------------------------------===//
   std::string chineseStr = "我，中国北京人！";
   Text<size_t, 2> chineseStrBertContainer(chineseStr);
@@ -224,7 +227,8 @@ int main() {
   //
   // The test running directory is in <build dir>/tests/Interface/core, so the
   // vocabulary directory uses the following relative path.
-  vocabDir = "../../../../tests/Interface/core/vocab_llama.txt";
+  vocabDir = "/root/buddy-mlir/tests/Interface/core/vocab_llama.txt";
+  //vocabDir = "../../../../tests/Interface/core/vocab_llama.txt";
   //===--------------------------------------------------------------------===//
   // Test text constructor for pure string using Llama tokenizer.
   //===--------------------------------------------------------------------===//
@@ -232,7 +236,7 @@ int main() {
   Text<size_t, 2> pureStrLlamaContainer(pureStrLlama);
   pureStrLlamaContainer.tokenizeLlama(vocabDir, 12);
   std::string pureStrLlamaResult =
-      pureStrLlamaContainer.revert(pureStrLlamaContainer);
+      pureStrLlamaContainer.revertLlama(pureStrLlamaContainer);
   // CHECK: 1
   fprintf(stderr, "%ld\n", pureStrLlamaContainer.getData()[0]);
   // CHECK: 8619
@@ -266,7 +270,7 @@ int main() {
   Text<size_t, 2> puncStrLlamaContainer(puncStrLlama);
   puncStrLlamaContainer.tokenizeLlama(vocabDir, 12);
   std::string puncStrLlamaResult =
-      puncStrLlamaContainer.revert(puncStrLlamaContainer);
+      puncStrLlamaContainer.revertLlama(puncStrLlamaContainer);
   // CHECK: 1
   fprintf(stderr, "%ld\n", puncStrLlamaContainer.getData()[0]);
   // CHECK: 8619

@@ -26,6 +26,7 @@
 #include "buddy/Core/Container.h"
 #include <fstream>
 #include <iostream>
+#include <cctype>
 #include <unordered_map>
 
 namespace buddy {
@@ -66,7 +67,7 @@ public:
   // This function initializes the conversion from Text memref to a string.
   // Tokens are identified by ids and thick underlines are replaced with
   // whitespaces.
-  std::string revert(Text<T, 2> input);
+  std::string revertLlama(Text<T, 2> input);
 
   // Get sequence length
   size_t getTokenCnt() { return this->tokenCnt; }
@@ -80,33 +81,30 @@ public:
 
 private:
   // Check if a character is a whitespace character.
+  // Using standard library functions isspace.
   bool isWhitespace(char s) const {
-    // TODO-HIGH: Consider using standard library functions like `isspace`.
-    // return isspace(static_cast<unsigned char>(s));
-    return s == ' ' || s == '\t' || s == '\n' || s == '\r';
+    return isspace(static_cast<unsigned char>(s));
   }
   // Check if a character is a punctuation character.
+  // Using standard library functions ispunct.
   bool isPunctuation(char s) const {
-    // TODO-HIGH: Consider using standard library functions like `ispunct`.
-    // return ispunct(static_cast<unsigned char>(s));
-    return (s >= 33 && s <= 47) || (s >= 58 && s <= 64) ||
-           (s >= 91 && s <= 96) || (s >= 123 && s <= 126);
+    return ispunct(static_cast<unsigned char>(s));
   }
   // Change character from uppercase to lowercase
+  // Using standard library functions tolower.
   char toLower(char s) const {
-    // TODO-HIGH: Consider using standard library functions like `tolower`.
-    // return static_cast<char>(tolower(static_cast<unsigned char>(s)));
-    if (s >= 65 && s <= 90)
-      return s + 32;
-    else
-      return s;
+    return static_cast<char>(tolower(static_cast<unsigned char>(s)));
   }
-  // Check if a char is a chinese character
-  // TODO-MID: find more accurate strategy and write more comments.
-  bool isChineseChar(char s) {
+  // Check if a char is component of multi-bytes string.
+  // Using lookup table to determine the number of bytes of a character.
+  int isMutiBytesChar(char s) {
     const size_t lookup[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 3, 4};
     int8_t highbits = static_cast<uint8_t>(s) >> 4;
-    return lookup[highbits] == 3;
+    if(lookup[highbits] == 1) {
+      return 0;
+    }
+    else
+      return lookup[highbits];
   }
   // Replace all " " with "▁"
   std::string replaceAllSpace(const std::string &str) {
@@ -224,7 +222,6 @@ void Text<T, N>::tokenizeLlama(const std::string &vocab, size_t length) {
 
   this->aligned[0] = cls;
   tokenCnt = 1;
-
   // Directly fill this->aligned in reverse order.
   for (auto it = res.rbegin(); it != res.rend(); ++it) {
     this->aligned[tokenCnt++] = *it;
@@ -247,7 +244,7 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
   this->size = this->product(this->sizes);
   this->allocated = new T[this->size];
   this->aligned = this->allocated;
-  this->pad = 0;
+  this->pad = 102;
   this->unk = 100;
   this->cls = 101;
   this->sep = 102;
@@ -262,7 +259,7 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
     if (lower) {
       s = toLower(s);
     }
-    if (isWhitespace(s) || isPunctuation(s) || isChineseChar(s)) {
+    if (isWhitespace(s) || isPunctuation(s) || isMutiBytesChar(s)) {
       if (!token.empty()) {
         processToken(token, tokenCnt, affix);
         token.clear();
@@ -272,14 +269,14 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
         processToken(token, tokenCnt, false);
         token.clear();
       }
-      if (isChineseChar(s)) {
-        token.append(str, i, 3);
+      if (int j = isMutiBytesChar(s)) {
+        token.append(str, i, j);
         // If it doesn't divide by affix, divide the Chinese words one by one.
         if (!affix) {
           processToken(token, tokenCnt, false);
           token.clear();
         }
-        i += 2;
+        i += j - 1;
       }
     } else {
       token += s;
@@ -295,14 +292,14 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
   this->aligned[tokenCnt++] = sep;
   // Padding the rest text container.
   for (size_t i = tokenCnt; i < length; i++) {
-    // TODO-HIGH: considering use `pad` here.
-    this->aligned[i] = sep;
+    this->aligned[i] = pad;
   }
 }
 
-// TODO-HIGH: consider using `revertLlama` here.
+// The revert function is used to convert the tokenized sequence back to a 
+// full string.
 template <typename T, size_t N>
-std::string Text<T, N>::revert(Text<T, 2> input) {
+std::string Text<T, N>::revertLlama(Text<T, 2> input) {
   std::string dst;
 
   const int PAD_ID = 0;
@@ -315,14 +312,14 @@ std::string Text<T, N>::revert(Text<T, 2> input) {
       continue;
     if (id == SEP_ID)
       break;
+    // Replace each "▁" with a space.
     std::string token = this->idToTokenVec[id];
-    if (token.find("▁") != std::string::npos) {
-      dst.append(" ");
-      // TODO-HIGH: consider whether the `3` is reasonable here.
-      dst.append(token, 3);
-    } else {
-      dst.append(token);
+    size_t pos = token.find("▁");
+    while (pos != std::string::npos) {
+        token.replace(pos, 3, " ");
+        pos = token.find("▁", pos + 1);
     }
+    dst.append(token);
   }
   if (dst[0] == ' ') {
     dst.erase(0, 1);
