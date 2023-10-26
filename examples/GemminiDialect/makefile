@@ -121,6 +121,15 @@ tile-conv-run:
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
 
+tile-conv-relu-run:
+	@${BUDDY_OPT} ./tile-conv-relu.mlir -lower-gemmini | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.o
+	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
+	@spike --extension=gemmini pk a.out
+
 tile-rect-conv-run:
 	@${BUDDY_OPT} ./tile-rect-conv.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
