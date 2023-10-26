@@ -16,9 +16,10 @@
 
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
+#include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <chrono>
 
 using namespace buddy;
 using namespace std;
@@ -41,7 +42,8 @@ int main() {
   Text<size_t, 2> pureStrContainer(pureStr);
   pureStrContainer.tokenizeLlama(vocabDir, 80);
   auto buddyTokenizeEnd = system_clock::now();
-  auto buddyTokenizeTime = duration_cast<milliseconds>(buddyTokenizeEnd - buddyTokenizeStart);
+  auto buddyTokenizeTime =
+      duration_cast<milliseconds>(buddyTokenizeEnd - buddyTokenizeStart);
   // Print the tokenized result
   cout << "Get User input:" << pureStrContainer.revert(pureStrContainer)
        << endl;
@@ -49,12 +51,12 @@ int main() {
        << endl;
 
   // Read the params
-  cout << "Please input params file directory" << endl;
-  string paramsPath;
-  getline(cin, paramsPath);
   auto buddyReadStart = system_clock::now();
   MemRef<float, 1> arg0({intptr_t(6755192832)});
-  ifstream in0(paramsPath + "/arg0.data", ios::in | ios::binary);
+  ifstream in0("../../examples/BuddyLlama/arg0.data", ios::in | ios::binary);
+  std::cout << "use params file: "
+            << std::filesystem::absolute("../../examples/BuddyLlama/arg0.data")
+            << std::endl;
   if (!in0.is_open()) {
     throw std::runtime_error("Failed to open param file!");
   }
@@ -64,7 +66,8 @@ int main() {
   auto buddyReadTime =
       duration_cast<milliseconds>(buddyReadEnd - buddyReadStart);
   cout << "Read params finish" << endl;
-  cout << "[Buddy] Read params time: " << (double)(buddyReadTime.count())/1000 << "s" << endl;
+  cout << "[Buddy] Read params time: " << (double)(buddyReadTime.count()) / 1000
+       << "s" << endl;
 
   // Run the model
   MemRef<float, 3> result({1, 80, 32000});
@@ -95,8 +98,8 @@ int main() {
     buddyReadEnd = system_clock::now();
     buddyReadTime = duration_cast<milliseconds>(buddyReadEnd - buddyReadStart);
     cout << pureStrContainer.getStr(index) << endl;
-    cout << "[Buddy] Llama iteration " << i << " time: " << (double)(buddyReadTime.count())/1000 << "s"
-         << endl;
+    cout << "[Buddy] Llama iteration " << i
+         << " time: " << (double)(buddyReadTime.count()) / 1000 << "s" << endl;
     pureStrContainer.setTokenCnt(pureStrContainer.getTokenCnt() + 1);
   }
   cout << "------------------------------------------------------------"
@@ -107,6 +110,7 @@ int main() {
   // Print the result
   cout << "[Buddy] Result: " << pureStrContainer.revert(pureStrContainer)
        << endl;
-  cout << "[Buddy] Llama exection time: " << (double)(buddyReadTime.count())/1000 << "s" << endl;
+  cout << "[Buddy] Llama exection time: "
+       << (double)(buddyReadTime.count()) / 1000 << "s" << endl;
   return 0;
 }

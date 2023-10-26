@@ -51,6 +51,7 @@ class DynamoCompiler:
         primary_registry: dict = {},
         aot_autograd_decomposition: Optional[dict] = None,
         param_pack: bool = True,
+        is_inference: bool = False,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -66,6 +67,7 @@ class DynamoCompiler:
         self._imported_module = None
         self._imported_params = None
         self._param_pack = param_pack
+        self._is_inference = is_inference
         self._ops_registry = {}
         self._ops_registry.update(math_ops_registry)
         self._ops_registry.update(linalg_ops_registry)
@@ -111,6 +113,7 @@ class DynamoCompiler:
                     self._param_pack,
                     self._func_name,
                     self._ops_registry,
+                    self._is_inference,
                 )
                 self._imported_module = fx_importer.import_graph()
             # TODO: Lower to LLVM dialect and use JIT engine to execute.
@@ -187,9 +190,13 @@ class FXGraphImporter:
         param_pack: bool = True,
         func_name: str = "forward",
         ops_registry: dict = {},
+        is_inference: bool = False,
     ):
         """
         Initializes the FX Graph importer.
+
+        Note: If is_inference is True, the return tensors num will be forced to
+        limit to one, such as returns = [returns[0]]
 
         Args:
             gm (torch.fx.GraphModule): The FX graph that will be imported.
@@ -206,6 +213,7 @@ class FXGraphImporter:
         self._num_input_visited = 0
         self._module = ir.Module.create()
         self._ops_registry = ops_registry
+        self._is_inference = is_inference
 
     def _torch_dtype_to_mlir_dtype(self, dtype: torch.dtype) -> ir.Type:
         """
@@ -275,7 +283,8 @@ class FXGraphImporter:
                         for output_arg in output_node_args:
                             op = self._symbol_table.get((str(output_arg), 0))
                             returns.append(op)
-                        returns = returns[0]
+                        if self._is_inference:
+                            returns = [returns[0]]
                         self._symbol_table[("output", 0)] = returns
                     elif node.op == "placeholder":
                         self._import_placeholder(node, args_list)

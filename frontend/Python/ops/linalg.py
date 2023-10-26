@@ -1,4 +1,4 @@
-# ===- linalg.py -----------------------------------------------------------------
+# ===- linalg.py ---------------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,16 +35,19 @@ def arange_op(
 ):
     """
     Import tensor arange operation.
-    From PyTorch `aten.arange.default` and `aten.arange.start` operator to MLIR arith `constant` operation.
+    From PyTorch `aten.arange.default` and `aten.arange.start` operator to MLIR
+    arith `constant` operation.
 
     Note: this function init an output tensor according input range.
 
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
-        op: The operation representing the result tensor of ranging the start and end from input node.
+        op: The operation representing the result tensor of ranging the start
+        and end from input node.
     """
     if node.target.__name__ == "arange.start":
         start = int(node.args[0])
@@ -85,7 +88,8 @@ def unsqueeze_op(
 ):
     """
     Import the unsqueeze operation.
-    From PyTorch `aten.unsqueeze.default` operator to MLIR TOSA `reshape` operation.
+    From PyTorch `aten.unsqueeze.default` operator to MLIR TOSA `reshape`
+    operation.
 
     Note: "unsqueeze" means inserting a new dimension of size 1 at the specified
           position. For more information, please refer to
@@ -93,7 +97,8 @@ def unsqueeze_op(
 
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the reshape op.
@@ -120,10 +125,12 @@ def view_op(
     Import the tensor view operation.
     From PyTorch `aten.view.default` operator to MLIR TOSA `reshape` operation.
 
-    Note: If the new shape contains one and only one `-1`, the size of the new shape will be inferred automatically.
+    Note: If the new shape contains one and only one `-1`, the size of the new
+    shape will be inferred automatically.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the reshape op.
@@ -158,12 +165,15 @@ def embedding_op(
 ):
     """
     Import the embedding operation.
-    From PyTorch `aten.embedding.default` operator to MLIR linalg `generic` operation.
+    From PyTorch `aten.embedding.default` operator to MLIR linalg `generic`
+    operation.
 
-    Note: In this op, input node1's value is as index to get input node2's row slice.
+    Note: In this op, input node1's value is as index to get input node2's row
+    slice.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -214,12 +224,15 @@ def ones_op(
 ):
     """
     Import the tensor ones operation.
-    From PyTorch `aten.ones.default` operator to MLIR arith `constant` operation.
+    From PyTorch `aten.ones.default` operator to MLIR arith `constant`
+    operation.
 
-    Note: This op, input node1's value is as index to get input node2's row slice.
+    Note: This op, input node1's value is as index to get input node2's row
+    slice.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the arith.constant op.
@@ -247,12 +260,15 @@ def full_op(
 ):
     """
     Import the tensor full operation.
-    From PyTorch `aten.full.default` operator to MLIR arith `constant` operation.
+    From PyTorch `aten.full.default` operator to MLIR arith `constant`
+    operation.
 
-    Note: This op, input node1's value is the shape of output tensor, input node2's value is the value of all elements in output tensor.
+    Note: This op, input node1's value is the shape of output tensor, input
+    node2's value is the value of all elements in output tensor.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the arith.constant op.
@@ -293,10 +309,12 @@ def lt_op(
     Import the tensor less than operation.
     From PyTorch `aten.lt.Tensor` operator to MLIR arith `constant` operation.
 
-    Note: This op, campare two input nodes, and output bool tensor to represent compare result.
+    Note: This op, campare two input nodes, and output bool tensor to represent
+    compare result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -388,12 +406,15 @@ def masked_fill_op(
 ):
     """
     Import the tensor masked fill operation.
-    From PyTorch `aten.masked_fill.Scalar` operator to MLIR linalg `generic` operation.
+    From PyTorch `aten.masked_fill.Scalar` operator to MLIR linalg `generic`
+    operation.
 
-    Note: This op, input node2 is a bool tensor. Select input node1's value or input node3's value by true or false in input node2's value.
+    Note: This op, input node2 is a bool tensor. Select input node1's value or
+    input node3's value by true or false in input node2's value.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -465,12 +486,14 @@ def slice_op(
 ):
     """
     Import the tensor slice operation.
-    From PyTorch `aten.slice.Tensor` operator to MLIR tensor `extract_slice` operation.
+    From PyTorch `aten.slice.Tensor` operator to MLIR tensor `extract_slice`
+    operation.
 
     Note: This op, get the slice of input node1.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the tensor.extract_slice op.
@@ -517,12 +540,15 @@ def expand_op(
 ):
     """
     Import the tensor expand operation.
-    From PyTorch `aten.expand.default` operator to MLIR tensor `extract_slice` operation.
+    From PyTorch `aten.expand.default` operator to MLIR tensor `extract_slice`
+    operation.
 
-    Note: This op, based on expand shape, create a new tensor and extract slice from origin tensor.
+    Note: This op, based on expand shape, create a new tensor and extract slice
+    from origin tensor.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the tensor.extract_slice op.
@@ -618,12 +644,15 @@ def to_copy_op(
 ):
     """
     Import the tensor copy operation.
-    From PyTorch `aten._to_copy.default` operator to MLIR linalg `generic` operation.
+    From PyTorch `aten._to_copy.default` operator to MLIR linalg `generic`
+    operation.
 
-    Note: This op, will convert input node's value type, such as float32 to bool.
+    Note: This op, will convert input node's value type, such as float32 to
+    bool.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -745,7 +774,8 @@ def rsub_op(
     Note: This op, compute input node1 rsub input node2
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -809,12 +839,14 @@ def pow_op(
 ):
     """
     Import the tensor copy operation.
-    From PyTorch `aten.pow.Tensor_Scalar` operator to MLIR linalg `generic` operation.
+    From PyTorch `aten.pow.Tensor_Scalar` operator to MLIR linalg `generic`
+    operation.
 
     Note: This op, compute input node's power result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -887,7 +919,8 @@ def mean_op(
     Note: This op, compute input node's mean result in a specified dim.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -973,12 +1006,14 @@ def rsqrt_op(
 ):
     """
     Import the tensor rsqrt operation.
-    From PyTorch `aten.rsqrt.default` operator to MLIR linalg `generic` operation.
+    From PyTorch `aten.rsqrt.default` operator to MLIR linalg `generic`
+    operation.
 
     Note: This op, compute input node's rsqrt result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -1045,7 +1080,8 @@ def mul_op(
     Note: This op, compute input node's mul result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -1306,7 +1342,8 @@ def t_op(
     Note: This op, compute input node's transpose result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -1364,7 +1401,8 @@ def matmul_op(
     Note: This op, compute input node's matrix multiplication result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.matmul op.
@@ -1393,12 +1431,14 @@ def transpose_op(
 ):
     """
     Import the tensor transpose operation.
-    From PyTorch `aten.transpose.int` operator to MLIR linalg `generic` operation.
+    From PyTorch `aten.transpose.int` operator to MLIR linalg `generic`
+    operation.
 
     Note: This op, compute input node's transpose result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -1453,12 +1493,14 @@ def index_op(
 ):
     """
     Import the tensor index operation.
-    From PyTorch `aten.index.Tensor` operator to MLIR linalg `generic` operation.
+    From PyTorch `aten.index.Tensor` operator to MLIR linalg `generic`
+    operation.
 
     Note: This op, get input node slice result by input index.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -1537,7 +1579,8 @@ def neg_op(
     Note: This op, compute input node's neg result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -1598,12 +1641,14 @@ def cat_op(
 ):
     """
     Import the tensor concate operation.
-    From PyTorch `aten.cat.default` operator to MLIR tensor `insert_slice` operation.
+    From PyTorch `aten.cat.default` operator to MLIR tensor `insert_slice`
+    operation.
 
     Note: This op, concate two input tensor.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the tensor.insert_slice op.
@@ -1665,7 +1710,8 @@ def squeeze_op(
     Note: This op, reduce the input tensor's shape dims by specified dim.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -1747,12 +1793,14 @@ def batch_matmul_op(
 ):
     """
     Import the tensor batch matmul operation.
-    From PyTorch `aten.bmm.default` operator to MLIR linalg `batch_matmul` operation.
+    From PyTorch `aten.bmm.default` operator to MLIR linalg `batch_matmul`
+    operation.
 
     Note: This op, compute input node's batch matrix multiplication result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.batch_matmul op.
@@ -1806,7 +1854,8 @@ def div_op(
     Note: This op, compute input node's division result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -2062,12 +2111,14 @@ def softmax_op(
 ):
     """
     Import the tensor softmax operation.
-    From PyTorch `aten._softmax.default` operator to MLIR linalg `generic` operation.
+    From PyTorch `aten._softmax.default` operator to MLIR linalg `generic`
+    operation.
 
     Note: This op, compute input node's softmax result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -2337,12 +2388,14 @@ def clone_op(
 ):
     """
     Import the tensor clone operation.
-    From PyTorch `aten.clone.default` operator to MLIR tensor `extract_slice` operation.
+    From PyTorch `aten.clone.default` operator to MLIR tensor `extract_slice`
+    operation.
 
     Note: This op, clone input tensor to a new tensor.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the tensor.extract_slice op.
@@ -2375,12 +2428,14 @@ def silu_op(
 ):
     """
     Import the tensor silu activation operation.
-    From PyTorch `aten.silu.default` operator to MLIR linalg `generic` operation.
+    From PyTorch `aten.silu.default` operator to MLIR linalg `generic`
+    operation.
 
     Note: This op, compute input node's silu activation result.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the linalg.generic op.
@@ -2453,10 +2508,12 @@ def param_extract(
     """
     Extract param from packed params.
 
-    Note: This function, extract slice from packed params tensor, and expand shape by param node shape.
+    Note: This function, extract slice from packed params tensor, and expand
+    shape by param node shape.
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
 
     Returns:
         op: The operation return the tensor.expand_shape op.

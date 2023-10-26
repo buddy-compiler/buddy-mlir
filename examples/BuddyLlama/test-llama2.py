@@ -9,8 +9,8 @@ import os
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
-tokenizer = LlamaTokenizer.from_pretrained('/llama-2-7B-hf')
-model = LlamaForCausalLM.from_pretrained('/llama-2-7B-hf', torchscript=True)
+tokenizer = LlamaTokenizer.from_pretrained('path-to-llama2-hf-model')
+model = LlamaForCausalLM.from_pretrained('path-to-llama2-hf-model', torchscript=True)
 prompt = "Hey, please say hello world to me!"
 inputs = tokenizer(prompt, return_tensors="pt")
 inputs = inputs.input_ids
@@ -18,6 +18,7 @@ inputs = inputs.input_ids
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=aot_autograd_decompositions,
+    is_inference=True
 )
 
 gm, params = dynamo_compiler.importer(model, torch.tensor([[1 for i in range(80)]], dtype=torch.int64))
