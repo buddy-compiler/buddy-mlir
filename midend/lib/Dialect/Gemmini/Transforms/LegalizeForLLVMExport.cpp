@@ -1569,13 +1569,9 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     const int dilatedInRowDim = inRowDim + (inputDilation - 1) * (inRowDim - 1);
     const int dilatedInColDim = inColDim + (inputDilation - 1) * (inColDim - 1);
 
-    size_t aSpadId = 0;
-    size_t bSpadId = 0;
-
     int porowEnd = poolOutRowDim;
 	  int porowStart = 0;
-    bool a_reuse = false;
-    bool b_reuse = false;
+
     size_t num_kch = ceil_divide_int(inChannels, kchs);
     size_t num_poch = ceil_divide_int(outChannels, pochs);
     size_t num_b = ceil_divide_int(batchSize, batches);
@@ -1849,8 +1845,6 @@ public:
     MemRefType weightsType = weights.getType().dyn_cast<MemRefType>();
     MemRefType biasType = bias.getType().dyn_cast<MemRefType>();
     ArrayRef<int64_t> inputShape = inputType.getShape();
-    ArrayRef<int64_t> outputShape = outputType.getShape();
-    ArrayRef<int64_t> weightsShape = weightsType.getShape();
     ArrayRef<int64_t> biasShape = biasType.getShape();
 
     Value outRowDimValue = tileConvOp.getOutRowDim();
