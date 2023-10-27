@@ -46,7 +46,7 @@ dynamo_compiler = DynamoCompiler(
 # The first way to generate an MLIR Module:
 # Pass the function and input data to the dynamo compiler's importer,
 # and accepts the generated module and weight parameters.
-module, params = dynamo_compiler.importer(foo, (float32_in1, float32_in2))
+module, params = dynamo_compiler.importer(foo, *(float32_in1, float32_in2))
 
 print(module)
 print(params)

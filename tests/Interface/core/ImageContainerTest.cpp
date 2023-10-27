@@ -233,6 +233,7 @@ int main() {
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator4[15]);
 
+<<<<<<< HEAD
 
   //===--------------------------------------------------------------------===//
   // Test png format image.
@@ -333,5 +334,7 @@ int main() {
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator6[15]);
   
+=======
+>>>>>>> upstream/main
   return 0;
 }

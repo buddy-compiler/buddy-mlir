@@ -194,6 +194,7 @@ Img<T, N> imread(const String &filename, int flags) {
       Img<T, N> Image(sizes);
       JpegDecoderPtr->readData(Image);
       return Image;
+<<<<<<< HEAD
     }
 
     // Converts a pointer to BmpDecoder<T, N>
@@ -221,6 +222,8 @@ Img<T, N> imread(const String &filename, int flags) {
       Img<T, N> Image(sizes);
       PngDecoderPtr->readData(Image);
       return Image;
+=======
+>>>>>>> upstream/main
     }
   }
 }
@@ -293,6 +296,7 @@ static bool imwrite(const String &filename, Img<T, N> &img_vec) {
       return code;
     }
 
+<<<<<<< HEAD
     // Convert to a pointer of PngEncoder<T, N>
     PngEncoder<T, N> *pngEncoderPtr =
         dynamic_cast<PngEncoder<T, N> *>(encoder.get());
@@ -303,6 +307,8 @@ static bool imwrite(const String &filename, Img<T, N> &img_vec) {
       code = pngEncoderPtr->write(img_vec, params);
       return code;
     }
+=======
+>>>>>>> upstream/main
   }
 
   return true;

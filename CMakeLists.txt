@@ -42,6 +42,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
     message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
     set(LLVM_MLIR_BINARY_DIR ${MLIR_DIR}/../../../bin)
+    set(LLVM_MLIR_LIBRARY_DIR ${MLIR_DIR}/../../../lib)
     set(LLVM_MLIR_SOURCE_DIR ${MLIR_DIR}/../../../../mlir)
     set(LLVM_PROJECT_BUILD_DIR ${MLIR_DIR}/../../../)
     set(LLVM_PROJECT_SOURCE_DIR ${MLIR_DIR}/../../../../)
@@ -91,6 +92,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
+
+if(BUDDY_ENABLE_OPENCV)
+  add_definitions(-DBUDDY_ENABLE_OPENCV)
+endif()
 
 # Generate libraries into `lib` of build directory.
 set(LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
