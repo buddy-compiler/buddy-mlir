@@ -42,8 +42,9 @@ SET_TARGET_PROPERTIES(
 if(BUDDY_ENABLE_OPENCV)
   find_package(OpenCV REQUIRED CONFIG)
   include_directories(${OpenCV_INCLUDE_DIRS})
-endif()
+  add_executable(edge-detection edge-detection.cpp)
+  add_dependencies(edge-detection buddy-opt)
+  target_link_libraries(edge-detection ${OpenCV_LIBS} Conv2D)
+  endif()
 
-add_executable(edge-detection edge-detection.cpp)
-add_dependencies(edge-detection buddy-opt)
-target_link_libraries(edge-detection ${OpenCV_LIBS} Conv2D)
+
