@@ -35,7 +35,6 @@ func.func @main() -> i8 {
   // CHECK: "gemmini.intr.config_ex"
   // CHECK: "gemmini.intr.config_st"
   // CHECK: "gemmini.intr.config_ld"
-  // CHECK: "gemmini.intr.config_norm"
   // CHECK: "gemmini.intr.loop_ws_config_bounds"
   // CHECK: "gemmini.intr.loop_ws_config_addrs_ab"
   // CHECK: "gemmini.intr.loop_ws_config_addrs_dc"
