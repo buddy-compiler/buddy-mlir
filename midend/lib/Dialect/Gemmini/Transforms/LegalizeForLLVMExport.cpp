@@ -1015,7 +1015,7 @@ public:
     size_t tileI, tileJ, tileK;
     if (act == LAYERNORM || act == SOFTMAX) {
       tileI = 1;
-      tileJ = dimJPaded | dim;
+      tileJ = dimJPaded / dim;
       tileK = 1;
     } else {
       tileI = dimIPaded / dim < dbMaxTileIJ ? dimIPaded / dim : dbMaxTileIJ;
