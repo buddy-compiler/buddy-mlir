@@ -148,7 +148,7 @@ linalg-batch-matmul-optimize-run:
 		-convert-arith-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_batchmatmul_f32 -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 linalg-batch-matmul-lower:
@@ -170,7 +170,7 @@ linalg-batch-matmul-run:
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_batchmatmul_f32 -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 linalg-batch-matmul-optimize-lower:
 	@${BUDDY_OPT} linalg-batch-matmul-f32.mlir ${MLIR_OPT_OPTIONS} \
@@ -203,7 +203,7 @@ linalg-batch-matmul-i8-optimize-run:
 		-convert-arith-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_batchmatmul_i8 -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 linalg-batch-matmul-i8-lower:
@@ -225,7 +225,7 @@ linalg-batch-matmul-i8-run:
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_batchmatmul_i8 -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 linalg-batch-matmul-i8-optimize-lower:
 	@${BUDDY_OPT} linalg-batch-matmul-i8.mlir ${MLIR_OPT_OPTIONS} \
@@ -235,6 +235,74 @@ linalg-batch-matmul-i8-optimize-lower:
 linalg-batch-matmul-i8-optimize-translate:
 	@${BUDDY_OPT} linalg-batch-matmul-i8.mlir ${MLIR_OPT_OPTIONS} \
 		-batchmatmul-optimize="vector-size=64" \
+		-convert-linalg-to-loops \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+linalg-matmul-parallized-vectorized-optmize-run:
+	@${BUDDY_OPT} linalg-matmul-opt-f32.mlir ${MLIR_OPT_OPTIONS} \
+		-matmul-paralell-vectorization-optimize="vector-size=128" \
+		-convert-linalg-to-loops \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_matmul_f32 -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+linalg-matmul-parallized-vectorized-optmize-lower:
+	@${BUDDY_OPT} linalg-matmul-opt-f32.mlir ${MLIR_OPT_OPTIONS} \
+		-matmul-paralell-vectorization-optimize="vector-size=128" \
+		-o ./log.mlir
+
+linalg-matmul-parallized-vectorized-optmize-translate:
+	@${BUDDY_OPT} linalg-matmul-opt-f32.mlir ${MLIR_OPT_OPTIONS} \
+		-matmul-paralell-vectorization-optimize="vector-size=128" \
+		-convert-linalg-to-loops \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+linalg-matmul-i8-parallized-vectorized-optmize-run:
+	@${BUDDY_OPT} linalg-matmul-opt-i8.mlir ${MLIR_OPT_OPTIONS} \
+		-matmul-paralell-vectorization-optimize="vector-size=128" \
+		-convert-linalg-to-loops \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_matmul_i8 -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+linalg-matmul-i8-parallized-vectorized-optmize-lower:
+	@${BUDDY_OPT} linalg-matmul-opt-i8.mlir ${MLIR_OPT_OPTIONS} \
+		-matmul-paralell-vectorization-optimize="vector-size=128" \
+		-o ./log.mlir
+
+linalg-matmul-i8-parallized-vectorized-optmize-translate:
+	@${BUDDY_OPT} linalg-matmul-opt-i8.mlir ${MLIR_OPT_OPTIONS} \
+		-matmul-paralell-vectorization-optimize="vector-size=128" \
 		-convert-linalg-to-loops \
 		-expand-strided-metadata \
 		-lower-affine \
