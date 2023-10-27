@@ -28,6 +28,9 @@ func.func @main() -> i8 {
       memref.store %dI32, %dArray[%i3, %j3] : memref<5x5xi32>
     }
   }
+
+  gemmini.tile_matmul %aArray %bArray %cArray %dArray {dataflow=1}: memref<5x5xi8> memref<5x5xi8> memref<5x5xi8> memref<5x5xi32>
+  gemmini.print %cArray : memref<5x5xi8>
   
   // CHECK: "gemmini.intr.config_ex"
   // CHECK: "gemmini.intr.config_st"
