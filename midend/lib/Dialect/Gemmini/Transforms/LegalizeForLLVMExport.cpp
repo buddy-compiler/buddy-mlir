@@ -1253,7 +1253,7 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     const size_t maxBlockLenAcc = MAX_BYTES / (dim * 4);
     if (bias != NULL) {
       // TODO we probably don't need quite this many nested loops for this part
-      const int maxOchsPerMvin = ochs < maxBlockLenAcc * dim ? ochs :
+      const int maxOchsPerMvin = ochs < (int)(maxBlockLenAcc * dim) ? ochs :
                                                                 maxBlockLenAcc * dim;
       Value zeroValue = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0));
       rewriter.create<ConfigLdOp>(loc, zeroValue, llvm::APFloat((float)MVIN_SCALE_IDENTITY), false, 2, batches * orows * ocols);
@@ -1274,10 +1274,10 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     }
     // mvin input
     if (input != NULL){
-      int maxChsPerMvin = ichs < maxBlockLen * dim ? ichs :
+      int maxChsPerMvin = ichs < (int)(maxBlockLen * dim) ? ichs :
                                                         maxBlockLen * dim;
       if (transInput3120) {
-        maxChsPerMvin = batches < maxBlockLen * dim ? batches :
+        maxChsPerMvin = batches < (int)(maxBlockLen * dim) ? batches :
                                                          maxBlockLen * dim;
       }
       const int dramStride = transInput3120 ?
@@ -1330,10 +1330,10 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     }
     // mvin weights
     if (weights != NULL) {
-      int max_chs_per_mvin = ochs < maxBlockLen * dim ? ochs :
+      int max_chs_per_mvin = ochs < (int)(maxBlockLen * dim) ? ochs :
                                                         maxBlockLen * dim;
       if (transWeight0132) {
-        max_chs_per_mvin = kchs < maxBlockLen * dim ? kchs :
+        max_chs_per_mvin = kchs < (int)(maxBlockLen * dim) ? kchs :
                                                       maxBlockLen * dim;
       }
       size_t dramStride = weightStride * sizeOfElemT;
@@ -1466,7 +1466,6 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
                         newWeights ? bSpAddr : GARBAGE_ADDR;
 
                     Value garbageAddrOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(GARBAGE_ADDR));
-                    Value dimOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(dim));
                     Value iOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(I));
                     Value jOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(J));
                     Value kOp = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(K));
@@ -1579,11 +1578,6 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     size_t num_pocol = ceil_divide_int(poolOutColDim, pocols);
     size_t num_krow = ceil_divide_int(kernelDim, krows);
     size_t num_kcol = ceil_divide_int(kernelDim, kcols);
-
-    if(num_kch * num_poch * num_krow * num_kcol <= 2) 
-      b_reuse = true;
-    if(num_kch * num_krow * num_kcol * num_b * num_porow * num_pocol <= 2)
-      a_reuse = true;
 
     for (int b = 0; b < batchSize; b += batches) {
       for (int porow = 0; porow < porowEnd; porow += porows) {
