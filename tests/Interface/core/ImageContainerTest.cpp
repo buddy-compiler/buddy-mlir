@@ -233,5 +233,105 @@ int main() {
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator4[15]);
 
+
+  //===--------------------------------------------------------------------===//
+  // Test png format image.
+  //===--------------------------------------------------------------------===//
+  Img<float, 2> grayimage_png = dip::imread<float, 2>(
+      "../../../../tests/Interface/core/TestGrayImage.png",
+      dip::IMGRD_GRAYSCALE);
+
+  //===--------------------------------------------------------------------===//
+  // Test copy constructor.
+  //===--------------------------------------------------------------------===//
+  Img<float, 2> testCopyConstructor9(grayimage_png);
+  // CHECK: 15.0
+  fprintf(stderr, "%f\n", testCopyConstructor9[0]);
+  // CHECK: 4, 4
+  fprintf(stderr, "%ld, %ld\n", testCopyConstructor9.getSizes()[0],
+          testCopyConstructor9.getSizes()[1]);
+  // CHECK: 4, 1
+  fprintf(stderr, "%ld, %ld\n", testCopyConstructor9.getStrides()[0],
+          testCopyConstructor9.getStrides()[1]);
+  // CHECK: 2
+  fprintf(stderr, "%ld\n", testCopyConstructor9.getRank());
+  // CHECK: 16
+  fprintf(stderr, "%ld\n", testCopyConstructor9.getSize());
+  // CHECK: 60.0
+  fprintf(stderr, "%f\n", testCopyConstructor9[3]);
+
+  Img<float, 2> testCopyConstructor10 = grayimage_png;
+  // CHECK: 15.0
+  fprintf(stderr, "%f\n", testCopyConstructor10[0]);
+  // CHECK: 4, 4
+  fprintf(stderr, "%ld, %ld\n", testCopyConstructor10.getSizes()[0],
+          testCopyConstructor10.getSizes()[1]);
+  // CHECK: 4, 1
+  fprintf(stderr, "%ld, %ld\n", testCopyConstructor10.getStrides()[0],
+          testCopyConstructor10.getStrides()[1]);
+  // CHECK: 2
+  fprintf(stderr, "%ld\n", testCopyConstructor10.getRank());
+  // CHECK: 16
+  fprintf(stderr, "%ld\n", testCopyConstructor10.getSize());
+  // CHECK: 60.0
+  fprintf(stderr, "%f\n", testCopyConstructor10[3]);
+  Img<float, 2> testCopyConstructor11 =
+      Img<float, 2>(grayimage_png);
+  // CHECK: 15.0
+  fprintf(stderr, "%f\n", testCopyConstructor11[0]);
+  Img<float, 2> *testCopyConstructor12 =
+      new Img<float, 2>(grayimage_png);
+  // CHECK: 15.0
+  fprintf(stderr, "%f\n", testCopyConstructor12->getData()[0]);
+  delete testCopyConstructor12;
+
+  //===--------------------------------------------------------------------===//
+  // Test move constructor.
+  //===--------------------------------------------------------------------===//
+  Img<float, 2> testMoveConstructor5(std::move(testCopyConstructor9));
+  // CHECK: 15.0
+  fprintf(stderr, "%f\n", testMoveConstructor5[0]);
+  // CHECK: 4, 4
+  fprintf(stderr, "%ld, %ld\n", testMoveConstructor5.getSizes()[0],
+          testMoveConstructor5.getSizes()[1]);
+  // CHECK: 4, 1
+  fprintf(stderr, "%ld, %ld\n", testMoveConstructor5.getStrides()[0],
+          testMoveConstructor5.getStrides()[1]);
+  // CHECK: 2
+  fprintf(stderr, "%ld\n", testMoveConstructor5.getRank());
+  // CHECK: 16
+  fprintf(stderr, "%ld\n", testMoveConstructor5.getSize());
+  // CHECK: 60.0
+  fprintf(stderr, "%f\n", testMoveConstructor5[3]);
+
+  Img<float, 2> testMoveConstructor6 = std::move(testMoveConstructor1);
+  // CHECK: 15.0
+  fprintf(stderr, "%f\n", testMoveConstructor6[0]);
+  // CHECK: 4, 4
+  fprintf(stderr, "%ld, %ld\n", testMoveConstructor6.getSizes()[0],
+          testMoveConstructor6.getSizes()[1]);
+  // CHECK: 4, 1
+  fprintf(stderr, "%ld, %ld\n", testMoveConstructor6.getStrides()[0],
+          testMoveConstructor6.getStrides()[1]);
+  // CHECK: 2
+  fprintf(stderr, "%ld\n", testMoveConstructor6.getRank());
+  // CHECK: 16
+  fprintf(stderr, "%ld\n", testMoveConstructor6.getSize());
+  // CHECK: 60.0
+  fprintf(stderr, "%f\n", testMoveConstructor6[3]);
+
+  //===--------------------------------------------------------------------===//
+  // Test overloading bracket operator.
+  //===--------------------------------------------------------------------===//
+  Img<float, 2> testBracketOperator5(grayimage_png);
+  // CHECK: 240.0
+  fprintf(stderr, "%f\n", testBracketOperator5[15]);
+  testBracketOperator5[15] = 90.0;
+  // CHECK: 90.0
+  fprintf(stderr, "%f\n", testBracketOperator5[15]);
+  const Img<float, 2> testBracketOperator6(grayimage_png);
+  // CHECK: 240.0
+  fprintf(stderr, "%f\n", testBracketOperator6[15]);
+  
   return 0;
 }
