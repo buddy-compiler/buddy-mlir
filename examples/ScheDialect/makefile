@@ -19,6 +19,9 @@ MLIR_ASYNC_RUNTIME := ./../llvm/build/lib/libmlir_async_runtime.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
 
+.SECONDEXPANSION:
+all-run: $$(run-targets)
+
 sche-addf-tensor-lower:
 	@${BUDDY_OPT} ./sche-addf-tensor.mlir \
 		--device-schedule \
@@ -37,6 +40,7 @@ sche-scf-for-lower:
 	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' | \
 	${MLIR_OPT} -gpu-async-region -gpu-to-llvm -o log.mlir
 
+run-targets += vector-load-run
 sche-scf-for-run:
 	@${BUDDY_OPT} ./sche-scf-for.mlir -device-schedule | \
 	${BUDDY_OPT} -lower-sche | \
