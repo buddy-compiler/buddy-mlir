@@ -43,12 +43,6 @@ int64_t getNumberFromValue(Value &value) {
       .getInt();
 }
 
-int ceil_divide_int(int a, int b){
-    int c = (a % b == 0) ? ((int)(a/b)) : (((int)(a/b)) + 1); 
-    if(a < b) c = 1;
-    return c;
-}
-
 acc_scale_t_bits acc_scale_t_to_acc_scale_t_bits(acc_scale_t x) {
   union {
     acc_scale_t_bits b;
@@ -1569,15 +1563,6 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     const int dilatedInColDim = inColDim + (inputDilation - 1) * (inColDim - 1);
 
     int porowEnd = poolOutRowDim;
-	  int porowStart = 0;
-
-    size_t num_kch = ceil_divide_int(inChannels, kchs);
-    size_t num_poch = ceil_divide_int(outChannels, pochs);
-    size_t num_b = ceil_divide_int(batchSize, batches);
-    size_t num_porow = ceil_divide_int((porowEnd - porowStart), porows);
-    size_t num_pocol = ceil_divide_int(poolOutColDim, pocols);
-    size_t num_krow = ceil_divide_int(kernelDim, krows);
-    size_t num_kcol = ceil_divide_int(kernelDim, kcols);
 
     for (int b = 0; b < batchSize; b += batches) {
       for (int porow = 0; porow < porowEnd; porow += porows) {
@@ -1835,8 +1820,6 @@ public:
     Value weights = tileConvOp.getWeights();
     Value bias = tileConvOp.getBias();
     MemRefType inputType = input.getType().dyn_cast<MemRefType>();
-    MemRefType outputType = output.getType().dyn_cast<MemRefType>();
-    MemRefType weightsType = weights.getType().dyn_cast<MemRefType>();
     MemRefType biasType = bias.getType().dyn_cast<MemRefType>();
     ArrayRef<int64_t> inputShape = inputType.getShape();
     ArrayRef<int64_t> biasShape = biasType.getShape();
