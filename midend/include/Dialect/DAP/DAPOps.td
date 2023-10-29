@@ -94,4 +94,23 @@ def DAP_IirOp : DAP_Op<"iir"> {
   }];
 }
 
+def DAP_IirSimdOp : DAP_Op<"iir_simd"> {
+  let summary = [{IIR filter, a infinite impulse response (IIR), Unlike FIR filters,
+  they have a feedback(a recursive part of a filter). This is the SIMD version for iir operation.
+  ```mlir
+    dsp.iir_simd %input, %kernel, %output :memref<?xf64>, memref<?x?xf64>,
+            memref<?xf64>
+  ```
+  }];
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefO);
+  let assemblyFormat = [{
+    $memrefI `,` $memrefK `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO)
+  }];
+}
+
 #endif // DAP_DAPOPS_TD

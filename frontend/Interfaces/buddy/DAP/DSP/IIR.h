@@ -34,9 +34,17 @@ void _mlir_ciface_mlir_iir(MemRef<float, 1> *inputBuddyConv1D,
                            MemRef<float, 2> *kernelBuddyConv1D,
                            MemRef<float, 1> *outputBuddyConv1D);
 
+void _mlir_ciface_mlir_iir_simd(MemRef<double, 1> *inputBuddyConv1D,
+                           MemRef<double, 2> *kernelBuddyConv1D,
+                           MemRef<double, 1> *outputBuddyConv1D);
+
 void _mlir_ciface_buddy_iir(MemRef<float, 1> *inputBuddyConv1D,
                             MemRef<float, 2> *kernelBuddyConv1D,
                             MemRef<float, 1> *outputBuddyConv1D);
+
+void _mlir_ciface_buddy_iir_simd(MemRef<double, 1> *inputBuddyConv1D,
+                            MemRef<double, 2> *kernelBuddyConv1D,
+                            MemRef<double, 1> *outputBuddyConv1D);
 }
 } // namespace detail
 
