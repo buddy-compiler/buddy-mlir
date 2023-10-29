@@ -10,7 +10,7 @@ add_custom_command(
             -linalg-bufferize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
-            -affine-parallelize
+            -affine-parallelize="max-nested=2"
             -lower-affine 
             -convert-scf-to-openmp
             -func-bufferize
@@ -48,10 +48,22 @@ SET_SOURCE_FILES_PROPERTIES(
   EXTERNAL_OBJECT true
   GENERATED true)
 
-SET_TARGET_PROPERTIES(
-  LLAMA
-  PROPERTIES
-  LINKER_LANGUAGE C)
+if(${BUDDY_LLAMA_EXAMPLES_ENABLE_MIMALLOC})
+  add_library(MIMALLOC_STATIC STATIC IMPORTED)
+  set_target_properties(MIMALLOC_STATIC PROPERTIES
+    IMPORTED_LOCATION "${BUDDY_SOURCE_DIR}/thirdparty/mimalloc/out/release/mimalloc.o"
+  )
+  SET_TARGET_PROPERTIES(
+    MIMALLOC_STATIC
+    LLAMA
+    PROPERTIES
+    LINKER_LANGUAGE C)
+elseif()
+  SET_TARGET_PROPERTIES(
+    LLAMA
+    PROPERTIES
+    LINKER_LANGUAGE C)
+endif()
 
 add_executable(buddy-llama-run llama-main.cpp)
 target_link_directories(buddy-llama-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})

@@ -9,3 +9,6 @@
 /build-local-clang
 /build-cross-clang
 /build-cross-mlir
+
+# Mimalloc
+/mimalloc
