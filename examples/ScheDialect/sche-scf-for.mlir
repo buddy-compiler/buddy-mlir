@@ -1,3 +1,17 @@
+// RUN: buddy-opt %s -device-schedule \
+// RUN: -device-schedule -lower-sche \
+// RUN:	-gpu-kernel-outlining \
+// RUN:	| buddy-opt --pass-pipeline="builtin.module(func.func(tosa-to-linalg),empty-tensor-to-alloc-tensor,arith-bufferize, func.func(linalg-bufferize), func.func(tensor-bufferize), func-bufferize,func.func(buffer-deallocation, convert-linalg-to-loops) , convert-scf-to-cf, expand-strided-metadata, memref-expand)" \
+// RUN:	| buddy-opt -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' \
+// RUN:	| buddy-opt -gpu-async-region -gpu-to-llvm \
+// RUN:	-async-to-async-runtime -async-runtime-ref-counting \
+// RUN:	-convert-async-to-llvm -convert-func-to-llvm \
+// RUN: | mlir-cpu-runner  -entry-point-result=void \
+// RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_cuda_runtime%shlibext \
+// RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_async_runtime%shlibext \
+// RUN: | FileCheck %s
+
 func.func @main() {
   %c0 = arith.constant 0.0 : f32
   %c1 = arith.constant 1 : index
@@ -24,7 +38,7 @@ func.func @main() {
     memref.store %5, %A[%iv] : memref<100xf32>
   } {sche.devices = [{targetId = "cpu", targetConfig = "", duty_ratio = 0.2:f32}, {targetId = "gpu", targetConfig = "", duty_ratio = 0.8:f32}]}
 
-  // %res = memref.load %A[%c1] : memref<40000xf32>
+  %res = memref.load %A[%c1] : memref<100xf32>
   // CHECK: 10
   call @printMemrefF32(%A_cast0) : (memref<*xf32>) -> ()
 

@@ -40,7 +40,7 @@ sche-scf-for-lower:
 	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' | \
 	${MLIR_OPT} -gpu-async-region -gpu-to-llvm -o log.mlir
 
-run-targets += vector-load-run
+run-targets += sche-scf-for-run
 sche-scf-for-run:
 	@${BUDDY_OPT} ./sche-scf-for.mlir -device-schedule | \
 	${BUDDY_OPT} -lower-sche | \
