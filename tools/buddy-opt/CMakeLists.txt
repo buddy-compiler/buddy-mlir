@@ -22,6 +22,7 @@ target_link_libraries(buddy-opt
   MatMulOptimization
   BatchMatMulOptimization
   MatMulParallelVectorization
+  TransposeOptimization
   ConvOptimization
   VectorExp
   LowerVectorExpPass

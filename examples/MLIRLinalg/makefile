@@ -314,6 +314,66 @@ linalg-matmul-i8-parallized-vectorized-optmize-translate:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+linalg-transpose-optimize-run:
+	@${BUDDY_OPT} linalg-transpose-f32.mlir ${MLIR_OPT_OPTIONS} \
+		-transpose-optimize="vector-size=16" \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-arith-to-llvm \
+		-llvm-request-c-wrappers \
+		-convert-func-to-llvm \
+		-lower-affine \
+		-convert-arith-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_transpose_f32 -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+linalg-transpose-lower:
+	@${MLIR_OPT} linalg-transpose-f32.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts \
+		-o ./log.mlir
+
+linalg-transpose-translate:
+	@${MLIR_OPT} linalg-transpose-f32.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+linalg-transpose-run:
+	@${MLIR_OPT} linalg-transpose-f32.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_transpose_f32 -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+linalg-transpose-optimize-lower:
+	@${BUDDY_OPT} linalg-transpose-f32.mlir ${MLIR_OPT_OPTIONS} \
+		-transpose-optimize="vector-size=16" \
+		-o ./log.mlir
+
+linalg-transpose-optimize-translate:
+	@${BUDDY_OPT} linalg-transpose-f32.mlir ${MLIR_OPT_OPTIONS} \
+		-transpose-optimize="vector-size=16" \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-arith-to-llvm \
+		-llvm-request-c-wrappers \
+		-convert-func-to-llvm \
+		-lower-affine \
+		-convert-arith-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+
 linalg-conv2d_nchw_fchw-lower:
 	@${MLIR_OPT} ./linalg-conv2d_nchw_fchw.mlir \
 		-convert-linalg-to-loops -o ./log.mlir
