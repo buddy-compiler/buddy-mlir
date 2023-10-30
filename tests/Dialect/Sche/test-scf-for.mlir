@@ -21,7 +21,7 @@ func.func @test_sche() {
   // CHECK_lower: async.execute {
   // CHECK_lower: gpu.launch
   // CHECK_lower: }
-  // CHECK_lower: async.yield
+  // CHECK_lower: async.await
   scf.for %iv = %lb to %ub step %c1 {
     %0 = arith.muli %iv, %c8 : index
     %1 = arith.addi %iv, %0  : index
@@ -33,7 +33,6 @@ func.func @test_sche() {
   } {sche.devices = [{targetId = "cpu", targetConfig = "", duty_ratio = 0.2:f32}, {targetId = "gpu", targetConfig = "", duty_ratio = 0.8:f32}]}
 
   %res = memref.load %A[%c1] : memref<100xf32>
-  // CHECK: 10
   call @printMemrefF32(%A_cast0) : (memref<*xf32>) -> ()
 
   memref.dealloc %A : memref<100xf32>

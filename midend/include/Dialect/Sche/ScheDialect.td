@@ -64,7 +64,7 @@ def Sche_AsyncOpInterface : OpInterface<"AsyncOpInterface"> {
         Query the operands that represent async dependency tokens.
       }],
       "::mlir::OperandRange", "getAsyncDependencies", (ins), [{}], [{
-        ConcreteOp op = cast<ConcreteOp>(this->getOperation());
+        ConcreteOp op = ::llvm::cast<ConcreteOp>(this->getOperation());
         return op.getAsyncDependencies();
       }]
     >,
