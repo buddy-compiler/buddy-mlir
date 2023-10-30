@@ -1,4 +1,23 @@
-""" Abstraction for asynchronous job execution """
+# ===- executor.py -------------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Abstraction for asynchronous job execution.
+#
+# ===---------------------------------------------------------------------------
+
 
 class Executor(object):
     """
@@ -6,7 +25,7 @@ class Executor(object):
     Allows submit asynchronous jobs and returns the Future object.
     """
 
-    # TODO: Gemmini 使用 Spike 模拟运行，可能会非常慢，timeout 暂时先不定，后续看 cost model 的时延
+    # TODO: We use Spike to simulate Gemmini running, it may be very slow, so the DEFAULT_TIMEOUT here will be changed later.
     # timeout for jobs that may hang
     DEFAULT_TIMEOUT = 120
 

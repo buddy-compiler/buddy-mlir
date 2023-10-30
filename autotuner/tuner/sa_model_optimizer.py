@@ -1,4 +1,22 @@
-"""Cost model optimizer based on simulated annealing"""
+# ===- sa_model_optimizer.py -------------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Cost model optimizer based on simulated annealing.
+#
+# ===---------------------------------------------------------------------------
 
 import heapq
 import logging
@@ -126,7 +144,10 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
         heap_items.sort(key=lambda item: -item[0])
         heap_items = [x for x in heap_items if x[0] >= 0]
         logger.debug(
-            "SA iter: %d\tlast_update: %d\telapsed: %.2f", k, k_last_modify, time.time() - tic
+            "SA iter: %d\tlast_update: %d\telapsed: %.2f",
+            k,
+            k_last_modify,
+            time.time() - tic,
         )
         logger.debug("SA Maximums: %s", heap_items)
 

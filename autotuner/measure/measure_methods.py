@@ -1,7 +1,24 @@
-"""
-Functions that run on executor for measurement.
-Responsible for building, recording the running time costs, and checking the correctness of the output.
-"""
+# ===- measure_methods.py -------------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Functions that run on executor for measurement.
+# Responsible for building, recording the running time costs, and checking the correctness of the output.
+#
+# ===---------------------------------------------------------------------------
+
 import os
 import time
 import tempfile
@@ -33,6 +50,7 @@ class BuildResult(namedtuple("BuildResult", ("filename", "error", "time_cost")))
         The time cost of building
     """
 
+
 def gemmini_build(measure_input: MeasureInput, output_path: str):
     """# example: build cmd
     passes = ["-lower-gemmini"]
@@ -46,14 +64,25 @@ def gemmini_build(measure_input: MeasureInput, output_path: str):
     _, task, config = measure_input
     input_path = task.input_path
     gemmini_pass_entity = config._entity_map.get("gemmini passes")
-    # TODO: 需要 buddy-mlir 的环境, 另外需要激活 conda 环境才能使用 riscv 工具链, 暂时先这样用着八.
+    # TODO: we need running environment same as "buddy-mlir", also we need run `conda activate CHIPYARD_CONDA_ENV_NAME` to support extension for RISCV now.
     activate_cmd = "source ~/.zshrc && conda activate gemmini && "
-    opt_cmd = 'buddy-opt ' + input_path + ' {} | '.format(' '.join(gemmini_pass_entity.pass_config))
-    translate_cmd = f'buddy-translate --buddy-to-llvmir | '
-    llc_cmd = f'buddy-llc -filetype=obj -mtriple=riscv64 -mattr=+buddyext,+D -float-abi=hard -o log.o && '
-    riscv_cmd = f'riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o ' + output_path
+    opt_cmd = (
+        "buddy-opt "
+        + input_path
+        + " {} | ".format(" ".join(gemmini_pass_entity.pass_config))
+    )
+    translate_cmd = f"buddy-translate --buddy-to-llvmir | "
+    llc_cmd = f"buddy-llc -filetype=obj -mtriple=riscv64 -mattr=+buddyext,+D -float-abi=hard -o log.o && "
+    riscv_cmd = f"riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o " + output_path
     build_cmd = activate_cmd + opt_cmd + translate_cmd + llc_cmd + riscv_cmd
-    proc = subprocess.Popen(build_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True, executable=os.environ["SHELL"])
+    proc = subprocess.Popen(
+        build_cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        shell=True,
+        executable=os.environ["SHELL"],
+    )
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
@@ -63,7 +92,7 @@ def gemmini_build(measure_input: MeasureInput, output_path: str):
         raise RuntimeError(msg)
 
 
-# 每个 build 函数都需要指定输出的文件格式
+# specify the output format for every `build` function.
 gemmini_build.output_format = "out"
 
 
@@ -71,10 +100,21 @@ def linalg_build(measure_input: MeasureInput, output_path: str):
     _, task, config = measure_input
     input_path = task.input_path
     linalg_pass_entity = config._entity_map.get("linalg passes")
-    # TODO: 需要 buddy-mlir 的环境, 另外需要激活 conda 环境才能使用 riscv 工具链, 暂时先这样用着八.
-    opt_cmd = 'buddy-opt ' + input_path + ' {}'.format(' '.join(linalg_pass_entity.pass_config))
-    build_cmd = opt_cmd + ' -o ' + output_path
-    proc = subprocess.Popen(build_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True, executable=os.environ["SHELL"])
+    # TODO: we need running environment same as "buddy-mlir", also we need run `conda activate CHIPYARD_CONDA_ENV_NAME` to support extension for RISCV now.
+    opt_cmd = (
+        "buddy-opt "
+        + input_path
+        + " {}".format(" ".join(linalg_pass_entity.pass_config))
+    )
+    build_cmd = opt_cmd + " -o " + output_path
+    proc = subprocess.Popen(
+        build_cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        shell=True,
+        executable=os.environ["SHELL"],
+    )
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
@@ -88,9 +128,16 @@ linalg_build.output_format = "mlir"
 
 
 class BuddyMLIRBuilder(Builder):
-    def __init__(self, timeout=10, n_parallel=None, build_kwargs=None, build_func="default", do_fork=False):
+    def __init__(
+        self,
+        timeout=10,
+        n_parallel=None,
+        build_kwargs=None,
+        build_func="default",
+        do_fork=False,
+    ):
         super(BuddyMLIRBuilder, self).__init__(timeout, n_parallel, build_kwargs)
-        
+
         if isinstance(build_func, str):
             if build_func == "default" or build_func == "gemmini":
                 build_func = gemmini_build
@@ -108,16 +155,17 @@ class BuddyMLIRBuilder(Builder):
             max_workers=16,
             timeout=timeout,
         )
-        
+
     def build(self, measure_inputs, output_dir):
         results = []
-        
+
         for i in range(0, len(measure_inputs), self.n_parallel):
             futures = []
             for inp in measure_inputs[i : i + self.n_parallel]:
-                # TODO: 不够优雅, 暂时和 task.py/create 函数对应
-                # TODO: 这里多线程返回的结果是否有序, 这会影响到 run 的结果
-                ret = self.executor.submit(self.build_func, inp, output_dir, **self.build_kwargs)
+                # TODO: according to task.py/create()
+                ret = self.executor.submit(
+                    self.build_func, inp, output_dir, **self.build_kwargs
+                )
                 futures.append(ret)
 
             for future in futures:
@@ -161,12 +209,18 @@ class BuddyMLIRBuilder(Builder):
                 except TimeoutError as ex:
                     tb = traceback.format_exc()
                     res = MeasureResult(
-                        (tb, ex), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
+                        (tb, ex),
+                        MeasureErrorNo.BUILD_TIMEOUT,
+                        self.timeout,
+                        time.time(),
                     )
                 except ChildProcessError as ex:
                     tb = traceback.format_exc()
                     res = MeasureResult(
-                        (tb, ex), MeasureErrorNo.RUNTIME_DEVICE, self.timeout, time.time()
+                        (tb, ex),
+                        MeasureErrorNo.RUNTIME_DEVICE,
+                        self.timeout,
+                        time.time(),
                     )
 
                 results.append(res)
@@ -174,78 +228,106 @@ class BuddyMLIRBuilder(Builder):
 
 
 def spike_run(build_res, repeat=1):
-    """ example:
+    """example:
     spike_cmd = f'spike --extension=gemmini pk a.out'
     """
     if isinstance(build_res, MeasureResult):
         return build_res
-    
+
     tic = time.time()
     errno = MeasureErrorNo.NO_ERROR
-    
+
     activate_cmd = "source ~/.zshrc && conda activate gemmini && "
-    spike_cmd = f'spike --extension=gemmini pk ' + build_res.filename
+    spike_cmd = f"spike --extension=gemmini pk " + build_res.filename
     run_cmd = activate_cmd + spike_cmd
-    proc = subprocess.Popen(run_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True, executable=os.environ["SHELL"])
+    proc = subprocess.Popen(
+        run_cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        shell=True,
+        executable=os.environ["SHELL"],
+    )
     (out, _) = proc.communicate()
 
     tstamp = time.time()
     run_cost = tstamp - tic
-    
+
     if proc.returncode != 0:
-        # TODO: 如果运行失败，是抛异常还是返回 error_code
+        # TODO: If we get error, should we throw exception or return error_code.
         # msg = "spike run error:\n"
         # py_str = lambda x: x.decode("utf-8")
         # msg += py_str(out)
         # raise RuntimeError(msg)
-        return MeasureResult(run_cost, MeasureErrorNo.RUNTIME_ERROR, run_cost + build_res.time_cost, tstamp)
+        return MeasureResult(
+            run_cost,
+            MeasureErrorNo.RUNTIME_ERROR,
+            run_cost + build_res.time_cost,
+            tstamp,
+        )
     return MeasureResult(run_cost, errno, run_cost + build_res.time_cost, tstamp)
 
 
 def cpu_run(build_res, repeat=1):
     if isinstance(build_res, MeasureResult):
         return build_res
-    
+
     tic = time.time()
     errno = MeasureErrorNo.NO_ERROR
-    
+
     PROJECT_DIR = os.getcwd()
-    # linux only
+    # TODO: local path
     MLIR_RUNNER_UTILS = PROJECT_DIR + "/lib/libmlir_runner_utils.so"
-    MLIR_C_RUNNER_UTILS = PROJECT_DIR +  "/lib/libmlir_c_runner_utils.so"
-    
-    # TODO: mlir-cpu-runner 需要使用 buddy-mlir 中的 llvm/build/bin/mlir-cpu-runner
-    # note: 可能会和本地 llvm 的 mlir-cpu-runner 冲突
-    run_cmd = f'./mlir-cpu-runner -O0 -e main -entry-point-result=void' \
-        + ' -shared-libs=' + MLIR_RUNNER_UTILS \
-        + ' -shared-libs=' + MLIR_C_RUNNER_UTILS \
-        + ' ' + build_res.filename
-    proc = subprocess.Popen(run_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True, executable=os.environ["SHELL"])
+    MLIR_C_RUNNER_UTILS = PROJECT_DIR + "/lib/libmlir_c_runner_utils.so"
+
+    # TODO: path of mlir-cpu-runner
+    run_cmd = (
+        f"./mlir-cpu-runner -O0 -e main -entry-point-result=void"
+        + " -shared-libs="
+        + MLIR_RUNNER_UTILS
+        + " -shared-libs="
+        + MLIR_C_RUNNER_UTILS
+        + " "
+        + build_res.filename
+    )
+    proc = subprocess.Popen(
+        run_cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        shell=True,
+        executable=os.environ["SHELL"],
+    )
     (out, _) = proc.communicate()
 
     tstamp = time.time()
     run_cost = tstamp - tic
-    
+
     if proc.returncode != 0:
-        # TODO: 如果运行失败，是抛异常还是返回 error_code
+        # TODO: If we get error, should we throw exception or return error_code.
         # msg = "spike run error:\n"
         # py_str = lambda x: x.decode("utf-8")
         # msg += py_str(out)
         # raise RuntimeError(msg)
-        return MeasureResult(run_cost, MeasureErrorNo.RUNTIME_ERROR, run_cost + build_res.time_cost, tstamp)
-    return MeasureResult(run_cost, errno, run_cost + build_res.time_cost, tstamp) 
+        return MeasureResult(
+            run_cost,
+            MeasureErrorNo.RUNTIME_ERROR,
+            run_cost + build_res.time_cost,
+            tstamp,
+        )
+    return MeasureResult(run_cost, errno, run_cost + build_res.time_cost, tstamp)
 
 
 class LocalRunner(Runner):
     def __init__(
         self,
-        timeout=10, 
+        timeout=10,
         repeat=3,
         run_func=None,
         n_parallel=None,
     ):
         super(LocalRunner, self).__init__(timeout, n_parallel)
-        
+
         self.timeout = timeout
         self.repeat = repeat
         if isinstance(run_func, str):
@@ -260,7 +342,7 @@ class LocalRunner(Runner):
         self.executor = PopenPoolExecutor(
             timeout=timeout * (self.n_parallel + 1),
         )
-        
+
     def run(self, build_results):
         results = []
 
@@ -275,7 +357,7 @@ class LocalRunner(Runner):
                 futures.append(ret)
 
             for future in futures:
-                # TODO: 这里和 特定的 run 函数需要对应好，错误处理目前还没有对齐
+                # TODO: according to run() function, especially for error handling.
                 try:
                     res = future.result()
                     results.append(res)
@@ -283,7 +365,10 @@ class LocalRunner(Runner):
                     tb = traceback.format_exc()
                     results.append(
                         MeasureResult(
-                            (tb, ex), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
+                            (tb, ex),
+                            MeasureErrorNo.RUN_TIMEOUT,
+                            self.timeout,
+                            time.time(),
                         )
                     )
 
@@ -310,7 +395,9 @@ class _WrappedBuildFunc:
 
     def __init__(self, build_func):
         if not hasattr(build_func, "output_format"):
-            raise AttributeError("Expect build_func to have the attribute output_format.")
+            raise AttributeError(
+                "Expect build_func to have the attribute output_format."
+            )
         self.build_func = build_func
 
     def __call__(self, measure_input, output_path, **kwargs):
@@ -319,11 +406,12 @@ class _WrappedBuildFunc:
         _, task, config = measure_input
         try:
             output_path = os.path.join(
-                output_path, f"{task.name}_build_{getrandbits(64):0x}.{self.build_func.output_format}"
+                output_path,
+                f"{task.name}_build_{getrandbits(64):0x}.{self.build_func.output_format}",
             )
-            
+
             self.build_func(measure_input, output_path, **kwargs)
-            
+
         except Exception as e:  # pylint: disable=broad-except
             tb = traceback.format_exc()
             return BuildResult(None, (tb, e), time.time() - tic)

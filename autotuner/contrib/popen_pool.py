@@ -1,9 +1,23 @@
+# ===- popen_pool.py -------------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# This is a tool for multi-threading.
+#
+# ===---------------------------------------------------------------------------
 
-"""Multiprocessing via Popen.
-
-This module provides a multi-processing pool backed by Popen.
-with additional timeout support.
-"""
 import os
 import sys
 import struct
@@ -89,7 +103,9 @@ class PopenWorker:
         The standard error streams handler specified for the popen process.
     """
 
-    def __init__(self, initializer=None, initargs=(), maximum_uses=None, stdout=None, stderr=None):
+    def __init__(
+        self, initializer=None, initargs=(), maximum_uses=None, stdout=None, stderr=None
+    ):
         self._proc = None
         self._initializer = initializer
         self._initargs = initargs
@@ -164,7 +180,10 @@ class PopenWorker:
         else:
             cmd += [str(worker_read), str(worker_write)]
             self._proc = subprocess.Popen(
-                cmd, pass_fds=(worker_read, worker_write), stdout=self._stdout, stderr=self._stderr
+                cmd,
+                pass_fds=(worker_read, worker_write),
+                stdout=self._stdout,
+                stderr=self._stderr,
             )
 
         # close worker side of the pipe
@@ -235,7 +254,9 @@ class PopenWorker:
             # N.B. The initializer doesn't count as a "use"
             self._remaining_uses = self._maximum_uses
         kwargs = {} if not kwargs else kwargs
-        data = cloudpickle.dumps((fn, args, kwargs, timeout), protocol=pickle.HIGHEST_PROTOCOL)
+        data = cloudpickle.dumps(
+            (fn, args, kwargs, timeout), protocol=pickle.HIGHEST_PROTOCOL
+        )
         try:
             self._writer.write(struct.pack("<i", len(data)))
             self._writer.write(data)
@@ -341,7 +362,9 @@ class PopenPoolExecutor:
         if max_workers is None:
             max_workers = os.cpu_count()
         # Use an internal thread pool to send to popen workers
-        self._threadpool = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        self._threadpool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=max_workers
+        )
         self._timeout = timeout
         self._worker_map = {}
         self._lock = threading.Lock()
@@ -387,7 +410,9 @@ class PopenPoolExecutor:
     def _worker_run_with_error_catching(self, fn, args, kwargs) -> MapResult:
         # pylint: disable=broad-except
         try:
-            return MapResult(status=StatusKind.COMPLETE, value=self._worker_run(fn, args, kwargs))
+            return MapResult(
+                status=StatusKind.COMPLETE, value=self._worker_run(fn, args, kwargs)
+            )
         except TimeoutError as exception:
             return MapResult(status=StatusKind.TIMEOUT, value=exception)
         except Exception as exception:

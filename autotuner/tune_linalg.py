@@ -5,9 +5,8 @@ from task.task import create
 from measure import measure_option
 from tuner import RandomTuner, XGBTuner, log_to_file
 
-# 支持自己自定义需要搜索的 pass, 根据提供的参数生成搜索空间
 task = create(
-    "./test/linalg_matmul.mlir", 
+    "./test/linalg_matmul.mlir",
     "linalg",
     {
         "matmul-optimize": {
@@ -34,11 +33,10 @@ print(task.config_space)
 logging.getLogger("autotuner").setLevel(logging.DEBUG)
 logging.getLogger("autotuner").addHandler(logging.StreamHandler(sys.stdout))
 
-# 如果搜索空间非常小（小于 1000)， 选择 index_based_tuner 即可。
-# 如搜索空间在 10^9 级别，选择 model_based_tuner 可以更有效地探索并找到更好的配置。
+# model_based_tuner
 tuner = XGBTuner(task)
 tuner.tune(
     n_trial=64,
     measure_option=measure_option(builder="linalg", runner="cpu"),
-    callbacks=[log_to_file("matmul.json")]
+    callbacks=[log_to_file("matmul.json")],
 )

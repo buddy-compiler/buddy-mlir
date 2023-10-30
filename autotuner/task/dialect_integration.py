@@ -1,4 +1,22 @@
-# TODO: 做算子层级优化，暂时用不到
+# ===- dialect_integration.py -------------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# TODO: This is used to do optimization for Op-level.
+#
+# ===---------------------------------------------------------------------------
 
 import logging
 
@@ -67,7 +85,7 @@ def extract_from_program(program, params, target="gemmini", ops=None):
         # TODO: lower code, maybe multiple passes here
 
         logger.disabled = old_state
-    
+
     tasks = []
     for task_name, args in env.get_tasks():
         try:

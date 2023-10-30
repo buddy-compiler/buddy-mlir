@@ -1,11 +1,27 @@
-"""
-Template configuration space.
-
-Each template function can be parameterized by a ConfigSpace.
-The space is declared when we invoke the template function with ConfigSpace.
-During evaluation, we pass in a ConfigEntity, which contains a specific
-entity in the space. This entity contains deterministic parameters.
-"""
+# ===- space.py -------------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Template configuration space.
+#
+# Each template function can be parameterized by a ConfigSpace.
+# The space is declared when we invoke the template function with ConfigSpace.
+# During evaluation, we pass in a ConfigEntity, which contains a specific
+# entity in the space. This entity contains deterministic parameters.
+#
+# ===---------------------------------------------------------------------------
 
 import copy
 import functools
@@ -52,7 +68,11 @@ def get_factors(n):
         set(
             functools.reduce(
                 list.__add__,
-                ([i, n // i] for i in range(1, int(math.sqrt(n)) + 1, step) if n % i == 0),
+                (
+                    [i, n // i]
+                    for i in range(1, int(math.sqrt(n)) + 1, step)
+                    if n % i == 0
+                ),
             )
         )
     )
@@ -61,28 +81,30 @@ def get_factors(n):
 
 
 def pass_to_command(pass_name: str, pass_params: dict):
-    """ example
+    """example
     -lower-gemmini="dim=4 acc_t=f32 elem_t=f32"
     """
     params = ""
     if len(pass_params) > 0:
         for k, v in pass_params.items():
-            params += k  + "=" + str(v) + " "
+            params += k + "=" + str(v) + " "
         params = params[:-1]
-        return "-" + pass_name + "=" + "\"" + params + "\""
-    
+        return "-" + pass_name + "=" + '"' + params + '"'
+
     return "-" + pass_name
 
 
 class GemminiPassSpace(TransformSpace):
     """Gemmini passes space"""
+
     def __init__(self, passes=None):
         super(GemminiPassSpace, self).__init__()
-        
-        self.pass_space = {} # example: pass_space = {"pass1": [config1, config2], "pass2": [config1, config2]}
+
+        self.pass_space = (
+            {}
+        )  # example: pass_space = {"pass1": [config1, config2], "pass2": [config1, config2]}
         self.entities = []
         # tunable passes
-        # python3.6 之后字典有序
         default_passes = {
             "llvm-request-c-wrappers": {},
             "convert-linalg-to-gemmini": {
@@ -95,12 +117,12 @@ class GemminiPassSpace(TransformSpace):
             "convert-arith-to-llvm": {},
             "lower-gemmini": {
                 "dim": [4, 8, 16],
-                "acc_t": ["f32"], 
+                "acc_t": ["f32"],
                 "elem_t": ["f32"],
             },
             "convert-func-to-llvm -reconcile-unrealized-casts": {},
         }
-        
+
         if passes is None:
             self.passes = default_passes
         else:
@@ -111,10 +133,10 @@ class GemminiPassSpace(TransformSpace):
             self._generate_pass(pass_name, params, 0, {})
         # get search space
         self._generate_space(0, {})
-        
+
         # convert entity from dict to list
         self._convert_entity()
-        
+
     def _generate_space(self, now, pre):
         """Generate space by DFS"""
         keys = list(self.pass_space.keys())
@@ -131,7 +153,7 @@ class GemminiPassSpace(TransformSpace):
                     cur = copy.deepcopy(pre)
                     cur[keys[now]] = pass_to_command(keys[now], value)
                     self._generate_space(now + 1, cur)
-    
+
     def _generate_pass(self, pass_name, params, now, pre):
         """Generate space of one specify pass with given params by DFS"""
         if len(params) == 0:
@@ -145,7 +167,7 @@ class GemminiPassSpace(TransformSpace):
                 cur = copy.deepcopy(pre)
                 cur[keys[now]] = value
                 self._generate_pass(pass_name, params, now + 1, cur)
-                
+
     def _convert_entity(self):
         entities = []
         for entity in self.entities:
@@ -156,7 +178,7 @@ class GemminiPassSpace(TransformSpace):
         self.entities = entities
 
     def __repr__(self) -> str:
-        output =  "Gemmini PASS Space: (\n"
+        output = "Gemmini PASS Space: (\n"
         for entity in self.entities:
             output += "     " + str(entity) + "\n"
         output += "   )"
@@ -167,7 +189,7 @@ class GemminiPassEntity(object):
     def __init__(self, config) -> None:
         self.pass_config = config
         self.features = self.get_features()
-    
+
     def get_features(self):
         """
         ['-matmul-optimize="vec-size=32 kernel-m=2 kernel-n=2"', '-convert-linalg-to-loops']
@@ -180,7 +202,7 @@ class GemminiPassEntity(object):
                 params = match.group(1).split(" ")
                 for param in params:
                     key, value = param.split("=")
-                    # TODO: 这里定义了 feature 如何提取, 值得继续考虑
+                    # TODO: We need modify here, about how can we get features for model_based_tuner.
                     if value.isdigit():
                         features.append(int(value))
                     elif value == "f16":
@@ -192,24 +214,24 @@ class GemminiPassEntity(object):
                     else:
                         raise ValueError("Can't recognize this value %s", value)
             else:
-                # 没有参数的 pass, 添加一个 0 占位
+                # For pass with no params, we set a zero.
                 features.append(0)
-        
+
         return features
-    
+
     def apply(self, cmd):
         raise NotImplementedError()
-    
+
     def __repr__(self) -> str:
         return str(self.pass_config)
 
 
 class GemminiSpace(TransformSpace):
     """Gemmini hardware config"""
-    
+
     def __init__(self):
         super(GemminiSpace, self).__init__()
-        
+
         self.entities = []
         # tunable config parameters
         self.hardware_params = {
@@ -218,14 +240,13 @@ class GemminiSpace(TransformSpace):
             "tileColumns": 1,
             "meshRows": 16,
             "meshColumns": 16,
-            
             # TODO: Scratchpad and accumulator
             # "sp_banks": 4,
             # "acc_banks": 4,
         }
         # get config space
         self._generate_space(0, {})
-    
+
     def _generate_space(self, now, pre):
         """Generate space by DFS"""
         keys = list(self.hardware_params.keys())
@@ -237,14 +258,17 @@ class GemminiSpace(TransformSpace):
                 cur = copy.deepcopy(pre)
                 cur[keys[now]] = factor
                 self._generate_space(now + 1, cur)
-    
+
     def __repr__(self) -> str:
-        return "Gemmini HW Space(tileRows=%d, tileColumns=%d, meshRows=%d, meshColumns=%d) len=%d" % (
-            self.hardware_params["tileRows"],
-            self.hardware_params["tileColumns"],
-            self.hardware_params["meshRows"],
-            self.hardware_params["meshColumns"],
-            len(self.entities),
+        return (
+            "Gemmini HW Space(tileRows=%d, tileColumns=%d, meshRows=%d, meshColumns=%d) len=%d"
+            % (
+                self.hardware_params["tileRows"],
+                self.hardware_params["tileColumns"],
+                self.hardware_params["meshRows"],
+                self.hardware_params["meshColumns"],
+                len(self.entities),
+            )
         )
 
 
@@ -252,7 +276,7 @@ class GemminiEntity(object):
     def __init__(self, config) -> None:
         self.hardware_config = config
         self.features = self.get_features()
-    
+
     def get_features(self):
         """
         ['-matmul-optimize="vec-size=32 kernel-m=2 kernel-n=2"', '-convert-linalg-to-loops']
@@ -265,7 +289,7 @@ class GemminiEntity(object):
                 params = match.group(1).split(" ")
                 for param in params:
                     key, value = param.split("=")
-                    # TODO: 这里定义了 feature 如何提取, 值得继续考虑
+                    # TODO: We need modify here, about how can we get features for model_based_tuner.
                     if value.isdigit():
                         features.append(int(value))
                     elif value == "f16":
@@ -277,28 +301,32 @@ class GemminiEntity(object):
                     else:
                         raise ValueError("Can't recognize this value %s", value)
             else:
-                # 没有参数的 pass, 添加一个 0 占位
+                # For pass with no params, we set a zero.
                 features.append(0)
-        
+
         return features
-    
-    def apply(self, ):
-        # TODO: 修改 chipyard 中 Gemmini 的配置文件, 重新编译 spike
+
+    def apply(
+        self,
+    ):
+        # TODO: Modify config of Gemmini in Chipyard, and recompile spike.
         pass
-    
+
     def __repr__(self) -> str:
         return str(self.hardware_config)
 
 
 class LinalgPassSpace(TransformSpace):
     """Gemmini passes space"""
+
     def __init__(self, passes=None):
         super(LinalgPassSpace, self).__init__()
-        
-        self.pass_space = {} # example: pass_space = {"pass1": [config1, config2], "pass2": [config1, config2]}
+
+        self.pass_space = (
+            {}
+        )  # example: pass_space = {"pass1": [config1, config2], "pass2": [config1, config2]}
         self.entities = []
         # tunable passes
-        # python3.6 之后字典有序
         default_passes = {
             "convert-linalg-to-loops": {},
             "expand-strided-metadata": {},
@@ -310,7 +338,7 @@ class LinalgPassSpace(TransformSpace):
             "convert-func-to-llvm": {},
             "reconcile-unrealized-casts": {},
         }
-        
+
         if passes is None:
             self.passes = default_passes
         else:
@@ -321,10 +349,10 @@ class LinalgPassSpace(TransformSpace):
             self._generate_pass(pass_name, params, 0, {})
         # get search space
         self._generate_space(0, {})
-        
+
         # convert entity from dict to list
         self._convert_entity()
-        
+
     def _generate_space(self, now, pre):
         """Generate space by DFS"""
         keys = list(self.pass_space.keys())
@@ -341,7 +369,7 @@ class LinalgPassSpace(TransformSpace):
                     cur = copy.deepcopy(pre)
                     cur[keys[now]] = pass_to_command(keys[now], value)
                     self._generate_space(now + 1, cur)
-    
+
     def _generate_pass(self, pass_name, params, now, pre):
         """Generate space of one specify pass with given params by DFS"""
         if len(params) == 0:
@@ -355,7 +383,7 @@ class LinalgPassSpace(TransformSpace):
                 cur = copy.deepcopy(pre)
                 cur[keys[now]] = value
                 self._generate_pass(pass_name, params, now + 1, cur)
-                
+
     def _convert_entity(self):
         entities = []
         for entity in self.entities:
@@ -366,7 +394,7 @@ class LinalgPassSpace(TransformSpace):
         self.entities = entities
 
     def __repr__(self) -> str:
-        output =  "Linalg PASS Space: (\n"
+        output = "Linalg PASS Space: (\n"
         for entity in self.entities:
             output += "     " + str(entity) + "\n"
         output += "   )"
@@ -377,7 +405,7 @@ class LinalgPassEntity(object):
     def __init__(self, config) -> None:
         self.pass_config = config
         self.features = self.get_features()
-        
+
     def get_features(self):
         """
         ['-matmul-optimize="vec-size=32 kernel-m=2 kernel-n=2"', '-convert-linalg-to-loops']
@@ -390,7 +418,7 @@ class LinalgPassEntity(object):
                 params = match.group(1).split(" ")
                 for param in params:
                     key, value = param.split("=")
-                    # TODO: 这里定义了 feature 如何提取, 值得继续考虑
+                    # TODO: We need modify here, about how can we get features for model_based_tuner.
                     if value.isdigit():
                         features.append(int(value))
                     elif value == "f16":
@@ -402,19 +430,19 @@ class LinalgPassEntity(object):
                     else:
                         raise ValueError("Can't recognize this value %s", value)
             else:
-                # 没有参数的 pass, 添加一个 0 占位
+                # For pass with no params, we set a zero.
                 features.append(0)
-        
+
         return features
-    
+
     def apply(self, cmd):
         raise NotImplementedError()
-    
+
     def __repr__(self) -> str:
         return str(self.pass_config)
 
 
-class OtherOptionSpace():
+class OtherOptionSpace:
     """The parameter space for general option"""
 
     def __init__(self, axes, policy, **kwargs):
@@ -433,7 +461,7 @@ class OtherOptionSpace():
 
 class OtherOptionEntity(object):
     """The parameter entity for general option, with a detailed value"""
-    
+
     def __init__(self, val):
         self.val = val
 
@@ -443,7 +471,7 @@ class OtherOptionEntity(object):
 
 class ConfigSpace(object):
     """The configuration space of a pass.Pass it as config to search space"""
-    
+
     def __init__(self):
         # hardware config and software config
         self.space_map = OrderedDict()
@@ -455,35 +483,36 @@ class ConfigSpace(object):
         self.errors = []
         self.code_hash = None
         self.cost = None
-    
-    # TODO: 可以指定某一 knob (更方便用户自己手动指定搜索空间), 目前实现是搜索所有可能的 entity
+
+    # TODO: Specify konb for do the search.
     def _add_new_transform(self, space_class, name, args: dict):
         space = space_class(args)
         self.space_map[name] = space
         self._entity_map[name] = space[0]
-        
+
     @property
     def range_length(self):
         """Length of the index range in the space"""
         if self._range_length is None:
             self._range_length = int(np.prod([len(x) for x in self.space_map.values()]))
         return self._range_length
+
     @property
     def dims(self):
         """Dimensions in the space"""
         if self._dims is None:
             self._dims = [len(x) for x in self.space_map.values()]
         return self._dims
-   
+
     def is_index_valid(self, index):
         """Checks if the index satisfies the multi_filter condition"""
         return index >= 0 and index < self.range_length
-    
+
     def subrange_length(self, start, end):
         """Returns the number of valid indexes within the limited range from [start, end]"""
         assert 0 <= start <= end <= self.range_length
         return end - start
-    
+
     def get_rand_index(self, start=None, end=None, to_exclude=None):
         """Returns a random valid index unlisted to exclusion"""
         start = start or 0
@@ -492,7 +521,7 @@ class ConfigSpace(object):
             index = randrange(start, end)
             if self.is_index_valid(index) and index not in (to_exclude or []):
                 return index
-            
+
     def get_next_index(self, index, n=1, start=None, end=None):
         """Returns the nth valid next index or None if out of range"""
         assert n != 0
@@ -512,15 +541,15 @@ class ConfigSpace(object):
             if self.is_index_valid(index):
                 counter -= 1
         return index
-    
+
     def define_gemmini(self, name, args: dict):
         """Define a new tunable knob which use gemmini passes"""
         self._add_new_transform(GemminiPassSpace, name, args)
-    
+
     def define_gemmini_hardware(self, name, args: dict):
         """Define a new tunable knob which use different gemmini HW config"""
         self._add_new_transform(GemminiSpace, name, args)
-    
+
     def define_linalg(self, name, args: dict):
         """Define a new tunable knob which use linalg passes"""
         self._add_new_transform(LinalgPassSpace, name, args)
@@ -568,7 +597,9 @@ class ConfigSpace(object):
     def get(self, index):
         """Get a config entity with detailed parameters from this space"""
         if not self.is_index_valid(index):
-            raise IndexError(f"Index out of range: size {self.range_length}, got index {index}")
+            raise IndexError(
+                f"Index out of range: size {self.range_length}, got index {index}"
+            )
         entities = OrderedDict()
         t = index
         for name, space in self.space_map.items():
@@ -579,13 +610,13 @@ class ConfigSpace(object):
 
     def __len__(self):
         """Returns the number of valid indexes in the space"""
-        # TODO: config space 长度属性如何定义
+        # TODO: how we define the length of config space
         self._length = len(self.space_map)
         return self._length
-    
+
     def __iter__(self):
         return self._entity_map.__iter__()
-    
+
     def __repr__(self):
         res = f"ConfigSpace (len={len(self)}, range_length={self._range_length}, space_map=\n"
         for i, (name, space) in enumerate(self.space_map.items()):
@@ -625,7 +656,6 @@ class ConfigEntity(ConfigSpace):
                 fea.append(v.val)
         return np.array(fea, dtype=np.float32)
 
-
     def get_other_option(self):
         pass
         # return {x: x.val for x in self._entity_map.values() if isinstance(x, OtherOptionEntity)}
@@ -637,7 +667,6 @@ class ConfigEntity(ConfigSpace):
         ret["code_hash"] = self.code_hash
         entity_map = []
         for k, v in self._entity_map.items():
-            # TODO: 判断 knob_type, 确定 config 类型, 先从硬件角度出发
             if isinstance(v, GemminiEntity):
                 entity_map.append((k, v.hardware_config))
             elif isinstance(v, GemminiPassEntity):
@@ -661,7 +690,6 @@ class ConfigEntity(ConfigSpace):
 
         for item in json_dict["entity"]:
             key, knob_type, knob_args = item
-            # TODO: 判断 knob_type, 确定 config 类型, 先从硬件角度出发
             if knob_type == "gemminiHW":
                 entity = GemminiEntity(knob_args)
             elif knob_type == "gemminiPASS":

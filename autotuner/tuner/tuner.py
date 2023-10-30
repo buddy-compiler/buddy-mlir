@@ -1,4 +1,23 @@
-"""Base class of tuner"""
+# ===- tuner.py -------------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Base class of tuner.
+#
+# ===---------------------------------------------------------------------------
+
 import logging
 import tempfile
 import os
@@ -45,7 +64,9 @@ class Tuner(object):
     def update(self, inputs, results):
         """Update parameters of the tuner according to measurement results"""
 
-    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=(), si_prefix="G"):
+    def tune(
+        self, n_trial, measure_option, early_stopping=None, callbacks=(), si_prefix="G"
+    ):
         """Begin tuning"""
         # 指定输出目录
         output_dir = os.path.join(os.getcwd(), "results")
@@ -66,7 +87,9 @@ class Tuner(object):
 
             configs = self.next_batch(min(n_parallel, n_trial - i))
 
-            inputs = [MeasureInput(self.task.target, self.task, config) for config in configs]
+            inputs = [
+                MeasureInput(self.task.target, self.task, config) for config in configs
+            ]
             results = measure_batch(inputs)
 
             # keep best config
@@ -114,7 +137,9 @@ class Tuner(object):
 
             if error_ct > self.error_ct_threshold:
                 logging.basicConfig()
-                logger.warning("Too many errors happen in the tuning. Switching to debug mode.")
+                logger.warning(
+                    "Too many errors happen in the tuning. Switching to debug mode."
+                )
                 logger.setLevel(logging.DEBUG)
             else:
                 logger.setLevel(old_level)
@@ -129,7 +154,7 @@ class Tuner(object):
                 self.task,
                 f,
             )
-        
+
         # log the best
         logger.debug(
             "\nBest No: %d\ttime cost: %2f\tbest config: %s",
@@ -137,7 +162,7 @@ class Tuner(object):
             self.best_cost,
             self.best_config,
         )
-        
+
         del measure_batch
 
     def reset(self):

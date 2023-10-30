@@ -1,4 +1,23 @@
-"""Specifying how to measure the generated code"""
+# ===- measure.py -------------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Specifying how to measure the generated code.
+#
+# ===---------------------------------------------------------------------------
+
 import enum
 import logging
 import multiprocessing
@@ -9,7 +28,9 @@ class MeasureInput(namedtuple("MeasureInput", ["target", "task", "config"])):
     """Stores all the necessary inputs for a measurement."""
 
 
-class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost", "timestamp"])):
+class MeasureResult(
+    namedtuple("MeasureResult", ["costs", "error_no", "all_cost", "timestamp"])
+):
     """Stores all the results of a measurement"""
 
     def __repr__(self):
@@ -28,8 +49,12 @@ class MeasureErrorNo(enum.IntEnum):
     """Error type for MeasureResult"""
 
     NO_ERROR = 0  # no error
-    INSTANTIATION_ERROR = 1  # actively detected error in instantiating a template with a config
-    COMPILE_ERROR = 3  # error when compiling code on device (e.g. OpenCL JIT on the device)
+    INSTANTIATION_ERROR = (
+        1  # actively detected error in instantiating a template with a config
+    )
+    COMPILE_ERROR = (
+        3  # error when compiling code on device (e.g. OpenCL JIT on the device)
+    )
     RUNTIME_ERROR = 4  # error when run program on device
     WRONG_ANSWER = 5  # answer is wrong when compared to a golden output
     BUILD_TIMEOUT = 6  # timeout during compilation
@@ -50,13 +75,17 @@ class Builder(object):
     def set_task(self, task, build_kwargs=None):
         """Initialize for a new tuning task"""
         self.task = task
-        self.build_kwargs = dict(build_kwargs.items()) if build_kwargs is not None else {}
+        self.build_kwargs = (
+            dict(build_kwargs.items()) if build_kwargs is not None else {}
+        )
         if any(k in self.build_kwargs for k in self.user_build_kwargs):
             logging.warn(
                 "Overriding these runner-supplied kwargs with user-supplied:\n%s",
                 "\n".join(
                     f" * {k}: from {build_kwargs[k]!r} to {self.user_build_kwargs[k]!r}"
-                    for k in sorted([k for k in build_kwargs if k in self.user_build_kwargs])
+                    for k in sorted(
+                        [k for k in build_kwargs if k in self.user_build_kwargs]
+                    )
                 ),
             )
         for k, v in self.user_build_kwargs.items():
@@ -101,17 +130,17 @@ def measure_option(builder, runner):
     "warm up," such as GPUs that need time to reach a performance power state.
     Using `min_repeat_ms` can dynamically adjusts `number`, so it is recommended.
     The typical value for NVIDIA GPU is 150 ms.
-    
+
     Here we will use Spike for Gemmini.
     """
     from .measure_methods import BuddyMLIRBuilder, LocalRunner
-    
+
     if isinstance(builder, str):
         if builder == "default" or builder == "gemmini" or builder == "linalg":
             builder = BuddyMLIRBuilder(build_func=builder)
         else:
             raise ValueError("Invalid builder: " + builder)
-        
+
     if isinstance(runner, str):
         if runner == "spike" or runner == "cpu":
             runner = LocalRunner(run_func=runner, timeout=30)

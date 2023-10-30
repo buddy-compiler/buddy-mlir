@@ -1,7 +1,26 @@
-"""Base class for model-based tuner
-This type of tuner will fit a cost model and use some optimization methods to
-find optimums points of cost model in space.
-"""
+# ===- model_based_tuner.py -------------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Base class for model-based tuner
+#
+# This type of tuner will fit a cost model and use some optimization methods to
+# find optimums points of cost model in space.
+#
+# ===---------------------------------------------------------------------------
+
 import gc
 import numpy as np
 
@@ -154,7 +173,9 @@ class ModelBasedTuner(Tuner):
         and then pick plan_size of them according to the diversity metric.
     """
 
-    def __init__(self, task, cost_model, model_optimizer, plan_size, diversity_filter_ratio=None):
+    def __init__(
+        self, task, cost_model, model_optimizer, plan_size, diversity_filter_ratio=None
+    ):
         super(ModelBasedTuner, self).__init__(task)
 
         # space
@@ -218,15 +239,22 @@ class ModelBasedTuner(Tuner):
             assert self.space.is_index_valid(index)
             self.visited.add(index)
         # if we have enough new training samples
-        if len(self.xs) >= self.plan_size * (self.train_ct + 1) and self.flops_max > 1e-6:
+        if (
+            len(self.xs) >= self.plan_size * (self.train_ct + 1)
+            and self.flops_max > 1e-6
+        ):
             self.cost_model.fit(self.xs, self.ys, self.plan_size)
             if self.diversity_filter_ratio:
                 candidate = self.model_optimizer.find_maximums(
-                    self.cost_model, self.plan_size * self.diversity_filter_ratio, self.visited
+                    self.cost_model,
+                    self.plan_size * self.diversity_filter_ratio,
+                    self.visited,
                 )
                 scores = self.cost_model.predict(candidate)
                 knobs = [self.space.point2knob(x) for x in candidate]
-                pick_index = submodular_pick(0 * scores, knobs, self.plan_size, knob_weight=1)
+                pick_index = submodular_pick(
+                    0 * scores, knobs, self.plan_size, knob_weight=1
+                )
                 maximums = np.array(candidate)[pick_index]
             else:
                 maximums = self.model_optimizer.find_maximums(

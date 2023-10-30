@@ -1,4 +1,22 @@
-"""XGBoost as cost model"""
+# ===- xgboost_cost_model.py -------------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# XGBoost as cost model.
+#
+# ===---------------------------------------------------------------------------
 
 import logging
 import time
@@ -14,8 +32,10 @@ from .model_based_tuner import CostModel, FeatureCache
 try:
     from xgboost.callback import TrainingCallback
 except ImportError:
+
     class TrainingCallback:
         pass
+
 
 import xgboost as xgb
 
@@ -155,7 +175,9 @@ class XGBoostCostModel(CostModel):
                 self.base_model.upper_model = None
                 self.base_model = None
             else:
-                dtrain.set_base_margin(discount * self.base_model.predict(xs, output_margin=True))
+                dtrain.set_base_margin(
+                    discount * self.base_model.predict(xs, output_margin=True)
+                )
 
         self.bst = xgb.train(
             self.xgb_params,
@@ -268,7 +290,8 @@ class XGBoostCostModel(CostModel):
 
         if self.base_model:
             dtest.set_base_margin(
-                self._base_model_discount() * self.base_model.predict(xs, output_margin=True)
+                self._base_model_discount()
+                * self.base_model.predict(xs, output_margin=True)
             )
 
         return self.bst.predict(dtest, output_margin=output_margin)
@@ -280,7 +303,12 @@ class XGBoostCostModel(CostModel):
 
     def spawn_base_model(self):
         return XGBoostCostModel(
-            self.task, self.fea_type, self.loss_type, self.num_threads, self.log_interval, self
+            self.task,
+            self.fea_type,
+            self.loss_type,
+            self.num_threads,
+            self.log_interval,
+            self,
         )
 
     def _get_feature(self, indexes):
@@ -363,7 +391,9 @@ def _binarize_evals(evals):
         blabel[blabel < 0.5] = 0.0
         blabel[blabel >= 0.5] = 1.0
         # pylint: disable=R1721
-        bin_evals.append(tuple([xgb.DMatrix(barray, blabel)] + [e for e in evalset[1:]]))
+        bin_evals.append(
+            tuple([xgb.DMatrix(barray, blabel)] + [e for e in evalset[1:]])
+        )
     return bin_evals
 
 
@@ -372,7 +402,9 @@ class XGBoostCallback(TrainingCallback):
 
     def __call__(self, env: "xgb.core.CallbackEnv"):
         # Compatibility with xgboost < 1.3
-        return self.after_iteration(env.model, env.iteration, env.evaluation_result_list)
+        return self.after_iteration(
+            env.model, env.iteration, env.evaluation_result_list
+        )
 
     def after_iteration(self, model: "xgb.Booster", epoch: int, evals_log: Dict):
         raise NotImplementedError
@@ -502,7 +534,9 @@ class CustomCallback(XGBoostCallback):
         best_iteration = self.state["best_iteration"]
         maximize_score = self.state["maximize_score"]
 
-        if (maximize_score and score > best_score) or (not maximize_score and score < best_score):
+        if (maximize_score and score > best_score) or (
+            not maximize_score and score < best_score
+        ):
             msg = f"[{epoch}] " + "\t".join([_fmt_metric(x) for x in eval_res])
             self.state["best_msg"] = msg
             self.state["best_score"] = score
