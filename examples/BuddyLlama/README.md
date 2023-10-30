@@ -77,3 +77,21 @@ $ cd bin
 $ ./buddy-llama-run
 ```
 This build will spend a few minutes. We recommend you to use better cpu such as server-level cpu to run buddy-llama-run.
+
+To improve performance and reduce memory usage, you can use mimalloc for memory allocation. You can follow the steps below to build.
+```
+$ cd buddy-mlir
+$ git submodule add \
+    https://github.com/microsoft/mimalloc.git thirdparty/mimalloc
+$ git submodule update
+$ cd thirdparty/mimalloc
+$ mkdir -p out/release
+$ cd out/release
+$ cmake ../..
+$ make
+$ cd ../../../../../build
+$ cmake -G Ninja .. \
+    -DBUDDY_LLAMA_EXAMPLES=ON \
+    -DBUDDY_LLAMA_EXAMPLES_ENABLE_MIMALLOC=ON
+$ ninja buddy-llama-run
+```
