@@ -22,16 +22,6 @@ endif
 .SECONDEXPANSION:
 all-run: $$(run-targets)
 
-sche-addf-tensor-lower:
-	@${BUDDY_OPT} ./sche-addf-tensor.mlir \
-		--device-schedule \
-		--lower-sche -o ./log.mlir
-
-sche-addf-vector-lower:
-	@${BUDDY_OPT} ./sche-addf-vector.mlir \
-		--device-schedule \
-		--lower-sche -o ./log.mlir
-
 sche-scf-for-lower:
 	@${BUDDY_OPT} ./sche-scf-for.mlir -device-schedule | \
 	${BUDDY_OPT} -lower-sche | \
@@ -52,7 +42,3 @@ sche-scf-for-run:
 	${MLIR_OPT} -convert-async-to-llvm -convert-func-to-llvm | \
 	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME} \
 	-shared-libs=${MLIR_ASYNC_RUNTIME} ${OPT_FLAG}
-
-sche-reduce-add-lower:
-	@${BUDDY_OPT} ./sche-reduce-add.mlir \
-		--device-schedule -o ./log.mlir
