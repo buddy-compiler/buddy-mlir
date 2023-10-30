@@ -15,7 +15,7 @@ message(STATUS "Spliting size: ${SPLITING_SIZE}")
 
 
 add_custom_command(OUTPUT conv2d.o
-  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/ConvOpt/conv2d.mlir -conv-vectorization="strip-mining=${SPLITING_SIZE}" -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -finalize-memref-to-llvm -llvm-request-c-wrappers -convert-func-to-llvm -reconcile-unrealized-casts | 
+  COMMAND ${CMAKE_BINARY_DIR}/bin/buddy-opt ${BUDDY_EXAMPLES_DIR}/ConvOpt/conv2d.mlir -conv-vectorization="strip-mining=${SPLITING_SIZE}" -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -finalize-memref-to-llvm -llvm-request-c-wrappers -convert-func-to-llvm -reconcile-unrealized-casts | 
           ${LLVM_MLIR_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
           ${LLVM_MLIR_BINARY_DIR}/llc -mtriple=${BUDDY_TARGET_TRIPLE} -mattr=${BUDDY_OPT_ATTR} --filetype=obj -o ${BUDDY_BINARY_DIR}/../examples/ConvOpt/conv2d.o
   DEPENDS buddy-opt)
@@ -42,8 +42,9 @@ SET_TARGET_PROPERTIES(
 if(BUDDY_ENABLE_OPENCV)
   find_package(OpenCV REQUIRED CONFIG)
   include_directories(${OpenCV_INCLUDE_DIRS})
-endif()
+  add_executable(edge-detection edge-detection.cpp)
+  add_dependencies(edge-detection buddy-opt)
+  target_link_libraries(edge-detection ${OpenCV_LIBS} Conv2D)
+  endif()
 
-add_executable(edge-detection edge-detection.cpp)
-add_dependencies(edge-detection buddy-opt)
-target_link_libraries(edge-detection ${OpenCV_LIBS} Conv2D)
+

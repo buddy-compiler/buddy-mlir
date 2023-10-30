@@ -13,6 +13,7 @@ endif
 
 SPARSE_MATRIX_A := ./data/sa.mtx
 SPARSE_MATRIX_B := ./data/sb.mtx
+SPARSE_MATRIX_C := ./data/generated.mtx
 
 sparse-tensor-fuse-tensor-cast-lower:
 	@${MLIR_OPT} ./sparse-tensor-fuse-tensor-cast.mlir\
@@ -28,7 +29,7 @@ sparse-tensor-new-translate:
 sparse-tensor-new-run:
 	@${MLIR_OPT} ./sparse-tensor-new.mlir \
 		--sparse-compiler="enable-runtime-library=true" | \
-	TENSOR0=${SPARSE_MATRIX_A} TENSOR1=${SPARSE_MATRIX_B} \
+	TENSOR0=${SPARSE_MATRIX_A} TENSOR1=${SPARSE_MATRIX_B} TENSOR2=${SPARSE_MATRIX_C} \
 	${MLIR_CPU_RUNNER} -e main -O0 --entry-point-result=void \
 		--shared-libs=${MLIR_RUNNER_UTILS},${MLIR_C_RUNNER_UTILS}
 
@@ -104,3 +105,24 @@ sparse-tensor-expand-lower:
 		--linalg-generalize-named-ops \
 		--linalg-fuse-elementwise-ops \
 		--sparsification -o log.mlir
+
+# This target will show the original for-loop without vectorization,
+# which is useful to compare with the vectorized version.
+sparse-tensor-vectorization-linalg-lower:
+	@${MLIR_OPT} ./sparse-tensor-vectorization.mlir \
+		--linalg-generalize-named-ops \
+		--linalg-fuse-elementwise-ops \
+		--sparsification \
+		-o log.mlir
+sparse-tensor-vectorization-lower:
+	@${MLIR_OPT} ./sparse-tensor-vectorization.mlir \
+		--sparsification --cse \
+		--sparse-vectorization="vl=16" --cse \
+		-o log.mlir
+# This example is used for code verification only, as there is currently no ARMSVE machine for us to run the code on.
+# Do the same run, but with VLA enable
+sparse-tensor-vla-vectorization-lower:
+	@${MLIR_OPT} ./sparse-tensor-vectorization.mlir \
+		--sparsification --cse \
+		--sparse-vectorization="vl=16 enable-vla-vectorization=true" --cse \
+		-o log.mlir
