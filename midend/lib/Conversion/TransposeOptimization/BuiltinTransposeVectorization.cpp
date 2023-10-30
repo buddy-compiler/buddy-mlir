@@ -1,5 +1,4 @@
-//===- BuiltinTransposeVectorization.cpp
-//-------------------------------------------------===//
+//===- BuiltinTransposeVectorization.cpp ----------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -205,7 +204,7 @@ public:
               });
 
           // Compile time branch detection.
-          if (A.getType().cast<MemRefType>().getDimSize(0) < 0 or
+          if (A.getType().cast<MemRefType>().isDynamicDim(0) or
               A.getType().cast<MemRefType>().getDimSize(0) % affineVectorSize !=
                   0) {
             // Depending on the position, use either full vectors or tail
@@ -265,7 +264,7 @@ public:
     parallelColLoop.getRegion().push_back(loopBody);
     rewriter.setInsertionPointAfter(parallelColLoop);
 
-    if (A.getType().cast<MemRefType>().getDimSize(1) < 0 or
+    if (A.getType().cast<MemRefType>().isDynamicDim(1) or
         A.getType().cast<MemRefType>().getDimSize(1) % affineVectorSize != 0) {
 
       affine::AffineIfOp branchingColUnaligned =
@@ -325,7 +324,7 @@ public:
                 });
           });
 
-      if (A.getType().cast<MemRefType>().getDimSize(0) < 0 or
+      if (A.getType().cast<MemRefType>().isDynamicDim(0) or
           A.getType().cast<MemRefType>().getDimSize(0) % affineVectorSize !=
               0) {
         affine::AffineIfOp branchingRowColUnaligned =
@@ -413,7 +412,9 @@ class TransposeOptimizationPass
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TransposeOptimizationPass)
   StringRef getArgument() const final { return "transpose-optimize"; }
-  StringRef getDescription() const final { return "Transpose Optimization only for rank 2 tensor."; }
+  StringRef getDescription() const final {
+    return "Transpose Optimization only for rank 2 tensor.";
+  }
   TransposeOptimizationPass() = default;
   TransposeOptimizationPass(const TransposeOptimizationPass &) {}
   explicit TransposeOptimizationPass(int64_t affineVectorSizeParam) {

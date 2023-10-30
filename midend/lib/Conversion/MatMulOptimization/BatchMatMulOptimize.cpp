@@ -1,5 +1,4 @@
-//===- BatchMatMulOptimize.cpp
-//-------------------------------------------------===//
+//===- BatchMatMulOptimize.cpp --------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -145,7 +144,7 @@ public:
           Value loopVarColOfB = ivRange.front();
 
           // Compile time branch detection.
-          if (C.getType().cast<MemRefType>().getDimSize(2) < 0 or
+          if (C.getType().cast<MemRefType>().isDynamicDim(2) or
               C.getType().cast<MemRefType>().getDimSize(2) % affineVectorSize !=
                   0) {
 

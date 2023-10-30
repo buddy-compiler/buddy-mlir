@@ -1,5 +1,4 @@
-//===- MatMulParallelVectorization.cpp
-//-------------------------------------------------===//
+//===- MatMulParallelVectorization.cpp ------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -141,7 +140,7 @@ public:
         ArrayRef<Value>{aRow, bRow}, false, 3, true);
 
     // Compile time branch detection.
-    if (C.getType().cast<MemRefType>().getDimSize(1) < 0 or
+    if (C.getType().cast<MemRefType>().isDynamicDim(1) or
         C.getType().cast<MemRefType>().getDimSize(1) % affineVectorSize != 0) {
 
       // Depending on the position, use either full vectors or tail vectors.
