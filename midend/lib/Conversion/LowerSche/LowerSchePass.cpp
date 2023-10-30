@@ -27,7 +27,9 @@
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/DialectConversion.h"
 
 #include "Bud/BudDialect.h"
 #include "Bud/BudOps.h"
@@ -46,18 +48,28 @@ using namespace buddy;
 
 namespace {
 
-class LaunchFuncOpScheLowering : public OpRewritePattern<sche::LaunchFuncOp>  {
+class WaitOpScheLowering : public ConversionPattern  {
 public:
-  using OpRewritePattern<sche::LaunchFuncOp>::OpRewritePattern;
+  explicit WaitOpScheLowering(TypeConverter &typeConverter, MLIRContext *context)
+      : ConversionPattern(typeConverter, sche::WaitOp::getOperationName(), 1, context) {}
+
 
   LogicalResult
-  matchAndRewrite(sche::LaunchFuncOp op, PatternRewriter &rewriter) const override {
-    // printf("begin\n");
-    auto loc = op.getLoc();
-
-    // printf("finish\n");
+  matchAndRewrite(Operation* op, ArrayRef<mlir::Value> operands, 
+                  mlir::ConversionPatternRewriter &rewriter) const final {
+    assert(operands.size() == 1);
+    auto loc = op->getLoc();
+    auto typeConverter = getTypeConverter();
+    // auto onDeviceOp = dyn_cast<sche::OnDeviceOp>(op);
+    rewriter.setInsertionPoint(op);
+    // Value res = dyn_cast<sche::WaitOp>(op).getAsyncToken();
+    // Type resType = res ? typeConverter->convertType(res.getType()) : (Type)nullptr;
+    auto awaitOp = rewriter.create<async::AwaitOp>(loc, operands[0]);
+    // if(res != nullptr){
+    //   res.replaceAllUsesWith(awaitOp.getAsyncToken());
+    // }
+    rewriter.eraseOp(op);
     return success();
-
   }
 };
 
@@ -115,33 +127,33 @@ void lowerFromForOp(scf::ForOp forOp, gpu::LaunchOp gpuLaunchOp, Location loc,  
   });
 }
 //gpu 同步/异步，使用映射内存还是copy
-class OnDeviceOpScheLowering : public OpRewritePattern<sche::OnDeviceOp>  {
+class OnDeviceOpScheLowering : public ConversionPattern  {
 public:
-  using OpRewritePattern<sche::OnDeviceOp>::OpRewritePattern;
+explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *context)
+      : ConversionPattern(typeConverter, sche::OnDeviceOp::getOperationName(), 1, context) {}
 
   LogicalResult
-  matchAndRewrite(sche::OnDeviceOp onDeviceOp, PatternRewriter &rewriter) const override {
-    auto loc = onDeviceOp.getLoc();
+  matchAndRewrite(Operation* op, ArrayRef<mlir::Value> operands, 
+                  mlir::ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
 
-    auto op = onDeviceOp.getOperation();
+    auto onDeviceOp = dyn_cast<sche::OnDeviceOp>(op);
     rewriter.setInsertionPoint(op);
 
     IRMapping mp;
 
     auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
 
-    auto operands = op->getOperands();
-    for(auto v : operands){
-      // v.print(llvm::outs());
+    auto innerOperands = operands.take_back(onDeviceOp.getODSOperandIndexAndLength(1).second - onDeviceOp.getODSOperandIndexAndLength(1).first);
+    auto asyncDependencies = operands.take_front(onDeviceOp.getODSOperandIndexAndLength(0).second - onDeviceOp.getODSOperandIndexAndLength(0).first);
+    
+    for(auto v : innerOperands){
       auto t = v.getType();
-      // t.print(llvm::outs());
       if(t.isa<TensorType>()){
         auto shape = t.dyn_cast<TensorType>().getShape();
         auto ele_type = t.dyn_cast<TensorType>().getElementType();
         auto to_memref_op = rewriter.create<bufferization::ToMemrefOp>(loc, MemRefType::get(shape, ele_type), v);
         mp.map(v, to_memref_op.getResult());
-        // v.replaceAllUsesWith(to_memref_op.getResult());
-        // to_memref_op.print(llvm::outs());
 
         auto memref_cast_op = rewriter.create<memref::CastOp>(loc, UnrankedMemRefType::get(ele_type, {}), to_memref_op.getResult());
         auto host_register_op = rewriter.create<gpu::HostRegisterOp>(loc, memref_cast_op.getResult());
@@ -167,8 +179,11 @@ public:
       }
     }
 
+
     SmallVector<Value> result_memrefs;
-    auto results = op->getResults();
+    auto results = onDeviceOp.getInnerResults();
+    // auto results = op->getResults();
+    for(auto v : results){v.print(llvm::outs());printf("\n");}
     for(auto v : results){
       MemRefType mem_type;
       auto t = v.getType();
@@ -203,15 +218,21 @@ public:
     auto block_y = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
     auto block_z = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
     
-
-    auto gpu_launch_op = rewriter.create<gpu::LaunchOp>(loc, grid_x, grid_y, grid_z, block_x, block_y, block_z, nullptr, gpu::AsyncTokenType::get(rewriter.getContext()));
+    Value token = onDeviceOp.getAsyncToken();
+    if(token){
+      auto async_exec_op = rewriter.create<async::ExecuteOp>(loc, TypeRange{}, asyncDependencies, ValueRange{});
+      rewriter.replaceAllUsesWith(token, async_exec_op.getToken());
+      auto& bodyBlock = async_exec_op.getBodyRegion().front();
+      rewriter.setInsertionPointToStart(&bodyBlock);
+    }
+    auto gpu_launch_op = rewriter.create<gpu::LaunchOp>(loc, grid_x, grid_y, grid_z, block_x, block_y, block_z);
 
     auto& body = gpu_launch_op.getBody();
     auto& bodyBlock = body.front();
 
     rewriter.setInsertionPointToStart(&bodyBlock);
 
-    for(auto v : operands){
+    for(auto v : innerOperands){
       auto t = v.getType();
       if(t.isa<TensorType>()){
         auto to_tensor_op = rewriter.create<bufferization::ToTensorOp>(loc, t, mp.lookup<Value>(v));
@@ -236,7 +257,6 @@ public:
     }
     else{
       for(auto&& op_ : onDeviceOp.getRegion().front().getOperations()){
-      // op_.print(llvm::outs());
       if(!op_.hasTrait<OpTrait::ReturnLike>()){
         auto new_op = rewriter.clone(op_, mp);
         for(auto&& [a, b] : llvm::zip(op_.getResults(), new_op->getResults())){
@@ -246,7 +266,6 @@ public:
         int i=0;
         for(auto res : op_.getOperands()){
           auto t = res.getType();
-          // t.print(llvm::outs());
           //TODO:必须要有rank
           if(t.isa<TensorType>()){
             auto shape = t.dyn_cast<TensorType>().getShape();
@@ -296,11 +315,7 @@ public:
       }
     }
 
-    rewriter.create<gpu::WaitOp>(loc, (Type)nullptr, ValueRange{gpu_launch_op.getAsyncToken()});
     rewriter.eraseOp(op);
-
-
-    // op->getParentOp()->print(llvm::outs());
 
 
     return success();
@@ -310,9 +325,10 @@ public:
 
 } // end anonymous namespace
 
-void populateLowerScheConversionPatterns(RewritePatternSet &patterns) {
+void populateLowerScheConversionPatterns(TypeConverter& typeConverter, RewritePatternSet &patterns) {
   // clang-format off
-  patterns.add<OnDeviceOpScheLowering>(patterns.getContext());
+  patterns.add<OnDeviceOpScheLowering>(typeConverter, patterns.getContext());
+  patterns.add<WaitOpScheLowering>(typeConverter, patterns.getContext());
   // clang-format on
 }
 
@@ -342,7 +358,9 @@ public:
         LLVM::LLVMDialect,
         buddy::sche::ScheDialect,
         gpu::GPUDialect,
-        bufferization::BufferizationDialect>();
+        bufferization::BufferizationDialect,
+        scf::SCFDialect,
+        async::AsyncDialect>();
     // clang-format on
   }
 };
@@ -362,14 +380,18 @@ void LowerSchePass::runOnOperation() {
       LLVM::LLVMDialect,
       gpu::GPUDialect,
       bufferization::BufferizationDialect,
-      scf::SCFDialect>();
+      scf::SCFDialect,
+      async::AsyncDialect>();
   // clang-format on
   target.addLegalOp<ModuleOp, func::ReturnOp>();
 
   // target.addIllegalDialect<buddy::sche::ScheDialect>();
+  TypeConverter typeConverter;
+  typeConverter.addConversion([&](sche::AsyncTokenType type){return async::TokenType::get(context);});
+  typeConverter.addConversion([&](Type type){return type;});
 
   RewritePatternSet patterns(context);
-  populateLowerScheConversionPatterns(patterns);
+  populateLowerScheConversionPatterns(typeConverter, patterns);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();

@@ -262,8 +262,9 @@ public:
     Value upperBound = forOp.getUpperBound();
     Value lowerBound = forOp.getLowerBound();
     Value step = forOp.getStep();
-
     rewriter.setInsertionPoint(op);
+    auto placeHolder = rewriter.create<UnrealizedConversionCastOp>(loc, TypeRange{}, ValueRange{});
+    rewriter.setInsertionPoint(placeHolder);
     auto range = rewriter.create<arith::SubIOp>(loc, upperBound, lowerBound);
     Value stepRange = rewriter.create<arith::DivSIOp>(loc, range.getResult(), step);
     stepRange = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI32Type(), stepRange);
@@ -280,7 +281,7 @@ public:
       auto targetConfig = dict_attr.get("targetConfig");
       assert(targetId.isa<StringAttr>() && targetConfig.isa<StringAttr>() && dict_attr.get("duty_ratio").isa<FloatAttr>());
 
-      rewriter.setInsertionPoint(op);
+      rewriter.setInsertionPoint(placeHolder);
       //最后一个for循环的upperBound是原upperBound，前面的for循环向零取整
       if(i == devices.size() - 1){
         end = upperBound;
@@ -295,7 +296,7 @@ public:
       }
 
       if(targetId.dyn_cast<StringAttr>().getValue() == "cpu"){
-        rewriter.setInsertionPointAfter(op);
+        rewriter.setInsertionPointAfter(placeHolder);
         auto sub_forOp = rewriter.create<scf::ForOp>(loc, start, end, step, forOp.getInitArgs(), [&](OpBuilder& builder, Location loc, Value iv, ValueRange iterArgs){
           Block &bodyBlock = forOp.getLoopBody().front();//原始for的bodyBlock
           IRMapping mp;
@@ -309,6 +310,7 @@ public:
         });
       }
       else if(targetId.dyn_cast<StringAttr>().getValue() == "gpu"){
+        rewriter.setInsertionPoint(placeHolder);
         // auto ops = forOp.getRegion().front().getOperations();
         Block &bodyBlock = forOp.getLoopBody().front();//原始for的bodyBlock
         SmallVector<Operation*> op_list;
@@ -343,14 +345,18 @@ public:
                                         }
                                       });
                                       builder.create<sche::ReturnOp>(loc, sub_forOp.getResults());
-                                    });
+                                    }, sche::AsyncTokenType::get(ctx));
         on_device_op.getOperation()->setAttr("sche.source", rewriter.getStringAttr("scf.for"));
+
+        rewriter.setInsertionPointAfter(op);
+        rewriter.create<sche::WaitOp>(loc, (Type)nullptr, ValueRange{on_device_op.getAsyncToken()});
       }
 
       start = end;
     }
 
     rewriter.eraseOp(op);
+    rewriter.eraseOp(placeHolder);
 
     // op->getParentOp()->print(llvm::outs());
 

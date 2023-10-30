@@ -32,24 +32,28 @@ include "mlir/Interfaces/ControlFlowInterfaces.td"
 // On device operation.
 //===----------------------------------------------------------------------===//
 
-def Sche_OnDeviceOp : Sche_Op<"on_device", []> {
+def Sche_OnDeviceOp : Sche_Op<"on_device", [Sche_AsyncOpInterface, AttrSizedOperandSegments, AttrSizedResultSegments]> {
   let summary = "Mark the region of operations running on target device.";
 
-  let arguments = (ins StrAttr: $targetId, StrAttr: $targetConfig, Variadic<AnyType>: $operands);
-  let results = (outs Variadic<AnyType>:$results);
+  let arguments = (ins Variadic<Sche_AsyncToken>:$asyncDependencies, StrAttr: $targetId, StrAttr: $targetConfig, Variadic<AnyType>: $innerOperands);
+  let results = (outs Optional<Sche_AsyncToken>:$asyncToken, Variadic<AnyType>:$innerResults);
   let regions = (region SizedRegion<1>:$region);
 
   // let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<(ins "llvm::StringRef":$targetId, "llvm::StringRef":$targetConfig, "mlir:: TypeRange": $resultTypes,
-                 "mlir::ValueRange":$operands, CArg<"mlir::function_ref<void(mlir::OpBuilder &, mlir::Location, mlir::ValueRange)>",
-                  "nullptr">:$bodyBuilder)>
+    OpBuilder<(ins "llvm::StringRef":$targetId, "llvm::StringRef":$targetConfig, "mlir:: TypeRange": $innerResultTypes,
+                 "mlir::ValueRange":$innerOperands, CArg<"mlir::function_ref<void(mlir::OpBuilder &, mlir::Location, mlir::ValueRange)>",
+                  "nullptr">:$bodyBuilder, CArg<"mlir::Type", "nullptr">:$asyncTokenType, CArg<"mlir::ValueRange", "mlir::ValueRange{}">:$asyncDependencies)>
   ];
 
-  let assemblyFormat = [{
-    `(`$operands`)` attr-dict functional-type(operands, results) $region
-  }];
+  // let assemblyFormat = [{
+  //   type($asyncToken) `[`$asyncDependencies`]` `(`$innerOperands`)` attr-dict functional-type($innerOperands, $innerResults) $region
+  // }];
+  let hasCustomAssemblyFormat = 1;
+   let skipDefaultBuilders = 1;
 }
+
+
 
 //===----------------------------------------------------------------------===//
 // Launch function operation.
@@ -91,6 +95,19 @@ def Sche_ReturnOp : Sche_Op<"return", [ReturnLike, Terminator]>{
   }]>];
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
+}
+
+def Sche_WaitOp : Sche_Op<"wait", [Sche_AsyncOpInterface]> {
+  let summary = "Wait for async gpu ops to complete.";
+  
+  let arguments = (ins Variadic<Sche_AsyncToken>:$asyncDependencies);
+  let results = (outs Optional<Sche_AsyncToken>:$asyncToken);
+
+  let assemblyFormat = [{
+    custom<AsyncDependencies>(type($asyncToken), $asyncDependencies) attr-dict
+  }];
+
+  // let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//

@@ -66,6 +66,7 @@ using namespace buddy::sche;
 //===----------------------------------------------------------------------===//
 
 void ScheDialect::initialize() {
+  addTypes<AsyncTokenType>();
   addOperations<
 #define GET_OP_LIST
 #include "Sche/ScheOps.cpp.inc"
@@ -74,10 +75,52 @@ void ScheDialect::initialize() {
 #define GET_ATTRDEF_LIST
 #include "Sche/ScheOpsAttributes.cpp.inc"
       >();
-//   addInterfaces<BudInlinerInterface>();
+  // addInterfaces<ScheInlinerInterface>();
 }
 
 #include "Sche/ScheOpsEnums.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
 #include "Sche/ScheOpsAttributes.cpp.inc"
+
+Type ScheDialect::parseType(DialectAsmParser &parser) const {
+  // Parse the main keyword for the type.
+  StringRef keyword;
+  if (parser.parseKeyword(&keyword))
+    return Type();
+  MLIRContext *context = getContext();
+
+  // Handle 'async token' types.
+  if (keyword == "async.token")
+    return AsyncTokenType::get(context);
+
+  parser.emitError(parser.getNameLoc(), "unknown sche type: " + keyword);
+  return Type();
+}
+
+void ScheDialect::printType(Type type, DialectAsmPrinter &os) const {
+  TypeSwitch<Type>(type)
+      .Case<AsyncTokenType>([&](Type) { os << "async.token"; })
+      .Default([](Type) { llvm_unreachable("unexpected 'gpu' type kind"); });
+}
+
+//===----------------------------------------------------------------------===//
+// AsyncOpInterface
+//===----------------------------------------------------------------------===//
+
+void buddy::sche::addAsyncDependency(Operation *op, Value token) {
+  op->insertOperands(0, {token});
+  if (!op->template hasTrait<OpTrait::AttrSizedOperandSegments>())
+    return;
+  auto attrName =
+      OpTrait::AttrSizedOperandSegments<void>::getOperandSegmentSizeAttr();
+  auto sizeAttr = op->template getAttrOfType<DenseI32ArrayAttr>(attrName);
+
+  // Async dependencies is the only variadic operand.
+  if (!sizeAttr)
+    return;
+
+  SmallVector<int32_t, 8> sizes(sizeAttr.asArrayRef());
+  ++sizes.front();
+  op->setAttr(attrName, Builder(op->getContext()).getDenseI32ArrayAttr(sizes));
+}

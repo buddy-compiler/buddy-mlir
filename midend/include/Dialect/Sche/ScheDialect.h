@@ -21,8 +21,23 @@
 #ifndef SCHE_SCHEDIALECT_H
 #define SCHE_SCHEDIALECT_H
 
+namespace buddy {
+namespace sche {
+class AsyncTokenType
+    : public ::mlir::Type::TypeBase<AsyncTokenType, ::mlir::Type, ::mlir::TypeStorage> {
+public:
+  // Used for generic hooks in TypeBase.
+  using Base::Base;
+};
+
+void addAsyncDependency(::mlir::Operation *op, ::mlir::Value token);
+}
+}
+
 #include "mlir/IR/Dialect.h"
 
 #include "Sche/ScheOpsDialect.h.inc"
+
+#include "Sche/ScheOpInterfaces.h.inc"
 
 #endif // SCHE_SCHEDIALECT_H

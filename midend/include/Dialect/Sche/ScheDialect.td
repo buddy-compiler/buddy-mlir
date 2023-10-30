@@ -35,7 +35,63 @@ def Sche_Dialect : Dialect {
   }];
   let cppNamespace = "::buddy::sche";
   // let useDefaultAttributePrinterParser = 1;
+  let useDefaultTypePrinterParser = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// Sche Interfaces.
+//===----------------------------------------------------------------------===//
+
+def Sche_AsyncOpInterface : OpInterface<"AsyncOpInterface"> {
+  let description = [{
+    Interface for GPU operations that execute asynchronously on the device.
+
+    GPU operations implementing this interface take a list of dependencies
+    as `gpu.async.token` arguments and optionally return a `gpu.async.token`.
+
+    The op doesn't start executing until all depent ops producing the async
+    dependency tokens have finished executing.
+
+    If the op returns a token, the op merely schedules the execution on the
+    device and returns immediately, without waiting for the execution to
+    complete. On the hand, if the op does not return a token, the op will wait
+    for the execution to complete.
+  }];
+  let cppNamespace = "::buddy::sche";
+
+  let methods = [
+    InterfaceMethod<[{
+        Query the operands that represent async dependency tokens.
+      }],
+      "::mlir::OperandRange", "getAsyncDependencies", (ins), [{}], [{
+        ConcreteOp op = cast<ConcreteOp>(this->getOperation());
+        return op.getAsyncDependencies();
+      }]
+    >,
+    InterfaceMethod<[{
+        Adds a new token to the list of async dependencies if it is not already there.
+      }],
+      "void", "addAsyncDependency", (ins "::mlir::Value":$token),
+      [{}], [{
+        if (!::llvm::is_contained(this->getAsyncDependencies(), token))
+          ::buddy::sche::addAsyncDependency(this->getOperation(), token);
+      }]
+    >,
+    InterfaceMethod<[{
+        Query the result that represents the async token to depend on.
+      }],
+      "::mlir::Value", "getAsyncToken"
+    >
+  ];
+}
+
+//===----------------------------------------------------------------------===//
+// Sche Types.
+//===----------------------------------------------------------------------===//
+
+def Sche_AsyncToken : DialectType<
+  Sche_Dialect, CPred<"$_self.isa<::buddy::sche::AsyncTokenType>()">, "async token type">,
+             BuildableType<"buddy::sche::AsyncTokenType::get($_builder.getContext())">;
 
 //===----------------------------------------------------------------------===//
 // Base Sche Operation Definition.

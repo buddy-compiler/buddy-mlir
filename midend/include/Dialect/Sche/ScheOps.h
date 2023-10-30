@@ -27,6 +27,8 @@
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "Dialect/Sche/ScheDialect.h"
+#include "mlir/IR/OpImplementation.h"
 
 // #include "Sche/ScheOpsEnums.h.inc"
 
