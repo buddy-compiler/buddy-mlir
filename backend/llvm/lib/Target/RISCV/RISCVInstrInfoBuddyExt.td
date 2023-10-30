@@ -35,6 +35,18 @@ def MVIN : RVInstR<0b0000010, 0b011, OPC_CUSTOM_3, (outs),
   let rd = 0;              
 }
 
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in
+def MVIN2 : RVInstR<0b0000001, 0b011, OPC_CUSTOM_3, (outs),
+                   (ins GPR:$rs1, GPR:$rs2), "mvin2","$rs1, $rs2"> {
+  let rd = 0;
+}
+
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in
+def MVIN3 : RVInstR<0b0001110, 0b011, OPC_CUSTOM_3, (outs),
+                   (ins GPR:$rs1, GPR:$rs2), "mvin3","$rs1, $rs2"> {
+  let rd = 0;
+}
+
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in 
 def MVOUT : RVInstR<0b0000011, 0b011, OPC_CUSTOM_3, (outs),
                     (ins GPR:$rs1, GPR:$rs2), "mvout","$rs1, $rs2">{
@@ -62,6 +74,12 @@ def CONFIG_ST : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3, (outs),
 let Predicates = [HasBuddyExt] in 
 def CONFIG_EX : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3,(outs),
                     (ins GPR:$rs1, GPR:$rs2), "config_ex", "$rs1, $rs2"> {
+  let rd = 0;
+}
+
+let Predicates = [HasBuddyExt] in 
+def CONFIG_NORM : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3,(outs),
+                    (ins GPR:$rs1, GPR:$rs2), "config_norm", "$rs1, $rs2"> {
   let rd = 0;
 }
 
@@ -164,6 +182,12 @@ def LOOP_CONV_WS_CONFIG6 : RVInstR<0b0010101, 0b011, OPC_CUSTOM_3, (outs),
 let Predicates = [HasBuddyExt] in 
 def : Pat<(int_riscv_mvin GPR:$rs1, GPR:$rs2), (MVIN GPR:$rs1, GPR:$rs2)>;
 
+let Predicates = [HasBuddyExt] in
+def : Pat<(int_riscv_mvin2 GPR:$rs1, GPR:$rs2), (MVIN2 GPR:$rs1, GPR:$rs2)>;
+
+let Predicates = [HasBuddyExt] in
+def : Pat<(int_riscv_mvin3 GPR:$rs1, GPR:$rs2), (MVIN3 GPR:$rs1, GPR:$rs2)>;
+
 let Predicates = [HasBuddyExt] in 
 def : Pat<(int_riscv_mvout GPR:$rs1, GPR:$rs2), (MVOUT GPR:$rs1, GPR:$rs2)>;
 
@@ -178,6 +202,9 @@ def : Pat<(int_riscv_config_st GPR:$rs1, GPR:$rs2), (CONFIG_ST GPR:$rs1, GPR:$rs
 
 let Predicates = [HasBuddyExt] in 
 def : Pat<(int_riscv_config_ex GPR:$rs1, GPR:$rs2), (CONFIG_EX GPR:$rs1, GPR:$rs2)>;
+
+let Predicates = [HasBuddyExt] in
+def : Pat<(int_riscv_config_norm GPR:$rs1, GPR:$rs2), (CONFIG_NORM GPR:$rs1, GPR:$rs2)>;
 
 let Predicates = [HasBuddyExt] in 
 def : Pat<(int_riscv_preload GPR:$rs1, GPR:$rs2), (PRELOAD GPR:$rs1, GPR:$rs2)>;

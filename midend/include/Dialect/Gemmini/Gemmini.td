@@ -76,7 +76,9 @@ def ConfigLdOp : Gemmini_Op<"config_ld"> {
   let arguments = (ins I64:$stride,
                        DefaultValuedAttr<F32Attr, "1.0">:$scale,
                        DefaultValuedAttr<BoolAttr, "false">:$shrunk,
-                       DefaultValuedAttr<I64Attr, "0">:$id);
+                       DefaultValuedAttr<I64Attr, "0">:$id,
+                       DefaultValuedAttr<I64Attr, "16">:$block_mvin_stride,
+                       DefaultValuedAttr<I64Attr, "1">:$pixel_repeats);
   let assemblyFormat = "$stride attr-dict `:` type($stride)";
 }
 
@@ -116,6 +118,28 @@ def ConfigExOp : Gemmini_Op<"config_ex"> {
   let assemblyFormat = "attr-dict";
 }
 
+def ConfigNormOp : Gemmini_Op<"config_norm"> {
+  let summary = "ConfigNormOp configures normalize pipeline";
+  let description = [{
+    ConfigNormOp configures normalize pipeline
+    -qConst: A constant value used for quantization during normalization.
+    -qConstType: Defines the type of the qConst.
+    -setStatsIdOnly: A flag to indicate if only the StatsId should be set.
+    -actMsg: A message related to the normalization activity.
+    -StatsId: An identifier associated with the statistics or metrics of the normalization process.
+    -igeluQb: A parameter related to the IGELU function for quantization. Specifies the 'b' value.
+    -igeluQc: Another parameter related to the IGELU function for quantization. Specifies the 'c' value.
+  }];
+  let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$qConst,
+                       DefaultValuedAttr<I64Attr, "0">:$qConstType,
+                       DefaultValuedAttr<I64Attr, "0">:$setStatsIdOnly,
+                       DefaultValuedAttr<I64Attr, "0">:$actMsb,
+                       DefaultValuedAttr<I64Attr, "0">:$StatsId,
+                       DefaultValuedAttr<I64Attr, "0">:$igeluQb,
+                       DefaultValuedAttr<I64Attr, "0">:$igeluQc);
+  let assemblyFormat = "attr-dict";
+}
+
 def MvinOp : Gemmini_Op<"mvin"> {
   let summary = "Load operation";
   let description = [{
@@ -123,6 +147,32 @@ def MvinOp : Gemmini_Op<"mvin"> {
     - MemRef to load in.
       (including DRAM address, number of columns, number of rows)
     - Local scratchpad or accumulator address.
+  }];
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr);
+  let assemblyFormat = "$input $addr attr-dict `:` type($input) type($addr)";
+}
+
+def Mvin2Op : Gemmini_Op<"mvin2"> {
+  let summary = "Load operation";
+  let description = [{
+      Similar to Mvin
+          Move data from main memory to scratchpad
+      - MemRef to load in.
+        (including DRAM address, number of columns, number of rows)
+      - Local scratchpad or accumulator address.
+  }];
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr);
+  let assemblyFormat = "$input $addr attr-dict `:` type($input) type($addr)";
+}
+
+def Mvin3Op : Gemmini_Op<"mvin3"> {
+  let summary = "Load operation";
+  let description = [{
+      Similar to Mvin and Mvin2
+          Move data from main memory to scratchpad
+      - MemRef to load in.
+        (including DRAM address, number of columns, number of rows)
+      - Local scratchpad or accumulator address.
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr);
   let assemblyFormat = "$input $addr attr-dict `:` type($input) type($addr)";
@@ -238,7 +288,8 @@ def TileMatMulOp : Gemmini_Op<"tile_matmul"> {
                        DefaultValuedAttr<BoolAttr, "false">:$bTranspose,
                        DefaultValuedAttr<BoolAttr, "false">:$fullC,
                        DefaultValuedAttr<BoolAttr, "false">:$lowD,
-                       DefaultValuedAttr<I64Attr, "0">:$weightA);
+                       DefaultValuedAttr<I64Attr, "0">:$weightA,
+                       DefaultValuedAttr<I64Attr, "1">:$dataflow);
   let assemblyFormat = [{
     $aArray $bArray $cArray $dArray attr-dict `:`
     type($aArray) type($bArray) type($cArray) type($dArray)
@@ -254,7 +305,7 @@ def TileConvOp : Gemmini_Op<"tile_conv"> {
                        MemRefRankOf<[AnyType], [2]>:$weights,
                        MemRefRankOf<[AnyType], [1]>:$bias,
                        MemRefRankOf<[AnyType], [2]>:$output,
-                       I64:$outDim, I64:$kernelDim,
+                       I64:$outRowDim, I64:$outColDim, I64:$kernelDim,
                        DefaultValuedAttr<F32Attr, "1.0">:$scale,
                        DefaultValuedAttr<I64Attr, "1">:$stride,
                        DefaultValuedAttr<I64Attr, "1">:$inputDilation, 
@@ -270,8 +321,8 @@ def TileConvOp : Gemmini_Op<"tile_conv"> {
                        DefaultValuedAttr<I64Attr, "0">:$poolStride, 
                        DefaultValuedAttr<I64Attr, "0">:$poolPadding);
   let assemblyFormat = [{
-    $input $weights $bias $output $outDim $kernelDim attr-dict `:` type($input)
-    type($weights) type($bias) type($output) type($outDim) type($kernelDim)
+    $input $weights $bias $output $outRowDim $outColDim $kernelDim attr-dict `:` type($input)
+    type($weights) type($bias) type($output) type($outRowDim) type($outColDim) type($kernelDim)
   }];
 }
 
@@ -291,6 +342,12 @@ class Gemmini_IntrOpBase<string mnemonic, list<Trait> traits = []> :
 def Gemmini_Mvin_IntrOp : Gemmini_IntrOpBase<"mvin">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
+def Gemmini_Mvin2_IntrOp : Gemmini_IntrOpBase<"mvin2">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_Mvin3_IntrOp : Gemmini_IntrOpBase<"mvin3">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
 def Gemmini_Mvout_IntrOp : Gemmini_IntrOpBase<"mvout">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
@@ -303,7 +360,10 @@ def Gemmini_ConifgLd_IntrOp : Gemmini_IntrOpBase<"config_ld">,
 def Gemmini_ConfigSt_IntrOp : Gemmini_IntrOpBase<"config_st">, 
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
-def Gemmini_ConfigEX_IntrOp : Gemmini_IntrOpBase<"config_ex">,
+def Gemmini_ConfigEX_IntrOp : Gemmini_IntrOpBase<"config_ex">, 
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Gemmini_ConfigNorm_IntrOp : Gemmini_IntrOpBase<"config_norm">, 
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Gemmini_Preload_IntrOp : Gemmini_IntrOpBase<"preload">,

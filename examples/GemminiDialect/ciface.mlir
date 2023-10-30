@@ -127,8 +127,8 @@ func.func @linalg_conv6(%arg0 : memref<1x1x256x256xi8>, %arg1 : memref<1x1x13x13
 func.func @gemmini_conv1(%input: memref<1x256x256x1xi8>, %weights: memref<9x1xi8>, %bias: memref<1xi32>, %output: memref<64516x1xi8>) {
   %outdim = arith.constant 254 : i64 
   %kernelDim = arith.constant 3 : i64
-  gemmini.tile_conv %input %weights %bias %output %outdim %kernelDim {stride = 1} : 
-  memref<1x256x256x1xi8> memref<9x1xi8> memref<1xi32> memref<64516x1xi8> i64 i64
+  gemmini.tile_conv %input %weights %bias %output %outdim %outdim %kernelDim {stride = 1} :
+  memref<1x256x256x1xi8> memref<9x1xi8> memref<1xi32> memref<64516x1xi8> i64 i64 i64
   return 
 }
 
@@ -136,8 +136,8 @@ func.func @gemmini_conv1(%input: memref<1x256x256x1xi8>, %weights: memref<9x1xi8
 func.func @gemmini_conv2(%input: memref<1x256x256x1xi8>, %weights: memref<25x1xi8>, %bias: memref<1xi32>, %output: memref<63504x1xi8>) {
   %outdim = arith.constant 252 : i64 
   %kernelDim = arith.constant 5 : i64
-  gemmini.tile_conv %input %weights %bias %output %outdim %kernelDim {stride = 1} : 
-  memref<1x256x256x1xi8> memref<25x1xi8> memref<1xi32> memref<63504x1xi8> i64 i64
+  gemmini.tile_conv %input %weights %bias %output %outdim %outdim %kernelDim {stride = 1} :
+  memref<1x256x256x1xi8> memref<25x1xi8> memref<1xi32> memref<63504x1xi8> i64 i64 i64
   return 
 }
 
@@ -145,8 +145,8 @@ func.func @gemmini_conv2(%input: memref<1x256x256x1xi8>, %weights: memref<25x1xi
 func.func @gemmini_conv3(%input: memref<1x256x256x1xi8>, %weights: memref<49x1xi8>, %bias: memref<1xi32>, %output: memref<62500x1xi8>) {
   %outdim = arith.constant 250 : i64 
   %kernelDim = arith.constant 7 : i64
-  gemmini.tile_conv %input %weights %bias %output %outdim %kernelDim {stride = 1} : 
-  memref<1x256x256x1xi8> memref<49x1xi8> memref<1xi32> memref<62500x1xi8> i64 i64
+  gemmini.tile_conv %input %weights %bias %output %outdim %outdim %kernelDim {stride = 1} :
+  memref<1x256x256x1xi8> memref<49x1xi8> memref<1xi32> memref<62500x1xi8> i64 i64 i64
   return 
 }
 
@@ -154,8 +154,8 @@ func.func @gemmini_conv3(%input: memref<1x256x256x1xi8>, %weights: memref<49x1xi
 func.func @gemmini_conv4(%input: memref<1x256x256x1xi8>, %weights: memref<81x1xi8>, %bias: memref<1xi32>, %output: memref<61504x1xi8>) {
   %outdim = arith.constant 248 : i64 
   %kernelDim = arith.constant 9 : i64
-  gemmini.tile_conv %input %weights %bias %output %outdim %kernelDim {stride = 1} : 
-  memref<1x256x256x1xi8> memref<81x1xi8> memref<1xi32> memref<61504x1xi8> i64 i64
+  gemmini.tile_conv %input %weights %bias %output %outdim %outdim %kernelDim {stride = 1} :
+  memref<1x256x256x1xi8> memref<81x1xi8> memref<1xi32> memref<61504x1xi8> i64 i64 i64
   return 
 }
 
@@ -163,8 +163,8 @@ func.func @gemmini_conv4(%input: memref<1x256x256x1xi8>, %weights: memref<81x1xi
 func.func @gemmini_conv5(%input: memref<1x256x256x1xi8>, %weights: memref<121x1xi8>, %bias: memref<1xi32>, %output: memref<60516x1xi8>) {
   %outdim = arith.constant 246 : i64 
   %kernelDim = arith.constant 11 : i64
-  gemmini.tile_conv %input %weights %bias %output %outdim %kernelDim {stride = 1} : 
-  memref<1x256x256x1xi8> memref<121x1xi8> memref<1xi32> memref<60516x1xi8> i64 i64
+  gemmini.tile_conv %input %weights %bias %output %outdim %outdim %kernelDim {stride = 1} :
+  memref<1x256x256x1xi8> memref<121x1xi8> memref<1xi32> memref<60516x1xi8> i64 i64 i64
   return 
 }
 
@@ -172,8 +172,8 @@ func.func @gemmini_conv5(%input: memref<1x256x256x1xi8>, %weights: memref<121x1x
 func.func @gemmini_conv6(%input: memref<1x256x256x1xi8>, %weights: memref<169x1xi8>, %bias: memref<1xi32>, %output: memref<59536x1xi8>) {
   %outdim = arith.constant 244 : i64 
   %kernelDim = arith.constant 13 : i64
-  gemmini.tile_conv %input %weights %bias %output %outdim %kernelDim {stride = 1} : 
-  memref<1x256x256x1xi8> memref<169x1xi8> memref<1xi32> memref<59536x1xi8> i64 i64
+  gemmini.tile_conv %input %weights %bias %output %outdim %outdim %kernelDim {stride = 1} :
+  memref<1x256x256x1xi8> memref<169x1xi8> memref<1xi32> memref<59536x1xi8> i64 i64 i64
   return 
 }
 
