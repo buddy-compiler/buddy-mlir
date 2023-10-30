@@ -1,6 +1,7 @@
 # BUDDY MLIR
 
-MLIR-Based Ideas Landing Project ([Project page](https://buddy-compiler.github.io/)).
+An MLIR-based compiler framework designed for a co-design ecosystem from DSL (domain-specific languages) to DSA (domain-specific architectures).
+([Project page](https://buddy-compiler.github.io/)).
 
 ## Getting Started
 
@@ -46,6 +47,18 @@ $ cmake -G Ninja ../llvm \
     -DCMAKE_BUILD_TYPE=RELEASE
 ```
 
+To enable MLIR Python bindings, please use the following configuration:
+
+```
+$ cmake -G Ninja ../llvm \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+    -DPython3_EXECUTABLE=$(which python3)
+```
+
 If your target machine has lld installed, you can use the following configuration:
 
 ```
@@ -72,6 +85,18 @@ $ cmake -G Ninja .. \
     -DCMAKE_BUILD_TYPE=RELEASE
 $ ninja
 $ ninja check-buddy
+```
+
+To utilize the Buddy Compiler Python package, please ensure that the MLIR Python bindings are enabled and use the following configuration:
+
+```
+$ cmake -G Ninja .. \
+    -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
+    -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+    -DPython3_EXECUTABLE=$(which python3)
 ```
 
 If you want to add domain-specific framework support, please add the following cmake options:
@@ -127,10 +152,6 @@ This program should be a drop-in replacement for `mlir-lsp-server`, supporting n
 
 After modification, your editor should have correct completion and error prompts for new dialects such as `rvv` and `gemmini`.
 
-### AutoConfig Mechanism
-
-The `AutoConfig` mechanism is designed to detect the target hardware and configure the toolchain automatically.
-
 ## Examples
 
 The purpose of the examples is to give users a better understanding of how to use the passes and the interfaces in buddy-mlir. Currently, we provide three types of examples.
@@ -140,3 +161,19 @@ The purpose of the examples is to give users a better understanding of how to us
 - Testing and demonstrating examples.
 
 For more details, please see the [documentation of the examples](./examples/README.md).
+
+## How to Cite
+
+If you find our project and research useful or refer to it in your own work, please cite our paper as follows:
+
+```
+@article{zhang2023compiler,
+  title={Compiler Technologies in Deep Learning Co-Design: A Survey},
+  author={Zhang, Hongbin and Xing, Mingjie and Wu, Yanjun and Zhao, Chen},
+  journal={Intelligent Computing},
+  year={2023},
+  publisher={AAAS}
+}
+```
+
+For direct access to the paper, please visit [Compiler Technologies in Deep Learning Co-Design: A Survey](https://spj.science.org/doi/10.34133/icomputing.0040).

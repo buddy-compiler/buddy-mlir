@@ -38,11 +38,6 @@ enum class DIP_OP { CORRELATION_2D, EROSION_2D, DILATION_2D };
 // from lowering passes with appropriate messages.
 enum class DIP_ERROR { INCONSISTENT_TYPES, UNSUPPORTED_TYPE, NO_ERROR };
 
-// Inserts a constant op with value 0 into a location `loc` based on type
-// `type`. Supported types are : f32, f64, integer types.
-Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
-                           Type elemTy);
-
 // Inserts FMA operation into a given location `loc` based on type `type`.
 // Note: FMA is done by Multiply and Add for integer types, because there is no
 // dedicated FMA operation for them.
@@ -110,6 +105,17 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
 
 // Calculate tan(angle / 2) where angle is a function parameter.
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal);
+
+// Get affine matrix used in rotation.
+SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
+                                        Value centerX, Value centerY,
+                                        Value angle, Value scale);
+
+// Controls affine transform application.
+void affineTransformController(OpBuilder &builder, Location loc,
+                               MLIRContext *ctx, Value input, Value output,
+                               SmallVector<Value, 6> affineMatrix,
+                               int64_t stride);
 
 // Controls shear transform application.
 void shearTransformController(

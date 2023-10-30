@@ -23,7 +23,7 @@
 
 #include "buddy/Core/Container.h"
 #include "buddy/DIP/ImageContainer.h"
-
+#include <math.h>
 namespace dip {
 // Availale types of boundary extrapolation techniques provided in DIP dialect.
 enum class BOUNDARY_OPTION { CONSTANT_PADDING, REPLICATE_PADDING };

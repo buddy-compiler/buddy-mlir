@@ -203,7 +203,7 @@ void LowerGemminiToLLVMPass::runOnOperation() {
   LLVMTypeConverter converter(context);
   RewritePatternSet patterns(context);
   LLVMConversionTarget target(*context);
-  configureGemminiegalizeForExportTarget(target);
+  configureGemminiLegalizeForExportTarget(target);
   populateGemminiLegalizeForLLVMExportPatterns(
       converter, patterns, dim, addrLen, sizeOfElemT, sizeOfAccT);
   populateAffineToStdConversionPatterns(patterns);

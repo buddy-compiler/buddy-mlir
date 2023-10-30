@@ -32,9 +32,31 @@
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Value.h>
 
+#include <initializer_list>
+#include <numeric>
+
 using namespace mlir;
 
 namespace buddy {
+
+// Inserts a constant op with value 0 into a location `loc` based on type
+// `type`. Supported types are : f32, f64, integer types.
+Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
+                           Type elemTy) {
+  Value op = {};
+  auto bitWidth = elemTy.getIntOrFloatBitWidth();
+  if (elemTy.isF32() || elemTy.isF64()) {
+    FloatType type =
+        elemTy.isF32() ? FloatType::getF32(ctx) : FloatType::getF64(ctx);
+    auto zero = APFloat::getZero(type.getFloatSemantics());
+    op = builder.create<arith::ConstantFloatOp>(loc, zero, type);
+  } else if (elemTy.isInteger(bitWidth)) {
+    IntegerType type = IntegerType::get(ctx, bitWidth);
+    op = builder.create<arith::ConstantIntOp>(loc, 0, type);
+  }
+
+  return op;
+}
 
 // Function to test whether a value is equivalent to zero or not.
 Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
@@ -98,6 +120,15 @@ Value valBound(OpBuilder &builder, Location loc, Value val, Value lastElemF32,
   return builder.create<arith::MinFOp>(loc, interm1, lastElemF32);
 }
 
+// check if lb <= val < ub and returns Value 0 or 1
+Value inBound(OpBuilder &builder, Location loc, Value val, Value lb, Value ub) {
+  Value greaterThanLb =
+      builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sle, lb, val);
+  Value lowerThanUb =
+      builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, val, ub);
+  return builder.create<arith::AndIOp>(loc, greaterThanLb, lowerThanUb);
+}
+
 // Equivalent of std::iota.
 Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
               Value indexStart, Value strideVal, VectorType vecType, Value c0,
@@ -121,11 +152,44 @@ Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
   return builder.create<vector::LoadOp>(loc, vecType, tempMem, ValueRange{c0});
 }
 
+// Generate vector[0, 1, ..., length - 1] with f32 type
+Value iotaVec0F32(OpBuilder &builder, Location loc, int64_t length) {
+  MLIRContext *ctx = builder.getContext();
+  std::vector<float> vec(length);
+  std::iota(vec.begin(), vec.end(), .0);
+  Value res = builder.create<arith::ConstantOp>(
+      loc,
+      DenseFPElementsAttr::get(VectorType::get(length, FloatType::getF32(ctx)),
+                               ArrayRef<float>(vec)));
+  return res;
+}
+
 // Cast index type value to f32 type and then expand it in a vector.
 Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                     VectorType vecType) {
   Value interm1 = indexToF32(builder, loc, val);
   return builder.create<vector::SplatOp>(loc, vecType, interm1);
+}
+
+// print values(for debug use)
+void printValues(OpBuilder &builder, Location loc,
+                 std::initializer_list<Value> values) {
+  if (empty(values))
+    return;
+  Type valueTy = values.begin()->getType();
+  VectorType vecTy = VectorType::get({(long)values.size()}, valueTy);
+  Value vec = builder.create<vector::SplatOp>(loc, vecTy, *values.begin());
+  int idx = 0;
+  for (auto value : values) {
+    if (idx != 0) {
+      // all values should have same type
+      assert(value.getType() == valueTy);
+      Value idxVal = builder.create<arith::ConstantIndexOp>(loc, idx);
+      vec = builder.create<vector::InsertElementOp>(loc, value, vec, idxVal);
+    }
+    idx++;
+  }
+  builder.create<vector::PrintOp>(loc, vec);
 }
 
 // Function for calculating complex addition of 2 input 1D complex vectors.
