@@ -182,7 +182,7 @@ public:
         loc, rewriter.getI64Type(),
         rewriter.getI64IntegerAttr(weightsShape[2]));
     rewriter.create<gemmini::TileConvOp>(
-        loc, inputMat, weightsMat, bias, outputMat, outDim, kernelDim,
+        loc, inputMat, weightsMat, bias, outputMat, outDim, outDim, kernelDim,
         llvm::APFloat(float(1.0)), strides, dilations);
     rewriter.eraseOp(convOp);
     loopIvs0.clear();
@@ -309,7 +309,7 @@ public:
     attr = rewriter.getI64IntegerAttr(kernelShape[1]);
     kernelDim = rewriter.create<arith::ConstantOp>(loc, attr);
     rewriter.create<gemmini::TileConvOp>(
-        loc, input, kernelMat, bias, outputMat, outDim, kernelDim,
+        loc, input, kernelMat, bias, outputMat, outDim, outDim, kernelDim,
         llvm::APFloat(float(1.0)), strides, dilations);
     // after the conv operation is completed, the data in outputmat needs to be
     // transferred into output.
