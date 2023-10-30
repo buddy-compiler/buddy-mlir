@@ -29,6 +29,7 @@
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/ValueRange.h"
+#include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/ArrayRef.h"
 #include <cstdint>
 #include <mlir/Dialect/Affine/Analysis/AffineAnalysis.h>
@@ -62,11 +63,22 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op->getLoc();
+    auto permutationArrayAttr =
+        op->getAttr(rewriter.getStringAttr("permutation"))
+            .cast<DenseI64ArrayAttr>()
+            .asArrayRef();
 
-    // Retrieve input tensors A, B, and C.
+    // Retrieve input tensors A, B.
     Value A = op->getOperand(0);
     Value B = op->getOperand(1);
+
+    // Only to rewrite the rank 2 tensor transpose.
+    if (permutationArrayAttr[0] != 1 or permutationArrayAttr[1] != 0 or
+        A.getType().cast<MemRefType>().getRank() != 2) {
+      return failure();
+    }
+
+    auto loc = op->getLoc();
 
     // Acquire the element type of input tensors.
     Type elementType = A.getType().cast<MemRefType>().getElementType();
@@ -124,7 +136,7 @@ public:
         llvm::map_range(ArrayRef<LoopReduction>{},
                         [](const LoopReduction &red) { return red.value; }));
 
-    // Create the primary parallel batch level loop.
+    // Create the primary parallel loop.
     AffineParallelOp parallelColLoop =
         rewriter.create<affine::AffineParallelOp>(
             loc, ValueRange(reducedValues).getTypes(), ValueRange{Col},
@@ -401,7 +413,7 @@ class TransposeOptimizationPass
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TransposeOptimizationPass)
   StringRef getArgument() const final { return "transpose-optimize"; }
-  StringRef getDescription() const final { return "Transpose Optimization."; }
+  StringRef getDescription() const final { return "Transpose Optimization only for rank 2 tensor."; }
   TransposeOptimizationPass() = default;
   TransposeOptimizationPass(const TransposeOptimizationPass &) {}
   explicit TransposeOptimizationPass(int64_t affineVectorSizeParam) {

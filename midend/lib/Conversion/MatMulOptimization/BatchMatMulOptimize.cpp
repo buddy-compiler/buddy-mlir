@@ -24,13 +24,10 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/IntegerSet.h"
-#include "mlir/IR/TypeRange.h"
 #include "mlir/IR/ValueRange.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/Support/Debug.h"
 #include <cstdint>
 #include <mlir/Dialect/Affine/Analysis/AffineAnalysis.h>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
