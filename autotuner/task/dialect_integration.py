@@ -1,4 +1,4 @@
-# ===- dialect_integration.py -------------------------------------------------------------
+# ===- dialect_integration.py --------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -83,7 +83,6 @@ def extract_from_program(program, params, target="gemmini", ops=None):
         logger.disabled = True
 
         # TODO: lower code, maybe multiple passes here
-
         logger.disabled = old_state
 
     tasks = []

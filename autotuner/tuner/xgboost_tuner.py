@@ -1,4 +1,4 @@
-# ===- xgboost_tuner.py -------------------------------------------------------------
+# ===- xgboost_tuner.py --------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,7 +46,9 @@ class XGBTuner(ModelBasedTuner):
             optimizer = SimulatedAnnealingOptimizer(task, log_interval=log_interval)
         else:
             assert isinstance(optimizer, ModelOptimizer), (
-                "Optimizer must be " "a supported name string" "or a ModelOptimizer object."
+                "Optimizer must be "
+                "a supported name string"
+                "or a ModelOptimizer object."
             )
 
         super(XGBTuner, self).__init__(

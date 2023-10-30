@@ -1,4 +1,4 @@
-# ===- xgboost_cost_model.py -------------------------------------------------------------
+# ===- xgboost_cost_model.py ---------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ class XGBoostCostModel(CostModel):
             self.xgb_params["nthread"] = num_threads
         self.bst = None
 
-        # TODO: 后续可以继续探索 feature 的选用
+        # TODO: how can we get features.
         self.fea_type = "knob"
         self.feature_extract_func = _extract_knob_feature_index
 
@@ -372,7 +372,7 @@ def _extract_knob_feature_log(arg):
     x = config.get_flatten_feature()
 
     if res.error_no == 0:
-        # TODO: 我们现在直接默认每个任务的 FLOP 固定，暂时不支持计算任务负载的 FLOP
+        # TODO: Now we set a fixed FLOP for every task.
         # with inp.target:  # necessary, for calculating flops of this task
         #     inp.task.instantiate(config)
         y = inp.task.flop / np.mean(res.costs)

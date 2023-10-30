@@ -1,4 +1,4 @@
-# ===- measure_methods.py -------------------------------------------------------------
+# ===- measure_methods.py ------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,8 @@
 # ===---------------------------------------------------------------------------
 #
 # Functions that run on executor for measurement.
-# Responsible for building, recording the running time costs, and checking the correctness of the output.
+# Responsible for building, recording the running time costs, and checking the
+# correctness of the output.
 #
 # ===---------------------------------------------------------------------------
 

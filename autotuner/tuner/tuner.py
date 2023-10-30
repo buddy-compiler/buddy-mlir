@@ -1,4 +1,4 @@
-# ===- tuner.py -------------------------------------------------------------
+# ===- tuner.py ----------------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ class Tuner(object):
         self, n_trial, measure_option, early_stopping=None, callbacks=(), si_prefix="G"
     ):
         """Begin tuning"""
-        # 指定输出目录
+        # specify the output directory.
         output_dir = os.path.join(os.getcwd(), "results")
         if not os.path.exists(output_dir):
             os.mkdir(output_dir)
@@ -96,7 +96,7 @@ class Tuner(object):
             for k, (inp, res) in enumerate(zip(inputs, results)):
                 config = inp.config
                 if res.error_no == 0:
-                    # TODO: 现在是根据 build 和 run 的 总时间开销 来作为评估标准
+                    # TODO: now, all_cost = time_build + time_run
                     time_cost = res.all_cost
                     error_ct = 0
                     result_msg = res
