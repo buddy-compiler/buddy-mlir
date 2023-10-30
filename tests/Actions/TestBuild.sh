@@ -16,7 +16,8 @@ if [ -z "$(ls -A ./)" ]
 then
     cmake -G Ninja ../llvm \
         -DLLVM_ENABLE_PROJECTS="mlir" \
-        -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+        -DLLVM_TARGETS_TO_BUILD="host;RISCV;NVPTX" \
+        -DMLIR_ENABLE_CUDA_RUNNER=ON \
         -DLLVM_ENABLE_ASSERTIONS=ON \
         -DCMAKE_BUILD_TYPE=RELEASE
     ninja
