@@ -40,7 +40,8 @@ add_custom_target(llama ALL
     COMMENT "Building llama.o"
     VERBATIM)
 
-add_library(LLAMA STATIC llama.o)
+add_library(LLAMA SHARED llama.o)
+target_link_libraries(LLAMA omp mlir_c_runner_utils)
 
 SET_SOURCE_FILES_PROPERTIES(
   template.o
@@ -55,4 +56,4 @@ SET_TARGET_PROPERTIES(
 
 add_executable(buddy-llama-run llama-main.cpp)
 target_link_directories(buddy-llama-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})
-target_link_libraries(buddy-llama-run LLAMA mlir_c_runner_utils omp)
+target_link_libraries(buddy-llama-run LLAMA)
