@@ -168,6 +168,17 @@ if(BUDDY_DSL_EXAMPLES)
 endif()
 
 #-------------------------------------------------------------------------------
+# The `mimalloc` Configuration
+#-------------------------------------------------------------------------------
+
+if(BUDDY_MLIR_USE_MIMALLOC)
+  if(MIMALLOC_BUILD_DIR)
+    list(APPEND CMAKE_PREFIX_PATH ${MIMALLOC_BUILD_DIR})
+  endif()
+  find_package(mimalloc REQUIRED)
+endif()
+
+#-------------------------------------------------------------------------------
 # Initialize Python packages
 #-------------------------------------------------------------------------------
 if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
