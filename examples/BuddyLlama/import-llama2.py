@@ -37,7 +37,6 @@ model = LlamaForCausalLM.from_pretrained(model_path, torchscript=True)
 prompt = "Hey, how are you?"
 inputs = tokenizer(prompt, return_tensors="pt")
 inputs = inputs.input_ids
-
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=aot_autograd_decompositions,

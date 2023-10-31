@@ -25,8 +25,8 @@ foo_mlir(in1)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tensor.empty
-# CHECK: %{{.*}} = linalg.generic
+# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = "tosa.transpose"
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }
