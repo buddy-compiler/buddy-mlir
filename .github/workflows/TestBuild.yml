@@ -21,7 +21,7 @@ jobs:
       - name: Prepare llvm build directory name
         id: llvm-build-dir
         run: |
-          echo "commit=$(git submodule status | awk '{print $1;}')" >> $GITHUB_OUTPUT
+          echo "commit=$(git submodule status llvm | awk '{print $1;}')" >> $GITHUB_OUTPUT
       - name: Cache llvm build directory
         uses: actions/cache@v3
         with:

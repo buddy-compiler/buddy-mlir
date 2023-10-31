@@ -24,13 +24,18 @@
 #define CONFIG_LD 1
 #define CONFIG_ST 2
 #define CONFIG_EX 0
+#define CONFIG_BERT 3
+
+#define GARBAGE_ADDR ((uint32_t)(-1))
+#define OUTPUT_STATIONARY 0
+#define WEIGHT_STATIONARY 1
+
+#define MVIN_SCALE_IDENTITY 1.0
 #define ACC_SCALE_IDENTITY 1.0
 #define BANK_NUM 4
 #define BANK_ROWS 4096
 #define ACC_ROWS 1024 
 #define MAX_BYTES 64
-#define MAX_BLOCK_LEN (MAX_BYTES/(DIM*1))
-#define MAX_BLOCK_LEN_ACC (MAX_BYTES/(DIM*4))
 #define HAS_FIRST_LAYER_OPTIMIZATIONS
 
 typedef uint32_t acc_scale_t_bits;

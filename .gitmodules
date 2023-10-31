@@ -2,3 +2,6 @@
 	path = llvm
 	url = https://github.com/llvm/llvm-project.git
 	branch = main
+[submodule "thirdparty/mimalloc"]
+	path = thirdparty/mimalloc
+	url = https://github.com/microsoft/mimalloc.git
