@@ -1,4 +1,4 @@
-# ===- test-llama2.py ----------------------------------------------------------
+# ===- import-llama2.py --------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,24 +18,26 @@
 #
 # ===---------------------------------------------------------------------------
 
+import os
+
+import numpy
 import torch
 from transformers import LlamaForCausalLM, LlamaTokenizer
 import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
 from torch._functorch.aot_autograd import aot_autograd_decompositions
-import numpy
-import os
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
-tokenizer = LlamaTokenizer.from_pretrained("/root/llama-2-7b-chat-hf")
-model = LlamaForCausalLM.from_pretrained(
-    "/root/llama-2-7b-chat-hf", torchscript=True
-)
+
+model_path = os.environ.get('LLAMA_MODEL_PATH')
+tokenizer = LlamaTokenizer.from_pretrained(model_path)
+model = LlamaForCausalLM.from_pretrained(model_path, torchscript=True)
 prompt = "Hey, how are you?"
 inputs = tokenizer(prompt, return_tensors="pt")
 inputs = inputs.input_ids
+
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=aot_autograd_decompositions,

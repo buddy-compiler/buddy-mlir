@@ -2,7 +2,7 @@
 // RUN:     --lower-gemmini | \
 // RUN: FileCheck %s
 
-// batchSize = 1 inputDIm = 5 inChannels = 2 
+// batchSize = 1 inputDim = 5 inChannels = 1 
 memref.global "private" @input : memref<1x5x5x1xi8> = dense<[[[[1], [0], [-1], [0], [1]],
                                                               [[1], [0], [-1], [0], [1]],
                                                               [[1], [0], [-1], [0], [1]],
@@ -32,8 +32,8 @@ func.func @main() -> i64 {
   // CHECK: "gemmini.intr.loop_conv_ws_config6"
   // CHECK: "gemmini.intr.loop_conv_ws"
   // CHECK: "gemmini.intr.flush"
-  gemmini.tile_conv %input %weight %bias %output %3 %3 {stride = 1}: 
-  memref<1x5x5x1xi8> memref<9x2xi8> memref<2xi32> memref<9x2xi8> i64 i64
+  gemmini.tile_conv %input %weight %bias %output %3 %3 %3 {stride = 1}:
+  memref<1x5x5x1xi8> memref<9x2xi8> memref<2xi32> memref<9x2xi8> i64 i64 i64
   gemmini.print %output : memref<9x2xi8>
   return %0 : i64
 }

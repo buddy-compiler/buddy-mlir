@@ -24,7 +24,10 @@
 #include "buddy/Core/Container.h"
 #include "buddy/DIP/imgcodecs/replenishment.h"
 #include <cassert>
+
+#ifdef BUDDY_ENABLE_OPENCV
 #include <opencv2/opencv.hpp>
+#endif
 
 using namespace dip;
 // Image container.
@@ -68,12 +71,14 @@ public:
   // Move assignment operator.
   Img &operator=(Img<T, N> &&m);
 
+#ifdef BUDDY_ENABLE_OPENCV
   /**
    * @brief Load image data from OpenCV Mat.
    * @param image represents the OpenCV Mat object.
    * @param norm indicates whether to perform.
    */
   Img(cv::Mat image, intptr_t sizes[N] = nullptr, bool norm = false);
+#endif
 
   int channels();
 };
@@ -133,6 +138,7 @@ Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
 template <typename T, size_t N>
 Img<T, N>::Img(T *data, intptr_t sizes[N]) : MemRef<T, N>(data, sizes) {}
 
+#ifdef BUDDY_ENABLE_OPENCV
 // Image Constructor from OpenCV Mat.
 template <typename T, size_t N>
 Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
@@ -173,6 +179,7 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
     }
   }
 }
+#endif
 
 template <typename T, size_t N> int Img<T, N>::channels() {
   if (N == 2) {

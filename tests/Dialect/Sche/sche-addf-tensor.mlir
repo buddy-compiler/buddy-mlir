@@ -1,0 +1,25 @@
+// RUN: buddy-opt %s -device-schedule | FileCheck %s -check-prefix=CHECK_schedule
+// RUN: buddy-opt %s -device-schedule -lower-sche | FileCheck %s -check-prefix=CHECK_lower
+
+func.func @main() -> tensor<1x8x1x1xf32> attributes{sche.devices}{
+  // CHECK_schedule: sche.on_device{{.*}}sche.source = "func", targetConfig = "", targetId = "gpu1"
+  // CHECK_schedule: sche.on_device{{.*}}sche.source = "func", targetConfig = "", targetId = "gpu2"
+  // CHECK_lower: gpu.launch {{.*}}{
+  // CHECK_lower: bufferization.to_memref
+  // CHECK_lower: bufferization.to_memref
+  // CHECK_lower: }
+  // CHECK_lower: bufferization.to_tensor
+  // CHECK_lower: bufferization.to_tensor
+  // CHECK_lower: bufferization.to_memref
+  // CHECK_lower: bufferization.to_memref
+  // CHECK_lower: gpu.launch {{.*}}{
+  // CHECK_lower: bufferization.to_tensor
+  // CHECK_lower: bufferization.to_tensor
+  // CHECK_lower: bufferization.to_memref
+  // CHECK_lower: }
+  // CHECK_lower: bufferization.to_tensor
+  %0 = arith.constant dense<1.000000e-01> : tensor<1x8x1x1xf32>
+  %1 = arith.constant dense<0.000000e+00> : tensor<1x8x1x1xf32>
+  %2 = arith.addf %0, %1 : tensor<1x8x1x1xf32>
+  return %2 : tensor<1x8x1x1xf32>
+}

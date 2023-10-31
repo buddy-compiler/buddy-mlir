@@ -1,5 +1,5 @@
 // RUN: buddy-opt -batchmatmul-optimize -verify-diagnostics -expand-strided-metadata -lower-affine -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf -convert-linalg-to-llvm -llvm-request-c-wrappers -convert-func-to-llvm -reconcile-unrealized-casts %s \
-// RUN: | mlir-cpu-runner -O0 -e buddy_batchmatmul_f32 \
+// RUN: | mlir-cpu-runner -O0 -e buddy_batchmatmul_f32 -entry-point-result=void \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
@@ -9,7 +9,7 @@ memref.global "private" @C : memref<2x2x4xf32> = dense<[[[ 49., 113., 146.,  82.
 
 func.func private @printMemrefF32(memref<*xf32>) attributes { llvm.emit_c_interface }
 
-func.func @buddy_batchmatmul_f32() -> f32{
+func.func @buddy_batchmatmul_f32(){
   %a = memref.get_global @A : memref<2x2x3xf32>
   %b = memref.get_global @B : memref<2x3x4xf32>
   %c = memref.get_global @C : memref<2x2x4xf32>
@@ -24,6 +24,5 @@ func.func @buddy_batchmatmul_f32() -> f32{
   // CHECK{LITERAL}:   [12,    76,    96,    56]], 
   // CHECK{LITERAL}:  [[48,    162,    72,    156], 
   // CHECK{LITERAL}:   [16,    112,    0,    104]]]
-  %zero = arith.constant 0.0 :f32
-  return %zero :f32
+  return
 }

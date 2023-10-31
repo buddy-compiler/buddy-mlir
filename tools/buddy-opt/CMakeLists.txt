@@ -12,6 +12,7 @@ target_link_libraries(buddy-opt
   MLIROptLib
   CBConvVectorization
   BuddyBud
+  BuddySche
   LowerBudPass
   BuddyDIP
   LowerDIPPass
@@ -21,10 +22,14 @@ target_link_libraries(buddy-opt
   LowerRVVPass
   MatMulOptimization
   BatchMatMulOptimization
+  MatMulParallelVectorization
+  TransposeOptimization
   ConvOptimization
   VectorExp
   LowerVectorExpPass
   BuddyGemmini
   LowerGemminiPass
   LowerLinalgToGemminiPass
+  SchedulingOnDevices
+  LowerSche
   )
