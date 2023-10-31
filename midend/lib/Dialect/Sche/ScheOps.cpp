@@ -44,7 +44,6 @@ namespace buddy::sche {
         Region* bodyRegion = result.addRegion();
         bodyRegion->push_back(new Block());
         auto& bodyBlock = bodyRegion->front();
-        // bodyBlock.addArguments(args.getTypes(), SmallVector<Location>(args.size(), result.location));
         result.addTypes(resultTypes);
 
         if (bodyBuilder) {
@@ -123,7 +122,7 @@ namespace buddy::sche {
 
     }
     
-    //operation ::= `gpu.launch` (`async` `[` ssa-id-list `]`)? `(`$operands`)` attr-dict functional-type(operands, results) $region
+    //operation ::= `sche.on_device` (`async` `[` ssa-id-list `]`)? `(`$operands`)` attr-dict functional-type(operands, results) $region
     ::mlir::ParseResult OnDeviceOp::parse(::mlir::OpAsmParser &parser, ::mlir::OperationState &result) {
     ::llvm::SmallVector<::mlir::OpAsmParser::UnresolvedOperand, 4> asyncDependencies;
     ::llvm::SMLoc asyncDependenciesOperandsLoc;
@@ -134,17 +133,17 @@ namespace buddy::sche {
     ::llvm::ArrayRef<::mlir::Type> innerOperandsTypes;
     ::llvm::ArrayRef<::mlir::Type> innerResultsTypes;
     std::unique_ptr<::mlir::Region> regionRegion = std::make_unique<::mlir::Region>();
-
-    Type asyncTokenType;
+    ::mlir::Type asyncTokenType;
+    if (succeeded(parser.parseOptionalKeyword("async"))) {
+        result.types.push_back(parser.getBuilder().getType<AsyncTokenType>());
+    }
     if (failed(
           parseAsyncDependencies(parser, asyncTokenType, asyncDependencies)) ||
       parser.resolveOperands(asyncDependencies, asyncTokenType,
                              result.operands))
     return failure();
-    
     if (parser.parseLParen())
         return ::mlir::failure();
-
     innerOperandsOperandsLoc = parser.getCurrentLocation();
     if (parser.parseOperandList(innerOperandsOperands))
         return ::mlir::failure();
@@ -152,23 +151,17 @@ namespace buddy::sche {
         return ::mlir::failure();
     if (parser.parseOptionalAttrDict(result.attributes))
         return ::mlir::failure();
-
     ::mlir::FunctionType innerOperands__innerResults_functionType;
     if (parser.parseType(innerOperands__innerResults_functionType))
         return ::mlir::failure();
     innerOperandsTypes = innerOperands__innerResults_functionType.getInputs();
     innerResultsTypes = innerOperands__innerResults_functionType.getResults();
-
     if (parser.parseRegion(*regionRegion))
         return ::mlir::failure();
     result.addRegion(std::move(regionRegion));
     result.addAttribute("operand_segment_sizes", parser.getBuilder().getDenseI32ArrayAttr({static_cast<int32_t>(asyncDependencies.size()), static_cast<int32_t>(innerOperandsOperands.size())}));
-    result.addAttribute("result_segment_sizes", parser.getBuilder().getDenseI32ArrayAttr({1, static_cast<int32_t>(innerResultsTypes.size())}));
-    ::mlir::Type odsBuildableType0 = buddy::sche::AsyncTokenType::get(parser.getBuilder().getContext());
-    result.addTypes(asyncTokenType);
+    result.addAttribute("result_segment_sizes", parser.getBuilder().getDenseI32ArrayAttr({static_cast<int32_t>(parser.getNumResults()) - static_cast<int32_t>(innerResultsTypes.size()), static_cast<int32_t>(innerResultsTypes.size())}));
     result.addTypes(innerResultsTypes);
-    if (parser.resolveOperands(asyncDependencies, odsBuildableType0, asyncDependenciesOperandsLoc, result.operands))
-        return ::mlir::failure();
     if (parser.resolveOperands(innerOperandsOperands, innerOperandsTypes, innerOperandsOperandsLoc, result.operands))
         return ::mlir::failure();
     return ::mlir::success();

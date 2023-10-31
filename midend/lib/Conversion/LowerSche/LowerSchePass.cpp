@@ -28,8 +28,10 @@
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Async/IR/Async.h"
+#include "mlir/IR/BuiltinDialect.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/IR/Builders.h"
 
 #include "Bud/BudDialect.h"
 #include "Bud/BudOps.h"
@@ -60,94 +62,23 @@ public:
     assert(operands.size() == 1);
     auto loc = op->getLoc();
     auto typeConverter = getTypeConverter();
-    // auto onDeviceOp = dyn_cast<sche::OnDeviceOp>(op);
     rewriter.setInsertionPoint(op);
-    // Value res = dyn_cast<sche::WaitOp>(op).getAsyncToken();
-    // Type resType = res ? typeConverter->convertType(res.getType()) : (Type)nullptr;
     auto awaitOp = rewriter.create<async::AwaitOp>(loc, operands[0]);
-    // if(res != nullptr){
-    //   res.replaceAllUsesWith(awaitOp.getAsyncToken());
-    // }
     rewriter.eraseOp(op);
     return success();
   }
 };
 
-void lowerFromForOp(scf::ForOp forOp, gpu::LaunchOp gpuLaunchOp, Location loc,  PatternRewriter &rewriter,Value gridX, Value gridY, Value gridZ, Value blockX, Value blockY, Value blockZ){
-  rewriter.setInsertionPoint(gpuLaunchOp);
-  Value upperBound = forOp.getUpperBound();
-  Value lowerBound = forOp.getLowerBound();
-  Value step = forOp.getStep();
-  //计算需要在一个block中的步长范围
-  auto range = rewriter.create<arith::SubIOp>(loc, upperBound, lowerBound);
-  Value stepRange = rewriter.create<arith::DivSIOp>(loc, range.getResult(), step);
-  Value stepRangeInBlock = rewriter.create<arith::DivSIOp>(loc, stepRange, gridX);
-  Value remInBlock = rewriter.create<arith::RemSIOp>(loc, stepRange, gridX);
-  auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
-  auto idx1 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
-
-  auto& body = gpuLaunchOp.getBody();
-  auto& bodyBlock = body.front();
-
-  rewriter.setInsertionPointToEnd(&bodyBlock);
-
-  Value start = rewriter.create<arith::MulIOp>(loc, stepRangeInBlock, gpuLaunchOp.getBlockIds().x);
-  start = rewriter.create<arith::AddIOp>(loc, start, lowerBound);
-  Value cmp_rem_blkId = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, remInBlock, gpuLaunchOp.getBlockIds().x);
-  Value cmp_rem_blkId_index = rewriter.create<arith::IndexCastUIOp>(loc, rewriter.getIndexType(), cmp_rem_blkId);
-  stepRangeInBlock = rewriter.create<arith::AddIOp>(loc, cmp_rem_blkId_index, stepRangeInBlock);
-  Value min = rewriter.create<arith::MinUIOp>(loc, gpuLaunchOp.getBlockIds().x, remInBlock);
-  start = rewriter.create<arith::AddIOp>(loc, start, min);
-  //一个thread中的步长范围
-  Value stepRangeInThread = rewriter.create<arith::DivSIOp>(loc, stepRangeInBlock, gpuLaunchOp.getBlockSizeX());
-  Value remInThread = rewriter.create<arith::RemSIOp>(loc, stepRangeInBlock, gpuLaunchOp.getBlockSizeX());
-  Value cmp_rem_threadId = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, remInThread, gpuLaunchOp.getThreadIds().x);
-  Value cmp_rem_threadId_index = rewriter.create<arith::IndexCastUIOp>(loc, rewriter.getIndexType(), cmp_rem_threadId);
-  stepRangeInThread = rewriter.create<arith::AddIOp>(loc, cmp_rem_threadId_index, stepRangeInThread);
-
-  Value end = rewriter.create<arith::AddIOp>(loc, start, stepRangeInThread);
-
-  auto sub_forOp = rewriter.create<scf::ForOp>(loc, idx0, stepRangeInThread, idx1, forOp.getInitArgs(), 
-                                                [&](OpBuilder& builder, Location loc, 
-                                                Value iv, ValueRange iterArgs)
-  {
-    Block &bodyBlock = forOp.getLoopBody().front();//原始for的bodyBlock
-    IRMapping mp;
-    iv = builder.create<arith::MulIOp>(loc, iv, gpuLaunchOp.getBlockSizeX());
-    iv = builder.create<arith::AddIOp>(loc, iv, gpuLaunchOp.getThreadIds().x);
-    iv = builder.create<arith::MulIOp>(loc, iv, step);
-    iv = builder.create<arith::AddIOp>(loc, iv, start);
-    mp.map(bodyBlock.getArgument(0), iv);
-    for(auto&& [a, b] : llvm::zip(bodyBlock.getArguments().drop_front(), iterArgs)){
-      mp.map(a, b);
-    }
-    for(auto&& op_ : bodyBlock.getOperations()){
-      builder.insert(op_.clone(mp));
-    }
-  });
-}
-//gpu 同步/异步，使用映射内存还是copy
+//lower to GPU Dialect
 class OnDeviceOpScheLowering : public ConversionPattern  {
 public:
 explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *context)
       : ConversionPattern(typeConverter, sche::OnDeviceOp::getOperationName(), 1, context) {}
 
-  LogicalResult
-  matchAndRewrite(Operation* op, ArrayRef<mlir::Value> operands, 
-                  mlir::ConversionPatternRewriter &rewriter) const final {
-    auto loc = op->getLoc();
-
-    auto onDeviceOp = dyn_cast<sche::OnDeviceOp>(op);
-    rewriter.setInsertionPoint(op);
-
-    IRMapping mp;
-
-    auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
-
-    auto innerOperands = operands.take_back(onDeviceOp.getODSOperandIndexAndLength(1).second - onDeviceOp.getODSOperandIndexAndLength(1).first);
-    auto asyncDependencies = operands.take_front(onDeviceOp.getODSOperandIndexAndLength(0).second - onDeviceOp.getODSOperandIndexAndLength(0).first);
-    
-    for(auto v : innerOperands){
+  //convert operands with tensor or vector type into memref operands, and register these operands to GPU
+  OpBuilder::InsertPoint convertOperands(mlir::ConversionPatternRewriter &rewriter, ValueRange operands, IRMapping &mp, Location& loc, OpBuilder::InsertPoint insertPointBeforeOp, OpBuilder::InsertPoint insertPointToBlockStart) const {
+    rewriter.restoreInsertionPoint(insertPointBeforeOp);
+    for(auto v : operands){
       auto t = v.getType();
       if(t.isa<TensorType>()){
         auto shape = t.dyn_cast<TensorType>().getShape();
@@ -165,6 +96,7 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
         auto alloc_op = rewriter.create<memref::AllocOp>(loc, mem_type);
         auto memref_cast_op = rewriter.create<memref::CastOp>(loc, UnrankedMemRefType::get(ele_type, {}), alloc_op.getResult());
         auto host_register_op = rewriter.create<gpu::HostRegisterOp>(loc, memref_cast_op.getResult());
+        auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
         llvm::SmallVector<Value> indices(shape.size(), idx0);
         auto vector_transfer_write_op = rewriter.create<vector::TransferWriteOp>(loc, v, alloc_op.getResult(), indices);
         mp.map(v, alloc_op.getResult());
@@ -177,13 +109,33 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
         auto memref_cast_op = rewriter.create<memref::CastOp>(loc, UnrankedMemRefType::get(memref_type.getElementType(), memref_type.getMemorySpace()), v);
         auto host_register_op = rewriter.create<gpu::HostRegisterOp>(loc, memref_cast_op.getResult());
       }
+      else{
+        continue;
+      }
     }
 
+    rewriter.restoreInsertionPoint(insertPointToBlockStart);
+    for(auto v : operands){
+      auto t = v.getType();
+      if(t.isa<TensorType>()){
+        auto to_tensor_op = rewriter.create<bufferization::ToTensorOp>(loc, t, mp.lookup<Value>(v));
+        mp.map(v, to_tensor_op.getResult());
+      }
+      else if(t.isa<VectorType>()){
+        auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
+        llvm::SmallVector<Value> indices(t.dyn_cast<VectorType>().getShape().size(), idx0);
+        auto transfer_read_op = rewriter.create<vector::TransferReadOp>(loc, t.dyn_cast<VectorType>(), mp.lookup<Value>(v), indices);
+        mp.map(v, transfer_read_op.getResult());
+      }
+    }
 
+    return rewriter.saveInsertionPoint();
+  }
+
+  //convert results with tensor or vector type into memref , and register these results to GPU
+  SmallVector<Value> convertResults(mlir::ConversionPatternRewriter &rewriter, ValueRange results, IRMapping &mp, Location& loc, OpBuilder::InsertPoint insertPointBeforeOp, OpBuilder::InsertPoint insertPointAfterGpuLaunchOp) const {
+    rewriter.restoreInsertionPoint(insertPointBeforeOp);
     SmallVector<Value> result_memrefs;
-    auto results = onDeviceOp.getInnerResults();
-    // auto results = op->getResults();
-    for(auto v : results){v.print(llvm::outs());printf("\n");}
     for(auto v : results){
       MemRefType mem_type;
       auto t = v.getType();
@@ -210,88 +162,9 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
       auto host_register_op = rewriter.create<gpu::HostRegisterOp>(loc, memref_cast_op.getResult());
     }
 
-    auto grid_x = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(3)).getResult();
-    auto grid_y = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
-    auto grid_z = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
-
-    auto block_x = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(3)).getResult();
-    auto block_y = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
-    auto block_z = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
-    
-    Value token = onDeviceOp.getAsyncToken();
-    if(token){
-      auto async_exec_op = rewriter.create<async::ExecuteOp>(loc, TypeRange{}, asyncDependencies, ValueRange{});
-      rewriter.replaceAllUsesWith(token, async_exec_op.getToken());
-      auto& bodyBlock = async_exec_op.getBodyRegion().front();
-      rewriter.setInsertionPointToStart(&bodyBlock);
-    }
-    auto gpu_launch_op = rewriter.create<gpu::LaunchOp>(loc, grid_x, grid_y, grid_z, block_x, block_y, block_z);
-
-    auto& body = gpu_launch_op.getBody();
-    auto& bodyBlock = body.front();
-
-    rewriter.setInsertionPointToStart(&bodyBlock);
-
-    for(auto v : innerOperands){
-      auto t = v.getType();
-      if(t.isa<TensorType>()){
-        auto to_tensor_op = rewriter.create<bufferization::ToTensorOp>(loc, t, mp.lookup<Value>(v));
-        mp.map(v, to_tensor_op.getResult());
-      }
-      else if(t.isa<VectorType>()){
-        llvm::SmallVector<Value> indices(t.dyn_cast<VectorType>().getShape().size(), idx0);
-        auto transfer_read_op = rewriter.create<vector::TransferReadOp>(loc, t.dyn_cast<VectorType>(), mp.lookup<Value>(v), indices);
-        mp.map(v, transfer_read_op.getResult());
-      }
-    }
-  
-    assert(op->getAttr("sche.source").isa<StringAttr>());
-    auto sche_source = op->getAttr("sche.source").dyn_cast_or_null<StringAttr>().strref();
-
-    //scf::for lower
-    if(sche_source == "scf.for"){
-      Operation& op_ = onDeviceOp.getRegion().front().front();
-      auto for_op = dyn_cast<scf::ForOp>(op_);
-      lowerFromForOp(for_op, gpu_launch_op, loc, rewriter, grid_x, grid_y, grid_z, block_x, block_y, block_z);
-      rewriter.create<gpu::TerminatorOp>(loc);
-    }
-    else{
-      for(auto&& op_ : onDeviceOp.getRegion().front().getOperations()){
-      if(!op_.hasTrait<OpTrait::ReturnLike>()){
-        auto new_op = rewriter.clone(op_, mp);
-        for(auto&& [a, b] : llvm::zip(op_.getResults(), new_op->getResults())){
-          mp.map(a, b);
-        }
-      }else{
-        int i=0;
-        for(auto res : op_.getOperands()){
-          auto t = res.getType();
-          //TODO:必须要有rank
-          if(t.isa<TensorType>()){
-            auto shape = t.dyn_cast<TensorType>().getShape();
-            auto ele_type = t.dyn_cast<TensorType>().getElementType();
-            auto to_memref_op = rewriter.create<bufferization::ToMemrefOp>(loc, MemRefType::get(shape, ele_type), mp.lookupOrNull<Value>(res));
-            auto copy_op = rewriter.create<memref::CopyOp>(loc, to_memref_op.getResult(), result_memrefs[i++]);
-          }
-          else if(t.isa<VectorType>()){
-            llvm::SmallVector<Value> indices(t.dyn_cast<VectorType>().getShape().size(), idx0);
-            auto vector_transfer_write_op = rewriter.create<vector::TransferWriteOp>(loc, mp.lookupOrNull<Value>(res), result_memrefs[i++], indices);
-          }
-          else if(t.isa<MemRefType>()){
-            auto copy_op = rewriter.create<memref::CopyOp>(loc, mp.lookupOrNull<Value>(res), result_memrefs[i++]);
-          }
-          else{
-            auto store_op = rewriter.create<memref::StoreOp>(loc, mp.lookupOrNull<Value>(res), result_memrefs[i++]);
-          }
-        }
-      }
-    }
-    rewriter.create<gpu::TerminatorOp>(loc);
-    }
-
-
-    rewriter.setInsertionPointAfter(gpu_launch_op);
-    int i = 0;
+    rewriter.restoreInsertionPoint(insertPointAfterGpuLaunchOp);
+    //convert result'type into original type for returning
+    int i=0;
     for(auto v : results){
       auto t = v.getType();
       //TODO:必须要有rank
@@ -302,6 +175,7 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
         v.replaceAllUsesWith(to_tensor_op.getResult());
       }
       else if(t.isa<VectorType>()){
+        auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
         llvm::SmallVector<Value> indices(t.dyn_cast<VectorType>().getShape().size(), idx0);
         auto transfer_read_op = rewriter.create<vector::TransferReadOp>(loc, t.dyn_cast<VectorType>(), result_memrefs[i++], indices);
         v.replaceAllUsesWith(transfer_read_op.getResult());
@@ -310,16 +184,176 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
         v.replaceAllUsesWith(result_memrefs[i++]);
       }
       else{
+        auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
         auto load_op = rewriter.create<memref::LoadOp>(loc, v.getType(), result_memrefs[i++], ValueRange{idx0});
         v.replaceAllUsesWith(load_op.getResult());
       }
     }
+    return result_memrefs;
+  }
+
+  //OnDeviceOp from ScfForOp conversion
+  void lowerFromForOp(scf::ForOp forOp, gpu::LaunchOp gpuLaunchOp, OpBuilder::InsertPoint insertPointBeforeOp, OpBuilder::InsertPoint insertPointInGpuLaunchBody, Location loc,  PatternRewriter &rewriter,Value gridX, Value gridY, Value gridZ, Value blockX, Value blockY, Value blockZ) const {
+    rewriter.restoreInsertionPoint(insertPointBeforeOp);
+    Value upperBound = forOp.getUpperBound();
+    Value lowerBound = forOp.getLowerBound();
+    Value step = forOp.getStep();
+    //Calculate the step size range required in a block
+    auto range = rewriter.create<arith::SubIOp>(loc, upperBound, lowerBound);
+    Value stepRange = rewriter.create<arith::DivSIOp>(loc, range.getResult(), step);
+    Value stepRangeInBlock = rewriter.create<arith::DivSIOp>(loc, stepRange, gridX);
+    Value remInBlock = rewriter.create<arith::RemSIOp>(loc, stepRange, gridX);
+    auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
+    auto idx1 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
+
+    auto& body = gpuLaunchOp.getBody();
+    auto& bodyBlock = body.front();
+
+    rewriter.restoreInsertionPoint(insertPointInGpuLaunchBody);
+    Value start = rewriter.create<arith::MulIOp>(loc, stepRangeInBlock, gpuLaunchOp.getBlockIds().x);
+    start = rewriter.create<arith::AddIOp>(loc, start, lowerBound);
+    Value cmp_rem_blkId = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, remInBlock, gpuLaunchOp.getBlockIds().x);
+    Value cmp_rem_blkId_index = rewriter.create<arith::IndexCastUIOp>(loc, rewriter.getIndexType(), cmp_rem_blkId);
+    stepRangeInBlock = rewriter.create<arith::AddIOp>(loc, cmp_rem_blkId_index, stepRangeInBlock);
+    Value min = rewriter.create<arith::MinUIOp>(loc, gpuLaunchOp.getBlockIds().x, remInBlock);
+    start = rewriter.create<arith::AddIOp>(loc, start, min);
+    //Calculate the step size range required in a thread
+    Value stepRangeInThread = rewriter.create<arith::DivSIOp>(loc, stepRangeInBlock, gpuLaunchOp.getBlockSizeX());
+    Value remInThread = rewriter.create<arith::RemSIOp>(loc, stepRangeInBlock, gpuLaunchOp.getBlockSizeX());
+    Value cmp_rem_threadId = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, remInThread, gpuLaunchOp.getThreadIds().x);
+    Value cmp_rem_threadId_index = rewriter.create<arith::IndexCastUIOp>(loc, rewriter.getIndexType(), cmp_rem_threadId);
+    stepRangeInThread = rewriter.create<arith::AddIOp>(loc, cmp_rem_threadId_index, stepRangeInThread);
+
+    Value end = rewriter.create<arith::AddIOp>(loc, start, stepRangeInThread);
+
+    auto sub_forOp = rewriter.create<scf::ForOp>(loc, idx0, stepRangeInThread, idx1, forOp.getInitArgs(), 
+                                                  [&](OpBuilder& builder, Location loc, 
+                                                  Value iv, ValueRange iterArgs)
+    {
+      Block &bodyBlock = forOp.getLoopBody().front();//original forOp's bodyBlock
+      IRMapping mp;
+      iv = builder.create<arith::MulIOp>(loc, iv, gpuLaunchOp.getBlockSizeX());
+      iv = builder.create<arith::AddIOp>(loc, iv, gpuLaunchOp.getThreadIds().x);
+      iv = builder.create<arith::MulIOp>(loc, iv, step);
+      iv = builder.create<arith::AddIOp>(loc, iv, start);
+      mp.map(bodyBlock.getArgument(0), iv);
+      for(auto&& [a, b] : llvm::zip(bodyBlock.getArguments().drop_front(), iterArgs)){
+        mp.map(a, b);
+      }
+      for(auto&& op_ : bodyBlock.getOperations()){
+        builder.insert(op_.clone(mp));
+      }
+    });
+  }
+
+  LogicalResult
+  matchAndRewrite(Operation* op, ArrayRef<mlir::Value> operands, 
+                  mlir::ConversionPatternRewriter &rewriter) const final {
+    auto loc = op->getLoc();
+    auto onDeviceOp = dyn_cast<sche::OnDeviceOp>(op);
+
+    rewriter.setInsertionPoint(op);
+
+    auto grid_x = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(3)).getResult();
+    auto grid_y = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
+    auto grid_z = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
+    auto block_x = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(3)).getResult();
+    auto block_y = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
+    auto block_z = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)).getResult();
+
+    OpBuilder::InsertPoint insertBeforeOp, insertAfterOp;
+    gpu::LaunchOp gpu_launch_op;
+
+    //if use async
+    Value token = onDeviceOp.getAsyncToken();
+    if(token){
+      auto asyncDependencies = operands.take_front(onDeviceOp.getODSOperandIndexAndLength(0).second - onDeviceOp.getODSOperandIndexAndLength(0).first);
+      auto async_exec_op = rewriter.create<async::ExecuteOp>(loc, TypeRange{}, asyncDependencies, ValueRange{});
+      rewriter.replaceAllUsesWith(token, async_exec_op.getToken());
+      auto& bodyBlock = async_exec_op.getBodyRegion().front();
+      rewriter.setInsertionPointToStart(&bodyBlock);
+      gpu_launch_op = rewriter.create<gpu::LaunchOp>(loc, grid_x, grid_y, grid_z, block_x, block_y, block_z);
+      rewriter.setInsertionPoint(async_exec_op);
+      insertBeforeOp = rewriter.saveInsertionPoint();
+      rewriter.setInsertionPointAfter(async_exec_op);
+      insertAfterOp = rewriter.saveInsertionPoint();
+    }else{
+      gpu_launch_op = rewriter.create<gpu::LaunchOp>(loc, grid_x, grid_y, grid_z, block_x, block_y, block_z);
+      rewriter.setInsertionPoint(gpu_launch_op);
+      insertBeforeOp = rewriter.saveInsertionPoint();
+      rewriter.setInsertionPointAfter(gpu_launch_op);
+      insertAfterOp = rewriter.saveInsertionPoint();
+    }
+
+    auto& bodyBlock = gpu_launch_op.getBody().front();
+
+    rewriter.setInsertionPointToStart(&bodyBlock);
+    auto insertToStart = rewriter.saveInsertionPoint();
+    rewriter.setInsertionPointToEnd(&bodyBlock);
+    auto insertToEnd = rewriter.saveInsertionPoint();
+
+    IRMapping mp;
+    auto innerOperands = operands.take_back(onDeviceOp.getODSOperandIndexAndLength(1).second - onDeviceOp.getODSOperandIndexAndLength(1).first);
+    auto insertPointInGpuLaunchBody = convertOperands(rewriter, innerOperands, mp, loc, insertBeforeOp, insertToStart);
+    auto results = onDeviceOp.getInnerResults();
+    auto result_memrefs = convertResults(rewriter, results, mp, loc, insertBeforeOp, insertAfterOp);
+  
+    assert(op->getAttr("sche.source").isa<StringAttr>());
+    auto sche_source = op->getAttr("sche.source").dyn_cast_or_null<StringAttr>().strref();
+
+    //scf::for lower
+    if(sche_source == "scf.for"){
+      Operation& op_ = onDeviceOp.getRegion().front().front();
+      auto for_op = dyn_cast<scf::ForOp>(op_);
+      lowerFromForOp(for_op, gpu_launch_op, insertBeforeOp, insertPointInGpuLaunchBody, loc, rewriter, grid_x, grid_y, grid_z, block_x, block_y, block_z);
+    }
+    else if(sche_source == "func"){
+      rewriter.restoreInsertionPoint(insertPointInGpuLaunchBody);
+      for(auto&& op_ : onDeviceOp.getRegion().front().getOperations()){
+        if(!op_.hasTrait<OpTrait::ReturnLike>()){
+          auto new_op = rewriter.clone(op_, mp);
+          for(auto&& [a, b] : llvm::zip(op_.getResults(), new_op->getResults())){
+            mp.map(a, b);
+          }
+        }else{
+          int i=0;
+          rewriter.restoreInsertionPoint(insertToEnd);
+          for(auto res : op_.getOperands()){
+            auto t = res.getType();
+            //TODO:必须要有rank
+            if(t.isa<TensorType>()){
+              auto shape = t.dyn_cast<TensorType>().getShape();
+              auto ele_type = t.dyn_cast<TensorType>().getElementType();
+              auto to_memref_op = rewriter.create<bufferization::ToMemrefOp>(loc, MemRefType::get(shape, ele_type), mp.lookupOrNull<Value>(res));
+              auto copy_op = rewriter.create<memref::CopyOp>(loc, to_memref_op.getResult(), result_memrefs[i++]);
+            }
+            else if(t.isa<VectorType>()){
+              auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
+              llvm::SmallVector<Value> indices(t.dyn_cast<VectorType>().getShape().size(), idx0);
+              auto vector_transfer_write_op = rewriter.create<vector::TransferWriteOp>(loc, mp.lookupOrNull<Value>(res), result_memrefs[i++], indices);
+            }
+            else if(t.isa<MemRefType>()){
+              auto copy_op = rewriter.create<memref::CopyOp>(loc, mp.lookupOrNull<Value>(res), result_memrefs[i++]);
+            }
+            else{
+              auto store_op = rewriter.create<memref::StoreOp>(loc, mp.lookupOrNull<Value>(res), result_memrefs[i++]);
+            }
+          }
+        }
+      }
+    }
+    else{
+      //TODO add conversion of onDeviceOp from more op
+      printf("conversion from source %s has not implemented\n", sche_source);
+      abort();
+    }
+
+    rewriter.setInsertionPointToEnd(&bodyBlock);
+    rewriter.create<gpu::TerminatorOp>(loc);
 
     rewriter.eraseOp(op);
 
-
     return success();
-
   }
 };
 
@@ -381,11 +415,12 @@ void LowerSchePass::runOnOperation() {
       gpu::GPUDialect,
       bufferization::BufferizationDialect,
       scf::SCFDialect,
-      async::AsyncDialect>();
+      async::AsyncDialect,
+      BuiltinDialect>();
   // clang-format on
   target.addLegalOp<ModuleOp, func::ReturnOp>();
 
-  // target.addIllegalDialect<buddy::sche::ScheDialect>();
+  target.addIllegalDialect<buddy::sche::ScheDialect>();
   TypeConverter typeConverter;
   typeConverter.addConversion([&](sche::AsyncTokenType type){return async::TokenType::get(context);});
   typeConverter.addConversion([&](Type type){return type;});

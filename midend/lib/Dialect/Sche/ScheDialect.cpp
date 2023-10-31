@@ -41,27 +41,6 @@ using namespace buddy::sche;
 #include "Sche/ScheOpsDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
-// ScheDialect Interfaces
-//===----------------------------------------------------------------------===//
-
-// namespace {
-// struct ScheInlinerInterface : public DialectInlinerInterface {
-//   using DialectInlinerInterface::DialectInlinerInterface;
-//   // We don't have any special restrictions on what can be inlined into
-//   // destination regions (e.g. while/conditional bodies). Always allow it.
-//   bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
-//                        IRMapping &valueMapping) const final {
-//     return true;
-//   }
-//   // Operations in bud dialect are always legal to inline since they are
-//   // pure.
-//   bool isLegalToInline(Operation *, Region *, bool, IRMapping &) const final {
-//     return true;
-//   }
-// };
-// } // namespace
-
-//===----------------------------------------------------------------------===//
 // Sche dialect.
 //===----------------------------------------------------------------------===//
 
@@ -75,7 +54,6 @@ void ScheDialect::initialize() {
 #define GET_ATTRDEF_LIST
 #include "Sche/ScheOpsAttributes.cpp.inc"
       >();
-  // addInterfaces<ScheInlinerInterface>();
 }
 
 #include "Sche/ScheOpsEnums.cpp.inc"

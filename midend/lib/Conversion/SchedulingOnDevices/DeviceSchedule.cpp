@@ -176,7 +176,6 @@ public:
 
   LogicalResult
   matchAndRewrite(func::FuncOp func, PatternRewriter &rewriter) const override {
-    // printf("begin\n");
 
     auto loc = func.getLoc();
     auto ctx = rewriter.getContext();
@@ -217,7 +216,6 @@ public:
             assert(new_v != nullptr);
             return_values.push_back(new_v);
           }
-          
           builder.create<sche::ReturnOp>(loc, return_values);
         });
         on_device_op.getOperation()->setAttr("sche.source", rewriter.getStringAttr("func"));
@@ -227,19 +225,13 @@ public:
           mp.map(a, b);
         }
 
-        //TODO:更改删除方法，将原op记录下来，然后删除
         for(auto op : node->getOpList()){
           rewriter.eraseOp(op);
         }
         delete(node);
       }
-
-      // func.getOperation()->setAttr("sche.dispatched", rewriter.getUnitAttr());
       func.getOperation()->removeAttr("sche.devices");
     });
-    // func.print(llvm::outs());
-
-    // printf("finish\n");
     return success();
 
   }
@@ -251,8 +243,6 @@ public:
 
   LogicalResult
   matchAndRewrite(scf::ForOp forOp, PatternRewriter &rewriter) const override {
-    // printf("begin\n");
-
     auto loc = forOp.getLoc();
     auto ctx = rewriter.getContext();
     auto op = forOp.getOperation();
@@ -272,7 +262,7 @@ public:
     auto start = lowerBound;
     auto end = lowerBound;
 
-    //构建不同硬件上的for循环,要求最后一个device负载最多
+    //Build for loops on different hardware, requiring the last device to have the highest load
     for(auto i = 0; i < devices.size(); i++){
       auto device_info = devices[i];
       auto dict_attr = device_info.dyn_cast_or_null<DictionaryAttr>();
@@ -282,7 +272,7 @@ public:
       assert(targetId.isa<StringAttr>() && targetConfig.isa<StringAttr>() && dict_attr.get("duty_ratio").isa<FloatAttr>());
 
       rewriter.setInsertionPoint(placeHolder);
-      //最后一个for循环的upperBound是原upperBound，前面的for循环向零取整
+      //The upperBound of the last for loop is the original upperBound, and the previous for loop is rounded towards zero
       if(i == devices.size() - 1){
         end = upperBound;
       }
@@ -298,7 +288,7 @@ public:
       if(targetId.dyn_cast<StringAttr>().getValue() == "cpu"){
         rewriter.setInsertionPointAfter(placeHolder);
         auto sub_forOp = rewriter.create<scf::ForOp>(loc, start, end, step, forOp.getInitArgs(), [&](OpBuilder& builder, Location loc, Value iv, ValueRange iterArgs){
-          Block &bodyBlock = forOp.getLoopBody().front();//原始for的bodyBlock
+          Block &bodyBlock = forOp.getLoopBody().front();
           IRMapping mp;
           mp.map(bodyBlock.getArgument(0), iv);
           for(auto&& [a, b] : llvm::zip(bodyBlock.getArguments().drop_front(), iterArgs)){
@@ -311,8 +301,7 @@ public:
       }
       else if(targetId.dyn_cast<StringAttr>().getValue() == "gpu"){
         rewriter.setInsertionPoint(placeHolder);
-        // auto ops = forOp.getRegion().front().getOperations();
-        Block &bodyBlock = forOp.getLoopBody().front();//原始for的bodyBlock
+        Block &bodyBlock = forOp.getLoopBody().front();
         SmallVector<Operation*> op_list;
         ScheTargetNode node;
         for(auto it = bodyBlock.begin(); it != bodyBlock.end(); it++){
@@ -357,10 +346,6 @@ public:
 
     rewriter.eraseOp(op);
     rewriter.eraseOp(placeHolder);
-
-    // op->getParentOp()->print(llvm::outs());
-
-    // printf("finish\n");
     return success();
 
   }
@@ -372,7 +357,6 @@ public:
 
   LogicalResult
   matchAndRewrite(tosa::ReduceSumOp reduceSumOp, PatternRewriter &rewriter) const override {
-    // printf("begin\n");
 
     auto loc = reduceSumOp.getLoc();
     auto ctx = rewriter.getContext();
@@ -400,11 +384,10 @@ public:
       result_shape.push_back(input_shape[i]);
       start_shape.push_back(0);
     }
-    //构建不同硬件上的for循环,要求最后一个device负载最多
     auto start = 0;
     auto end = 0;
     auto range = input_shape[split_axis];
-    SmallVector<Value> inter_results; //中间结果
+    SmallVector<Value> inter_results; 
 
     rewriter.setInsertionPoint(op);
     
@@ -416,7 +399,6 @@ public:
       auto targetConfig = dict_attr.get("targetConfig");
       assert(targetId.isa<StringAttr>() && targetConfig.isa<StringAttr>() && dict_attr.get("duty_ratio").isa<FloatAttr>());
   
-      //最后一个for循环的upperBound是原upperBound，前面的for循环向零取整
       if(i == devices.size() - 1){
         end = input_shape[split_axis];
       }
@@ -474,10 +456,6 @@ public:
     reduceSumOp.getOutput().replaceAllUsesWith(res);
     rewriter.eraseOp(op);
     
-
-    // op->getParentOp()->print(llvm::outs());
-
-    // printf("finish\n");
     return success();
 
   }
@@ -527,7 +505,6 @@ public:
 
 void DeviceSchedulePass::runOnOperation() {
   MLIRContext *context = &getContext();
-  // ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
   // clang-format off
@@ -554,7 +531,6 @@ void DeviceSchedulePass::runOnOperation() {
     return !op->hasAttr("sche.devices");
   });
   target.addDynamicallyLegalOp<scf::ForOp, tosa::ReduceSumOp>([&](Operation *op) {
-    // op->setAttr("sche.dispatched", UnitAttr::get(context));;
     return !op->hasAttr("sche.devices");
   });
 

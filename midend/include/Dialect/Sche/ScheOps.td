@@ -39,16 +39,12 @@ def Sche_OnDeviceOp : Sche_Op<"on_device", [Sche_AsyncOpInterface, AttrSizedOper
   let results = (outs Optional<Sche_AsyncToken>:$asyncToken, Variadic<AnyType>:$innerResults);
   let regions = (region SizedRegion<1>:$region);
 
-  // let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "llvm::StringRef":$targetId, "llvm::StringRef":$targetConfig, "mlir:: TypeRange": $innerResultTypes,
                  "mlir::ValueRange":$innerOperands, CArg<"mlir::function_ref<void(mlir::OpBuilder &, mlir::Location, mlir::ValueRange)>",
                   "nullptr">:$bodyBuilder, CArg<"mlir::Type", "nullptr">:$asyncTokenType, CArg<"mlir::ValueRange", "mlir::ValueRange{}">:$asyncDependencies)>
   ];
 
-  // let assemblyFormat = [{
-  //   type($asyncToken) `[`$asyncDependencies`]` `(`$innerOperands`)` attr-dict functional-type($innerOperands, $innerResults) $region
-  // }];
   let hasCustomAssemblyFormat = 1;
    let skipDefaultBuilders = 1;
 }
@@ -71,22 +67,7 @@ def Sche_LaunchFuncOp : Sche_Op<"launch_func"> {
 }
 
 def Sche_ReturnOp : Sche_Op<"return", [ReturnLike, Terminator]>{
-  let summary = "Function return operation";
-  let description = [{
-    The `func.return` operation represents a return operation within a function.
-    The operation takes variable number of operands and produces no results.
-    The operand number and types must match the signature of the function
-    that contains the operation.
-
-    Example:
-
-    ```mlir
-    func.func @foo() : (i32, f8) {
-      ...
-      return %0, %1 : i32, f8
-    }
-    ```
-  }];
+  let summary = "Terminator in body of sche.on_device op";
 
   let arguments = (ins Variadic<AnyType>:$operands);
 
@@ -107,56 +88,6 @@ def Sche_WaitOp : Sche_Op<"wait", [Sche_AsyncOpInterface]> {
     custom<AsyncDependencies>(type($asyncToken), $asyncDependencies) attr-dict
   }];
 
-  // let hasCanonicalizer = 1;
 }
-
-//===----------------------------------------------------------------------===//
-// Test enum attribute in the operation.
-//===----------------------------------------------------------------------===//
-
-// def Bud_TestEnumAttrOpAdd : I32EnumAttrCase<"ADD", 0, "add">;
-// def Bud_TestEnumAttrOpSub : I32EnumAttrCase<"SUB", 1, "sub">;
-
-// def Bud_TestEnumAttrOperation : I32EnumAttr<"TestEnumAttrOperation",
-//     "The arithmetic enum attribute.",
-//     [
-//       Bud_TestEnumAttrOpAdd,
-//       Bud_TestEnumAttrOpSub
-//     ]>{
-//   let genSpecializedAttr = 0;
-//   let cppNamespace = "::buddy::bud";
-// }
-
-// def Bud_TestEnumAttrOperationAttr : EnumAttr<Bud_Dialect, Bud_TestEnumAttrOperation, "test_enum_attr_op">;
-
-// def Bud_TestEnumAttrOp : Bud_Op<"test_enum_attr",
-//     [SameOperandsAndResultType]>,
-//     Arguments<(ins AnyInteger:$lhs, AnyInteger:$rhs,
-//                Bud_TestEnumAttrOperationAttr:$arith)>,
-//     Results<(outs AnyInteger:$result)> {
-//   let summary = "Test Enum Attribute.";
-
-//   let assemblyFormat = [{
-//     $arith $lhs `,` $rhs attr-dict `:` type($result)
-//   }];
-// }
-
-//===----------------------------------------------------------------------===//
-// Test array attribute in the operation.
-//===----------------------------------------------------------------------===//
-
-// def CoordinateArrayAttr : ConfinedAttr<I64ArrayAttr, [ArrayCount<2>]>;
-
-// def Bud_TestArrayAttrOp : Bud_Op<"test_array_attr"> {
-//   let summary = "Test Array Attribute.";
-
-//   let arguments = (ins 
-//         Arg<AnyMemRef, "the reference to load from", [MemRead]>:$base,
-//         CoordinateArrayAttr:$coordinate);
-//   let results = (outs AnyType:$result);
-
-//   let assemblyFormat =
-//       "$base attr-dict `:` type($base) `,` type($result)";
-// }
 
 #endif // SCHE_SCHEOPS_TD

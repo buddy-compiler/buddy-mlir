@@ -34,7 +34,6 @@ def Sche_Dialect : Dialect {
     The `sche` dialect is for scheduling operators on heterogeneous devices.
   }];
   let cppNamespace = "::buddy::sche";
-  // let useDefaultAttributePrinterParser = 1;
   let useDefaultTypePrinterParser = 1;
 }
 
@@ -43,20 +42,6 @@ def Sche_Dialect : Dialect {
 //===----------------------------------------------------------------------===//
 
 def Sche_AsyncOpInterface : OpInterface<"AsyncOpInterface"> {
-  let description = [{
-    Interface for GPU operations that execute asynchronously on the device.
-
-    GPU operations implementing this interface take a list of dependencies
-    as `gpu.async.token` arguments and optionally return a `gpu.async.token`.
-
-    The op doesn't start executing until all depent ops producing the async
-    dependency tokens have finished executing.
-
-    If the op returns a token, the op merely schedules the execution on the
-    device and returns immediately, without waiting for the execution to
-    complete. On the hand, if the op does not return a token, the op will wait
-    for the execution to complete.
-  }];
   let cppNamespace = "::buddy::sche";
 
   let methods = [

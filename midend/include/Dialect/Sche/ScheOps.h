@@ -30,11 +30,6 @@
 #include "Dialect/Sche/ScheDialect.h"
 #include "mlir/IR/OpImplementation.h"
 
-// #include "Sche/ScheOpsEnums.h.inc"
-
-// #define GET_ATTRDEF_CLASSES
-// #include "Sche/ScheOpsAttributes.h.inc"
-
 #define GET_OP_CLASSES
 #include "Sche/ScheOps.h.inc"
 
