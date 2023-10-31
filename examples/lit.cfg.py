@@ -54,6 +54,7 @@ config.excludes = [
     'RISCVBuddyExt',
     'RVVDialect',
     'RVVExperiment',
+    'ScheDialect',
     'SIMDExperiment',
     'ToyDSL',
     'VectorExpDialect',

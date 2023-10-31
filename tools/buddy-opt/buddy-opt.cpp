@@ -44,6 +44,8 @@
 #include "VectorExp/VectorExpOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
+#include "Sche/ScheDialect.h"
+#include "Sche/ScheOps.h"
 
 namespace mlir {
 namespace buddy {
@@ -63,6 +65,8 @@ void registerConvOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
+void registerDeviceSchedulePass();
+void registerLowerSchePass();
 } // namespace buddy
 } // namespace mlir
 
@@ -89,6 +93,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerConvOptimizePass();
+  mlir::buddy::registerDeviceSchedulePass();
+  mlir::buddy::registerLowerSchePass();;
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
@@ -100,7 +106,8 @@ int main(int argc, char **argv) {
                   buddy::dap::DAPDialect,
                   buddy::rvv::RVVDialect,
                   buddy::vector_exp::VectorExpDialect,
-                  buddy::gemmini::GemminiDialect>();
+                  buddy::gemmini::GemminiDialect,
+                  buddy::sche::ScheDialect>();
   // clang-format on
 
   return mlir::failed(
