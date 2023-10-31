@@ -1,4 +1,4 @@
-//===- BudDialect.cpp - Bud Dialect Definition-------------------*- C++ -*-===//
+//===- ScheDialect.cpp - Sche Dialect Definition-------------------*- C++ -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines bud dialect.
+// This file defines sche dialect.
 //
 //===----------------------------------------------------------------------===//
 

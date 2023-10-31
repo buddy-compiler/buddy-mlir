@@ -1,4 +1,4 @@
-//====- LowerBudPass.cpp - Bud Dialect Lowering Pass  ---------------------===//
+//====- DeviceSchedule.cpp - Other dialect lowering to sche dialect Pass  ---------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines bud dialect lowering pass.
+// This file defines upper level operators scheduling on different hardwares using sche dialect pass.
 //
 //===----------------------------------------------------------------------===//
 
