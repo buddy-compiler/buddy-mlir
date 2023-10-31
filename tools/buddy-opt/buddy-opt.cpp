@@ -48,6 +48,7 @@
 namespace mlir {
 namespace buddy {
 void registerConvVectorizationPass();
+void registerConvBroadcastNhwcHwcfPass();
 void registerPointwiseConvToGemmPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
@@ -72,6 +73,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerPointwiseConvToGemmPass();
   // Register Vectorization of Convolution.
   mlir::buddy::registerConvVectorizationPass();
+  mlir::buddy::registerConvBroadcastNhwcHwcfPass();
   // Register Vectorization of Pooling.
   mlir::buddy::registerPoolingVectorizationPass();
   mlir::buddy::registerLowerBudPass();
