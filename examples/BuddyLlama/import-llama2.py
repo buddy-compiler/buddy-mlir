@@ -67,4 +67,8 @@ with open(os.path.join(path_prefix, "llama.mlir"), "w") as module_file:
 all_param = numpy.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params]
 )
-all_param.tofile(os.path.join(path_prefix, "arg0.data"))
+
+# if file exists, skip dumping
+param_file = os.path.dirname(os.path.abspath(__file__)) + "/arg0.data"
+if not os.path.exists(param_file):
+    all_param.tofile(param_file)
