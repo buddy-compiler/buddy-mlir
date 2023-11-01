@@ -29,4 +29,5 @@ target_link_libraries(buddy-opt
   BuddyGemmini
   LowerGemminiPass
   LowerLinalgToGemminiPass
+  PolyhedralOptimization
 )

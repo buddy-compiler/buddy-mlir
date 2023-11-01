@@ -1,7 +1,27 @@
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/CommandLine.h"
+//===- TileAndFuse.cpp - Polyhedral Tiling and Fuse Optimization ------===//
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file implements the loop tiling then fuse optimization for
+// linalg generic.
+//
+//===----------------------------------------------------------------------===//
+#include "Utils/TileSizeSelection.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -9,19 +29,18 @@
 #include "mlir/Dialect/SCF/Transforms/Patterns.h"
 #include "mlir/Dialect/SCF/Transforms/TileUsingInterface.h"
 #include "mlir/Dialect/SCF/Transforms/Transforms.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/Iterators.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/Iterators.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "Utils/TileSizeSelection.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "polyhedral-tile-and-fuse"
 
 using namespace mlir;
 
 namespace {
-
 /// Starting from `op` walk all operands backwards to find all potentially
 /// fuseable operations, i.e. operations that implement the `TilingInterface`
 void collectTiledAndFusedOps(Operation *rootOp,
@@ -29,8 +48,7 @@ void collectTiledAndFusedOps(Operation *rootOp,
   SmallVector<Operation *> worklist;
   worklist.push_back(rootOp);
   result.insert(rootOp);
-  while (!worklist.empty())
-  {
+  while (!worklist.empty()) {
     Operation *current = worklist.pop_back_val();
     for (OpOperand &operand : current->getOpOperands()) {
       Operation *producer = operand.get().getDefiningOp();
@@ -43,9 +61,9 @@ void collectTiledAndFusedOps(Operation *rootOp,
   }
 }
 
-FailureOr<tensor::PadOp>
-foldIfGeneratedFromPadding(RewriterBase &rewriter, tensor::PadOp untiledPadOp,
-                           tensor::PadOp tiledPadOp) {
+FailureOr<tensor::PadOp> foldIfGeneratedFromPadding(RewriterBase &rewriter,
+                                                    tensor::PadOp untiledPadOp,
+                                                    tensor::PadOp tiledPadOp) {
   auto ifOp = dyn_cast<scf::IfOp>(tiledPadOp->getParentOp());
   if (!ifOp)
     return failure();
@@ -58,10 +76,10 @@ foldIfGeneratedFromPadding(RewriterBase &rewriter, tensor::PadOp untiledPadOp,
   return tiledPadOp;
 }
 
-struct TileAndFusePass : public PassWrapper<TileAndFusePass, OperationPass<func::FuncOp>> {
-  TileAndFusePass(int64_t tilingLevel) {
-    this->tilingLevel = tilingLevel;
-  }
+struct TileAndFusePass
+    : public PassWrapper<TileAndFusePass, OperationPass<func::FuncOp>> {
+  TileAndFusePass() = default;
+  TileAndFusePass(int64_t tilingLevel) { this->tilingLevel = tilingLevel; }
 
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TileAndFusePass)
   StringRef getArgument() const final { return "polyhedral-tile-and-fuse"; }
@@ -69,7 +87,8 @@ struct TileAndFusePass : public PassWrapper<TileAndFusePass, OperationPass<func:
 
   void getDependentDialects(DialectRegistry &registry) const final {
     registry.insert<arith::ArithDialect, affine::AffineDialect,
-                    linalg::LinalgDialect, vector::VectorDialect, scf::SCFDialect>();
+                    linalg::LinalgDialect, vector::VectorDialect,
+                    scf::SCFDialect>();
   }
   void runOnOperation() override;
 
@@ -93,8 +112,8 @@ LogicalResult applyTileAndFuse(RewriterBase &rewriter, Operation *rootOp,
   if (failed(tilingResult)) {
     return failure();
   }
-  auto forLoops = llvm::to_vector(llvm::map_range(tilingResult->loops,
-                                                  [](Operation *op) { return cast<scf::ForOp>(op); }));
+  auto forLoops = llvm::to_vector(llvm::map_range(
+      tilingResult->loops, [](Operation *op) { return cast<scf::ForOp>(op); }));
   yieldedValuesToOrigValues.append(rootOp->result_begin(),
                                    rootOp->result_end());
   // A map from untiled value to scf.for iter_arg. The iter_arg is used for DPS
@@ -138,7 +157,8 @@ LogicalResult applyTileAndFuse(RewriterBase &rewriter, Operation *rootOp,
           if (dpsOp.isDpsInit(&operand) &&
               mapToIterArg.contains(sliceOp.getSource())) {
             rewriter.startRootUpdate(sliceOp);
-            sliceOp.getSourceMutable().assign(mapToIterArg[sliceOp.getSource()]);
+            sliceOp.getSourceMutable().assign(
+                mapToIterArg[sliceOp.getSource()]);
             rewriter.finalizeRootUpdate(sliceOp);
           }
         }
@@ -147,8 +167,7 @@ LogicalResult applyTileAndFuse(RewriterBase &rewriter, Operation *rootOp,
   std::deque<tensor::ExtractSliceOp> candidates;
   addCandidateSlices(tilingResult->tiledOps.back(), candidates);
   OpBuilder::InsertionGuard g(rewriter);
-  while (!candidates.empty())
-  {
+  while (!candidates.empty()) {
     // Traverse the slices in BFS fashion.
     tensor::ExtractSliceOp candidateSliceOp = candidates.front();
     candidates.pop_front();
