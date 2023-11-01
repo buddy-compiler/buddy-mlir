@@ -41,7 +41,7 @@ inputs = inputs.input_ids
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=aot_autograd_decompositions,
-    is_inference=False,
+    is_inference=True,
 )
 
 gm, params = dynamo_compiler.importer(
