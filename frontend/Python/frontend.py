@@ -278,6 +278,7 @@ class FXGraphImporter:
                 args_list = list(args)
                 for node in self._gm.graph.nodes:
                     if node.op == "output":
+                        print(node.__dict__)
                         output_node_args = node.args[0]
                         returns = []
                         for output_arg in output_node_args:

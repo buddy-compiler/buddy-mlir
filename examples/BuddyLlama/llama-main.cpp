@@ -17,6 +17,7 @@
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -28,7 +29,7 @@ using namespace std;
 using namespace chrono;
 
 extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
-                                     MemRef<long long, 2> *);
+                                     MemRef<size_t, 2> *);
 
 int main() {
   // Guide the user to enter the vocab path
@@ -41,7 +42,7 @@ int main() {
   cout << "Please enter what you want to say to me" << endl;
   getline(cin, pureStr);
   auto buddyTokenizeStart = system_clock::now();
-  Text<long long, 2> pureStrContainer(pureStr);
+  Text<size_t, 2> pureStrContainer(pureStr);
   pureStrContainer.tokenizeLlama(vocabDir, 80);
   auto buddyTokenizeEnd = system_clock::now();
   auto buddyTokenizeTime =
