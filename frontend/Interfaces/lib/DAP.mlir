@@ -23,8 +23,8 @@ func.func @buddy_fir(%in : memref<?xf32>, %filter : memref<?xf32>, %out : memref
   return
 }
 
-func.func @buddy_iir(%in : memref<?xf32>, %filter : memref<?x?xf32>, %out : memref<?xf32>) -> () {
-  dap.iir %in, %filter, %out : memref<?xf32>, memref<?x?xf32>, memref<?xf32>
+func.func @buddy_iir(%in : memref<?xf64>, %filter : memref<?x?xf64>, %out : memref<?xf64>) -> () {
+  dap.iir %in, %filter, %out : memref<?xf64>, memref<?x?xf64>, memref<?xf64>
   return
 } 
 
