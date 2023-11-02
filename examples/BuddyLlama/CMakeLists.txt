@@ -13,6 +13,8 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -linalg-bufferize
+            -matmul-paralell-vectorization-optimize
+            -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
@@ -61,4 +63,14 @@ SET_TARGET_PROPERTIES(
 
 add_executable(buddy-llama-run llama-main.cpp)
 target_link_directories(buddy-llama-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})
-target_link_libraries(buddy-llama-run LLAMA mlir_c_runner_utils omp)
+
+set(BUDDY_LLAMA_LIBS
+  LLAMA
+  mlir_c_runner_utils
+  omp
+)
+if(BUDDY_MLIR_USE_MIMALLOC)
+  list(APPEND BUDDY_LLAMA_LIBS mimalloc)
+endif()
+
+target_link_libraries(buddy-llama-run ${BUDDY_LLAMA_LIBS})
