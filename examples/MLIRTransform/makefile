@@ -5,10 +5,12 @@ MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
 MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
 LLC := ../../llvm/build/bin/llc
+CLANG := ../../llvm/build/bin/clang
 OPT_FLAG := -O0
 
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
 MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.so
+MLIR_CUDA_RUNTIME := ../../llvm/build/lib/libmlir_cuda_runtime.so
 
 transform-conv2d-im2col-lower:
 	@${MLIR_OPT} ./transform-conv2d-im2col.mlir \
@@ -116,3 +118,41 @@ transform-batch-matmul-e2e-rv-o:
 	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
 		-mattr=+m,+d,+v -filetype=obj -riscv-v-vector-bits-min=128 \
 		-o ./transform-batch-matmul-e2e.o
+
+transform-gpu-nested-forall-lower:
+	@${MLIR_OPT} ./gpu-nested-forall.mlir \
+		--test-transform-dialect-interpreter \
+		--test-transform-dialect-erase-schedule \
+		--canonicalize | \
+	@${MLIR_OPT} \
+	  --gpu-kernel-outlining \
+		--convert-gpu-to-nvvm \
+		--reconcile-unrealized-casts | \
+	@${MLIR_OPT} \
+	 	--llvm-request-c-wrappers | \
+	@${MLIR_OPT} \
+		--test-lower-to-nvvm="cubin-chip=sm_80 cubin-features=+ptx71 cubin-format=fatbin" -o gpu-nested-forall.mlir
+
+transform-gpu-reduction-tile-first-step:
+	@${MLIR_OPT} ./gpu-nested-forall.mlir \
+			--test-transform-dialect-interpreter \
+			--test-transform-dialect-erase-schedule \
+			--canonicalize | \
+	@${MLIR_OPT} \
+			-one-shot-bufferize="bufferize-function-boundaries" \
+			-o gpu-reduction-tile-first-step.mlir
+
+transform-gpu-reduction-tile-second-step:
+	@${MLIR_OPT} ./gpu-reduction-tile-first-step.mlir \
+			--test-transform-dialect-interpreter \
+			--test-transform-dialect-erase-schedule \
+			--canonicalize | \
+	@${MLIR_OPT} \
+	  --gpu-kernel-outlining \
+		--convert-gpu-to-nvvm \
+		--reconcile-unrealized-casts | \
+	@${MLIR_OPT} \
+	 	--llvm-request-c-wrappers | \
+	@${MLIR_OPT} \
+		--test-lower-to-nvvm="cubin-chip=sm_80 cubin-features=+ptx71 cubin-format=fatbin" \
+		-o gpu-nested-forall.mlir
