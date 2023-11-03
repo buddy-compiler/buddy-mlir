@@ -25,10 +25,16 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <fcntl.h>
 #include <iostream>
+#include <fstream>
 #include <memory>
 #include <numeric>
 #include <stdexcept>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <vector>
 
 // MemRef descriptor.
@@ -54,6 +60,8 @@ public:
   MemRef<T, N> &operator=(const MemRef<T, N> &other);
   // Move constructor.
   MemRef(MemRef<T, N> &&other) noexcept;
+  // Constructor from file.
+  MemRef(const std::string& filename, intptr_t sizes[N], intptr_t offset = 0, bool isMmap = false);
   // Move assignment operator.
   MemRef<T, N> &operator=(MemRef<T, N> &&other) noexcept;
   // Desctrutor.
@@ -96,6 +104,10 @@ protected:
   intptr_t sizes[N];
   // Strides.
   intptr_t strides[N];
+  // Number of elements.
+  size_t size;
+  // File descriptor for mmap
+  int fd = -1;
 };
 
 // MemRef Shape Constructor.
@@ -277,12 +289,54 @@ MemRef<T, N> &MemRef<T, N>::operator=(MemRef<T, N> &&other) noexcept {
   return *this;
 }
 
+template <typename T, std::size_t N>
+MemRef<T,N>::MemRef(const std::string &filename, intptr_t sizes[N], intptr_t offset,
+       bool isMmap) {
+        this->offset = offset;
+        for (size_t i = 0; i < N; i++) {
+          this->sizes[i] = sizes[i];
+        }
+        setStrides();
+        size = product(sizes);
+        if (isMmap) {
+          fd = open(filename.c_str(), O_RDONLY);
+          if (fd == -1) {
+            assert (0 && "Failed to open file!");
+          }
+          struct stat sb;
+          if (fstat(fd, &sb) == -1) {
+            assert (0 && "Failed to get file size!");
+          }
+          if (sb.st_size != size * sizeof(T)) {
+            assert (0 && "File size does not match!");
+          }
+          allocated = (T *)mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+          if (allocated == MAP_FAILED) {
+            assert (0 && "Failed to mmap!");
+          }
+          aligned = allocated;
+          
+        } else {
+          allocated = new T[size];
+          aligned = allocated;
+          std::ifstream in(filename, std::ios::in | std::ios::binary);
+          if (!in.is_open()) {
+            throw std::runtime_error("Failed to open file!");
+          }
+          in.read((char *)(aligned), sizeof(T) * (size));
+          in.close();
+        }
+       }
+
 // MemRef Destructor.
 // Note that the `allocated` and `aligned` point to the same address, so it is
 // enough to release the space of the `allocated` pointer in the destructor.
 template <typename T, std::size_t N> MemRef<T, N>::~MemRef() {
   if (allocated)
-    free(allocated);
+    delete[] allocated;
+  if (fd != -1) {
+    close(fd);
+  }
 }
 
 // Get the data pointer.
