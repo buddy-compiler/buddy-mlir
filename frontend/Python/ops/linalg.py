@@ -868,8 +868,8 @@ def pow_op(
             output = tensor.EmptyOp(output_shape, ir.F32Type.get())
             if abs(int(value) - float(value)) < 1e-6:
                 value = arith.ConstantOp(
-                    ir.IntegerType.get_signless(32),
-                    ir.IntegerAttr.get(ir.IntegerType.get_signless(32), value),
+                    ir.F32Type.get(),
+                    ir.FloatAttr.get(ir.F32Type.get(), value),
                 )
                 op = linalg.GenericOp(
                     [tensor_type],
@@ -901,9 +901,9 @@ def pow_op(
                         ir.RankedTensorType(output.result.type).element_type,
                     ],
                 )
-                fpowi_op = math.FPowIOp(block.arguments[0], value.result)
-                block.append(fpowi_op)
-                block.append(linalg.YieldOp([fpowi_op.result]))
+                powf_op = math.PowFOp(block.arguments[0], value.result)
+                block.append(powf_op)
+                block.append(linalg.YieldOp([powf_op.result]))
 
     return op
 
