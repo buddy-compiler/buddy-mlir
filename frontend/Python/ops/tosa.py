@@ -774,6 +774,8 @@ def expand_op(node, symbol_table) -> ir.Operation:
         element = ir.IntegerAttr.get(result_element_type, 0)
     elif result_element_type == ir.F32Type.get():
         element = ir.FloatAttr.get(result_element_type, 0.0)
+    else:
+        raise NotImplementedError("Unsupported element type!")
     new_size_tensor_type = ir.RankedTensorType.get(
         new_size, result_element_type
     )
