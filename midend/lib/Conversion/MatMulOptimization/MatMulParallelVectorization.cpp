@@ -1,4 +1,5 @@
-//===- MatMulParallelVectorization.cpp ------------------------------------===//
+//===- MatMulParallelVectorization.cpp
+//-------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +29,6 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/IntegerSet.h"
-#include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/ValueRange.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -42,10 +42,13 @@
 #include <mlir/IR/TypeUtilities.h>
 #include <mlir/IR/Value.h>
 #include <mlir/Pass/Pass.h>
+#include <optional>
 
 using namespace mlir;
 using namespace vector;
 using namespace affine;
+
+#define ceil_div(x, y) (((x) + (y)-1) / (y))
 
 //===----------------------------------------------------------------------===//
 // Rewrite Pattern
@@ -56,9 +59,11 @@ namespace {
 class MatMulParallelVectorizationPattern : public ConversionPattern {
 public:
   explicit MatMulParallelVectorizationPattern(MLIRContext *context,
-                                              int64_t affineVectorSizeParam)
+                                              int64_t affineVectorSizeParam,
+                                              bool useSerialStoreParam)
       : ConversionPattern(linalg::MatmulOp::getOperationName(), 1, context) {
     affineVectorSize = affineVectorSizeParam;
+    useSerialStore = useSerialStoreParam;
   }
 
   LogicalResult
@@ -110,6 +115,30 @@ public:
         loc, AffineMap::get(1, 0, d0.ceilDiv(affineVectorSize)),
         ValueRange{bCol});
 
+    std::optional<Value> tempMatrixC = std::nullopt;
+    if (useSerialStore) {
+      Value aRowMulVecSize = rewriter.create<affine::AffineApplyOp>(
+          loc, AffineMap::get(1, 0, d0 * affineVectorSize), ValueRange{aRow});
+      if (C.getType().cast<MemRefType>().isDynamicDim(1)) {
+        tempMatrixC = rewriter.create<memref::AllocOp>(
+            loc,
+            MemRefType::get({ShapedType::kDynamic, ShapedType::kDynamic},
+                            elementType),
+            ValueRange{appliedColOfB, aRowMulVecSize});
+      } else {
+        tempMatrixC = rewriter.create<memref::AllocOp>(
+            loc,
+            MemRefType::get(
+                ArrayRef<int64_t>{
+                    A.getType().cast<MemRefType>().getDimSize(0) *
+                        affineVectorSize,
+                    ceil_div(B.getType().cast<MemRefType>().getDimSize(1),
+                             affineVectorSize)},
+                elementType),
+            ValueRange{});
+      }
+    }
+
     // Create the primary parallel loop for matrix multiplication.
     AffineParallelOp parallelLoop = rewriter.create<affine::AffineParallelOp>(
         loc, ValueRange(reducedValues).getTypes(), ValueRange{appliedColOfB},
@@ -134,14 +163,34 @@ public:
     loopBody->addArgument(rewriter.getIndexType(), loc);
     Value loopVarColOfB = loopBody->getArguments()[0];
 
+    if (useSerialStore) {
+      affine::buildAffineLoopNest(
+          rewriter, loc, {zeroIndex}, {aRow}, 1,
+          [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
+            Value loopVarRowOfA = ivRange.front();
+            Value cVec = builder.create<affine::AffineVectorLoadOp>(
+                loc, VectorType::get({affineVectorSize}, elementType), C,
+                AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                               builder.getContext()),
+                ValueRange{loopVarRowOfA, loopVarColOfB});
+            builder.create<affine::AffineVectorStoreOp>(
+                loc, cVec, tempMatrixC.value(),
+                AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                               builder.getContext()),
+                ValueRange{loopVarColOfB, loopVarRowOfA});
+          });
+    }
+
     // Prefetching data from tensor 'A' for better cache utilization.
     rewriter.create<affine::AffinePrefetchOp>(
         loc, A, AffineMap::get(2, 0, {d0, d1}, rewriter.getContext()),
         ArrayRef<Value>{aRow, bRow}, false, 3, true);
 
     // Compile time branch detection.
-    if (C.getType().cast<MemRefType>().isDynamicDim(1) or
-        C.getType().cast<MemRefType>().getDimSize(1) % affineVectorSize != 0) {
+    if ((C.getType().cast<MemRefType>().isDynamicDim(1) or
+         C.getType().cast<MemRefType>().getDimSize(1) % affineVectorSize !=
+             0) and
+        !useSerialStore) {
 
       // Depending on the position, use either full vectors or tail vectors.
       affine::AffineIfOp branchingOp = rewriter.create<affine::AffineIfOp>(
@@ -261,32 +310,110 @@ public:
                   Value aVec = builder.create<vector::BroadcastOp>(
                       loc, VectorType::get({affineVectorSize}, elementType),
                       aElement);
-                  Value cVec = builder.create<affine::AffineVectorLoadOp>(
-                      loc, VectorType::get({affineVectorSize}, elementType), C,
-                      AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
-                                     builder.getContext()),
-                      ValueRange{loopVarRowOfA, loopVarColOfB});
-                  Value computedVec;
 
-                  // Compute the result vector either through integer
-                  // multiplication and addition or fused multiply-add
-                  // based on the element type.
-                  if (elementType.isa<IntegerType>()) {
-                    Value mulVec =
-                        builder.create<arith::MulIOp>(loc, aVec, bVec);
-                    computedVec =
-                        builder.create<arith::AddIOp>(loc, mulVec, cVec);
+                  if (useSerialStore) {
+                    Value cVec = builder.create<affine::AffineVectorLoadOp>(
+                        loc, VectorType::get({affineVectorSize}, elementType),
+                        tempMatrixC.value(),
+                        AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                                       builder.getContext()),
+                        ValueRange{loopVarColOfB, loopVarRowOfA});
+                    Value computedVec;
+
+                    // Compute the result vector either through integer
+                    // multiplication and addition or fused multiply-add
+                    // based on the element type.
+                    if (elementType.isa<IntegerType>()) {
+                      Value mulVec =
+                          builder.create<arith::MulIOp>(loc, aVec, bVec);
+                      computedVec =
+                          builder.create<arith::AddIOp>(loc, mulVec, cVec);
+                    } else {
+                      computedVec =
+                          builder.create<vector::FMAOp>(loc, aVec, bVec, cVec);
+                    }
+                    builder.create<affine::AffineVectorStoreOp>(
+                        loc, computedVec, tempMatrixC.value(),
+                        AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                                       builder.getContext()),
+                        ValueRange{loopVarColOfB, loopVarRowOfA});
                   } else {
-                    computedVec =
-                        builder.create<vector::FMAOp>(loc, aVec, bVec, cVec);
+                    Value cVec = builder.create<affine::AffineVectorLoadOp>(
+                        loc, VectorType::get({affineVectorSize}, elementType),
+                        C,
+                        AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                                       builder.getContext()),
+                        ValueRange{loopVarRowOfA, loopVarColOfB});
+                    Value computedVec;
+
+                    // Compute the result vector either through integer
+                    // multiplication and addition or fused multiply-add
+                    // based on the element type.
+                    if (elementType.isa<IntegerType>()) {
+                      Value mulVec =
+                          builder.create<arith::MulIOp>(loc, aVec, bVec);
+                      computedVec =
+                          builder.create<arith::AddIOp>(loc, mulVec, cVec);
+                    } else {
+                      computedVec =
+                          builder.create<vector::FMAOp>(loc, aVec, bVec, cVec);
+                    }
+                    builder.create<affine::AffineVectorStoreOp>(
+                        loc, computedVec, C,
+                        AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                                       builder.getContext()),
+                        ValueRange{loopVarRowOfA, loopVarColOfB});
                   }
-                  builder.create<affine::AffineVectorStoreOp>(
-                      loc, computedVec, C,
-                      AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
-                                     builder.getContext()),
-                      ValueRange{loopVarRowOfA, loopVarColOfB});
                 });
           });
+
+      if (useSerialStore) {
+        affine::buildAffineLoopNest(
+            rewriter, loc, {zeroIndex}, {aRow}, 1,
+            [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
+              Value loopVarRowOfA = ivRange.front();
+              Value cVec = builder.create<affine::AffineVectorLoadOp>(
+                  loc, VectorType::get({affineVectorSize}, elementType),
+                  tempMatrixC.value(),
+                  AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                                 builder.getContext()),
+                  ValueRange{loopVarColOfB, loopVarRowOfA});
+
+              if (C.getType().cast<MemRefType>().isDynamicDim(1) or
+                  C.getType().cast<MemRefType>().getDimSize(1) %
+                          affineVectorSize !=
+                      0) {
+                affine::AffineIfOp branchingOp =
+                    rewriter.create<affine::AffineIfOp>(
+                        loc,
+                        IntegerSet::get(
+                            1, 1,
+                            {d0 * -affineVectorSize + s0 - affineVectorSize},
+                            {false}),
+                        ValueRange{loopVarColOfB, bCol}, true);
+                OpBuilder trueBranchBuilder = branchingOp.getThenBodyBuilder();
+                trueBranchBuilder.create<affine::AffineVectorStoreOp>(
+                    loc, cVec, C,
+                    AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                                   builder.getContext()),
+                    ValueRange{loopVarRowOfA, loopVarColOfB});
+                OpBuilder elseBranchBuilder = branchingOp.getElseBodyBuilder();
+                Value tailIdxColOfB =
+                    elseBranchBuilder.create<affine::AffineApplyOp>(
+                        loc, AffineMap::get(1, 0, d0 * affineVectorSize),
+                        ValueRange{loopVarColOfB});
+                elseBranchBuilder.create<vector::MaskedStoreOp>(
+                    loc, C, ValueRange{loopVarRowOfA, tailIdxColOfB},
+                    maskVector, cVec);
+              } else {
+                builder.create<affine::AffineVectorStoreOp>(
+                    loc, cVec, C,
+                    AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                                   builder.getContext()),
+                    ValueRange{loopVarRowOfA, loopVarColOfB});
+              }
+            });
+      }
     }
 
     rewriter.create<affine::AffineYieldOp>(loc);
@@ -301,6 +428,7 @@ public:
 
 private:
   int64_t affineVectorSize;
+  bool useSerialStore;
 };
 
 } // end anonymous namespace
@@ -325,8 +453,10 @@ public:
   }
   MatMulParallelVectorizationPass() = default;
   MatMulParallelVectorizationPass(const MatMulParallelVectorizationPass &) {}
-  explicit MatMulParallelVectorizationPass(int64_t affineVectorSizeParam) {
+  explicit MatMulParallelVectorizationPass(int64_t affineVectorSizeParam,
+                                           bool useSerialStoreParam) {
     affineVectorSize = affineVectorSizeParam;
+    useSerialStore = useSerialStoreParam;
   }
 
   void runOnOperation() override;
@@ -339,6 +469,11 @@ public:
   Option<int64_t> affineVectorSize{*this, "vector-size",
                                    llvm::cl::desc("Affine Vector size."),
                                    llvm::cl::init(64)};
+
+  Option<bool> useSerialStore{
+      *this, "serial-store-opt",
+      llvm::cl::desc("Use serial store then transpose for output tensor."),
+      llvm::cl::init(false)};
 };
 } // end anonymous namespace.
 
@@ -354,7 +489,8 @@ void MatMulParallelVectorizationPass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<MatMulParallelVectorizationPattern>(context, affineVectorSize);
+  patterns.add<MatMulParallelVectorizationPattern>(context, affineVectorSize,
+                                                   useSerialStore);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
