@@ -163,12 +163,16 @@ struct GemminiConfigStLowering : public ConvertOpToLLVMPattern<ConfigStOp> {
 
 struct GemminiConfigLdLowering : public ConvertOpToLLVMPattern<ConfigLdOp> {
   using ConvertOpToLLVMPattern<ConfigLdOp>::ConvertOpToLLVMPattern;
+  explicit GemminiConfigLdLowering(LLVMTypeConverter &typeConverter, int64_t dim)
+    : ConvertOpToLLVMPattern(typeConverter), dim(dim) {}
   LogicalResult
   matchAndRewrite(ConfigLdOp configLdOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value rs2Value = configLdOp.getStride();
     float scale = configLdOp.getScale().convertToFloat();
     uint64_t blockMvinStride = configLdOp.getBlockMvinStride();
+    if (blockMvinStride == (uint64_t)-1)
+      blockMvinStride = dim;
     uint64_t pixelRepeats = configLdOp.getPixelRepeats();
     uint64_t rs1 = (uint64_t)scale_t_to_scale_t_bits(scale) << 32 |
                    (blockMvinStride << 16) | pixelRepeats << 8 |
@@ -181,6 +185,8 @@ struct GemminiConfigLdLowering : public ConvertOpToLLVMPattern<ConfigLdOp> {
                                                  rs2Value);
     return success();
   }
+private:
+  int64_t dim;
 };
 
 struct GemminiConfigExLowering : public ConvertOpToLLVMPattern<ConfigExOp> {
@@ -578,7 +584,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
                        TileMatMulOp &tileMatMulOp,
                        ConversionPatternRewriter &rewriter) const {
     const uint32_t aSpAddrStart = 0;
-    const uint32_t bSpAddrStart = BANK_NUM * BANK_ROWS - k * j * dim;
+    const uint32_t bSpAddrStart = BANK_NUM * bankRows - k * j * dim;
     const uint32_t dSpAddrStart = 1 << (addrLen - 1);
     const uint32_t cSpAddrStart =
         (3 << (addrLen - 2)) | (fullC << (addrLen - 3));
@@ -807,7 +813,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
           } else {
             size_t biasRow = repeatingBias ? 0 : i0 * tileI * dim;
             size_t offset =
-                (biasRow * strideD + j0 * tileJ * dim) * sizeofD * sizeOfElemT;
+                (biasRow * strideD + j0 * tileJ * dim) * sizeofD;
             IntegerAttr offsetAttr = rewriter.getI64IntegerAttr(offset);
             Value offsetValue = rewriter.create<arith::ConstantOp>(
                 loc, rewriter.getI64Type(), offsetAttr);
@@ -817,8 +823,7 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
 
           Value out;
           if (k0 == K0 - 1) {
-            size_t offset = (i0 * tileI * dim * strideC + j0 * tileJ * dim) *
-                            sizeofC * sizeOfElemT;
+            size_t offset = (i0 * tileI * dim * strideC + j0 * tileJ * dim) * sizeofC;
             IntegerAttr offsetAttr = rewriter.getI64IntegerAttr(offset);
             Value offsetValue = rewriter.create<arith::ConstantOp>(
                 loc, rewriter.getI64Type(), offsetAttr);
@@ -902,25 +907,18 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
 public:
   using ConvertOpToLLVMPattern<TileMatMulOp>::ConvertOpToLLVMPattern;
   explicit GemminiTileMatMulLowering(LLVMTypeConverter &typeConverter,
-                                     int64_t dim, int64_t addrLen, size_t sizeOfElemT,
-                                     size_t sizeOfAccT)
-      : ConvertOpToLLVMPattern(typeConverter), dim(dim), addrLen(addrLen),
-        sizeOfElemT(sizeOfElemT), sizeOfAccT(sizeOfAccT) {}
-
+                                     int64_t dim, int64_t addrLen, int64_t accRows, 
+                                     int64_t bankRows, size_t sizeOfElemT, size_t sizeOfAccT)
+      : ConvertOpToLLVMPattern(typeConverter), dim(dim), addrLen(addrLen), 
+      accRows(accRows), bankRows(bankRows), sizeOfElemT(sizeOfElemT), sizeOfAccT(sizeOfAccT) {}
   LogicalResult
   matchAndRewrite(TileMatMulOp tileMatMulOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-#define partitionRows (BANK_NUM * BANK_ROWS / 2)
-#define matsInPartition (partition_rows / dim)
-#define matsInAcc (ACC_ROWS / dim)
-#define maxTileIJ ((size_t)sqrt(mats_in_acc))
-#define maxTileK (matsInPartition / maxTileIJ)
-
-#define dbPartitionRows ((BANK_NUM * BANK_ROWS / 2) / 2)
-#define dbMatsInPartition (dbPartitionRows / dim)
-#define dbMatsInAcc ((ACC_ROWS / 2) / dim)
-#define dbMaxTileIJ ((size_t)sqrt(dbMatsInAcc))
-#define dbMaxTileK (dbMatsInPartition / dbMaxTileIJ)
+    size_t dbPartitionRows = ((BANK_NUM * bankRows / 2) / 2);
+    size_t dbMatsInPartition = (dbPartitionRows / dim);
+    size_t dbMatsInAcc((accRows / 2) / dim);
+    size_t dbMaxTileIJ((size_t)sqrt(dbMatsInAcc));
+    size_t dbMaxTileK(dbMatsInPartition / dbMaxTileIJ);
 
     Value aArray = tileMatMulOp.getAArray();
     Value bArray = tileMatMulOp.getBArray();
@@ -1004,8 +1002,8 @@ public:
     size_t dimIPaded = (dimI / dim + (dimI % dim != 0)) * dim;
     size_t dimJPaded = (dimJ / dim + (dimJ % dim != 0)) * dim;
     size_t dimKPaded = (dimK / dim + (dimK % dim != 0)) * dim;
-    size_t maxSpadRows = BANK_NUM * BANK_ROWS / 2;
-    size_t maxAccRows = ACC_ROWS / 2;
+    size_t maxSpadRows = BANK_NUM * bankRows / 2;
+    size_t maxAccRows = accRows / 2;
     size_t tileI, tileJ, tileK;
     if (act == LAYERNORM || act == SOFTMAX) {
       tileI = 1;
@@ -1041,18 +1039,6 @@ public:
       if (!increased)
         break;
     }
-
-#undef partitionRows
-#undef matsInPartition
-#undef matsInAcc
-#undef maxTileIJ
-#undef maxTileK
-
-#undef dbPartitionRows
-#undef dbMatsInPartition
-#undef dbMatsInAcc
-#undef dbMaxTileIJ
-#undef dbMaxTileK
     int dataflow = tileMatMulOp.getDataflow();
 
 
@@ -1068,6 +1054,8 @@ public:
 private:
   int64_t dim;
   int64_t addrLen;
+  int64_t accRows;
+  int64_t bankRows;
   size_t sizeOfElemT;
   size_t sizeOfAccT;
 };
@@ -1214,16 +1202,16 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     static uint32_t cSpAddrRow = 0;
 
     const uint32_t aSpAddrStart = 0;
-    const uint32_t bSpAddrStart = BANK_NUM * BANK_ROWS - bRows;
+    const uint32_t bSpAddrStart = BANK_NUM * bankRows - bRows;
     const uint32_t dSpAddrStart = (1 << (addrLen - 1)) + dSpAddrRow;
     const uint32_t cSpAddrStart = (3 << (addrLen - 2)) + cSpAddrRow;
 
     if (bias != 0) {
-      dSpAddrRow = (dSpAddrRow + ACC_ROWS / 2) % ACC_ROWS;
+      dSpAddrRow = (dSpAddrRow + accRows / 2) % accRows;
     }
 
     if (output != 0) {
-      cSpAddrRow = (cSpAddrRow + ACC_ROWS / 2) % ACC_ROWS;
+      cSpAddrRow = (cSpAddrRow + accRows / 2) % accRows;
     }
     if (inRowDim == inColDim && outRowDim == outColDim && poolOutRowDim == poolOutColDim) {
       gemminiLoopConvWs(
@@ -1808,10 +1796,12 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
 public:
   using ConvertOpToLLVMPattern<TileConvOp>::ConvertOpToLLVMPattern;
   explicit GemminiTileConvLowering(LLVMTypeConverter &typeConverter,
-                                   int64_t dim, int64_t addrLen, size_t sizeOfElemT,
+                                   int64_t dim, int64_t addrLen, int64_t accRows, 
+                                   int64_t bankRows,size_t sizeOfElemT, 
                                    size_t sizeOfAccT)
       : ConvertOpToLLVMPattern(typeConverter), dim(dim), addrLen(addrLen),
-        sizeOfElemT(sizeOfElemT), sizeOfAccT(sizeOfAccT) {}
+        accRows(accRows), bankRows(bankRows), sizeOfElemT(sizeOfElemT), 
+        sizeOfAccT(sizeOfAccT) {}
   LogicalResult
   matchAndRewrite(TileConvOp tileConvOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
@@ -1887,8 +1877,8 @@ public:
     const int ocolsIdx = 2;
     const int outChannelsIdx = 3;
     const int inChannelsIdx = 6;
-    const int maxSpadRows = (BANK_NUM * BANK_ROWS / 2);
-    const int maxAccRows = (ACC_ROWS / 2);
+    const int maxSpadRows = (BANK_NUM * bankRows / 2);
+    const int maxAccRows = (accRows / 2);
     int spadRows = tiledConvTotalSpadRows(
         false, stride, inputDilation, kernelDilation, downsample,
         transWeight0132, transInput3120, args[0], args[1], args[2], args[3],
@@ -2008,20 +1998,20 @@ public:
 private:
   int64_t dim;
   int64_t addrLen;
-  
+  int64_t accRows;
+  int64_t bankRows;
   size_t sizeOfElemT;
   size_t sizeOfAccT;
 };
 
 void mlir::populateGemminiLegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns, int64_t dim,
-    int64_t addrLen, size_t sizeOfElemT, size_t sizeOfAccT) {
-  patterns
-      .add<ForwardOperands<func::CallOp>, ForwardOperands<func::CallIndirectOp>,
+    int64_t addrLen, int64_t accRows, int64_t bankRows, size_t sizeOfElemT, size_t sizeOfAccT) {
+  patterns.add<ForwardOperands<func::CallOp>, ForwardOperands<func::CallIndirectOp>,
            ForwardOperands<func::ReturnOp>>(converter, &converter.getContext());
   patterns.add<GemminiFlushLowering>(converter);
   patterns.add<GemminiConfigStLowering>(converter);
-  patterns.add<GemminiConfigLdLowering>(converter);
+  patterns.add<GemminiConfigLdLowering>(converter, dim);
   patterns.add<GemminiMvinLowering>(converter, addrLen);
   patterns.add<GemminiMvin2Lowering>(converter, addrLen);
   patterns.add<GemminiMvin3Lowering>(converter, addrLen);
@@ -2032,10 +2022,10 @@ void mlir::populateGemminiLegalizeForLLVMExportPatterns(
   patterns.add<GemminiPreloadLowering>(converter, addrLen);
   patterns.add<GemminiComputePreloadedLowering>(converter, addrLen);
   patterns.add<GemminiComputeAccumulatedLowering>(converter, addrLen);
-  patterns.add<GemminiTileMatMulLowering>(converter, dim, addrLen, sizeOfElemT,
-                                          sizeOfAccT);
-  patterns.add<GemminiTileConvLowering>(converter, dim, addrLen, sizeOfElemT,
-                                        sizeOfAccT);
+  patterns.add<GemminiTileMatMulLowering>(converter, dim, addrLen, accRows, 
+                                          bankRows, sizeOfElemT, sizeOfAccT);
+  patterns.add<GemminiTileConvLowering>(converter, dim, addrLen, accRows, bankRows,
+                                        sizeOfElemT, sizeOfAccT);
 }
 
 void mlir::configureGemminiLegalizeForExportTarget(
