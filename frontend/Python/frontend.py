@@ -19,7 +19,7 @@
 # ===---------------------------------------------------------------------------
 
 import operator
-from typing import Any, List, Union, Optional
+from typing import Any, List, Optional
 import functools
 
 import mlir.dialects.func as func
@@ -50,7 +50,7 @@ class DynamoCompiler:
         func_name: str = "forward",
         primary_registry: Optional[dict] = None,
         aot_autograd_decomposition: Optional[dict] = None,
-        param_pack: bool = True,
+        do_param_pack: bool = True,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -67,7 +67,7 @@ class DynamoCompiler:
         self._aot_autograd_decomposition = aot_autograd_decomposition
         self._imported_module = None
         self._imported_params = None
-        self._param_pack = param_pack
+        self._do_param_pack = do_param_pack
         self._ops_registry = {}
         self._ops_registry.update(math_ops_registry)
         self._ops_registry.update(linalg_ops_registry)
@@ -110,7 +110,7 @@ class DynamoCompiler:
                     _gm,
                     func_params,
                     func_inputs,
-                    self._param_pack,
+                    self._do_param_pack,
                     self._func_name,
                     self._ops_registry,
                 )
@@ -186,7 +186,7 @@ class FXGraphImporter:
         gm: torch.fx.GraphModule,
         params: List[torch.Tensor],
         inputs: List[torch.Tensor],
-        param_pack: bool = True,
+        do_param_pack: bool = True,
         func_name: str = "forward",
         ops_registry: Optional[dict] = None,
     ):
@@ -206,7 +206,8 @@ class FXGraphImporter:
         self._func_name = func_name
         self._params = params
         self._inputs = inputs
-        self._param_pack = param_pack
+        self._do_param_pack = do_param_pack
+        self._param_packs = []
         self._num_input_visited = 0
         self._module = ir.Module.create()
         self._ops_registry = ops_registry
@@ -237,11 +238,10 @@ class FXGraphImporter:
             case _:
                 raise NotImplementedError(f"Unsupported dtype {dtype}")
 
-    def _pack_params(self) -> List[ir.RankedTensorType]:
+    def _pack_params(self) -> None:
         dtypes = list(set([param.dtype for param in self._params]))
         dtypes.sort(key=str)
         self._current_param_pack_offset = {dtype: 0 for dtype in dtypes}
-        param_packs = []
         for dtype in dtypes:
             params_of_dtype = [
                 param for param in self._params if param.dtype == dtype
@@ -252,11 +252,9 @@ class FXGraphImporter:
                     lambda x, y: x * y, list(param.shape)
                 )
             mlir_dtype = self._torch_dtype_to_mlir_dtype(dtype)
-            param_packs.append(
+            self._param_packs.append(
                 ir.RankedTensorType.get([param_total_size], mlir_dtype)
             )
-
-        return param_packs
 
     def import_graph(self) -> ir.Module:
         """
@@ -267,8 +265,9 @@ class FXGraphImporter:
         """
         with ir.InsertionPoint(self._module.body):
             arguments = []
-            if self._param_pack:
-                arguments.extend(self._pack_params())
+            if self._do_param_pack:
+                self._pack_params()
+                arguments.extend(self._param_packs)
                 inputs = self._inputs
             else:
                 inputs = self._params + self._inputs
@@ -278,18 +277,22 @@ class FXGraphImporter:
                 mlir_dtype = self._torch_dtype_to_mlir_dtype(torch_dtype)
                 tensor_arg = ir.RankedTensorType.get(shape_list, mlir_dtype)
                 arguments.append(tensor_arg)
-            
 
             @func.FuncOp.from_py_func(*arguments, name=self._func_name)
             def generated_func(*args):
                 args_list = list(args)
                 for node in self._gm.graph.nodes:
+                    if not (
+                        node.op in ["output", "placeholder", "call_function"]
+                        or node.target is operator.getitem
+                    ):
+                        continue
                     if node.op == "output":
                         output_node_args = node.args[0]
-                        returns = []
-                        for output_arg in output_node_args:
-                            op = self._symbol_table.get((str(output_arg), 0))
-                            returns.append(op)
+                        returns = [
+                            self._symbol_table.get((str(output_arg), 0))
+                            for output_arg in output_node_args
+                        ]
                         self._symbol_table[("output", 0)] = returns
                     elif node.op == "placeholder":
                         self._import_placeholder(node, args_list)
@@ -334,10 +337,13 @@ class FXGraphImporter:
         else:
             if len(self._params) > 0:
                 placeholder_name = args_list[
-                    self._num_input_visited - len(self._params) + 1
+                    self._num_input_visited
+                    - len(self._params)
+                    + len(self._param_packs)
                 ]
             else:
                 placeholder_name = args_list[self._num_input_visited]
+
         self._symbol_table[(str(node.name), 0)] = placeholder_name
         self._num_input_visited += 1
 
@@ -348,12 +354,8 @@ class FXGraphImporter:
         Args:
             node (torch.fx.Node): The FX node representing the operation.
 
-        Raises:
-            ValueError: If the node target doesn't have a __name__ attribute.
         """
-        op_name = getattr(node.target, "__name__", None)
-        if op_name is None:
-            raise ValueError("node.target does not have a __name__ attribute")
+        op_name = node.target.__name__
         op_ret: ir.Operation | ir.Value | tuple | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)
         )
