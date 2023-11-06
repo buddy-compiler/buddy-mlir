@@ -231,7 +231,7 @@ def mul_op(node, symbol_table):
             result_type,
             input1,
             input2,
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -251,7 +251,7 @@ def div_op(node, symbol_table):
             result_type,
             input1,
             tosa.ReciprocalOp(input2.type, input2).result,
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -315,7 +315,7 @@ def amax_op(node, symbol_table):
     dim_val = node.args[1][0]
     if dim_val < 0:
         dim_val += len(ir.RankedTensorType(input1.type).shape)
-    signless_type = ir.IntegerType.get_signless(64)
+    signless_type = ir.IntegerType.get_signless(32)
     dim_attr = ir.IntegerAttr.get(signless_type, dim_val)
     op = tosa.ReduceMaxOp(input1, dim_attr)
     return op
@@ -550,7 +550,7 @@ def var_mean_op(node, symbol_table):
         # reduce along each dimension in `_dim`
         for _dim_item in _dim:
             reduce_dim_attr = ir.IntegerAttr.get(
-                ir.IntegerType.get_signless(64), _dim_item
+                ir.IntegerType.get_signless(32), _dim_item
             )
             reduce_sum_op: ir.Operation = tosa.ReduceSumOp(
                 reduce_sum_result, reduce_dim_attr
@@ -578,7 +578,7 @@ def var_mean_op(node, symbol_table):
             reduce_sum_op.results[0].type,
             reciprocal_op.results[0],
             reduce_sum_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
     def var_dim_op(
@@ -596,14 +596,14 @@ def var_mean_op(node, symbol_table):
             _input_tensor.type,
             sub_op.results[0],
             sub_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
         # the result of `mul_op` is the first tensor we need to reduce
         reduce_sum_op = mul_op
         for _dim_item in _dim:
             reduce_dim_attr = ir.IntegerAttr.get(
-                ir.IntegerType.get_signless(64), _dim_item
+                ir.IntegerType.get_signless(32), _dim_item
             )
             reduce_sum_op: ir.Operation = tosa.ReduceSumOp(
                 reduce_sum_op.results[0], reduce_dim_attr
@@ -628,7 +628,7 @@ def var_mean_op(node, symbol_table):
             reduce_sum_op.results[0].type,
             reciprocal_op.results[0],
             reduce_sum_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
     mean_input_tensor = symbol_table.get((str(node.args[0]), 0))
@@ -801,7 +801,7 @@ def sum_op(node, symbol_table):
     reduce_sum_op = None
     for dim in reduce_sum_dims:
         reduce_dim_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), dim
+            ir.IntegerType.get_signless(32), dim
         )
         reduce_sum_op = tosa.ReduceSumOp(
             _reduce_sum_input_tensor, reduce_dim_attr

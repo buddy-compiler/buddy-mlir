@@ -180,7 +180,7 @@ public:
                   // Compute the result vector either through integer
                   // multiplication and addition or fused multiply-add
                   // based on the element type.
-                  if (elementType.isa<IntegerType>()) {
+                  if (isa<IntegerType>(elementType)) {
                     Value mulVec =
                         builder.create<arith::MulIOp>(loc, aVec, bVec);
                     computedVec =
@@ -228,7 +228,7 @@ public:
                   // Compute the result vector either through integer
                   // multiplication and addition or fused multiply-add based on
                   // the element type.
-                  if (elementType.isa<IntegerType>()) {
+                  if (isa<IntegerType>(elementType)) {
                     Value mulVec =
                         builder.create<arith::MulIOp>(loc, aVec, bVec);
                     computedVec =
@@ -271,7 +271,7 @@ public:
                   // Compute the result vector either through integer
                   // multiplication and addition or fused multiply-add
                   // based on the element type.
-                  if (elementType.isa<IntegerType>()) {
+                  if (isa<IntegerType>(elementType)) {
                     Value mulVec =
                         builder.create<arith::MulIOp>(loc, aVec, bVec);
                     computedVec =

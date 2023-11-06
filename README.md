@@ -23,7 +23,6 @@ $ git submodule update --init
 ```
 
 ### Build and Test LLVM/MLIR/CLANG
-
 ```
 $ cd buddy-mlir
 $ mkdir llvm/build
@@ -124,6 +123,26 @@ $ ninja check-mlir check-clang
 $ ninja
 $ ninja check-buddy
 ```
+
+### Use nix
+
+This repository have nix flake support. You can follow the [nix installation instruction](https://nixos.org/manual/nix/stable/installation/installation.html) and enable the [flake features](https://nixos.wiki/wiki/Flakes#Other_Distros.2C_without_Home-Manager) to have nix setup.
+
+- If you want to contribute to this project:
+
+```bash
+nix develop .
+```
+
+This will setup a bash shell with `clang`, `clangd`, `cmake`, `ninja`, and other necessary dependencies to build buddy-mlir from source.
+
+- If you want to use the buddy-mlir bintools
+
+```bash
+nix build .#buddy-mlir
+./result/bin/buddy-opt --version
+```
+
 ## Dialects
 
 ### Bud Dialect

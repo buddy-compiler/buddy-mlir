@@ -80,18 +80,18 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
     rewriter.restoreInsertionPoint(insertPointBeforeOp);
     for(auto v : operands){
       auto t = v.getType();
-      if(t.isa<TensorType>()){
-        auto shape = t.dyn_cast<TensorType>().getShape();
-        auto ele_type = t.dyn_cast<TensorType>().getElementType();
+      if(isa<TensorType>(t)){
+        auto shape = dyn_cast<TensorType>(t).getShape();
+        auto ele_type = dyn_cast<TensorType>(t).getElementType();
         auto to_memref_op = rewriter.create<bufferization::ToMemrefOp>(loc, MemRefType::get(shape, ele_type), v);
         mp.map(v, to_memref_op.getResult());
 
         auto memref_cast_op = rewriter.create<memref::CastOp>(loc, UnrankedMemRefType::get(ele_type, {}), to_memref_op.getResult());
         auto host_register_op = rewriter.create<gpu::HostRegisterOp>(loc, memref_cast_op.getResult());
       }
-      else if(t.isa<VectorType>()){
-        auto shape = t.dyn_cast<VectorType>().getShape();
-        auto ele_type = t.dyn_cast<VectorType>().getElementType();
+      else if(isa<VectorType>(t)){
+        auto shape = dyn_cast<VectorType>(t).getShape();
+        auto ele_type = dyn_cast<VectorType>(t).getElementType();
         auto mem_type = MemRefType::get(shape, ele_type);
         auto alloc_op = rewriter.create<memref::AllocOp>(loc, mem_type);
         auto memref_cast_op = rewriter.create<memref::CastOp>(loc, UnrankedMemRefType::get(ele_type, {}), alloc_op.getResult());
@@ -101,11 +101,11 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
         auto vector_transfer_write_op = rewriter.create<vector::TransferWriteOp>(loc, v, alloc_op.getResult(), indices);
         mp.map(v, alloc_op.getResult());
       }
-      else if(t.isa<UnrankedMemRefType>()){
+      else if(isa<UnrankedMemRefType>(t)){
         auto host_register_op = rewriter.create<gpu::HostRegisterOp>(loc, v);
       }
-      else if(t.isa<MemRefType>()){
-        auto memref_type = t.dyn_cast<MemRefType>();
+      else if(isa<MemRefType>(t)){
+        auto memref_type = dyn_cast<MemRefType>(t);
         auto memref_cast_op = rewriter.create<memref::CastOp>(loc, UnrankedMemRefType::get(memref_type.getElementType(), memref_type.getMemorySpace()), v);
         auto host_register_op = rewriter.create<gpu::HostRegisterOp>(loc, memref_cast_op.getResult());
       }
@@ -117,14 +117,14 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
     rewriter.restoreInsertionPoint(insertPointToBlockStart);
     for(auto v : operands){
       auto t = v.getType();
-      if(t.isa<TensorType>()){
+      if(isa<TensorType>(t)){
         auto to_tensor_op = rewriter.create<bufferization::ToTensorOp>(loc, t, mp.lookup<Value>(v));
         mp.map(v, to_tensor_op.getResult());
       }
-      else if(t.isa<VectorType>()){
+      else if(isa<VectorType>(t)){
         auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
-        llvm::SmallVector<Value> indices(t.dyn_cast<VectorType>().getShape().size(), idx0);
-        auto transfer_read_op = rewriter.create<vector::TransferReadOp>(loc, t.dyn_cast<VectorType>(), mp.lookup<Value>(v), indices);
+        llvm::SmallVector<Value> indices(dyn_cast<VectorType>(t).getShape().size(), idx0);
+        auto transfer_read_op = rewriter.create<vector::TransferReadOp>(loc, dyn_cast<VectorType>(t), mp.lookup<Value>(v), indices);
         mp.map(v, transfer_read_op.getResult());
       }
     }
@@ -140,18 +140,18 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
       MemRefType mem_type;
       auto t = v.getType();
       //TODO:必须要有rank
-      if(t.isa<TensorType>()){
-        auto shape = t.dyn_cast<TensorType>().getShape();
-        auto ele_type = t.dyn_cast<TensorType>().getElementType();
+      if(isa<TensorType>(t)){
+        auto shape = dyn_cast<TensorType>(t).getShape();
+        auto ele_type = dyn_cast<TensorType>(t).getElementType();
         mem_type = MemRefType::get(shape, ele_type);
       }
-      else if(t.isa<VectorType>()){
-        auto shape = t.dyn_cast<VectorType>().getShape();
-        auto ele_type = t.dyn_cast<VectorType>().getElementType();
+      else if(isa<VectorType>(t)){
+        auto shape = dyn_cast<VectorType>(t).getShape();
+        auto ele_type = dyn_cast<VectorType>(t).getElementType();
         mem_type = MemRefType::get(shape, ele_type);
       }
-      else if(t.isa<MemRefType>()){
-        mem_type = t.dyn_cast<MemRefType>();
+      else if(isa<MemRefType>(t)){
+        mem_type = dyn_cast<MemRefType>(t);
       }
       else{
         mem_type = MemRefType::get({1}, t);
@@ -168,19 +168,19 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
     for(auto v : results){
       auto t = v.getType();
       //TODO:必须要有rank
-      if(t.isa<TensorType>()){
-        auto shape = t.dyn_cast_or_null<TensorType>().getShape();
-        auto ele_type = t.dyn_cast_or_null<TensorType>().getElementType();
+      if(isa<TensorType>(t)){
+        auto shape = dyn_cast_or_null<TensorType>(t).getShape();
+        auto ele_type = dyn_cast_or_null<TensorType>(t).getElementType();
         auto to_tensor_op = rewriter.create<bufferization::ToTensorOp>(loc, t, result_memrefs[i++]);
         v.replaceAllUsesWith(to_tensor_op.getResult());
       }
-      else if(t.isa<VectorType>()){
+      else if(isa<VectorType>(t)){
         auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
-        llvm::SmallVector<Value> indices(t.dyn_cast<VectorType>().getShape().size(), idx0);
-        auto transfer_read_op = rewriter.create<vector::TransferReadOp>(loc, t.dyn_cast<VectorType>(), result_memrefs[i++], indices);
+        llvm::SmallVector<Value> indices(dyn_cast<VectorType>(t).getShape().size(), idx0);
+        auto transfer_read_op = rewriter.create<vector::TransferReadOp>(loc, dyn_cast<VectorType>(t), result_memrefs[i++], indices);
         v.replaceAllUsesWith(transfer_read_op.getResult());
       }
-      else if(t.isa<MemRefType>()){
+      else if(isa<MemRefType>(t)){
         v.replaceAllUsesWith(result_memrefs[i++]);
       }
       else{
@@ -230,7 +230,7 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
                                                   [&](OpBuilder& builder, Location loc, 
                                                   Value iv, ValueRange iterArgs)
     {
-      Block &bodyBlock = forOp.getLoopBody().front();//original forOp's bodyBlock
+      Block &bodyBlock = forOp.getRegion().front();//original forOp's bodyBlock
       IRMapping mp;
       iv = builder.create<arith::MulIOp>(loc, iv, gpuLaunchOp.getBlockSizeX());
       iv = builder.create<arith::AddIOp>(loc, iv, gpuLaunchOp.getThreadIds().x);
@@ -298,8 +298,8 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
     auto results = onDeviceOp.getInnerResults();
     auto result_memrefs = convertResults(rewriter, results, mp, loc, insertBeforeOp, insertAfterOp);
   
-    assert(op->getAttr("sche.source").isa<StringAttr>());
-    auto sche_source = op->getAttr("sche.source").dyn_cast_or_null<StringAttr>().strref();
+    assert(isa<StringAttr>(op->getAttr("sche.source")));
+    auto sche_source = dyn_cast_or_null<StringAttr>(op->getAttr("sche.source")).strref();
 
     //scf::for lower
     if(sche_source == "scf.for"){
@@ -321,18 +321,18 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
           for(auto res : op_.getOperands()){
             auto t = res.getType();
             //TODO:必须要有rank
-            if(t.isa<TensorType>()){
-              auto shape = t.dyn_cast<TensorType>().getShape();
-              auto ele_type = t.dyn_cast<TensorType>().getElementType();
+            if(isa<TensorType>(t)){
+              auto shape = dyn_cast<TensorType>(t).getShape();
+              auto ele_type = dyn_cast<TensorType>(t).getElementType();
               auto to_memref_op = rewriter.create<bufferization::ToMemrefOp>(loc, MemRefType::get(shape, ele_type), mp.lookupOrNull<Value>(res));
               auto copy_op = rewriter.create<memref::CopyOp>(loc, to_memref_op.getResult(), result_memrefs[i++]);
             }
-            else if(t.isa<VectorType>()){
+            else if(isa<VectorType>(t)){
               auto idx0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)).getResult();
-              llvm::SmallVector<Value> indices(t.dyn_cast<VectorType>().getShape().size(), idx0);
+              llvm::SmallVector<Value> indices(dyn_cast<VectorType>(t).getShape().size(), idx0);
               auto vector_transfer_write_op = rewriter.create<vector::TransferWriteOp>(loc, mp.lookupOrNull<Value>(res), result_memrefs[i++], indices);
             }
-            else if(t.isa<MemRefType>()){
+            else if(isa<MemRefType>(t)){
               auto copy_op = rewriter.create<memref::CopyOp>(loc, mp.lookupOrNull<Value>(res), result_memrefs[i++]);
             }
             else{

@@ -26,7 +26,7 @@ foo_mlir(x, new_shape)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.reshape"
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

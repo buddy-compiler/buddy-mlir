@@ -1,4 +1,5 @@
 // RUN: buddy-opt %s \
+// RUN:     -convert-vector-to-scf -convert-scf-to-cf \
 // RUN:     -convert-vector-to-llvm \
 // RUN:     -convert-math-to-llvm \
 // RUN:     -convert-func-to-llvm \

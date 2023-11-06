@@ -26,7 +26,7 @@ foo_mlir(x, dim)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.reshape"
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: return %{{.*}} : tensor<1x10xf32>
 # CHECK: }
 # CHECK: }

@@ -27,8 +27,8 @@ foo_mlir(in1, in2, in3)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.matmul"
-# CHECK: %{{.*}} = "tosa.add"
+# CHECK: %{{.*}} = tosa.matmul
+# CHECK: %{{.*}} = tosa.add
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

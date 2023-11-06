@@ -1,4 +1,5 @@
 // RUN: buddy-opt %s \
+// RUN:     -convert-vector-to-scf -convert-scf-to-cf \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
@@ -110,7 +111,7 @@ func.func @main() -> i32 {
   //   : vector<4x4x4xi32> to vector<3x3xi32>
 
   // Instead, we either first extract %big_base[1], or do an extra extract with result:
-  %t1 = vector.extract %big_base[1] : vector<4x4x4xi32>
+  %t1 = vector.extract %big_base[1] : vector<4x4xi32> from vector<4x4x4xi32>
   %w4_1 = vector.extract_strided_slice %t1
     { offsets = [0, 0], sizes = [3, 3], strides = [1, 1] }
     : vector<4x4xi32> to vector<3x3xi32>
@@ -118,7 +119,7 @@ func.func @main() -> i32 {
   %t2 = vector.extract_strided_slice %big_base
     { offsets = [1, 0, 0], sizes = [1, 3, 3], strides = [1, 1, 1] }
     : vector<4x4x4xi32> to vector<1x3x3xi32>
-  %w4_2 = vector.extract %t2[0] : vector<1x3x3xi32>
+  %w4_2 = vector.extract %t2[0] : vector<3x3xi32> from vector<1x3x3xi32>
   // CHECK: ( ( 1, 11, 21 ), 
   // CHECK-SAME: ( 101, 111, 121 ), 
   // CHECK-SAME: ( 201, 211, 221 ) )

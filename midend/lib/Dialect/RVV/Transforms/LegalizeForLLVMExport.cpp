@@ -63,9 +63,9 @@ public:
     Value passthru = rewriter.create<LLVM::UndefOp>(loc, resultType[0]);
     operandsVector.insert(operandsVector.begin(), passthru);
 
-    LLVMTypeConverter typeConverter = *this->getTypeConverter();
+    const LLVMTypeConverter* typeConverter = this->getTypeConverter();
     if (numResults != 0) {
-      packedType = typeConverter.packFunctionResults(op->getResultTypes());
+      packedType = typeConverter->packFunctionResults(op->getResultTypes());
       if (!packedType)
         return failure();
     }

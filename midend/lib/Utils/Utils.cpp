@@ -116,8 +116,8 @@ Value roundOff(OpBuilder &builder, Location loc, Value val) {
 // Bound values to permissible range of allocatable values w.r.t output image.
 Value valBound(OpBuilder &builder, Location loc, Value val, Value lastElemF32,
                Value c0F32) {
-  Value interm1 = builder.create<arith::MaxFOp>(loc, val, c0F32);
-  return builder.create<arith::MinFOp>(loc, interm1, lastElemF32);
+  Value interm1 = builder.create<arith::MaximumFOp>(loc, val, c0F32);
+  return builder.create<arith::MinimumFOp>(loc, interm1, lastElemF32);
 }
 
 // check if lb <= val < ub and returns Value 0 or 1

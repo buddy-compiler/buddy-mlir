@@ -2198,7 +2198,7 @@ def softmax_op(
                 ir.RankedTensorType(neg_inf_fill.result.type).element_type,
             ],
         )
-        max_op = arith.MaxFOp(block.arguments[0], block.arguments[1])
+        max_op = arith.MaximumFOp(block.arguments[0], block.arguments[1])
         block.append(max_op)
         block.append(linalg.YieldOp([max_op.result]))
 
