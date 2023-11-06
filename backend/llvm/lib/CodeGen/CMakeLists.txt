@@ -127,8 +127,8 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/MIRFSDiscriminator.cpp
   ${LLVM_CodeGen_DIR}/MIRSampleProfile.cpp
   ${LLVM_CodeGen_DIR}/MIRYamlMapping.cpp
-  ${LLVM_CodeGen_DIR}/MLRegallocEvictAdvisor.cpp
-  ${LLVM_CodeGen_DIR}/MLRegallocPriorityAdvisor.cpp
+  ${LLVM_CodeGen_DIR}/MLRegAllocEvictAdvisor.cpp
+  ${LLVM_CodeGen_DIR}/MLRegAllocPriorityAdvisor.cpp
   ${LLVM_CodeGen_DIR}/ModuloSchedule.cpp
   ${LLVM_CodeGen_DIR}/MultiHazardRecognizer.cpp
   ${LLVM_CodeGen_DIR}/PatchableFunction.cpp

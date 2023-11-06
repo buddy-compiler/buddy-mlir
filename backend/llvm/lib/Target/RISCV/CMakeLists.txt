@@ -91,7 +91,6 @@ buddy_add_llvm_target(BuddyRISCVCodeGen
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVISelLowering.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMachineFunctionInfo.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMacroFusion.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCInstLower.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMergeBaseOffset.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVOptWInstrs.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVRedundantCopyElimination.cpp
