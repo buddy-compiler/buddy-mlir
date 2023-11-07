@@ -73,3 +73,4 @@ add_custom_command(
   endif()
   
   target_link_libraries(buddy-llama-run ${BUDDY_LLAMA_LIBS})
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
