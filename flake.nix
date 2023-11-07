@@ -34,6 +34,10 @@
               libpng
               zlib-ng
             ];
+
+            postHook = ''
+              export PATH="${pkgs.clang-tools}/bin:$PATH"
+            '';
           };
 
           formatter = pkgs.nixpkgs-fmt;
