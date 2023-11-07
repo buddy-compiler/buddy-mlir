@@ -288,7 +288,7 @@ public:
       if(targetId.dyn_cast<StringAttr>().getValue() == "cpu"){
         rewriter.setInsertionPointAfter(placeHolder);
         auto sub_forOp = rewriter.create<scf::ForOp>(loc, start, end, step, forOp.getInitArgs(), [&](OpBuilder& builder, Location loc, Value iv, ValueRange iterArgs){
-          Block &bodyBlock = forOp.getLoopBody().front();
+          Block &bodyBlock = forOp.getRegion().front();
           IRMapping mp;
           mp.map(bodyBlock.getArgument(0), iv);
           for(auto&& [a, b] : llvm::zip(bodyBlock.getArguments().drop_front(), iterArgs)){
@@ -301,7 +301,7 @@ public:
       }
       else if(targetId.dyn_cast<StringAttr>().getValue() == "gpu"){
         rewriter.setInsertionPoint(placeHolder);
-        Block &bodyBlock = forOp.getLoopBody().front();
+        Block &bodyBlock = forOp.getRegion().front();
         SmallVector<Operation*> op_list;
         ScheTargetNode node;
         for(auto it = bodyBlock.begin(); it != bodyBlock.end(); it++){

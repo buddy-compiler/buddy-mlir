@@ -230,7 +230,7 @@ explicit OnDeviceOpScheLowering(TypeConverter &typeConverter, MLIRContext *conte
                                                   [&](OpBuilder& builder, Location loc, 
                                                   Value iv, ValueRange iterArgs)
     {
-      Block &bodyBlock = forOp.getLoopBody().front();//original forOp's bodyBlock
+      Block &bodyBlock = forOp.getRegion().front();//original forOp's bodyBlock
       IRMapping mp;
       iv = builder.create<arith::MulIOp>(loc, iv, gpuLaunchOp.getBlockSizeX());
       iv = builder.create<arith::AddIOp>(loc, iv, gpuLaunchOp.getThreadIds().x);
