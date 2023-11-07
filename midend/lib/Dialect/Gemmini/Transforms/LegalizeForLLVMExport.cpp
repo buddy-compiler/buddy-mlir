@@ -94,7 +94,7 @@ void gemminiMvoutOffset(const Value &mem, const size_t offset, const uint32_t Sp
   rewriter.create<Mvout_IntrOp>(loc, configPtr, spad);
 }
 
-}; // namespace
+} // namespace
 
 template <typename OpTy>
 class ForwardOperands : public OpConversionPattern<OpTy> {
