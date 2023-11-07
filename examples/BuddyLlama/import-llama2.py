@@ -22,7 +22,7 @@ import os
 
 import numpy
 import torch
-from transformers import LlamaForCausalLM, LlamaTokenizer
+from transformers import LlamaForCausalLM, LlamaTokenizer, LlamaConfig
 import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
 from torch._functorch.aot_autograd import aot_autograd_decompositions
@@ -33,20 +33,21 @@ from buddy.compiler.ops import tosa
 
 model_path = os.environ.get('LLAMA_MODEL_PATH')
 tokenizer = LlamaTokenizer.from_pretrained(model_path)
-model = LlamaForCausalLM.from_pretrained(model_path, torchscript=True)
+configuration = LlamaConfig(use_cache=False)
+model = LlamaForCausalLM.from_pretrained(model_path, config=configuration)
 prompt = "Hey, how are you?"
 inputs = tokenizer(prompt, return_tensors="pt")
 inputs = inputs.input_ids
 
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=aot_autograd_decompositions,
-    is_inference=True,
+    aot_autograd_decomposition=aot_autograd_decompositions
 )
 
-gm, params = dynamo_compiler.importer(
-    model, torch.tensor([[1 for i in range(80)]], dtype=torch.int64)
-)
+with torch.no_grad():
+    gm, params = dynamo_compiler.importer(
+        model, torch.tensor([[1 for i in range(80)]], dtype=torch.int64)
+    )
 with open(
     os.path.dirname(os.path.abspath(__file__)) + "/llama.mlir", "w"
 ) as module_file:

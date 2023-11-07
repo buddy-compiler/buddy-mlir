@@ -162,8 +162,8 @@ void Text<T, N>::tokenizeLlama(const std::string &vocab, size_t length) {
   this->sizes[0] = 1;
   this->sizes[1] = length;
   this->setStrides();
-  this->size = this->product(this->sizes);
-  this->allocated = new T[this->size];
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
   this->aligned = this->allocated;
   this->unk = 0;
   this->cls = 1;
@@ -228,8 +228,8 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
   this->sizes[0] = 1;
   this->sizes[1] = length;
   this->setStrides();
-  this->size = this->product(this->sizes);
-  this->allocated = new T[this->size];
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
   this->aligned = this->allocated;
   this->pad = 102;
   this->unk = 100;
@@ -293,7 +293,7 @@ std::string Text<T, N>::revertLlama(Text<T, 2> input) {
   const int CLS_ID = 1;
   const int SEP_ID = 2;
 
-  for (size_t i = 0; i < this->size; i++) {
+  for (size_t i = 0; i < this->getSize(); i++) {
     int id = input.getData()[i];
     if (id == PAD_ID || id == CLS_ID)
       continue;

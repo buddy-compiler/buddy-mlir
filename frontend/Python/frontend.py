@@ -28,7 +28,6 @@ import torch
 import torch._dynamo as dynamo
 from torch._functorch.aot_autograd import aot_module_simplified
 import torch.utils._pytree as pytree
-
 from .ops.math import ops_registry as math_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.linalg import ops_registry as linalg_ops_registry
@@ -51,7 +50,6 @@ class DynamoCompiler:
         primary_registry: dict = {},
         aot_autograd_decomposition: Optional[dict] = None,
         param_pack: bool = True,
-        is_inference: bool = False,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -67,7 +65,6 @@ class DynamoCompiler:
         self._imported_module = None
         self._imported_params = None
         self._param_pack = param_pack
-        self._is_inference = is_inference
         self._ops_registry = {}
         self._ops_registry.update(math_ops_registry)
         self._ops_registry.update(linalg_ops_registry)
@@ -102,7 +99,6 @@ class DynamoCompiler:
             """Compile a FX graph in Aten/Prims IR to MLIR."""
             func_params = _inputs[: len(self.imported_params)]
             func_inputs = _inputs[len(self.imported_params) :]
-
             # Initializes the MLIR context.
             ctx = ir.Context()
             with ir.Location.unknown(ctx):
@@ -113,7 +109,6 @@ class DynamoCompiler:
                     self._param_pack,
                     self._func_name,
                     self._ops_registry,
-                    self._is_inference,
                 )
                 self._imported_module = fx_importer.import_graph()
             # TODO: Lower to LLVM dialect and use JIT engine to execute.
@@ -190,13 +185,9 @@ class FXGraphImporter:
         param_pack: bool = True,
         func_name: str = "forward",
         ops_registry: dict = {},
-        is_inference: bool = False,
     ):
         """
         Initializes the FX Graph importer.
-
-        Note: If is_inference is True, the return tensors num will be forced to
-        limit to one, such as returns = [returns[0]]
 
         Args:
             gm (torch.fx.GraphModule): The FX graph that will be imported.
@@ -213,7 +204,6 @@ class FXGraphImporter:
         self._num_input_visited = 0
         self._module = ir.Module.create()
         self._ops_registry = ops_registry
-        self._is_inference = is_inference
 
     def _torch_dtype_to_mlir_dtype(self, dtype: torch.dtype) -> ir.Type:
         """
@@ -278,14 +268,11 @@ class FXGraphImporter:
                 args_list = list(args)
                 for node in self._gm.graph.nodes:
                     if node.op == "output":
-                        print(node.__dict__)
                         output_node_args = node.args[0]
                         returns = []
                         for output_arg in output_node_args:
                             op = self._symbol_table.get((str(output_arg), 0))
                             returns.append(op)
-                        if self._is_inference:
-                            returns = [returns[0]]
                         self._symbol_table[("output", 0)] = returns
                     elif node.op == "placeholder":
                         self._import_placeholder(node, args_list)
