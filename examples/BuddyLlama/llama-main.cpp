@@ -29,16 +29,6 @@ using namespace buddy;
 using namespace std;
 using namespace chrono;
 
-struct RetValue {
-  float *allocated;
-  float *aligned;
-  intptr_t stride;
-  intptr_t sizes[3];
-  intptr_t strides[3];
-
-  float *getData() { return this->allocated; }
-};
-
 extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
                                      MemRef<size_t, 2> *);
 
