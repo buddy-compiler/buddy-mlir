@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <memory>
@@ -40,7 +41,9 @@ public:
   MemRef(intptr_t sizes[N]);
   MemRef(std::vector<size_t> sizes);
   MemRef(intptr_t sizes[N], T init);
+  MemRef(intptr_t sizes[N], bool needMalloc, intptr_t offset);
   MemRef(std::vector<size_t> sizes, T init);
+  MemRef(std::vector<size_t> sizes, bool needMalloc, intptr_t offset);
   // Constructor from data.
   MemRef(const T *data, intptr_t sizes[N], intptr_t offset = 0);
   // Constructor from a unique_ptr, taking over.
@@ -64,7 +67,7 @@ public:
   // Get the rank of the memref.
   size_t getRank() const { return N; }
   // Get the size (number of elements).
-  size_t getSize() const { return size; }
+  size_t getSize() const { return product(this->sizes); }
   // Get the element at index.
   const T &operator[](size_t index) const;
   T &operator[](size_t index);
@@ -79,7 +82,7 @@ protected:
   // Computes the strides of the transposed tensor for transpose=true.
   void setStrides();
   // Compute the product of array elements.
-  size_t product(intptr_t sizes[N]) const;
+  size_t product(const intptr_t sizes[N]) const;
 
   // Data.
   // The `aligned` and `allocated` members point to the same address, `aligned`
@@ -93,8 +96,6 @@ protected:
   intptr_t sizes[N];
   // Strides.
   intptr_t strides[N];
-  // Number of elements.
-  size_t size;
 };
 
 // MemRef Shape Constructor.
@@ -104,8 +105,8 @@ template <typename T, std::size_t N> MemRef<T, N>::MemRef(intptr_t sizes[N]) {
     this->sizes[i] = sizes[i];
   }
   setStrides();
-  size = product(sizes);
-  allocated = new T[size];
+  size_t size = product(sizes);
+  allocated = (T *)malloc(sizeof(T) * size);
   aligned = allocated;
 }
 
@@ -118,19 +119,48 @@ MemRef<T, N>::MemRef(std::vector<size_t> sizes) {
     this->sizes[i] = sizes[i];
   }
   setStrides();
-  size = product(this->sizes);
-  allocated = new T[size];
+  size_t size = product(this->sizes);
+  allocated = (T *)malloc(sizeof(T) * size);
   aligned = allocated;
 }
 
 template <typename T, std::size_t N>
 MemRef<T, N>::MemRef(intptr_t sizes[N], T init) : MemRef(sizes) {
+  size_t size = product(sizes);
   std::fill(aligned, aligned + size, init);
 }
 
 template <typename T, std::size_t N>
+MemRef<T, N>::MemRef(intptr_t sizes[N], bool needMalloc, intptr_t offset)
+    : sizes(sizes), offset(offset) {
+  setStrides();
+  if (needMalloc) {
+    size_t size = product(sizes);
+    allocated = (T *)malloc(sizeof(T) * size);
+  }
+}
+
+template <typename T, std::size_t N>
 MemRef<T, N>::MemRef(std::vector<size_t> sizes, T init) : MemRef(sizes) {
+  size_t size = product(this->sizes);
   std::fill(aligned, aligned + size, init);
+}
+
+template <typename T, std::size_t N>
+MemRef<T, N>::MemRef(std::vector<size_t> sizes, bool needMalloc,
+                     intptr_t offset)
+    : offset(offset) {
+  if (sizes.size() != N) {
+    throw std::runtime_error("Invalid number of dimensions.");
+  }
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
+  setStrides();
+  if (needMalloc) {
+    size_t size = product(this->sizes);
+    allocated = (T *)malloc(sizeof(T) * size);
+  }
 }
 
 // MemRef Array Constructor.
@@ -143,8 +173,8 @@ MemRef<T, N>::MemRef(const T *data, intptr_t sizes[N], intptr_t offset) {
     this->sizes[i] = sizes[i];
   }
   setStrides();
-  size = product(sizes);
-  allocated = new T[size];
+  size_t size = product(sizes);
+  allocated = (T *)malloc(sizeof(T) * size);
   aligned = allocated;
   for (size_t i = 0; i < size; i++) {
     aligned[i] = data[i];
@@ -160,13 +190,13 @@ MemRef<T, N>::MemRef(const T *data, intptr_t sizes[N], intptr_t offset) {
 // - Allocate new space.
 // - Deep copy the data from the original object.
 template <typename T, std::size_t N>
-MemRef<T, N>::MemRef(const MemRef<T, N> &other)
-    : offset(other.offset), size(other.size) {
+MemRef<T, N>::MemRef(const MemRef<T, N> &other) : offset(other.offset) {
   for (size_t i = 0; i < N; i++) {
     this->sizes[i] = other.sizes[i];
   }
   setStrides();
-  allocated = new T[size];
+  size_t size = product(this->sizes);
+  allocated = (T *)malloc(sizeof(T) * size);
   aligned = allocated;
   for (size_t i = 0; i < size; i++) {
     aligned[i] = other.aligned[i];
@@ -184,15 +214,15 @@ template <typename T, std::size_t N>
 MemRef<T, N> &MemRef<T, N>::operator=(const MemRef<T, N> &other) {
   if (this != &other) {
     this->offset = other.offset;
-    this->size = other.size;
     for (size_t i = 0; i < N; i++) {
       this->sizes[i] = other.sizes[i];
     }
     setStrides();
     // Free the original aligned and allocated space.
-    delete[] allocated;
+    free(allocated);
     // Allocate new space and deep copy.
-    T *ptr = new T[size];
+    size_t size = product(this->sizes);
+    T *ptr = (T *)malloc(sizeof(T) * size);
     for (size_t i = 0; i < size; i++) {
       ptr[i] = other.aligned[i];
     }
@@ -211,8 +241,7 @@ MemRef<T, N> &MemRef<T, N>::operator=(const MemRef<T, N> &other) {
 //   avoid the double free error.
 template <typename T, std::size_t N>
 MemRef<T, N>::MemRef(MemRef<T, N> &&other) noexcept
-    : allocated(other.allocated), aligned(other.aligned), offset(other.offset),
-      size(other.size) {
+    : allocated(other.allocated), aligned(other.aligned), offset(other.offset) {
   std::swap(this->sizes, other.sizes);
   std::swap(this->strides, other.strides);
   // Assign the NULL pointer to the original aligned and allocated members to
@@ -231,12 +260,11 @@ template <typename T, std::size_t N>
 MemRef<T, N> &MemRef<T, N>::operator=(MemRef<T, N> &&other) noexcept {
   if (this != &other) {
     // Free the original aligned and allocated space.
-    delete[] allocated;
+    free(allocated);
     // Steal members of the original object.
     std::swap(strides, other.strides);
     std::swap(offset, other.offset);
     std::swap(sizes, other.sizes);
-    std::swap(size, other.size);
     std::swap(allocated, other.allocated);
     std::swap(aligned, other.aligned);
     // Assign the NULL pointer to the original aligned and allocated members to
@@ -251,7 +279,7 @@ MemRef<T, N> &MemRef<T, N>::operator=(MemRef<T, N> &&other) noexcept {
 // enough to release the space of the `allocated` pointer in the destructor.
 template <typename T, std::size_t N> MemRef<T, N>::~MemRef() {
   if (allocated)
-    delete allocated;
+    free(allocated);
 }
 
 // Get the data pointer.
@@ -260,6 +288,7 @@ template <typename T, std::size_t N> MemRef<T, N>::~MemRef() {
 // the container data pointer, the function does not allow to return the data
 // pointer.
 template <typename T, std::size_t N> T *MemRef<T, N>::getData() {
+  size_t size = product(this->sizes);
   assert((size > 0) && "Invalid container data size.");
   return aligned;
 }
@@ -271,10 +300,12 @@ template <typename T, std::size_t N> T *MemRef<T, N>::getData() {
 // element.
 template <typename T, std::size_t N>
 const T &MemRef<T, N>::operator[](size_t index) const {
+  size_t size = product(this->sizes);
   assert((size > 0) && "Invalid container data size.");
   return aligned[index + offset];
 }
 template <typename T, std::size_t N> T &MemRef<T, N>::operator[](size_t index) {
+  size_t size = product(this->sizes);
   assert((size > 0) && "Invalid container data size.");
   return aligned[index + offset];
 }
@@ -293,7 +324,7 @@ template <typename T, std::size_t N> void MemRef<T, N>::setStrides() {
 
 // Calculate the total number of elements in the MemRef container.
 template <typename T, std::size_t N>
-size_t MemRef<T, N>::product(intptr_t sizes[N]) const {
+size_t MemRef<T, N>::product(const intptr_t sizes[N]) const {
   size_t size = 1;
   for (size_t i = 0; i < N; i++)
     size *= sizes[i];
@@ -312,7 +343,6 @@ MemRef<T, N>::MemRef(std::unique_ptr<T> &uptr, intptr_t *sizes,
     this->sizes[i] = sizes[i];
   }
   setStrides();
-  size = product(sizes);
 }
 template <typename T, size_t N> T *MemRef<T, N>::release() {
   T *temp = aligned;
