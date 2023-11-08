@@ -12,8 +12,21 @@ set(LinkedLibs
   MLIRSupport
   ${extension_libs}
 
+  ConvOptimization
+  CBConvVectorization
+  LowerBudPass
+  LowerDAPPass
+  LowerDIPPass
   LowerGemminiPass
   LowerLinalgToGemminiPass
+  LowerRVVPass
+  LowerSche
+  LowerVectorExpPass
+  MatMulOptimization
+  BatchMatMulOptimization
+  MatMulParallelVectorization
+  SchedulingOnDevices
+  TransposeOptimization
 )
 
 

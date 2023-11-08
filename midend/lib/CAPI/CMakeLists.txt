@@ -8,7 +8,14 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRSupport
+  BuddyBud
+  BuddyDAP
+  BuddyDIP
   BuddyGemmini
   BuddyGemminiTransforms
+  BuddyRVV
+  BuddyRVVTransforms
+  BuddySche
+  VectorExp
   BuddyMLIRInitAll
 )

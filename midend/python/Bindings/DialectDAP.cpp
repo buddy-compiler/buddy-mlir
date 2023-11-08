@@ -1,9 +1,8 @@
-//===-- BuddyBind.td - Buddy dialect bind ------------------*- tablegen -*-===//
+//===---- DialectDAP.cpp - Pybind module for DAP dialect API support ------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Also available under a BSD-style license. See LICENSE.
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,16 +13,16 @@
 namespace py = pybind11;
 using namespace mlir::python::adaptors;
 
-PYBIND11_MODULE(_gemminiDialects, m) {
+PYBIND11_MODULE(_dapDialects, m) {
+
+  auto dapM = m.def_submodule("dap");
 
   buddyMlirRegisterAllPasses();
 
-  auto gemminiM = m.def_submodule("gemmini");
-
-  gemminiM.def(
+  dapM.def(
       "register_dialect",
       [](MlirContext context, bool load) {
-        MlirDialectHandle handle = mlirGetDialectHandle__gemmini__();
+        MlirDialectHandle handle = mlirGetDialectHandle__dap__();
         mlirDialectHandleRegisterDialect(handle, context);
         if (load) {
           mlirDialectHandleLoadDialect(handle, context);
