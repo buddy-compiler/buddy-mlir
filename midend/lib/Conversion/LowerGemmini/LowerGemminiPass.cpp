@@ -52,7 +52,8 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto memRefType = (*op->operand_type_begin()).cast<MemRefType>();
+    auto context = rewriter.getContext();
+    auto memRefType = llvm::cast<MemRefType>(*op->operand_type_begin());
     auto memRefShape = memRefType.getShape();
     Type memElementType = memRefType.getElementType();
     auto loc = op->getLoc();
@@ -85,8 +86,7 @@ public:
       rewriter.setInsertionPointToEnd(loop.getBody());
 
       if (i != e - 1)
-        rewriter.create<func::CallOp>(loc, printfRef,
-                                      rewriter.getIntegerType(32), newLineCst);
+        rewriter.create<LLVM::CallOp>(loc, getPrintfType(context), printfRef, newLineCst);
       rewriter.create<scf::YieldOp>(loc);
       rewriter.setInsertionPointToStart(loop.getBody());
     }
@@ -100,8 +100,8 @@ public:
     else if (elementLoad.getType() == rewriter.getI8Type())
       elementLoad = rewriter.create<mlir::LLVM::SExtOp>(
           loc, rewriter.getI32Type(), elementLoad);
-    rewriter.create<func::CallOp>(
-        loc, printfRef, rewriter.getIntegerType(32),
+    rewriter.create<LLVM::CallOp>(
+        loc, getPrintfType(context) , printfRef,
         ArrayRef<Value>({formatSpecifierCst, elementLoad}));
 
     rewriter.eraseOp(op);
@@ -109,19 +109,21 @@ public:
   }
 
 private:
+  static LLVM::LLVMFunctionType getPrintfType(MLIRContext *context) {
+    auto llvmI32Ty = IntegerType::get(context, 32);
+    auto llvmPtr = LLVM::LLVMPointerType::get(context);
+    return LLVM::LLVMFunctionType::get(llvmI32Ty, llvmPtr, true);
+  }
+
   static FlatSymbolRefAttr getOrInsertPrintf(PatternRewriter &rewriter,
                                              ModuleOp module) {
     auto *context = module.getContext();
     if (module.lookupSymbol<LLVM::LLVMFuncOp>("printf"))
       return SymbolRefAttr::get(context, "printf");
 
-    auto llvmI32Ty = IntegerType::get(context, 32);
-    auto llvmI8PtrTy = LLVM::LLVMPointerType::get(IntegerType::get(context, 8));
-    auto llvmFnType = LLVM::LLVMFunctionType::get(llvmI32Ty, llvmI8PtrTy, true);
-
     PatternRewriter::InsertionGuard insertGuard(rewriter);
     rewriter.setInsertionPointToStart(module.getBody());
-    rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "printf", llvmFnType);
+    rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "printf", getPrintfType(context));
     return SymbolRefAttr::get(context, "printf");
   }
 
@@ -144,7 +146,7 @@ private:
                                                   builder.getIndexAttr(0));
     return builder.create<LLVM::GEPOp>(
         loc,
-        LLVM::LLVMPointerType::get(IntegerType::get(builder.getContext(), 8)),
+        LLVM::LLVMPointerType::get(builder.getContext()), global.getType(),
         globalPtr, ArrayRef<Value>({cst0, cst0}));
   }
 };
