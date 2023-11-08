@@ -75,13 +75,15 @@ def run(
     # Load model
     device = select_device(device)
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
+    model(torch.randn((1, 3, 640, 480), device='cpu'))
+    print(model)
     dynamo_compiler = DynamoCompiler(
         primary_registry=tosa.ops_registry,
         aot_autograd_decomposition=aot_autograd_decompositions
     )
     with torch.no_grad():
         gm, params = dynamo_compiler.importer(
-            model, torch.randn((3, 640, 480))
+            model, torch.randn((1, 3, 640, 480), device='cpu')
         )
     exit()
     stride, names, pt = model.stride, model.names, model.pt
@@ -219,7 +221,7 @@ def parse_opt():
     parser.add_argument('--conf-thres', type=float, default=0.25, help='confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='NMS IoU threshold')
     parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
-    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--view-img', action='store_true', help='show results')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')

@@ -1,0 +1,88 @@
+2
+2
+2
+2
+DetectMultiBackend(
+  (model): DetectionModel(
+    (model): Sequential(
+      (0): Conv(
+        (conv): Conv2d(3, 16, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (act): SiLU(inplace=True)
+      )
+      (1): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+      (2): Conv(
+        (conv): Conv2d(16, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (act): SiLU(inplace=True)
+      )
+      (3): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+      (4): Conv(
+        (conv): Conv2d(32, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (act): SiLU(inplace=True)
+      )
+      (5): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+      (6): Conv(
+        (conv): Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (act): SiLU(inplace=True)
+      )
+      (7): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+      (8): Conv(
+        (conv): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (act): SiLU(inplace=True)
+      )
+      (9): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+      (10): Conv(
+        (conv): Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (act): SiLU(inplace=True)
+      )
+      (11): ZeroPad2d((0, 1, 0, 1))
+      (12): MaxPool2d(kernel_size=2, stride=1, padding=0, dilation=1, ceil_mode=False)
+      (13): Conv(
+        (conv): Conv2d(512, 1024, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (act): SiLU(inplace=True)
+      )
+      (14): Conv(
+        (conv): Conv2d(1024, 256, kernel_size=(1, 1), stride=(1, 1))
+        (act): SiLU(inplace=True)
+      )
+      (15): Conv(
+        (conv): Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (act): SiLU(inplace=True)
+      )
+      (16): Conv(
+        (conv): Conv2d(256, 128, kernel_size=(1, 1), stride=(1, 1))
+        (act): SiLU(inplace=True)
+      )
+      (17): Upsample(scale_factor=2.0, mode='nearest')
+      (18): Concat()
+      (19): Conv(
+        (conv): Conv2d(384, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (act): SiLU(inplace=True)
+      )
+      (20): Detect(
+        (m): ModuleList(
+          (0): Conv2d(256, 255, kernel_size=(1, 1), stride=(1, 1))
+          (1): Conv2d(512, 255, kernel_size=(1, 1), stride=(1, 1))
+        )
+      )
+    )
+  )
+)
+class <lambda>(torch.nn.Module):
+    def forward(self, arg0_1: f32[16, 3, 3, 3], arg1_1: f32[16], arg2_1: f32[1, 3, 640, 480]):
+        # File: /root/yolov3/models/common.py:59, code: return self.act(self.conv(x))
+        convolution: f32[1, 16, 640, 480] = torch.ops.aten.convolution.default(arg2_1, arg0_1, arg1_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  arg2_1 = arg0_1 = arg1_1 = None
+        silu: f32[1, 16, 640, 480] = torch.ops.aten.silu.default(convolution);  convolution = None
+        return (silu,)
+        
+{'graph': <torch.fx.graph.Graph object at 0x7f8d4e9184d0>, 'name': 'arg0_1', 'op': 'placeholder', 'target': 'arg0_1', '_input_nodes': {}, '_args': (), '_kwargs': {}, 'users': {convolution: None}, 'type': None, '_prev': , '_next': arg1_1, '_erased': False, '_repr_fn': None, 'meta': {'val': FakeTensor(..., size=(16, 3, 3, 3)), 'tensor_meta': TensorMetadata(shape=torch.Size([16, 3, 3, 3]), dtype=torch.float32, requires_grad=False, stride=(27, 9, 3, 1), memory_format=torch.contiguous_format, is_quantized=False, qparams={})}}
+None
+{'graph': <torch.fx.graph.Graph object at 0x7f8d4e9184d0>, 'name': 'arg1_1', 'op': 'placeholder', 'target': 'arg1_1', '_input_nodes': {}, '_args': (), '_kwargs': {}, 'users': {convolution: None}, 'type': None, '_prev': arg0_1, '_next': arg2_1, '_erased': False, '_repr_fn': None, 'meta': {'val': FakeTensor(..., size=(16,)), 'tensor_meta': TensorMetadata(shape=torch.Size([16]), dtype=torch.float32, requires_grad=False, stride=(1,), memory_format=torch.contiguous_format, is_quantized=False, qparams={})}}
+None
+{'graph': <torch.fx.graph.Graph object at 0x7f8d4e9184d0>, 'name': 'arg2_1', 'op': 'placeholder', 'target': 'arg2_1', '_input_nodes': {}, '_args': (), '_kwargs': {}, 'users': {convolution: None}, 'type': None, '_prev': arg1_1, '_next': convolution, '_erased': False, '_repr_fn': None, 'meta': {'val': FakeTensor(..., size=(1, 3, 640, 480)), 'tensor_meta': TensorMetadata(shape=torch.Size([1, 3, 640, 480]), dtype=torch.float32, requires_grad=False, stride=(921600, 307200, 480, 1), memory_format=torch.contiguous_format, is_quantized=False, qparams={})}}
+None
+{'graph': <torch.fx.graph.Graph object at 0x7f8d4e9184d0>, 'name': 'convolution', 'op': 'call_function', 'target': <OpOverload(op='aten.convolution', overload='default')>, '_input_nodes': {arg2_1: None, arg0_1: None, arg1_1: None}, '_args': (arg2_1, arg0_1, arg1_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1), '_kwargs': {}, 'users': {silu: None}, 'type': None, '_prev': arg2_1, '_next': silu, '_erased': False, '_repr_fn': None, 'meta': {'stack_trace': '  File "/root/yolov3/models/common.py", line 59, in forward_fuse\n    return self.act(self.conv(x))\n', 'nn_module_stack': {'L__self___conv': ("L['self'].conv", <class 'torch.nn.modules.conv.Conv2d'>)}, 'source_fn': ('l__self___conv', <class 'torch.nn.modules.conv.Conv2d'>), 'original_aten': <OpOverload(op='aten.convolution', overload='default')>, 'from_node': [('l__self___conv', 'L__self___conv')], 'seq_nr': -1, 'val': FakeTensor(..., size=(1, 16, 640, 480)), 'tensor_meta': TensorMetadata(shape=torch.Size([1, 16, 640, 480]), dtype=torch.float32, requires_grad=False, stride=(4915200, 307200, 480, 1), memory_format=torch.contiguous_format, is_quantized=False, qparams={})}}
+convolution.default
+{'graph': <torch.fx.graph.Graph object at 0x7f8d4e9184d0>, 'name': 'silu', 'op': 'call_function', 'target': <OpOverload(op='aten.silu', overload='default')>, '_input_nodes': {convolution: None}, '_args': (convolution,), '_kwargs': {}, 'users': {output: None}, 'type': None, '_prev': convolution, '_next': output, '_erased': False, '_repr_fn': None, 'meta': {'stack_trace': '  File "/root/yolov3/models/common.py", line 59, in forward_fuse\n    return self.act(self.conv(x))\n', 'nn_module_stack': {'L__self___act': ("L['self'].act", <class 'torch.nn.modules.activation.SiLU'>)}, 'source_fn': ('l__self___act', <class 'torch.nn.modules.activation.SiLU'>), 'original_aten': <OpOverload(op='aten.silu', overload='default')>, 'from_node': [('l__self___act', 'L__self___act')], 'seq_nr': -1, 'val': FakeTensor(..., size=(1, 16, 640, 480)), 'tensor_meta': TensorMetadata(shape=torch.Size([1, 16, 640, 480]), dtype=torch.float32, requires_grad=False, stride=(4915200, 307200, 480, 1), memory_format=torch.contiguous_format, is_quantized=False, qparams={})}}
+silu.default
+{'graph': <torch.fx.graph.Graph object at 0x7f8d4e9184d0>, 'name': 'output', 'op': 'output', 'target': 'output', '_input_nodes': {silu: None}, '_args': ((silu,),), '_kwargs': {}, 'users': {}, 'type': None, '_prev': silu, '_next': , '_erased': False, '_repr_fn': None, 'meta': {}}
+None
