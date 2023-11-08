@@ -21,6 +21,8 @@
 // RUN: buddy-container-test 2>&1 | FileCheck %s
 
 #include <buddy/Core/Container.h>
+#include <cstddef>
+#include <vector>
 
 int main() {
   intptr_t sizes[] = {2, 3};
@@ -50,6 +52,21 @@ int main() {
   // CHECK: 5.0
   fprintf(stderr, "%f\n", testCustomShapeConstructor[5]);
 
+  //===--------------------------------------------------------------------===//
+  // Test custom shape no malloc constructor.
+  //===--------------------------------------------------------------------===//
+  MemRef<float, 2> testCustomShapeNoMallocConstructor(sizes, false, 0);
+  // CHECK: (nil)
+  fprintf(stderr, "%p\n", testCustomShapeNoMallocConstructor.getData());
+
+  //===--------------------------------------------------------------------===//
+  // Test array no malloc constructor.
+  //===--------------------------------------------------------------------===//
+  std::vector<size_t> arrayShape = {1, 80, 32000};
+  MemRef<float, 3> testArrayNoMallocConstructor(arrayShape, false, 0);
+  // CHECK: (nil)
+  fprintf(stderr, "%p\n", testArrayNoMallocConstructor.getData());
+  
   //===--------------------------------------------------------------------===//
   // Test array constructor.
   //===--------------------------------------------------------------------===//

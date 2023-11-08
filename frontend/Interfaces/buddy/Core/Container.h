@@ -41,9 +41,9 @@ public:
   MemRef(intptr_t sizes[N]);
   MemRef(std::vector<size_t> sizes);
   MemRef(intptr_t sizes[N], T init);
-  MemRef(intptr_t sizes[N], bool needMalloc, intptr_t offset);
+  MemRef(intptr_t sizes[N], bool need_malloc, intptr_t offset);
   MemRef(std::vector<size_t> sizes, T init);
-  MemRef(std::vector<size_t> sizes, bool needMalloc, intptr_t offset);
+  MemRef(std::vector<size_t> sizes, bool need_malloc, intptr_t offset);
   // Constructor from data.
   MemRef(const T *data, intptr_t sizes[N], intptr_t offset = 0);
   // Constructor from a unique_ptr, taking over.
@@ -131,10 +131,13 @@ MemRef<T, N>::MemRef(intptr_t sizes[N], T init) : MemRef(sizes) {
 }
 
 template <typename T, std::size_t N>
-MemRef<T, N>::MemRef(intptr_t sizes[N], bool needMalloc, intptr_t offset)
-    : sizes(sizes), offset(offset) {
+MemRef<T, N>::MemRef(intptr_t sizes[N], bool need_malloc, intptr_t offset)
+    : offset(offset), aligned(nullptr), allocated(nullptr) {
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
   setStrides();
-  if (needMalloc) {
+  if (need_malloc) {
     size_t size = product(sizes);
     allocated = (T *)malloc(sizeof(T) * size);
   }
@@ -147,9 +150,9 @@ MemRef<T, N>::MemRef(std::vector<size_t> sizes, T init) : MemRef(sizes) {
 }
 
 template <typename T, std::size_t N>
-MemRef<T, N>::MemRef(std::vector<size_t> sizes, bool needMalloc,
+MemRef<T, N>::MemRef(std::vector<size_t> sizes, bool need_malloc,
                      intptr_t offset)
-    : offset(offset) {
+    : offset(offset), aligned(nullptr), allocated(nullptr) {
   if (sizes.size() != N) {
     throw std::runtime_error("Invalid number of dimensions.");
   }
@@ -157,7 +160,7 @@ MemRef<T, N>::MemRef(std::vector<size_t> sizes, bool needMalloc,
     this->sizes[i] = sizes[i];
   }
   setStrides();
-  if (needMalloc) {
+  if (need_malloc) {
     size_t size = product(this->sizes);
     allocated = (T *)malloc(sizeof(T) * size);
   }
@@ -345,7 +348,7 @@ MemRef<T, N>::MemRef(std::unique_ptr<T> &uptr, intptr_t *sizes,
   setStrides();
 }
 template <typename T, size_t N> T *MemRef<T, N>::release() {
-  T *temp = aligned;
+  T *temp = allocated;
   aligned = nullptr;
   allocated = nullptr;
   return temp;
