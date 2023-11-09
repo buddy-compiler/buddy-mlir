@@ -1,4 +1,7 @@
-// RUN: buddy-opt -matmul-paralell-vectorization-optimize -verify-diagnostics -expand-strided-metadata -lower-affine -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf -convert-linalg-to-llvm -llvm-request-c-wrappers -convert-func-to-llvm -reconcile-unrealized-casts %s \
+// RUN: buddy-opt -matmul-paralell-vectorization-optimize -verify-diagnostics -expand-strided-metadata \
+// RUN:    -lower-affine -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf \
+// RUN:    -convert-linalg-to-loops -convert-scf-to-cf -llvm-request-c-wrappers -convert-func-to-llvm \
+// RUN:    -reconcile-unrealized-casts %s \
 // RUN: | mlir-cpu-runner -O0 -e buddy_matmul_i8 -entry-point-result=void \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
