@@ -24,6 +24,12 @@ $ git submodule update --init
 
 ### Build and Test LLVM/MLIR/CLANG
 
+> Before building this project, please manully apply patch to the LLVM source.
+>
+> ```bash
+> patch -d llvm -p1 -Ni ../nix/tblgen.patch
+> ```
+
 ```
 $ cd buddy-mlir
 $ mkdir llvm/build
