@@ -20,6 +20,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
+#include <type_traits>
 
 using namespace buddy;
 using namespace std;
@@ -49,7 +51,6 @@ int main() {
        << endl;
   cout << "[Buddy] Tokenize input time: " << buddyTokenizeTime.count() << "ms"
        << endl;
-
   // Read the params
   auto buddyReadStart = system_clock::now();
   MemRef<float, 1> arg0({intptr_t(6755192832)});
@@ -68,7 +69,6 @@ int main() {
   cout << "Read params finish" << endl;
   cout << "[Buddy] Read params time: " << (double)(buddyReadTime.count()) / 1000
        << "s" << endl;
-
   // Run the model
   MemRef<float, 3> result({1, 80, 32000});
   int generateLen = 80 - pureStrContainer.getTokenCnt();
@@ -82,7 +82,7 @@ int main() {
     _mlir_ciface_forward(&result, &arg0, &pureStrContainer);
     int tokenIndex = pureStrContainer.getTokenCnt() - 1;
     int index = 0;
-    int maxEle = result.getData()[tokenIndex * 32000];
+    float maxEle = result.getData()[tokenIndex * 32000];
     // Calculate the probability of occurrence of each token.
     for (int j = index + 1; j < 32000; j++) {
       if (result.getData()[tokenIndex * 32000 + j] > maxEle) {

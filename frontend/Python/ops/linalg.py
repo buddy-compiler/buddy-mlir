@@ -2182,7 +2182,7 @@ def softmax_op(
         max_tensor_op = linalg.GenericOp(
             [max_tensor_type],
             [input1],
-            [max_tensor],
+            [neg_inf_fill],
             ir.ArrayAttr.get(
                 [
                     ir.AffineMapAttr.get(input1_map),
@@ -2195,7 +2195,7 @@ def softmax_op(
             max_tensor_op.region,
             [
                 ir.RankedTensorType(input1.type).element_type,
-                ir.RankedTensorType(max_tensor.result.type).element_type,
+                ir.RankedTensorType(neg_inf_fill.result.type).element_type,
             ],
         )
         max_op = arith.MaxFOp(block.arguments[0], block.arguments[1])
