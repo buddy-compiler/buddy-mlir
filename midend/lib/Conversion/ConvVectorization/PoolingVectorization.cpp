@@ -66,9 +66,9 @@ public:
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
     // Element type.
-    MemRefType inputMemRefTy = input.getType().dyn_cast<MemRefType>();
+    MemRefType inputMemRefTy = dyn_cast<MemRefType>(input.getType());
     // Element type.
-    FloatType fTy = inputMemRefTy.getElementType().dyn_cast<FloatType>();
+    FloatType fTy = dyn_cast<FloatType>(inputMemRefTy.getElementType());
     // Constants.
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
@@ -89,7 +89,7 @@ public:
                          .getValues<int64_t>();
     bool dilated = dilations[0] != 1 || dilations[1] != 1;
     // Kernel shape.
-    MemRefType kernelTy = kernel.getType().dyn_cast<MemRefType>();
+    MemRefType kernelTy = dyn_cast<MemRefType>(kernel.getType());
     SmallVector<int64_t> kernelShape;
     bool dynamicKernel = false;
     for (unsigned i = 0; i < kernelTy.getRank(); i++) {

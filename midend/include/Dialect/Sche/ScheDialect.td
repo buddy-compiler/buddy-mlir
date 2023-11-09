@@ -75,7 +75,7 @@ def Sche_AsyncOpInterface : OpInterface<"AsyncOpInterface"> {
 //===----------------------------------------------------------------------===//
 
 def Sche_AsyncToken : DialectType<
-  Sche_Dialect, CPred<"$_self.isa<::buddy::sche::AsyncTokenType>()">, "async token type">,
+  Sche_Dialect, CPred<"isa<::buddy::sche::AsyncTokenType>($_self)">, "async token type">,
              BuildableType<"buddy::sche::AsyncTokenType::get($_builder.getContext())">;
 
 //===----------------------------------------------------------------------===//
