@@ -1,4 +1,5 @@
 // RUN: buddy-opt %s \
+// RUN:     -convert-vector-to-scf -convert-scf-to-cf \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
 // RUN:     -split-input-file -verify-diagnostics -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
