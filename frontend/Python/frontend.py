@@ -31,7 +31,7 @@ import torch.utils._pytree as pytree
 from .ops.math import ops_registry as math_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.linalg import ops_registry as linalg_ops_registry
-
+from .DLGraph import Graph, Node, maxpool2d_simplify
 
 class DynamoCompiler:
     """
@@ -97,6 +97,12 @@ class DynamoCompiler:
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
+            _gm.print_readable()
+            graph = Graph(_gm)
+            maxpool2d_simplify(graph)
+            for node in graph:
+                print(node.__dict__)
+            print("--------------------------------")
             for node in _gm.graph.nodes:
                 print(node.__dict__)
             func_params = _inputs[: len(self.imported_params)]
@@ -105,7 +111,7 @@ class DynamoCompiler:
             ctx = ir.Context()
             with ir.Location.unknown(ctx):
                 fx_importer = FXGraphImporter(
-                    _gm,
+                    graph,
                     func_params,
                     func_inputs,
                     self._param_pack,
@@ -181,7 +187,7 @@ class FXGraphImporter:
 
     def __init__(
         self,
-        gm: torch.fx.GraphModule,
+        gm,
         params: List[torch.Tensor],
         inputs: List[torch.Tensor],
         param_pack: bool = True,
@@ -268,7 +274,7 @@ class FXGraphImporter:
             @func.FuncOp.from_py_func(*arguments, name=self._func_name)
             def generated_func(*args):
                 args_list = list(args)
-                for node in self._gm.graph.nodes:
+                for node in self._gm:
                     if node.op == "output":
                         output_node_args = node.args[0]
                         returns = []
@@ -317,7 +323,7 @@ class FXGraphImporter:
         self._symbol_table[(str(node.name), 0)] = placeholder_name
         self._num_input_visited += 1
 
-    def _import_op(self, node: torch.fx.Node):
+    def _import_op(self, node: Node):
         """
         Imports an operation node from the FX graph.
 
@@ -327,7 +333,7 @@ class FXGraphImporter:
         Raises:
             ValueError: If the node target doesn't have a __name__ attribute.
         """
-        op_name = getattr(node.target, "__name__", None)
+        op_name = node.op_name
         if op_name is None:
             raise ValueError("node.target does not have a __name__ attribute")
         op_ret: ir.Operation | ir.Value | tuple | ir.OpResult = (

@@ -1,0 +1,1 @@
+from .maxpool2d_simplify import maxpool2d_simplify

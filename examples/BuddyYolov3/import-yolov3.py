@@ -75,7 +75,7 @@ def run(
     # Load model
     device = select_device(device)
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
-    model(torch.randn((1, 3, 640, 480), device='cpu'))
+    # model(torch.randn((1, 3, 640, 480), device='cpu'))
     print(model)
     dynamo_compiler = DynamoCompiler(
         primary_registry=tosa.ops_registry,

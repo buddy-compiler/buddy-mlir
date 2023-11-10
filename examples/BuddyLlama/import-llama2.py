@@ -35,9 +35,6 @@ model_path = os.environ.get('LLAMA_MODEL_PATH')
 tokenizer = LlamaTokenizer.from_pretrained(model_path)
 configuration = LlamaConfig(use_cache=False)
 model = LlamaForCausalLM.from_pretrained(model_path, config=configuration)
-prompt = "Hey, how are you?"
-inputs = tokenizer(prompt, return_tensors="pt")
-inputs = inputs.input_ids
 
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
@@ -46,7 +43,7 @@ dynamo_compiler = DynamoCompiler(
 
 with torch.no_grad():
     gm, params = dynamo_compiler.importer(
-        model, torch.tensor([[1 for i in range(80)]], dtype=torch.int64)
+        model, torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
     )
 with open(
     os.path.dirname(os.path.abspath(__file__)) + "/llama.mlir", "w"

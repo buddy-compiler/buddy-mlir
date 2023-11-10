@@ -132,8 +132,11 @@ MemRef<T, N>::MemRef(intptr_t sizes[N], T init) : MemRef(sizes) {
 
 template <typename T, std::size_t N>
 MemRef<T, N>::MemRef(intptr_t sizes[N], bool need_malloc, intptr_t offset)
-    : MemRef(sizes) {
-  this->offset = offset;
+    : offset(offset), aligned(nullptr), allocated(nullptr) {
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
+  setStrides();
   if (need_malloc) {
     size_t size = product(sizes);
     allocated = (T *)malloc(sizeof(T) * size);
@@ -149,8 +152,14 @@ MemRef<T, N>::MemRef(std::vector<size_t> sizes, T init) : MemRef(sizes) {
 template <typename T, std::size_t N>
 MemRef<T, N>::MemRef(std::vector<size_t> sizes, bool need_malloc,
                      intptr_t offset)
-    : MemRef(sizes) {
-  this->offset = offset;
+    : offset(offset), aligned(nullptr), allocated(nullptr) {
+  if (sizes.size() != N) {
+    throw std::runtime_error("Invalid number of dimensions.");
+  }
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
+  setStrides();
   if (need_malloc) {
     size_t size = product(this->sizes);
     allocated = (T *)malloc(sizeof(T) * size);
@@ -339,7 +348,7 @@ MemRef<T, N>::MemRef(std::unique_ptr<T> &uptr, intptr_t *sizes,
   setStrides();
 }
 template <typename T, size_t N> T *MemRef<T, N>::release() {
-  T *temp = aligned;
+  T *temp = allocated;
   aligned = nullptr;
   allocated = nullptr;
   return temp;

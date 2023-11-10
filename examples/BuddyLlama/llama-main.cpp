@@ -44,7 +44,7 @@ int main() {
   getline(cin, pureStr);
   auto buddyTokenizeStart = system_clock::now();
   Text<size_t, 2> pureStrContainer(pureStr);
-  pureStrContainer.tokenizeLlama(vocabDir, 80);
+  pureStrContainer.tokenizeLlama(vocabDir, 40);
   auto buddyTokenizeEnd = system_clock::now();
   auto buddyTokenizeTime =
       duration_cast<milliseconds>(buddyTokenizeEnd - buddyTokenizeStart);
@@ -72,9 +72,9 @@ int main() {
   cout << "[Buddy] Read params time: " << (double)(buddyReadTime.count()) / 1000
        << "s" << endl;
   // Run the model
-  MemRef<float, 3> output[2] = {MemRef<float, 3>({1, 80, 32000}, false, 0),
-                                MemRef<float, 3>({1, 80, 4096}, false, 0)};
-  int generateLen = 80 - pureStrContainer.getTokenCnt();
+  MemRef<float, 3> output[2] = {MemRef<float, 3>({1, 40, 32000}, false, 0),
+                                MemRef<float, 3>({1, 40, 4096}, false, 0)};
+  int generateLen = 40 - pureStrContainer.getTokenCnt();
   cout << "-----------------------start generate-----------------------"
        << endl;
   auto buddyStart = system_clock::now();
