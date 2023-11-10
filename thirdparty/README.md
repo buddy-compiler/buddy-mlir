@@ -1,20 +1,24 @@
 # Third-Party Dependencies
 
-## The `mimalloc` Allocator
+## The `snmalloc` Allocator
 
-### Build `mimalloc`
+### Build `snmalloc`
 
 ```
-$ cd buddy-mlir/thirdparty/mimalloc
-$ mkdir -p out/release
-$ cd out/release
-$ cmake -G Ninja ../.. -DCMAKE_INSTALL_PREFIX=$PWD
+$ cd buddy-mlir/thirdparty/snmalloc
+$ mkdir -p build
+$ cd build
+$ cmake -G Ninja .. 
 $ ninja install
 ```
+It may need new C++ feature to build, If there's problem, use the `clang` built within the buddy-mlir, just follow the instruction of LTO. and change the command to 
+```
+$ cmake -G Ninja ..\
+        -DCMAKE_CXX_COMPILER=$PWD/../../../llvm/build/bin/clang++
+```
+### Use `snmalloc` in buddy-mlir
 
-### Use `mimalloc` in buddy-mlir
-
-Assign the `mimalloc` installation address to the `BUDDY_MLIR_USE_MIMALLOC` CMake variable.
+Assign the `snmalloc` installation address to the `BUDDY_MLIR_USE_SNMALLOC` CMake variable.
 
 For example:
 
@@ -25,13 +29,12 @@ $ cmake -G Ninja .. \
     -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
-    -DBUDDY_MLIR_USE_MIMALLOC=ON \
-    -DMIMALLOC_BUILD_DIR=$PWD/../thirdparty/mimalloc/out/release
+    -DBUDDY_MLIR_USE_SNMALLOC=ON \
+    -DSNMALLOC_BUILD_DIR=$PWD/../thirdparty/snmalloc/build
 ```
 
 In the `CMakeLists.txt` file, link shared or static library by using:
 
 ```
-target_link_libraries(myapp PUBLIC mimalloc) 
-target_link_libraries(myapp PUBLIC mimalloc-static)
+target_link_libraries(myapp PUBLIC snmalloc-static)
 ```

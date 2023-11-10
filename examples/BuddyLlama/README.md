@@ -78,8 +78,8 @@ $ ./buddy-llama-run
 ```
 This build will spend a few minutes. We recommend you to use better cpu such as server-level cpu to run buddy-llama-run.
 
-If you wish to utilize `mimalloc` as a memory allocator, you need to set `BUDDY_MLIR_USE_MIMALLOC` and `MIMALLOC_BUILD_DIR`.
-For more details, please see [here](../../thirdparty/README.md#the-mimalloc-allocator).
+If you wish to utilize `smmalloc` as a memory allocator, you need to set `BUDDY_MLIR_USE_SNMALLOC` and `SNMALLOC_BUILD_DIR`.
+For more details, please see [here](../../thirdparty/README.md#the-snmalloc-allocator).
 
 If you wish to use LTO to optimize the performance, you need to set `BUDDY_MLIR_USE_LTO`. To ensure version compatibility with the project, you need to use the `lld` and `clang` built within the buddy-mlir. We need to make some modifications to the compilation process.
 
@@ -102,7 +102,8 @@ $ ninja check-clang check-mlir omp clang lld
 6. Build and run LLaMA example
 
 ```
-$ cmake -G Ninja .. -DBUDDY_LLAMA_EXAMPLES=ON \
-    -DBUDDY_LLAMA_USE_LTO=ON \
+$ cmake -G Ninja .. \
+    -DBUDDY_LLAMA_EXAMPLES=ON \
+    -DBUDDY_LLAMA_USE_LTO=ON
 $ ninja buddy-llama-run
 ```

@@ -125,8 +125,8 @@ set(BUDDY_LLAMA_LIBS
   mlir_c_runner_utils
   omp
 )
-if(BUDDY_MLIR_USE_MIMALLOC)
-  list(APPEND BUDDY_LLAMA_LIBS mimalloc)
+if(BUDDY_MLIR_USE_SNMALLOC)
+  list(APPEND BUDDY_LLAMA_LIBS snmalloc-static)
 endif()
 
 target_link_libraries(buddy-llama-run ${BUDDY_LLAMA_LIBS})
