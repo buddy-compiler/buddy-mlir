@@ -4,7 +4,10 @@ add_custom_command(
   COMMENT "Generating llama.mlir and arg0.data..."
 )
 
-if (BUDDY_LLAMA_USE_LTO)
+set(OPT_FLAGS [[buddy-opt -matmul-paralell-vectorization-optimize='vector-size=128 serial-store-opt=1']])
+set(MAX_NESTED [[buddy-opt -affine-parallelize='max-nested=2']])
+
+if (${BUDDY_LLAMA_USE_LTO})
   set(CMAKE_CXX_COMPILER ${LLVM_MLIR_BINARY_DIR}/clang++ CACHE PATH "clang++" FORCE)
   add_custom_command(
     OUTPUT llama.o
@@ -14,13 +17,16 @@ if (BUDDY_LLAMA_USE_LTO)
               -arith-expand
               -eliminate-empty-tensors
               -empty-tensor-to-alloc-tensor
-              -linalg-bufferize
-              -matmul-paralell-vectorization-optimize
+              -linalg-bufferize |
+            sh -c ${BUDDY_BINARY_DIR}/${OPT_FLAGS} | # Quite hacky way to avoid the escape problem.
+            ${BUDDY_BINARY_DIR}/buddy-opt
               -batchmatmul-optimize
               -convert-linalg-to-affine-loops
-              -affine-loop-fusion
-              -affine-parallelize
+              -affine-loop-fusion |
+            sh -c ${BUDDY_BINARY_DIR}/${MAX_NESTED} |
+            ${BUDDY_BINARY_DIR}/buddy-opt
               -lower-affine
+              -scf-parallel-loop-fusion
               -convert-scf-to-openmp
               -func-bufferize
               -arith-bufferize
@@ -49,7 +55,7 @@ if (BUDDY_LLAMA_USE_LTO)
     COMMENT "Building llama.o "
     VERBATIM)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -fpic -flto -fuse-ld=lld -O3")
-elseif()
+else()
   add_custom_command(
     OUTPUT llama.o
     COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/llama.mlir 
@@ -58,13 +64,16 @@ elseif()
               -arith-expand
               -eliminate-empty-tensors
               -empty-tensor-to-alloc-tensor
-              -linalg-bufferize
-              -matmul-paralell-vectorization-optimize
+              -linalg-bufferize |
+            sh -c ${BUDDY_BINARY_DIR}/${OPT_FLAGS} | # Quite hacky way to avoid the escape problem.
+            ${BUDDY_BINARY_DIR}/buddy-opt
               -batchmatmul-optimize
               -convert-linalg-to-affine-loops
-              -affine-loop-fusion
-              -affine-parallelize
+              -affine-loop-fusion |
+            sh -c ${BUDDY_BINARY_DIR}/${MAX_NESTED} |
+            ${BUDDY_BINARY_DIR}/buddy-opt
               -lower-affine
+              -scf-parallel-loop-fusion
               -convert-scf-to-openmp
               -func-bufferize
               -arith-bufferize
