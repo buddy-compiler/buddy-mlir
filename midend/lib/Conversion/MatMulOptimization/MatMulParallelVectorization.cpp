@@ -1,5 +1,4 @@
-//===- MatMulParallelVectorization.cpp
-//-------------------------------------------------===//
+//===- MatMulParallelVectorization.cpp ------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -130,10 +129,10 @@ public:
             loc,
             MemRefType::get(
                 ArrayRef<int64_t>{
-                    A.getType().cast<MemRefType>().getDimSize(0) *
-                        affineVectorSize,
                     ceil_div(B.getType().cast<MemRefType>().getDimSize(1),
-                             affineVectorSize)},
+                             affineVectorSize),
+                    A.getType().cast<MemRefType>().getDimSize(0) *
+                        affineVectorSize},
                 elementType),
             ValueRange{});
       }
@@ -366,56 +365,55 @@ public:
                   }
                 });
           });
-
-      if (useSerialStore) {
-        affine::buildAffineLoopNest(
-            rewriter, loc, {zeroIndex}, {aRow}, 1,
-            [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
-              Value loopVarRowOfA = ivRange.front();
-              Value cVec = builder.create<affine::AffineVectorLoadOp>(
-                  loc, VectorType::get({affineVectorSize}, elementType),
-                  tempMatrixC.value(),
-                  AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
-                                 builder.getContext()),
-                  ValueRange{loopVarColOfB, loopVarRowOfA});
-
-              if (C.getType().cast<MemRefType>().isDynamicDim(1) or
-                  C.getType().cast<MemRefType>().getDimSize(1) %
-                          affineVectorSize !=
-                      0) {
-                affine::AffineIfOp branchingOp =
-                    rewriter.create<affine::AffineIfOp>(
-                        loc,
-                        IntegerSet::get(
-                            1, 1,
-                            {d0 * -affineVectorSize + s0 - affineVectorSize},
-                            {false}),
-                        ValueRange{loopVarColOfB, bCol}, true);
-                OpBuilder trueBranchBuilder = branchingOp.getThenBodyBuilder();
-                trueBranchBuilder.create<affine::AffineVectorStoreOp>(
-                    loc, cVec, C,
-                    AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
-                                   builder.getContext()),
-                    ValueRange{loopVarRowOfA, loopVarColOfB});
-                OpBuilder elseBranchBuilder = branchingOp.getElseBodyBuilder();
-                Value tailIdxColOfB =
-                    elseBranchBuilder.create<affine::AffineApplyOp>(
-                        loc, AffineMap::get(1, 0, d0 * affineVectorSize),
-                        ValueRange{loopVarColOfB});
-                elseBranchBuilder.create<vector::MaskedStoreOp>(
-                    loc, C, ValueRange{loopVarRowOfA, tailIdxColOfB},
-                    maskVector, cVec);
-              } else {
-                builder.create<affine::AffineVectorStoreOp>(
-                    loc, cVec, C,
-                    AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
-                                   builder.getContext()),
-                    ValueRange{loopVarRowOfA, loopVarColOfB});
-              }
-            });
-      }
     }
 
+    if (useSerialStore) {
+      affine::buildAffineLoopNest(
+          rewriter, loc, {zeroIndex}, {aRow}, 1,
+          [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
+            Value loopVarRowOfA = ivRange.front();
+            Value cVec = builder.create<affine::AffineVectorLoadOp>(
+                loc, VectorType::get({affineVectorSize}, elementType),
+                tempMatrixC.value(),
+                AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                               builder.getContext()),
+                ValueRange{loopVarColOfB, loopVarRowOfA});
+
+            if (C.getType().cast<MemRefType>().isDynamicDim(1) or
+                C.getType().cast<MemRefType>().getDimSize(1) %
+                        affineVectorSize !=
+                    0) {
+              affine::AffineIfOp branchingOp =
+                  rewriter.create<affine::AffineIfOp>(
+                      loc,
+                      IntegerSet::get(
+                          1, 1,
+                          {d0 * -affineVectorSize + s0 - affineVectorSize},
+                          {false}),
+                      ValueRange{loopVarColOfB, bCol}, true);
+              OpBuilder trueBranchBuilder = branchingOp.getThenBodyBuilder();
+              trueBranchBuilder.create<affine::AffineVectorStoreOp>(
+                  loc, cVec, C,
+                  AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                                 builder.getContext()),
+                  ValueRange{loopVarRowOfA, loopVarColOfB});
+              OpBuilder elseBranchBuilder = branchingOp.getElseBodyBuilder();
+              Value tailIdxColOfB =
+                  elseBranchBuilder.create<affine::AffineApplyOp>(
+                      loc, AffineMap::get(1, 0, d0 * affineVectorSize),
+                      ValueRange{loopVarColOfB});
+              elseBranchBuilder.create<vector::MaskedStoreOp>(
+                  loc, C, ValueRange{loopVarRowOfA, tailIdxColOfB}, maskVector,
+                  cVec);
+            } else {
+              builder.create<affine::AffineVectorStoreOp>(
+                  loc, cVec, C,
+                  AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
+                                 builder.getContext()),
+                  ValueRange{loopVarRowOfA, loopVarColOfB});
+            }
+          });
+    }
     rewriter.create<affine::AffineYieldOp>(loc);
 
     // Finalize the loop and erase the original operation.
