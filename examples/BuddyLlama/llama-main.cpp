@@ -27,7 +27,7 @@ using namespace buddy;
 
 constexpr size_t ParamsSize = 6755192832;
 constexpr size_t MaxVocabSize = 32000;
-constexpr size_t MaxTokenLength = 80;
+constexpr size_t MaxTokenLength = 40;
 
 /// Declare LLaMA forward function.
 extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
