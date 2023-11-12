@@ -50,27 +50,27 @@ add_custom_command(
 
 add_library(LLAMA STATIC llama.o)
 
-  SET_SOURCE_FILES_PROPERTIES(
-    template.o
-    PROPERTIES
-    EXTERNAL_OBJECT true
-    GENERATED true)
-  
-  SET_TARGET_PROPERTIES(
-    LLAMA
-    PROPERTIES
-    LINKER_LANGUAGE C)
-  
-  add_executable(buddy-llama-run llama-main.cpp)
-  target_link_directories(buddy-llama-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})
-  
-  set(BUDDY_LLAMA_LIBS
-    LLAMA
-    mlir_c_runner_utils
-    omp
-  )
-  if(BUDDY_MLIR_USE_MIMALLOC)
-    list(APPEND BUDDY_LLAMA_LIBS mimalloc)
-  endif()
-  
-  target_link_libraries(buddy-llama-run ${BUDDY_LLAMA_LIBS})
+SET_SOURCE_FILES_PROPERTIES(
+  template.o
+  PROPERTIES
+  EXTERNAL_OBJECT true
+  GENERATED true)
+
+SET_TARGET_PROPERTIES(
+  LLAMA
+  PROPERTIES
+  LINKER_LANGUAGE C)
+
+add_executable(buddy-llama-run llama-main.cpp)
+target_link_directories(buddy-llama-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})
+
+set(BUDDY_LLAMA_LIBS
+  LLAMA
+  mlir_c_runner_utils
+  omp
+)
+if(BUDDY_MLIR_USE_MIMALLOC)
+  list(APPEND BUDDY_LLAMA_LIBS mimalloc)
+endif()
+
+target_link_libraries(buddy-llama-run ${BUDDY_LLAMA_LIBS})
