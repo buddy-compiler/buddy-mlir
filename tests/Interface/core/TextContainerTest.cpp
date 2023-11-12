@@ -234,7 +234,7 @@ int main() {
   Text<size_t, 2> pureStrLlamaContainer(pureStrLlama);
   pureStrLlamaContainer.tokenizeLlama(vocabDir, 12);
   std::string pureStrLlamaResult =
-      pureStrLlamaContainer.revertLlama(pureStrLlamaContainer);
+      pureStrLlamaContainer.revertLlama();
   // CHECK: 1
   fprintf(stderr, "%ld\n", pureStrLlamaContainer.getData()[0]);
   // CHECK: 8619
@@ -268,7 +268,7 @@ int main() {
   Text<size_t, 2> puncStrLlamaContainer(puncStrLlama);
   puncStrLlamaContainer.tokenizeLlama(vocabDir, 12);
   std::string puncStrLlamaResult =
-      puncStrLlamaContainer.revertLlama(puncStrLlamaContainer);
+      puncStrLlamaContainer.revertLlama();
   // CHECK: 1
   fprintf(stderr, "%ld\n", puncStrLlamaContainer.getData()[0]);
   // CHECK: 8619

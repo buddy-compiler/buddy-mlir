@@ -24,9 +24,9 @@
 #define FRONTEND_INTERFACES_BUDDY_LLM_TEXTCONTAINER
 
 #include "buddy/Core/Container.h"
+#include <cctype>
 #include <fstream>
 #include <iostream>
-#include <cctype>
 #include <unordered_map>
 
 namespace buddy {
@@ -36,6 +36,17 @@ namespace buddy {
 // - N represents the number of dimensions.
 template <typename T, size_t N> class Text : public MemRef<T, N> {
 public:
+  // Default Constructor.
+  Text() : str(""), tokenCnt(0) {
+    this->allocated = static_cast<T *>(malloc(InitialSize * sizeof(T)));
+    if (!this->allocated) {
+      throw std::bad_alloc();
+    }
+    this->aligned = this->allocated;
+    this->sizes[0] = 1;
+    this->sizes[1] = InitialSize;
+    this->setStrides();
+  };
   // Text Constructor with string.
   // This constructor initializes a Text object with the provided string.
   // The provided string is stored internally for tokenization and processing.
@@ -67,7 +78,7 @@ public:
   // This function initializes the conversion from Text memref to a string.
   // Tokens are identified by ids and thick underlines are replaced with
   // whitespaces.
-  std::string revertLlama(Text<T, 2> input);
+  std::string revertLlama();
 
   // Get sequence length
   size_t getTokenCnt() { return this->tokenCnt; }
@@ -78,6 +89,15 @@ public:
     std::string str = this->idToTokenVec[idx];
     return str;
   }
+  // Append token index.
+  void appendTokenIdx(size_t idx) {
+    if (tokenCnt >= this->getSize()) {
+      resize();
+    }
+    this->aligned[tokenCnt++] = idx;
+  }
+  // Load vocab into class
+  void loadVocab(const std::string &token);
 
 private:
   // Check if a char is component of multi-bytes string.
@@ -87,10 +107,9 @@ private:
   int isMutiBytesChar(char s) {
     const size_t lookup[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 3, 4};
     int8_t highbits = static_cast<uint8_t>(s) >> 4;
-    if(lookup[highbits] == 1) {
+    if (lookup[highbits] == 1) {
       return 0;
-    }
-    else
+    } else
       return lookup[highbits];
   }
   // Replace all " " with "▁"
@@ -110,6 +129,22 @@ private:
     }
     return res;
   }
+
+  static const size_t InitialSize = 10;
+
+  // Resizes the allocated memory for the array by doubling its size.
+  // This method uses realloc to expand the memory block, aiming to
+  // accommodate more elements without losing the existing data.
+  // TODO: improve this method.
+  void resize() {
+    size_t size = this->getSize() * 2;
+    this->allocated =
+        static_cast<T *>(realloc(this->allocated, size * sizeof(T)));
+    this->aligned = this->allocated;
+    this->sizes[1] = size;
+    this->setStrides();
+  }
+
   // Process a token and store its corresponding value in the container.
   // This function takes a token as input and find its corresponding value in
   // the token-to-id map.
@@ -125,8 +160,6 @@ private:
   void tokenizeWithAffix(const std::string &token, size_t &tokenCnt);
   std::string findLongestSubToken(const std::string &token, size_t start);
   void assignTokenId(const std::string &token, size_t &tokenCnt);
-  // Load vocab into class
-  void loadVocab(const std::string &token);
   // [UNK] NLP Padding Marker
   int pad;
   // [UNK] NLP Unknown Marker
@@ -283,10 +316,9 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
   }
 }
 
-// The revert function is used to convert the tokenized sequence back to a 
+// The revert function is used to convert the tokenized sequence back to a
 // full string.
-template <typename T, size_t N>
-std::string Text<T, N>::revertLlama(Text<T, 2> input) {
+template <typename T, size_t N> std::string Text<T, N>::revertLlama() {
   std::string dst;
 
   const int PAD_ID = 0;
@@ -294,7 +326,7 @@ std::string Text<T, N>::revertLlama(Text<T, 2> input) {
   const int SEP_ID = 2;
 
   for (size_t i = 0; i < this->getSize(); i++) {
-    int id = input.getData()[i];
+    int id = this->aligned[i];
     if (id == PAD_ID || id == CLS_ID)
       continue;
     if (id == SEP_ID)
@@ -303,8 +335,8 @@ std::string Text<T, N>::revertLlama(Text<T, 2> input) {
     std::string token = this->idToTokenVec[id];
     size_t pos = token.find("▁");
     while (pos != std::string::npos) {
-        token.replace(pos, 3, " ");
-        pos = token.find("▁", pos + 1);
+      token.replace(pos, 3, " ");
+      pos = token.find("▁", pos + 1);
     }
     dst.append(token);
   }

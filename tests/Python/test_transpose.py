@@ -13,9 +13,9 @@ def foo(x, y, z):
     return torch.transpose(x, y, z)
 
 
-in1 = torch.ones([13, 13], dtype=torch.float32)
-in2 = 0
-in3 = 1
+in1 = torch.ones([13, 13, 13], dtype=torch.float32)
+in2 = 1
+in3 = 2
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
@@ -27,8 +27,8 @@ foo_mlir(in1, in2, in3)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tensor.empty
-# CHECK: %{{.*}} = linalg.generic
+# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = "tosa.transpose"
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }
