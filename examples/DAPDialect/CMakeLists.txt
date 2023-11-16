@@ -41,3 +41,9 @@ add_dependencies(iirLowpass buddy-opt)
 target_link_libraries(iirLowpass 
   BuddyLibDAP
 )
+
+add_executable(iirVectorization iirVectorization.cpp)
+add_dependencies(iirVectorization buddy-opt)
+target_link_libraries(iirVectorization
+  BuddyLibDAPVectorization
+)

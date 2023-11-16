@@ -30,13 +30,13 @@ namespace detail {
 // Declare the Fir C interface.
 extern "C" {
 // TODO: support both float and double.
-void _mlir_ciface_mlir_iir(MemRef<float, 1> *inputBuddyConv1D,
-                           MemRef<float, 2> *kernelBuddyConv1D,
-                           MemRef<float, 1> *outputBuddyConv1D);
-
 void _mlir_ciface_buddy_iir(MemRef<float, 1> *inputBuddyConv1D,
                             MemRef<float, 2> *kernelBuddyConv1D,
                             MemRef<float, 1> *outputBuddyConv1D);
+
+void _mlir_ciface_buddy_iir_vectorization(MemRef<float, 1> *inputBuddyConv1D,
+                                          MemRef<float, 2> *kernelBuddyConv1D,
+                                          MemRef<float, 1> *outputBuddyConv1D);
 }
 } // namespace detail
 
@@ -71,6 +71,17 @@ void iir(MemRef<float, N> *input, MemRef<T, M> *filter,
     assert(0 && "Second Order Section (SOS) filter is only supported for now.");
   detail::_mlir_ciface_buddy_iir(input, filter, output);
 }
+
+template <typename T, size_t N, size_t M>
+void iir_vectorization(MemRef<float, N> *input, MemRef<T, M> *filter,
+                       MemRef<float, N> *output) {
+  if (N != 1)
+    assert(0 && "Only mono audio is supported for now.");
+  if (M != 2)
+    assert(0 && "Second Order Section (SOS) filter is only supported for now.");
+  detail::_mlir_ciface_buddy_iir_vectorization(input, filter, output);
+}
+
 } // namespace dap
 
 #endif // FRONTEND_INTERFACES_BUDDY_DAP_DSP_IIR
