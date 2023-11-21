@@ -51,7 +51,7 @@ dynamo_compiler = DynamoCompiler(
 
 # Import the model into MLIR module and parameters.
 gm, params = dynamo_compiler.importer(
-    model, torch.tensor([[1 for i in range(80)]], dtype=torch.int64)
+    model, torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
 )
 
 # Write the MLIR module to the file.

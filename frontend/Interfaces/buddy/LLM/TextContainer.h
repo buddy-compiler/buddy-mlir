@@ -43,7 +43,9 @@ public:
       throw std::bad_alloc();
     }
     this->aligned = this->allocated;
-    this->size = InitialSize;
+    this->sizes[0] = 1;
+    this->sizes[1] = InitialSize;
+    this->setStrides();
   };
   // Text Constructor with string.
   // This constructor initializes a Text object with the provided string.
@@ -89,7 +91,7 @@ public:
   }
   // Append token index.
   void appendTokenIdx(size_t idx) {
-    if (tokenCnt >= this->size) {
+    if (tokenCnt >= this->getSize()) {
       resize();
     }
     this->aligned[tokenCnt++] = idx;
@@ -135,10 +137,12 @@ private:
   // accommodate more elements without losing the existing data.
   // TODO: improve this method.
   void resize() {
-    this->size *= 2;
+    size_t size = this->getSize() * 2;
     this->allocated =
-        static_cast<T *>(realloc(this->allocated, this->size * sizeof(T)));
+        static_cast<T *>(realloc(this->allocated, size * sizeof(T)));
     this->aligned = this->allocated;
+    this->sizes[1] = size;
+    this->setStrides();
   }
 
   // Process a token and store its corresponding value in the container.
@@ -191,8 +195,8 @@ void Text<T, N>::tokenizeLlama(const std::string &vocab, size_t length) {
   this->sizes[0] = 1;
   this->sizes[1] = length;
   this->setStrides();
-  this->size = this->product(this->sizes);
-  this->allocated = new T[this->size];
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
   this->aligned = this->allocated;
   this->unk = 0;
   this->cls = 1;
@@ -257,8 +261,8 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
   this->sizes[0] = 1;
   this->sizes[1] = length;
   this->setStrides();
-  this->size = this->product(this->sizes);
-  this->allocated = new T[this->size];
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
   this->aligned = this->allocated;
   this->pad = 102;
   this->unk = 100;
@@ -321,7 +325,7 @@ template <typename T, size_t N> std::string Text<T, N>::revertLlama() {
   const int CLS_ID = 1;
   const int SEP_ID = 2;
 
-  for (size_t i = 0; i < this->size; i++) {
+  for (size_t i = 0; i < this->getSize(); i++) {
     int id = this->aligned[i];
     if (id == PAD_ID || id == CLS_ID)
       continue;
