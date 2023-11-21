@@ -128,11 +128,13 @@ include(AddMLIR)
 include(HandleLLVMOptions)
 
 #-------------------------------------------------------------------------------
-# Dip lib configuration
+# DIP lib configuration
 #-------------------------------------------------------------------------------
 
-find_package(JPEG REQUIRED)
-find_package(PNG REQUIRED)
+if(BUDDY_MLIR_ENABLE_DIP_LIB)
+  find_package(JPEG REQUIRED)
+  find_package(PNG REQUIRED)
+endif()
 
 #-------------------------------------------------------------------------------
 # Hardware detection
