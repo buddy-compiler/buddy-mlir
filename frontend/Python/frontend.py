@@ -33,6 +33,7 @@ from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.linalg import ops_registry as linalg_ops_registry
 from .DLGraph import Graph, Node, maxpool2d_simplify
 
+
 class DynamoCompiler:
     """
     Dynamo Compiler is one of the frontends of Buddy Compiler.
