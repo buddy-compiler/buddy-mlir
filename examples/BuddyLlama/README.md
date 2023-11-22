@@ -89,3 +89,29 @@ This build will spend a few minutes. We recommend you to use better cpu such as 
 
 If you wish to utilize `mimalloc` as a memory allocator, you need to set `BUDDY_MLIR_USE_MIMALLOC` and `MIMALLOC_BUILD_DIR`.
 For more details, please see [here](../../thirdparty/README.md#the-mimalloc-allocator).
+
+If you wish to use LTO to optimize the performance, you need to set `BUDDY_MLIR_USE_LTO`. To ensure version compatibility with the project, you need to use the `lld` and `clang` built within the buddy-mlir. We need to make some modifications to the compilation process.
+
+4. Build and check LLVM/MLIR
+```
+$ cd buddy-mlir
+$ mkdir llvm/build
+$ cd llvm/build
+$ cmake -G Ninja ../llvm \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp;lld" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+    -DPython3_EXECUTABLE=$(which python3)
+$ ninja check-clang check-mlir omp clang lld
+```
+
+6. Build and run LLaMA example
+
+```
+$ cmake -G Ninja .. -DBUDDY_LLAMA_EXAMPLES=ON \
+    -DBUDDY_LLAMA_USE_LTO=ON \
+$ ninja buddy-llama-run
+```
