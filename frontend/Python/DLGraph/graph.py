@@ -69,4 +69,3 @@ class Graph:
         temp_node = self.nodes_dict[self.current_node_name]
         self.current_node_name = temp_node.next_node
         return temp_node
-    
