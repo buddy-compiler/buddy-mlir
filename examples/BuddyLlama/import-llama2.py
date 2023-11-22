@@ -40,12 +40,8 @@ if model_path is None:
 
 # Initialize the tokenizer and model from the specified model path.
 tokenizer = LlamaTokenizer.from_pretrained(model_path)
-<<<<<<< HEAD
 configuration = LlamaConfig(use_cache=False)
 model = LlamaForCausalLM.from_pretrained(model_path, config=configuration)
-=======
-model = LlamaForCausalLM.from_pretrained(model_path, torchscript=True)
->>>>>>> buddy-main
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
@@ -53,19 +49,12 @@ dynamo_compiler = DynamoCompiler(
     aot_autograd_decomposition=aot_autograd_decompositions
 )
 
-<<<<<<< HEAD
-with torch.no_grad():
-    gm, params = dynamo_compiler.importer(
-        model, torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
-    )
-=======
 # Import the model into MLIR module and parameters.
 gm, params = dynamo_compiler.importer(
-    model, torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
+    model, torch.tensor([[1 for i in range(80)]], dtype=torch.int64)
 )
 
 # Write the MLIR module to the file.
->>>>>>> buddy-main
 with open(
     os.path.dirname(os.path.abspath(__file__)) + "/llama.mlir", "w"
 ) as module_file:
