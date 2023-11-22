@@ -25,6 +25,7 @@ import functools
 import mlir.dialects.func as func
 import mlir.ir as ir
 import torch
+import torch.fx
 import torch._dynamo as dynamo
 from torch._functorch.aot_autograd import aot_module_simplified
 import torch.utils._pytree as pytree
@@ -42,7 +43,7 @@ class DynamoCompiler:
 
     Attributes:
         imported_module: The imported MLIR module after compilation.
-        imported_params: The imported parameters from the model.
+        imported_params: The imported parameters from the model1
     """
 
     def __init__(
@@ -253,7 +254,7 @@ class FXGraphImporter:
                 tensor_size = 0
                 for param in self._params:
                     tensor_size += functools.reduce(
-                        lambda x, y: x * y, list(param.shape)
+                        lambda x, y: x * y, list(param.shape), 0
                     )
                 self._params_size = tensor_size
                 self._offset = 0
@@ -315,7 +316,7 @@ class FXGraphImporter:
                 node, self._offset, args_list[0]
             ).result
             self._offset += functools.reduce(
-                lambda x, y: x * y, list(node.meta["tensor_meta"].shape)
+                lambda x, y: x * y, list(node.meta["tensor_meta"].shape), 0
             )
         else:
             if len(self._params) > 0:

@@ -1,3 +1,4 @@
+# RUN: echo "run this example by hand :)"
 # documentation: https://pytorch.org/hub/pytorch_vision_once_for_all/
 import torch
 from buddy.compiler.frontend import DynamoCompiler
