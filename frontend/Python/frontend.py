@@ -43,7 +43,7 @@ class DynamoCompiler:
 
     Attributes:
         imported_module: The imported MLIR module after compilation.
-        imported_params: The imported parameters from the model1
+        imported_params: The imported parameters from the model.
     """
 
     def __init__(
