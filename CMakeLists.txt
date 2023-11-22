@@ -170,14 +170,15 @@ if(BUDDY_DSL_EXAMPLES)
 endif()
 
 #-------------------------------------------------------------------------------
-# The `mimalloc` Configuration
+# The `snmalloc` Configuration
 #-------------------------------------------------------------------------------
 
-if(BUDDY_MLIR_USE_MIMALLOC)
-  if(MIMALLOC_BUILD_DIR)
-    list(APPEND CMAKE_PREFIX_PATH ${MIMALLOC_BUILD_DIR})
+if(BUDDY_MLIR_USE_SNMALLOC)
+  if(SNMALLOC_BUILD_DIR)
+    list(APPEND CMAKE_PREFIX_PATH ${SNMALLOC_BUILD_DIR})
   endif()
-  find_package(mimalloc REQUIRED)
+  add_library(snmalloc-static STATIC IMPORTED)
+  set_property(TARGET snmalloc-static PROPERTY IMPORTED_LOCATION ${SNMALLOC_BUILD_DIR}/libsnmallocshim-static.a)
 endif()
 
 #-------------------------------------------------------------------------------
