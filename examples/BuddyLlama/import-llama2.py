@@ -31,25 +31,47 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
 
-model_path = os.environ.get('LLAMA_MODEL_PATH')
+# Retrieve the LLaMA model path from environment variables.
+model_path = os.environ.get("LLAMA_MODEL_PATH")
+if model_path is None:
+    raise EnvironmentError(
+        "The environment variable 'LLAMA_MODEL_PATH' is not set or is invalid."
+    )
+
+# Initialize the tokenizer and model from the specified model path.
 tokenizer = LlamaTokenizer.from_pretrained(model_path)
+<<<<<<< HEAD
 configuration = LlamaConfig(use_cache=False)
 model = LlamaForCausalLM.from_pretrained(model_path, config=configuration)
+=======
+model = LlamaForCausalLM.from_pretrained(model_path, torchscript=True)
+>>>>>>> buddy-main
 
+# Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=aot_autograd_decompositions
 )
 
+<<<<<<< HEAD
 with torch.no_grad():
     gm, params = dynamo_compiler.importer(
         model, torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
     )
+=======
+# Import the model into MLIR module and parameters.
+gm, params = dynamo_compiler.importer(
+    model, torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
+)
+
+# Write the MLIR module to the file.
+>>>>>>> buddy-main
 with open(
     os.path.dirname(os.path.abspath(__file__)) + "/llama.mlir", "w"
 ) as module_file:
     print(gm, file=module_file)
 
+# Concatenate all parameters into a single numpy array and write to a file.
 all_param = numpy.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params]
 )

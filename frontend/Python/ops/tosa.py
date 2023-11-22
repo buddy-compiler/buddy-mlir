@@ -869,6 +869,7 @@ def transpose_op(node, symbol_table):
 
     return op
 
+
 def convolution2d_op(node, symbol_table):
     """
     Import the convolution operation.
@@ -879,7 +880,9 @@ def convolution2d_op(node, symbol_table):
     input1 = symbol_table.get((str(node.args[0]), 0))
     weight = symbol_table.get((str(node.args[1]), 0))
     is_kernel_transposed = node.args[6]
-    result_element_type = all_element_type_get(str(node.meta["tensor_meta"].dtype))
+    result_element_type = all_element_type_get(
+        str(node.meta["tensor_meta"].dtype)
+    )
     if is_kernel_transposed:
         in_channels = list(ir.RankedTensorType(weight.type).shape)[0]
         out_channels = list(ir.RankedTensorType(weight.type).shape)[1]
@@ -901,7 +904,7 @@ def convolution2d_op(node, symbol_table):
     stride = node.args[3]
     input_padding = node.args[4]
     for i in range(len(input_padding), 4):
-        input_padding = [0]+input_padding
+        input_padding = [0] + input_padding
     dilation = node.args[5]
     groups = node.args[8]
     out_shape = node.meta["tensor_meta"].shape
@@ -914,15 +917,32 @@ def convolution2d_op(node, symbol_table):
             raise NotImplementedError
         out_padding = node.args[7]
         for i in range(len(out_padding), 4):
-            out_padding = [0]+out_padding
+            out_padding = [0] + out_padding
         out_padding_attr = ir._denseI64ArrayAttr(out_padding, None)
         out_shape_attr = ir._denseI64ArrayAttr(out_shape, None)
-        op = tosa.TransposeConv2DOp(output, input1, weight, bias_tensor, out_padding_attr, stride_attr, out_shape_attr)
+        op = tosa.TransposeConv2DOp(
+            output,
+            input1,
+            weight,
+            bias_tensor,
+            out_padding_attr,
+            stride_attr,
+            out_shape_attr,
+        )
     else:
         input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
         dilation_attr = ir._denseI64ArrayAttr(dilation, None)
-        op = tosa.Conv2DOp(output, input1, weight, bias_tensor, input_padding_attr, stride_attr, dilation_attr)
+        op = tosa.Conv2DOp(
+            output,
+            input1,
+            weight,
+            bias_tensor,
+            input_padding_attr,
+            stride_attr,
+            dilation_attr,
+        )
     return op
+
 
 ops_registry = {
     "add.Tensor": add_op,
@@ -949,5 +969,5 @@ ops_registry = {
     "unsqueeze.default": unsqueeze_op,
     "t.default": t_op,
     "transpose.int": transpose_op,
-    "convolution.default": convolution2d_op
+    "convolution.default": convolution2d_op,
 }
