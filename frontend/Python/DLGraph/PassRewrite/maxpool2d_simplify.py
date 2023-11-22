@@ -21,9 +21,16 @@
 import operator
 from .. import Graph, Node
 
+
 def maxpool2d_simplify(graph: Graph):
+    """
+    Fuse the maxpool op and getitem op to simpllify graph.
+
+    Args:
+        graph (torch.fx.GraphModule): The Graph to be simplified.
+    """
     for node in graph:
-        if node.op_name == 'max_pool2d_with_indices.default':
+        if node.op_name == "max_pool2d_with_indices.default":
             getitem_num = 0
             for user in node.users.keys():
                 if graph.nodes_dict[str(user)].target is operator.getitem:
@@ -33,7 +40,7 @@ def maxpool2d_simplify(graph: Graph):
                 new_node = Node(None)
                 new_node.name = getitem_node.name
                 new_node.op = node.op
-                new_node.op_name = 'maxpool2d.tosa_default'
+                new_node.op_name = "maxpool2d.tosa_default"
                 new_node.target = node.target
                 new_node._input_nodes = node._input_nodes
                 new_node.args = node.args
@@ -45,16 +52,18 @@ def maxpool2d_simplify(graph: Graph):
                 else:
                     new_node.next_node = node.next_node
                 new_node.meta = {}
-                new_node.meta['val'] = getitem_node.meta['val']
-                new_node.meta['tensor_meta'] = getitem_node.meta['tensor_meta']
+                new_node.meta["val"] = getitem_node.meta["val"]
+                new_node.meta["tensor_meta"] = getitem_node.meta["tensor_meta"]
                 graph.nodes_dict[node.prev_node].next_node = new_node.name
                 if node.next_node != getitem_node.name:
                     graph.nodes_dict[node.next_node].prev_node = new_node.name
-                    graph.nodes_dict[getitem_node.next_node].prev_node = getitem_node.prev_node
+                    graph.nodes_dict[
+                        getitem_node.next_node
+                    ].prev_node = getitem_node.prev_node
                 else:
-                    graph.nodes_dict[getitem_node.next_node].prev_node = new_node.name
+                    graph.nodes_dict[
+                        getitem_node.next_node
+                    ].prev_node = new_node.name
                 del graph.nodes_dict[node.name]
                 del graph.nodes_dict[getitem_node.name]
                 graph.nodes_dict[new_node.name] = new_node
-
-

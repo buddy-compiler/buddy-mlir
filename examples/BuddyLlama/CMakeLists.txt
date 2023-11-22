@@ -3,6 +3,7 @@ add_custom_command(
   COMMAND python ${BUDDY_EXAMPLES_DIR}/BuddyLlama/import-llama2.py
   COMMENT "Generating llama.mlir and arg0.data..."
 )
+
 add_custom_command(
   OUTPUT llama.o
   COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/llama.mlir 
@@ -48,6 +49,7 @@ add_custom_command(
   VERBATIM)
 
 add_library(LLAMA STATIC llama.o)
+
 SET_SOURCE_FILES_PROPERTIES(
   template.o
   PROPERTIES
@@ -72,4 +74,3 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 target_link_libraries(buddy-llama-run ${BUDDY_LLAMA_LIBS})
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g -fno-omit-frame-pointer")

@@ -97,14 +97,8 @@ class DynamoCompiler:
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
-            _gm.print_readable()
             graph = Graph(_gm)
             maxpool2d_simplify(graph)
-            for node in graph:
-                print(node.__dict__)
-            print("--------------------------------")
-            for node in _gm.graph.nodes:
-                print(node.__dict__)
             func_params = _inputs[: len(self.imported_params)]
             func_inputs = _inputs[len(self.imported_params) :]
             # Initializes the MLIR context.

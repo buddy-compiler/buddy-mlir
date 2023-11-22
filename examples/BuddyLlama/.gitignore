@@ -3,5 +3,3 @@ arg0.data
 
 # model mlir file
 llama.mlir
-
-*.out

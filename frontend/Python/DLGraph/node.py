@@ -20,8 +20,16 @@
 
 import torch
 
+
 class Node:
     def __init__(self, node) -> None:
+        """
+        Initializes the Node.
+
+        Args:
+            node (torch.fx.Node): The torch fx node to be 
+            converted.
+        """
         if node is None:
             return
         self.name = str(node.name)
@@ -34,8 +42,11 @@ class Node:
         self.users = node.users
         self.prev_node = str(node._prev)
         self.next_node = str(node._next)
-        if 'tensor_meta' not in node.meta.keys():
-            node.meta['tensor_meta'] = None
-        if 'val' not in node.meta.keys():
-            node.meta['val'] = None
-        self.meta = {'val': node.meta['val'], 'tensor_meta': node.meta['tensor_meta']}
+        if "tensor_meta" not in node.meta.keys():
+            node.meta["tensor_meta"] = None
+        if "val" not in node.meta.keys():
+            node.meta["val"] = None
+        self.meta = {
+            "val": node.meta["val"],
+            "tensor_meta": node.meta["tensor_meta"],
+        }
