@@ -166,6 +166,11 @@ public:
   Option<int64_t> addrLen{*this, "addr-len",
                           llvm::cl::desc("The length of address."),
                           llvm::cl::init(32)};
+  Option<int64_t> accRows{*this, "acc_rows", llvm::cl::desc("The row of acc."),
+                          llvm::cl::init(1024)};
+  Option<int64_t> bankRows{*this, "bank_rows",
+                           llvm::cl::desc("The row of the bank."),
+                           llvm::cl::init(4096)};
   Option<std::string> elemType{*this, "elem_t",
                                llvm::cl::desc("The type of elem_t."),
                                llvm::cl::init("i8")};
@@ -204,8 +209,9 @@ void LowerGemminiToLLVMPass::runOnOperation() {
   RewritePatternSet patterns(context);
   LLVMConversionTarget target(*context);
   configureGemminiLegalizeForExportTarget(target);
-  populateGemminiLegalizeForLLVMExportPatterns(
-      converter, patterns, dim, addrLen, sizeOfElemT, sizeOfAccT);
+  populateGemminiLegalizeForLLVMExportPatterns(converter, patterns, dim,
+                                               addrLen, accRows, bankRows,
+                                               sizeOfElemT, sizeOfAccT);
   populateAffineToStdConversionPatterns(patterns);
   populateSCFToControlFlowConversionPatterns(patterns);
   mlir::arith::populateArithToLLVMConversionPatterns(converter, patterns);

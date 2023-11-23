@@ -17,6 +17,8 @@
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -27,7 +29,8 @@ using namespace buddy;
 
 constexpr size_t ParamsSize = 6755192832;
 constexpr size_t MaxVocabSize = 32000;
-constexpr size_t MaxTokenLength = 80;
+constexpr size_t MaxTokenLength = 40;
+constexpr size_t HiddenSize = 4096;
 
 /// Declare LLaMA forward function.
 extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
@@ -127,7 +130,9 @@ int main() {
   //  - Output container.
   //  - Parameters container.
   Text<size_t, 2> outputContainer;
-  MemRef<float, 3> resultContainer({1, MaxTokenLength, MaxVocabSize});
+  MemRef<float, 3> resultContainer[2] = {
+      MemRef<float, 3>({1, MaxTokenLength, MaxVocabSize}, false, 0),
+      MemRef<float, 3>({1, MaxTokenLength, HiddenSize}, false, 0)};
   Text<size_t, 2> inputContainer(inputStr);
   MemRef<float, 1> paramsContainer({ParamsSize});
 
@@ -146,9 +151,8 @@ int main() {
   int generateLen = MaxTokenLength - inputContainer.getTokenCnt();
   for (int i = 0; i < generateLen; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
-
     // Execute the forward pass of the model.
-    _mlir_ciface_forward(&resultContainer, &paramsContainer, &inputContainer);
+    _mlir_ciface_forward(resultContainer, &paramsContainer, &inputContainer);
 
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =
@@ -157,7 +161,7 @@ int main() {
     // Determine the generated token.
     int tokenIndex = inputContainer.getTokenCnt() - 1;
     const float *startPtr =
-        resultContainer.getData() + tokenIndex * MaxVocabSize;
+        resultContainer[0].getData() + tokenIndex * MaxVocabSize;
     const float *endPtr = startPtr + MaxVocabSize;
     int maxIndex = findMaxIndex(startPtr, endPtr);
     std::string tok = inputContainer.getStr(maxIndex);
@@ -166,13 +170,14 @@ int main() {
 
     // Stop if a separator token (2, </s>) or line break token (13 <0x0A>) is
     // generated.
-    if (maxIndex == 2 || (maxIndex == 13 && i != 0)) {
+    if (maxIndex == 2) {
       break;
     }
-
     // Append the generated token into the input and output container.
     inputContainer.appendTokenIdx(maxIndex);
     outputContainer.appendTokenIdx(maxIndex);
+    free(resultContainer[0].release());
+    free(resultContainer[1].release());
   }
 
   /// Print the final result
