@@ -85,7 +85,7 @@ void loadParameters(const std::string &paramFilePath,
   std::cout << "Params file: " << std::filesystem::canonical(paramFilePath)
             << std::endl;
   paramFile.read(reinterpret_cast<char *>(params.getData()),
-                 sizeof(float) * (params.getSize()));
+                 sizeof(float)/2 * (params.getSize()));
   if (paramFile.fail()) {
     throw std::runtime_error("Error occurred while reading params file!");
   }

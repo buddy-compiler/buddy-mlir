@@ -2,4 +2,7 @@
 arg0.data
 
 # model mlir file
-llama.mlir
+*.mlir
+
+# model log file
+*.txt

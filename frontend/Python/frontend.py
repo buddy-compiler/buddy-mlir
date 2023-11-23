@@ -100,6 +100,8 @@ class DynamoCompiler:
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
+            for node in _gm.graph.nodes:
+                print(node.__dict__)
             func_params = _inputs[: len(self.imported_params)]
             func_inputs = _inputs[len(self.imported_params) :]
 
@@ -235,6 +237,10 @@ class FXGraphImporter:
                 return ir.IntegerType.get_signless(64)
             case torch.float32:
                 return ir.F32Type.get()
+            case torch.float16:
+                return ir.F16Type.get()
+            case torch.bfloat16:
+                return ir.BF16Type.get()
             case torch.bool:
                 return ir.IntegerType.get_signless(1)
             case _:
@@ -299,6 +305,7 @@ class FXGraphImporter:
                             self._import_op(node)
 
                 return self._symbol_table.get(("output", 0))
+        print(self._module)
 
         return self._module
 

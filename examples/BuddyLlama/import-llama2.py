@@ -30,9 +30,12 @@ from torch._functorch.aot_autograd import aot_autograd_decompositions
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
+os.environ['LD_LIBRARY_PATH'] = '/usr/lib/x86_64-linux-gnu'
+
 
 # Retrieve the LLaMA model path from environment variables.
-model_path = os.environ.get("LLAMA_MODEL_PATH")
+# model_path = os.environ.get("LLAMA_MODEL_PATH")
+model_path = "/root/llama/vicuna-7b"
 if model_path is None:
     raise EnvironmentError(
         "The environment variable 'LLAMA_MODEL_PATH' is not set or is invalid."
@@ -41,6 +44,7 @@ if model_path is None:
 # Initialize the tokenizer and model from the specified model path.
 tokenizer = LlamaTokenizer.from_pretrained(model_path)
 model = LlamaForCausalLM.from_pretrained(model_path, torchscript=True)
+model = model.to(dtype=torch.bfloat16,device="cpu")
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
@@ -51,17 +55,23 @@ dynamo_compiler = DynamoCompiler(
 
 # Import the model into MLIR module and parameters.
 gm, params = dynamo_compiler.importer(
-    model, torch.tensor([[1 for i in range(80)]], dtype=torch.int64)
+    model, torch.tensor([[1 for i in range(80)]],device="cpu", dtype=torch.int64)
 )
 
 # Write the MLIR module to the file.
 with open(
-    os.path.dirname(os.path.abspath(__file__)) + "/llama.mlir", "w"
+    os.path.dirname(os.path.abspath(__file__)) + "/llamatest.mlir", "w"
 ) as module_file:
     print(gm, file=module_file)
 
 # Concatenate all parameters into a single numpy array and write to a file.
-all_param = numpy.concatenate(
-    [param.detach().numpy().reshape([-1]) for param in params]
+# all_param = numpy.concatenate(
+#     [param.detach().numpy().reshape([-1]) for param in params]
+# )
+# all_param.tofile(os.path.dirname(os.path.abspath(__file__)) + "/arg0.data")
+
+all_param = torch.cat(
+    [param.detach().reshape([-1]) for param in params]
 )
-all_param.tofile(os.path.dirname(os.path.abspath(__file__)) + "/arg0.data")
+
+torch.save(all_param, os.path.join(os.path.dirname(os.path.abspath(__file__)), "arg0.data"))
