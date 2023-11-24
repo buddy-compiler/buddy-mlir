@@ -29,11 +29,11 @@ using namespace buddy;
 
 constexpr size_t ParamsSize = 6755192832;
 constexpr size_t MaxVocabSize = 32000;
-constexpr size_t MaxTokenLength = 40;
+constexpr size_t MaxTokenLength = 80;
 constexpr size_t HiddenSize = 4096;
 
 /// Declare LLaMA forward function.
-extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
+extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<unsigned short, 1> *,
                                      Text<size_t, 2> *);
 
 // -----------------------------------------------------------------------------
@@ -76,7 +76,7 @@ void tokenizeInput(const std::string &vocabFile,
 
 /// Load parameters into data container.
 void loadParameters(const std::string &paramFilePath,
-                    MemRef<float, 1> &params) {
+                    MemRef<unsigned short, 1> &params) {
   const auto loadStart = std::chrono::high_resolution_clock::now();
   std::ifstream paramFile(paramFilePath, std::ios::in | std::ios::binary);
   if (!paramFile.is_open()) {
@@ -88,7 +88,7 @@ void loadParameters(const std::string &paramFilePath,
   std::cout << "Params file: " << std::filesystem::canonical(paramFilePath)
             << std::endl;
   paramFile.read(reinterpret_cast<char *>(params.getData()),
-                 sizeof(float)/2 * (params.getSize()));
+                 sizeof(unsigned short) * (params.getSize()));
   if (paramFile.fail()) {
     throw std::runtime_error("Error occurred while reading params file!");
   }
@@ -118,7 +118,7 @@ int main() {
 
   /// Define directories of vacabulary and parameter file.
   const std::string vocabDir = "../../examples/BuddyLlama/vocab.txt";
-  const std::string paramsDir = "../../examples/BuddyLlama/arg0.data";
+  const std::string paramsDir = "../../examples/BuddyLlama/arg1.data";
 
   /// Get user message.
   std::string inputStr;
@@ -134,7 +134,7 @@ int main() {
       MemRef<float, 3>({1, MaxTokenLength, MaxVocabSize}, false, 0),
       MemRef<float, 3>({1, MaxTokenLength, HiddenSize}, false, 0)};
   Text<size_t, 2> inputContainer(inputStr);
-  MemRef<float, 1> paramsContainer({ParamsSize});
+  MemRef<unsigned short, 1> paramsContainer({ParamsSize});
 
   /// Fill data into containers
   //  - Input: register vocabulary and tokenize the input string.

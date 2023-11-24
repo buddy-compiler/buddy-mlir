@@ -794,6 +794,62 @@ def sum_op(node, symbol_table):
 
     return reduce_sum_op
 
+def t_op(node, symbol_table):
+    """
+    Import the tensor transpose operation.
+    From PyTorch `aten.t.default` operator to MLIR TOSA `reduce_sum` operation.
+    """
+    assert len(node.args) == 1
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    if input1 is None:
+        return
+
+    input_shape = list(ir.RankedTensorType(input1.type).shape)
+    output_shape = list(node.meta["tensor_meta"].shape)
+    if len(input_shape) == 2:
+        perm_const_op = tosa.ConstOp(
+            ir.DenseElementsAttr.get(memoryview(array.array("i", [1, 0])))
+        )
+        result_element_type = ir.RankedTensorType(input1.type).element_type
+        permute_result_type = ir.RankedTensorType.get(
+            output_shape, result_element_type
+        )
+        op = tosa.TransposeOp(
+            permute_result_type, input1, perm_const_op.results[0]
+        )
+
+    return op
+
+
+def transpose_op(node, symbol_table):
+    """
+    Import the tensor permute operation based on input dims.
+    From PyTorch `aten.transpose.int` operator to MLIR TOSA `reduce_sum`
+    operation.
+    """
+    assert len(node.args) == 3
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    if input1 is None:
+        return
+    dim1 = int(node.args[1])
+    dim2 = int(node.args[2])
+    input_shape = list(ir.RankedTensorType(input1.type).shape)
+    perm_list = [i for i in range(len(input_shape))]
+    temp = perm_list[dim1]
+    perm_list[dim1] = perm_list[dim2]
+    perm_list[dim2] = temp
+    output_shape = list(node.meta["tensor_meta"].shape)
+    perm_const_op = tosa.ConstOp(
+        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+    )
+    result_element_type = ir.RankedTensorType(input1.type).element_type
+    permute_result_type = ir.RankedTensorType.get(
+        output_shape, result_element_type
+    )
+    op = tosa.TransposeOp(permute_result_type, input1, perm_const_op.results[0])
+
+    return op
+
 
 ops_registry = {
     "add.Tensor": add_op,
@@ -818,4 +874,6 @@ ops_registry = {
     "convert_element_type.default": convert_element_type_op,
     "permute.default": permute_op,
     "unsqueeze.default": unsqueeze_op,
+    "t.default": t_op,
+    "transpose.int": transpose_op,
 }
