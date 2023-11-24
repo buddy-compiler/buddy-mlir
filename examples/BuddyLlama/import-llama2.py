@@ -63,7 +63,7 @@ gm, params = dynamo_compiler.importer(
 
 # Write the MLIR module to the file.
 with open(
-    os.path.dirname(os.path.abspath(__file__)) + "/llamatest.mlir", "w"
+    os.path.dirname(os.path.abspath(__file__)) + "/llama.mlir", "w"
 ) as module_file:
     print(gm, file=module_file)
 
