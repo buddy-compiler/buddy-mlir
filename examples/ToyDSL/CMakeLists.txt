@@ -46,19 +46,23 @@ llvm_update_compile_flags(buddy-toy-dsl)
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
+get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 
 # Add link libraries.
 target_link_libraries(buddy-toy-dsl 
   PRIVATE
   Threads::Threads
+  ${dialect_libs}
+  ${conversion_libs}
+  ${extension_libs}
   MLIRAnalysis
+  MLIRBuiltinToLLVMIRTranslation
   MLIRCallInterfaces
   MLIRCastInterfaces
   MLIRExecutionEngine
+  MLIRFunctionInterfaces
   MLIRIR
-  MLIRAffineDialect
-  MLIRFuncDialect
-  MLIRSCFDialect
+  MLIRLLVMCommonConversion
   MLIRLLVMToLLVMIRTranslation
   MLIRMemRefDialect
   MLIRParser
@@ -66,15 +70,6 @@ target_link_libraries(buddy-toy-dsl
   MLIRSideEffectInterfaces
   MLIRTargetLLVMIRExport
   MLIRTransforms
-  MLIRSupport
-  MLIRLLVMCommonConversion
-  MLIRLLVMToLLVMIRTranslation
-  MLIRTargetLLVMIRExport
-  MLIRControlFlowToLLVM
-  MLIRFuncToLLVM
-  MLIRMemRefToLLVM
-  MLIRSCFToControlFlow
-  MLIRAffineToStandard
   antlr4_static
   ${dialect_libs}
   ${conversion_libs})
