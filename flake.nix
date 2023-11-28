@@ -8,43 +8,24 @@
 
   outputs = { self, nixpkgs, flake-utils }@inputs:
     let
-      overlay = import ./nix/overlay.nix;
-      pkgsForSys = system: import nixpkgs { overlays = [ overlay ]; inherit system; };
+      myOverlay = import ./nix/overlay.nix;
     in
+    # Iterate over all nix supported system
     flake-utils.lib.eachDefaultSystem
       (system:
         let
-          pkgs = pkgsForSys system;
-          mkLLVMShell = pkgs.mkShell.override { stdenv = pkgs.llvmPkgs.stdenv; };
+          pkgs = import nixpkgs { overlays = [ myOverlay ]; inherit system; };
         in
         {
-          # Help other use packages in this flake
           legacyPackages = pkgs;
-
-          devShells.default = mkLLVMShell {
-            buildInputs = with pkgs; [
-              # buddy-mlir build tools
-              cmake
-              ninja
-              python3
-              llvmPkgs.bintools # For ld.lld
-
-              # buddy-mlir libraries
-              libjpeg
-              libpng
-              zlib-ng
-            ];
-
-            postHook = ''
-              export PATH="${pkgs.clang-tools}/bin:$PATH"
-            '';
-          };
-
-          formatter = pkgs.nixpkgs-fmt;
+          devShells.default = pkgs.mkShell
+            {
+              buildInputs = [ pkgs.buddy-mlir ];
+            };
         }) //
     {
       # Other system-independent attr
       inherit inputs;
-      overlays.default = overlay;
+      overlays.default = myOverlay;
     };
 }
