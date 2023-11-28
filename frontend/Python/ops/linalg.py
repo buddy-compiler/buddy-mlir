@@ -21,6 +21,7 @@
 from typing import Dict, Tuple, List
 
 import torch
+from .utils import _torch_dtype_to_mlir_dtype
 
 import mlir.ir as ir
 from mlir.dialects import tosa, linalg, arith, tensor, math
@@ -2518,39 +2519,39 @@ def param_extract(
     Returns:
         op: The operation return the tensor.expand_shape op.
     """
-    dtype = str(node.meta["tensor_meta"].dtype)
+    dtype = node.meta["tensor_meta"].dtype
+    ir_type = _torch_dtype_to_mlir_dtype(dtype)
     output_shape = list(node.meta["tensor_meta"].shape)
-    extract_size = functools.reduce(lambda x, y: x * y, output_shape)
-    if dtype == "torch.float32":
-        offset_attr = ir._denseI64ArrayAttr([offset], None)
-        size_attr = ir._denseI64ArrayAttr([extract_size], None)
-        stride = [1]
-        stride_attr = ir._denseI64ArrayAttr(stride, None)
-        tensor_type = ir.RankedTensorType.get([extract_size], ir.F32Type.get())
-        extract_slice_op = tensor.ExtractSliceOp(
-            tensor_type,
-            params_mlir_node,
-            [],
-            [],
-            [],
-            offset_attr,
-            size_attr,
-            stride_attr,
-        )
-        if len(output_shape) == 1:
-            return extract_slice_op
-        tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
-        axis = ir.ArrayAttr.get(
-            [
-                ir.IntegerAttr.get(ir.IntegerType.get_signless(64), i)
-                for i in range(len(output_shape))
-            ],
-            None,
-        )
-        axis = ir.ArrayAttr.get([axis], None)
-        expand_shape_op = tensor.ExpandShapeOp(
-            tensor_type, extract_slice_op.result, axis
-        )
+    extract_size = functools.reduce(lambda x, y: x * y, output_shape, 0)
+    offset_attr = ir._denseI64ArrayAttr([offset], None)
+    size_attr = ir._denseI64ArrayAttr([extract_size], None)
+    stride = [1]
+    stride_attr = ir._denseI64ArrayAttr(stride, None)
+    tensor_type = ir.RankedTensorType.get([extract_size], ir_type)
+    extract_slice_op = tensor.ExtractSliceOp(
+        tensor_type,
+        params_mlir_node,
+        [],
+        [],
+        [],
+        offset_attr,
+        size_attr,
+        stride_attr,
+    )
+    if len(output_shape) == 1:
+        return extract_slice_op
+    tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
+    axis = ir.ArrayAttr.get(
+        [
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(64), i)
+            for i in range(len(output_shape))
+        ],
+        None,
+    )
+    axis = ir.ArrayAttr.get([axis], None)
+    expand_shape_op = tensor.ExpandShapeOp(
+        tensor_type, extract_slice_op.result, axis
+    )
 
     return expand_shape_op
 
