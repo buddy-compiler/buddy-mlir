@@ -36,7 +36,7 @@ We would use multiple steps to demonstrate the lowering process. Notice the firs
 ### 2.1 Lowering TOSA to Linalg
 Due to the availbilty of certain operations such as `transpose`, current LLaMA lowering process would require the use of TOSA dialect. We would first lower the LLaMA model to a mixture of TOSA and Linalg dialects.
 ```
-mlir-opt llama.mlir -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" -o llama-linalg.mlir
+mlir-opt llama.mlir -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" -o llama-linalg-default.mlir
 ```
 ** Use the old version of `mlir-opt` built in previous steps. Or you might get following error: **
 ```
