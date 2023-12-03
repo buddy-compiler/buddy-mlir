@@ -20,13 +20,14 @@ $ mkdir llvm/build
 $ cd llvm/build
 $ cmake -G Ninja ../llvm \
     -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
-    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV;NVPTX" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE=$(which python3) \
-    -DMLIR_ENABLE_CUDA_RUNNER=ON
+    -DMLIR_ENABLE_CUDA_RUNNER=ON \
+    -DLLVM_CCACHE_BUILD=ON
 $ ninja check-clang check-mlir omp
 ```
 
