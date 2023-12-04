@@ -24,6 +24,8 @@ target_link_libraries(buddy-opt
   BatchMatMulOptimization
   MatMulParallelVectorization
   TransposeOptimization
+  CopyRemoval
+  PreprocessExtractor
   ConvOptimization
   VectorExp
   LowerVectorExpPass
