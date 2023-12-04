@@ -17,7 +17,11 @@ if (${BUDDY_LLAMA_USE_LTO})
               -arith-expand
               -eliminate-empty-tensors
               -empty-tensor-to-alloc-tensor
-              -linalg-bufferize |
+              -tensor-bufferize
+              -cse
+              -linalg-bufferize
+              -cse
+              -copy-removal |
             sh -c ${BUDDY_BINARY_DIR}/${OPT_FLAGS} | # Quite hacky way to avoid the escape problem.
             ${BUDDY_BINARY_DIR}/buddy-opt
               -batchmatmul-optimize
@@ -26,11 +30,11 @@ if (${BUDDY_LLAMA_USE_LTO})
             sh -c ${BUDDY_BINARY_DIR}/${MAX_NESTED} |
             ${BUDDY_BINARY_DIR}/buddy-opt
               -lower-affine
+              -cse
               -scf-parallel-loop-fusion
               -convert-scf-to-openmp
               -func-bufferize
               -arith-bufferize
-              -tensor-bufferize
               -buffer-deallocation
               -finalizing-bufferize
               -convert-vector-to-scf
@@ -47,7 +51,8 @@ if (${BUDDY_LLAMA_USE_LTO})
               -convert-math-to-llvm
               -convert-math-to-libm 
               -convert-func-to-llvm
-              -reconcile-unrealized-casts |
+              -reconcile-unrealized-casts
+              -cse |
           ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${CMAKE_CXX_COMPILER} -c -x ir -O3 -march=native -fpic -flto
             -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/llama.o -
@@ -64,7 +69,11 @@ else()
               -arith-expand
               -eliminate-empty-tensors
               -empty-tensor-to-alloc-tensor
-              -linalg-bufferize |
+              -tensor-bufferize
+              -cse
+              -linalg-bufferize
+              -cse
+              -copy-removal |
             sh -c ${BUDDY_BINARY_DIR}/${OPT_FLAGS} | # Quite hacky way to avoid the escape problem.
             ${BUDDY_BINARY_DIR}/buddy-opt
               -batchmatmul-optimize
@@ -73,11 +82,11 @@ else()
             sh -c ${BUDDY_BINARY_DIR}/${MAX_NESTED} |
             ${BUDDY_BINARY_DIR}/buddy-opt
               -lower-affine
+              -cse
               -scf-parallel-loop-fusion
               -convert-scf-to-openmp
               -func-bufferize
               -arith-bufferize
-              -tensor-bufferize
               -buffer-deallocation
               -finalizing-bufferize
               -convert-vector-to-scf
@@ -94,7 +103,8 @@ else()
               -convert-math-to-llvm
               -convert-math-to-libm 
               -convert-func-to-llvm
-              -reconcile-unrealized-casts |
+              -reconcile-unrealized-casts
+              -cse |
           ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_MLIR_BINARY_DIR}/llvm-as |
           ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
