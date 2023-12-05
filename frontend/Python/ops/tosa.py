@@ -21,6 +21,7 @@
 import torch
 import array
 from typing import Dict, List, Tuple, Union
+import numpy as np
 
 import mlir.ir as ir
 from mlir.dialects import tensor, tosa
@@ -944,6 +945,64 @@ def convolution2d_op(node, symbol_table):
     return op
 
 
+def maxpool2d_op(node, symbol_table):
+    """
+    Import the maxpool2d operation.
+    From PyTorch `aten.max_pool2d_with_indices.default` operator to MLIR TOSA
+    `max_pool2d` operation.
+    """
+    if len(node.args) == 5:
+        raise NotImplementedError
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    kernel = node.args[1]
+    stride = node.args[2]
+    if len(node.args) > 3:
+        pad = node.args[3]
+    else:
+        pad = [0 for _ in kernel]
+    out_shape = node.meta["tensor_meta"].shape
+    pad = [0 for _ in range(len(out_shape)-len(pad))] + pad
+    kernel_attr = ir._denseI64ArrayAttr(kernel, None)
+    stride_attr = ir._denseI64ArrayAttr(stride, None)
+    pad_attr = ir._denseI64ArrayAttr(pad, None)
+    result_element_type = all_element_type_get(
+        str(node.meta["tensor_meta"].dtype)
+    )
+    output = ir.RankedTensorType.get(out_shape, result_element_type)
+    op = tosa.MaxPool2dOp(output, input1, kernel_attr, stride_attr, pad_attr)
+    return op
+
+
+def constant_pad_nd_op(node, symbol_table):
+    """
+    Import the constant_pad_nd operation.
+    From PyTorch `aten.constant_pad_nd.default` operator to MLIR TOSA `pad`
+    operation.
+    """
+    assert len(node.args) == 3
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    padding = node.args[1]
+    pad_const = node.args[2]
+    out_shape = node.meta["tensor_meta"].shape
+    result_element_type = all_element_type_get(
+        str(node.meta["tensor_meta"].dtype)
+    )
+    element = all_element_attr_get(
+        str(node.meta["tensor_meta"].dtype), pad_const
+    )
+    pad_const_attr = ir.DenseElementsAttr.get_splat(
+        ir.RankedTensorType.get([], result_element_type), element
+    )
+    pad_const_op = tosa.ConstOp(pad_const_attr).results[0]
+    padding = [0 for _ in range(len(out_shape) * 2 - len(padding))] + padding
+    padding = np.array(padding, dtype=np.int32).reshape((-1, 2))
+    padding_attr = ir.DenseElementsAttr.get(padding)
+    padding_op = tosa.ConstOp(padding_attr).results[0]
+    output = ir.RankedTensorType.get(out_shape, result_element_type)
+    op = tosa.PadOp(output, input1, padding_op, pad_const=pad_const_op)
+    return op
+
+
 ops_registry = {
     "add.Tensor": add_op,
     "mul.Tensor": mul_op,
@@ -970,4 +1029,6 @@ ops_registry = {
     "t.default": t_op,
     "transpose.int": transpose_op,
     "convolution.default": convolution2d_op,
+    "maxpool2d.tosa_default": maxpool2d_op,
+    "constant_pad_nd.default": constant_pad_nd_op,
 }

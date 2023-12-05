@@ -28,6 +28,8 @@ import copy
 import numpy
 import functools
 
+from .element_utils import all_element_attr_get, all_element_type_get
+
 
 def arange_op(
     node: torch.fx.Node,
@@ -662,104 +664,82 @@ def to_copy_op(
         return
     output_shape = list(node.meta["tensor_meta"].shape)
     dtype = str(node.meta["tensor_meta"].dtype)
-
-    if dtype == "torch.bool":
-        if str(ir.RankedTensorType(input1.type).element_type) == "f32":
-            tensor_type = ir.RankedTensorType.get(
-                output_shape, ir.IntegerType.get_signless(1)
-            )
-            output = tensor.EmptyOp(
-                output_shape, ir.IntegerType.get_signless(1)
-            )
-            generic_map = ir.AffineMap.get_permutation(
-                [i for i in range(len(output_shape))]
-            )
-            op = linalg.GenericOp(
-                [tensor_type],
-                [input1],
-                [output],
-                ir.ArrayAttr.get(
-                    [
-                        ir.AffineMapAttr.get(
-                            generic_map.get_submap(
-                                [i for i in range(len(output_shape))]
-                            )
-                        ),
-                        ir.AffineMapAttr.get(
-                            generic_map.get_submap(
-                                [i for i in range(len(output_shape))]
-                            )
-                        ),
-                    ]
+    result_element_type = all_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, result_element_type)
+    output = tensor.EmptyOp(output_shape, result_element_type)
+    generic_map = ir.AffineMap.get_permutation(
+        [i for i in range(len(output_shape))]
+    )
+    op = linalg.GenericOp(
+        [tensor_type],
+        [input1],
+        [output],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(
+                    generic_map.get_submap(
+                        [i for i in range(len(output_shape))]
+                    )
                 ),
-                ir.ArrayAttr.get(
-                    [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-                    * len(output_shape)
+                ir.AffineMapAttr.get(
+                    generic_map.get_submap(
+                        [i for i in range(len(output_shape))]
+                    )
                 ),
-            )
-            block = ir.Block.create_at_start(
-                op.region,
-                [
-                    ir.RankedTensorType(input1.type).element_type,
-                    ir.RankedTensorType(output.result.type).element_type,
-                ],
-            )
-            fptosi_op = arith.FPToSIOp(
-                ir.IntegerType.get_signless(32), block.arguments[0]
-            )
-            trunc_op = arith.TruncIOp(
-                ir.IntegerType.get_signless(1), fptosi_op.result
-            )
-            block.append(fptosi_op)
-            block.append(trunc_op)
-            block.append(linalg.YieldOp([trunc_op.result]))
-    elif dtype == "torch.float32":
-        if str(ir.RankedTensorType(input1.type).element_type) == "i1":
-            tensor_type = ir.RankedTensorType.get(
-                output_shape, ir.F32Type.get()
-            )
-            output = tensor.EmptyOp(output_shape, ir.F32Type.get())
-            generic_map = ir.AffineMap.get_permutation(
-                [i for i in range(len(output_shape))]
-            )
-            op = linalg.GenericOp(
-                [tensor_type],
-                [input1],
-                [output],
-                ir.ArrayAttr.get(
-                    [
-                        ir.AffineMapAttr.get(
-                            generic_map.get_submap(
-                                [i for i in range(len(output_shape))]
-                            )
-                        ),
-                        ir.AffineMapAttr.get(
-                            generic_map.get_submap(
-                                [i for i in range(len(output_shape))]
-                            )
-                        ),
-                    ]
-                ),
-                ir.ArrayAttr.get(
-                    [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-                    * len(output_shape)
-                ),
-            )
-            block = ir.Block.create_at_start(
-                op.region,
-                [
-                    ir.RankedTensorType(input1.type).element_type,
-                    ir.RankedTensorType(output.result.type).element_type,
-                ],
-            )
-            exti_op = arith.ExtUIOp(
-                ir.IntegerType.get_signless(32), block.arguments[0]
-            )
-            sitofp_op = arith.SIToFPOp(ir.F32Type.get(), exti_op.result)
-            block.append(exti_op)
-            block.append(sitofp_op)
-            block.append(linalg.YieldOp([sitofp_op.result]))
-
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(output_shape)
+        ),
+    )
+    block = ir.Block.create_at_start(
+        op.region,
+        [
+            ir.RankedTensorType(input1.type).element_type,
+            ir.RankedTensorType(output.result.type).element_type,
+        ],
+    )
+    if (dtype == "torch.bool" or dtype == "torch.int64") and str(
+        ir.RankedTensorType(input1.type).element_type
+    ) == "f32":
+        fptosi_op = arith.FPToSIOp(
+            ir.IntegerType.get_signless(32), block.arguments[0]
+        )
+        block.append(fptosi_op)
+    if (
+        str(ir.RankedTensorType(input1.type).element_type) == "i1"
+        and dtype == "torch.float32"
+    ):
+        exti_op = arith.ExtUIOp(
+            ir.IntegerType.get_signless(32), block.arguments[0]
+        )
+        block.append(exti_op)
+    if (
+        str(ir.RankedTensorType(input1.type).element_type) == "i1"
+        and dtype == "torch.float32"
+    ):
+        sitofp_op = arith.SIToFPOp(ir.F32Type.get(), exti_op.result)
+        block.append(sitofp_op)
+        block.append(linalg.YieldOp([sitofp_op.result]))
+    if (
+        dtype == "torch.bool"
+        and str(ir.RankedTensorType(input1.type).element_type) == "f32"
+    ):
+        trunc_op = arith.TruncIOp(
+            ir.IntegerType.get_signless(1), fptosi_op.result
+        )
+        block.append(trunc_op)
+        block.append(linalg.YieldOp([extui_op.result]))
+    if (
+        dtype == "torch.int64"
+        and str(ir.RankedTensorType(input1.type).element_type) == "f32"
+    ):
+        extui_op = arith.ExtUIOp(
+            ir.IntegerType.get_signless(64), fptosi_op.result
+        )
+        block.append(extui_op)
+        block.append(linalg.YieldOp([extui_op.result]))
     return op
 
 

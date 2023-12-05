@@ -54,8 +54,8 @@ void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 /// Print information for each iteration.
 void printIterInfo(size_t iterIdx, std::string str, double time) {
   std::cout << "\033[32;1m[Iteration " << iterIdx << "] \033[0m";
-  std::cout << "Token: " << str << " | "
-            << "Time: " << time << "s" << std::endl;
+  std::cout << "Token: " << str << " | " << "Time: " << time << "s"
+            << std::endl;
 }
 
 /// Tokenize input data in the container.
