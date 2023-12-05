@@ -1,4 +1,5 @@
 // RUN: buddy-opt %s \
+// RUN:     -convert-vector-to-scf -convert-scf-to-cf \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
@@ -118,7 +119,7 @@ func.func @broadcast_1_to_n_case(%src: vector<1x3x1xf32>) -> vector<4x3x2xf32> {
   //    [broadcast %sub : vector<... x T>, ..., broadcast %sub : vector<... x T>]
 
   // for example, here we get %src = [%e0], n = 4
-  %e0 = vector.extract %src[0] : vector<1x3x1xf32>  
+  %e0 = vector.extract %src[0] : vector<3x1xf32> from vector<1x3x1xf32>  
   
   // then make %t0, %t1, %t2, %t3 to be broadcast %e0 : vector<... x T>
   %t0 = vector.broadcast %e0 : vector<3x1xf32> to vector<3x2xf32>
@@ -155,9 +156,9 @@ func.func @broadcast_n_to_n_case(%src: vector<3x1xf32>) -> vector<3x2xf32> {
   //  ]
 
   // get elements 
-  %e0 = vector.extract %src[0] : vector<3x1xf32>
-  %e1 = vector.extract %src[1] : vector<3x1xf32>
-  %e2 = vector.extract %src[2] : vector<3x1xf32>
+  %e0 = vector.extract %src[0] : vector<1xf32> from vector<3x1xf32>
+  %e1 = vector.extract %src[1] : vector<1xf32> from vector<3x1xf32>
+  %e2 = vector.extract %src[2] : vector<1xf32> from vector<3x1xf32>
 
   // broadcast with elements
   %t0 = vector.broadcast %e0 : vector<1xf32> to vector<2xf32>

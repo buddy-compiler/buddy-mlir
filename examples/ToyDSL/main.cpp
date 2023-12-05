@@ -27,6 +27,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "mlir/Dialect/Func/Extensions/AllExtensions.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Support/LogicalResult.h"
 
 #include "MLIRToyVisitor.h"
 #include "ToyLexer.h"
@@ -35,6 +38,7 @@
 #include "antlr4-common.h"
 
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/LLVMIR/Transforms/Passes.h"
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/AsmState.h"
@@ -54,6 +58,7 @@
 #include "toy/Passes.h"
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorOr.h"
@@ -136,6 +141,7 @@ int loadAndProcessMLIR(mlir::MLIRContext &context,
     // Now that there is only one function, we can infer the shapes of each of
     // the operations.
     mlir::OpPassManager &optPM = pm.nest<mlir::toy::FuncOp>();
+    optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(mlir::toy::createShapeInferencePass());
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(mlir::createCSEPass());
@@ -160,6 +166,11 @@ int loadAndProcessMLIR(mlir::MLIRContext &context,
   if (isLoweringToLLVM) {
     // Finish lowering the toy IR to the LLVM dialect.
     pm.addPass(mlir::toy::createLowerToLLVMPass());
+    // This is necessary to have line tables emitted and basic
+    // debugger working. In the future we will add proper debug information
+    // emission directly from our frontend.
+    pm.addNestedPass<mlir::LLVM::LLVMFuncOp>(
+        mlir::LLVM::createDIScopeForLLVMFuncOpPass());
   }
 
   if (mlir::failed(pm.run(*module)))
@@ -178,6 +189,7 @@ int dumpAST(ToyParser::ModuleContext *moduleAST) {
 
 int dumpLLVMIR(mlir::ModuleOp module) {
   // Register the translation to LLVM IR with the MLIR context.
+  mlir::registerBuiltinDialectTranslation(*module->getContext());
   mlir::registerLLVMDialectTranslation(*module->getContext());
 
   // Convert the module to LLVM IR in a new LLVM IR context.
@@ -199,6 +211,10 @@ int dumpLLVMIR(mlir::ModuleOp module) {
   }
 
   auto tmOrError = tmBuilderOrError->createTargetMachine();
+  if (!tmOrError) {
+    llvm::errs() << "Could not create TargetMachine\n";
+    return -1;
+  }
   mlir::ExecutionEngine::setupTargetTripleAndDataLayout(llvmModule.get(),
                                                         tmOrError.get().get());
 
@@ -267,7 +283,11 @@ int main(int argc, char *argv[]) {
   if (emitAction == Action::DumpAST)
     return dumpAST(moduleAST);
 
-  mlir::MLIRContext context;
+  // If we aren't dumping the AST, then we are compiling with/to MLIR.
+  mlir::DialectRegistry registry;
+  mlir::func::registerAllExtensions(registry);
+
+  mlir::MLIRContext context(registry);
   // Load our Dialect in this MLIR Context.
   context.getOrLoadDialect<mlir::toy::ToyDialect>();
 

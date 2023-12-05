@@ -77,7 +77,7 @@ def ConfigLdOp : Gemmini_Op<"config_ld"> {
                        DefaultValuedAttr<F32Attr, "1.0">:$scale,
                        DefaultValuedAttr<BoolAttr, "false">:$shrunk,
                        DefaultValuedAttr<I64Attr, "0">:$id,
-                       DefaultValuedAttr<I64Attr, "16">:$block_mvin_stride,
+                       DefaultValuedAttr<I64Attr, "-1">:$block_mvin_stride,
                        DefaultValuedAttr<I64Attr, "1">:$pixel_repeats);
   let assemblyFormat = "$stride attr-dict `:` type($stride)";
 }

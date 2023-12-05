@@ -26,7 +26,7 @@ foo_mlir(in1, to_cast_type)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.cast"
+# CHECK: %{{.*}} = tosa.cast
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

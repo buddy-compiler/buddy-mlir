@@ -27,7 +27,7 @@ foo_mlir(in1, dim)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.reduce_max"
+# CHECK: %{{.*}} = tosa.reduce_max
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

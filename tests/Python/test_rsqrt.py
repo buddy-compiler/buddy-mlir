@@ -25,7 +25,7 @@ foo_mlir(x)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.rsqrt"
+# CHECK: %{{.*}} = tosa.rsqrt
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

@@ -26,7 +26,7 @@ foo_mlir(in1)
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = "tosa.const"
-# CHECK: %{{.*}} = "tosa.transpose"
+# CHECK: %{{.*}} = tosa.transpose
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }
