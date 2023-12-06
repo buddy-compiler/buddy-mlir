@@ -1,4 +1,5 @@
-//===- MatMulParallelVectorization.cpp ------------------------------------===//
+//===- MatMulParallelVectorization.cpp
+//-------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,6 +43,7 @@
 #include <mlir/IR/Value.h>
 #include <mlir/Pass/Pass.h>
 #include <optional>
+#include <vector>
 
 using namespace mlir;
 using namespace vector;
@@ -59,9 +61,11 @@ class MatMulParallelVectorizationPattern : public ConversionPattern {
 public:
   explicit MatMulParallelVectorizationPattern(MLIRContext *context,
                                               int64_t affineVectorSizeParam,
+                                              int64_t matrixALoadWidthParam,
                                               bool useSerialStoreParam)
       : ConversionPattern(linalg::MatmulOp::getOperationName(), 1, context) {
     affineVectorSize = affineVectorSizeParam;
+    matrixALoadWidth = matrixALoadWidthParam;
     useSerialStore = useSerialStoreParam;
   }
 
@@ -69,6 +73,8 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
+
+    int64_t localMatrixALoadWidth = matrixALoadWidth;
 
     // Retrieve input tensors A, B, and C.
     Value A = op->getOperand(0);
@@ -291,24 +297,48 @@ public:
                 });
           });
     } else {
+      for (int i = localMatrixALoadWidth; i > 0; i--) {
+        if (A.getType().cast<MemRefType>().getDimSize(1) % i == 0) {
+          localMatrixALoadWidth = i;
+          break;
+        }
+      }
+      if (C.getType().cast<MemRefType>().isDynamicDim(1) or
+          C.getType().cast<MemRefType>().getDimSize(1) % affineVectorSize !=
+              0) {
+        localMatrixALoadWidth = 1;
+      }
       affine::buildAffineLoopNest(
-          rewriter, loc, {zeroIndex}, {bRow}, 1,
+          rewriter, loc, {zeroIndex}, {bRow}, localMatrixALoadWidth,
           [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
             Value loopVarRowOfB = ivRange.front();
-            Value bVec = builder.create<affine::AffineVectorLoadOp>(
-                loc, VectorType::get({affineVectorSize}, elementType), B,
-                AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
-                               rewriter.getContext()),
-                ValueRange{loopVarRowOfB, loopVarColOfB});
+            auto bVecArray = std::vector<Value>(localMatrixALoadWidth);
+            for (int i = 0; i < localMatrixALoadWidth; i++) {
+              bVecArray.at(i) = builder.create<affine::AffineVectorLoadOp>(
+                  loc, VectorType::get({affineVectorSize}, elementType), B,
+                  AffineMap::get(2, 0, {d0 + i, d1 * affineVectorSize},
+                                 rewriter.getContext()),
+                  ValueRange{loopVarRowOfB, loopVarColOfB});
+            }
             affine::buildAffineLoopNest(
                 builder, loc, {zeroIndex}, {aRow}, 1,
                 [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
                   Value loopVarRowOfA = ivRange.front();
-                  Value aElement = builder.create<memref::LoadOp>(
-                      loc, A, ValueRange{loopVarRowOfA, loopVarRowOfB});
-                  Value aVec = builder.create<vector::BroadcastOp>(
-                      loc, VectorType::get({affineVectorSize}, elementType),
-                      aElement);
+
+                  auto aElementArray =
+                      std::vector<Value>(localMatrixALoadWidth);
+                  auto aVecArray = std::vector<Value>(localMatrixALoadWidth);
+
+                  for (int i = 0; i < localMatrixALoadWidth; i++) {
+                    aElementArray.at(i) = builder.create<affine::AffineLoadOp>(
+                        loc, A,
+                        AffineMap::get(2, 0, {d0, d1 + i},
+                                       builder.getContext()),
+                        ValueRange{loopVarRowOfA, loopVarRowOfB});
+                    aVecArray.at(i) = builder.create<vector::BroadcastOp>(
+                        loc, VectorType::get({affineVectorSize}, elementType),
+                        aElementArray[i]);
+                  }
 
                   if (useSerialStore) {
                     Value cVec = builder.create<affine::AffineVectorLoadOp>(
@@ -317,22 +347,27 @@ public:
                         AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
                                        builder.getContext()),
                         ValueRange{loopVarColOfB, loopVarRowOfA});
-                    Value computedVec;
 
                     // Compute the result vector either through integer
                     // multiplication and addition or fused multiply-add
                     // based on the element type.
-                    if (elementType.isa<IntegerType>()) {
-                      Value mulVec =
-                          builder.create<arith::MulIOp>(loc, aVec, bVec);
-                      computedVec =
-                          builder.create<arith::AddIOp>(loc, mulVec, cVec);
-                    } else {
-                      computedVec =
-                          builder.create<vector::FMAOp>(loc, aVec, bVec, cVec);
+                    auto computedVecArray =
+                        std::vector<Value>(localMatrixALoadWidth);
+                    for (int i = 0; i < localMatrixALoadWidth; i++) {
+                      if (elementType.isa<IntegerType>()) {
+                        Value mulVec = builder.create<arith::MulIOp>(
+                            loc, aVecArray[i], bVecArray[i]);
+                        computedVecArray.at(i) = builder.create<arith::AddIOp>(
+                            loc, mulVec,
+                            i == 0 ? cVec : computedVecArray[i - 1]);
+                      } else {
+                        computedVecArray.at(i) = builder.create<vector::FMAOp>(
+                            loc, aVecArray[i], bVecArray[i],
+                            i == 0 ? cVec : computedVecArray[i - 1]);
+                      }
                     }
                     builder.create<affine::AffineVectorStoreOp>(
-                        loc, computedVec, tempMatrixC.value(),
+                        loc, computedVecArray.back(), tempMatrixC.value(),
                         AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
                                        builder.getContext()),
                         ValueRange{loopVarColOfB, loopVarRowOfA});
@@ -343,22 +378,27 @@ public:
                         AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
                                        builder.getContext()),
                         ValueRange{loopVarRowOfA, loopVarColOfB});
-                    Value computedVec;
 
                     // Compute the result vector either through integer
                     // multiplication and addition or fused multiply-add
                     // based on the element type.
-                    if (elementType.isa<IntegerType>()) {
-                      Value mulVec =
-                          builder.create<arith::MulIOp>(loc, aVec, bVec);
-                      computedVec =
-                          builder.create<arith::AddIOp>(loc, mulVec, cVec);
-                    } else {
-                      computedVec =
-                          builder.create<vector::FMAOp>(loc, aVec, bVec, cVec);
+                    auto computedVecArray =
+                        std::vector<Value>(localMatrixALoadWidth);
+                    for (int i = 0; i < localMatrixALoadWidth; i++) {
+                      if (elementType.isa<IntegerType>()) {
+                        Value mulVec = builder.create<arith::MulIOp>(
+                            loc, aVecArray[i], bVecArray[i]);
+                        computedVecArray.at(i) = builder.create<arith::AddIOp>(
+                            loc, mulVec,
+                            i == 0 ? cVec : computedVecArray[i - 1]);
+                      } else {
+                        computedVecArray.at(i) = builder.create<vector::FMAOp>(
+                            loc, aVecArray[i], bVecArray[i],
+                            i == 0 ? cVec : computedVecArray[i - 1]);
+                      }
                     }
                     builder.create<affine::AffineVectorStoreOp>(
-                        loc, computedVec, C,
+                        loc, computedVecArray.back(), C,
                         AffineMap::get(2, 0, {d0, d1 * affineVectorSize},
                                        builder.getContext()),
                         ValueRange{loopVarRowOfA, loopVarColOfB});
@@ -414,6 +454,7 @@ public:
             }
           });
     }
+
     rewriter.create<affine::AffineYieldOp>(loc);
 
     // Finalize the loop and erase the original operation.
@@ -426,6 +467,7 @@ public:
 
 private:
   int64_t affineVectorSize;
+  int64_t matrixALoadWidth;
   bool useSerialStore;
 };
 
@@ -452,8 +494,10 @@ public:
   MatMulParallelVectorizationPass() = default;
   MatMulParallelVectorizationPass(const MatMulParallelVectorizationPass &) {}
   explicit MatMulParallelVectorizationPass(int64_t affineVectorSizeParam,
+                                           int64_t matrixALoadWidthParam,
                                            bool useSerialStoreParam) {
     affineVectorSize = affineVectorSizeParam;
+    matrixALoadWidth = matrixALoadWidthParam;
     useSerialStore = useSerialStoreParam;
   }
 
@@ -467,6 +511,10 @@ public:
   Option<int64_t> affineVectorSize{*this, "vector-size",
                                    llvm::cl::desc("Affine Vector size."),
                                    llvm::cl::init(64)};
+
+  Option<int64_t> matrixALoadWidth{*this, "matrix-a-load-width",
+                                   llvm::cl::desc("Matrix A load width."),
+                                   llvm::cl::init(8)};
 
   Option<bool> useSerialStore{
       *this, "serial-store-opt",
@@ -487,8 +535,8 @@ void MatMulParallelVectorizationPass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<MatMulParallelVectorizationPattern>(context, affineVectorSize,
-                                                   useSerialStore);
+  patterns.add<MatMulParallelVectorizationPattern>(
+      context, affineVectorSize, matrixALoadWidth, useSerialStore);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
