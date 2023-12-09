@@ -50,7 +50,7 @@ dynamo_compiler = DynamoCompiler(
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
     gm, params = dynamo_compiler.importer(
-        model, torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
+        model, torch.tensor([[1 for _ in range(40)]], dtype=torch.int64)
     )
 
 path_prefix = os.path.dirname(os.path.abspath(__file__))

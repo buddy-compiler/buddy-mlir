@@ -17,4 +17,4 @@ encoded_text = tokenizer(text, return_tensors="pt")
 with torch.no_grad():
     module, params = dynamo_compiler.importer(model, **encoded_text)
     print(module)
-    # print(params)
+    print(params)
