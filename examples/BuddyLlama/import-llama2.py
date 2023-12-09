@@ -19,11 +19,13 @@
 # ===---------------------------------------------------------------------------
 
 import os
+import time
 
 import numpy
 import torch
 from transformers import LlamaForCausalLM, LlamaTokenizer
 from torch._functorch.aot_autograd import aot_autograd_decompositions
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
@@ -44,19 +46,22 @@ model.config.use_cache = False
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=aot_autograd_decompositions,
+    aot_autograd_decomposition=inductor_decomp,
 )
 
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
-    gm, params = dynamo_compiler.importer(
-        model, torch.tensor([[1 for _ in range(40)]], dtype=torch.int64)
-    )
+    data = torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
+    graphs = dynamo_compiler.importer(model, data)
 
+assert len(graphs) == 1
+graph = graphs[0]
+params = dynamo_compiler.imported_params[graph]
+graph.lower_to_top_level_ir(True)
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 # Write the MLIR module to the file.
 with open(os.path.join(path_prefix, "llama.mlir"), "w") as module_file:
-    print(gm, file=module_file)
+    print(graph._imported_module, file=module_file)
 
 # Concatenate all parameters into a single numpy array and write to a file.
 all_param = numpy.concatenate(
