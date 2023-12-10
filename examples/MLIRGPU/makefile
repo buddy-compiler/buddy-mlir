@@ -80,3 +80,17 @@ vector-to-gpu-run:
 	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin{chip=sm_70}))' | \
 	${MLIR_OPT}	-convert-scf-to-cf -gpu-to-llvm | \
 	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_CUDA_RUNTIME} -shared-libs=${MLIR_RUNNER_UTILS}
+
+gpu-alloc-dealloc-lower:
+	@${MLIR_OPT} gpu-alloc-dealloc.mlir -gpu-kernel-outlining | \
+	${MLIR_OPT} -gpu-to-llvm -o log.mlir
+
+gpu-alloc-dealloc-translate:
+	@${MLIR_OPT} ./gpu-alloc-dealloc.mlir \
+		-gpu-kernel-outlining -gpu-to-llvm |\
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+gpu-alloc-dealloc-run:
+	@${MLIR_OPT} ./gpu-alloc-dealloc.mlir \
+		-gpu-kernel-outlining -gpu-to-llvm |\
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
