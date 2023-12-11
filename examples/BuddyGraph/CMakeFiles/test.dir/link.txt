@@ -1,0 +1,2 @@
+/usr/bin/ar qc libtest.a test.o
+/usr/bin/ranlib libtest.a

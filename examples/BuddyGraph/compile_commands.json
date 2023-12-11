@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/root/buddy-mlir/examples/BuddyGraph",
+  "command": "/usr/bin/c++ -Dexample_EXPORTS -isystem /root/anaconda3/include/python3.11 -isystem /root/anaconda3/lib/python3.11/site-packages/pybind11/include -fPIC -fvisibility=hidden -flto -fno-fat-lto-objects -o CMakeFiles/example.dir/main.cc.o -c /root/buddy-mlir/examples/BuddyGraph/main.cc",
+  "file": "/root/buddy-mlir/examples/BuddyGraph/main.cc"
+}
+]

@@ -32,6 +32,7 @@ import torch.utils._pytree as pytree
 from .ops.math import ops_registry as math_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.linalg import ops_registry as linalg_ops_registry
+from .graph import Graph
 
 
 class DynamoCompiler:
@@ -102,20 +103,23 @@ class DynamoCompiler:
             """Compile a FX graph in Aten/Prims IR to MLIR."""
             func_params = _inputs[: len(self.imported_params)]
             func_inputs = _inputs[len(self.imported_params) :]
-
+            for node in _gm.graph.nodes:
+                print(node.__dict__)
+            graph = Graph(_gm, func_params, func_inputs)
             # Initializes the MLIR context.
             ctx = ir.Context()
             with ir.Location.unknown(ctx):
                 fx_importer = FXGraphImporter(
-                    _gm,
+                    graph.body,
                     func_params,
                     func_inputs,
                     self._do_param_pack,
                     self._func_name,
                     self._ops_registry,
                 )
-                self._imported_module = fx_importer.import_graph()
+                graph._imported_module = fx_importer.import_graph()
             # TODO: Lower to LLVM dialect and use JIT engine to execute.
+                graph.compile()
             return _gm.forward
 
         params = {
@@ -124,7 +128,6 @@ class DynamoCompiler:
         }
         params_flat, _ = pytree.tree_flatten(params)
         self._imported_params = params_flat
-
         return aot_module_simplified(
             gm,
             inputs,
