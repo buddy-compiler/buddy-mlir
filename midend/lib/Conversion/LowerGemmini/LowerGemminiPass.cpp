@@ -86,7 +86,8 @@ public:
       rewriter.setInsertionPointToEnd(loop.getBody());
 
       if (i != e - 1)
-        rewriter.create<LLVM::CallOp>(loc, getPrintfType(context), printfRef, newLineCst);
+        rewriter.create<LLVM::CallOp>(loc, getPrintfType(context), printfRef,
+                                      newLineCst);
       rewriter.create<scf::YieldOp>(loc);
       rewriter.setInsertionPointToStart(loop.getBody());
     }
@@ -101,7 +102,7 @@ public:
       elementLoad = rewriter.create<mlir::LLVM::SExtOp>(
           loc, rewriter.getI32Type(), elementLoad);
     rewriter.create<LLVM::CallOp>(
-        loc, getPrintfType(context) , printfRef,
+        loc, getPrintfType(context), printfRef,
         ArrayRef<Value>({formatSpecifierCst, elementLoad}));
 
     rewriter.eraseOp(op);
@@ -123,7 +124,8 @@ private:
 
     PatternRewriter::InsertionGuard insertGuard(rewriter);
     rewriter.setInsertionPointToStart(module.getBody());
-    rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "printf", getPrintfType(context));
+    rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "printf",
+                                      getPrintfType(context));
     return SymbolRefAttr::get(context, "printf");
   }
 
@@ -145,8 +147,7 @@ private:
     Value cst0 = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
                                                   builder.getIndexAttr(0));
     return builder.create<LLVM::GEPOp>(
-        loc,
-        LLVM::LLVMPointerType::get(builder.getContext()), global.getType(),
+        loc, LLVM::LLVMPointerType::get(builder.getContext()), global.getType(),
         globalPtr, ArrayRef<Value>({cst0, cst0}));
   }
 };
@@ -165,7 +166,7 @@ public:
 
   Option<int64_t> dim{*this, "dim", llvm::cl::desc("Size of systolic array."),
                       llvm::cl::init(16)};
-  Option<int64_t> addrLen{*this, "addr-len",
+  Option<int64_t> addrLen{*this, "addr_len",
                           llvm::cl::desc("The length of address."),
                           llvm::cl::init(32)};
   Option<int64_t> accRows{*this, "acc_rows", llvm::cl::desc("The row of acc."),

@@ -209,3 +209,15 @@ add_subdirectory(tests)
 add_custom_target(check-buddy
   DEPENDS check-examples check-tests
 )
+
+#-------------------------------------------------------------------------------
+# Target install
+#-------------------------------------------------------------------------------
+
+# Install frontend interfaces into include directory, so that the downstream project can use them in distribution
+install(DIRECTORY buddy/Core buddy/DAP buddy/DIP buddy/LLM
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/buddy-mlir
+  COMPONENT buddy-mlir-interfaces-headers
+  FILES_MATCHING
+  PATTERN "*.h"
+  )

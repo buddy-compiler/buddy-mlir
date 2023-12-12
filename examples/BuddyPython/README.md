@@ -73,8 +73,8 @@ If everything works well, the output should be as below.
 ```mlir
 module {
   func.func @forward(%arg0: tensor<10xf32>, %arg1: tensor<10xf32>) -> tensor<10xf32> {
-    %0 = "tosa.mul"(%arg0, %arg1) {shift = 0 : i32} : (tensor<10xf32>, tensor<10xf32>) -> tensor<10xf32>
-    %1 = "tosa.add"(%0, %arg0) : (tensor<10xf32>, tensor<10xf32>) -> tensor<10xf32>
+    %0 = tosa.mul %arg0, %arg1 {shift = 0 : i8} : (tensor<10xf32>, tensor<10xf32>) -> tensor<10xf32>
+    %1 = tosa.add %0, %arg0 : (tensor<10xf32>, tensor<10xf32>) -> tensor<10xf32>
     return %1 : tensor<10xf32>
   }
 }
