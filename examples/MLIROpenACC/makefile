@@ -22,16 +22,16 @@ endif
 openacc-update-lower:
 	@${MLIR_OPT} openacc-update.mlir -convert-openacc-to-scf | \
 	${MLIR_OPT} -convert-scf-to-cf |\
-	${MLIR_OPT}	-convert-cf-to-llvm -o log.mlir
+	${MLIR_OPT}	-convert-func-to-llvm -convert-cf-to-llvm -o log.mlir
 
 openacc-update-translate:
 	@${MLIR_OPT} openacc-update.mlir -convert-openacc-to-scf | \
 	${MLIR_OPT} -convert-scf-to-cf |\
-	${MLIR_OPT}	-convert-cf-to-llvm | \
+	${MLIR_OPT}	-convert-func-to-llvm -convert-cf-to-llvm | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 openacc-update-run:
 	@${MLIR_OPT} openacc-update.mlir -convert-openacc-to-scf | \
 	${MLIR_OPT} -convert-scf-to-cf |\
-	${MLIR_OPT}	-convert-cf-to-llvm | \
+	${MLIR_OPT}	-convert-cf-to-llvm -convert-func-to-llvm| \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
