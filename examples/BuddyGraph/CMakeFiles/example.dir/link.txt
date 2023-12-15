@@ -1,1 +1,0 @@
-/usr/bin/c++ -fPIC -flto -shared  -o example.cpython-311-x86_64-linux-gnu.so CMakeFiles/example.dir/main.cc.o  libtest.a -lmlir_c_runner_utils 

@@ -63,7 +63,6 @@ def arange_op(
             type=tensor_type,
         )
         op = arith.ConstantOp(tensor_type, attr)
-
     elif node.target.__name__ == "arange.default":
         start = 0
         end = int(node.args[0])
