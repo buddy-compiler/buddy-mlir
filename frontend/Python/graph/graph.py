@@ -17,6 +17,7 @@
 # This is the graph level of the Buddy Compiler frontend.
 #
 # ===---------------------------------------------------------------------------
+
 import mlir.ir as ir
 from mlir.passmanager import *
 from mlir.execution_engine import *
