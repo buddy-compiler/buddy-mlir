@@ -131,8 +131,8 @@ gpu-memset-lower:
 gpu-memset-translate:
 	@${MLIR_OPT} gpu-memset.mlir -gpu-kernel-outlining | \
 	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target{chip=sm_70 O=3},\
-	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)" -o log.mlir |\
-	${MLIR_TRANSLATE} log.mlir --mlir-to-llvmir -o log.ll
+	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)"  |\
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 gpu-memset-run:
 	@${MLIR_OPT} gpu-memset.mlir -gpu-kernel-outlining | \
