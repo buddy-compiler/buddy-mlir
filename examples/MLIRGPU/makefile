@@ -92,19 +92,13 @@ vector-to-gpu-run:
 gpu-alloc-dealloc-lower:
 	@${MLIR_OPT} gpu-alloc-dealloc.mlir -gpu-kernel-outlining | \
 	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target{chip=sm_70 O=3},\
-	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)" -o log.mlir\
+	gpu.module(convert-gpu-to-nvvm), convert-arith-to-llvm, lower-affine, convert-scf-to-cf, gpu-to-llvm, gpu-module-to-binary)" -o log.mlir\
 
 gpu-alloc-dealloc-translate:
 	@${MLIR_OPT} gpu-alloc-dealloc.mlir -gpu-kernel-outlining | \
 	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target{chip=sm_70 O=3},\
-	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)" -o log.mlir |\
-	${MLIR_TRANSLATE} log.mlir --mlir-to-llvmir -o log.ll
-
-gpu-alloc-dealloc-run:
-	@${MLIR_OPT} gpu-alloc-dealloc.mlir -gpu-kernel-outlining | \
-	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target{chip=sm_70 O=3},\
-	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)" |\
-	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_CUDA_RUNTIME} -shared-libs=${MLIR_RUNNER_UTILS}
+	gpu.module(convert-gpu-to-nvvm), convert-arith-to-llvm, lower-affine, test-lower-to-nvvm, convert-scf-to-cf, gpu-to-llvm, gpu-module-to-binary)" |\
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 gpu-memcpy-lower:
 	@${MLIR_OPT} gpu-memcpy.mlir -gpu-kernel-outlining | \
