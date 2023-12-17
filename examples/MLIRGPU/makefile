@@ -152,3 +152,13 @@ gpu-dynamic-shared-memory-run:
 	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_CUDA_RUNTIME} -shared-libs=${MLIR_RUNNER_UTILS}
 
 
+gpu-spmm-lower:
+	@${MLIR_OPT} gpu-spmm.mlir -gpu-kernel-outlining | \
+	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target{chip=sm_70 O=3},\
+	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)" -o log.mlir\
+
+gpu-spmm-translate:
+	@${MLIR_OPT} gpu-spmm.mlir -gpu-kernel-outlining | \
+	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target{chip=sm_70 O=3},\
+	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)"  |\
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
