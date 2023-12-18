@@ -128,20 +128,31 @@ $ ninja check-buddy
 
 This repository have nix flake support. You can follow the [nix installation instruction](https://nixos.org/manual/nix/stable/installation/installation.html) and enable the [flake features](https://nixos.wiki/wiki/Flakes#Other_Distros.2C_without_Home-Manager) to have nix setup.
 
-- If you want to contribute to this project:
+- If you want to use the buddy-mlir bintools:
 
 ```bash
-nix develop .
+nix shell .#buddy-mlir
+buddy-opt --version
 ```
 
-This will setup a bash shell with `clang`, `clangd`, `cmake`, `ninja`, and other necessary dependencies to build buddy-mlir from source.
-
-- If you want to use the buddy-mlir bintools
+- If you want to play with our tests and example, which required additional packages:
 
 ```bash
-nix build .#buddy-mlir
-./result/bin/buddy-opt --version
+nix develop
+python tests/Python/test_addmm.py
 ```
+
+- If you want to contribute to this project but don't know how to setup the project:
+
+```bash
+nix develop .#buddy-mlir
+
+cmake -G Ninja -Bbuild ...etc # follow the above build instruction
+```
+
+This will setup a bash shell with `clang`, `cmake`, `ninja`, and other necessary dependencies to build buddy-mlir from source.
+By default it will add Python dependencies and add a Python 3.10.* to your environment to build the Python3 bindings.
+If you doesn't want that, you can override the `enablePython3Bindings` argument.
 
 ## Dialects
 

@@ -67,14 +67,16 @@ $ ninja check-buddy
 Set the `PYTHONPATH` environment variable. Make sure that the `PYTHONPATH` variable includes the directory of LLVM/MLIR python bindings and the directory of Buddy MLIR python packages.
 
 ```
-$ export PYTHONPATH=/path-to-buddy-mlir/llvm/build/tools/mlir/python_packages/mlir_core:/path-to-buddy-mlir/build/python_packages:${PYTHONPATH}
+$ export PYTHONPATH=/path-to-buddy-mlir/llvm/build/tools/mlir/python_packages/mlir_core:$PYTHONPATH
+# Notes: if you are using *one-step* strategies to build, python packages is installed in llvm build dir.
+$ export PYTHONPATH=/path-to-buddy-mlir/build/frontend/Python/python_packages:$PYTHONPATH
 
 // For example:
 // Navigate to your buddy-mlir/build directory
 $ cd buddy-mlir/build
 $ export BUDDY_MLIR_BUILD_DIR=$PWD
 $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
-$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/frontend/Python/python_packages:${PYTHONPATH}
 ```
 
 6. Build and run LLaMA example

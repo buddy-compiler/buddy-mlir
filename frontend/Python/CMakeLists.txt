@@ -1,11 +1,19 @@
-# Recursively retrieve all python files from the current directory.
-file(GLOB_RECURSE ALL_PY_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "*.py")
+include(AddMLIRPython)
 
-foreach(FILE ${ALL_PY_FILES})
-    # Get the directory of the current file.
-    get_filename_component(DIR "${FILE}" DIRECTORY)
-    # Set the destination directory for the target file.
-    set(DEST "${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/${DIR}")
-    # Copy the file into the destination directory.
-    file(COPY ${FILE} DESTINATION ${DEST})
-endforeach()
+declare_mlir_python_sources(BuddyPythonSources)
+declare_mlir_python_sources(BuddyPythonSources.Compiler
+    ADD_TO_PARENT BuddyPythonSources
+    ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/buddy"
+    SOURCES
+        compiler/__init__.py
+        compiler/frontend.py
+        compiler/ops/linalg.py
+        compiler/ops/math.py
+        compiler/ops/tosa.py
+)
+
+add_mlir_python_modules(BuddyPythonModules
+  ROOT_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/python_packages/buddy"
+  INSTALL_PREFIX "python_packages/buddy"
+  DECLARED_SOURCES BuddyPythonSources
+)

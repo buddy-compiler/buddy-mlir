@@ -181,16 +181,6 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 #-------------------------------------------------------------------------------
-# Initialize Python packages
-#-------------------------------------------------------------------------------
-if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
-  file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy)
-  file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler)
-  file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/__init__.py "")
-  file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/__init__.py "")
-endif()
-
-#-------------------------------------------------------------------------------
 # Directory setup
 #-------------------------------------------------------------------------------
 
