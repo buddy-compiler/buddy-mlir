@@ -99,13 +99,19 @@ $ ./buddy-opt ../../examples/DIPDialect/dip.mlir --lower-dip="DIP-strip-mining=$
 
 Build and run the example.
 
-*Note: Please make sure OpenCV is installed to play around.*
+*Note: Please make sure OpenCV, libjpeg-dev and libpng-dev is installed to play around.*
 
 This example can also show the "magic" of AutoConfig mechanism that can help you specify the `strip mining size`, `ISA SIMD/Vector extension`, and `target triple`. You only need to enable the `BUDDY_EXAMPLES` option and don't worry about the toolchain configuration.
 
+To generate build files for these examples 
+
+```
+cd buddy-mlir/build
+cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON -DBUDDY_MLIR_ENABLE_DIP_LIB=ON
+```
+
 ```
 $ cd buddy-mlir/build
-$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja correlation2D
 $ cd bin
 $ ./correlation2D ../../examples/images/YuTu.png result-dip-corr2d-replicate-padding.png result-dip-corr2d-constant-padding.png
@@ -115,7 +121,6 @@ Using Fast Fourier Transform:
 
 ```
 $ cd buddy-mlir/build
-$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja correlationFFT2D
 $ cd bin
 $ ./correlationFFT2D ../../examples/images/YuTu.png result-dip-corr2d-replicate-padding.png result-dip-corr2d-constant-padding.png
@@ -128,7 +133,6 @@ Of course, you can also use your own configuration assigning values `-DBUDDY_DIP
  - Rotation example:
 ```
 $ cd buddy-mlir/build
-$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja rotation2D
 $ cd bin
 $ ./rotation2D ../../examples/images/YuTu.png result-dip-rotate.png
@@ -146,7 +150,6 @@ $ ./resize2D ../../examples/images/YuTu.png result-dip-resize.png
 - Morphological Operations example:
 ```
 $ cd buddy-mlir/build
-$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja morph2D
 $ cd bin
 $ ./morph2D ../../examples/images/YuTu.png result-opening-constant.png result-opening-replicate.png result-closing-replicate.png result-closing-constant.png result-tophat-replicate.png result-dilation-constant.png result-dilation-replicate.png result-erosion-constant.png result-erosion-replicate.png result-morphgrad-replicate.png result-bottomhat-replicate.png
