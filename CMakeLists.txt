@@ -100,14 +100,6 @@ endif()
 # Generate libraries into `lib` of build directory.
 set(LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
-# Find the libpng and libjpeg libraries
-find_package(PNG REQUIRED)
-find_package(JPEG REQUIRED)
-
-# Set variables for the libpng and libjpeg libraries
-set(PNG_LIBRARY PNG::PNG)
-set(JPEG_LIBRARY JPEG::JPEG)
-
 # Add BUDDY files to the include path
 include_directories(${BUDDY_MAIN_INCLUDE_DIR})
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR})
