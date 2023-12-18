@@ -178,3 +178,20 @@ gpu-shuffle-run:
 	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target{chip=sm_70 O=3},\
 	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)" | \
 	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
+
+gpu-printf-lower:
+	@${MLIR_OPT} gpu-printf.mlir -gpu-kernel-outlining | \
+	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target{chip=sm_70 O=3},\
+	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)" -o log.mlir
+
+gpu-printf-translate:
+	@${MLIR_OPT} gpu-printf.mlir -gpu-kernel-outlining | \
+	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target{chip=sm_70 O=3},\
+	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, convert-nvvm-to-llvm, gpu-module-to-binary)" |\
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+gpu-printf-run:
+	@${MLIR_OPT} gpu-printf.mlir -gpu-kernel-outlining | \
+	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target{chip=sm_70 O=3},\
+	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)" | \
+	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
