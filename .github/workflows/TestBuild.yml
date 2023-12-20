@@ -12,7 +12,6 @@ jobs:
     matrix: 
       include: 
         - toolset: clang
-            compiler: clang++-10
             cxxstd: "14,17"
             os: ubuntu-20.04
         - toolset: gcc-10
