@@ -9,20 +9,7 @@ on:
 jobs:
   build:
 
-    matrix: 
-      include: 
-        - toolset: clang
-            cxxstd: "14,17"
-            os: ubuntu-20.04
-        - toolset: gcc-10
-            cxxstd: "14,17"
-            os: ubuntu-20.04
-            install: g++-10
-        - toolset: clang
-            cxxstd: "14,17"
-            os: macos-11
-
-    runs-on: ${{matrix.os}}
+    runs-on: self-hosted
 
     steps:
       - name: Checkout

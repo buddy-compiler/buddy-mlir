@@ -106,8 +106,8 @@ This example can also show the "magic" of AutoConfig mechanism that can help you
 To generate build files for these examples 
 
 ```
-cd buddy-mlir/build
-cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON -DBUDDY_MLIR_ENABLE_DIP_LIB=ON
+$ cd buddy-mlir/build
+$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON -DBUDDY_MLIR_ENABLE_DIP_LIB=ON
 ```
 
 ```
@@ -141,7 +141,6 @@ $ ./rotation2D ../../examples/images/YuTu.png result-dip-rotate.png
  - Resize example:
 ```
 $ cd buddy-mlir/build
-$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja resize2D
 $ cd bin
 $ ./resize2D ../../examples/images/YuTu.png result-dip-resize.png
