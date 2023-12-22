@@ -117,6 +117,11 @@ void affineTransformController(OpBuilder &builder, Location loc,
                                SmallVector<Value, 6> affineMatrix,
                                int64_t stride);
 
+// Controls resize application.
+void resizeController(OpBuilder &builder, Location loc, MLIRContext *ctx,
+                      Value input, Value output, Value xScale, Value yScale,
+                      int64_t stride);
+
 // Controls shear transform application.
 void shearTransformController(
     OpBuilder &builder, Location loc, MLIRContext *ctx,

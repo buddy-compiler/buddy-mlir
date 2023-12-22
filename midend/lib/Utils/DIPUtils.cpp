@@ -38,6 +38,7 @@
 #include "DIP/DIPOps.h"
 #include "Utils/AffineTransformUtils.h"
 #include "Utils/DIPUtils.h"
+#include "Utils/ResizeUtils.h"
 #include "Utils/Utils.h"
 
 using namespace mlir;
@@ -517,7 +518,8 @@ void affineTransformController(OpBuilder &builder, Location loc,
   Value xMm3 =
       builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
 
-  // RSV_BITS = reserved bits, how many bits should be reserved for fraction part
+  // RSV_BITS = reserved bits, how many bits should be reserved for fraction
+  // part
   // TODO: make reserved bits configurable
   const int RSV_BITS = 5;
   Value c_rsv = builder.create<arith::ConstantOp>(
@@ -569,6 +571,117 @@ void affineTransformController(OpBuilder &builder, Location loc,
 
   builder.create<memref::DeallocOp>(loc, xMm0);
   builder.create<memref::DeallocOp>(loc, xMm3);
+}
+
+void resizeController(OpBuilder &builder, Location loc, MLIRContext *ctx,
+                      Value input, Value output, Value xScale, Value yScale,
+                      int64_t stride) {
+#define BLOCK_SZ 32
+  VectorType vectorTyF32 = VectorType::get({stride}, FloatType::getF32(ctx));
+  VectorType vectorTyF32Block =
+      VectorType::get({BLOCK_SZ}, FloatType::getF32(ctx));
+  VectorType vectorTyI32Block =
+      VectorType::get({BLOCK_SZ}, IntegerType::get(ctx, 32));
+  VectorType vectorTyIndexBlock =
+      VectorType::get({BLOCK_SZ}, IndexType::get(ctx));
+
+  Value c0Index = builder.create<arith::ConstantIndexOp>(loc, 0);
+  Value c1Index = builder.create<arith::ConstantIndexOp>(loc, 1);
+
+  Value outputRow = builder.create<memref::DimOp>(loc, output, c0Index);
+  Value outputCol = builder.create<memref::DimOp>(loc, output, c1Index);
+
+  Value xScaleVec = builder.create<vector::SplatOp>(loc, vectorTyF32, xScale);
+  Value yScaleVec = builder.create<vector::SplatOp>(loc, vectorTyF32, yScale);
+
+  Value strideVal = builder.create<arith::ConstantIndexOp>(loc, stride);
+  Value lcmVal =
+      builder.create<arith::ConstantIndexOp>(loc, std::lcm(stride, BLOCK_SZ));
+  Value outputColStrideRatio =
+      builder.create<arith::DivUIOp>(loc, outputCol, lcmVal);
+  Value outputColMultiple = builder.create<arith::MulIOp>(
+      loc, builder.create<arith::AddIOp>(loc, outputColStrideRatio, c1Index),
+      lcmVal);
+  Value outputRowStrideRatio =
+      builder.create<arith::DivUIOp>(loc, outputRow, lcmVal);
+  Value outputRowMultiple = builder.create<arith::MulIOp>(
+      loc, builder.create<arith::AddIOp>(loc, outputRowStrideRatio, c1Index),
+      lcmVal);
+
+  Value xyVecInitial = iotaVec0F32(builder, loc, stride);
+
+  MemRefType dynamicTypeF32 =
+      MemRefType::get(ShapedType::kDynamic, Float32Type::get(ctx));
+
+  // compute xSrc = xDst * scale and ySrc = yDst * scale and store the results
+  // into xSrc and ySrc
+  Value xSrc =
+      builder.create<memref::AllocOp>(loc, dynamicTypeF32, outputColMultiple);
+  Value ySrc =
+      builder.create<memref::AllocOp>(loc, dynamicTypeF32, outputRowMultiple);
+
+  // compute xSrc
+  builder.create<scf::ParallelOp>(
+      loc, ValueRange{c0Index}, ValueRange{outputColMultiple},
+      ValueRange{strideVal},
+      [&](OpBuilder &xBuilder, Location xLoc, ValueRange ivs) {
+        Value delta = xBuilder.create<vector::SplatOp>(
+            xLoc, vectorTyF32, indexToF32(xBuilder, xLoc, ivs[0]));
+        Value xDstDelta =
+            xBuilder.create<arith::AddFOp>(xLoc, xyVecInitial, delta);
+        Value xSrcDelta =
+            xBuilder.create<arith::MulFOp>(xLoc, xDstDelta, xScaleVec);
+        xBuilder.create<vector::StoreOp>(xLoc, xSrcDelta, xSrc,
+                                         ValueRange{ivs[0]});
+      });
+  // compute ySrc
+  builder.create<scf::ParallelOp>(
+      loc, ValueRange{c0Index}, ValueRange{outputRowMultiple},
+      ValueRange{strideVal},
+      [&](OpBuilder &yBuilder, Location yLoc, ValueRange ivs) {
+        Value delta = yBuilder.create<vector::SplatOp>(
+            yLoc, vectorTyF32, indexToF32(yBuilder, yLoc, ivs[0]));
+        Value yDstDelta =
+            yBuilder.create<arith::AddFOp>(yLoc, xyVecInitial, delta);
+        Value ySrcDelta =
+            yBuilder.create<arith::MulFOp>(yLoc, yDstDelta, yScaleVec);
+        yBuilder.create<vector::StoreOp>(yLoc, ySrcDelta, ySrc,
+                                         ValueRange{ivs[0]});
+      });
+
+  // remap(nearest)
+  Value step = builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ);
+  builder.create<scf::ParallelOp>(
+      loc, ValueRange{c0Index, c0Index}, ValueRange{outputRow, outputCol},
+      ValueRange{step, step},
+      [&](OpBuilder &pBuilder, Location pLoc, ValueRange ivs) {
+        Value yMapVecF32 = pBuilder.create<vector::LoadOp>(
+            pLoc, vectorTyF32Block, ySrc, ivs[0]);
+        Value yMapVecI32 = pBuilder.create<arith::FPToUIOp>(
+            pLoc, vectorTyI32Block, yMapVecF32);
+        Value yMapVecIndex = pBuilder.create<arith::IndexCastOp>(
+            pLoc, vectorTyIndexBlock, yMapVecI32);
+        Value xMapVecF32 = pBuilder.create<vector::LoadOp>(
+            pLoc, vectorTyF32Block, xSrc, ivs[1]);
+        Value xMapVecI32 = pBuilder.create<arith::FPToUIOp>(
+            pLoc, vectorTyI32Block, xMapVecF32);
+        Value xMapVecIndex = pBuilder.create<arith::IndexCastOp>(
+            pLoc, vectorTyIndexBlock, xMapVecI32);
+        Value realYEnd = pBuilder.create<arith::MinUIOp>(
+            pLoc, outputRow,
+            pBuilder.create<arith::AddIOp>(pLoc, ivs[0], step));
+        Value rows = pBuilder.create<arith::SubIOp>(pLoc, realYEnd, ivs[0]);
+        Value realXEnd = pBuilder.create<arith::MinUIOp>(
+            pLoc, outputCol,
+            pBuilder.create<arith::AddIOp>(pLoc, ivs[1], step));
+        Value cols = pBuilder.create<arith::SubIOp>(pLoc, realXEnd, ivs[1]);
+        remapNearest(pBuilder, pLoc, input, output, yMapVecIndex, xMapVecIndex,
+                     ivs[0], ivs[1], rows, cols);
+      });
+
+  builder.create<memref::DeallocOp>(loc, xSrc);
+  builder.create<memref::DeallocOp>(loc, ySrc);
+#undef BLOCK_SZ
 }
 
 // Controls shear transform application.

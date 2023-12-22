@@ -252,104 +252,10 @@ public:
 
     // Register operand values.
     Value input = op->getOperand(0);
-    Value horizontalScalingFactor = op->getOperand(1);
-    Value verticalScalingFactor = op->getOperand(2);
     Value output = op->getOperand(3);
     auto interpolationAttr = op.getInterpolationType();
-    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
-
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
-    dip::DIP_ERROR error =
-        dip::checkDIPCommonTypes<dip::Resize2DOp>(op, {input, output});
-
-    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
-      return op->emitOpError()
-             << "input, and output must have the same element type";
-    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
-      return op->emitOpError() << "supports only f32, f64 and integer types. "
-                               << inElemTy << "is passed";
-    }
-
-    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value c0F32 = indexToF32(rewriter, loc, c0);
-
-    Value inputRow = rewriter.create<memref::DimOp>(loc, input, c0);
-    Value inputCol = rewriter.create<memref::DimOp>(loc, input, c1);
-
-    Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
-    Value outputCol = rewriter.create<memref::DimOp>(loc, output, c1);
-
-    // Determine lower bound for second call of resize function (this is done
-    // for efficient tail processing).
-    Value outputColStrideRatio =
-        rewriter.create<arith::DivUIOp>(loc, outputCol, strideVal);
-    Value outputColMultiple =
-        rewriter.create<arith::MulIOp>(loc, strideVal, outputColStrideRatio);
-
-    SmallVector<Value, 8> lowerBounds1{c0, c0};
-    SmallVector<Value, 8> upperBounds1{outputRow, outputColMultiple};
-
-    SmallVector<int64_t, 8> steps{1, stride};
-    Value strideTailVal =
-        rewriter.create<arith::SubIOp>(loc, outputCol, outputColMultiple);
-
-    SmallVector<Value, 8> lowerBounds2{c0, outputColMultiple};
-    SmallVector<Value, 8> upperBounds2{outputRow, outputCol};
-
-    FloatType f32 = FloatType::getF32(ctx);
-    VectorType vectorTy32 = VectorType::get({stride}, f32);
-
-    Value horizontalScalingFactorVec = rewriter.create<vector::SplatOp>(
-        loc, vectorTy32, horizontalScalingFactor);
-    Value verticalScalingFactorVec = rewriter.create<vector::SplatOp>(
-        loc, vectorTy32, verticalScalingFactor);
-
-    // Obtain extreme allocatable value(s) in input and output for bounding
-    // purpose.
-    Value inputRowLastElem = rewriter.create<arith::SubIOp>(loc, inputRow, c1);
-    Value inputRowLastElemF32 = indexToF32(rewriter, loc, inputRowLastElem);
-
-    Value inputColLastElem = rewriter.create<arith::SubIOp>(loc, inputCol, c1);
-    Value inputColLastElemF32 = indexToF32(rewriter, loc, inputColLastElem);
-
-    Value outputRowLastElem =
-        rewriter.create<arith::SubIOp>(loc, outputRow, c1);
-    Value outputRowLastElemF32 = indexToF32(rewriter, loc, outputRowLastElem);
-
-    Value outputColLastElem =
-        rewriter.create<arith::SubIOp>(loc, outputCol, c1);
-    Value outputColLastElemF32 = indexToF32(rewriter, loc, outputColLastElem);
-
-    if (interpolationAttr ==
-        dip::InterpolationType::NearestNeighbourInterpolation) {
-      dip::NearestNeighbourInterpolationResizing(
-          rewriter, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
-          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
-          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
-          inputColLastElemF32, vectorTy32, stride, c0, c0F32);
-
-      dip::NearestNeighbourInterpolationResizing(
-          rewriter, loc, ctx, lowerBounds2, upperBounds2, steps, strideTailVal,
-          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
-          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
-          inputColLastElemF32, vectorTy32, stride, c0, c0F32);
-    } else if (interpolationAttr ==
-               dip::InterpolationType::BilinearInterpolation) {
-      Value c1F32 = indexToF32(rewriter, loc, c1);
-
-      dip::BilinearInterpolationResizing(
-          rewriter, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
-          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
-          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
-          inputColLastElemF32, vectorTy32, stride, c0, c0F32, c1F32);
-
-      dip::BilinearInterpolationResizing(
-          rewriter, loc, ctx, lowerBounds2, upperBounds2, steps, strideTailVal,
-          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
-          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
-          inputColLastElemF32, vectorTy32, stride, c0, c0F32, c1F32);
-    }
+    dip::resizeController(rewriter, loc, ctx, input, output, op->getOperand(1),
+                          op->getOperand(2), stride);
 
     // Remove the original resize operation.
     rewriter.eraseOp(op);
