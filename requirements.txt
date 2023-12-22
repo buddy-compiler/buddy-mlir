@@ -1,7 +1,5 @@
 --pre --extra-index-url https://download.pytorch.org/whl/cpu
 torch == 2.1.2
-torchvision == 0.16.2
-torchaudio == 2.1.2
 transformers == 4.33.1
 tokenizers == 0.13.3
 sentencepiece == 0.1.99
