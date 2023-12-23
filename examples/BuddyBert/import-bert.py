@@ -1,4 +1,4 @@
-# ===- import-bert.py --------------------------------------------------------
+# ===- import-bert.py ----------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the test of llama2 model.
+# This is the test of BERT model.
 #
 # ===---------------------------------------------------------------------------
 

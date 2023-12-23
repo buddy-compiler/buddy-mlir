@@ -1,4 +1,4 @@
-//===- bert-main.cpp -----------------------------------------------------===//
+//===- bert-main.cpp ------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,26 +63,42 @@ void loadParameters(const std::string &floatParamPath,
 }
 
 int main() {
+  /// Print the title of this example.
+  const std::string title = "BERT Inference Powered by Buddy Compiler";
+  std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
+  
+  /// Load weights to MemRef container.
   MemRef<float, 1> arg0({109486854});
   MemRef<long long, 1> arg1({512});
   loadParameters("../../examples/BuddyBert/arg0.data",
                  "../../examples/BuddyBert/arg1.data", arg0, arg1);
 
-  std::cout << "this BERT model will guess the emotion of your sentence"
-            << std::endl;
+  /// Get user message and build Text container.
   std::cout << "What sentence do you want to say to BERT?" << std::endl;
-
-  std::string vocabDir = "../../examples/BuddyBert/vocab.txt";
+  std::cout << ">>> ";
   std::string pureStr;
   std::getline(std::cin, pureStr);
   Text<long long, 2> pureStrContainer(pureStr);
+
+  /// Define vacabulary and tokenize the 
+  std::string vocabDir = "../../examples/BuddyBert/vocab.txt";
   pureStrContainer.tokenizeBert(vocabDir, 5);
 
+  /// Initialize data containers.
   MemRef<float, 2> result({1, 6});
   MemRef<long long, 2> attention_mask({1, 5}, 1LL);
   MemRef<long long, 2> token_type_ids({1, 5}, 0LL);
+
+  const auto inferenceStart = std::chrono::high_resolution_clock::now();
+
+  /// Execute forward inference of the model.
   _mlir_ciface_forward(&result, &arg0, &arg1, &pureStrContainer,
                        &attention_mask, &token_type_ids);
+  
+  const auto inferenceEnd = std::chrono::high_resolution_clock::now();
+  const std::chrono::duration<double, std::milli> inferenceTime =
+        inferenceEnd - inferenceStart;
+  /// Find the selected emotion.
   int predict_label = -1;
   float max_logits = std::numeric_limits<float>::min();
   for (int i = 0; i < 6; i++) {
@@ -91,10 +107,17 @@ int main() {
       predict_label = i;
     }
   }
-
   std::vector<std::string> emotion = {"sadness", "joy",  "love",
                                       "anger",   "fear", "surprise"};
-  std::cout << "The emotion of this sentence is \"" << emotion[predict_label]
-            << "\"" << std::endl;
+  std::cout << "\033[33;1m[Result] \033[0m";
+  std::cout << "The emotion of your sentence is ";
+  std::cout << "\033[32;1m" << emotion[predict_label] << "\033[0m";
+  std::cout << "." << std::endl;
+
+  /// Print the performance.
+  std::cout << "\033[33;1m[Time] \033[0m";
+  std::cout << inferenceTime.count() << " ms"
+            << std::endl;
+
   return 0;
 }
