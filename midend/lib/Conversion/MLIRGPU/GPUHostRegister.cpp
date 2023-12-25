@@ -25,6 +25,7 @@
 #include "mlir/IR/Visitors.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
@@ -86,6 +87,52 @@ public:
 };
 } // end anonymous namespace.
 
+void getAllocationOp(Value* value){
+  if (auto* producerOp = value->getDefiningOp()){
+    if (auto allocOp = dyn_cast<memref::AllocOp>(producerOp)){
+      llvm::dbgs()<<producerOp->getName().getStringRef()<<"\n";
+    }
+    //else if (auto reallocOp)
+    //else if (auto allocaOp)
+
+    // Alias Ops
+    else if (auto subviewOp = dyn_cast<memref::SubViewOp>(producerOp)){
+      llvm::dbgs() << producerOp->getName().getStringRef() << "\n";
+    }
+    else if (auto loadOp = dyn_cast<memref::LoadOp>(producerOp)){
+      llvm::dbgs() << producerOp->getName().getStringRef() << "\n";
+    } 
+    else if (auto collapseShapeOp = dyn_cast<memref::CollapseShapeOp>(producerOp)) {
+      llvm::dbgs() << producerOp->getName().getStringRef() << "\n";
+    } 
+    else if (auto expandShapeOp = dyn_cast<memref::ExpandShapeOp>(producerOp)) {
+      llvm::dbgs() << producerOp->getName().getStringRef() << "\n";
+    } 
+    else if (auto castOp = dyn_cast<memref::CastOp>(producerOp)) {
+      llvm::dbgs() << producerOp->getName().getStringRef() << "\n";
+    } 
+    else if (auto reinterpretCastOp =
+                   dyn_cast<memref::ReinterpretCastOp>(producerOp)) {
+      llvm::dbgs() << producerOp->getName().getStringRef() << "\n";
+    } 
+    else if (auto reshapeOp = dyn_cast<memref::ReshapeOp>(producerOp)) {
+      llvm::dbgs() << producerOp->getName().getStringRef() << "\n";
+    } 
+    else if (auto transposeOp = dyn_cast<memref::TransposeOp>(producerOp)) {
+      llvm::dbgs() << producerOp->getName().getStringRef() << "\n";
+    }
+    else if (auto viewOp = dyn_cast<memref::ViewOp>(producerOp)) {
+      llvm::dbgs() << producerOp->getName().getStringRef() << "\n";
+    }
+    else if (auto getGlobalOp = dyn_cast<memref::GetGlobalOp>(producerOp)){
+
+    }
+    else{
+      llvm_unreachable("Unknown producer op");
+    }
+  }
+}
+
 void GPUHostRegisterPass::runOnOperation() {
   auto module = getOperation();
   module->walk<WalkOrder::PreOrder>([&](Operation *nestedOp){
@@ -93,10 +140,10 @@ void GPUHostRegisterPass::runOnOperation() {
       // OpBuilder barrierBuilder(launchFuncOp->getContext());
       // barrierBuilder.setInsertionPointAfter(launchFuncOp);
       // barrierBuilder.create<gpu::BarrierOp>(launchFuncOp->getLoc());
-      std::set<Value*> registered;
+      std::set<Operation*> allocations;
       for (auto operand : launchFuncOp->getOperands()){
         if (!operand.getType().isa<BaseMemRefType>()) continue;
-        if (registered.find(&operand) != registered.end()) continue;
+        getAllocationOp(&operand);
         if(auto* producerOp = operand.getDefiningOp()){
           // llvm::dbgs()<<producerOp->getName().getStringRef()<<"\n";
           OpBuilder builder(producerOp->getContext());
@@ -106,7 +153,6 @@ void GPUHostRegisterPass::runOnOperation() {
           UnrankedMemRefType resType = UnrankedMemRefType::get(elementType, 0);
           Value cast = builder.create<memref::CastOp>(producerOp->getLoc(), resType, operand);
           builder.create<gpu::HostRegisterOp>(producerOp->getLoc(), cast);
-          registered.insert(&operand);
         }
       }
       return WalkResult::advance();
