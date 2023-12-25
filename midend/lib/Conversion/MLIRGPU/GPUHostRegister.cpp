@@ -34,6 +34,7 @@
 #include <mlir/IR/Value.h>
 #include <mlir/Pass/Pass.h>
 
+#include <set>
 using namespace mlir;
 using namespace vector;
 
@@ -92,8 +93,10 @@ void GPUHostRegisterPass::runOnOperation() {
       // OpBuilder barrierBuilder(launchFuncOp->getContext());
       // barrierBuilder.setInsertionPointAfter(launchFuncOp);
       // barrierBuilder.create<gpu::BarrierOp>(launchFuncOp->getLoc());
+      std::set<Value*> registered;
       for (auto operand : launchFuncOp->getOperands()){
         if (!operand.getType().isa<BaseMemRefType>()) continue;
+        if (registered.find(&operand) != registered.end()) continue;
         if(auto* producerOp = operand.getDefiningOp()){
           // llvm::dbgs()<<producerOp->getName().getStringRef()<<"\n";
           OpBuilder builder(producerOp->getContext());
@@ -103,6 +106,7 @@ void GPUHostRegisterPass::runOnOperation() {
           UnrankedMemRefType resType = UnrankedMemRefType::get(elementType, 0);
           Value cast = builder.create<memref::CastOp>(producerOp->getLoc(), resType, operand);
           builder.create<gpu::HostRegisterOp>(producerOp->getLoc(), cast);
+          registered.insert(&operand);
         }
       }
       return WalkResult::advance();

@@ -50,9 +50,31 @@ There should be no `tosa` operations in the output. Most of the operations shoul
 ### 2.2 Bufferizing Linalg
 This step bufferizes the Linalg operations. It would fully convert the linalg-on-tensor operations to scf-on-memref operations.
 
+- Bufferize using the old bufferization pipeline:
 ```
 mlir-opt llama-linalg-default.mlir -arith-expand -eliminate-empty-tensors -empty-tensor-to-alloc-tensor -linalg-bufferize -convert-linalg-to-affine-loops -affine-loop-fusion -affine-parallelize -lower-affine -canonicalize -func-bufferize -arith-bufferize -tensor-bufferize -buffer-deallocation -finalizing-bufferize -canonicalize -o llama-bufferized.mlir
 ```
+
+- Bufferize everything using one-shot-bufferize:
+```
+mlir-opt llama-linalg-default.mlir -arith-expand -eliminate-empty-tensors -empty-tensor-to-alloc-tensor -one-shot-bufferize="bufferize-function-boundaries" -expand-realloc  -resolve-shaped-type-result-dims -canonicalize -buffer-deallocation-simplification -bufferization-lower-deallocations -cse -canonicalize -buffer-deallocation-pipeline  -o llama-bufferized.mlir
+```
+
+- Bufferize everything but function boundaries using one-shot-bufferize:
+```
+mlir-opt llama-linalg-default.mlir -arith-expand -eliminate-empty-tensors -empty-tensor-to-alloc-tensor -one-shot-bufferize -func-bufferize -expand-realloc  -resolve-shaped-type-result-dims -canonicalize -buffer-deallocation-simplification -bufferization-lower-deallocations -finalizing-bufferize -cse -canonicalize -buffer-deallocation-pipeline  -o llama-bufferized.mlir
+```
+
+- Bufferize GPU first
+```
+buddy-opt -gpu-bufferize llama-linalg-default.mlir -o llama-gpu-bufferized.mlir  
+```
+
+- Bufferize everything else using one-shot-bufferize:
+```
+mlir-opt llama-gpu-bufferized.mlir -arith-expand -eliminate-empty-tensors -empty-tensor-to-alloc-tensor -one-shot-bufferize="bufferize-function-boundaries" -expand-realloc  -resolve-shaped-type-result-dims -canonicalize -buffer-deallocation-simplification -bufferization-lower-deallocations -cse -canonicalize -buffer-deallocation-pipeline  -o llama-bufferized.mlir
+```
+
 You should not be seeing any tensor on linalg operations. All operations would look like this:
 
 ```
