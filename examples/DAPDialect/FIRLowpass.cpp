@@ -53,6 +53,6 @@ int main(int argc, char *argv[]) {
   output.getAudioFile().setAudioBuffer(nullptr);
   dap::fir(&aud.getMemRef(), &kernel, &output.getMemRef());
   cout << "Saving file:" << endl;
-  cout << (output.save(saveFileName) ? "OK" : "NOT OK") << endl;
+  cout << (output.save(saveFileName) ? "OK" : "ERROR") << endl;
   return 0;
 }

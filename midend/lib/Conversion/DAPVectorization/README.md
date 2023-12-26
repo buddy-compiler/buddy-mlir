@@ -25,29 +25,29 @@ $$y_n^1 = 𝑏_0^1 𝑥_𝑛^1 + 𝑏_1^1 𝑥_{𝑛−1}^1 − 𝑎_1^1 𝑦_{�
 This section shows the implementation of IIR Vectorization algorithm. The example shown below contains 4 sets of parameters, with superscript {$0, 1, 2, 3$} representing each set of parameters.
 
 1. **Segment IIR Equation & Generate Vector Params**
-   ![Segment IIR Equation to three parts due to different time moment](./segmentation.png)
+   ![Segment IIR Equation to three parts due to different time moment](../../../../docs/Images/IIRSegmentation.png)
     IIR equation were segmented into 3 parts, each part were calculated in different time moment. When $S2$ was calculated at time $t_i$, it will be used to calculate $S1$ at time $t_{i+1}$, then produce the final result at time $t_{i+2}$.
 
-   ![Generate SOS params in vector form](./vector_params.png)
+   ![Generate SOS params in vector form](../../../../docs/Images/IIRVectorParams.png)
     In the above image, vector $B0$ were the collection of all $b_0$ params, other vectors $B1, B2, A1, A2$ each collect there corresponding params. 
     
 2. **Computing One Set of Params**
-   ![Computing step 1](./computing1.png)
+   ![Computing step 1](../../../../docs/Images/IIRComputing1.png)
     The first step in computation, calculate $y_0^0$ with the following equation:
     $$𝑦_0^0=𝑏_0^0𝑥_0+s_1^0$$
     At time moment $0$, the initial values of $S1, S2$ were set to $0$.
-   ![Computing step 2](./computing2.png)
+   ![Computing step 2](../../../../docs/Images/IIRComputing2.png)
     The second step in computation, calculate $s_1^0$ with the following equation:
     $$𝑠_1^0=𝑏_1^0𝑥_0−𝑎_1^0𝑦_0^0+s_2^0 $$
-   ![Computing step 3](./computing3.png)
+   ![Computing step 3](../../../../docs/Images/IIRComputing3.png)
     The third step in computation, calculate $s_2^0$ with the following equation:
     $$𝑠_2^0=𝑏_2^0𝑥_0−𝑎_2^0𝑦_0^0$$
 
     The above three steps happen in the same time moment $t$, which is the same loop iteration in program. The order of these three steps cannot change, because the value from vector $S1, S2$ were actually produced before time moment $t$.
 3. **Cascade Method**
-   ![Cascade step 1](./cascade1.png)
+   ![Cascade step 1](../../../../docs/Images/IIRCascade1.png)
     Now the values $y_0^0$, $s_1^0$ and $s_2^0$ were produced, here the whole system will get a new input $x1$ and move on the computation.
-   ![Cascade step 2](./cascade2.png)
+   ![Cascade step 2](../../../../docs/Images/IIRCascade2.png)
     The $y_0^0$ were moved right and the new input $x1$ were pushed in. The value in vector $S1$ and $S2$ are not changed and will jump back to the second step. The difference in the next iteration is that two sets of parameters are used and this is where the performance improves.
 
     When the example above came to the fourth iteration, the computation will be using all the parameters. This situation occurs for the vast majority of the time during the computation. Also, considering a longer vector length(currently support 4, 8, 16, 32, 64), it can achieve a 10x performance improvement.
