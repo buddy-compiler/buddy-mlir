@@ -56,6 +56,7 @@ void registerPoolingVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
 void registerLowerDAPPass();
+void registerDAPVectorizePass();
 void registerLowerRVVPass();
 void registerBatchMatMulOptimizePass();
 void registerMatMulOptimizePass();
@@ -84,6 +85,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerBudPass();
   mlir::buddy::registerLowerDIPPass();
   mlir::buddy::registerLowerDAPPass();
+  // Register Vectorization of DAP Dialect.
+  mlir::buddy::registerDAPVectorizePass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
   mlir::buddy::registerLowerGemminiPass();

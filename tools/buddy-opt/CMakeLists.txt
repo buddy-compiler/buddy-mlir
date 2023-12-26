@@ -20,6 +20,7 @@ target_link_libraries(buddy-opt
   LowerDIPPass
   BuddyDAP
   LowerDAPPass
+  DAPVectorization
   BuddyRVV
   LowerRVVPass
   MatMulOptimization
