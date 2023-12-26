@@ -124,36 +124,50 @@ std::pair<Operation *, int> getAllocationOp(Value *value) {
     }
     // else if (auto reallocOp)
     // else if (auto allocaOp)
+    // Getglobal needs to create a copy
     else if (auto getGlobalOp = dyn_cast<memref::GetGlobalOp>(producerOp)) {
-    } else if (auto subviewOp = dyn_cast<memref::SubViewOp>(producerOp)) {
+      return {producerOp, 1};
+    } 
+    else if (auto subviewOp = dyn_cast<memref::SubViewOp>(producerOp)) {
 
-    } else if (auto loadOp = dyn_cast<memref::LoadOp>(producerOp)) {
+    } 
+    else if (auto loadOp = dyn_cast<memref::LoadOp>(producerOp)) {
 
-    } else if (auto collapseShapeOp =
+    } 
+    else if (auto collapseShapeOp =
                    dyn_cast<memref::CollapseShapeOp>(producerOp)) {
 
-    } else if (auto expandShapeOp =
+    } 
+    else if (auto expandShapeOp =
                    dyn_cast<memref::ExpandShapeOp>(producerOp)) {
 
-    } else if (auto castOp = dyn_cast<memref::CastOp>(producerOp)) {
+    } 
+    else if (auto castOp = dyn_cast<memref::CastOp>(producerOp)) {
 
-    } else if (auto reinterpretCastOp =
+    } 
+    else if (auto reinterpretCastOp =
                    dyn_cast<memref::ReinterpretCastOp>(producerOp)) {
 
-    } else if (auto reshapeOp = dyn_cast<memref::ReshapeOp>(producerOp)) {
+    } 
+    else if (auto reshapeOp = dyn_cast<memref::ReshapeOp>(producerOp)) {
 
-    } else if (auto transposeOp = dyn_cast<memref::TransposeOp>(producerOp)) {
+    } 
+    else if (auto transposeOp = dyn_cast<memref::TransposeOp>(producerOp)) {
 
-    } else if (auto viewOp = dyn_cast<memref::ViewOp>(producerOp)) {
+    } 
+    else if (auto viewOp = dyn_cast<memref::ViewOp>(producerOp)) {
 
-    } else {
+    } 
+    else {
       llvm_unreachable("Unknown producer op");
     }
-    return {producerOp, 1};
+    // Look for parent op
+    return {producerOp, 2};
   }
-  llvm::dbgs()<<"returning null:"<<value<<"\n";
+  llvm::dbgs() << "returning null:" << value << "\n";
   value->dump();
-  return {nullptr, 2};
+  // Values comes from outside the function
+  return {nullptr, 3};
 }
 static bool isEqual(const Operation *lhsC, const Operation *rhsC) {
   auto *lhs = const_cast<Operation *>(lhsC);
@@ -206,7 +220,7 @@ void GPUHostRegisterPass::runOnOperation() {
           builder.create<gpu::HostRegisterOp>(castOp->getLoc(),
                                               castOp.getResult());
           globalAllocations[allocOp] = &newAllocOp;
-        } 
+        }
         // else if (res.second == 2) {
         //   // From function outside
         //   // Insert at the beginning of the region
@@ -215,7 +229,8 @@ void GPUHostRegisterPass::runOnOperation() {
         //   auto newAllocOp = builder.create<memref::AllocOp>(
         //       allocOp->getLoc(), memrefType, ValueRange{});
         //   builder.create<memref::CopyOp>(
-        //       allocOp->getLoc(), allocOp->getResult(0), newAllocOp.getResult());
+        //       allocOp->getLoc(), allocOp->getResult(0),
+        //       newAllocOp.getResult());
         //   for (size_t i = 0; i < launchFuncOp->getNumOperands(); i++) {
         //     if (launchFuncOp->getOperand(i) == operand) {
         //       launchFuncOp->setOperand(i, newAllocOp.getResult());
@@ -223,13 +238,13 @@ void GPUHostRegisterPass::runOnOperation() {
         //   }
         //   auto result = allocations.insert(newAllocOp);
         //   auto elementType = memrefType.getElementType();
-        //   UnrankedMemRefType resType = UnrankedMemRefType::get(elementType, 0);
-        //   auto castOp = builder.create<memref::CastOp>(
+        //   UnrankedMemRefType resType = UnrankedMemRefType::get(elementType,
+        //   0); auto castOp = builder.create<memref::CastOp>(
         //       newAllocOp->getLoc(), resType, newAllocOp->getResult(0));
         //   builder.create<gpu::HostRegisterOp>(castOp->getLoc(),
         //                                       castOp.getResult());
         //   globalAllocations[allocOp] = &newAllocOp;
-        // } 
+        // }
         else {
           insertionOp = allocOp;
           auto result = allocations.insert(insertionOp);
