@@ -62,24 +62,17 @@ void iirLowpass(MemRef<T, N> &input, const zpk<T> &filter, T frequency, T fs) {
   }
 }
 
-template <typename T, size_t N, size_t M>
-void iir(MemRef<float, N> *input, MemRef<T, M> *filter,
-         MemRef<float, N> *output) {
+// Filter parameters are represented by Second Order Section (SOS) filter, which
+// accept a MemRef with 2 dimension only (with the second dimension set to 6). 
+template <typename T, size_t N>
+void IIR(MemRef<float, N> *input, MemRef<T, 2> *filter,
+         MemRef<float, N> *output, bool isVectorization=false) {
   if (N != 1)
     assert(0 && "Only mono audio is supported for now.");
-  if (M != 2)
-    assert(0 && "Second Order Section (SOS) filter is only supported for now.");
-  detail::_mlir_ciface_buddy_iir(input, filter, output);
-}
-
-template <typename T, size_t N, size_t M>
-void iir_vectorization(MemRef<float, N> *input, MemRef<T, M> *filter,
-                       MemRef<float, N> *output) {
-  if (N != 1)
-    assert(0 && "Only mono audio is supported for now.");
-  if (M != 2)
-    assert(0 && "Second Order Section (SOS) filter is only supported for now.");
-  detail::_mlir_ciface_buddy_iir_vectorization(input, filter, output);
+  if (!isVectorization)
+    detail::_mlir_ciface_buddy_iir(input, filter, output);
+  else
+    detail::_mlir_ciface_buddy_iir_vectorization(input, filter, output);
 }
 
 } // namespace dap

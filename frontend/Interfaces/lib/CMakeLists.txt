@@ -73,7 +73,7 @@ SET_TARGET_PROPERTIES(BuddyLibDAP PROPERTIES
           sed 's/buddy_biquad/buddy_biquad_vectorization/' |
           ${CMAKE_BINARY_DIR}/bin/buddy-opt
               -vectorize-dap
-              --convert-linalg-to-affine-loops
+              -convert-linalg-to-affine-loops
               -arith-expand
               -lower-affine
               -convert-scf-to-cf
@@ -83,11 +83,11 @@ SET_TARGET_PROPERTIES(BuddyLibDAP PROPERTIES
               -llvm-request-c-wrappers
               -convert-func-to-llvm
               -reconcile-unrealized-casts | 
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
+          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_MLIR_BINARY_DIR}/llc 
               -mtriple=${BUDDY_TARGET_TRIPLE}
               -mattr=${BUDDY_OPT_ATTR}
-              --filetype=obj
+              -filetype=obj
               -o ${CMAKE_CURRENT_BINARY_DIR}/DAPVectorization.o
   DEPENDS buddy-opt
   )

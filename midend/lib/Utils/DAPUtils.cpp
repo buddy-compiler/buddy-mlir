@@ -70,20 +70,19 @@ SmallVector<Value, 5> generateSOSParams(OpBuilder &rewriter, Location loc,
         Value a2 =
             builder.create<memref::LoadOp>(loc, kernel, ValueRange{iv, c5});
 
-        Value B0_next =
+        Value b0Next =
             builder.create<vector::InsertElementOp>(loc, b0, iargs[0], iv);
-        Value B1_next =
+        Value b1Next =
             builder.create<vector::InsertElementOp>(loc, b1, iargs[1], iv);
-        Value B2_next =
+        Value b2Next =
             builder.create<vector::InsertElementOp>(loc, b2, iargs[2], iv);
-        Value A1_next =
+        Value a1Next =
             builder.create<vector::InsertElementOp>(loc, a1, iargs[3], iv);
-        Value A2_next =
+        Value a2Next =
             builder.create<vector::InsertElementOp>(loc, a2, iargs[4], iv);
 
         builder.create<scf::YieldOp>(
-            loc,
-            std::vector<Value>{B0_next, B1_next, B2_next, A1_next, A2_next});
+            loc, std::vector<Value>{b0Next, b1Next, b2Next, a1Next, a2Next});
       });
 
   return SmallVector<Value, 5>{vecDistribute.getResults()};
@@ -109,29 +108,27 @@ void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
   auto injectionResult = rewriter.create<scf::ForOp>(
       loc, c0, cUpperBound, c1, ValueRange{vecOut, vecS1, vecS2},
       [&](OpBuilder &builder, Location loc, Value iv, ValueRange iargs) {
-        Value in_elem = builder.create<memref::LoadOp>(loc, input, iv);
-        Value vecIn_move_right = builder.create<vector::ShuffleOp>(
+        Value inElem = builder.create<memref::LoadOp>(loc, input, iv);
+        Value vecInMoveRight = builder.create<vector::ShuffleOp>(
             loc, iargs[0], iargs[0], arrayRef);
-        Value vecIn_next = builder.create<vector::InsertElementOp>(
-            loc, in_elem, vecIn_move_right, c0);
-        Value vecOut_next =
-            builder.create<vector::FMAOp>(loc, vecB0, vecIn_next, iargs[1]);
+        Value vecInNext = builder.create<vector::InsertElementOp>(
+            loc, inElem, vecInMoveRight, c0);
+        Value vecOutNext =
+            builder.create<vector::FMAOp>(loc, vecB0, vecInNext, iargs[1]);
 
-        Value vecS1_lhs =
-            builder.create<vector::FMAOp>(loc, vecB1, vecIn_next, iargs[2]);
-        Value vecS1_rhs =
-            builder.create<arith::MulFOp>(loc, vecA1, vecOut_next);
-        Value vecS1_next =
-            builder.create<arith::SubFOp>(loc, vecS1_lhs, vecS1_rhs);
+        Value vecS1Lhs =
+            builder.create<vector::FMAOp>(loc, vecB1, vecInNext, iargs[2]);
+        Value vecS1Rhs = builder.create<arith::MulFOp>(loc, vecA1, vecOutNext);
+        Value vecS1Next =
+            builder.create<arith::SubFOp>(loc, vecS1Lhs, vecS1Rhs);
 
-        Value vecS2_lhs = builder.create<arith::MulFOp>(loc, vecB2, vecIn_next);
-        Value vecS2_rhs =
-            builder.create<arith::MulFOp>(loc, vecA2, vecOut_next);
-        Value vecS2_next =
-            builder.create<arith::SubFOp>(loc, vecS2_lhs, vecS2_rhs);
+        Value vecS2Lhs = builder.create<arith::MulFOp>(loc, vecB2, vecInNext);
+        Value vecS2Rhs = builder.create<arith::MulFOp>(loc, vecA2, vecOutNext);
+        Value vecS2Next =
+            builder.create<arith::SubFOp>(loc, vecS2Lhs, vecS2Rhs);
 
         builder.create<scf::YieldOp>(
-            loc, std::vector<Value>{vecOut_next, vecS1_next, vecS2_next});
+            loc, std::vector<Value>{vecOutNext, vecS1Next, vecS2Next});
       });
 
   Value upperBound = rewriter.create<arith::SubIOp>(loc, N, cUpperBound);
@@ -141,63 +138,59 @@ void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
       loc, c0, upperBound, c1, ValueRange{injectionResult.getResults()},
       [&](OpBuilder &builder, Location loc, Value iv, ValueRange iargs) {
         Value index = builder.create<arith::AddIOp>(loc, iv, cUpperBound);
-        Value in_elem = builder.create<memref::LoadOp>(loc, input, index);
-        Value vecIn_move_right = builder.create<vector::ShuffleOp>(
+        Value inElem = builder.create<memref::LoadOp>(loc, input, index);
+        Value vecInMoveRight = builder.create<vector::ShuffleOp>(
             loc, iargs[0], iargs[0], arrayRef);
-        Value vecIn_next = builder.create<vector::InsertElementOp>(
-            loc, in_elem, vecIn_move_right, c0);
-        Value vecOut_next =
-            builder.create<vector::FMAOp>(loc, vecB0, vecIn_next, iargs[1]);
+        Value vecInNext = builder.create<vector::InsertElementOp>(
+            loc, inElem, vecInMoveRight, c0);
+        Value vecOutNext =
+            builder.create<vector::FMAOp>(loc, vecB0, vecInNext, iargs[1]);
         Value out_elem = builder.create<vector::ExtractElementOp>(
-            loc, vecOut_next, iUpperBound);
+            loc, vecOutNext, iUpperBound);
         builder.create<memref::StoreOp>(loc, out_elem, output, iv);
 
-        Value vecS1_lhs =
-            builder.create<vector::FMAOp>(loc, vecB1, vecIn_next, iargs[2]);
-        Value vecS1_rhs =
-            builder.create<arith::MulFOp>(loc, vecA1, vecOut_next);
-        Value vecS1_next =
-            builder.create<arith::SubFOp>(loc, vecS1_lhs, vecS1_rhs);
+        Value vecS1Lhs =
+            builder.create<vector::FMAOp>(loc, vecB1, vecInNext, iargs[2]);
+        Value vecS1Rhs = builder.create<arith::MulFOp>(loc, vecA1, vecOutNext);
+        Value vecS1Next =
+            builder.create<arith::SubFOp>(loc, vecS1Lhs, vecS1Rhs);
 
-        Value vecS2_lhs = builder.create<arith::MulFOp>(loc, vecB2, vecIn_next);
-        Value vecS2_rhs =
-            builder.create<arith::MulFOp>(loc, vecA2, vecOut_next);
-        Value vecS2_next =
-            builder.create<arith::SubFOp>(loc, vecS2_lhs, vecS2_rhs);
+        Value vecS2Lhs = builder.create<arith::MulFOp>(loc, vecB2, vecInNext);
+        Value vecS2Rhs = builder.create<arith::MulFOp>(loc, vecA2, vecOutNext);
+        Value vecS2Next =
+            builder.create<arith::SubFOp>(loc, vecS2Lhs, vecS2Rhs);
 
         builder.create<scf::YieldOp>(
-            loc, std::vector<Value>{vecOut_next, vecS1_next, vecS2_next});
+            loc, std::vector<Value>{vecOutNext, vecS1Next, vecS2Next});
       });
 
   // Tail ending stafe for iir operation, generate rest ouput
   rewriter.create<scf::ForOp>(
       loc, upperBound, N, c1, ValueRange{processResult.getResults()},
       [&](OpBuilder &builder, Location loc, Value iv, ValueRange iargs) {
-        Value vecIn_move_right = builder.create<vector::ShuffleOp>(
+        Value vecInMoveRight = builder.create<vector::ShuffleOp>(
             loc, iargs[0], iargs[0], arrayRef);
-        Value vecIn_next = builder.create<vector::InsertElementOp>(
-            loc, f0, vecIn_move_right, c0);
-        Value vecOut_next =
-            builder.create<vector::FMAOp>(loc, vecB0, vecIn_next, iargs[1]);
+        Value vecInNext = builder.create<vector::InsertElementOp>(
+            loc, f0, vecInMoveRight, c0);
+        Value vecOutNext =
+            builder.create<vector::FMAOp>(loc, vecB0, vecInNext, iargs[1]);
         Value out_elem = builder.create<vector::ExtractElementOp>(
-            loc, vecOut_next, iUpperBound);
+            loc, vecOutNext, iUpperBound);
         builder.create<memref::StoreOp>(loc, out_elem, output, iv);
 
-        Value vecS1_lhs =
-            builder.create<vector::FMAOp>(loc, vecB1, vecIn_next, iargs[2]);
-        Value vecS1_rhs =
-            builder.create<arith::MulFOp>(loc, vecA1, vecOut_next);
-        Value vecS1_next =
-            builder.create<arith::SubFOp>(loc, vecS1_lhs, vecS1_rhs);
+        Value vecS1Lhs =
+            builder.create<vector::FMAOp>(loc, vecB1, vecInNext, iargs[2]);
+        Value vecS1Rhs = builder.create<arith::MulFOp>(loc, vecA1, vecOutNext);
+        Value vecS1Next =
+            builder.create<arith::SubFOp>(loc, vecS1Lhs, vecS1Rhs);
 
-        Value vecS2_lhs = builder.create<arith::MulFOp>(loc, vecB2, vecIn_next);
-        Value vecS2_rhs =
-            builder.create<arith::MulFOp>(loc, vecA2, vecOut_next);
-        Value vecS2_next =
-            builder.create<arith::SubFOp>(loc, vecS2_lhs, vecS2_rhs);
+        Value vecS2Lhs = builder.create<arith::MulFOp>(loc, vecB2, vecInNext);
+        Value vecS2Rhs = builder.create<arith::MulFOp>(loc, vecA2, vecOutNext);
+        Value vecS2Next =
+            builder.create<arith::SubFOp>(loc, vecS2Lhs, vecS2Rhs);
 
         builder.create<scf::YieldOp>(
-            loc, std::vector<Value>{vecOut_next, vecS1_next, vecS2_next});
+            loc, std::vector<Value>{vecOutNext, vecS1Next, vecS2Next});
       });
 }
 
@@ -217,7 +210,7 @@ void iirVectorizationProcess(OpBuilder &rewriter, Location loc, uint64_t vecLen,
       /*value=*/vecLenMinusOne, /*width=*/64);
 
   auto SOSParams = dap::generateSOSParams(rewriter, loc, vectorTy, f0, f1, c0,
-                                                c1, c2, c4, c5, filterSize, kernel);
+                                          c1, c2, c4, c5, filterSize, kernel);
   dap::biquadProcess(rewriter, loc, vectorTy, f0, c0, c1, cUpperBound,
                      iUpperBound, SOSParams, arrayRef, N, input, output);
 }

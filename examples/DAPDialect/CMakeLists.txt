@@ -16,9 +16,9 @@ message(STATUS "Spliting size: ${SPLITING_SIZE}")
 # Buddy DAP Dialect FIR operation
 #-------------------------------------------------------------------------------
 
-add_executable(firLowpass firLowpass.cpp)
-add_dependencies(firLowpass buddy-opt)
-target_link_libraries(firLowpass
+add_executable(buddy-fir FIRLowpass.cpp)
+add_dependencies(buddy-fir buddy-opt)
+target_link_libraries(buddy-fir
   BuddyLibDAP
 )
 
@@ -26,9 +26,9 @@ target_link_libraries(firLowpass
 # Buddy DAP Dialect Biquad Operation
 #-------------------------------------------------------------------------------
 
-add_executable(biquad biquad.cpp)
-add_dependencies(biquad buddy-opt)
-target_link_libraries(biquad
+add_executable(buddy-biquad biquad.cpp)
+add_dependencies(buddy-biquad buddy-opt)
+target_link_libraries(buddy-biquad
   BuddyLibDAP
 )
 
@@ -36,14 +36,14 @@ target_link_libraries(biquad
 # Buddy DAP Dialect IIR Operation
 #-------------------------------------------------------------------------------
 
-add_executable(iirLowpass iirLowpass.cpp)
-add_dependencies(iirLowpass buddy-opt)
-target_link_libraries(iirLowpass 
+add_executable(buddy-iir-scalar IIRLowpass.cpp)
+add_dependencies(buddy-iir-scalar buddy-opt)
+target_link_libraries(buddy-iir-scalar 
   BuddyLibDAP
 )
 
-add_executable(iirVectorization iirVectorization.cpp)
-add_dependencies(iirVectorization buddy-opt)
-target_link_libraries(iirVectorization
+add_executable(buddy-iir-vectorization IIRVectorization.cpp)
+add_dependencies(buddy-iir-vectorization buddy-opt)
+target_link_libraries(buddy-iir-vectorization
   BuddyLibDAPVectorization
 )

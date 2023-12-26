@@ -1,4 +1,5 @@
 //====- DAPVectorization.cpp - DAP Dialect Vectorization Pass  ------------===//
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -83,6 +84,7 @@ public:
     Value cond32 =
         rewriter.create<CmpIOp>(loc, CmpIPredicate::ule, filterSize, c32);
 
+    // clang-format off
     rewriter.create<scf::IfOp>(loc, cond4,
     /*thenBuilder=*/
     [&](OpBuilder &builder, Location loc) {
@@ -110,8 +112,9 @@ public:
             /*thenBuilder=*/
             [&](OpBuilder &builder, Location loc){
                 dap::iirVectorizationProcess(builder, loc, 16, f32, f0, f1, c0, c1, c2, c4, c5,
-                                             filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 
-                                             14}, N, input, output);
+                                             filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2, 
+                                             3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}, N, 
+                                             input, output);
                 
                 builder.create<scf::YieldOp>(loc);
             },
@@ -121,20 +124,22 @@ public:
                 /*thenBuilder=*/
                 [&](OpBuilder &builder, Location loc){
                     dap::iirVectorizationProcess(builder, loc, 32, f32, f0, f1, c0, c1, c2, c4, c5,
-                                                 filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 
-                                                 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30}, N, input, output);
+                                                 filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2, 
+                                                 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 
+                                                 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+                                                 30}, N, input, output);
                     
                     builder.create<scf::YieldOp>(loc);
                 },
                 /*elseBuilder=*/
                 [&](OpBuilder &builder, Location loc) {
                     dap::iirVectorizationProcess(builder, loc, 64, f32, f0, f1, c0, c1, c2, c4, c5,
-                                                 filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 
-                                                         14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 
-                                                         26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37,
-                                                         38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 
-                                                         50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
-                                                         62}, N, input, output);
+                                                 filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2, 3, 4,
+                                                 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 
+                                                 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 
+                                                 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 
+                                                 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
+                                                 62}, N, input, output);
                     
                     builder.create<scf::YieldOp>(loc);
                 }
@@ -147,6 +152,7 @@ public:
 
         builder.create<scf::YieldOp>(loc);
     });
+    // clang-format on
 
     rewriter.eraseOp(op);
     return success();
@@ -190,11 +196,17 @@ void VectorizeDAPPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target
-      .addLegalDialect<affine::AffineDialect, scf::SCFDialect,
-                       func::FuncDialect, memref::MemRefDialect, VectorDialect,
-                       arith::ArithDialect, linalg::LinalgDialect>();
+  // clang-format off
+  target.addLegalDialect<
+      affine::AffineDialect,
+      scf::SCFDialect,
+      func::FuncDialect,
+      memref::MemRefDialect,
+      VectorDialect,
+      arith::ArithDialect,
+      linalg::LinalgDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
+  // clang-format on
 
   RewritePatternSet patterns(context);
   populateVectorizeDAPConversionPatterns(patterns);

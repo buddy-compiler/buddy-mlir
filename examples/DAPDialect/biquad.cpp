@@ -1,4 +1,4 @@
-//===- biquad.cpp - Example of DAP iir filter -----------------------------===//
+//===- biquad.cpp - Example of DAP Biquad Filter --------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

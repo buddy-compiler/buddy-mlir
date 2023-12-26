@@ -12,7 +12,7 @@ add_mlir_library(BuddyDIPUtils
   BuddyUtils
   )
 
-  add_mlir_library(BuddyDAPUtils
+add_mlir_library(BuddyDAPUtils
   DAPUtils.cpp
   
   LINK_LIBS PUBLIC
