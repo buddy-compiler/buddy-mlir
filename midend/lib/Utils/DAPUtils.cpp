@@ -145,9 +145,9 @@ void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
             loc, inElem, vecInMoveRight, c0);
         Value vecOutNext =
             builder.create<vector::FMAOp>(loc, vecB0, vecInNext, iargs[1]);
-        Value out_elem = builder.create<vector::ExtractElementOp>(
+        Value outElem = builder.create<vector::ExtractElementOp>(
             loc, vecOutNext, iUpperBound);
-        builder.create<memref::StoreOp>(loc, out_elem, output, iv);
+        builder.create<memref::StoreOp>(loc, outElem, output, iv);
 
         Value vecS1Lhs =
             builder.create<vector::FMAOp>(loc, vecB1, vecInNext, iargs[2]);
@@ -174,9 +174,9 @@ void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
             loc, f0, vecInMoveRight, c0);
         Value vecOutNext =
             builder.create<vector::FMAOp>(loc, vecB0, vecInNext, iargs[1]);
-        Value out_elem = builder.create<vector::ExtractElementOp>(
+        Value outElem = builder.create<vector::ExtractElementOp>(
             loc, vecOutNext, iUpperBound);
-        builder.create<memref::StoreOp>(loc, out_elem, output, iv);
+        builder.create<memref::StoreOp>(loc, outElem, output, iv);
 
         Value vecS1Lhs =
             builder.create<vector::FMAOp>(loc, vecB1, vecInNext, iargs[2]);
