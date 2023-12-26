@@ -25,6 +25,3 @@ target_link_libraries(rotation2D ${DIP_LIBS})
 
 add_executable(resize2D resize2D.cpp)
 target_link_libraries(resize2D ${DIP_LIBS})
-
-
-

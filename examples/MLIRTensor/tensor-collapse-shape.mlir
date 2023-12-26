@@ -1,6 +1,6 @@
 // RUN: buddy-opt %s \
 // RUN:     -arith-bufferize -tensor-bufferize -func-bufferize \
-// RUN:     -finalizing-bufferize -buffer-deallocation -convert-linalg-to-llvm \
+// RUN:     -finalizing-bufferize -buffer-deallocation -convert-linalg-to-loops -convert-scf-to-cf \
 // RUN:     -expand-strided-metadata -lower-affine \
 // RUN:     -finalize-memref-to-llvm -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \

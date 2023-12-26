@@ -1,6 +1,6 @@
 add_custom_command(
   OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyLlama/llama.mlir ${BUDDY_EXAMPLES_DIR}/BuddyLlama/arg0.data
-  COMMAND python ${BUDDY_EXAMPLES_DIR}/BuddyLlama/import-llama2.py
+  COMMAND ${Python3_EXECUTABLE} ${BUDDY_EXAMPLES_DIR}/BuddyLlama/import-llama2.py
   COMMENT "Generating llama.mlir and arg0.data..."
 )
 

@@ -27,10 +27,10 @@ foo_mlir(weight, indices)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.reshape"
-# CHECK: %{{.*}} = "tosa.reshape"
-# CHECK: %{{.*}} = "tosa.gather"
-# CHECK: %{{.*}} = "tosa.reshape"
+# CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tosa.gather
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }
@@ -47,11 +47,11 @@ foo_mlir(weight, indices)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.reshape"
-# CHECK: %{{.*}} = "tosa.cast"
-# CHECK: %{{.*}} = "tosa.reshape"
-# CHECK: %{{.*}} = "tosa.gather"
-# CHECK: %{{.*}} = "tosa.reshape"
+# CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tosa.cast
+# CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tosa.gather
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

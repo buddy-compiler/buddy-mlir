@@ -1,7 +1,6 @@
 set(LLVM_CodeGen_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/CodeGen)
 
 add_llvm_component_library(LLVMBuddyCodeGen
-
   ${LLVM_CodeGen_DIR}/AggressiveAntiDepBreaker.cpp
   ${LLVM_CodeGen_DIR}/AllocationOrder.cpp
   ${LLVM_CodeGen_DIR}/Analysis.cpp
@@ -12,6 +11,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/BranchRelaxation.cpp
   ${LLVM_CodeGen_DIR}/BreakFalseDeps.cpp
   ${LLVM_CodeGen_DIR}/BasicBlockSections.cpp
+  ${LLVM_CodeGen_DIR}/BasicBlockPathCloning.cpp
   ${LLVM_CodeGen_DIR}/BasicBlockSectionsProfileReader.cpp
   ${LLVM_CodeGen_DIR}/CalcSpillWeights.cpp
   ${LLVM_CodeGen_DIR}/CallBrPrepare.cpp
@@ -59,6 +59,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/InterleavedLoadCombinePass.cpp
   ${LLVM_CodeGen_DIR}/IntrinsicLowering.cpp
   ${LLVM_CodeGen_DIR}/JMCInstrumenter.cpp
+  ${LLVM_CodeGen_DIR}/KCFI.cpp
   ${LLVM_CodeGen_DIR}/LatencyPriorityQueue.cpp
   ${LLVM_CodeGen_DIR}/LazyMachineBlockFrequencyInfo.cpp
   ${LLVM_CodeGen_DIR}/LexicalScopes.cpp
@@ -127,8 +128,8 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/MIRFSDiscriminator.cpp
   ${LLVM_CodeGen_DIR}/MIRSampleProfile.cpp
   ${LLVM_CodeGen_DIR}/MIRYamlMapping.cpp
-  ${LLVM_CodeGen_DIR}/MLRegallocEvictAdvisor.cpp
-  ${LLVM_CodeGen_DIR}/MLRegallocPriorityAdvisor.cpp
+  ${LLVM_CodeGen_DIR}/MLRegAllocEvictAdvisor.cpp
+  ${LLVM_CodeGen_DIR}/MLRegAllocPriorityAdvisor.cpp
   ${LLVM_CodeGen_DIR}/ModuloSchedule.cpp
   ${LLVM_CodeGen_DIR}/MultiHazardRecognizer.cpp
   ${LLVM_CodeGen_DIR}/PatchableFunction.cpp
@@ -165,6 +166,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/RegisterCoalescer.cpp
   ${LLVM_CodeGen_DIR}/RegisterPressure.cpp
   ${LLVM_CodeGen_DIR}/RegisterScavenging.cpp
+  ${LLVM_CodeGen_DIR}/GCEmptyBasicBlocks.cpp
   ${LLVM_CodeGen_DIR}/RemoveRedundantDebugValues.cpp
   ${LLVM_CodeGen_DIR}/RenameIndependentSubregs.cpp
   ${LLVM_CodeGen_DIR}/MachineStableHash.cpp
@@ -220,6 +222,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/WasmEHPrepare.cpp
   ${LLVM_CodeGen_DIR}/WinEHPrepare.cpp
   ${LLVM_CodeGen_DIR}/XRayInstrumentation.cpp
+
   ${GeneratedMLSources}
 
   ${LLVM_CodeGen_DIR}/LiveDebugValues/LiveDebugValues.cpp

@@ -25,7 +25,7 @@ foo_mlir(in1)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.exp"
+# CHECK: %{{.*}} = tosa.exp
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

@@ -4,7 +4,6 @@ add_llvm_component_library(LLVMBuddyAnalysis
 
   ${LLVM_Analysis_DIR}/AliasAnalysis.cpp
   ${LLVM_Analysis_DIR}/AliasAnalysisEvaluator.cpp
-  ${LLVM_Analysis_DIR}/AliasAnalysisSummary.cpp
   ${LLVM_Analysis_DIR}/AliasSetTracker.cpp
   ${LLVM_Analysis_DIR}/Analysis.cpp
   ${LLVM_Analysis_DIR}/AssumeBundleQueries.cpp
@@ -71,7 +70,6 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/LoopInfo.cpp
   ${LLVM_Analysis_DIR}/LoopPass.cpp
   ${LLVM_Analysis_DIR}/MLInlineAdvisor.cpp
-  ${LLVM_Analysis_DIR}/MemDepPrinter.cpp
   ${LLVM_Analysis_DIR}/MemDerefPrinter.cpp
   ${LLVM_Analysis_DIR}/MemoryBuiltins.cpp
   ${LLVM_Analysis_DIR}/MemoryDependenceAnalysis.cpp
@@ -104,6 +102,7 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/ScalarEvolutionNormalization.cpp
   ${LLVM_Analysis_DIR}/StackLifetime.cpp
   ${LLVM_Analysis_DIR}/StackSafetyAnalysis.cpp
+  ${LLVM_Analysis_DIR}/StructuralHash.cpp
   ${LLVM_Analysis_DIR}/SyntheticCountsUtils.cpp
   ${LLVM_Analysis_DIR}/TFLiteUtils.cpp
   ${LLVM_Analysis_DIR}/TargetLibraryInfo.cpp
@@ -120,6 +119,7 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/ValueTracking.cpp
   ${LLVM_Analysis_DIR}/VectorUtils.cpp
   ${LLVM_Analysis_DIR}/VFABIDemangling.cpp
+
   ${GeneratedMLSources}
 
   ADDITIONAL_HEADER_DIRS

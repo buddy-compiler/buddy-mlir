@@ -1,4 +1,4 @@
-//===- biquad.cpp - Example of DAP iir filter -----------------------------===//
+//===- biquad.cpp - Example of DAP Biquad Filter --------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,6 +53,6 @@ int main(int argc, char *argv[]) {
   dap::biquad(&aud.getMemRef(), &kernel, &output.getMemRef());
 
   cout << "Saving file:" << endl;
-  cout << (output.save(saveFileName) ? "OK" : "NOT OK") << endl;
+  cout << (output.save(saveFileName) ? "OK" : "ERROR") << endl;
   return 0;
 }

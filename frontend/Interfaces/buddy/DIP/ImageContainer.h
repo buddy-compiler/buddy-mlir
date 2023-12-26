@@ -159,9 +159,8 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
       this->sizes[0] = image.rows;
       this->sizes[1] = image.cols;
     }
-    this->size = this->product(this->sizes);
     this->setStrides();
-    this->allocated = new T[this->size];
+    this->allocated = new T[this->product(this->sizes)];
     this->aligned = this->allocated;
     // Load gray image data from OpenCV Mat.
     if (N == 2) {

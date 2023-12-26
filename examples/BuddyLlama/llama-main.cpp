@@ -87,8 +87,12 @@ void loadParameters(const std::string &paramFilePath,
   printLogLabel();
   std::cout << "Params file: " << std::filesystem::canonical(paramFilePath)
             << std::endl;
-  paramFile.read(reinterpret_cast<char *>(params.getData()),
-                 sizeof(unsigned short) * (params.getSize()));
+  for (int i = 0; i < params.getSize(); ++i) {
+    float temp;
+    paramFile.read(reinterpret_cast<char *>(&temp), sizeof(float));
+    // 只复制前一半的数据
+    std::memcpy(params.getData() + i, reinterpret_cast<char *>(&temp) + sizeof(unsigned short), sizeof(unsigned short));
+  }
   if (paramFile.fail()) {
     throw std::runtime_error("Error occurred while reading params file!");
   }
@@ -118,7 +122,7 @@ int main() {
 
   /// Define directories of vacabulary and parameter file.
   const std::string vocabDir = "../../examples/BuddyLlama/vocab.txt";
-  const std::string paramsDir = "../../examples/BuddyLlama/arg1.data";
+  const std::string paramsDir = "../../examples/BuddyLlama/arg0.data";
 
   /// Get user message.
   std::string inputStr;

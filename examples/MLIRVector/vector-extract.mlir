@@ -1,4 +1,5 @@
 // RUN: buddy-opt %s \
+// RUN:     -convert-vector-to-scf -convert-scf-to-cf \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
@@ -18,13 +19,13 @@ func.func @main() -> i32 {
 
   
   // Extract a scalar:
-  %c0 = vector.extract %base[1, 1] : vector<3x3xi32>
+  %c0 = vector.extract %base[1, 1] : i32 from vector<3x3xi32>
   // CHECK: 11 
   vector.print %c0 : i32
 
 
   // Extract a sub-vector:
-  %w1 = vector.extract %base[1] : vector<3x3xi32>
+  %w1 = vector.extract %base[1] : vector<3xi32> from vector<3x3xi32>
   // CHECK: ( 10, 11, 12 )
   vector.print %w1 : vector<3xi32>
 
@@ -32,7 +33,7 @@ func.func @main() -> i32 {
   // For edge case, you can "extract" a vector itself.
   // %w2 will be exactly as same as %base
   // CHECK: ( ( 0, 1, 2 ), ( 10, 11, 12 ), ( 20, 21, 22 ) )
-  %w2 = vector.extract %base[] : vector<3x3xi32>
+  %w2 = vector.extract %base[] : vector<3x3xi32> from vector<3x3xi32>
   vector.print %w2 : vector<3x3xi32>
 
   %ret = arith.constant 0 : i32

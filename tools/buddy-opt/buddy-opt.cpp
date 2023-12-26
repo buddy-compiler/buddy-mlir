@@ -23,6 +23,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/InitAllDialects.h"
+#include "mlir/InitAllExtensions.h"
 #include "mlir/InitAllPasses.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -55,6 +56,7 @@ void registerPoolingVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
 void registerLowerDAPPass();
+void registerDAPVectorizePass();
 void registerLowerRVVPass();
 void registerBatchMatMulOptimizePass();
 void registerMatMulOptimizePass();
@@ -81,6 +83,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerBudPass();
   mlir::buddy::registerLowerDIPPass();
   mlir::buddy::registerLowerDAPPass();
+  // Register Vectorization of DAP Dialect.
+  mlir::buddy::registerDAPVectorizePass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
   mlir::buddy::registerLowerGemminiPass();
@@ -99,6 +103,7 @@ int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
   registerAllDialects(registry);
+  mlir::registerAllExtensions(registry);
   // Register dialects in buddy-mlir project.
   // clang-format off
   registry.insert<buddy::bud::BudDialect,

@@ -25,7 +25,7 @@ foo_mlir(x, new_size)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.add"
+# CHECK: %{{.*}} = tosa.add
 # CHECK: return %{{.*}} : tensor<6x3xf32>
 # CHECK: }
 # CHECK: }

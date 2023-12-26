@@ -1,8 +1,8 @@
 // RUN: buddy-opt %s \
 // RUN:     -arith-bufferize  -tensor-bufferize -linalg-bufferize \
 // RUN:     -convert-vector-to-llvm -func-bufferize -buffer-deallocation \ 
-// RUN:     -convert-linalg-to-loops -expand-strided-metadata \
-// RUN:     -convert-linalg-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-linalg-to-loops -convert-scf-to-cf -expand-strided-metadata \
+// RUN:     -finalize-memref-to-llvm -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \

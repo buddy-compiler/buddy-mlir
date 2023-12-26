@@ -56,7 +56,7 @@ int main() {
   // Test custom shape no malloc constructor.
   //===--------------------------------------------------------------------===//
   MemRef<float, 2> testCustomShapeNoMallocConstructor(sizes, false, 0);
-  // CHECK: (nil)
+  // CHECK: {{(nil)|0x0}}
   fprintf(stderr, "%p\n", testCustomShapeNoMallocConstructor.getData());
 
   //===--------------------------------------------------------------------===//
@@ -64,7 +64,7 @@ int main() {
   //===--------------------------------------------------------------------===//
   std::vector<size_t> arrayShape = {1, 80, 32000};
   MemRef<float, 3> testArrayNoMallocConstructor(arrayShape, false, 0);
-  // CHECK: (nil)
+  // CHECK: {{(nil)|0x0}}
   fprintf(stderr, "%p\n", testArrayNoMallocConstructor.getData());
   
   //===--------------------------------------------------------------------===//

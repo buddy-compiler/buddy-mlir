@@ -27,7 +27,7 @@ foo_mlir(x, dim)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.reduce_sum"
+# CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

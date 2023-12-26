@@ -26,7 +26,7 @@ foo_mlir(x, perm)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.transpose"
+# CHECK: %{{.*}} = tosa.transpose
 # CHECK: return %{{.*}} : tensor<4x3x2xf32>
 # CHECK: }
 # CHECK: }

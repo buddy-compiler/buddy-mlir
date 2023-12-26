@@ -47,7 +47,7 @@ public:
     Value input0 = inputs[0];
     Value input1 = inputs[1];
     Value output0 = ouputs[0];
-    MemRefType input0Type = input0.getType().dyn_cast<MemRefType>();
+    MemRefType input0Type =  dyn_cast<MemRefType>(input0.getType());
     MemRefType biasType =
         MemRefType::get(input0Type.getShape(), rewriter.getI32Type());
     TypedAttr fillOpInputAttr = rewriter.getI32IntegerAttr(0);
@@ -88,9 +88,9 @@ public:
     Value input1 = inputs[1];
     Value output = convOp.getOutputs()[0];
     Location loc = convOp.getLoc();
-    MemRefType inputType = input0.getType().dyn_cast<MemRefType>();
-    MemRefType weightsType = input1.getType().dyn_cast<MemRefType>();
-    MemRefType outputType = output.getType().dyn_cast<MemRefType>();
+    MemRefType inputType =  dyn_cast<MemRefType>(input0.getType());
+    MemRefType weightsType =  dyn_cast<MemRefType>(input1.getType());
+    MemRefType outputType =  dyn_cast<MemRefType>(output.getType());
     ArrayRef<int64_t> inputShape = inputType.getShape();
     ArrayRef<int64_t> outputShape = outputType.getShape();
     ArrayRef<int64_t> weightsShape = weightsType.getShape();
@@ -233,9 +233,9 @@ public:
     Value kernel = convOp.getInputs()[1];
     Value output = convOp.getOutputs()[0];
     Location loc = convOp.getLoc();
-    MemRefType inputType = input.getType().dyn_cast<MemRefType>();
-    MemRefType kernelType = kernel.getType().dyn_cast<MemRefType>();
-    MemRefType outputType = output.getType().dyn_cast<MemRefType>();
+    MemRefType inputType =  dyn_cast<MemRefType>(input.getType());
+    MemRefType kernelType =  dyn_cast<MemRefType>(kernel.getType());
+    MemRefType outputType =  dyn_cast<MemRefType>(output.getType());
     Type kernelElemType = kernelType.getElementType();
     Type outputElemType = outputType.getElementType();
     ArrayRef<int64_t> inputShape = inputType.getShape();
@@ -359,11 +359,11 @@ public:
     Value input0 = inputs[0];
     Value input1 = inputs[1];
     Value output = batchMatMulOp.getOutputs()[0];
-    MemRefType input0Type = input0.getType().dyn_cast<MemRefType>();
+    MemRefType input0Type =  dyn_cast<MemRefType>(input0.getType());
     ArrayRef<int64_t> input0Shape = input0Type.getShape();
-    MemRefType input1Type = input1.getType().dyn_cast<MemRefType>();
+    MemRefType input1Type =  dyn_cast<MemRefType>(input1.getType());
     ArrayRef<int64_t> input1Shape = input1Type.getShape();
-    MemRefType outputType = output.getType().dyn_cast<MemRefType>();
+    MemRefType outputType =  dyn_cast<MemRefType>(output.getType());
     ArrayRef<int64_t> outputShape = outputType.getShape();
     Type elemType = input0Type.getElementType();
     for (unsigned i = 0; i != input0Shape[0]; i++) {

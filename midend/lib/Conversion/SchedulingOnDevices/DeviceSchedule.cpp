@@ -247,8 +247,8 @@ public:
     auto ctx = rewriter.getContext();
     auto op = forOp.getOperation();
     assert(op->getNumResults() == 0);
-    assert(op->getAttr("sche.devices").isa<ArrayAttr>());
-    auto devices = op->getAttr("sche.devices").dyn_cast_or_null<ArrayAttr>().getValue();
+    assert(isa<ArrayAttr>(op->getAttr("sche.devices")));
+    auto devices = dyn_cast_or_null<ArrayAttr>(op->getAttr("sche.devices")).getValue();
     Value upperBound = forOp.getUpperBound();
     Value lowerBound = forOp.getLowerBound();
     Value step = forOp.getStep();
@@ -265,11 +265,11 @@ public:
     //Build for loops on different hardware, requiring the last device to have the highest load
     for(auto i = 0; i < devices.size(); i++){
       auto device_info = devices[i];
-      auto dict_attr = device_info.dyn_cast_or_null<DictionaryAttr>();
+      auto dict_attr = dyn_cast_or_null<DictionaryAttr>(device_info);
       assert(dict_attr != nullptr);
       auto targetId = dict_attr.get("targetId");
       auto targetConfig = dict_attr.get("targetConfig");
-      assert(targetId.isa<StringAttr>() && targetConfig.isa<StringAttr>() && dict_attr.get("duty_ratio").isa<FloatAttr>());
+      assert(isa<StringAttr>(targetId) && isa<StringAttr>(targetConfig) && isa<FloatAttr>(dict_attr.get("duty_ratio")));
 
       rewriter.setInsertionPoint(placeHolder);
       //The upperBound of the last for loop is the original upperBound, and the previous for loop is rounded towards zero
@@ -288,7 +288,7 @@ public:
       if(targetId.dyn_cast<StringAttr>().getValue() == "cpu"){
         rewriter.setInsertionPointAfter(placeHolder);
         auto sub_forOp = rewriter.create<scf::ForOp>(loc, start, end, step, forOp.getInitArgs(), [&](OpBuilder& builder, Location loc, Value iv, ValueRange iterArgs){
-          Block &bodyBlock = forOp.getLoopBody().front();
+          Block &bodyBlock = forOp.getRegion().front();
           IRMapping mp;
           mp.map(bodyBlock.getArgument(0), iv);
           for(auto&& [a, b] : llvm::zip(bodyBlock.getArguments().drop_front(), iterArgs)){
@@ -301,7 +301,7 @@ public:
       }
       else if(targetId.dyn_cast<StringAttr>().getValue() == "gpu"){
         rewriter.setInsertionPoint(placeHolder);
-        Block &bodyBlock = forOp.getLoopBody().front();
+        Block &bodyBlock = forOp.getRegion().front();
         SmallVector<Operation*> op_list;
         ScheTargetNode node;
         for(auto it = bodyBlock.begin(); it != bodyBlock.end(); it++){
@@ -362,18 +362,18 @@ public:
     auto ctx = rewriter.getContext();
     auto op = reduceSumOp.getOperation();
     
-    assert(op->getAttr("sche.devices").isa<ArrayAttr>());
-    auto devices = op->getAttr("sche.devices").dyn_cast_or_null<ArrayAttr>().getValue();
+    assert(isa<ArrayAttr>(op->getAttr("sche.devices")));
+    auto devices = dyn_cast_or_null<ArrayAttr>(op->getAttr("sche.devices")).getValue();
     
     auto reduce_axis = reduceSumOp.getAxis();
     auto input = reduceSumOp.getInput();
     Type input_type = input.getType();
-    assert(input_type.isa<TensorType>());
+    assert(isa<TensorType>(input_type));
     TensorType input_tensor_type = input_type.dyn_cast<TensorType>();
     assert(input_tensor_type.hasRank());
     auto input_shape = input_tensor_type.getShape();
     auto rank = input_shape.size();
-    auto split_axis = op->getAttr("sche.axis").dyn_cast_or_null<IntegerAttr>().getInt();
+    auto split_axis = dyn_cast_or_null<IntegerAttr>(op->getAttr("sche.axis")).getInt();
 
     //use for sliceOp
     SmallVector<int64_t> size_shape;
@@ -393,11 +393,11 @@ public:
     
     for(auto i = 0; i < devices.size(); i++){
       auto device_info = devices[i];
-      auto dict_attr = device_info.dyn_cast_or_null<DictionaryAttr>();
+      auto dict_attr = dyn_cast_or_null<DictionaryAttr>(device_info);
       assert(dict_attr != nullptr);
       auto targetId = dict_attr.get("targetId");
       auto targetConfig = dict_attr.get("targetConfig");
-      assert(targetId.isa<StringAttr>() && targetConfig.isa<StringAttr>() && dict_attr.get("duty_ratio").isa<FloatAttr>());
+      assert(isa<StringAttr>(targetId) && isa<StringAttr>(targetConfig) && isa<FloatAttr>(dict_attr.get("duty_ratio")));
   
       if(i == devices.size() - 1){
         end = input_shape[split_axis];
