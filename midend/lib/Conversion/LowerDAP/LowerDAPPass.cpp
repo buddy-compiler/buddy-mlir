@@ -21,11 +21,11 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Dialect/Linalg/IR/Linalg.h"
 
 #include "DAP/DAPDialect.h"
 #include "DAP/DAPOps.h"
@@ -212,34 +212,34 @@ public:
           Value a2 =
               builder.create<memref::LoadOp>(loc, kernel, ValueRange{iv, c5});
 
-          Value z1 = builder.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
-          Value z2 = builder.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+          Value z1 =
+              builder.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+          Value z2 =
+              builder.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
 
           // Loop reordering, compute z1 for next iteration, z2 for the second
           // following iteration.
           builder.create<scf::ForOp>(
               loc, c0, N, c1, ValueRange{z1, z2},
-              [&](OpBuilder &builder, Location loc, Value iv_i,
+              [&](OpBuilder &builder, Location loc, Value iv,
                   ValueRange iargs) {
-                Value in_elem =
-                    builder.create<memref::LoadOp>(loc, iarg[0], iv_i);
-                Value t0 = builder.create<arith::MulFOp>(loc, b0, in_elem);
-                Value out_elem =
+                Value inElem = builder.create<memref::LoadOp>(loc, iarg[0], iv);
+                Value t0 = builder.create<arith::MulFOp>(loc, b0, inElem);
+                Value outElem =
                     builder.create<arith::AddFOp>(loc, t0, iargs[0]);
 
-                Value t1 = builder.create<arith::MulFOp>(loc, b1, in_elem);
-                Value t2 = builder.create<arith::MulFOp>(loc, a1, out_elem);
+                Value t1 = builder.create<arith::MulFOp>(loc, b1, inElem);
+                Value t2 = builder.create<arith::MulFOp>(loc, a1, outElem);
                 Value t3 = builder.create<arith::SubFOp>(loc, t1, t2);
-                Value z1_next =
-                    builder.create<arith::AddFOp>(loc, t3, iargs[1]);
+                Value z1Next = builder.create<arith::AddFOp>(loc, t3, iargs[1]);
 
-                Value t4 = builder.create<arith::MulFOp>(loc, b2, in_elem);
-                Value t5 = builder.create<arith::MulFOp>(loc, a2, out_elem);
-                Value z2_next = builder.create<arith::SubFOp>(loc, t4, t5);
+                Value t4 = builder.create<arith::MulFOp>(loc, b2, inElem);
+                Value t5 = builder.create<arith::MulFOp>(loc, a2, outElem);
+                Value z2Next = builder.create<arith::SubFOp>(loc, t4, t5);
 
-                builder.create<memref::StoreOp>(loc, out_elem, output, iv_i);
+                builder.create<memref::StoreOp>(loc, outElem, output, iv);
                 builder.create<scf::YieldOp>(
-                    loc, std::vector<Value>{z1_next, z2_next});
+                    loc, std::vector<Value>{z1Next, z2Next});
               });
 
           builder.create<scf::YieldOp>(loc, output);
@@ -279,7 +279,8 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<buddy::dap::DAPDialect, func::FuncDialect,
                     memref::MemRefDialect, scf::SCFDialect, VectorDialect,
-                    affine::AffineDialect, arith::ArithDialect,linalg::LinalgDialect>();
+                    affine::AffineDialect, arith::ArithDialect,
+                    linalg::LinalgDialect>();
   }
   Option<int64_t> stride{*this, "DAP-vector-splitting",
                          llvm::cl::desc("Vector splitting size."),
@@ -292,10 +293,10 @@ void LowerDAPPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<affine::AffineDialect, scf::SCFDialect,
-                         func::FuncDialect, memref::MemRefDialect,
-                         VectorDialect, arith::ArithDialect,
-                         linalg::LinalgDialect>();
+  target
+      .addLegalDialect<affine::AffineDialect, scf::SCFDialect,
+                       func::FuncDialect, memref::MemRefDialect, VectorDialect,
+                       arith::ArithDialect, linalg::LinalgDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);
