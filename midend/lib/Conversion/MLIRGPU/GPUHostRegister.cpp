@@ -129,45 +129,80 @@ std::pair<Operation *, int> getAllocationOp(Value *value) {
       return {producerOp, 1};
     } 
     else if (auto subviewOp = dyn_cast<memref::SubViewOp>(producerOp)) {
-
+      for(auto operand : producerOp->getOperands()) {
+        if (!operand.getType().isa<BaseMemRefType>())
+          continue;
+        return getAllocationOp(&operand);
+      }
     } 
     else if (auto loadOp = dyn_cast<memref::LoadOp>(producerOp)) {
-
+      for (auto operand : producerOp->getOperands()) {
+        if (!operand.getType().isa<BaseMemRefType>())
+          continue;
+        return getAllocationOp(&operand);
+      }
     } 
     else if (auto collapseShapeOp =
                    dyn_cast<memref::CollapseShapeOp>(producerOp)) {
-
+      for (auto operand : producerOp->getOperands()) {
+        if (!operand.getType().isa<BaseMemRefType>())
+          continue;
+        return getAllocationOp(&operand);
+      }
     } 
     else if (auto expandShapeOp =
                    dyn_cast<memref::ExpandShapeOp>(producerOp)) {
-
+      for (auto operand : producerOp->getOperands()) {
+        if (!operand.getType().isa<BaseMemRefType>())
+          continue;
+        return getAllocationOp(&operand);
+      }
     } 
     else if (auto castOp = dyn_cast<memref::CastOp>(producerOp)) {
-
-    } 
+      for (auto operand : producerOp->getOperands()) {
+        if (!operand.getType().isa<BaseMemRefType>())
+          continue;
+        return getAllocationOp(&operand);
+      }
+    }   
     else if (auto reinterpretCastOp =
                    dyn_cast<memref::ReinterpretCastOp>(producerOp)) {
-
+      for (auto operand : producerOp->getOperands()) {
+        if (!operand.getType().isa<BaseMemRefType>())
+          continue;
+        return getAllocationOp(&operand);
+      }
     } 
     else if (auto reshapeOp = dyn_cast<memref::ReshapeOp>(producerOp)) {
-
+      for (auto operand : producerOp->getOperands()) {
+        if (!operand.getType().isa<BaseMemRefType>())
+          continue;
+        return getAllocationOp(&operand);
+      }
     } 
     else if (auto transposeOp = dyn_cast<memref::TransposeOp>(producerOp)) {
-
+      for (auto operand : producerOp->getOperands()) {
+        if (!operand.getType().isa<BaseMemRefType>())
+          continue;
+        return getAllocationOp(&operand);
+      }
     } 
     else if (auto viewOp = dyn_cast<memref::ViewOp>(producerOp)) {
-
+      for (auto operand : producerOp->getOperands()) {
+        if (!operand.getType().isa<BaseMemRefType>())
+          continue;
+        return getAllocationOp(&operand);
+      }
     } 
     else {
       llvm_unreachable("Unknown producer op");
     }
     // Look for parent op
-    return {producerOp, 2};
   }
-  llvm::dbgs() << "returning null:" << value << "\n";
-  value->dump();
+  // llvm::dbgs() << "returning null:" << value << "\n";
+  // value->dump();
   // Values comes from outside the function
-  return {nullptr, 3};
+  return {reinterpret_cast<Operation*>(value), 3};
 }
 static bool isEqual(const Operation *lhsC, const Operation *rhsC) {
   auto *lhs = const_cast<Operation *>(lhsC);
@@ -184,6 +219,7 @@ void GPUHostRegisterPass::runOnOperation() {
   auto module = getOperation();
   std::set<Operation *> allocations;
   std::map<Operation *, memref::AllocOp *> globalAllocations;
+  std::set<Value*> outsideValues;
   module->walk<WalkOrder::PreOrder>([&](Operation *nestedOp) {
     if (auto launchFuncOp = dyn_cast<gpu::LaunchFuncOp>(nestedOp)) {
       // OpBuilder barrierBuilder(launchFuncOp->getContext());
@@ -198,7 +234,26 @@ void GPUHostRegisterPass::runOnOperation() {
         Operation *insertionOp = nullptr;
         if (!allocOp)
           continue;
-        if (res.second == 1) {
+
+        if (res.second == 0) {
+          insertionOp = allocOp;
+          auto result = allocations.insert(insertionOp);
+          if (result.second) {
+            OpBuilder builder(insertionOp->getContext());
+            builder.setInsertionPointAfter(insertionOp);
+            auto memrefType = dyn_cast<MemRefType>(operand.getType());
+            auto elementType = memrefType.getElementType();
+            UnrankedMemRefType resType =
+                UnrankedMemRefType::get(elementType, 0);
+            Value cast = builder.create<memref::CastOp>(
+                insertionOp->getLoc(), resType, insertionOp->getResult(0));
+            builder.create<gpu::HostRegisterOp>(insertionOp->getLoc(), cast);
+          } else {
+            // llvm::dbgs() << insertionOp->getName().getStringRef()
+            //              << " has been registered\n";
+          }
+        }
+        else if (res.second == 1) {
           // add a copy for this global op
           OpBuilder builder(allocOp->getContext());
           builder.setInsertionPointAfter(allocOp);
@@ -221,47 +276,26 @@ void GPUHostRegisterPass::runOnOperation() {
                                               castOp.getResult());
           globalAllocations[allocOp] = &newAllocOp;
         }
-        // else if (res.second == 2) {
-        //   // From function outside
-        //   // Insert at the beginning of the region
-        //   OpBuilder builder(operand.getParentRegion());
-        //   auto memrefType = dyn_cast<MemRefType>(operand.getType());
-        //   auto newAllocOp = builder.create<memref::AllocOp>(
-        //       allocOp->getLoc(), memrefType, ValueRange{});
-        //   builder.create<memref::CopyOp>(
-        //       allocOp->getLoc(), allocOp->getResult(0),
-        //       newAllocOp.getResult());
-        //   for (size_t i = 0; i < launchFuncOp->getNumOperands(); i++) {
-        //     if (launchFuncOp->getOperand(i) == operand) {
-        //       launchFuncOp->setOperand(i, newAllocOp.getResult());
-        //     }
-        //   }
-        //   auto result = allocations.insert(newAllocOp);
-        //   auto elementType = memrefType.getElementType();
-        //   UnrankedMemRefType resType = UnrankedMemRefType::get(elementType,
-        //   0); auto castOp = builder.create<memref::CastOp>(
-        //       newAllocOp->getLoc(), resType, newAllocOp->getResult(0));
-        //   builder.create<gpu::HostRegisterOp>(castOp->getLoc(),
-        //                                       castOp.getResult());
-        //   globalAllocations[allocOp] = &newAllocOp;
-        // }
-        else {
-          insertionOp = allocOp;
-          auto result = allocations.insert(insertionOp);
-          if (result.second) {
-            OpBuilder builder(insertionOp->getContext());
-            builder.setInsertionPointAfter(insertionOp);
-            auto memrefType = dyn_cast<MemRefType>(operand.getType());
-            auto elementType = memrefType.getElementType();
-            UnrankedMemRefType resType =
-                UnrankedMemRefType::get(elementType, 0);
-            Value cast = builder.create<memref::CastOp>(
-                insertionOp->getLoc(), resType, insertionOp->getResult(0));
-            builder.create<gpu::HostRegisterOp>(insertionOp->getLoc(), cast);
-          } else {
-            // llvm::dbgs() << insertionOp->getName().getStringRef()
-            //              << " has been registered\n";
+        else if (res.second == 3) {
+          // Register the external memory directly
+          auto value = reinterpret_cast<Value*>(res.first);
+          if (outsideValues.find(value)!=outsideValues.end()){
+            llvm::dbgs()<<"Global value registered.\n";
+            return WalkResult::advance();
           }
+          auto context = operand.getContext();
+          auto region = launchFuncOp->getParentRegion();
+          auto block = &region->front();
+          auto loc = launchFuncOp->getParentOp()->getLoc();
+          OpBuilder builder(context);
+          builder.setInsertionPoint(block, block->begin());
+          auto memrefType = dyn_cast<MemRefType>(operand.getType());
+          auto elementType = memrefType.getElementType();
+          UnrankedMemRefType resType =
+              UnrankedMemRefType::get(elementType, 0);
+          auto castOp = builder.create<memref::CastOp>(loc,resType,*value);
+          builder.create<gpu::HostRegisterOp>(loc,castOp.getResult());
+          outsideValues.insert(value);
         }
       }
       return WalkResult::advance();
