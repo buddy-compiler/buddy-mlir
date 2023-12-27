@@ -19,6 +19,7 @@
 # ===---------------------------------------------------------------------------
 
 from typing import Any, List, Optional
+import operator
 
 import mlir.ir as ir
 import torch
@@ -29,8 +30,8 @@ import torch.utils._pytree as pytree
 from .ops.math import ops_registry as math_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.linalg import ops_registry as linalg_ops_registry
-from .graph import Graph
-
+from .graph import Graph, Tensordtype, TensorMeta
+from .frontend_ops_map import torch_ops_map
 
 class DynamoCompiler:
     """
@@ -64,15 +65,27 @@ class DynamoCompiler:
         self._aot_autograd_decomposition = aot_autograd_decomposition
         self._imported_graphs = []
         self._ops_registry = {}
-        self._ops_registry.update(math_ops_registry)
+        # self._ops_registry.update(math_ops_registry)
+        # self._ops_registry.update(linalg_ops_registry)
+        # self._ops_registry.update(tosa_ops_registry)
+        # self._ops_registry.update(primary_registry)
         self._ops_registry.update(linalg_ops_registry)
-        self._ops_registry.update(tosa_ops_registry)
-        self._ops_registry.update(primary_registry)
 
     @property
     def imported_graphs(self):
         """Returns the imported buddy graphs after compilation."""
         return self._imported_graphs
+
+    def torch_dtype_to_str(self, dtype):
+        match dtype:
+            case "torch.int64":
+                return Tensordtype.Int64
+            case "torch.int32":
+                return Tensordtype.Int32
+            case "torch.float32":
+                return Tensordtype.Float32
+            case "torch.bool":
+                return Tensordtype.Bool
 
     def _compile_fx(
         self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
@@ -91,14 +104,67 @@ class DynamoCompiler:
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
             nonlocal params_flat
-            func_inputs = _inputs[len(params_flat) :]
+            func_inputs = []
+            for inp in _inputs[len(params_flat) :]:
+                inp_shape = inp.shape
+                inp_dtype = self.torch_dtype_to_str(str(inp.dtype))
+                func_inputs.append(TensorMeta(inp_shape, inp_dtype))
+            func_params = []
+            fake_params = []
+            for param in params_flat:
+                func_params.append(param.numpy())
+                param_dtype = self.torch_dtype_to_str(str(param.dtype))
+                fake_params.append(param.shape, param_dtype)
             graph = Graph(
-                _gm,
                 func_inputs,
-                params_flat,
+                func_params,
+                fake_params,
                 self._ops_registry,
                 self._func_name,
             )
+            for node in _gm.graph.nodes:
+                if node.op == "placeholder":
+                    node_dtype = self.torch_dtype_to_str(
+                        str(node.meta["tensor_meta"].dtype)
+                    )
+                    buddy_node = torch_ops_map[node.op].fx_create_node(
+                        node.name,
+                        node.args,
+                        node.users.keys(),
+                        node.meta["tensor_meta"].shape,
+                        node_dtype,
+                    )
+                elif node.op == "output":
+                    buddy_node = torch_ops_map[node.op].fx_create_node(
+                        node.name,
+                        node.args
+                    )
+                elif node.target is operator.getitem:
+                    print(str(node.target))
+                    node_dtype = self.torch_dtype_to_str(
+                        str(node.meta["tensor_meta"].dtype)
+                    )
+                    buddy_node = torch_ops_map[str(node.target)].fx_create_node(
+                        node.name,
+                        node.args,
+                        node.users.keys(),
+                        node.meta["tensor_meta"].shape,
+                        node_dtype,
+                    )
+                else:
+                    node_dtype = self.torch_dtype_to_str(
+                        str(node.meta["tensor_meta"].dtype)
+                    )
+                    buddy_node = torch_ops_map[
+                        node.target.__name__
+                    ].fx_create_node(
+                        node.name,
+                        node.args,
+                        node.users.keys(),
+                        node.meta["tensor_meta"].shape,
+                        node_dtype,
+                    )
+                graph.add_node(buddy_node)
             self._imported_graphs.append(graph)
             return graph.dynamo_run()
 

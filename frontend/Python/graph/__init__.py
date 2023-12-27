@@ -18,4 +18,5 @@
 #
 # ===---------------------------------------------------------------------------
 
-from .graph import Graph
+from .graph import Graph, Tensordtype, TensorMeta
+from .op_def import *

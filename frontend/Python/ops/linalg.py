@@ -28,15 +28,18 @@ import copy
 import numpy
 import functools
 
+from ..graph import *
+from ..graph.graph import Tensordtype
+from .utils import *
+
 
 def arange_op(
-    node: torch.fx.Node,
+    node: ArangeOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
     Import tensor arange operation.
-    From PyTorch `aten.arange.default` and `aten.arange.start` operator to MLIR
-    arith `constant` operation.
+    From buddy ArangeOp to MLIR arith `constant` operation.
 
     Note: this function init an output tensor according input range.
 
@@ -49,46 +52,33 @@ def arange_op(
         op: The operation representing the result tensor of ranging the start
         and end from input node.
     """
-    if node.target.__name__ == "arange.start":
+    if len(node.args) == 2:
         start = int(node.args[0])
-        end = int(node.args[1])
-        stride = int(node.meta["tensor_meta"].stride[0])
-        dtype = str(node.meta["tensor_meta"].dtype)
-        shape = list(node.meta["tensor_meta"].shape)
-        dtype = ir.IntegerType.get_signless(64)
-        tensor_type = ir.RankedTensorType.get(shape, dtype)
-        attr = ir.DenseElementsAttr.get(
-            numpy.array([i for i in range(start, end, stride)]),
-            signless=True,
-            type=tensor_type,
-        )
-        op = arith.ConstantOp(tensor_type, attr)
-    elif node.target.__name__ == "arange.default":
+    else:
         start = 0
-        end = int(node.args[0])
-        stride = int(node.meta["tensor_meta"].stride[0])
-        dtype = str(node.meta["tensor_meta"].dtype)
-        shape = list(node.meta["tensor_meta"].shape)
-        dtype = ir.IntegerType.get_signless(64)
-        tensor_type = ir.RankedTensorType.get(shape, dtype)
-        attr = ir.DenseElementsAttr.get(
-            numpy.array([i for i in range(start, end, stride)]),
-            signless=True,
-            type=tensor_type,
-        )
-        op = arith.ConstantOp(tensor_type, attr)
+    end = int(node.args[1])
+    stride = 1
+    dtype = node.tensor_meta["dtype"]
+    shape = list(node.tensor_meta["shape"])
+    dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(shape, dtype)
+    attr = ir.DenseElementsAttr.get(
+        numpy.array([i for i in range(start, end, stride)]),
+        signless=True,
+        type=tensor_type,
+    )
+    op = arith.ConstantOp(tensor_type, attr)
 
     return op
 
 
 def unsqueeze_op(
-    node: torch.fx.Node,
+    node: UnsqueezeOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
     Import the unsqueeze operation.
-    From PyTorch `aten.unsqueeze.default` operator to MLIR TOSA `reshape`
-    operation.
+    From buddy UnsqueezeOp to MLIR TOSA `reshape` operation.
 
     Note: "unsqueeze" means inserting a new dimension of size 1 at the specified
           position. For more information, please refer to
@@ -117,12 +107,12 @@ def unsqueeze_op(
 
 
 def view_op(
-    node: torch.fx.Node,
+    node: ViewOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor view operation.
-    From PyTorch `aten.view.default` operator to MLIR TOSA `reshape` operation.
+    From buddy ViewOp to MLIR TOSA `reshape` operation.
 
     Note: If the new shape contains one and only one `-1`, the size of the new
     shape will be inferred automatically.
@@ -159,7 +149,7 @@ def view_op(
 
 
 def embedding_op(
-    node: torch.fx.Node,
+    node: EmbeddingOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
@@ -179,46 +169,46 @@ def embedding_op(
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
     input2 = symbol_table.get((str(node.args[1]), 0))
-    output_shape = list(node.meta["tensor_meta"].shape)
-    dtype = str(node.meta["tensor_meta"].dtype)
-    if dtype == "torch.float32":
-        tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
-        output = tensor.EmptyOp(output_shape, ir.F32Type.get())
-        generic_map = ir.AffineMap.get_permutation([0, 1, 2])
-        op = linalg.GenericOp(
-            [tensor_type],
-            [input2],
-            [output],
-            ir.ArrayAttr.get(
-                [
-                    ir.AffineMapAttr.get(generic_map.get_submap([0, 1])),
-                    ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 2])),
-                ]
-            ),
-            ir.ArrayAttr.get(
-                [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 3
-            ),
-        )
-        block = ir.Block.create_at_start(
-            op.region,
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, dtype)
+    output = tensor.EmptyOp(output_shape, dtype)
+    generic_map = ir.AffineMap.get_permutation([0, 1, 2])
+    op = linalg.GenericOp(
+        [tensor_type],
+        [input2],
+        [output],
+        ir.ArrayAttr.get(
             [
-                ir.RankedTensorType(input2.type).element_type,
-                ir.RankedTensorType(output.result.type).element_type,
-            ],
-        )
-        index1 = arith.IndexCastOp(ir.IndexType.get(), block.arguments[0])
-        index2 = linalg.IndexOp(ir._i64Attr(2, None))
-        value = tensor.ExtractOp(input1, [index1.result, index2.result])
-        block.append(index1)
-        block.append(index2)
-        block.append(value)
-        block.append(linalg.YieldOp([value.result]))
+                ir.AffineMapAttr.get(generic_map.get_submap([0, 1])),
+                ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 2])),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 3
+        ),
+    )
+    block = ir.Block.create_at_start(
+        op.region,
+        [
+            ir.RankedTensorType(input2.type).element_type,
+            ir.RankedTensorType(output.result.type).element_type,
+        ],
+    )
+    index1 = arith.IndexCastOp(ir.IndexType.get(), block.arguments[0])
+    index2 = linalg.IndexOp(ir._i64Attr(2, None))
+    value = tensor.ExtractOp(input1, [index1.result, index2.result])
+    block.append(index1)
+    block.append(index2)
+    block.append(value)
+    block.append(linalg.YieldOp([value.result]))
 
     return op
 
 
 def ones_op(
-    node: torch.fx.Node,
+    node: OnesOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
@@ -237,17 +227,10 @@ def ones_op(
         op: The operation return the arith.constant op.
     """
     output_shape = list(node.args[0])
-    dtype = str(node.meta["tensor_meta"].dtype)
-    if dtype == "torch.bool":
-        element = ir.BoolAttr.get(1)
-        tensor_type = ir.RankedTensorType.get(output_shape, element.type)
-        attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
-    elif dtype == "torch.int64":
-        dtype = ir.IntegerType.get_signless(64)
-        tensor_type = ir.RankedTensorType.get(output_shape, dtype)
-        attr = ir.DenseElementsAttr.get(
-            numpy.ones(output_shape), signless=True, type=tensor_type
-        )
+    dtype = node.tensor_meta["dtype"]
+    element = mlir_element_attr_get(dtype, 1)
+    tensor_type = ir.RankedTensorType.get(output_shape, element.type)
+    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
     op = arith.ConstantOp(tensor_type, attr)
 
     return op
@@ -274,27 +257,10 @@ def full_op(
     """
     output_shape = list(node.args[0])
     value = node.args[1]
-    dtype = str(node.meta["tensor_meta"].dtype)
-    if dtype == "torch.bool":
-        element = ir.BoolAttr.get(bool(value))
-        tensor_type = ir.RankedTensorType.get(output_shape, element.type)
-        attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
-    elif dtype == "torch.int64":
-        dtype = ir.IntegerType.get_signless(64)
-        tensor_type = ir.RankedTensorType.get(output_shape, dtype)
-        attr = ir.DenseElementsAttr.get(
-            numpy.full(output_shape, value, dtype=numpy.int64),
-            signless=True,
-            type=tensor_type,
-        )
-    elif dtype == "torch.float32":
-        dtype = ir.F32Type.get()
-        tensor_type = ir.RankedTensorType.get(output_shape, dtype)
-        attr = ir.DenseElementsAttr.get(
-            numpy.full(output_shape, value, dtype=numpy.float32),
-            signless=True,
-            type=tensor_type,
-        )
+    dtype = node.tensor_meta["dtype"]
+    element = mlir_element_attr_get(dtype, value)
+    tensor_type = ir.RankedTensorType.get(output_shape, element.type)
+    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
     op = arith.ConstantOp(tensor_type, attr)
 
     return op
@@ -1390,7 +1356,7 @@ def t_op(
 
 
 def matmul_op(
-    node: torch.fx.Node,
+    node: Op,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
@@ -1412,9 +1378,9 @@ def matmul_op(
     if input1 is None or input2 is None:
         return
 
-    output_shape = list(node.meta["tensor_meta"].shape)
-    dtype = str(node.meta["tensor_meta"].dtype)
-    if dtype == "torch.float32":
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    if dtype == Tensordtype.Float32:
         tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
         f32 = ir.F32Type.get()
         element = ir.FloatAttr.get(f32, 0.0)
@@ -2500,7 +2466,7 @@ def silu_op(
 
 
 def param_extract(
-    node: torch.fx.Node,
+    node: PlaceholderOp,
     offset,
     params_mlir_node,
 ):
@@ -2518,11 +2484,11 @@ def param_extract(
         op: The operation return the tensor.expand_shape op.
     """
     dtype_mapping = {
-        torch.float32: ir.F32Type.get(),
-        torch.int64: ir.IntegerType.get_signless(64),
+        Tensordtype.Float32: ir.F32Type.get(),
+        Tensordtype.Int64: ir.IntegerType.get_signless(64),
     }
-    tensor_element_type = dtype_mapping[node.meta["tensor_meta"].dtype]
-    output_shape = list(node.meta["tensor_meta"].shape)
+    tensor_element_type = dtype_mapping[node.tensor_meta["dtype"]]
+    output_shape = list(node.tensor_meta["shape"])
     extract_size = functools.reduce(lambda x, y: x * y, output_shape)
     offset_attr = ir._denseI64ArrayAttr([offset], None)
     size_attr = ir._denseI64ArrayAttr([extract_size], None)
@@ -2584,4 +2550,9 @@ ops_registry = {
     "clone.default": clone_op,
     "silu.default": silu_op,
     "param.extract": param_extract,
+}
+
+ops_registry = {
+    "param.extract": param_extract,
+    "MatmulOp": matmul_op,
 }
