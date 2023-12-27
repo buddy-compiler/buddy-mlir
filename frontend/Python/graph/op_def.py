@@ -11,8 +11,9 @@ class OpType(Enum):
     ElementwiseType = 1
     ReshapeType = 2
     ReduceType = 3
-    PlaceholderType = 4
-    GetItemType = 5
+    ConcatType = 4
+    PlaceholderType = 5
+    GetItemType = 6
 
 
 class Op:
@@ -467,3 +468,631 @@ class FullOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+class LessthanOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.BroadcastType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create lessthan node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Lessthan node should have two input node to compare.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = LessthanOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class MaskedFillOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ElementwiseType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create maskedfill node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Maskedfill node should have Three input, two input node,
+            the first is masked node, the second is bool node, and one value for
+            fill.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = MaskedFillOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class SliceOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ReshapeType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create slice node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Slice node should have five input, the first is input
+            node, the second is dim for slice, the third is slice start
+            position, the forth is slice end position, the fifth is slice
+            stride.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = SliceOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class ExpandOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ReshapeType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create expand node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Expand node should have two input, the first is input
+            node, the second is output shape.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = ExpandOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class ToCopyOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ElementwiseType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create tocopy node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: ToCopy node should have one input node to copy.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = ToCopyOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class RsubOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.BroadcastType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create rsub node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Rsub node should have two input, the second sub the
+            first.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = RsubOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class PowOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.BroadcastType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create pow node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Pow node should have two input, the first pow the
+            second.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = PowOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class MeanOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ReduceType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create mean node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Mean node should have three input, the first is input
+            node, the second is the dim for compute mean, the third is a bool
+            value determine if keep dim as origin.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = MeanOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class RsqrtOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ElementwiseType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create rsqrt node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Rsqrt node should have one input node to compute rsqrt.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = RsqrtOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class MulOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.BroadcastType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create mul node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Mul node should have two input node to compute
+            elementwise mul.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = MulOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class TransposeOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ReshapeType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create transpose node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Transpose node should have one input node to transpose.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = TransposeOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class TransposeSpecificDimOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ReshapeType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create transpose specific dim node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: TransposeSpecificDim node should have three input, the
+            first is input node, the second and the third is specific dims to
+            transpose.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = TransposeSpecificDimOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class IndexOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ReshapeType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create index node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Index node should have two input, the input node and
+            index node list, such as node_input(arg0_node, [arg1_node]).
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = IndexOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class NegOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ElementwiseType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create neg node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Neg node should have one input node to compute neg.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = NegOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class CatOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ConcatType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create cat node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Cat node should have two input node to concat.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = CatOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
