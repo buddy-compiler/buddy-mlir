@@ -1078,12 +1078,264 @@ class CatOp(Op):
         Create cat node.
         Args:
             node_name: The unique name of op node.
-            node_input: Cat node should have two input node to concat.
+            node_input: Cat node should have two input, the first is a list of
+            nodes to concat, the second is the dim for concat.
             node_users: The op node's successor nodes.
             node_output_shape: The op node's output tensor shape.
             node_output_dtype: The op node's output tensor dtype.
         """
         buddy_node = CatOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class SqueezeOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ReshapeType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create suqeeze node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Squeeze node should have two input, the first is the
+            input node, the second is the dim for squeeze.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = SqueezeOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class BatchMatmulOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ReduceType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create batchmatmul node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: BatchMatmul node should have two input to compute
+            batchmatmul.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = BatchMatmulOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class DivOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.BroadcastType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create div node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Div node should have two input to compute div.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = DivOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class SoftmaxOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ReduceType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create softmax node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Softmax node should have three input, the first is input
+            node, the second is dim to compute, the third is a bool value to
+            determine if half to float.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = SoftmaxOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class CloneOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ReduceType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create clone node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Clone node should have one input node to clone.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = CloneOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
+
+class SiluOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.ElementwiseType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create silu node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Silu node should have one input node to compute silu
+            activation.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = SiluOp()
         buddy_node._name = node_name
         for input_arg in node_input:
             if isinstance(input_arg, torch.fx.Node):

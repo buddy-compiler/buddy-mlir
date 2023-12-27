@@ -1561,12 +1561,12 @@ def neg_op(
 
 
 def cat_op(
-    node: torch.fx.Node,
+    node: CatOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor concate operation.
-    From PyTorch `aten.cat.default` operator to MLIR tensor `insert_slice`
+    From buddy CatOp to MLIR tensor `insert_slice`
     operation.
 
     Note: This op, concate two input tensor.
@@ -1585,52 +1585,52 @@ def cat_op(
     if input1 is None or input2 is None:
         return
 
-    output_shape = list(node.meta["tensor_meta"].shape)
+    output_shape = list(node.tensor_meta["shape"])
     if dim < 0:
         dim = len(output_shape) + dim
-    dtype = str(node.meta["tensor_meta"].dtype)
-    if dtype == "torch.float32":
-        output = tensor.EmptyOp(output_shape, ir.F32Type.get())
-        offset = [0 for x in output_shape]
-        offset_attr = ir._denseI64ArrayAttr(offset, None)
-        input1_shape = ir.RankedTensorType(input1.type).shape
-        size_attr = ir._denseI64ArrayAttr(input1_shape, None)
-        stride_attr = ir._denseI64ArrayAttr([1] * len(offset), None)
-        insert_input1 = tensor.InsertSliceOp(
-            input1,
-            output.result,
-            [],
-            [],
-            [],
-            offset_attr,
-            size_attr,
-            stride_attr,
-        )
-        offset[dim] += input1_shape[dim]
-        offset_attr = ir._denseI64ArrayAttr(offset, None)
-        input2_shape = ir.RankedTensorType(input2.type).shape
-        size_attr = ir._denseI64ArrayAttr(input2_shape, None)
-        insert_input2 = tensor.InsertSliceOp(
-            input2,
-            insert_input1.result,
-            [],
-            [],
-            [],
-            offset_attr,
-            size_attr,
-            stride_attr,
-        )
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    output = tensor.EmptyOp(output_shape, mlir_dtype)
+    offset = [0 for x in output_shape]
+    offset_attr = ir._denseI64ArrayAttr(offset, None)
+    input1_shape = ir.RankedTensorType(input1.type).shape
+    size_attr = ir._denseI64ArrayAttr(input1_shape, None)
+    stride_attr = ir._denseI64ArrayAttr([1] * len(offset), None)
+    insert_input1 = tensor.InsertSliceOp(
+        input1,
+        output.result,
+        [],
+        [],
+        [],
+        offset_attr,
+        size_attr,
+        stride_attr,
+    )
+    offset[dim] += input1_shape[dim]
+    offset_attr = ir._denseI64ArrayAttr(offset, None)
+    input2_shape = ir.RankedTensorType(input2.type).shape
+    size_attr = ir._denseI64ArrayAttr(input2_shape, None)
+    insert_input2 = tensor.InsertSliceOp(
+        input2,
+        insert_input1.result,
+        [],
+        [],
+        [],
+        offset_attr,
+        size_attr,
+        stride_attr,
+    )
 
     return insert_input2
 
 
 def squeeze_op(
-    node: torch.fx.Node,
+    node: SqueezeOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor squeeze operation.
-    From PyTorch `aten.squeeze.dim` operator to MLIR linalg `generic` operation.
+    From buddy SqueezeOp to MLIR linalg `generic` operation.
 
     Note: This op, reduce the input tensor's shape dims by specified dim.
     Args:
@@ -1647,78 +1647,78 @@ def squeeze_op(
     if input1 is None:
         return
 
-    output_shape = list(node.meta["tensor_meta"].shape)
+    output_shape = list(node.tensor_meta["shape"])
     input1_shape = ir.RankedTensorType(input1.type).shape
     if dim < 0:
         dim = len(input1_shape) + dim
-    dtype = str(node.meta["tensor_meta"].dtype)
-    if dtype == "torch.float32":
-        tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
-        output = tensor.EmptyOp(output_shape, ir.F32Type.get())
-        if input1_shape[dim] != 1:
-            offset = [0 for x in output_shape]
-            offset_attr = ir._denseI64ArrayAttr(offset, None)
-            size_attr = ir._denseI64ArrayAttr(input1_shape, None)
-            stride_attr = ir._denseI64ArrayAttr([1] * len(offset), None)
-            op = tensor.InsertSliceOp(
-                input1,
-                output.result,
-                [],
-                [],
-                [],
-                offset_attr,
-                size_attr,
-                stride_attr,
-            )
-        else:
-            output_map = ir.AffineMap.get(
-                len(output_shape),
-                0,
-                [ir.AffineExpr.get_dim(i) for i in range(len(output_shape))],
-            )
-            input1_map = []
-            loop_index = 0
-            for i in range(len(input1_shape)):
-                if len(input1_map) == dim:
-                    input1_map.append(ir.AffineExpr.get_constant(0))
-                else:
-                    input1_map.append(ir.AffineExpr.get_dim(loop_index))
-                    loop_index += 1
-            input1_map = ir.AffineMap.get(len(output_shape), 0, input1_map)
-            op = linalg.GenericOp(
-                [tensor_type],
-                [input1],
-                [output],
-                ir.ArrayAttr.get(
-                    [
-                        ir.AffineMapAttr.get(input1_map),
-                        ir.AffineMapAttr.get(output_map),
-                    ]
-                ),
-                ir.ArrayAttr.get(
-                    [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-                    * len(output_shape)
-                ),
-            )
-            block = ir.Block.create_at_start(
-                op.region,
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    output = tensor.EmptyOp(output_shape, mlir_dtype)
+    if input1_shape[dim] != 1:
+        offset = [0 for x in output_shape]
+        offset_attr = ir._denseI64ArrayAttr(offset, None)
+        size_attr = ir._denseI64ArrayAttr(input1_shape, None)
+        stride_attr = ir._denseI64ArrayAttr([1] * len(offset), None)
+        op = tensor.InsertSliceOp(
+            input1,
+            output.result,
+            [],
+            [],
+            [],
+            offset_attr,
+            size_attr,
+            stride_attr,
+        )
+    else:
+        output_map = ir.AffineMap.get(
+            len(output_shape),
+            0,
+            [ir.AffineExpr.get_dim(i) for i in range(len(output_shape))],
+        )
+        input1_map = []
+        loop_index = 0
+        for i in range(len(input1_shape)):
+            if len(input1_map) == dim:
+                input1_map.append(ir.AffineExpr.get_constant(0))
+            else:
+                input1_map.append(ir.AffineExpr.get_dim(loop_index))
+                loop_index += 1
+        input1_map = ir.AffineMap.get(len(output_shape), 0, input1_map)
+        op = linalg.GenericOp(
+            [tensor_type],
+            [input1],
+            [output],
+            ir.ArrayAttr.get(
                 [
-                    ir.RankedTensorType(input1.type).element_type,
-                    ir.RankedTensorType(output.result.type).element_type,
-                ],
-            )
-            block.append(linalg.YieldOp([block.arguments[0]]))
+                    ir.AffineMapAttr.get(input1_map),
+                    ir.AffineMapAttr.get(output_map),
+                ]
+            ),
+            ir.ArrayAttr.get(
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                * len(output_shape)
+            ),
+        )
+        block = ir.Block.create_at_start(
+            op.region,
+            [
+                ir.RankedTensorType(input1.type).element_type,
+                ir.RankedTensorType(output.result.type).element_type,
+            ],
+        )
+        block.append(linalg.YieldOp([block.arguments[0]]))
 
     return op
 
 
 def batch_matmul_op(
-    node: torch.fx.Node,
+    node: BatchMatmulOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor batch matmul operation.
-    From PyTorch `aten.bmm.default` operator to MLIR linalg `batch_matmul`
+    From buddy BatchMatmulOp to MLIR linalg `batch_matmul`
     operation.
 
     Note: This op, compute input node's batch matrix multiplication result.
@@ -1736,45 +1736,45 @@ def batch_matmul_op(
     if input1 is None or input2 is None:
         return
 
-    output_shape = list(node.meta["tensor_meta"].shape)
-    dtype = str(node.meta["tensor_meta"].dtype)
-    if dtype == "torch.float32":
-        tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
-        output = tensor.EmptyOp(output_shape, ir.F32Type.get())
-        # use linalg.generic implementation
-        generic_map = ir.AffineMap.get_permutation([0, 1, 2])
-        zero_fill = linalg.GenericOp(
-            [tensor_type],
-            [],
-            [output],
-            ir.ArrayAttr.get(
-                [ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 2]))]
-            ),
-            ir.ArrayAttr.get(
-                [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 3
-            ),
-        )
-        block = ir.Block.create_at_start(
-            zero_fill.region,
-            [ir.RankedTensorType(output.result.type).element_type],
-        )
-        zero_op = arith.ConstantOp(
-            ir.F32Type.get(), ir.FloatAttr.get(ir.F32Type.get(), 0)
-        )
-        block.append(zero_op)
-        block.append(linalg.YieldOp([zero_op.result]))
-        op = linalg.batch_matmul(input1, input2, outs=[zero_fill.result])
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    output = tensor.EmptyOp(output_shape, mlir_dtype)
+    # use linalg.generic implementation
+    generic_map = ir.AffineMap.get_permutation([0, 1, 2])
+    zero_fill = linalg.GenericOp(
+        [tensor_type],
+        [],
+        [output],
+        ir.ArrayAttr.get(
+            [ir.AffineMapAttr.get(generic_map.get_submap([0, 1, 2]))]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 3
+        ),
+    )
+    block = ir.Block.create_at_start(
+        zero_fill.region,
+        [ir.RankedTensorType(output.result.type).element_type],
+    )
+    zero_op = arith.ConstantOp(
+        mlir_dtype, mlir_element_attr_get(dtype, 0)
+    )
+    block.append(zero_op)
+    block.append(linalg.YieldOp([zero_op.result]))
+    op = linalg.batch_matmul(input1, input2, outs=[zero_fill.result])
 
     return op
 
 
 def div_op(
-    node: torch.fx.Node,
+    node: DivOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor divsion operation.
-    From PyTorch `aten.div.Tensor` operator to MLIR linalg `generic` operation.
+    From buddy DivOp to MLIR linalg `generic` operation.
 
     Note: This op, compute input node's division result.
     Args:
@@ -1786,12 +1786,12 @@ def div_op(
         op: The operation return the linalg.generic op.
     """
     assert len(node.args) == 2
-    if isinstance(node.args[0], torch.fx.Node):
+    if isinstance(node.args[0], str):
         input1 = symbol_table.get((str(node.args[0]), 0))
     else:
         input1 = node.args[0]
 
-    if isinstance(node.args[1], torch.fx.Node):
+    if isinstance(node.args[1], str):
         input2 = symbol_table.get((str(node.args[1]), 0))
     else:
         input2 = node.args[1]
@@ -1799,33 +1799,94 @@ def div_op(
     if input1 is None or input2 is None:
         return
 
-    output_shape = list(node.meta["tensor_meta"].shape)
-    dtype = str(node.meta["tensor_meta"].dtype)
-
-    if isinstance(node.args[0], torch.fx.Node):
-        if dtype == "torch.float32":
-            if not isinstance(node.args[1], torch.fx.Node):
-                input2 = arith.ConstantOp(
-                    ir.F32Type.get(), ir.FloatAttr.get(ir.F32Type.get(), input2)
-                )
-                tensor_type = ir.RankedTensorType.get(
-                    output_shape, ir.F32Type.get()
-                )
-                output = tensor.EmptyOp(output_shape, ir.F32Type.get())
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    if isinstance(node.args[0], str):
+        if not isinstance(node.args[1], str):
+            input2 = arith.ConstantOp(
+                mlir_dtype, mlir_element_attr_get(dtype, input2)
+            )
+            tensor_type = ir.RankedTensorType.get(
+                output_shape, dtype
+            )
+            output = tensor.EmptyOp(output_shape, dtype)
+            generic_map = ir.AffineMap.get_permutation(
+                [i for i in range(len(output_shape))]
+            )
+            op = linalg.GenericOp(
+                [tensor_type],
+                [input1],
+                [output],
+                ir.ArrayAttr.get(
+                    [
+                        ir.AffineMapAttr.get(
+                            generic_map.get_submap(
+                                [i for i in range(len(output_shape))]
+                            )
+                        ),
+                        ir.AffineMapAttr.get(
+                            generic_map.get_submap(
+                                [i for i in range(len(output_shape))]
+                            )
+                        ),
+                    ]
+                ),
+                ir.ArrayAttr.get(
+                    [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                    * len(output_shape)
+                ),
+            )
+            block = ir.Block.create_at_start(
+                op.region,
+                [
+                    ir.RankedTensorType(input1.type).element_type,
+                    ir.RankedTensorType(output.result.type).element_type,
+                ],
+            )
+            if str(mlir_dtype).find('i') != -1:
+                block_div_op = arith.DivSIOp(block.arguments[0], input2.result)
+            else:
+                block_div_op = arith.DivFOp(block.arguments[0], input2.result)
+            block.append(block_div_op)
+            block.append(linalg.YieldOp([block_div_op.result]))
+        else:
+            tensor_type = ir.RankedTensorType.get(
+                output_shape, mlir_dtype
+            )
+            output = tensor.EmptyOp(output_shape, mlir_dtype)
+            input1_shape = list(ir.RankedTensorType(input1.type).shape)
+            if input1_shape != output_shape:
+                dims = []
+                for i in range(len(input1_shape) - 1, -1, -1):
+                    if (
+                        input1_shape[i]
+                        != output_shape[
+                            len(output_shape) - (len(input1_shape) - i)
+                        ]
+                    ):
+                        dims.append(i)
+                output1 = tensor.EmptyOp(output_shape, mlir_dtype)
                 generic_map = ir.AffineMap.get_permutation(
-                    [i for i in range(len(output_shape))]
+                    [i for i in range(len(output_shape) + len(dims))]
                 )
-                op = linalg.GenericOp(
+                input1_map = [
+                    i
+                    for i in range(
+                        len(output_shape) - len(input1_shape),
+                        len(output_shape),
+                    )
+                ]
+                for index, i in enumerate(dims):
+                    input1_map[i] = len(output_shape) + index
+                input1_map = generic_map.get_submap(input1_map)
+                input1_op = linalg.GenericOp(
                     [tensor_type],
                     [input1],
-                    [output],
+                    [output1],
                     ir.ArrayAttr.get(
                         [
-                            ir.AffineMapAttr.get(
-                                generic_map.get_submap(
-                                    [i for i in range(len(output_shape))]
-                                )
-                            ),
+                            ir.AffineMapAttr.get(input1_map),
                             ir.AffineMapAttr.get(
                                 generic_map.get_submap(
                                     [i for i in range(len(output_shape))]
@@ -1834,175 +1895,63 @@ def div_op(
                         ]
                     ),
                     ir.ArrayAttr.get(
-                        [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                        [
+                            ir.Attribute.parse(
+                                "#linalg.iterator_type<parallel>"
+                            )
+                        ]
                         * len(output_shape)
+                        + [
+                            ir.Attribute.parse(
+                                "#linalg.iterator_type<reduction>"
+                            )
+                        ]
+                        * len(dims)
                     ),
                 )
                 block = ir.Block.create_at_start(
-                    op.region,
+                    input1_op.region,
                     [
                         ir.RankedTensorType(input1.type).element_type,
-                        ir.RankedTensorType(output.result.type).element_type,
+                        ir.RankedTensorType(
+                            output.result.type
+                        ).element_type,
                     ],
                 )
-                divf_op = arith.DivFOp(block.arguments[0], input2.result)
-                block.append(divf_op)
-                block.append(linalg.YieldOp([divf_op.result]))
-            else:
-                tensor_type = ir.RankedTensorType.get(
-                    output_shape, ir.F32Type.get()
-                )
-                output = tensor.EmptyOp(output_shape, ir.F32Type.get())
-                input1_shape = list(ir.RankedTensorType(input1.type).shape)
-                if input1_shape != output_shape:
-                    dims = []
-                    for i in range(len(input1_shape) - 1, -1, -1):
-                        if (
-                            input1_shape[i]
-                            != output_shape[
-                                len(output_shape) - (len(input1_shape) - i)
-                            ]
-                        ):
-                            dims.append(i)
-                    output1 = tensor.EmptyOp(output_shape, ir.F32Type.get())
-                    generic_map = ir.AffineMap.get_permutation(
-                        [i for i in range(len(output_shape) + len(dims))]
-                    )
-                    input1_map = [
-                        i
-                        for i in range(
-                            len(output_shape) - len(input1_shape),
-                            len(output_shape),
-                        )
-                    ]
-                    for index, i in enumerate(dims):
-                        input1_map[i] = len(output_shape) + index
-                    input1_map = generic_map.get_submap(input1_map)
-                    input1_op = linalg.GenericOp(
-                        [tensor_type],
-                        [input1],
-                        [output1],
-                        ir.ArrayAttr.get(
-                            [
-                                ir.AffineMapAttr.get(input1_map),
-                                ir.AffineMapAttr.get(
-                                    generic_map.get_submap(
-                                        [i for i in range(len(output_shape))]
-                                    )
-                                ),
-                            ]
-                        ),
-                        ir.ArrayAttr.get(
-                            [
-                                ir.Attribute.parse(
-                                    "#linalg.iterator_type<parallel>"
-                                )
-                            ]
-                            * len(output_shape)
-                            + [
-                                ir.Attribute.parse(
-                                    "#linalg.iterator_type<reduction>"
-                                )
-                            ]
-                            * len(dims)
-                        ),
-                    )
-                    block = ir.Block.create_at_start(
-                        input1_op.region,
-                        [
-                            ir.RankedTensorType(input1.type).element_type,
-                            ir.RankedTensorType(
-                                output.result.type
-                            ).element_type,
-                        ],
-                    )
-                    block.append(linalg.YieldOp([block.arguments[0]]))
-                    input1 = input1_op.result
-
-                input2_shape = list(ir.RankedTensorType(input2.type).shape)
-                if input2_shape != output_shape:
-                    dims = []
-                    for i in range(len(input2_shape) - 1, -1, -1):
-                        if (
-                            input2_shape[i]
-                            != output_shape[
-                                len(output_shape) - (len(input2_shape) - i)
-                            ]
-                        ):
-                            dims.append(i)
-                    output2 = tensor.EmptyOp(output_shape, ir.F32Type.get())
-                    generic_map = ir.AffineMap.get_permutation(
-                        [i for i in range(len(output_shape) + len(dims))]
-                    )
-                    input2_map = [
-                        i
-                        for i in range(
-                            len(output_shape) - len(input2_shape),
-                            len(output_shape),
-                        )
-                    ]
-                    for index, i in enumerate(dims):
-                        input2_map[i] = len(output_shape) + index
-                    input2_map = generic_map.get_submap(input2_map)
-                    input2_op = linalg.GenericOp(
-                        [tensor_type],
-                        [input2],
-                        [output2],
-                        ir.ArrayAttr.get(
-                            [
-                                ir.AffineMapAttr.get(input2_map),
-                                ir.AffineMapAttr.get(
-                                    generic_map.get_submap(
-                                        [i for i in range(len(output_shape))]
-                                    )
-                                ),
-                            ]
-                        ),
-                        ir.ArrayAttr.get(
-                            [
-                                ir.Attribute.parse(
-                                    "#linalg.iterator_type<parallel>"
-                                )
-                            ]
-                            * len(output_shape)
-                            + [
-                                ir.Attribute.parse(
-                                    "#linalg.iterator_type<reduction>"
-                                )
-                            ]
-                            * len(dims)
-                        ),
-                    )
-                    block = ir.Block.create_at_start(
-                        input2_op.region,
-                        [
-                            ir.RankedTensorType(input2.type).element_type,
-                            ir.RankedTensorType(
-                                output.result.type
-                            ).element_type,
-                        ],
-                    )
-                    block.append(linalg.YieldOp([block.arguments[0]]))
-                    input2 = input2_op.result
+                block.append(linalg.YieldOp([block.arguments[0]]))
+                input1 = input1_op.result
+            input2_shape = list(ir.RankedTensorType(input2.type).shape)
+            if input2_shape != output_shape:
+                dims = []
+                for i in range(len(input2_shape) - 1, -1, -1):
+                    if (
+                        input2_shape[i]
+                        != output_shape[
+                            len(output_shape) - (len(input2_shape) - i)
+                        ]
+                    ):
+                        dims.append(i)
+                output2 = tensor.EmptyOp(output_shape, mlir_dtype)
                 generic_map = ir.AffineMap.get_permutation(
-                    [i for i in range(len(output_shape))]
+                    [i for i in range(len(output_shape) + len(dims))]
                 )
-                op = linalg.GenericOp(
+                input2_map = [
+                    i
+                    for i in range(
+                        len(output_shape) - len(input2_shape),
+                        len(output_shape),
+                    )
+                ]
+                for index, i in enumerate(dims):
+                    input2_map[i] = len(output_shape) + index
+                input2_map = generic_map.get_submap(input2_map)
+                input2_op = linalg.GenericOp(
                     [tensor_type],
-                    [input1, input2],
-                    [output],
+                    [input2],
+                    [output2],
                     ir.ArrayAttr.get(
                         [
-                            ir.AffineMapAttr.get(
-                                generic_map.get_submap(
-                                    [i for i in range(len(output_shape))]
-                                )
-                            ),
-                            ir.AffineMapAttr.get(
-                                generic_map.get_submap(
-                                    [i for i in range(len(output_shape))]
-                                )
-                            ),
+                            ir.AffineMapAttr.get(input2_map),
                             ir.AffineMapAttr.get(
                                 generic_map.get_submap(
                                     [i for i in range(len(output_shape))]
@@ -2011,33 +1960,87 @@ def div_op(
                         ]
                     ),
                     ir.ArrayAttr.get(
-                        [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                        [
+                            ir.Attribute.parse(
+                                "#linalg.iterator_type<parallel>"
+                            )
+                        ]
                         * len(output_shape)
+                        + [
+                            ir.Attribute.parse(
+                                "#linalg.iterator_type<reduction>"
+                            )
+                        ]
+                        * len(dims)
                     ),
                 )
                 block = ir.Block.create_at_start(
-                    op.region,
+                    input2_op.region,
                     [
-                        ir.RankedTensorType(input1.type).element_type,
                         ir.RankedTensorType(input2.type).element_type,
-                        ir.RankedTensorType(output.result.type).element_type,
+                        ir.RankedTensorType(
+                            output.result.type
+                        ).element_type,
                     ],
                 )
-                divf_op = arith.DivFOp(block.arguments[0], block.arguments[1])
-                block.append(divf_op)
-                block.append(linalg.YieldOp([divf_op.result]))
+                block.append(linalg.YieldOp([block.arguments[0]]))
+                input2 = input2_op.result
+            generic_map = ir.AffineMap.get_permutation(
+                [i for i in range(len(output_shape))]
+            )
+            op = linalg.GenericOp(
+                [tensor_type],
+                [input1, input2],
+                [output],
+                ir.ArrayAttr.get(
+                    [
+                        ir.AffineMapAttr.get(
+                            generic_map.get_submap(
+                                [i for i in range(len(output_shape))]
+                            )
+                        ),
+                        ir.AffineMapAttr.get(
+                            generic_map.get_submap(
+                                [i for i in range(len(output_shape))]
+                            )
+                        ),
+                        ir.AffineMapAttr.get(
+                            generic_map.get_submap(
+                                [i for i in range(len(output_shape))]
+                            )
+                        ),
+                    ]
+                ),
+                ir.ArrayAttr.get(
+                    [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                    * len(output_shape)
+                ),
+            )
+            block = ir.Block.create_at_start(
+                op.region,
+                [
+                    ir.RankedTensorType(input1.type).element_type,
+                    ir.RankedTensorType(input2.type).element_type,
+                    ir.RankedTensorType(output.result.type).element_type,
+                ],
+            )
+            if str(mlir_dtype).find('i') != -1:
+                block_div_op = arith.DivSIOp(block.arguments[0], block.arguments[1])
+            else:
+                block_div_op = arith.DivFOp(block.arguments[0], block.arguments[1])
+            block.append(block_div_op)
+            block.append(linalg.YieldOp([block_div_op.result]))
 
     return op
 
 
 def softmax_op(
-    node: torch.fx.Node,
+    node: SoftmaxOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor softmax operation.
-    From PyTorch `aten._softmax.default` operator to MLIR linalg `generic`
-    operation.
+    From buddy SoftmaxOp to MLIR linalg `generic` operation.
 
     Note: This op, compute input node's softmax result.
     Args:
@@ -2054,266 +2057,270 @@ def softmax_op(
     dim = int(node.args[1])
     if input1 is None:
         return
-    output_shape = list(node.meta["tensor_meta"].shape)
-    dtype = str(node.meta["tensor_meta"].dtype)
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
     if dim < 0:
         dim += len(output_shape)
-    if dtype == "torch.float32":
-        max_tensor_shape = copy.deepcopy(output_shape)
-        max_tensor_shape[dim] = 1
-        max_tensor_type = ir.RankedTensorType.get(
-            max_tensor_shape, ir.F32Type.get()
-        )
-        max_tensor = tensor.EmptyOp(max_tensor_shape, ir.F32Type.get())
-        max_tensor_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(max_tensor_shape))
-        ]
-        max_tensor_map = ir.AffineMap.get(
-            len(max_tensor_shape), 0, max_tensor_map
-        )
-        neg_inf_fill = linalg.GenericOp(
-            [max_tensor_type],
-            [],
-            [max_tensor],
-            ir.ArrayAttr.get([ir.AffineMapAttr.get(max_tensor_map)]),
-            ir.ArrayAttr.get(
-                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-                * len(max_tensor_shape)
-            ),
-        )
-        block = ir.Block.create_at_start(
-            neg_inf_fill.region,
-            [ir.RankedTensorType(max_tensor.result.type).element_type],
-        )
-        neg_inf_op = arith.ConstantOp(
-            ir.F32Type.get(), ir.FloatAttr.get(ir.F32Type.get(), float("-inf"))
-        )
-        block.append(neg_inf_op)
-        block.append(linalg.YieldOp([neg_inf_op.result]))
-
-        input1_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
-        ]
-        input1_map = ir.AffineMap.get(len(output_shape), 0, input1_map)
-        max_tensor_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
-        ]
-        max_tensor_map[dim] = ir.AffineExpr.get_constant(0)
-        max_tensor_map = ir.AffineMap.get(len(output_shape), 0, max_tensor_map)
-        loop_type = [
-            ir.Attribute.parse("#linalg.iterator_type<parallel>")
-        ] * len(output_shape)
-        loop_type[dim] = ir.Attribute.parse("#linalg.iterator_type<reduction>")
-        max_tensor_op = linalg.GenericOp(
-            [max_tensor_type],
-            [input1],
-            [neg_inf_fill],
-            ir.ArrayAttr.get(
-                [
-                    ir.AffineMapAttr.get(input1_map),
-                    ir.AffineMapAttr.get(max_tensor_map),
-                ]
-            ),
-            ir.ArrayAttr.get(loop_type),
-        )
-        block = ir.Block.create_at_start(
-            max_tensor_op.region,
+    mlir_dtype = mlir_element_type_get(dtype)
+    max_tensor_shape = copy.deepcopy(output_shape)
+    max_tensor_shape[dim] = 1
+    max_tensor_type = ir.RankedTensorType.get(
+        max_tensor_shape, mlir_dtype
+    )
+    max_tensor = tensor.EmptyOp(max_tensor_shape, mlir_dtype)
+    max_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(max_tensor_shape))
+    ]
+    max_tensor_map = ir.AffineMap.get(
+        len(max_tensor_shape), 0, max_tensor_map
+    )
+    neg_inf_fill = linalg.GenericOp(
+        [max_tensor_type],
+        [],
+        [max_tensor],
+        ir.ArrayAttr.get([ir.AffineMapAttr.get(max_tensor_map)]),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(max_tensor_shape)
+        ),
+    )
+    block = ir.Block.create_at_start(
+        neg_inf_fill.region,
+        [ir.RankedTensorType(max_tensor.result.type).element_type],
+    )
+    neg_inf_op = arith.ConstantOp(
+        mlir_dtype, mlir_element_attr_get(dtype, float("-inf"))
+    )
+    block.append(neg_inf_op)
+    block.append(linalg.YieldOp([neg_inf_op.result]))
+    input1_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
+    ]
+    input1_map = ir.AffineMap.get(len(output_shape), 0, input1_map)
+    max_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
+    ]
+    max_tensor_map[dim] = ir.AffineExpr.get_constant(0)
+    max_tensor_map = ir.AffineMap.get(len(output_shape), 0, max_tensor_map)
+    loop_type = [
+        ir.Attribute.parse("#linalg.iterator_type<parallel>")
+    ] * len(output_shape)
+    loop_type[dim] = ir.Attribute.parse("#linalg.iterator_type<reduction>")
+    max_tensor_op = linalg.GenericOp(
+        [max_tensor_type],
+        [input1],
+        [neg_inf_fill],
+        ir.ArrayAttr.get(
             [
-                ir.RankedTensorType(input1.type).element_type,
-                ir.RankedTensorType(neg_inf_fill.result.type).element_type,
-            ],
-        )
-        max_op = arith.MaximumFOp(block.arguments[0], block.arguments[1])
-        block.append(max_op)
-        block.append(linalg.YieldOp([max_op.result]))
-
-        exp_tensor = tensor.EmptyOp(output_shape, ir.F32Type.get())
-        exp_tensor_type = ir.RankedTensorType.get(
-            output_shape, ir.F32Type.get()
-        )
-        input1_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
-        ]
-        input1_map = ir.AffineMap.get(len(output_shape), 0, input1_map)
-        max_tensor_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
-        ]
-        max_tensor_map[dim] = ir.AffineExpr.get_constant(0)
-        max_tensor_map = ir.AffineMap.get(len(output_shape), 0, max_tensor_map)
-        exp_tensor_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
-        ]
-        exp_tensor_map = ir.AffineMap.get(len(output_shape), 0, exp_tensor_map)
-        exp_tensor_op = linalg.GenericOp(
-            [exp_tensor_type],
-            [input1, max_tensor_op.result],
-            [exp_tensor],
-            ir.ArrayAttr.get(
-                [
-                    ir.AffineMapAttr.get(input1_map),
-                    ir.AffineMapAttr.get(max_tensor_map),
-                    ir.AffineMapAttr.get(exp_tensor_map),
-                ]
-            ),
-            ir.ArrayAttr.get(
-                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-                * len(output_shape)
-            ),
-        )
-        block = ir.Block.create_at_start(
-            exp_tensor_op.region,
+                ir.AffineMapAttr.get(input1_map),
+                ir.AffineMapAttr.get(max_tensor_map),
+            ]
+        ),
+        ir.ArrayAttr.get(loop_type),
+    )
+    block = ir.Block.create_at_start(
+        max_tensor_op.region,
+        [
+            ir.RankedTensorType(input1.type).element_type,
+            ir.RankedTensorType(neg_inf_fill.result.type).element_type,
+        ],
+    )
+    max_op = arith.MaximumFOp(block.arguments[0], block.arguments[1])
+    block.append(max_op)
+    block.append(linalg.YieldOp([max_op.result]))
+    exp_tensor = tensor.EmptyOp(output_shape, mlir_dtype)
+    exp_tensor_type = ir.RankedTensorType.get(
+        output_shape, mlir_dtype
+    )
+    input1_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
+    ]
+    input1_map = ir.AffineMap.get(len(output_shape), 0, input1_map)
+    max_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
+    ]
+    max_tensor_map[dim] = ir.AffineExpr.get_constant(0)
+    max_tensor_map = ir.AffineMap.get(len(output_shape), 0, max_tensor_map)
+    exp_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
+    ]
+    exp_tensor_map = ir.AffineMap.get(len(output_shape), 0, exp_tensor_map)
+    exp_tensor_op = linalg.GenericOp(
+        [exp_tensor_type],
+        [input1, max_tensor_op.result],
+        [exp_tensor],
+        ir.ArrayAttr.get(
             [
-                ir.RankedTensorType(input1.type).element_type,
-                ir.RankedTensorType(max_tensor_op.result.type).element_type,
-                ir.RankedTensorType(exp_tensor.result.type).element_type,
-            ],
-        )
+                ir.AffineMapAttr.get(input1_map),
+                ir.AffineMapAttr.get(max_tensor_map),
+                ir.AffineMapAttr.get(exp_tensor_map),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(output_shape)
+        ),
+    )
+    block = ir.Block.create_at_start(
+        exp_tensor_op.region,
+        [
+            ir.RankedTensorType(input1.type).element_type,
+            ir.RankedTensorType(max_tensor_op.result.type).element_type,
+            ir.RankedTensorType(exp_tensor.result.type).element_type,
+        ],
+    )
+    if str(mlir_dtype).find('i') != -1:
+        sub_op = arith.SubIOp(block.arguments[0], block.arguments[1])
+    else:
         sub_op = arith.SubFOp(block.arguments[0], block.arguments[1])
-        exp_op = math.ExpOp(sub_op.result)
-        block.append(sub_op)
-        block.append(exp_op)
-        block.append(linalg.YieldOp([exp_op.result]))
-
-        reduce_sum_tensor_shape = copy.deepcopy(output_shape)
-        reduce_sum_tensor_shape[dim] = 1
-        reduce_sum_tensor = tensor.EmptyOp(
-            reduce_sum_tensor_shape, ir.F32Type.get()
-        )
-        reduce_sum_tensor_type = ir.RankedTensorType.get(
-            reduce_sum_tensor_shape, ir.F32Type.get()
-        )
-        reduce_sum_tensor_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
-        ]
-        reduce_sum_tensor_map = ir.AffineMap.get(
-            len(output_shape), 0, reduce_sum_tensor_map
-        )
-        zero_fill_op = linalg.GenericOp(
-            [reduce_sum_tensor_type],
-            [],
-            [reduce_sum_tensor.result],
-            ir.ArrayAttr.get([ir.AffineMapAttr.get(reduce_sum_tensor_map)]),
-            ir.ArrayAttr.get(
-                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-                * len(output_shape)
-            ),
-        )
-        block = ir.Block.create_at_start(
-            zero_fill_op.region,
-            [ir.RankedTensorType(reduce_sum_tensor.result.type).element_type],
-        )
-        zero_op = arith.ConstantOp(
-            ir.F32Type.get(), ir.FloatAttr.get(ir.F32Type.get(), 0)
-        )
-        block.append(zero_op)
-        block.append(linalg.YieldOp([zero_op.result]))
-
-        reduce_sum_tensor_shape = copy.deepcopy(output_shape)
-        reduce_sum_tensor_shape[dim] = 1
-        reduce_sum_tensor_type = ir.RankedTensorType.get(
-            reduce_sum_tensor_shape, ir.F32Type.get()
-        )
-        exp_tensor_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
-        ]
-        exp_tensor_map = ir.AffineMap.get(len(output_shape), 0, exp_tensor_map)
-        reduce_sum_tensor_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
-        ]
-        reduce_sum_tensor_map[dim] = ir.AffineExpr.get_constant(0)
-        reduce_sum_tensor_map = ir.AffineMap.get(
-            len(output_shape), 0, reduce_sum_tensor_map
-        )
-        loop_type = [
-            ir.Attribute.parse("#linalg.iterator_type<parallel>")
-        ] * len(output_shape)
-        loop_type[dim] = ir.Attribute.parse("#linalg.iterator_type<reduction>")
-        reduce_sum_tensor_op = linalg.GenericOp(
-            [reduce_sum_tensor_type],
-            [exp_tensor_op.result],
-            [zero_fill_op.result],
-            ir.ArrayAttr.get(
-                [
-                    ir.AffineMapAttr.get(exp_tensor_map),
-                    ir.AffineMapAttr.get(reduce_sum_tensor_map),
-                ]
-            ),
-            ir.ArrayAttr.get(loop_type),
-        )
-        block = ir.Block.create_at_start(
-            reduce_sum_tensor_op.region,
+    exp_op = math.ExpOp(sub_op.result)
+    block.append(sub_op)
+    block.append(exp_op)
+    block.append(linalg.YieldOp([exp_op.result]))
+    reduce_sum_tensor_shape = copy.deepcopy(output_shape)
+    reduce_sum_tensor_shape[dim] = 1
+    reduce_sum_tensor = tensor.EmptyOp(
+        reduce_sum_tensor_shape, mlir_dtype
+    )
+    reduce_sum_tensor_type = ir.RankedTensorType.get(
+        reduce_sum_tensor_shape, mlir_dtype
+    )
+    reduce_sum_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
+    ]
+    reduce_sum_tensor_map = ir.AffineMap.get(
+        len(output_shape), 0, reduce_sum_tensor_map
+    )
+    zero_fill_op = linalg.GenericOp(
+        [reduce_sum_tensor_type],
+        [],
+        [reduce_sum_tensor.result],
+        ir.ArrayAttr.get([ir.AffineMapAttr.get(reduce_sum_tensor_map)]),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(output_shape)
+        ),
+    )
+    block = ir.Block.create_at_start(
+        zero_fill_op.region,
+        [ir.RankedTensorType(reduce_sum_tensor.result.type).element_type],
+    )
+    zero_op = arith.ConstantOp(
+        mlir_dtype, mlir_element_attr_get(dtype, 0)
+    )
+    block.append(zero_op)
+    block.append(linalg.YieldOp([zero_op.result]))
+    reduce_sum_tensor_shape = copy.deepcopy(output_shape)
+    reduce_sum_tensor_shape[dim] = 1
+    reduce_sum_tensor_type = ir.RankedTensorType.get(
+        reduce_sum_tensor_shape, mlir_dtype
+    )
+    exp_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
+    ]
+    exp_tensor_map = ir.AffineMap.get(len(output_shape), 0, exp_tensor_map)
+    reduce_sum_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
+    ]
+    reduce_sum_tensor_map[dim] = ir.AffineExpr.get_constant(0)
+    reduce_sum_tensor_map = ir.AffineMap.get(
+        len(output_shape), 0, reduce_sum_tensor_map
+    )
+    loop_type = [
+        ir.Attribute.parse("#linalg.iterator_type<parallel>")
+    ] * len(output_shape)
+    loop_type[dim] = ir.Attribute.parse("#linalg.iterator_type<reduction>")
+    reduce_sum_tensor_op = linalg.GenericOp(
+        [reduce_sum_tensor_type],
+        [exp_tensor_op.result],
+        [zero_fill_op.result],
+        ir.ArrayAttr.get(
             [
-                ir.RankedTensorType(exp_tensor_op.result.type).element_type,
-                ir.RankedTensorType(zero_fill_op.result.type).element_type,
-            ],
-        )
+                ir.AffineMapAttr.get(exp_tensor_map),
+                ir.AffineMapAttr.get(reduce_sum_tensor_map),
+            ]
+        ),
+        ir.ArrayAttr.get(loop_type),
+    )
+    block = ir.Block.create_at_start(
+        reduce_sum_tensor_op.region,
+        [
+            ir.RankedTensorType(exp_tensor_op.result.type).element_type,
+            ir.RankedTensorType(zero_fill_op.result.type).element_type,
+        ],
+    )
+    if str(mlir_dtype).find('i') != -1:
+        add_op = arith.AddIOp(block.arguments[0], block.arguments[1])
+    else:
         add_op = arith.AddFOp(block.arguments[0], block.arguments[1])
-        block.append(add_op)
-        block.append(linalg.YieldOp([add_op.result]))
-
-        reduce_sum_tensor_shape = copy.deepcopy(output_shape)
-        reduce_sum_tensor_shape[dim] = 1
-        result_tensor_type = ir.RankedTensorType.get(
-            output_shape, ir.F32Type.get()
-        )
-        result_tensor = tensor.EmptyOp(output_shape, ir.F32Type.get())
-        exp_tensor_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
-        ]
-        exp_tensor_map = ir.AffineMap.get(len(output_shape), 0, exp_tensor_map)
-        reduce_sum_tensor_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
-        ]
-        reduce_sum_tensor_map[dim] = ir.AffineExpr.get_constant(0)
-        reduce_sum_tensor_map = ir.AffineMap.get(
-            len(output_shape), 0, reduce_sum_tensor_map
-        )
-        result_tensor_map = [
-            ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
-        ]
-        result_tensor_map = ir.AffineMap.get(
-            len(output_shape), 0, result_tensor_map
-        )
-        op = linalg.GenericOp(
-            [result_tensor_type],
-            [exp_tensor_op.result, reduce_sum_tensor_op.result],
-            [result_tensor.result],
-            ir.ArrayAttr.get(
-                [
-                    ir.AffineMapAttr.get(exp_tensor_map),
-                    ir.AffineMapAttr.get(reduce_sum_tensor_map),
-                    ir.AffineMapAttr.get(result_tensor_map),
-                ]
-            ),
-            ir.ArrayAttr.get(
-                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-                * len(output_shape)
-            ),
-        )
-        block = ir.Block.create_at_start(
-            op.region,
+    block.append(add_op)
+    block.append(linalg.YieldOp([add_op.result]))
+    reduce_sum_tensor_shape = copy.deepcopy(output_shape)
+    reduce_sum_tensor_shape[dim] = 1
+    result_tensor_type = ir.RankedTensorType.get(
+        output_shape, mlir_dtype
+    )
+    result_tensor = tensor.EmptyOp(output_shape, mlir_dtype)
+    exp_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
+    ]
+    exp_tensor_map = ir.AffineMap.get(len(output_shape), 0, exp_tensor_map)
+    reduce_sum_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
+    ]
+    reduce_sum_tensor_map[dim] = ir.AffineExpr.get_constant(0)
+    reduce_sum_tensor_map = ir.AffineMap.get(
+        len(output_shape), 0, reduce_sum_tensor_map
+    )
+    result_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(output_shape))
+    ]
+    result_tensor_map = ir.AffineMap.get(
+        len(output_shape), 0, result_tensor_map
+    )
+    op = linalg.GenericOp(
+        [result_tensor_type],
+        [exp_tensor_op.result, reduce_sum_tensor_op.result],
+        [result_tensor.result],
+        ir.ArrayAttr.get(
             [
-                ir.RankedTensorType(exp_tensor_op.result.type).element_type,
-                ir.RankedTensorType(
-                    reduce_sum_tensor_op.result.type
-                ).element_type,
-                ir.RankedTensorType(result_tensor.result.type).element_type,
-            ],
-        )
+                ir.AffineMapAttr.get(exp_tensor_map),
+                ir.AffineMapAttr.get(reduce_sum_tensor_map),
+                ir.AffineMapAttr.get(result_tensor_map),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(output_shape)
+        ),
+    )
+    block = ir.Block.create_at_start(
+        op.region,
+        [
+            ir.RankedTensorType(exp_tensor_op.result.type).element_type,
+            ir.RankedTensorType(
+                reduce_sum_tensor_op.result.type
+            ).element_type,
+            ir.RankedTensorType(result_tensor.result.type).element_type,
+        ],
+    )
+    if str(mlir_dtype).find('i') != -1:
+        div_op = arith.DivSIOp(block.arguments[0], block.arguments[1])
+    else:
         div_op = arith.DivFOp(block.arguments[0], block.arguments[1])
-        block.append(div_op)
-        block.append(linalg.YieldOp([div_op.result]))
+    block.append(div_op)
+    block.append(linalg.YieldOp([div_op.result]))
 
     return op
 
 
 def clone_op(
-    node: torch.fx.Node,
+    node: CloneOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor clone operation.
-    From PyTorch `aten.clone.default` operator to MLIR tensor `extract_slice`
+    From buddy CloneOp to MLIR tensor `extract_slice`
     operation.
 
     Note: This op, clone input tensor to a new tensor.
@@ -2330,25 +2337,24 @@ def clone_op(
     if input1 is None:
         return
 
-    output_shape = list(node.meta["tensor_meta"].shape)
-    dtype = str(node.meta["tensor_meta"].dtype)
-    if dtype == "torch.float32":
-        offset = [0 for x in output_shape]
-        offset_attr = ir._denseI64ArrayAttr(offset, None)
-        size_attr = ir._denseI64ArrayAttr(output_shape, None)
-        stride = [1 for x in output_shape]
-        stride_attr = ir._denseI64ArrayAttr(stride, None)
-        tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
-
-        op = tensor.ExtractSliceOp(
-            tensor_type, input1, [], [], [], offset_attr, size_attr, stride_attr
-        )
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["shape"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    offset = [0 for x in output_shape]
+    offset_attr = ir._denseI64ArrayAttr(offset, None)
+    size_attr = ir._denseI64ArrayAttr(output_shape, None)
+    stride = [1 for x in output_shape]
+    stride_attr = ir._denseI64ArrayAttr(stride, None)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    op = tensor.ExtractSliceOp(
+        tensor_type, input1, [], [], [], offset_attr, size_attr, stride_attr
+    )
 
     return op
 
 
 def silu_op(
-    node: torch.fx.Node,
+    node: SiluOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
@@ -2370,57 +2376,57 @@ def silu_op(
     if input1 is None:
         return
 
-    output_shape = list(node.meta["tensor_meta"].shape)
-    dtype = str(node.meta["tensor_meta"].dtype)
-    if dtype == "torch.float32":
-        tensor_type = ir.RankedTensorType.get(output_shape, ir.F32Type.get())
-        output = tensor.EmptyOp(output_shape, ir.F32Type.get())
-        generic_map = ir.AffineMap.get_permutation(
-            [i for i in range(len(output_shape))]
-        )
-        op = linalg.GenericOp(
-            [tensor_type],
-            [input1],
-            [output],
-            ir.ArrayAttr.get(
-                [
-                    ir.AffineMapAttr.get(
-                        generic_map.get_submap(
-                            [i for i in range(len(output_shape))]
-                        )
-                    ),
-                    ir.AffineMapAttr.get(
-                        generic_map.get_submap(
-                            [i for i in range(len(output_shape))]
-                        )
-                    ),
-                ]
-            ),
-            ir.ArrayAttr.get(
-                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-                * len(output_shape)
-            ),
-        )
-        block = ir.Block.create_at_start(
-            op.region,
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["shape"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    output = tensor.EmptyOp(output_shape, mlir_dtype)
+    generic_map = ir.AffineMap.get_permutation(
+        [i for i in range(len(output_shape))]
+    )
+    op = linalg.GenericOp(
+        [tensor_type],
+        [input1],
+        [output],
+        ir.ArrayAttr.get(
             [
-                ir.RankedTensorType(input1.type).element_type,
-                ir.RankedTensorType(output.result.type).element_type,
-            ],
-        )
-        neg_op = arith.NegFOp(block.arguments[0])
-        exp_op = math.ExpOp(neg_op.result)
-        one_op = arith.ConstantOp(
-            ir.F32Type.get(), ir.FloatAttr.get(ir.F32Type.get(), 1)
-        )
-        add_op = arith.AddFOp(one_op.result, exp_op.result)
-        div_op = arith.DivFOp(block.arguments[0], add_op.result)
-        block.append(neg_op)
-        block.append(exp_op)
-        block.append(one_op)
-        block.append(add_op)
-        block.append(div_op)
-        block.append(linalg.YieldOp([div_op.result]))
+                ir.AffineMapAttr.get(
+                    generic_map.get_submap(
+                        [i for i in range(len(output_shape))]
+                    )
+                ),
+                ir.AffineMapAttr.get(
+                    generic_map.get_submap(
+                        [i for i in range(len(output_shape))]
+                    )
+                ),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(output_shape)
+        ),
+    )
+    block = ir.Block.create_at_start(
+        op.region,
+        [
+            ir.RankedTensorType(input1.type).element_type,
+            ir.RankedTensorType(output.result.type).element_type,
+        ],
+    )
+    neg_op = arith.NegFOp(block.arguments[0])
+    exp_op = math.ExpOp(neg_op.result)
+    one_op = arith.ConstantOp(
+        mlir_dtype, mlir_element_attr_get(dtype, 1)
+    )
+    add_op = arith.AddFOp(one_op.result, exp_op.result)
+    div_op = arith.DivFOp(block.arguments[0], add_op.result)
+    block.append(neg_op)
+    block.append(exp_op)
+    block.append(one_op)
+    block.append(add_op)
+    block.append(div_op)
+    block.append(linalg.YieldOp([div_op.result]))
 
     return op
 
@@ -2479,40 +2485,67 @@ def param_extract(
     return tensor.ExpandShapeOp(tensor_type, extract_slice_op.result, axis)
 
 
-ops_registry = {
-    "arange.start": arange_op,
-    "arange.default": arange_op,
-    "unsqueeze.default": unsqueeze_op,
-    "view.default": view_op,
-    "ones.default": ones_op,
-    "full.default": full_op,
-    "lt.Tensor": lt_op,
-    "embedding.default": embedding_op,
-    "masked_fill.Scalar": masked_fill_op,
-    "slice.Tensor": slice_op,
-    "expand.default": expand_op,
-    "_to_copy.default": to_copy_op,
-    "rsub.Scalar": rsub_op,
-    "pow.Tensor_Scalar": pow_op,
-    "mean.dim": mean_op,
-    "rsqrt.default": rsqrt_op,
-    "mul.Tensor": mul_op,
-    "t.default": t_op,
-    "mm.default": matmul_op,
-    "transpose.int": transpose_op,
-    "index.Tensor": index_op,
-    "neg.default": neg_op,
-    "cat.default": cat_op,
-    "squeeze.dim": squeeze_op,
-    "bmm.default": batch_matmul_op,
-    "div.Tensor": div_op,
-    "_softmax.default": softmax_op,
-    "clone.default": clone_op,
-    "silu.default": silu_op,
-    "param.extract": param_extract,
-}
+# ops_registry = {
+#     "arange.start": arange_op,
+#     "arange.default": arange_op,
+#     "unsqueeze.default": unsqueeze_op,
+#     "view.default": view_op,
+#     "ones.default": ones_op,
+#     "full.default": full_op,
+#     "lt.Tensor": lt_op,
+#     "embedding.default": embedding_op,
+#     "masked_fill.Scalar": masked_fill_op,
+#     "slice.Tensor": slice_op,
+#     "expand.default": expand_op,
+#     "_to_copy.default": to_copy_op,
+#     "rsub.Scalar": rsub_op,
+#     "pow.Tensor_Scalar": pow_op,
+#     "mean.dim": mean_op,
+#     "rsqrt.default": rsqrt_op,
+#     "mul.Tensor": mul_op,
+#     "t.default": t_op,
+#     "mm.default": matmul_op,
+#     "transpose.int": transpose_op,
+#     "index.Tensor": index_op,
+#     "neg.default": neg_op,
+#     "cat.default": cat_op,
+#     "squeeze.dim": squeeze_op,
+#     "bmm.default": batch_matmul_op,
+#     "div.Tensor": div_op,
+#     "_softmax.default": softmax_op,
+#     "clone.default": clone_op,
+#     "silu.default": silu_op,
+#     "param.extract": param_extract,
+# }
 
 ops_registry = {
     "param.extract": param_extract,
     "MatmulOp": matmul_op,
+    "ArangeOp": arange_op,
+    "UnsqueezeOp": unsqueeze_op,
+    "ViewOp": view_op,
+    "EmbeddingOp": embedding_op,
+    "OnesOp": ones_op,
+    "FullOp": full_op,
+    "LessthanOp": lt_op,
+    "MaskedFillOp": masked_fill_op,
+    "SliceOp": slice_op,
+    "ExpandOp": expand_op,
+    "ToCopyOp": to_copy_op,
+    "RsubOp": rsub_op,
+    "PowOp": pow_op,
+    "MeanOp": mean_op,
+    "RsqrtOp": rsqrt_op,
+    "MulOp": mul_op,
+    "TransposeOp": t_op,
+    "TransposeSpecificDimOp": transpose_op,
+    "IndexOp": index_op,
+    "NegOp": neg_op,
+    "CatOp": cat_op,
+    "SqueezeOp": squeeze_op,
+    "BatchMatmulOp": batch_matmul_op,
+    "DivOp": div_op,
+    "SoftmaxOp": softmax_op,
+    "CloneOp": clone_op,
+    "SiluOp": silu_op
 }
