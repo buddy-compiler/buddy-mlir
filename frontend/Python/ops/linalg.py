@@ -32,6 +32,40 @@ from ..graph import *
 from ..graph.graph import Tensordtype
 from .utils import *
 
+def add_op(node: AddOp,
+          symbol_table: Dict[Tuple[str, int], ir.Operation]) :
+    """
+    Import tensor add operation.
+    From buddy AddOp to MLIR arith `constant` operation.
+
+    Note: this function init an output tensor according input range.
+
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
+
+    Returns:
+        op: The operation representing the result tensor of two input nodes' add
+        result.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    shape = list(node.tensor_meta["shape"])
+    if isinstance(node.args[1], str):
+        input2 = symbol_table.get((str(node.args[1]), 0))
+    else:
+        input2_shape = numpy.array(node.args[1]).shape
+        tensor_type = ir.RankedTensorType.get(input2_shape, mlir_dtype)
+        element = mlir_element_attr_get(dtype, node.args[1])
+        attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+        input2 = arith.ConstantOp(tensor_type, attr).result
+    if input1 is None or input2 is None:
+      return
+    addResultTensorType = ir.RankedTensorType.get(shape, mlir_dtype)
+    op = tosa.AddOp(addResultTensorType, input1, input2)
+    return op.result
 
 def arange_op(
     node: ArangeOp,
@@ -54,9 +88,10 @@ def arange_op(
     """
     if len(node.args) == 2:
         start = int(node.args[0])
+        end = int(node.args[1])
     else:
         start = 0
-    end = int(node.args[1])
+        end = int(node.args[0])
     stride = 1
     dtype = node.tensor_meta["dtype"]
     shape = list(node.tensor_meta["shape"])
@@ -379,9 +414,9 @@ def masked_fill_op(
     if input1 is None or input2 is None:
         return
     dtype = node.tensor_meta["dtype"]
+    value = node.args[2]
     attr = mlir_element_attr_get(dtype, value)
     dtype = mlir_element_type_get(dtype)
-    value = node.args[2]
     value = arith.ConstantOp(dtype, attr)
     output_shape = list(node.tensor_meta["shape"])
     tensor_type = ir.RankedTensorType.get(output_shape, dtype)
@@ -868,7 +903,7 @@ def mean_op(
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-    element = mlir_element_attr_get(mlir_dtype, 0.0)
+    element = mlir_element_attr_get(dtype, 0.0)
     attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
     output = arith.ConstantOp(tensor_type, attr)
     assert len(dims) == 1
@@ -1042,7 +1077,7 @@ def mul_op(
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
 
-    if isinstance(node.args[0], torch.fx.Node):
+    if isinstance(node.args[0], str):
         if not isinstance(node.args[1], str):
             input2 = arith.ConstantOp(
                 mlir_dtype, mlir_element_attr_get(dtype, input2)
@@ -1255,9 +1290,9 @@ def mul_op(
                 str(ir.RankedTensorType(input1.type).element_type).find("i")
                 != -1
             ):
-                block_mul_op = arith.MulIOp(block.arguments[0], input2.result)
+                block_mul_op = arith.MulIOp(block.arguments[0], block.arguments[1])
             else:
-                block_mul_op = arith.MulFOp(block.arguments[0], input2.result)
+                block_mul_op = arith.MulFOp(block.arguments[0], block.arguments[1])
             block.append(block_mul_op)
             block.append(linalg.YieldOp([block_mul_op.result]))
     return op
@@ -1808,9 +1843,9 @@ def div_op(
                 mlir_dtype, mlir_element_attr_get(dtype, input2)
             )
             tensor_type = ir.RankedTensorType.get(
-                output_shape, dtype
+                output_shape, mlir_dtype
             )
-            output = tensor.EmptyOp(output_shape, dtype)
+            output = tensor.EmptyOp(output_shape, mlir_dtype)
             generic_map = ir.AffineMap.get_permutation(
                 [i for i in range(len(output_shape))]
             )
@@ -2338,7 +2373,7 @@ def clone_op(
         return
 
     output_shape = list(node.tensor_meta["shape"])
-    dtype = node.tensor_meta["shape"]
+    dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     offset = [0 for x in output_shape]
     offset_attr = ir._denseI64ArrayAttr(offset, None)
@@ -2377,7 +2412,7 @@ def silu_op(
         return
 
     output_shape = list(node.tensor_meta["shape"])
-    dtype = node.tensor_meta["shape"]
+    dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     output = tensor.EmptyOp(output_shape, mlir_dtype)
@@ -2547,5 +2582,6 @@ ops_registry = {
     "DivOp": div_op,
     "SoftmaxOp": softmax_op,
     "CloneOp": clone_op,
-    "SiluOp": silu_op
+    "SiluOp": silu_op,
+    "AddOp": add_op
 }

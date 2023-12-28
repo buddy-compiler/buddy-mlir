@@ -109,15 +109,12 @@ class DynamoCompiler:
                 inp_shape = inp.shape
                 inp_dtype = self.torch_dtype_to_str(str(inp.dtype))
                 func_inputs.append(TensorMeta(inp_shape, inp_dtype))
-            func_params = []
             fake_params = []
             for param in params_flat:
-                func_params.append(param.numpy())
                 param_dtype = self.torch_dtype_to_str(str(param.dtype))
-                fake_params.append(param.shape, param_dtype)
+                fake_params.append(TensorMeta(param.shape, param_dtype))
             graph = Graph(
                 func_inputs,
-                func_params,
                 fake_params,
                 self._ops_registry,
                 self._func_name,
@@ -195,7 +192,7 @@ class DynamoCompiler:
         """
         return self._compile_fx(gm, inputs)
 
-    def importer(self, model, *args, **kwargs):
+    def importer(self, model, *args, **kwargs) -> List[Graph]:
         """
         Imports the provided model as MLIR module and flat parameters.
 

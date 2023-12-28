@@ -31,4 +31,5 @@ torch_ops_map = {
     "_softmax.default": SoftmaxOp,
     "clone.default": CloneOp,
     "silu.default": SiluOp,
+    "add.Tensor": AddOp
 }

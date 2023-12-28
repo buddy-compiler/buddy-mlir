@@ -94,7 +94,6 @@ class Graph:
     def __init__(
         self,
         inputs: List[TensorMeta],
-        params_flat: List[np.ndarray],
         fake_params: List[TensorMeta],
         ops_registry: dict,
         func_name: str,
@@ -109,7 +108,6 @@ class Graph:
         """
         self._body = []
         self._inputs = inputs
-        self._params = params_flat
         self._fake_params = fake_params
         self._outputs = None
         self.device = "cpu"
@@ -217,7 +215,8 @@ class Graph:
         """
         Compile graph from torch fx graph to llvm ir.
         """
-        self.lower_to_top_level_ir()
+        self.lower_to_top_level_ir(True)
+        print(self._imported_module, flush=True)
         self.lower_to_llvm_ir()
 
     def dynamo_run(self):

@@ -1348,3 +1348,44 @@ class SiluOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
+class AddOp(Op):
+    def __init__(self) -> None:
+        self._name = None
+        self._arguments = []
+        self._children = []
+        self._parent = []
+        self._tensor_meta = {}
+        self._op_type = OpType.BroadcastType
+        self._device = "cpu"
+
+    @staticmethod
+    def fx_create_node(
+        node_name,
+        node_input,
+        node_users,
+        node_output_shape,
+        node_output_dtype,
+    ):
+        """
+        Create add node.
+        Args:
+            node_name: The unique name of op node.
+            node_input: Add node should have two input to compute add.
+            node_users: The op node's successor nodes.
+            node_output_shape: The op node's output tensor shape.
+            node_output_dtype: The op node's output tensor dtype.
+        """
+        buddy_node = AddOp()
+        buddy_node._name = node_name
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        for child in node_users:
+            buddy_node.add_children(child)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
