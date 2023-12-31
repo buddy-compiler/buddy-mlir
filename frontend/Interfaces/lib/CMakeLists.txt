@@ -65,3 +65,36 @@ SET_TARGET_PROPERTIES(BuddyLibDAP PROPERTIES
   LINKER_LANGUAGE CXX
   ARCHIVE_OUTPUT_DIRECTORY ${LIBRARY_OUTPUT_DIRECTORY}
   )
+
+  add_custom_command(OUTPUT DAPVectorization.o
+  COMMAND cat ${CMAKE_CURRENT_SOURCE_DIR}/DAP.mlir |
+          sed 's/buddy_fir/buddy_fir_vectorization/' |
+          sed 's/buddy_iir/buddy_iir_vectorization/' |
+          sed 's/buddy_biquad/buddy_biquad_vectorization/' |
+          ${CMAKE_BINARY_DIR}/bin/buddy-opt
+              -vectorize-dap
+              -convert-linalg-to-affine-loops
+              -arith-expand
+              -lower-affine
+              -convert-scf-to-cf
+              -convert-math-to-llvm
+              -convert-vector-to-llvm
+              -finalize-memref-to-llvm
+              -llvm-request-c-wrappers
+              -convert-func-to-llvm
+              -reconcile-unrealized-casts | 
+          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_MLIR_BINARY_DIR}/llc 
+              -mtriple=${BUDDY_TARGET_TRIPLE}
+              -mattr=${BUDDY_OPT_ATTR}
+              -filetype=obj
+              -o ${CMAKE_CURRENT_BINARY_DIR}/DAPVectorization.o
+  DEPENDS buddy-opt
+  )
+
+add_library(BuddyLibDAPVectorization STATIC DAPVectorization.o)
+
+SET_TARGET_PROPERTIES(BuddyLibDAPVectorization PROPERTIES
+  LINKER_LANGUAGE CXX
+  ARCHIVE_OUTPUT_DIRECTORY ${LIBRARY_OUTPUT_DIRECTORY}
+  )

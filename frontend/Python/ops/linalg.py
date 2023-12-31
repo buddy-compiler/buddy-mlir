@@ -1943,7 +1943,7 @@ def param_extract(
     """
     Extract param from packed params.
 
-    Note: This function, extract slice from packed params tensor, and expand
+    Note: This function extract slice from packed params tensor, and expand
     shape by param node shape.
     Args:
         node: Containing information from the input graph node.

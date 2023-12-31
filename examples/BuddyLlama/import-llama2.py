@@ -51,13 +51,6 @@ dynamo_compiler = DynamoCompiler(
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
     data = torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
-    print(model(data))
-    model_opt = torch.compile(model, backend=dynamo_compiler._compile_fx)
-    print(model_opt(data), flush=True)
-    start = time.time()
-    print(model_opt(data))
-    end = time.time()
-    print(end - start, flush=True)
     graphs = dynamo_compiler.importer(model, data)
 
 assert len(graphs) == 1
