@@ -13,11 +13,7 @@ class TestModule(torch.nn.Module):
         self.conv = torch.nn.Conv2d(3, 255, (5, 5), 3, bias=False)
 
     def forward(self, b, c):
-        return torch.mm(b, c)
-        if not torch.nn.functional.silu(b)[0][0]:
-            return torch.mm(b, c)
-        else:
-            return torch.add(b, c)
+        return torch.add(b, c)
 
 # test graph break
 model = TestModule()
