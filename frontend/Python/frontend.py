@@ -65,6 +65,7 @@ class DynamoCompiler:
         self._aot_autograd_decomposition = aot_autograd_decomposition
         self._imported_graphs = []
         self._ops_registry = {}
+        self._imported_params = {}
         # self._ops_registry.update(math_ops_registry)
         # self._ops_registry.update(linalg_ops_registry)
         # self._ops_registry.update(tosa_ops_registry)
@@ -75,6 +76,11 @@ class DynamoCompiler:
     def imported_graphs(self):
         """Returns the imported buddy graphs after compilation."""
         return self._imported_graphs
+    
+    @property
+    def imported_params(self):
+        """Returns the imported model params after compilation."""
+        return self._imported_params
 
     def torch_dtype_to_str(self, dtype):
         match dtype:
@@ -163,6 +169,7 @@ class DynamoCompiler:
                     )
                 graph.add_node(buddy_node)
             self._imported_graphs.append(graph)
+            self._imported_params[graph] = params_flat
             return graph.dynamo_run()
 
         params = {

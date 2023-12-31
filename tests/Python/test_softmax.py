@@ -6,7 +6,7 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 from torch._functorch.aot_autograd import aot_autograd_decompositions
 
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
+from buddy.compiler.ops import linalg
 
 
 def foo(x):
@@ -16,7 +16,7 @@ def foo(x):
 in1 = torch.ones([13, 13], dtype=torch.float32)
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
+    primary_registry=linalg.ops_registry,
     aot_autograd_decomposition=aot_autograd_decompositions,
 )
 

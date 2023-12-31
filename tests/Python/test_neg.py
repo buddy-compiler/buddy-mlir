@@ -31,7 +31,7 @@ print(graph._imported_module)
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = tensor.empty
-# CHECK: %{{.*}} = linalg.generic
+# CHECK: %{{.*}} = linalg.negf
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

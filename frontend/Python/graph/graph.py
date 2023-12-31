@@ -215,8 +215,7 @@ class Graph:
         """
         Compile graph from torch fx graph to llvm ir.
         """
-        self.lower_to_top_level_ir(True)
-        print(self._imported_module, flush=True)
+        self.lower_to_top_level_ir()
         self.lower_to_llvm_ir()
 
     def dynamo_run(self):
