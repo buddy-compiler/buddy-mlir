@@ -39,6 +39,7 @@ class Tensordtype(Enum):
     """
     Enum class for declare tensor dtype.
     """
+
     Int32 = "int32"
     Int64 = "int64"
     Float32 = "float32"
@@ -49,6 +50,7 @@ class TensorMeta:
     """
     Store tensor's shape and dtype, overlook tensor's raw data.
     """
+
     def __init__(self, shape, dtype) -> None:
         self.shape = shape
         self.dtype = dtype

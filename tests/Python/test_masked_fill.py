@@ -22,10 +22,8 @@ dynamo_compiler = DynamoCompiler(
     aot_autograd_decomposition=aot_autograd_decompositions,
 )
 
-graphs = dynamo_compiler.importer(
-    foo, in1, in2, in3
-)
-assert len(graphs)==1
+graphs = dynamo_compiler.importer(foo, in1, in2, in3)
+assert len(graphs) == 1
 graph = graphs[0]
 graph.lower_to_top_level_ir()
 print(graph._imported_module)

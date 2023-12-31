@@ -26,6 +26,7 @@ import mlir.ir as ir
 
 from ..graph import Tensordtype
 
+
 def mlir_element_type_get(type_name):
     """
     Get the element type base on type_name.
@@ -37,6 +38,7 @@ def mlir_element_type_get(type_name):
             return ir.IntegerType.get_signless(64)
         case Tensordtype.Bool:
             return ir.IntegerType.get_signless(1)
+
 
 def mlir_element_attr_get(type_name, value):
     """

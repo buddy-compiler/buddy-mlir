@@ -57,12 +57,10 @@ with torch.no_grad():
     start = time.time()
     print(model_opt(data))
     end = time.time()
-    print(end-start, flush=True)
-    graphs = dynamo_compiler.importer(
-        model, data
-    )
+    print(end - start, flush=True)
+    graphs = dynamo_compiler.importer(model, data)
 
-assert len(graphs)==1
+assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
 graph.lower_to_top_level_ir(True)

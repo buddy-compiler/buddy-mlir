@@ -258,6 +258,7 @@ class ArangeOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class UnsqueezeOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -299,6 +300,7 @@ class UnsqueezeOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class ViewOp(Op):
     def __init__(self) -> None:
@@ -342,6 +344,7 @@ class ViewOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class EmbeddingOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -384,6 +387,7 @@ class EmbeddingOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class OnesOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -406,7 +410,7 @@ class OnesOp(Op):
         Create ones node.
         Args:
             node_name: The unique name of op node.
-            node_input: Ones node should have only one input to express output 
+            node_input: Ones node should have only one input to express output
             shape.
             node_users: The op node's successor nodes.
             node_output_shape: The op node's output tensor shape.
@@ -425,6 +429,7 @@ class OnesOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class FullOp(Op):
     def __init__(self) -> None:
@@ -468,6 +473,7 @@ class FullOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class LessthanOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -508,6 +514,7 @@ class LessthanOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class MaskedFillOp(Op):
     def __init__(self) -> None:
@@ -551,6 +558,7 @@ class MaskedFillOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class SliceOp(Op):
     def __init__(self) -> None:
@@ -596,6 +604,7 @@ class SliceOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class ExpandOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -638,6 +647,7 @@ class ExpandOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class ToCopyOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -678,6 +688,7 @@ class ToCopyOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class RsubOp(Op):
     def __init__(self) -> None:
@@ -721,6 +732,7 @@ class RsubOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class PowOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -762,6 +774,7 @@ class PowOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class MeanOp(Op):
     def __init__(self) -> None:
@@ -806,6 +819,7 @@ class MeanOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class RsqrtOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -846,6 +860,7 @@ class RsqrtOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class MulOp(Op):
     def __init__(self) -> None:
@@ -889,6 +904,7 @@ class MulOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class TransposeOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -929,6 +945,7 @@ class TransposeOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class TransposeSpecificDimOp(Op):
     def __init__(self) -> None:
@@ -973,6 +990,7 @@ class TransposeSpecificDimOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class IndexOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -1015,6 +1033,7 @@ class IndexOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class NegOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -1055,6 +1074,7 @@ class NegOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class CatOp(Op):
     def __init__(self) -> None:
@@ -1098,6 +1118,7 @@ class CatOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class SqueezeOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -1139,6 +1160,7 @@ class SqueezeOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class BatchMatmulOp(Op):
     def __init__(self) -> None:
@@ -1182,6 +1204,7 @@ class BatchMatmulOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class DivOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -1222,6 +1245,7 @@ class DivOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class SoftmaxOp(Op):
     def __init__(self) -> None:
@@ -1266,6 +1290,7 @@ class SoftmaxOp(Op):
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
+
 class CloneOp(Op):
     def __init__(self) -> None:
         self._name = None
@@ -1306,6 +1331,7 @@ class CloneOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class SiluOp(Op):
     def __init__(self) -> None:
@@ -1348,6 +1374,7 @@ class SiluOp(Op):
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
+
 
 class AddOp(Op):
     def __init__(self) -> None:

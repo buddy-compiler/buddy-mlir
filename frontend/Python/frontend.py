@@ -33,6 +33,7 @@ from .ops.linalg import ops_registry as linalg_ops_registry
 from .graph import Graph, Tensordtype, TensorMeta
 from .frontend_ops_map import torch_ops_map
 
+
 class DynamoCompiler:
     """
     Dynamo Compiler is one of the frontends of Buddy Compiler.
@@ -76,7 +77,7 @@ class DynamoCompiler:
     def imported_graphs(self):
         """Returns the imported buddy graphs after compilation."""
         return self._imported_graphs
-    
+
     @property
     def imported_params(self):
         """Returns the imported model params after compilation."""
@@ -139,8 +140,7 @@ class DynamoCompiler:
                     )
                 elif node.op == "output":
                     buddy_node = torch_ops_map[node.op].fx_create_node(
-                        node.name,
-                        node.args
+                        node.name, node.args
                     )
                 elif node.target is operator.getitem:
                     print(str(node.target))
