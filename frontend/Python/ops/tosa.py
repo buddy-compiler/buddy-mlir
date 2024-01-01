@@ -25,6 +25,7 @@ from typing import Dict, List, Tuple, Union
 import mlir.ir as ir
 from mlir.dialects import tensor, tosa
 
+from ..graph import AddOp
 
 def _normalize_binary_operator_shape(shp1, shp2):
     """Normalize the shape of two input tensors according to the broadcasting

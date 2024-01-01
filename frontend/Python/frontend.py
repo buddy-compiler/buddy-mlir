@@ -27,8 +27,6 @@ import torch._dynamo as dynamo
 from torch._functorch.aot_autograd import aot_module_simplified
 import torch.utils._pytree as pytree
 
-from .ops.math import ops_registry as math_ops_registry
-from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.linalg import ops_registry as linalg_ops_registry
 from .graph import Graph, Tensordtype, TensorMeta
 from .frontend_ops_map import torch_ops_map
