@@ -28,15 +28,9 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tensor.empty
+# CHECK: %{{.*}} = arith.constant
 # CHECK: %{{.*}} = linalg.generic
-# CHECK: %{{.*}} = linalg.generic
-# CHECK: %{{.*}} = tensor.empty
-# CHECK: %{{.*}} = linalg.generic
-# CHECK: %{{.*}} = tensor.empty
-# CHECK: %{{.*}} = linalg.generic
-# CHECK: %{{.*}} = linalg.generic
-# CHECK: %{{.*}} = tensor.empty
+# CHECK: %{{.*}} = tensor.empty()
 # CHECK: %{{.*}} = linalg.generic
 # CHECK: return %{{.*}}
 # CHECK: }
