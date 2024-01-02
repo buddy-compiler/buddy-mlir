@@ -12,6 +12,7 @@ We recommend you to use anaconda3 to create python virtual environment. You shou
 $ conda activate <your virtual environment name>
 $ cd buddy-mlir
 $ pip install -r requirements.txt
+$ conda install pybind11 -c conda-forge
 ```
 
 3. LLaMA2 model convert to HuggingFace format
