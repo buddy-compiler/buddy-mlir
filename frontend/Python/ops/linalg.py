@@ -1483,7 +1483,7 @@ def batch_matmul_op(
     element = mlir_element_attr_get(dtype, 0)
     attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
     zero_fill = arith.ConstantOp(tensor_type, attr).result
-    op = linalg.batch_matmul(input1, input2, outs=[zero_fill.result])
+    op = linalg.batch_matmul(input1, input2, outs=[zero_fill])
 
     return op
 
