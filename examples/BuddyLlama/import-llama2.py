@@ -20,8 +20,8 @@
 
 import os
 
-import jax
-import jax.numpy as jnp
+# import jax
+# import jax.numpy as jnp
 
 import numpy
 import torch
@@ -35,7 +35,7 @@ from buddy.compiler.ops import tosa
 
 # Retrieve the LLaMA model path from environment variables.
 model_path = os.environ.get("LLAMA_MODEL_PATH")
-# model_path = "/root/llama/vicuna-7b"
+model_path = "/Users/plct/PLCT/limeng/llama-2-7b-chat-hf"
 if model_path is None:
     raise EnvironmentError(
         "The environment variable 'LLAMA_MODEL_PATH' is not set or is invalid."
@@ -44,12 +44,10 @@ if model_path is None:
 # Initialize the tokenizer and model from the specified model path.
 tokenizer = LlamaTokenizer.from_pretrained(model_path)
 model = LlamaForCausalLM.from_pretrained(model_path, torchscript=True)
-<<<<<<< HEAD
 model = model.to(dtype=torch.bfloat16)
 # model = model.to(dtype=torch.bfloat16,device="cpu")
-=======
+
 model.config.use_cache = False
->>>>>>> 1ded040dbb958f368c8b956bbaf20235f3cc8398
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
@@ -58,16 +56,10 @@ dynamo_compiler = DynamoCompiler(
 )
 
 # Import the model into MLIR module and parameters.
-<<<<<<< HEAD
-gm, params = dynamo_compiler.importer(
-    model, torch.tensor([[1 for i in range(80)]], dtype=torch.int64)
-)
-=======
 with torch.no_grad():
     gm, params = dynamo_compiler.importer(
         model, torch.tensor([[1 for _ in range(40)]], dtype=torch.int64)
     )
->>>>>>> 1ded040dbb958f368c8b956bbaf20235f3cc8398
 
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 # Write the MLIR module to the file.
@@ -83,7 +75,6 @@ with open(os.path.join(path_prefix, "llama.mlir"), "w") as module_file:
 all_param = torch.cat(
     [param.detach().reshape([-1]) for param in params]
 )
-<<<<<<< HEAD
 
 torch.save(all_param, os.path.join(os.path.dirname(os.path.abspath(__file__)), "arg0.data"))
 
@@ -91,6 +82,4 @@ torch.save(all_param, os.path.join(os.path.dirname(os.path.abspath(__file__)), "
 # all_param = jnp.concatenate([jnp.frombuffer(param.detach().cpu().numpy().tobytes(), dtype=jnp.bfloat16).reshape([-1]) for param in params])
 # all_param.tofile(os.path.dirname(os.path.abspath(__file__)) + "/arg1.data")
 
-=======
-all_param.tofile(os.path.join(path_prefix, "arg0.data"))
->>>>>>> 1ded040dbb958f368c8b956bbaf20235f3cc8398
+# all_param.tofile(os.path.join(path_prefix, "arg0.data"))

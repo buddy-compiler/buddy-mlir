@@ -16,7 +16,7 @@ else ifeq ($(shell uname),Darwin)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.dylib
 MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
 MLIR_ASYNC_RUNTIME := ./../llvm/build/lib/libmlir_async_runtime.dylib
-MTRIPLE := x86_64-apple-darwin
+MTRIPLE := arm64-apple-darwin
 endif
 
 
@@ -57,11 +57,11 @@ test:
 	${MLIR_TRANSLATE} --mlir-to-llvmir | \
 	${LLVM_AS} | \
 	${LLC} -mtriple=${MTRIPLE} -filetype=obj -o test.o
-	g++ test.o llama-main.cpp -I/root/buddy-mlir/frontend/Interfaces -lmlir_runner_utils -lmlir_c_runner_utils -lomp -o test
+	g++ test.o llama-main.cpp -I/Users/plct/PLCT/limeng/buddy-mlir/frontend/Interfaces -lmlir_runner_utils -lmlir_c_runner_utils -lomp -o test
 
 
 lower:
-	@${MLIR_OPT} test.mlir -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	@${MLIR_OPT} llama.mlir -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${BUDDY_OPT} \
 		-arith-expand \
 		-eliminate-empty-tensors \
