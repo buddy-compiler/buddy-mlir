@@ -52,4 +52,5 @@ torch_ops_map = {
     "clone.default": CloneOp,
     "silu.default": SiluOp,
     "add.Tensor": AddOp,
+    "addmm.default": AddMMOp,
 }

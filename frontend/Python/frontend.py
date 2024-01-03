@@ -28,6 +28,7 @@ from torch._functorch.aot_autograd import aot_module_simplified
 import torch.utils._pytree as pytree
 
 from .ops.linalg import ops_registry as linalg_ops_registry
+from .ops.tosa import ops_registry as tosa_ops_registry
 from .graph import Graph, Tensordtype, TensorMeta
 from .frontend_ops_map import torch_ops_map
 
@@ -67,9 +68,9 @@ class DynamoCompiler:
         self._imported_params = {}
         # self._ops_registry.update(math_ops_registry)
         # self._ops_registry.update(linalg_ops_registry)
-        # self._ops_registry.update(tosa_ops_registry)
         # self._ops_registry.update(primary_registry)
         self._ops_registry.update(linalg_ops_registry)
+        self._ops_registry.update(tosa_ops_registry)
 
     @property
     def imported_graphs(self):

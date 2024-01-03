@@ -201,7 +201,7 @@ def bmm_op(node, symbol_table) -> ir.Operation:
     return op
 
 
-def add_op(node, symbol_table):
+def add_op(node: AddOp, symbol_table):
     """
     Import tensor addition operation.
     From PyTorch `aten.add.Tensor` operator to MLIR TOSA `add` operation.
@@ -885,7 +885,7 @@ ops_registry = {
     "exp.default": exp_op,
     "expand.default": expand_op,
     "var_mean.correction": var_mean_op,
-    "addmm.default": addmm_op,
+    "AddMMOp": addmm_op,
     "reshape.default": reshape_op,
     "view.default": reshape_op,
     "select.int": select_op,
