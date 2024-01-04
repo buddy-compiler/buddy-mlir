@@ -43,10 +43,15 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
 
     set(LLVM_MLIR_BINARY_DIR ${MLIR_DIR}/../../../bin)
     set(LLVM_MLIR_LIBRARY_DIR ${MLIR_DIR}/../../../lib)
-    set(LLVM_MLIR_SOURCE_DIR ${MLIR_DIR}/../../../../mlir)
     set(LLVM_PROJECT_BUILD_DIR ${MLIR_DIR}/../../../)
-    set(LLVM_PROJECT_SOURCE_DIR ${MLIR_DIR}/../../../../)
 
+    if(NOT DEFINED LLVM_PROJECT_SOURCE_DIR)
+      set(LLVM_MLIR_SOURCE_DIR ${MLIR_DIR}/../../../../mlir)
+      set(LLVM_PROJECT_SOURCE_DIR ${MLIR_DIR}/../../../../)
+    else()
+      set(LLVM_MLIR_SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}/mlir)
+      message(STATUS "Using specified LLVM source dir: ${LLVM_PROJECT_SOURCE_DIR}")
+    endif()
     list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
     list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
 
