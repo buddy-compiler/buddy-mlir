@@ -1,7 +1,6 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler

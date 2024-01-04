@@ -133,7 +133,7 @@ class DynamoCompiler:
                     buddy_node = torch_ops_map[node.op].fx_create_node(
                         node.name,
                         node.args,
-                        node.users.keys(),
+                        list(node.users.keys()),
                         node.meta["tensor_meta"].shape,
                         node_dtype,
                     )
@@ -148,7 +148,7 @@ class DynamoCompiler:
                     buddy_node = torch_ops_map[str(node.target.__name__)].fx_create_node(
                         node.name,
                         node.args,
-                        node.users.keys(),
+                        list(node.users.keys()),
                         node.meta["tensor_meta"].shape,
                         node_dtype,
                     )
@@ -157,21 +157,20 @@ class DynamoCompiler:
                     val = node.meta.get("val")
                     num_returns = len(node.target._schema.returns)
                     if num_returns == 1:
-                        node_torch_dtype = tensor_meta.dtype
+                        node_dtype = self.torch_dtype_to_str(str(tensor_meta.dtype))
                         node_shape = tensor_meta.shape
                     elif num_returns > 1:
-                        node_torch_dtype = tuple([val_item.dtype for val_item in val])
+                        node_dtype = tuple([self.torch_dtype_to_str(val_item.dtype) for val_item in val])
                         node_shape = tuple([val_item.shape for val_item in val])
                     else:
                         raise RuntimeError("Zero returns is not supported.")
                         
-                    node_dtype = self.torch_dtype_to_str(node_torch_dtype)
                     buddy_node = torch_ops_map[
                         node.target.__name__
                     ].fx_create_node(
                         node.name,
                         node.args,
-                        node.users.keys(),
+                        list(node.users.keys()),
                         node_shape,
                         node_dtype,
                         node_kwargs=node.kwargs

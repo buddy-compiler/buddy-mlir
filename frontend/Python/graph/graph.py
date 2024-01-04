@@ -155,6 +155,8 @@ class Graph:
                     np_type = np.dtype(np.int64)
                 case "f32":
                     np_type = np.dtype(np.float32)
+                case _:
+                    raise NotImplementedError(f"Unsupported dtype {dtype}")
             self._output_memref.append(
                 ctypes.pointer(
                     ctypes.pointer(
@@ -269,6 +271,7 @@ class Graph:
                 data_ptr = cast_c_ptr(outdata_ptr, output_ptr[0])
                 output_tensor.append(rt.ranked_memref_to_numpy(data_ptr))
                 outdata_ptr = move_c_ptr(outdata_ptr, output_ptr[0])
+            
             return [torch.from_numpy(tensor) for tensor in output_tensor]
 
         return exec_buddy_graph

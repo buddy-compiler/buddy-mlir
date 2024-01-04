@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Tuple
 
 import torch
 
@@ -57,8 +57,8 @@ class Op:
     def fx_create_node(
         cls,
         node_name: str,
-        node_input: torch.fx.Node | str,
-        node_users: str,
+        node_input: Tuple,
+        node_users: List[torch.fx.Node],
         node_output_shape: torch.Size,
         node_output_dtype: torch.dtype,
         node_kwargs: Optional[Dict] = None,

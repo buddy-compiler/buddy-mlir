@@ -20,8 +20,11 @@ dynamo_compiler = DynamoCompiler(
     aot_autograd_decomposition=inductor_decomp,
 )
 
-foo_mlir = dynamo.optimize(dynamo_compiler)(foo)
-foo_mlir(x)
+graphs = dynamo_compiler.importer(foo, x)
+assert len(graphs) == 1
+graph = graphs[0]
+graph.lower_to_top_level_ir()
+print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
@@ -29,4 +32,3 @@ foo_mlir(x)
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }
-print(dynamo_compiler.imported_module)
