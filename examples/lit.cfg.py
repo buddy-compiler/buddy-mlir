@@ -37,6 +37,7 @@ config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
 # directories.
 config.excludes = [
     'BuddyLlama',
+    'BuddyBert',
     'ConvOpt',
     'DAPDialect',
     'DIPDialect',
