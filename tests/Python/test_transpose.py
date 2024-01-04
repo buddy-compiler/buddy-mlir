@@ -30,8 +30,8 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tensor.empty()
-# CHECK: %{{.*}} = linalg.transpose
+# CHECK: %{{.*}} = "tosa.const"()
+# CHECK: %{{.*}} = tosa.transpose
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }
