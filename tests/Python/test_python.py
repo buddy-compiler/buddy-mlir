@@ -10,7 +10,6 @@ from buddy_mlir.dialects import (
 )
 
 with Context():
-    gemmini.register_dialect()
     mod = Module.parse("""
         %0 = arith.constant 0 : i8
         %1 = arith.constant 1 : i8

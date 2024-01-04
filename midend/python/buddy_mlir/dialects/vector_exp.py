@@ -15,4 +15,3 @@
 # ===---------------------------------------------------------------------------
 
 from ._vector_exp_ops_gen import *
-from .._mlir_libs._vector_expDialects.vector_exp import *

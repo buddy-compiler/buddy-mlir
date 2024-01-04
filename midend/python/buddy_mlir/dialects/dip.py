@@ -15,4 +15,3 @@
 # ===---------------------------------------------------------------------------
 
 from ._dip_ops_gen import *
-from .._mlir_libs._dipDialects.dip import *

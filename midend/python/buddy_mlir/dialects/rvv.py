@@ -15,4 +15,3 @@
 # ===---------------------------------------------------------------------------
 
 from ._rvv_ops_gen import *
-from .._mlir_libs._rvvDialects.rvv import *

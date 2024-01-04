@@ -1,4 +1,4 @@
-//===------ Registration.cpp - C Interface for MLIR Registration ----------===//
+//===- RegisterEverything.cpp - API to register all dialects/passes -------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,20 +14,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buddy-mlir-c/Registration.h"
+#include "buddy-mlir-c/RegisterEverything.h"
+#include "mlir/Bindings/Python/PybindAdaptors.h"
 
-#include "mlir/CAPI/IR.h"
-#include "mlir/Conversion/Passes.h"
-#include "mlir/Dialect/Linalg/Passes.h"
-#include "mlir/Transforms/Passes.h"
-#include "buddy-mlir-c/InitAll.h"
+PYBIND11_MODULE(_mlirRegisterEverything, m) {
+  m.doc() = "Buddy MLIR All Dialects, Translations and Passes Registration";
 
-void buddyMlirRegisterAllDialects(MlirContext context) {
-  mlir::DialectRegistry registry;
-  mlir::buddy::registerAllDialects(registry);
+  m.def("register_dialects", [](MlirDialectRegistry registry) {
+    buddyRegisterAllDialects(registry);
+  });
+  m.def("register_llvm_translations",
+        [](MlirContext context) { buddyRegisterAllTranslations(context); });
 
-  unwrap(context)->appendDialectRegistry(registry);
-  unwrap(context)->loadAllAvailableDialects();
+  // Register all passes on load.
+  buddyRegisterAllPasses();
 }
-
-void buddyMlirRegisterAllPasses() { mlir::buddy::registerAllPasses(); }

@@ -15,4 +15,3 @@
 # ===---------------------------------------------------------------------------
 
 from ._gemmini_ops_gen import *
-from .._mlir_libs._gemminiDialects.gemmini import *

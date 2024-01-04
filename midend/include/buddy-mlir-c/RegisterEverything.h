@@ -1,4 +1,4 @@
-//===----------- Registration.h - Register all dialects and passes --------===//
+//===------- RegisterEverything.h - Register all dialects and passes ------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef BUDDYMLIR_C_REGISTRATION_H
-#define BUDDYMLIR_C_REGISTRATION_H
+#ifndef BUDDYMLIR_C_REGISTEREVERYTHING_H
+#define BUDDYMLIR_C_REGISTEREVERYTHING_H
 
 #include "mlir-c/IR.h"
 #include "mlir-c/Support.h"
@@ -24,16 +24,17 @@
 extern "C" {
 #endif
 
-/** Registers all dialects with a context.
- * This is needed before creating IR for these Dialects.
- */
-MLIR_CAPI_EXPORTED void buddyMlirRegisterAllDialects(MlirContext context);
+// Registers all dialects with a context.
+MLIR_CAPI_EXPORTED void buddyRegisterAllDialects(MlirDialectRegistry registry);
 
-/** Registers all passes for symbolic access with the global registry. */
-MLIR_CAPI_EXPORTED void buddyMlirRegisterAllPasses();
+// Register all translations to LLVM IR for dialects that can support it.
+MLIR_CAPI_EXPORTED void buddyRegisterAllTranslations(MlirContext context);
+
+// Registers all passes for symbolic access with the global registry.
+MLIR_CAPI_EXPORTED void buddyRegisterAllPasses();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // BUDDYMLIR_C_REGISTRATION_H
+#endif // BUDDYMLIR_C_REGISTEREVERYTHING_H

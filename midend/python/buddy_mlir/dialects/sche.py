@@ -15,4 +15,3 @@
 # ===---------------------------------------------------------------------------
 
 from ._sche_ops_gen import *
-from .._mlir_libs._scheDialects.sche import *
