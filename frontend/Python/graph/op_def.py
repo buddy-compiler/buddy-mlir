@@ -243,12 +243,6 @@ class TransposeOp(Op):
         self._op_type = OpType.ReshapeType
 
 
-class TransposeSpecificDimOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ReshapeType
-
-
 class IndexOp(Op):
     def __init__(self) -> None:
         super().__init__()

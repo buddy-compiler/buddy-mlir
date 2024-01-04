@@ -850,7 +850,7 @@ def t_op(node: TOp, symbol_table):
     assert input1 is not None
 
     input_shape = list(ir.RankedTensorType(input1.type).shape)
-    output_shape = list(node.meta["tensor_meta"].shape)
+    output_shape = list(node.tensor_meta["shape"])
     assert len(input_shape) == 2, "Input tensor must be 2D"
     perm_const_op = tosa.ConstOp(
         ir.DenseElementsAttr.get(memoryview(array.array("i", [1, 0])))
@@ -881,7 +881,7 @@ def transpose_op(node: TransposeOp, symbol_table):
     temp = perm_list[dim1]
     perm_list[dim1] = perm_list[dim2]
     perm_list[dim2] = temp
-    output_shape = list(node.meta["tensor_meta"].shape)
+    output_shape = list(node.tensor_meta["shape"])
     perm_const_op = tosa.ConstOp(
         ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
     )

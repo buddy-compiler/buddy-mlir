@@ -1092,7 +1092,7 @@ def mul_op(
 
 
 def t_op(
-    node: TransposeOp,
+    node: TOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
@@ -1124,7 +1124,7 @@ def t_op(
 
 
 def matmul_op(
-    node: Op,
+    node: MatmulOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
@@ -1158,7 +1158,7 @@ def matmul_op(
 
 
 def transpose_op(
-    node: TransposeSpecificDimOp,
+    node: TransposeOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
@@ -1838,7 +1838,7 @@ ops_registry = {
     "MeanOp": mean_op,
     "RsqrtOp": rsqrt_op,
     "MulOp": mul_op,
-    "TransposeOp": t_op,
+    "TOp": t_op,
     "TransposeSpecificDimOp": transpose_op,
     "IndexOp": index_op,
     "NegOp": neg_op,
