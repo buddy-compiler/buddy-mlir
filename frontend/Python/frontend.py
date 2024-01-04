@@ -29,6 +29,7 @@ import torch.utils._pytree as pytree
 
 from .ops.linalg import ops_registry as linalg_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
+from .ops.math import ops_registry as math_ops_registry
 from .graph import Graph, Tensordtype, TensorMeta
 from .frontend_ops_map import torch_ops_map
 
@@ -40,7 +41,7 @@ class DynamoCompiler:
     which converts an FX Graph into an equivalent MLIR module.
 
     Attributes:
-        imported_module: The imported MLIR module after compilation.
+        imported_graphs: The imported graphs.
         imported_params: The imported parameters from the model.
     """
 
@@ -57,7 +58,7 @@ class DynamoCompiler:
             func_name (str, optional): The function name to be used.
             primary_registry (dict, optional): The primary operations registry.
             aot_autograd_decomposition (Optional[dict], optional):
-                The ahead-of-time autograd decomposition dictionary.
+            The ahead-of-time autograd decomposition dictionary.
         """
         if primary_registry is None:
             primary_registry = {}
@@ -66,11 +67,10 @@ class DynamoCompiler:
         self._imported_graphs = []
         self._ops_registry = {}
         self._imported_params = {}
-        # self._ops_registry.update(math_ops_registry)
-        # self._ops_registry.update(linalg_ops_registry)
-        # self._ops_registry.update(primary_registry)
+        self._ops_registry.update(math_ops_registry)
         self._ops_registry.update(linalg_ops_registry)
         self._ops_registry.update(tosa_ops_registry)
+        self._ops_registry.update(primary_registry)
 
     @property
     def imported_graphs(self):
@@ -142,11 +142,10 @@ class DynamoCompiler:
                         node.name, node.args
                     )
                 elif node.target is operator.getitem:
-                    print(str(node.target))
                     node_dtype = self.torch_dtype_to_str(
                         str(node.meta["tensor_meta"].dtype)
                     )
-                    buddy_node = torch_ops_map[str(node.target)].fx_create_node(
+                    buddy_node = torch_ops_map[str(node.target.__name__)].fx_create_node(
                         node.name,
                         node.args,
                         node.users.keys(),
@@ -154,17 +153,28 @@ class DynamoCompiler:
                         node_dtype,
                     )
                 else:
-                    node_dtype = self.torch_dtype_to_str(
-                        str(node.meta["tensor_meta"].dtype)
-                    )
+                    tensor_meta = node.meta.get("tensor_meta")
+                    val = node.meta.get("val")
+                    num_returns = len(node.target._schema.returns)
+                    if num_returns == 1:
+                        node_torch_dtype = tensor_meta.dtype
+                        node_shape = tensor_meta.shape
+                    elif num_returns > 1:
+                        node_torch_dtype = tuple([val_item.dtype for val_item in val])
+                        node_shape = tuple([val_item.shape for val_item in val])
+                    else:
+                        raise RuntimeError("Zero returns is not supported.")
+                        
+                    node_dtype = self.torch_dtype_to_str(node_torch_dtype)
                     buddy_node = torch_ops_map[
                         node.target.__name__
                     ].fx_create_node(
                         node.name,
                         node.args,
                         node.users.keys(),
-                        node.meta["tensor_meta"].shape,
+                        node_shape,
                         node_dtype,
+                        node_kwargs=node.kwargs
                     )
                 graph.add_node(buddy_node)
             self._imported_graphs.append(graph)

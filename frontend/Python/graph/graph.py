@@ -176,6 +176,7 @@ class Graph:
         """
         if self._imported_module is None:
             self.lower_to_top_level_ir()
+
         with ir.Location.unknown(self._ctx):
             pm = PassManager("builtin.module")
             pm.add("func.func(tosa-to-linalg-named)")

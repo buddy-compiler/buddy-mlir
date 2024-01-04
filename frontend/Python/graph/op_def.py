@@ -1,4 +1,6 @@
 from enum import Enum
+from typing import Dict, Optional
+
 import torch
 
 
@@ -32,6 +34,7 @@ class Op:
     def __init__(self) -> None:
         self._name = None
         self._arguments = []
+        self._keyword_arguments = {}
         self._children = []
         self._parent = []
         self._tensor_meta = {}
@@ -58,12 +61,14 @@ class Op:
         node_users: str,
         node_output_shape: torch.Size,
         node_output_dtype: torch.dtype,
+        node_kwargs: Optional[Dict] = None,
     ):
         """
         Create an op node.
         Args:
             node_name: The unique name of op node.
             node_input: The op node's input.
+            node_kwargs: The op node's kwargs.
             node_users: The op node's successor nodes.
             node_output_shape: The op node's output tensor shape.
             node_output_dtype: The op node's output tensor dtype.
@@ -76,6 +81,10 @@ class Op:
                 buddy_node.add_parent(str(input_arg))
             else:
                 buddy_node.add_argument(input_arg)
+        
+        if node_kwargs is None:
+            node_kwargs = {} 
+        buddy_node._keyword_arguments.update(node_kwargs)
         for child in node_users:
             buddy_node.add_children(child)
         buddy_node._tensor_meta["shape"] = node_output_shape
@@ -85,6 +94,10 @@ class Op:
     @property
     def args(self):
         return self._arguments
+    
+    @property
+    def kwargs(self):
+        return self._keyword_arguments
 
     @property
     def name(self):
@@ -183,12 +196,6 @@ class MaskedFillOp(Op):
 
 
 class SliceOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ReshapeType
-
-
-class ExpandOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
@@ -326,20 +333,16 @@ class ConvertElementTypeOp(Op):
         self._op_type = OpType.ElementwiseType
 
 
-# TODO: which version of embedding should we use?
-# class EmbeddingOp(Op):
-#   def __init__(self) -> None:
-
-
 class ExpOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
 
 
-# TODO: which version of expand should we use?
-# class ExpandOp(Op):
-#   def __init__(self) -> None:
+class ExpandOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
 
 
 class PermuteOp(Op):
@@ -365,13 +368,25 @@ class SumDimOp(Op):
         super().__init__()
         self._op_type = OpType.ReduceType
 
-        
+
 class TanhOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
 
+
 class VarMeanOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReduceType
+
+
+class TOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+class ErfOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType

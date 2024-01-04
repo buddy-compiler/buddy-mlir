@@ -46,12 +46,16 @@ inputs = {
     "attention_mask": torch.tensor([[1 for _ in range(5)]], dtype=torch.int64),
 }
 with torch.no_grad():
-    module, params = dynamo_compiler.importer(model, **inputs)
+    graphs = dynamo_compiler.importer(model, **inputs)
 
+assert len(graphs) == 1
+graph = graphs[0]
+params = dynamo_compiler.imported_params[graph]
+graph.lower_to_top_level_ir(do_params_pack=True)
 current_path = os.path.dirname(os.path.abspath(__file__))
 
 with open(Path(current_path) / "bert.mlir", "w") as module_file:
-    module_file.write(str(module))
+    module_file.write(str(graph._imported_module))
 
 float32_param = np.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params[:-1]]

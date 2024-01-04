@@ -25,7 +25,8 @@ from typing import Dict, List, Tuple, Union
 import mlir.ir as ir
 from mlir.dialects import tensor, tosa
 
-from ..graph import AddOp
+from ..graph import AddOp, PermuteOp
+
 
 def _normalize_binary_operator_shape(shp1, shp2):
     """Normalize the shape of two input tensors according to the broadcasting
@@ -668,7 +669,7 @@ def var_mean_op(node, symbol_table):
     return var_op, mean_op
 
 
-def permute_op(node, symbol_table):
+def permute_op(node: PermuteOp, symbol_table):
     """
     Import the permute operation.
     From PyTorch `aten.permute.default` operator to MLIR TOSA `transpose`
@@ -821,8 +822,7 @@ def t_op(node, symbol_table):
     """
     assert len(node.args) == 1
     input1 = symbol_table.get((str(node.args[0]), 0))
-    if input1 is None:
-        return
+    assert input1 is not None
 
     input_shape = list(ir.RankedTensorType(input1.type).shape)
     output_shape = list(node.meta["tensor_meta"].shape)
@@ -872,28 +872,28 @@ def transpose_op(node, symbol_table):
 
 
 ops_registry = {
-    "add.Tensor": add_op,
-    "mul.Tensor": mul_op,
-    "sub.Tensor": sub_op,
-    "sum.dim_IntList": sum_op,
-    "tanh.default": tanh_op,
-    "amax.default": amax_op,
-    "rsqrt.default": rsqrt_op,
-    "bmm.default": bmm_op,
-    "clone.default": clone_op,
-    "div.Tensor": div_op,
-    "exp.default": exp_op,
-    "expand.default": expand_op,
-    "var_mean.correction": var_mean_op,
+    "AddOp": add_op,
+    "MulOp": mul_op,
+    "SubOp": sub_op,
+    "SumDimOp": sum_op,
+    "TanhOp": tanh_op,
+    "AmaxOp": amax_op,
+    "RsqrtOp": rsqrt_op,
+    "BatchMatmulOp": bmm_op,
+    "CloneOp": clone_op,
+    "DivOp": div_op,
+    "ExpOp": exp_op,
+    "ExpandOp": expand_op,
+    "VarMeanOp": var_mean_op,
     "AddMMOp": addmm_op,
-    "reshape.default": reshape_op,
-    "view.default": reshape_op,
-    "select.int": select_op,
-    "slice.Tensor": slice_op,
-    "embedding.default": embedding_op,
-    "convert_element_type.default": convert_element_type_op,
-    "permute.default": permute_op,
-    "unsqueeze.default": unsqueeze_op,
-    "t.default": t_op,
-    "transpose.int": transpose_op,
+    "ReshapeOp": reshape_op,
+    "ViewOp": reshape_op,
+    "SelectOp": select_op,
+    "SliceOp": slice_op,
+    "EmbeddingOp": embedding_op,
+    "ConvertElementTypeOp": convert_element_type_op,
+    "PermuteOp": permute_op,
+    "UnsqueezeOp": unsqueeze_op,
+    "TOp": t_op,
+    "TransposeOp": transpose_op,
 }

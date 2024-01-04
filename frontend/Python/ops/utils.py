@@ -18,10 +18,7 @@
 #
 # ===---------------------------------------------------------------------------
 
-import torch
-import array
-from typing import Dict, List, Tuple, Union
-
+from typing import Dict
 import mlir.ir as ir
 
 from ..graph import Tensordtype
@@ -51,3 +48,4 @@ def mlir_element_attr_get(type_name, value):
             return ir.IntegerAttr.get(ir.IntegerType.get_signless(64), value)
         case Tensordtype.Bool:
             return ir.IntegerAttr.get(ir.IntegerType.get_signless(1), value)
+
