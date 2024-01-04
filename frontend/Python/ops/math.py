@@ -28,5 +28,5 @@ def erf_op(node, symbol_table):
 
 
 ops_registry = {
-    "erf.default": erf_op,
+    "ErfOp": erf_op,
 }
