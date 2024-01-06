@@ -83,69 +83,6 @@ declare_mlir_dialect_python_bindings(
 
 set(PYTHON_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../lib/Bindings/Python")
 
-# declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.Bud.Pybind
-#   MODULE_NAME _budDialects
-#   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects.bud
-#   SOURCES
-#     Bindings/DialectBud.cpp
-#   EMBED_CAPI_LINK_LIBS
-#     BuddyMLIRCAPI
-# )
-
-# declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.DAP.Pybind
-#   MODULE_NAME _dapDialects
-#   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects.dap
-#   SOURCES
-#     Bindings/DialectDAP.cpp
-#   EMBED_CAPI_LINK_LIBS
-#     BuddyMLIRCAPI
-# )
-
-# declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.DIP.Pybind
-#   MODULE_NAME _dipDialects
-#   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects.dip
-#   SOURCES
-#     Bindings/DialectDIP.cpp
-#   EMBED_CAPI_LINK_LIBS
-#     BuddyMLIRCAPI
-# )
-
-# declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.Gemmini.Pybind
-#   MODULE_NAME _gemminiDialects
-#   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects.gemmini
-#   SOURCES
-#     Bindings/DialectGemmini.cpp
-#   EMBED_CAPI_LINK_LIBS
-#     BuddyMLIRCAPI
-# )
-
-# declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.RVV.Pybind
-#   MODULE_NAME _rvvDialects
-#   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects.rvv
-#   SOURCES
-#     Bindings/DialectRVV.cpp
-#   EMBED_CAPI_LINK_LIBS
-#     BuddyMLIRCAPI
-# )
-
-# declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.Sche.Pybind
-#   MODULE_NAME _scheDialects
-#   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects.sche
-#   SOURCES
-#     Bindings/DialectSche.cpp
-#   EMBED_CAPI_LINK_LIBS
-#     BuddyMLIRCAPI
-# )
-
-# declare_mlir_python_extension(BuddyMLIRPythonSources.Dialects.VectorExp.Pybind
-#   MODULE_NAME _vector_expDialects
-#   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects.vector_exp
-#   SOURCES
-#     Bindings/DialectVectorExp.cpp
-#   EMBED_CAPI_LINK_LIBS
-#     BuddyMLIRCAPI
-# )
-
 declare_mlir_python_extension(BuddyMLIRPythonSources.Extension
   MODULE_NAME _mlirRegisterEverything
   ROOT_DIR "${PYTHON_SOURCE_DIR}"

@@ -17,7 +17,7 @@
 #ifndef PYTHON_BINDINGS_DIP_OPS
 #define PYTHON_BINDINGS_DIP_OPS
 
-include "mlir/Bindings/Python/Attributes.td"
+// include "mlir/Bindings/Python/Attributes.td"
 include "DIP/DIPOps.td"
 
 #endif

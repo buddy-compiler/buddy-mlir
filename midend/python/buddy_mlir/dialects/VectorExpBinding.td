@@ -17,7 +17,7 @@
 #ifndef PYTHON_BINDINGS_VECTOREXP_OPS
 #define PYTHON_BINDINGS_VECTOREXP_OPS
 
-include "mlir/Bindings/Python/Attributes.td"
+// include "mlir/Bindings/Python/Attributes.td"
 include "VectorExp/VectorExpOps.td"
 
 #endif

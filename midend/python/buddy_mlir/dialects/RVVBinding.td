@@ -17,7 +17,7 @@
 #ifndef PYTHON_BINDINGS_RVV_OPS
 #define PYTHON_BINDINGS_RVV_OPS
 
-include "mlir/Bindings/Python/Attributes.td"
+// include "mlir/Bindings/Python/Attributes.td"
 include "RVV/RVV.td"
 
 #endif

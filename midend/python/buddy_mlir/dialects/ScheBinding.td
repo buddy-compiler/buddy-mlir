@@ -17,7 +17,7 @@
 #ifndef PYTHON_BINDINGS_SCHE_OPS
 #define PYTHON_BINDINGS_SCHE_OPS
 
-include "mlir/Bindings/Python/Attributes.td"
+// include "mlir/Bindings/Python/Attributes.td"
 include "Sche/ScheOps.td"
 
 #endif

@@ -17,7 +17,7 @@
 #ifndef PYTHON_BINDINGS_BUD_OPS
 #define PYTHON_BINDINGS_BUD_OPS
 
-include "mlir/Bindings/Python/Attributes.td"
+// include "mlir/Bindings/Python/Attributes.td"
 include "Bud/BudOps.td"
 
 #endif

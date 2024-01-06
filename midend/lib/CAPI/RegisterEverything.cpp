@@ -41,6 +41,7 @@ void registerBuddyToLLVMIRTranslation();
 void buddyRegisterAllDialects(MlirDialectRegistry registry) {
   // Register all Dialects from UPSTREAM MLIR
   mlir::registerAllDialects(*unwrap(registry));
+  mlir::registerAllExtensions(*unwrap(registry));
 
   // Register all Dialects from BUDDY MLIR
   mlir::buddy::registerAllDialects(*unwrap(registry));

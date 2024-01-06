@@ -17,7 +17,7 @@
 #ifndef PYTHON_BINDINGS_Gemmini_OPS
 #define PYTHON_BINDINGS_Gemmini_OPS
 
-include "mlir/Bindings/Python/Attributes.td"
+// include "mlir/Bindings/Python/Attributes.td"
 include "Gemmini/Gemmini.td"
 
 #endif
