@@ -27,16 +27,64 @@ returnsSpec
 	;
 
 valueDecls
-	: LeftBracket valueSpec (Comma valueSpec)* RightBracket
+	: LeftBracket valueDeclSpec (Comma valueDeclSpec)* RightBracket
 	;
 
-valueSpec
-	: tdValueSpec
-	| cppValueSpec
+valueDeclSpec
+	: tdValueDeclSpec
+	| cppValueDeclSpec
+	;
+
+tdValueDeclSpec
+	: tdValueKind Less tdTypeSpec (Comma tdTypeSpec)* Greater (identifier Assign tdValueSpec)?
 	;
 
 tdValueSpec
-	: tdValueKind Less tdTypeSpec (Comma tdTypeSpec)* Greater identifier?
+    : attrRef
+    | StringLiteral
+    | tensorLiteral
+    | expression
+    ;
+
+attrRef
+    : Dollar identifier Dot identifier
+    ;
+
+tensorLiteral
+    : LeftBracket (tensorLiteral (Comma tensorLiteral)*)? RightBracket
+    | SignedIntLiteral
+    | RealLiteral
+    ;
+
+expression
+    : term ( ( Plus | Minus ) term )*
+    ;
+
+term
+    : powerExpr ( (Star | Div | MOD) powerExpr )*
+    ;
+
+powerExpr
+    : unaryExpr ( StarStar unaryExpr )*
+    ;
+
+unaryExpr
+    : (Minus | Plus) ? primaryExpression
+    ;
+
+primaryExpression
+    : SignedIntLiteral
+    | RealLiteral
+    | parenSurroundedExpr
+    ;
+
+parenSurroundedExpr
+    : LeftParen expression RightParen
+    ;
+
+tdTypeSpec
+	: builtinType
+	| userDefineType
 	;
 
 tdValueKind
@@ -44,13 +92,8 @@ tdValueKind
 	| ATTRIBUTE_VALUE
 	;
 
-cppValueSpec
+cppValueDeclSpec
 	: CPP_VALUE Less cppTypeSpec (Comma cppTypeSpec)* Greater identifier?
-	;
-
-tdTypeSpec
-	: builtinType
-	| userDefineType
 	;
 
 builtinType

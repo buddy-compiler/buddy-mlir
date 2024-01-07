@@ -8,7 +8,11 @@ fragment UPPERCASE: [A-Z];
 
 fragment LOWERCASE: [a-z];
 
+fragment NOZERODIGIT: [1-9];
+
 fragment DIGIT: [0-9];
+
+// key words
 
 INPUTS: 'inputs';
 
@@ -36,11 +40,23 @@ FLOAT: 'float';
 
 TENSOR: 'tensor';
 
+// identifiers
+
 LexerRuleName: UPPERCASE (NONDIGIT | DIGIT)*;
 
 ParserRuleName: LOWERCASE (NONDIGIT | DIGIT)*;
 
+// literal
+
 StringLiteral: '\'' Schar* '\'';
+
+SignedIntLiteral: (Plus | Minus)? UnsignedIntLiteral;
+
+UnsignedIntLiteral: '0' | NOZERODIGIT DIGIT*;
+
+RealLiteral: SignedIntLiteral Dot UnsignedIntLiteral;
+
+// marks
 
 Less: '<';
 
@@ -64,15 +80,25 @@ RightBrace: '}';
 
 Dot: '.';
 
-Colon : ':';
+Colon: ':';
 
-OR : '|';
+OR: '|';
 
-QuestionMark : '?';
+QuestionMark: '?';
 
-Star : '*';
+Star: '*';
 
-Plus : '+';
+Div: '/';
+
+Plus: '+';
+
+Minus: '-';
+
+Assign: '=';
+
+Dollar: '$';
+
+StarStar: '**';
 
 Whitespace: [ \t]+ -> skip;
 
