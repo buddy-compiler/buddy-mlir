@@ -1,5 +1,40 @@
-add_expr
-inputs [operandValue<int, tensor>, operandValue<int, tensor>]
-returns [operandValue<int, tensor>]
-grammar [prim_expr ADD prim_expr]
-ir [operation<toy.add>]
+module
+grammar [funDefine+]
+
+funDefine
+inputs [attributeValue<string>, attributeValue<toy.functionType>]
+// regions []
+grammar [prototype block]
+ir [operation<toy.func>]
+
+prototype
+grammar [Def funcName funcParams]
+
+funcName
+returns [attributeValue<SymbolNameAttr> name = $Identifier.text]
+grammar [Identifier]
+
+funcParams
+inputs [list<cppValue<"Type">>]
+returns [attributeValue<toy.functionType> v]
+grammar [ParentheseOpen declList? ParentheseClose]
+ir [attribute<toy.functionType>]
+
+declList
+grammar [varDecl (Comma varDecl)*]
+
+varDecl
+returns [cppValue<"Type">]{
+    // code to get cppValue
+}
+grammar [
+    Var Identifier (type)? (Equal expression)? |
+    Identifier Identifier (Equal expression)? |
+    Identifier
+    ]
+
+block
+grammar [BracketOpen (blockExpr Semicolon)* BracketClose]
+
+blockExpr
+grammar [varDecl | returnExpr | expression]
