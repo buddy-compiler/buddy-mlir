@@ -31,13 +31,22 @@ valueDecls
 	;
 
 valueDeclSpec
-	: tdValueDeclSpec
+	: listValueDeclSpec
+    | tdValueDeclSpec
 	| cppValueDeclSpec
 	;
 
+listValueDeclSpec
+    : LIST Less (tdTypeSpec | cppTypeSpec) Greater identifier?
+    ;
+
 tdValueDeclSpec
-	: tdValueKind Less tdTypeSpec (Comma tdTypeSpec)* Greater (identifier Assign tdValueSpec)?
+	: tdTypeSpec (identifier (Assign tdValueSpec)?)?
 	;
+
+tdTypeSpec
+    : tdValueKind Less tdType (Comma tdType)* Greater
+    ;
 
 tdValueSpec
     : attrRef
@@ -82,7 +91,7 @@ parenSurroundedExpr
     : LeftParen expression RightParen
     ;
 
-tdTypeSpec
+tdType
 	: builtinType
 	| userDefineType
 	;
@@ -93,20 +102,25 @@ tdValueKind
 	;
 
 cppValueDeclSpec
-	: CPP_VALUE Less cppTypeSpec (Comma cppTypeSpec)* Greater identifier?
+	: cppTypeSpec identifier?
 	;
+
+cppTypeSpec
+    : CPP_VALUE Less cppType (Comma cppType)* Greater
+    ;
 
 builtinType
 	: INT
 	| FLOAT
 	| TENSOR
+    | STRING
 	;
 
 userDefineType
 	: identifier (Dot identifier)?
 	;
 
-cppTypeSpec
+cppType
 	: StringLiteral
 	;
 
@@ -154,7 +168,7 @@ irSpec
 	;
 
 singleIrDecl
-	: irKind Less tdTypeSpec Greater
+	: irKind Less tdType Greater irParameters?
 	;
 
 irKind
@@ -162,6 +176,18 @@ irKind
 	| ATTRIBUTE_IR
 	| TYPE_IR
 	;
+
+irParameters
+    : LeftParen irInputs* Arror irOutputs* RightParen
+    ;
+
+irInputs
+    : identifier
+    ;
+
+irOutputs
+    : identifier
+    ;
 
 identifier
     : LexerRuleName

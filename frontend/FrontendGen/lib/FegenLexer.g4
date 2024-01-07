@@ -28,17 +28,21 @@ ATTRIBUTE_VALUE: 'attributeValue';
 
 CPP_VALUE: 'cppValue';
 
+LIST: 'list';
+
 OP_IR: 'operation';
 
 ATTRIBUTE_IR: 'attribute';
 
-TYPE_IR: 'type';
+TYPE_IR: 'typeDef';
 
 INT: 'int';
 
 FLOAT: 'float';
 
 TENSOR: 'tensor';
+
+STRING: 'string';
 
 // identifiers
 
@@ -48,7 +52,7 @@ ParserRuleName: LOWERCASE (NONDIGIT | DIGIT)*;
 
 // literal
 
-StringLiteral: '\'' Schar* '\'';
+StringLiteral: '"' Schar* '"';
 
 SignedIntLiteral: (Plus | Minus)? UnsignedIntLiteral;
 
@@ -99,6 +103,10 @@ Assign: '=';
 Dollar: '$';
 
 StarStar: '**';
+
+MOD: '%';
+
+Arror: '->';
 
 Whitespace: [ \t]+ -> skip;
 
