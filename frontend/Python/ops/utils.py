@@ -21,7 +21,7 @@
 from typing import Dict
 import mlir.ir as ir
 
-from ..graph import Tensordtype
+from ..graph import TensorDType
 
 
 def mlir_element_type_get(type_name):
@@ -29,11 +29,11 @@ def mlir_element_type_get(type_name):
     Get the element type base on type_name.
     """
     match type_name:
-        case Tensordtype.Float32:
+        case TensorDType.Float32:
             return ir.F32Type.get()
-        case Tensordtype.Int64:
+        case TensorDType.Int64:
             return ir.IntegerType.get_signless(64)
-        case Tensordtype.Bool:
+        case TensorDType.Bool:
             return ir.IntegerType.get_signless(1)
 
 
@@ -42,10 +42,10 @@ def mlir_element_attr_get(type_name, value):
     Get the element attribute base on type_name and value.
     """
     match type_name:
-        case Tensordtype.Float32:
+        case TensorDType.Float32:
             return ir.FloatAttr.get(ir.F32Type.get(), value)
-        case Tensordtype.Int64:
+        case TensorDType.Int64:
             return ir.IntegerAttr.get(ir.IntegerType.get_signless(64), value)
-        case Tensordtype.Bool:
+        case TensorDType.Bool:
             return ir.IntegerAttr.get(ir.IntegerType.get_signless(1), value)
 

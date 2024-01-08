@@ -22,8 +22,11 @@ dynamo_compiler = DynamoCompiler(
 )
 a, b = torch.randn((1024, 1024)), torch.randn((1024, 1024))
 print(model(a, b))
-model_opt = torch.compile(model, backend=dynamo_compiler._compile_fx)
+
+model_opt = torch.compile(model, backend=dynamo_compiler)
 print(model_opt(a, b))
+
+torch._dynamo.reset()
 
 graphs = dynamo_compiler.importer(
     model, a, b

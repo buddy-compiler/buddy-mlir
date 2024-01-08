@@ -18,42 +18,20 @@
 #
 # ===---------------------------------------------------------------------------
 
+import os
+from typing import Any, List, Optional
+import ctypes
+import functools
+import numpy as np
+
 import mlir.ir as ir
 import mlir.dialects.func as func
 from mlir.passmanager import *
 from mlir.execution_engine import *
 from mlir import runtime as rt
 
-import os
-from typing import Any, List, Optional
-import ctypes
-from enum import Enum
-import functools
-import numpy as np
-import torch
-
-from .op_def import *
-
-
-class Tensordtype(Enum):
-    """
-    Enum class for declare tensor dtype.
-    """
-
-    Int32 = "int32"
-    Int64 = "int64"
-    Float32 = "float32"
-    Bool = "bool"
-
-
-class TensorMeta:
-    """
-    Store tensor's shape and dtype, overlook tensor's raw data.
-    """
-
-    def __init__(self, shape, dtype) -> None:
-        self.shape = shape
-        self.dtype = dtype
+from .operation import *
+from .type import *
 
 
 def make_output_memref_descriptor(ranks, dtypes):
@@ -223,59 +201,6 @@ class Graph:
         self.lower_to_top_level_ir()
         self.lower_to_llvm_ir()
 
-    def dynamo_run(self):
-        """
-        Construct mlir runtime function for dynamo forward
-        """
-        self.compile()
-        path_prefix = os.path.dirname(os.path.abspath(__file__))
-        lib_path = os.path.join(path_prefix, "../../../../../llvm/build/lib")
-        lib_path = os.path.abspath(lib_path)
-        shared_libs = [
-            str(lib_path) + "/libmlir_runner_utils.so",
-            str(lib_path) + "/libmlir_c_runner_utils.so",
-            str(lib_path) + "/libomp.so",
-        ]
-        self.ee_ = ExecutionEngine(
-            self._imported_module, opt_level=3, shared_libs=shared_libs
-        )
-
-        def cast_c_ptr(outdata_ptr, memref_ptr):
-            outdata_addr = ctypes.addressof(outdata_ptr.contents)
-            out_ptr = ctypes.cast(outdata_addr, type(memref_ptr))
-            return out_ptr
-
-        def move_c_ptr(outdata_ptr, memref_ptr):
-            elem_size = ctypes.sizeof(memref_ptr.contents)
-            outdata_addr = ctypes.addressof(outdata_ptr.contents)
-            out_ptr = ctypes.cast(outdata_addr + elem_size, type(memref_ptr))
-            return out_ptr
-
-        def exec_buddy_graph(*args):
-            input_memref = [
-                ctypes.pointer(
-                    ctypes.pointer(
-                        rt.get_ranked_memref_descriptor(tensor.numpy())
-                    )
-                )
-                for tensor in args
-            ]
-            output_memref = self._output_descriptor()
-            input_memref = [
-                ctypes.pointer(ctypes.pointer(output_memref))
-            ] + input_memref
-            self.ee_.invoke(self._func_name, *input_memref)
-            output_tensor = []
-            outdata_ptr = input_memref[0][0]
-            for output_ptr in self._output_memref:
-                data_ptr = cast_c_ptr(outdata_ptr, output_ptr[0])
-                output_tensor.append(rt.ranked_memref_to_numpy(data_ptr))
-                outdata_ptr = move_c_ptr(outdata_ptr, output_ptr[0])
-            
-            return [torch.from_numpy(tensor) for tensor in output_tensor]
-
-        return exec_buddy_graph
-
 
 class GraphImporter:
     """
@@ -283,7 +208,7 @@ class GraphImporter:
 
     Attributes:
         _symbol_table (dict): A dictionary to keep track of the symbols.
-        _gm (List[Op]): The FX graph module to be imported.
+        _body (List[Op]): The FX graph module to be imported.
         _func_name (str): Name of the generated MLIR function.
         _inputs (List[TensorMeta]): Input tensor(s) of the FX graph.
         _num_input_visited (int): Number of input nodes that have been visited.
@@ -312,7 +237,7 @@ class GraphImporter:
         if ops_registry is None:
             ops_registry = {}
         self._symbol_table = {}
-        self._gm = body
+        self._body = body
         self._func_name = func_name
         self._params = params
         self._inputs = inputs
@@ -337,13 +262,13 @@ class GraphImporter:
             NotImplementedError: If the given dtype is not supported.
         """
         match dtype:
-            case Tensordtype.Int32:
+            case TensorDType.Int32:
                 return ir.IntegerType.get_signless(32)
-            case Tensordtype.Int64:
+            case TensorDType.Int64:
                 return ir.IntegerType.get_signless(64)
-            case Tensordtype.Float32:
+            case TensorDType.Float32:
                 return ir.F32Type.get()
-            case Tensordtype.Bool:
+            case TensorDType.Bool:
                 return ir.IntegerType.get_signless(1)
             case _:
                 raise NotImplementedError(f"Unsupported dtype {dtype}")
@@ -391,7 +316,7 @@ class GraphImporter:
             @func.FuncOp.from_py_func(*arguments, name=self._func_name)
             def generated_func(*args):
                 args_list = list(args)
-                for node in self._gm:
+                for node in self._body:
                     # if not (
                     #     node.op in ["output", "placeholder", "call_function"]
                     #     or node.target is operator.getitem

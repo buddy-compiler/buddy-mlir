@@ -1,4 +1,4 @@
-# ===- __init__.py -------------------------------------------------------------
+# ===- type.py -----------------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,29 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# Init the packages in graph directory.
+# This is the tensor type of the Buddy Compiler frontend.
 #
 # ===---------------------------------------------------------------------------
 
-from .graph import Graph
-from .operation import *
-from .type import TensorDType, TensorMeta
+from enum import Enum
+
+
+class TensorDType(Enum):
+    """
+    Enum class for declare tensor dtype.
+    """
+
+    Int32 = "int32"
+    Int64 = "int64"
+    Float32 = "float32"
+    Bool = "bool"
+
+
+class TensorMeta:
+    """
+    Store tensor's shape and dtype, overlook tensor's raw data.
+    """
+
+    def __init__(self, shape, dtype) -> None:
+        self.shape = shape
+        self.dtype = dtype

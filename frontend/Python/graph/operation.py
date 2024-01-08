@@ -1,7 +1,27 @@
+# ===- operation.py ------------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# This is the operation structure of Buddy Compiler graph representation.
+#
+# ===---------------------------------------------------------------------------
+
 from enum import Enum
 from typing import Dict, Optional, List, Tuple
 
-import torch
+from .type import TensorDType, TensorMeta
 
 
 class OpType(Enum):
@@ -35,66 +55,20 @@ class Op:
         self._name = None
         self._arguments = []
         self._keyword_arguments = {}
-        self._children = []
-        self._parent = []
         self._tensor_meta = {}
         self._op_type = None
         self._device = "cpu"
 
-    def add_parent(self, parent):
-        self._parent.append(parent)
-
     def add_argument(self, arg):
         self._arguments.append(arg)
-
-    def add_children(self, child):
-        self._children.append(child)
 
     def set_device(self, device):
         self._device = device
 
-    @classmethod
-    def fx_create_node(
-        cls,
-        node_name: str,
-        node_input: Tuple,
-        node_users: List[torch.fx.Node],
-        node_output_shape: torch.Size,
-        node_output_dtype: torch.dtype,
-        node_kwargs: Optional[Dict] = None,
-    ):
-        """
-        Create an op node.
-        Args:
-            node_name: The unique name of op node.
-            node_input: The op node's input.
-            node_kwargs: The op node's kwargs.
-            node_users: The op node's successor nodes.
-            node_output_shape: The op node's output tensor shape.
-            node_output_dtype: The op node's output tensor dtype.
-        """
-        buddy_node = cls()
-        buddy_node._name = node_name
-        for input_arg in node_input:
-            if isinstance(input_arg, torch.fx.Node):
-                buddy_node.add_argument(str(input_arg))
-                buddy_node.add_parent(str(input_arg))
-            else:
-                buddy_node.add_argument(input_arg)
-        
-        if node_kwargs is None:
-            node_kwargs = {} 
-        buddy_node._keyword_arguments.update(node_kwargs)
-        for child in node_users:
-            buddy_node.add_children(child)
-        buddy_node._tensor_meta["shape"] = node_output_shape
-        buddy_node._tensor_meta["dtype"] = node_output_dtype
-        return buddy_node
-
     @property
     def args(self):
         return self._arguments
-    
+
     @property
     def kwargs(self):
         return self._keyword_arguments
@@ -130,21 +104,6 @@ class OutputOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.GetItemType
-
-    @classmethod
-    def fx_create_node(
-        cls,
-        node_name: str,
-        node_input: torch.fx.Node | str,
-    ):
-        buddy_node = OutputOp()
-        buddy_node._name = node_name
-        for input_arg in node_input[0]:
-            # only support fx node as output
-            if isinstance(input_arg, torch.fx.Node):
-                buddy_node.add_argument(str(input_arg))
-                buddy_node.add_parent(str(input_arg))
-        return buddy_node
 
 
 class ArangeOp(Op):
@@ -183,7 +142,7 @@ class FullOp(Op):
         self._op_type = OpType.PlaceholderType
 
 
-class LessthanOp(Op):
+class LessThanOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.BroadcastType
@@ -379,6 +338,7 @@ class TOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
+
 
 class ErfOp(Op):
     def __init__(self) -> None:

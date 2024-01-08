@@ -29,7 +29,7 @@ import numpy
 import functools
 
 from ..graph import *
-from ..graph.graph import Tensordtype
+from ..graph.graph import TensorDType
 from .utils import *
 
 
@@ -305,12 +305,12 @@ def full_op(
 
 
 def lt_op(
-    node: LessthanOp,
+    node: LessThanOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor less than operation.
-    From buddy LessthanOp to MLIR arith `constant` operation.
+    From buddy LessThanOp to MLIR arith `constant` operation.
 
     Note: This op, campare two input nodes, and output bool tensor to represent
     compare result.
@@ -633,7 +633,7 @@ def to_copy_op(
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
 
-    if dtype == Tensordtype.Bool:
+    if dtype == TensorDType.Bool:
         if str(ir.RankedTensorType(input1.type).element_type) == "f32":
             tensor_type = ir.RankedTensorType.get(
                 output_shape, ir.IntegerType.get_signless(1)
@@ -683,7 +683,7 @@ def to_copy_op(
             block.append(fptosi_op)
             block.append(trunc_op)
             block.append(linalg.YieldOp([trunc_op.result]))
-    elif dtype == Tensordtype.Float32:
+    elif dtype == TensorDType.Float32:
         if str(ir.RankedTensorType(input1.type).element_type) == "i1":
             tensor_type = ir.RankedTensorType.get(
                 output_shape, ir.F32Type.get()
@@ -1784,8 +1784,8 @@ def param_extract(
         op: The operation return the tensor.expand_shape op.
     """
     dtype_mapping = {
-        Tensordtype.Float32: ir.F32Type.get(),
-        Tensordtype.Int64: ir.IntegerType.get_signless(64),
+        TensorDType.Float32: ir.F32Type.get(),
+        TensorDType.Int64: ir.IntegerType.get_signless(64),
     }
     tensor_element_type = dtype_mapping[node.tensor_meta["dtype"]]
     output_shape = list(node.tensor_meta["shape"])
@@ -1828,7 +1828,7 @@ ops_registry = {
     "EmbeddingOp": embedding_op,
     "OnesOp": ones_op,
     "FullOp": full_op,
-    "LessthanOp": lt_op,
+    "LessThanOp": lt_op,
     "MaskedFillOp": masked_fill_op,
     "SliceOp": slice_op,
     "ExpandOp": expand_op,

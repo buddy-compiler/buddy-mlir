@@ -20,8 +20,14 @@
 
 from typing import Any, List, Optional
 import operator
+import os
+import ctypes
 
 import mlir.ir as ir
+import mlir.dialects.func as func
+from mlir.passmanager import *
+from mlir.execution_engine import *
+from mlir import runtime as rt
 import torch
 import torch._dynamo as dynamo
 from torch._functorch.aot_autograd import aot_module_simplified
@@ -30,8 +36,8 @@ import torch.utils._pytree as pytree
 from .ops.linalg import ops_registry as linalg_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.math import ops_registry as math_ops_registry
-from .graph import Graph, Tensordtype, TensorMeta
-from .frontend_ops_map import torch_ops_map
+from .graph import Graph, TensorDType, TensorMeta
+from .graph.operation import *
 
 
 class DynamoCompiler:
@@ -82,16 +88,89 @@ class DynamoCompiler:
         """Returns the imported model params after compilation."""
         return self._imported_params
 
-    def torch_dtype_to_str(self, dtype):
+    def _torch_dtype_translate(self, dtype):
         match dtype:
             case "torch.int64":
-                return Tensordtype.Int64
+                return TensorDType.Int64
             case "torch.int32":
-                return Tensordtype.Int32
+                return TensorDType.Int32
             case "torch.float32":
-                return Tensordtype.Float32
+                return TensorDType.Float32
             case "torch.bool":
-                return Tensordtype.Bool
+                return TensorDType.Bool
+
+    def _create_node(
+        self,
+        gm_node_name: str,
+        node_name: str,
+        node_input: Tuple,
+        node_output_shape: list = [],
+        node_output_dtype: TensorDType = None,
+        node_kwargs: Optional[Dict] = None,
+    ):
+        op_class = {
+            "output": OutputOp,
+            "placeholder": PlaceholderOp,
+            "arange.start": ArangeOp,
+            "arange.default": ArangeOp,
+            "unsqueeze.default": UnsqueezeOp,
+            "view.default": ViewOp,
+            "ones.default": OnesOp,
+            "full.default": FullOp,
+            "lt.Tensor": LessThanOp,
+            "embedding.default": EmbeddingOp,
+            "masked_fill.Scalar": MaskedFillOp,
+            "slice.Tensor": SliceOp,
+            "expand.default": ExpandOp,
+            "_to_copy.default": ToCopyOp,
+            "rsub.Scalar": RsubOp,
+            "pow.Tensor_Scalar": PowOp,
+            "mean.dim": MeanOp,
+            "rsqrt.default": RsqrtOp,
+            "mul.Tensor": MulOp,
+            "t.default": TOp,
+            "mm.default": MatmulOp,
+            "transpose.int": TransposeOp,
+            "index.Tensor": IndexOp,
+            "neg.default": NegOp,
+            "cat.default": CatOp,
+            "squeeze.dim": SqueezeOp,
+            "bmm.default": BatchMatmulOp,
+            "div.Tensor": DivOp,
+            "_softmax.default": SoftmaxOp,
+            "clone.default": CloneOp,
+            "silu.default": SiluOp,
+            "add.Tensor": AddOp,
+            "addmm.default": AddMMOp,
+            "permute.default": PermuteOp,
+            "convert_element_type.default": ConvertElementTypeOp,
+            "sum.dim_IntList": SumDimOp,
+            "tanh.default": TanhOp,
+            "sub.Tensor": SubOp,
+            "var_mean.correction": VarMeanOp,
+            "amax.default": AmaxOp,
+            "select.int": SelectOp,
+            "exp.default": ExpOp,
+            "erf.default": ErfOp,
+            "getitem": GetItemOp,
+        }.get(gm_node_name)
+        buddy_node = op_class()
+        buddy_node._name = node_name
+        if gm_node_name == "output":
+            for input_arg in node_input[0]:
+                buddy_node.add_argument(str(input_arg))
+            return buddy_node
+        for input_arg in node_input:
+            if isinstance(input_arg, torch.fx.Node):
+                buddy_node.add_argument(str(input_arg))
+            else:
+                buddy_node.add_argument(input_arg)
+        if node_kwargs is None:
+            node_kwargs = {}
+        buddy_node._keyword_arguments.update(node_kwargs)
+        buddy_node._tensor_meta["shape"] = node_output_shape
+        buddy_node._tensor_meta["dtype"] = node_output_dtype
+        return buddy_node
 
     def _compile_fx(
         self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
@@ -109,15 +188,16 @@ class DynamoCompiler:
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
+            # TODO: source of the params_flat.
             nonlocal params_flat
             func_inputs = []
             for inp in _inputs[len(params_flat) :]:
                 inp_shape = inp.shape
-                inp_dtype = self.torch_dtype_to_str(str(inp.dtype))
+                inp_dtype = self._torch_dtype_translate(str(inp.dtype))
                 func_inputs.append(TensorMeta(inp_shape, inp_dtype))
             fake_params = []
             for param in params_flat:
-                param_dtype = self.torch_dtype_to_str(str(param.dtype))
+                param_dtype = self._torch_dtype_translate(str(param.dtype))
                 fake_params.append(TensorMeta(param.shape, param_dtype))
             graph = Graph(
                 func_inputs,
@@ -125,60 +205,71 @@ class DynamoCompiler:
                 self._ops_registry,
                 self._func_name,
             )
-            for node in _gm.graph.nodes:
-                if node.op == "placeholder":
-                    node_dtype = self.torch_dtype_to_str(
-                        str(node.meta["tensor_meta"].dtype)
+            for gm_node in _gm.graph.nodes:
+                if gm_node.op == "placeholder":
+                    node_dtype = self._torch_dtype_translate(
+                        str(gm_node.meta["tensor_meta"].dtype)
                     )
-                    buddy_node = torch_ops_map[node.op].fx_create_node(
-                        node.name,
-                        node.args,
-                        list(node.users.keys()),
-                        node.meta["tensor_meta"].shape,
+                    buddy_node = self._create_node(
+                        gm_node.op,
+                        gm_node.name,
+                        gm_node.args,
+                        gm_node.meta["tensor_meta"].shape,
                         node_dtype,
                     )
-                elif node.op == "output":
-                    buddy_node = torch_ops_map[node.op].fx_create_node(
-                        node.name, node.args
+
+                elif gm_node.op == "output":
+                    buddy_node = self._create_node(
+                        gm_node.op,
+                        gm_node.name,
+                        gm_node.args,
                     )
-                elif node.target is operator.getitem:
-                    node_dtype = self.torch_dtype_to_str(
-                        str(node.meta["tensor_meta"].dtype)
+
+                elif gm_node.target is operator.getitem:
+                    node_dtype = self._torch_dtype_translate(
+                        str(gm_node.meta["tensor_meta"].dtype)
                     )
-                    buddy_node = torch_ops_map[str(node.target.__name__)].fx_create_node(
-                        node.name,
-                        node.args,
-                        list(node.users.keys()),
-                        node.meta["tensor_meta"].shape,
+                    buddy_node = self._create_node(
+                        str(gm_node.target.__name__),
+                        gm_node.name,
+                        gm_node.args,
+                        gm_node.meta["tensor_meta"].shape,
                         node_dtype,
                     )
+
                 else:
-                    tensor_meta = node.meta.get("tensor_meta")
-                    val = node.meta.get("val")
-                    num_returns = len(node.target._schema.returns)
+                    tensor_meta = gm_node.meta.get("tensor_meta")
+                    val = gm_node.meta.get("val")
+                    num_returns = len(gm_node.target._schema.returns)
                     if num_returns == 1:
-                        node_dtype = self.torch_dtype_to_str(str(tensor_meta.dtype))
+                        node_dtype = self._torch_dtype_translate(
+                            str(tensor_meta.dtype)
+                        )
                         node_shape = tensor_meta.shape
                     elif num_returns > 1:
-                        node_dtype = tuple([self.torch_dtype_to_str(val_item.dtype) for val_item in val])
+                        node_dtype = tuple(
+                            [
+                                self._torch_dtype_translate(val_item.dtype)
+                                for val_item in val
+                            ]
+                        )
                         node_shape = tuple([val_item.shape for val_item in val])
                     else:
                         raise RuntimeError("Zero returns is not supported.")
-                        
-                    buddy_node = torch_ops_map[
-                        node.target.__name__
-                    ].fx_create_node(
-                        node.name,
-                        node.args,
-                        list(node.users.keys()),
+
+                    buddy_node = self._create_node(
+                        str(gm_node.target.__name__),
+                        gm_node.name,
+                        gm_node.args,
                         node_shape,
                         node_dtype,
-                        node_kwargs=node.kwargs
+                        node_kwargs=gm_node.kwargs,
                     )
+
                 graph.add_node(buddy_node)
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
-            return graph.dynamo_run()
+            return self.dynamo_run()
 
         params = {
             **dict(gm.named_parameters(remove_duplicate=False)),
@@ -222,3 +313,54 @@ class DynamoCompiler:
         model_opt = dynamo.optimize(self._compile_fx)(model)
         model_opt(*args, **kwargs)
         return self._imported_graphs
+
+    def dynamo_run(self):
+        graph = self._imported_graphs[0]
+        graph.compile()
+        path_prefix = os.path.dirname(os.path.abspath(__file__))
+        lib_path = os.path.join(path_prefix, "../../../../llvm/build/lib")
+        lib_path = os.path.abspath(lib_path)
+        shared_libs = [
+            str(lib_path) + "/libmlir_runner_utils.so",
+            str(lib_path) + "/libmlir_c_runner_utils.so",
+            str(lib_path) + "/libomp.so",
+        ]
+        ee = ExecutionEngine(
+            graph._imported_module, opt_level=3, shared_libs=shared_libs
+        )
+
+        def cast_c_ptr(outdata_ptr, memref_ptr):
+            outdata_addr = ctypes.addressof(outdata_ptr.contents)
+            out_ptr = ctypes.cast(outdata_addr, type(memref_ptr))
+            return out_ptr
+
+        def move_c_ptr(outdata_ptr, memref_ptr):
+            elem_size = ctypes.sizeof(memref_ptr.contents)
+            outdata_addr = ctypes.addressof(outdata_ptr.contents)
+            out_ptr = ctypes.cast(outdata_addr + elem_size, type(memref_ptr))
+            return out_ptr
+
+        def exec_buddy_graph(*args):
+            input_memref = [
+                ctypes.pointer(
+                    ctypes.pointer(
+                        rt.get_ranked_memref_descriptor(tensor.numpy())
+                    )
+                )
+                for tensor in args
+            ]
+            output_memref = graph._output_descriptor()
+            input_memref = [
+                ctypes.pointer(ctypes.pointer(output_memref))
+            ] + input_memref
+            ee.invoke(graph._func_name, *input_memref)
+            output_tensor = []
+            outdata_ptr = input_memref[0][0]
+            for output_ptr in graph._output_memref:
+                data_ptr = cast_c_ptr(outdata_ptr, output_ptr[0])
+                output_tensor.append(rt.ranked_memref_to_numpy(data_ptr))
+                outdata_ptr = move_c_ptr(outdata_ptr, output_ptr[0])
+
+            return [torch.from_numpy(tensor) for tensor in output_tensor]
+
+        return exec_buddy_graph
