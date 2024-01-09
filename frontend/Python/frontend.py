@@ -22,6 +22,7 @@ from typing import Any, List, Optional
 import operator
 import os
 import ctypes
+import platform
 
 import mlir.ir as ir
 import mlir.dialects.func as func
@@ -77,38 +78,7 @@ class DynamoCompiler:
         self._ops_registry.update(linalg_ops_registry)
         self._ops_registry.update(tosa_ops_registry)
         self._ops_registry.update(primary_registry)
-
-    @property
-    def imported_graphs(self):
-        """Returns the imported buddy graphs after compilation."""
-        return self._imported_graphs
-
-    @property
-    def imported_params(self):
-        """Returns the imported model params after compilation."""
-        return self._imported_params
-
-    def _torch_dtype_translate(self, dtype):
-        match dtype:
-            case "torch.int64":
-                return TensorDType.Int64
-            case "torch.int32":
-                return TensorDType.Int32
-            case "torch.float32":
-                return TensorDType.Float32
-            case "torch.bool":
-                return TensorDType.Bool
-
-    def _create_node(
-        self,
-        gm_node_name: str,
-        node_name: str,
-        node_input: Tuple,
-        node_output_shape: list = [],
-        node_output_dtype: TensorDType = None,
-        node_kwargs: Optional[Dict] = None,
-    ):
-        op_class = {
+        self._ops_map = {
             "output": OutputOp,
             "placeholder": PlaceholderOp,
             "arange.start": ArangeOp,
@@ -153,7 +123,39 @@ class DynamoCompiler:
             "exp.default": ExpOp,
             "erf.default": ErfOp,
             "getitem": GetItemOp,
-        }.get(gm_node_name)
+        }
+
+    @property
+    def imported_graphs(self):
+        """Returns the imported buddy graphs after compilation."""
+        return self._imported_graphs
+
+    @property
+    def imported_params(self):
+        """Returns the imported model params after compilation."""
+        return self._imported_params
+
+    def _torch_dtype_translate(self, dtype):
+        match dtype:
+            case "torch.int64":
+                return TensorDType.Int64
+            case "torch.int32":
+                return TensorDType.Int32
+            case "torch.float32":
+                return TensorDType.Float32
+            case "torch.bool":
+                return TensorDType.Bool
+
+    def _create_node(
+        self,
+        gm_node_name: str,
+        node_name: str,
+        node_input: Tuple,
+        node_output_shape: list = [],
+        node_output_dtype: TensorDType = None,
+        node_kwargs: Optional[Dict] = None,
+    ):
+        op_class = self._ops_map.get(gm_node_name)
         buddy_node = op_class()
         buddy_node._name = node_name
         if gm_node_name == "output":
@@ -314,33 +316,56 @@ class DynamoCompiler:
         model_opt(*args, **kwargs)
         return self._imported_graphs
 
+    def construct_lib_paths(lib_base_path, lib_names):
+        lib_extension = get_lib_extension()
+        return [
+            os.path.join(lib_base_path, lib_name + lib_extension)
+            for lib_name in lib_names
+        ]
+
     def dynamo_run(self):
+        def get_lib_extension():
+            if platform.system() == "Linux":
+                return ".so"
+            elif platform.system() == "Darwin":
+                return ".dylib"
+            else:
+                raise RuntimeError("Unsupported platform")
+
+        # TODO：why imported graph is a list?
         graph = self._imported_graphs[0]
         graph.compile()
+        # Collect dependency libraries.
+        lib_extension = get_lib_extension()
+        lib_names = ["libmlir_runner_utils", "libmlir_c_runner_utils", "libomp"]
         path_prefix = os.path.dirname(os.path.abspath(__file__))
-        lib_path = os.path.join(path_prefix, "../../../../llvm/build/lib")
-        lib_path = os.path.abspath(lib_path)
+        lib_base_path = os.path.join(path_prefix, "../../../../llvm/build/lib/")
+        lib_base_path = os.path.abspath(lib_base_path)
         shared_libs = [
-            str(lib_path) + "/libmlir_runner_utils.so",
-            str(lib_path) + "/libmlir_c_runner_utils.so",
-            str(lib_path) + "/libomp.so",
+            os.path.join(lib_base_path, lib_name + lib_extension)
+            for lib_name in lib_names
         ]
+        # Define execution engine.
         ee = ExecutionEngine(
             graph._imported_module, opt_level=3, shared_libs=shared_libs
         )
 
+        # TODO: Add comment for the memref and pointers.
         def cast_c_ptr(outdata_ptr, memref_ptr):
             outdata_addr = ctypes.addressof(outdata_ptr.contents)
             out_ptr = ctypes.cast(outdata_addr, type(memref_ptr))
             return out_ptr
 
+        # TODO: Add comment for the memref and pointers.
         def move_c_ptr(outdata_ptr, memref_ptr):
             elem_size = ctypes.sizeof(memref_ptr.contents)
             outdata_addr = ctypes.addressof(outdata_ptr.contents)
             out_ptr = ctypes.cast(outdata_addr + elem_size, type(memref_ptr))
             return out_ptr
 
+        # TODO: Add the call specifications for TorchDynamo.
         def exec_buddy_graph(*args):
+            # TODO: Add comment for the memref and pointers.
             input_memref = [
                 ctypes.pointer(
                     ctypes.pointer(
@@ -349,18 +374,19 @@ class DynamoCompiler:
                 )
                 for tensor in args
             ]
-            output_memref = graph._output_descriptor()
-            input_memref = [
-                ctypes.pointer(ctypes.pointer(output_memref))
-            ] + input_memref
-            ee.invoke(graph._func_name, *input_memref)
+            output_memref = [
+                ctypes.pointer(ctypes.pointer(graph._output_descriptor()))
+            ]
+            args_memref = output_memref + input_memref
+            # TODO: Add invoke function description.
+            ee.invoke(graph._func_name, *args_memref)
+            # TODO: Add output tensor description.
             output_tensor = []
-            outdata_ptr = input_memref[0][0]
+            outdata_ptr = args_memref[0][0]
             for output_ptr in graph._output_memref:
                 data_ptr = cast_c_ptr(outdata_ptr, output_ptr[0])
                 output_tensor.append(rt.ranked_memref_to_numpy(data_ptr))
                 outdata_ptr = move_c_ptr(outdata_ptr, output_ptr[0])
-
             return [torch.from_numpy(tensor) for tensor in output_tensor]
 
         return exec_buddy_graph
