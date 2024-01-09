@@ -200,6 +200,14 @@ void traverseImagewBoundaryExtrapolation(
 // Function for applying type check mechanisms for all DIP dialect operations.
 template <typename DIPOP>
 DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args);
+
+void perspectiveTransformController(
+    OpBuilder &builder, Location loc, MLIRContext *ctx, Value input,
+    Value output, SmallVector<SmallVector<Value, 3>, 3> homographyMatrix);
+
+void perspectiveTransform3dController(
+    OpBuilder &builder, Location loc, MLIRContext *ctx, Value input,
+    Value output, SmallVector<SmallVector<Value, 4>, 4> &mvp);
 } // namespace dip
 } // namespace buddy
 
