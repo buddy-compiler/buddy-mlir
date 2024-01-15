@@ -25,6 +25,7 @@ from ..graph import TensorDType
 
 
 def mlir_element_type_get(type_name):
+    # TODO: update docstring.
     """
     Get the element type base on type_name.
     """
@@ -38,6 +39,7 @@ def mlir_element_type_get(type_name):
 
 
 def mlir_element_attr_get(type_name, value):
+    # TODO: update docstring.
     """
     Get the element attribute base on type_name and value.
     """

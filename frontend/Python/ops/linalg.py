@@ -14,12 +14,13 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# The registry of mappings from Torch node to MLIR linalg dialect operations.
+# The registry of mappings from Buddy Graph to MLIR linalg dialect operations.
 #
 # ===---------------------------------------------------------------------------
 
 from typing import Dict, Tuple, List
 
+# TODO: Do not rely on torch.
 import torch
 
 import mlir.ir as ir
@@ -117,6 +118,7 @@ def unsqueeze_op(
     node: UnsqueezeOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
+    # TODO: update docstring.
     """
     Import the unsqueeze operation.
     From buddy UnsqueezeOp to MLIR TOSA `reshape` operation.
@@ -274,7 +276,7 @@ def ones_op(
 
     return op
 
-
+# TODO: Do not rely on Torch node.
 def full_op(
     node: torch.fx.Node,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
@@ -1127,6 +1129,7 @@ def matmul_op(
     node: MatmulOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
+    # TODO: update docstring.
     """
     Import the tensor matmul operation.
     From PyTorch `aten.mm.default` operator to MLIR linalg `matmul` operation.
@@ -1693,6 +1696,7 @@ def silu_op(
     node: SiluOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
+    # TODO: update docstring.
     """
     Import the tensor silu activation operation.
     From PyTorch `aten.silu.default` operator to MLIR linalg `generic`

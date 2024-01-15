@@ -18,12 +18,11 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 from typing import Any, List, Optional
 import ctypes
 import functools
-import numpy as np
 
+import numpy as np
 import mlir.ir as ir
 import mlir.dialects.func as func
 from mlir.passmanager import *
@@ -35,6 +34,7 @@ from .type import *
 
 
 def make_output_memref_descriptor(ranks, dtypes):
+    # TODO: update docstring.
     """
     Make output memref descriptor for the given memref ranks and dtypes.
     """
@@ -53,6 +53,8 @@ def make_output_memref_descriptor(ranks, dtypes):
 
 
 class Graph:
+    # TODO: update docstring.
+    # TODO: Consider the device member binds to Graph or Op.
     """
     Graph is graph level expression of the frontends of Buddy Compiler.
     Graph acts as a model compute graph for the Buddy Compiler frontends,
@@ -78,6 +80,7 @@ class Graph:
         ops_registry: dict,
         func_name: str,
     ) -> None:
+        # TODO: update docstring.
         """
         Initializes the Graph.
 
@@ -100,9 +103,11 @@ class Graph:
         self.ee_ = None
 
     def add_node(self, node: Op):
+        # TODO: update docstring.
         self._body.append(node)
 
     def lower_to_top_level_ir(self, do_params_pack=False):
+        # TODO: update docstring.
         """
         Lower graph to top level mlir dialects.
         """
@@ -196,7 +201,7 @@ class Graph:
 
     def compile(self):
         """
-        Compile graph from torch fx graph to llvm ir.
+        Compile graph from Buddy Graph to LLVM IR.
         """
         self.lower_to_top_level_ir()
         self.lower_to_llvm_ir()
@@ -274,6 +279,7 @@ class GraphImporter:
                 raise NotImplementedError(f"Unsupported dtype {dtype}")
 
     def _pack_params(self) -> None:
+        # TODO: update docstring.
         dtypes = list(set([param.dtype for param in self._params]))
         dtypes.sort(key=str)
         self._current_param_pack_offset = {dtype: 0 for dtype in dtypes}
@@ -317,6 +323,7 @@ class GraphImporter:
             def generated_func(*args):
                 args_list = list(args)
                 for node in self._body:
+                    # TODO: raise an error for unsupported ops. 
                     # if not (
                     #     node.op in ["output", "placeholder", "call_function"]
                     #     or node.target is operator.getitem
@@ -347,6 +354,7 @@ class GraphImporter:
     def _import_placeholder(
         self, node: PlaceholderOp, args_list: List[ir.BlockArgument]
     ):
+        # TODO: update docstring.
         """
         Imports a placeholder node from the FX graph.
 

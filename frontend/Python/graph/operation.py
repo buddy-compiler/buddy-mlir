@@ -25,6 +25,7 @@ from .type import TensorDType, TensorMeta
 
 
 class OpType(Enum):
+    # TODO: update docstring.
     """
     Enum class for declare op's type.
     """
@@ -39,6 +40,7 @@ class OpType(Enum):
 
 
 class Op:
+    # TODO: update docstring.
     """
     Base class for all ops.
     Attributes:
@@ -52,6 +54,7 @@ class Op:
     """
 
     def __init__(self) -> None:
+        # TODO: update docstring.
         self._name = None
         self._arguments = []
         self._keyword_arguments = {}
@@ -60,9 +63,11 @@ class Op:
         self._device = "cpu"
 
     def add_argument(self, arg):
+        # TODO: update docstring.
         self._arguments.append(arg)
 
     def set_device(self, device):
+        # TODO: update docstring.
         self._device = device
 
     @property

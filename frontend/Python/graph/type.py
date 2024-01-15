@@ -22,6 +22,7 @@ from enum import Enum
 
 
 class TensorDType(Enum):
+    # TODO: update docstring.
     """
     Enum class for declare tensor dtype.
     """
@@ -33,6 +34,7 @@ class TensorDType(Enum):
 
 
 class TensorMeta:
+    # TODO: update docstring.
     """
     Store tensor's shape and dtype, overlook tensor's raw data.
     """

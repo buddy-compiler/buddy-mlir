@@ -15,6 +15,10 @@
 # ===---------------------------------------------------------------------------
 #
 # This is the entry of the Buddy Compiler frontend.
+# 
+# TODO[Low]: When integrating more frameworks, `frontend.py` acts as a unified
+# entry and driver, separating out compilers/importers for various platforms 
+# (e.g. DynamoCompiler).
 #
 # ===---------------------------------------------------------------------------
 
@@ -44,8 +48,8 @@ from .graph.operation import *
 class DynamoCompiler:
     """
     Dynamo Compiler is one of the frontends of Buddy Compiler.
-    Dynamo Compiler acts as a custom compiler for the Torch Dynamo framework,
-    which converts an FX Graph into an equivalent MLIR module.
+    Dynamo Compiler acts as a custom compiler for the TorchDynamo framework,
+    which converts an FX Graph into an equivalent Buddy Graph and MLIR module.
 
     Attributes:
         imported_graphs: The imported graphs.
@@ -58,6 +62,7 @@ class DynamoCompiler:
         primary_registry: Optional[dict] = None,
         aot_autograd_decomposition: Optional[dict] = None,
     ) -> None:
+        # TODO: Update docstring.
         """
         Initializes the Dynamo Compiler.
 
@@ -155,6 +160,7 @@ class DynamoCompiler:
         node_output_dtype: TensorDType = None,
         node_kwargs: Optional[Dict] = None,
     ):
+        # TODO: Add docstring.
         op_class = self._ops_map.get(gm_node_name)
         buddy_node = op_class()
         buddy_node._name = node_name
@@ -177,8 +183,9 @@ class DynamoCompiler:
     def _compile_fx(
         self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
     ) -> Any:
+        # TODO: Update docstring.
         """
-        Compiles the provided FX Graph to MLIR module.
+        Compiles the provided FX Graph to Buddy Graph and MLIR module.
 
         Args:
             gm (torch.fx.GraphModule): The GraphModule to be compiled.
@@ -288,6 +295,7 @@ class DynamoCompiler:
     def __call__(
         self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
     ) -> Any:
+        # TODO: Update docstring.
         """
         A callable method that wraps around the `_compile_fx` method.
 
@@ -316,14 +324,8 @@ class DynamoCompiler:
         model_opt(*args, **kwargs)
         return self._imported_graphs
 
-    def construct_lib_paths(lib_base_path, lib_names):
-        lib_extension = get_lib_extension()
-        return [
-            os.path.join(lib_base_path, lib_name + lib_extension)
-            for lib_name in lib_names
-        ]
-
     def dynamo_run(self):
+        # TODO: Add docstring.
         def get_lib_extension():
             if platform.system() == "Linux":
                 return ".so"

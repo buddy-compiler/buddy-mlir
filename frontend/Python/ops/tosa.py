@@ -14,10 +14,11 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# The registry of mappings from Torch node to MLIR tosa dialect operations.
+# The registry of mappings from Buddy Graph to MLIR tosa dialect operations.
 #
 # ===---------------------------------------------------------------------------
 
+# TODO: Do not rely on torch. 
 import torch
 import array
 from typing import Dict, List, Tuple, Union
@@ -101,6 +102,7 @@ def _gen_arith_binary_op(input1, input2, op_func):
 def _scalar_to_tensor(
     scalar: Union[float, int], element_type: ir.Type, shape: List[int]
 ):
+    # TODO: update docstring.
     """PyTorch allow the binary operation between tensor and scalar. But MLIR
     does not.
     So we need to convert scalars to the corresponding tensors."""
@@ -156,6 +158,7 @@ def _normalize_binary_operator_args(arg1, arg2):
 def addmm_op(
     node: AddMMOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
 ) -> ir.Operation:
+    # TODO: update docstring.
     """
     Import matrix multiplication operation.
     From PyTorch `aten.addmm.default` operator to MLIR TOSA `matmul` operation.
@@ -211,6 +214,7 @@ def addmm_op(
 
 
 def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
+    # TODO: update docstring.
     """
     Import batch matrix multiplication operation.
     From PyTorch `aten.bmm.default` operator to MLIR TOSA `matmul` operation.
@@ -227,6 +231,7 @@ def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
 
 
 def add_op(node: AddOp, symbol_table):
+    # TODO: update docstring.
     """
     Import tensor addition operation.
     From PyTorch `aten.add.Tensor` operator to MLIR TOSA `add` operation.
@@ -237,6 +242,7 @@ def add_op(node: AddOp, symbol_table):
 
 
 def sub_op(node: SubOp, symbol_table):
+    # TODO: update docstring.
     """
     Import tensor subtraction operation.
     From PyTorch `aten.sub.Tensor` operator to MLIR TOSA `sub` operation.
@@ -247,6 +253,7 @@ def sub_op(node: SubOp, symbol_table):
 
 
 def mul_op(node: MulOp, symbol_table):
+    # TODO: update docstring.
     """
     Import tensor multiplication operation.
     From PyTorch `aten.mul.Tensor` operator to MLIR TOSA `mul` operation.
@@ -267,6 +274,7 @@ def mul_op(node: MulOp, symbol_table):
 
 
 def div_op(node: DivOp, symbol_table):
+    # TODO: update docstring.
     """
     Import tensor division operation.
     From PyTorch `aten.div.Tensor` operator to MLIR TOSA `div` operation.
@@ -287,6 +295,7 @@ def div_op(node: DivOp, symbol_table):
 
 
 def tanh_op(node: TanhOp, symbol_table):
+    # TODO: update docstring.
     """
     Import elementwise tanh operation.
     From PyTorch `aten.tanh.default` operator to MLIR TOSA `tanh` operation.
@@ -300,6 +309,7 @@ def tanh_op(node: TanhOp, symbol_table):
 
 
 def exp_op(node: ExpOp, symbol_table):
+    # TODO: update docstring.
     """
     Import elementwise exponential operation.
     From PyTorch `aten.exp.default` operator to MLIR TOSA `exp` operation.
@@ -313,6 +323,7 @@ def exp_op(node: ExpOp, symbol_table):
 
 
 def rsqrt_op(node: RsqrtOp, symbol_table):
+    # TODO: update docstring.
     """
     Import elementwise reciprocal square root operation.
     From PyTorch `aten.rsqrt.default` operator to MLIR TOSA `rsqrt` operation.
@@ -328,6 +339,7 @@ def rsqrt_op(node: RsqrtOp, symbol_table):
 
 
 def amax_op(node: AmaxOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the amax operation.
     From PyTorch `aten.amax.default` operator to MLIR TOSA `reduce_max`
@@ -348,6 +360,7 @@ def amax_op(node: AmaxOp, symbol_table):
 
 
 def reshape_op(node: ReshapeOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the reshape operation.
     From PyTorch `aten.reshape.default` operator to MLIR TOSA `reshape`
@@ -389,6 +402,7 @@ def reshape_op(node: ReshapeOp, symbol_table):
 
 
 def unsqueeze_op(node: UnsqueezeOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the unsqueeze operation.
     From PyTorch `aten.unsqueeze.default` operator to MLIR TOSA `reshape`
@@ -409,6 +423,7 @@ def unsqueeze_op(node: UnsqueezeOp, symbol_table):
 
 
 def select_op(node: SelectOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the select operation.
     From PyTorch `aten.select.int` operator to MLIR TOSA `reshape` operation.
@@ -443,6 +458,7 @@ def select_op(node: SelectOp, symbol_table):
 
 
 def slice_op(node: SliceOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the slice operation.
     From PyTorch `aten.slice.Tensor` operator to MLIR tensor `extract_slice`
@@ -504,11 +520,13 @@ def slice_op(node: SliceOp, symbol_table):
 
 
 def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the element type conversion operation.
     From PyTorch `prims.convert_element_type.default` operator to
     MLIR TOSA `cast` operation.
     """
+    # TODO: Do not rely on torch.
     # maintain a mapping of torch types and mlir types
     types_mapping = {
         torch.float64: ir.F64Type.get(),
@@ -524,6 +542,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
 
 
 def clone_op(node: CloneOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the clone operation.
     From PyTorch `aten.clone.default` operator to MLIR TOSA `identity`
@@ -541,6 +560,7 @@ def clone_op(node: CloneOp, symbol_table):
 
 
 def var_mean_op(node: VarMeanOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the variance & mean operation.
     From PyTorch `aten.var_mean.default` operator to two MLIR TOSA `mul`
@@ -695,6 +715,7 @@ def var_mean_op(node: VarMeanOp, symbol_table):
 
 
 def permute_op(node: PermuteOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the permute operation.
     From PyTorch `aten.permute.default` operator to MLIR TOSA `transpose`
@@ -721,6 +742,7 @@ def permute_op(node: PermuteOp, symbol_table):
 
 
 def embedding_op(node: EmbeddingOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the embedding operation.
     From PyTorch `aten.embedding.default` operator to MLIR TOSA `reshape`
@@ -782,6 +804,7 @@ def embedding_op(node: EmbeddingOp, symbol_table):
 
 
 def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
+    # TODO: update docstring.
     """
     Import the expand operation.
     From PyTorch `aten.expand.default` operator to MLIR TOSA `add` operation.
@@ -815,6 +838,7 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
 
 
 def sum_op(node: SumDimOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the sum operation.
     From PyTorch `aten.sum.dim_IntList` operator to MLIR TOSA `reduce_sum`
@@ -841,6 +865,7 @@ def sum_op(node: SumDimOp, symbol_table):
 
 
 def t_op(node: TOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the tensor transpose operation.
     From PyTorch `aten.t.default` operator to MLIR TOSA `reduce_sum` operation.
@@ -865,6 +890,7 @@ def t_op(node: TOp, symbol_table):
 
 
 def transpose_op(node: TransposeOp, symbol_table):
+    # TODO: update docstring.
     """
     Import the tensor permute operation based on input dims.
     From PyTorch `aten.transpose.int` operator to MLIR TOSA `reduce_sum`
