@@ -25,6 +25,8 @@ include "VectorExpDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
+include "mlir/IR/AttrTypeBase.td"
+
 //===----------------------------------------------------------------------===//
 // Vector Predication Operation
 //===----------------------------------------------------------------------===//
@@ -39,6 +41,30 @@ def VectorExp_PredicationOp : VectorExp_Op<"predication"> {
 
   let assemblyFormat = "$mask `,` $vl attr-dict `:` type($mask) `,` type($vl) "
       "$region `:` type($result)";
+}
+
+//===----------------------------------------------------------------------===//
+// Vector GetVL Operation
+//===----------------------------------------------------------------------===//
+
+def VectorExp_GetVLOp : VectorExp_Op<"get_vl"> {
+  let summary = "Vector Experiment GetVL Operation.";
+  let arguments = (ins TypeAttr:$dtype, IndexAttr:$lmul);
+  let results = (outs Index:$result);
+  let assemblyFormat = "$dtype `,` $lmul attr-dict `:` type($result)";
+}
+
+//===----------------------------------------------------------------------===//
+// Vector SetVL Operation
+//===----------------------------------------------------------------------===//
+
+def VectorExp_SetVLOp : VectorExp_Op<"set_vl"> {
+  let summary = "Vector Experiment SetVL Operation.";
+  let arguments = (ins Index:$vl);
+  // TODO: Add optional returns.
+  // let results = (outs AnyType:$result);
+  let regions = (region AnyRegion:$region);
+  let assemblyFormat = "$vl attr-dict `:` type($vl) $region";
 }
 
 //===----------------------------------------------------------------------===//
