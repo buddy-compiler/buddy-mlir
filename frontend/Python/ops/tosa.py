@@ -254,7 +254,7 @@ def mul_op(node: MulOp, symbol_table):
         return tosa.MulOp(
             result_type,
             input1,
-            tosa.ReciprocalOp(input2.type, input2).result,
+            input2,
             ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 

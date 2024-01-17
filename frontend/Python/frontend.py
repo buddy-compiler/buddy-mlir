@@ -266,7 +266,7 @@ class DynamoCompiler:
                     elif num_returns > 1:
                         node_dtype = tuple(
                             [
-                                self._torch_dtype_translate(val_item.dtype)
+                                self._torch_dtype_translate(str(val_item.dtype))
                                 for val_item in val
                             ]
                         )
