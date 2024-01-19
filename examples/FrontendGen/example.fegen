@@ -38,3 +38,18 @@ grammar [BracketOpen (blockExpr Semicolon)* BracketClose]
 
 blockExpr
 grammar [varDecl | returnExpr | expression]
+
+Identifier
+grammar [{a-z}*]
+
+ParentheseOpen
+grammar ['(']
+
+ParentheseClose
+grammar [')']
+
+Comma
+grammar [',']
+
+Var
+grammar ['var']

@@ -10,13 +10,51 @@ fegenModule
 
 //TODO: add lexer grammar definaion to reduce sema work
 lexerGrammarNode
-    : LexerRuleName grammarSpec
+    : LexerRuleName lexerGrammarSpec
+    ;
+
+lexerGrammarSpec
+    : GRAMMAR LeftBracket lexerAntlrRule RightBracket
+	;
+
+lexerAntlrRule
+	: lexerAlternatives+
+	;
+
+lexerAlternatives
+    : lexerAlternative ('|' lexerAlternative)*
+    ;
+
+lexerAlternative
+    : lexerSuffixedRule ruleSuffix?
+    ;
+
+// TODO: add charset here
+lexerSuffixedRule
+    : lexerParenSurroundedElem
+    | SingleQuotationString
+    | LexerRuleName
+    | charset
+    ;
+
+charset
+    : LeftBrace 
+    ( UppercaseSet 
+    | LowercaseSet 
+    | NumberSet 
+    | identifier 
+    | UnsignedIntLiteral
+    ) RightBrace
+    ;
+
+
+lexerParenSurroundedElem
+    : LeftParen lexerAntlrRule RightParen
     ;
 
 parserGrammarNode
-	: ParserRuleName inputsSpec? returnsSpec? grammarSpec irSpec?
+	: ParserRuleName inputsSpec? returnsSpec? parserGrammarSpec irSpec?
 	;
-
 
 inputsSpec
 	: INPUTS valueDecls
@@ -129,7 +167,7 @@ cppCode
 	: LeftBrace RightBrace
 	;
 
-grammarSpec
+parserGrammarSpec
 	: GRAMMAR LeftBracket antlrRule RightBracket
 	;
 
@@ -147,7 +185,7 @@ alternative
 
 suffixedRule
     : parenSurroundedElem
-    | StringLiteral
+    | SingleQuotationString
     | identifier
     ;
 

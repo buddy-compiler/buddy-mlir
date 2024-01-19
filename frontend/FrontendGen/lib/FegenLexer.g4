@@ -8,6 +8,8 @@ fragment UPPERCASE: [A-Z];
 
 fragment LOWERCASE: [a-z];
 
+fragment ALLCASE: [a-zA-Z0-9_];
+
 fragment NOZERODIGIT: [1-9];
 
 fragment DIGIT: [0-9];
@@ -52,6 +54,8 @@ ParserRuleName: LOWERCASE (NONDIGIT | DIGIT)*;
 
 // literal
 
+SingleQuotationString: '\'' Schar* '\'';
+
 StringLiteral: '"' Schar* '"';
 
 SignedIntLiteral: (Plus | Minus)? UnsignedIntLiteral;
@@ -59,6 +63,12 @@ SignedIntLiteral: (Plus | Minus)? UnsignedIntLiteral;
 UnsignedIntLiteral: '0' | NOZERODIGIT DIGIT*;
 
 RealLiteral: SignedIntLiteral Dot UnsignedIntLiteral;
+
+UppercaseSet: UPPERCASE Minus UPPERCASE;
+
+LowercaseSet: LOWERCASE Minus LOWERCASE;
+
+NumberSet: DIGIT Minus DIGIT;
 
 // marks
 
@@ -107,6 +117,8 @@ StarStar: '**';
 MOD: '%';
 
 Arror: '->';
+
+Underline: '_';
 
 Whitespace: [ \t]+ -> skip;
 
