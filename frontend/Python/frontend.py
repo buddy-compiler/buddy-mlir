@@ -15,9 +15,9 @@
 # ===---------------------------------------------------------------------------
 #
 # This is the entry of the Buddy Compiler frontend.
-# 
+#
 # TODO[Low]: When integrating more frameworks, `frontend.py` acts as a unified
-# entry and driver, separating out compilers/importers for various platforms 
+# entry and driver, separating out compilers/importers for various platforms
 # (e.g. DynamoCompiler).
 #
 # ===---------------------------------------------------------------------------
@@ -62,15 +62,24 @@ class DynamoCompiler:
         primary_registry: Optional[dict] = None,
         aot_autograd_decomposition: Optional[dict] = None,
     ) -> None:
-        # TODO: Update docstring.
         """
         Initializes the Dynamo Compiler.
 
         Args:
-            func_name (str, optional): The function name to be used.
+            func_name: The function name to be used.
             primary_registry (dict, optional): The primary operations registry.
             aot_autograd_decomposition (Optional[dict], optional):
             The ahead-of-time autograd decomposition dictionary.
+        Attributes:
+            _func_name: The function name to be used.
+            _aot_autograd_decomposition (Optional[dict], optional):
+            The ahead-of-time autograd decomposition dictionary.
+            _imported_graphs: The buddy graphs from dynamo importer.
+            _ops_registry (dict, optional): The buddy operations' lower func
+            registry.
+            _imported_params: The model params extract from torch.
+            _ops_map: The torch aten ops map with buddy ops.
+
         """
         if primary_registry is None:
             primary_registry = {}
@@ -160,7 +169,18 @@ class DynamoCompiler:
         node_output_dtype: TensorDType = None,
         node_kwargs: Optional[Dict] = None,
     ):
-        # TODO: Add docstring.
+        """
+        Create buddy op node from torch aten op.
+
+        Args:
+            gm_node_name: The op node class map to buddy op by _ops_map.
+            node_name: The op node name to be used.
+            node_input: The args input to op node.
+            node_output_shape: The list of the op node's output shape.
+            node_output_dtype: The TensorDType enum type of the op node's output
+            data type.
+            node_kwargs: The restful attributes for op node.
+        """
         op_class = self._ops_map.get(gm_node_name)
         buddy_node = op_class()
         buddy_node._name = node_name
@@ -183,21 +203,26 @@ class DynamoCompiler:
     def _compile_fx(
         self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
     ) -> Any:
-        # TODO: Update docstring.
         """
-        Compiles the provided FX Graph to Buddy Graph and MLIR module.
+        Compiles the provided FX Graph to Buddy Graph.
 
         Args:
             gm (torch.fx.GraphModule): The GraphModule to be compiled.
             inputs (List[torch.Tensor]): The input tensors.
 
         Returns:
-            Any: The result of the ahead-of-time compiled module.
+            dynamo_run: The function of the ahead-of-time compiled module,
+            return for torchdynamo's call.
         """
+
+        params = {
+            **dict(gm.named_parameters(remove_duplicate=False)),
+            **dict(gm.named_buffers(remove_duplicate=False)),
+        }
+        params_flat, _ = pytree.tree_flatten(params)
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
-            # TODO: source of the params_flat.
             nonlocal params_flat
             func_inputs = []
             for inp in _inputs[len(params_flat) :]:
@@ -280,11 +305,6 @@ class DynamoCompiler:
             self._imported_params[graph] = params_flat
             return self.dynamo_run()
 
-        params = {
-            **dict(gm.named_parameters(remove_duplicate=False)),
-            **dict(gm.named_buffers(remove_duplicate=False)),
-        }
-        params_flat, _ = pytree.tree_flatten(params)
         return aot_module_simplified(
             gm,
             inputs,
@@ -295,7 +315,6 @@ class DynamoCompiler:
     def __call__(
         self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
     ) -> Any:
-        # TODO: Update docstring.
         """
         A callable method that wraps around the `_compile_fx` method.
 
@@ -304,7 +323,8 @@ class DynamoCompiler:
             inputs (List[torch.Tensor]): The input tensors.
 
         Returns:
-            Any: The result of the ahead-of-time compiled module.
+            dynamo_run: The function of the ahead-of-time compiled module,
+            return for torchdynamo's call.
         """
         return self._compile_fx(gm, inputs)
 
@@ -325,7 +345,14 @@ class DynamoCompiler:
         return self._imported_graphs
 
     def dynamo_run(self):
-        # TODO: Add docstring.
+        """
+        A callable method that wraps around the `exec_buddy_graph` method.
+
+        Returns:
+            exec_buddy_graph: The function of the ahead-of-time compiled module,
+            return for torchdynamo's call.
+        """
+
         def get_lib_extension():
             if platform.system() == "Linux":
                 return ".so"
@@ -334,8 +361,8 @@ class DynamoCompiler:
             else:
                 raise RuntimeError("Unsupported platform")
 
-        # TODO：why imported graph is a list?
-        graph = self._imported_graphs[0]
+        # Dynamo's graph break may import more than one graph.
+        graph = self._imported_graphs[-1]
         graph.compile()
         # Collect dependency libraries.
         lib_extension = get_lib_extension()
@@ -352,22 +379,71 @@ class DynamoCompiler:
             graph._imported_module, opt_level=3, shared_libs=shared_libs
         )
 
-        # TODO: Add comment for the memref and pointers.
         def cast_c_ptr(outdata_ptr, memref_ptr):
+            """
+            Casts a C pointer (`outdata_ptr`) to the type of another C pointer 
+            (`memref_ptr`).
+
+            Args:
+                outdata_ptr: ctypes.POINTER
+                The C pointer whose type needs to be cast.
+                memref_ptr: ctypes.POINTER
+                The reference C pointer whose type will be used for casting.
+
+            Returns:
+            ctypes.POINTER
+                A new C pointer with the type of `memref_ptr`, representing the 
+                same memory location as `outdata_ptr`.
+
+            Example:
+            outdata = ctypes.pointer(ctypes.c_int())
+            memref = ctypes.pointer(ctypes.c_float())
+            casted_ptr = cast_c_ptr(outdata, memref)
+            # Now `casted_ptr` points to the same memory location as `outdata`, 
+            but with the type of `memref`.
+            """
             outdata_addr = ctypes.addressof(outdata_ptr.contents)
             out_ptr = ctypes.cast(outdata_addr, type(memref_ptr))
             return out_ptr
 
-        # TODO: Add comment for the memref and pointers.
         def move_c_ptr(outdata_ptr, memref_ptr):
+            """
+            Moves a C pointer (`outdata_ptr`) to the next element in memory, 
+            based on the size of the referenced type in another C pointer 
+            (`memref_ptr`).
+
+            Args:
+                outdata_ptr: ctypes.POINTER
+                The C pointer whose position needs to be moved.
+                memref_ptr: ctypes.POINTER
+                The reference C pointer whose type determines the size of each 
+                element for the move.
+
+            Returns:
+            ctypes.POINTER
+                A new C pointer pointing to the next element in memory, based on
+                the size of the type referenced by `memref_ptr`.
+            """
             elem_size = ctypes.sizeof(memref_ptr.contents)
             outdata_addr = ctypes.addressof(outdata_ptr.contents)
             out_ptr = ctypes.cast(outdata_addr + elem_size, type(memref_ptr))
             return out_ptr
 
-        # TODO: Add the call specifications for TorchDynamo.
         def exec_buddy_graph(*args):
-            # TODO: Add comment for the memref and pointers.
+            """
+            Execute a graph using TorchDynamo with the provided input tensors.
+
+            Args:
+                *args: List[torch.Tensor]
+                Input tensors to be passed to the graph's function.
+
+            Returns:
+            List[torch.Tensor]
+                The result of executing the graph, represented as a list of 
+                output tensors.
+            """
+            # A list of ctypes pointers representing memory references for input
+            # tensors.
             input_memref = [
                 ctypes.pointer(
                     ctypes.pointer(
@@ -376,19 +452,31 @@ class DynamoCompiler:
                 )
                 for tensor in args
             ]
+            # A list of ctypes pointers representing memory references for 
+            # output tensors.
             output_memref = [
                 ctypes.pointer(ctypes.pointer(graph._output_descriptor()))
             ]
             args_memref = output_memref + input_memref
-            # TODO: Add invoke function description.
+            # Invoke the graph's function using the provided execution engine 
+            # and memory references
             ee.invoke(graph._func_name, *args_memref)
-            # TODO: Add output tensor description.
+
             output_tensor = []
             outdata_ptr = args_memref[0][0]
+            # Iterate through each output memory reference in the graph
             for output_ptr in graph._output_memref:
+                # Cast the output data pointer to the type of the current output
+                # memory reference
                 data_ptr = cast_c_ptr(outdata_ptr, output_ptr[0])
+                # Convert the C data pointer to a NumPy array and append it to
+                # the output_tensor list
                 output_tensor.append(rt.ranked_memref_to_numpy(data_ptr))
+                # Move to the next element in memory based on the size of the
+                # current output type
                 outdata_ptr = move_c_ptr(outdata_ptr, output_ptr[0])
+            # Convert each NumPy array to a PyTorch tensor and return the list 
+            # of tensors
             return [torch.from_numpy(tensor) for tensor in output_tensor]
 
         return exec_buddy_graph

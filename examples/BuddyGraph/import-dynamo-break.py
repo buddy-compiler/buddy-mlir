@@ -32,7 +32,10 @@ class TestModule(torch.nn.Module):
         super().__init__(*args, **kwargs)
 
     def forward(self, b, c):
-        return torch.add(b, c)
+        if torch.nn.functional.silu(b)[0][0]:
+            return torch.add(b, c)
+        else:
+            return torch.matmul(b, c)
 
 # Define a PyTorch model and run it with PyTorch runtime.
 model = TestModule()

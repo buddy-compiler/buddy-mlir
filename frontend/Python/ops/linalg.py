@@ -20,9 +20,6 @@
 
 from typing import Dict, Tuple, List
 
-# TODO: Do not rely on torch.
-import torch
-
 import mlir.ir as ir
 from mlir.dialects import tosa, linalg, arith, tensor, math
 import copy
@@ -118,14 +115,9 @@ def unsqueeze_op(
     node: UnsqueezeOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
-    # TODO: update docstring.
     """
     Import the unsqueeze operation.
     From buddy UnsqueezeOp to MLIR TOSA `reshape` operation.
-
-    Note: "unsqueeze" means inserting a new dimension of size 1 at the specified
-          position. For more information, please refer to
-          https://pytorch.org/docs/stable/generated/torch.unsqueeze.html
 
     Args:
         node: Containing information from the input graph node.
@@ -276,9 +268,8 @@ def ones_op(
 
     return op
 
-# TODO: Do not rely on Torch node.
 def full_op(
-    node: torch.fx.Node,
+    node: FullOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
@@ -1129,10 +1120,9 @@ def matmul_op(
     node: MatmulOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
-    # TODO: update docstring.
     """
     Import the tensor matmul operation.
-    From PyTorch `aten.mm.default` operator to MLIR linalg `matmul` operation.
+    From Buddy MatmulOp to MLIR linalg `matmul` operation.
 
     Note: This op, compute input node's matrix multiplication result.
     Args:
@@ -1696,11 +1686,9 @@ def silu_op(
     node: SiluOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
-    # TODO: update docstring.
     """
     Import the tensor silu activation operation.
-    From PyTorch `aten.silu.default` operator to MLIR linalg `generic`
-    operation.
+    From Buddy SiluOp to MLIR linalg `generic` operation.
 
     Note: This op, compute input node's silu activation result.
     Args:

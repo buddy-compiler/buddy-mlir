@@ -8,8 +8,8 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import linalg
 
 
-def foo(x):
-    return torch.arange(x)
+def foo():
+    return torch.tensor([1.4, 5, 8])
 
 
 in1 = 13
@@ -17,10 +17,10 @@ in1 = 13
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(
     primary_registry=linalg.ops_registry,
-    aot_autograd_decomposition=aot_autograd_decompositions,
+    aot_autograd_decomposition=inductor_decomp,
 )
 
-graphs = dynamo_compiler.importer(foo, in1)
+graphs = dynamo_compiler.importer(foo)
 assert len(graphs) == 1
 graph = graphs[0]
 graph.lower_to_top_level_ir()
