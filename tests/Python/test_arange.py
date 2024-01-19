@@ -2,14 +2,13 @@
 
 import torch
 import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
 from torch._functorch.aot_autograd import aot_autograd_decompositions
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import linalg
 
 
-def foo():
-    return torch.tensor([1.4, 5, 8])
+def foo(x):
+    return torch.arange(x)
 
 
 in1 = 13
@@ -17,10 +16,10 @@ in1 = 13
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(
     primary_registry=linalg.ops_registry,
-    aot_autograd_decomposition=inductor_decomp,
+    aot_autograd_decomposition=aot_autograd_decompositions,
 )
 
-graphs = dynamo_compiler.importer(foo)
+graphs = dynamo_compiler.importer(foo, in1)
 assert len(graphs) == 1
 graph = graphs[0]
 graph.lower_to_top_level_ir()
