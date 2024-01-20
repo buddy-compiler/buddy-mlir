@@ -20,6 +20,9 @@
 
 import os
 
+# import jax
+# import jax.numpy as jnp
+
 import numpy
 import torch
 from transformers import LlamaForCausalLM, LlamaTokenizer
@@ -29,8 +32,10 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
 
+
 # Retrieve the LLaMA model path from environment variables.
 model_path = os.environ.get("LLAMA_MODEL_PATH")
+model_path = "/Users/plct/PLCT/limeng/llama-2-7b-chat-hf"
 if model_path is None:
     raise EnvironmentError(
         "The environment variable 'LLAMA_MODEL_PATH' is not set or is invalid."
@@ -39,6 +44,9 @@ if model_path is None:
 # Initialize the tokenizer and model from the specified model path.
 tokenizer = LlamaTokenizer.from_pretrained(model_path)
 model = LlamaForCausalLM.from_pretrained(model_path, torchscript=True)
+model = model.to(dtype=torch.bfloat16)
+# model = model.to(dtype=torch.bfloat16,device="cpu")
+
 model.config.use_cache = False
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
@@ -59,7 +67,19 @@ with open(os.path.join(path_prefix, "llama.mlir"), "w") as module_file:
     print(gm, file=module_file)
 
 # Concatenate all parameters into a single numpy array and write to a file.
-all_param = numpy.concatenate(
-    [param.detach().numpy().reshape([-1]) for param in params]
+# all_param = numpy.concatenate(
+#     [param.detach().numpy().reshape([-1]) for param in params]
+# )
+# all_param.tofile(os.path.dirname(os.path.abspath(__file__)) + "/arg0.data")
+
+all_param = torch.cat(
+    [param.detach().reshape([-1]) for param in params]
 )
-all_param.tofile(os.path.join(path_prefix, "arg0.data"))
+
+torch.save(all_param, os.path.join(os.path.dirname(os.path.abspath(__file__)), "arg0.data"))
+
+# breakpoint()
+# all_param = jnp.concatenate([jnp.frombuffer(param.detach().cpu().numpy().tobytes(), dtype=jnp.bfloat16).reshape([-1]) for param in params])
+# all_param.tofile(os.path.dirname(os.path.abspath(__file__)) + "/arg1.data")
+
+# all_param.tofile(os.path.join(path_prefix, "arg0.data"))

@@ -29,11 +29,11 @@ using namespace buddy;
 
 constexpr size_t ParamsSize = 6755192832;
 constexpr size_t MaxVocabSize = 32000;
-constexpr size_t MaxTokenLength = 40;
+constexpr size_t MaxTokenLength = 80;
 constexpr size_t HiddenSize = 4096;
 
 /// Declare LLaMA forward function.
-extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
+extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<unsigned short, 1> *,
                                      Text<size_t, 2> *);
 
 // -----------------------------------------------------------------------------
@@ -54,8 +54,8 @@ void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 /// Print information for each iteration.
 void printIterInfo(size_t iterIdx, std::string str, double time) {
   std::cout << "\033[32;1m[Iteration " << iterIdx << "] \033[0m";
-  std::cout << "Token: " << str << " | " << "Time: " << time << "s"
-            << std::endl;
+  std::cout << "Token: " << str << " | "
+            << "Time: " << time << "s" << std::endl;
 }
 
 /// Tokenize input data in the container.
@@ -76,7 +76,7 @@ void tokenizeInput(const std::string &vocabFile,
 
 /// Load parameters into data container.
 void loadParameters(const std::string &paramFilePath,
-                    MemRef<float, 1> &params) {
+                    MemRef<unsigned short, 1> &params) {
   const auto loadStart = std::chrono::high_resolution_clock::now();
   std::ifstream paramFile(paramFilePath, std::ios::in | std::ios::binary);
   if (!paramFile.is_open()) {
@@ -87,8 +87,12 @@ void loadParameters(const std::string &paramFilePath,
   printLogLabel();
   std::cout << "Params file: " << std::filesystem::canonical(paramFilePath)
             << std::endl;
-  paramFile.read(reinterpret_cast<char *>(params.getData()),
-                 sizeof(float) * (params.getSize()));
+  for (int i = 0; i < params.getSize(); ++i) {
+    float temp;
+    paramFile.read(reinterpret_cast<char *>(&temp), sizeof(float));
+    // 只复制前一半的数据
+    std::memcpy(params.getData() + i, reinterpret_cast<char *>(&temp) + sizeof(unsigned short), sizeof(unsigned short));
+  }
   if (paramFile.fail()) {
     throw std::runtime_error("Error occurred while reading params file!");
   }
@@ -134,7 +138,7 @@ int main() {
       MemRef<float, 3>({1, MaxTokenLength, MaxVocabSize}, false, 0),
       MemRef<float, 3>({1, MaxTokenLength, HiddenSize}, false, 0)};
   Text<size_t, 2> inputContainer(inputStr);
-  MemRef<float, 1> paramsContainer({ParamsSize});
+  MemRef<unsigned short, 1> paramsContainer({ParamsSize});
 
   /// Fill data into containers
   //  - Input: register vocabulary and tokenize the input string.

@@ -1,5 +1,8 @@
 # model params file
-arg0.data
+*.data
 
 # model mlir file
-llama.mlir
+*.mlir
+
+# model log file
+*.txt

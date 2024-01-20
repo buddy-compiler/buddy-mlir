@@ -27,8 +27,7 @@ from mlir.dialects import tensor, tosa
 
 
 def _normalize_binary_operator_shape(shp1, shp2):
-    """Normalize the shape of two input tensors according to the broadcasting
-    rule"""
+    """Normalize the shape of two input tensors according to the broadcasting rule"""
     shp1 = list(shp1)
     shp2 = list(shp2)
     while len(shp1) < len(shp2):
@@ -40,8 +39,7 @@ def _normalize_binary_operator_shape(shp1, shp2):
 
 
 def _gen_arith_binary_op(input1, input2, op_func):
-    """Generate arithmetic binary operation. Most binary operations follow the
-    same pattern.
+    """Generate arithmetic binary operation. Most binary operations follow the same pattern.
     So we can use one function to generate them, avoiding code duplication."""
     input1, input2 = _normalize_binary_operator_args(input1, input2)
 
@@ -75,12 +73,11 @@ def _gen_arith_binary_op(input1, input2, op_func):
 def _scalar_to_tensor(
     scalar: Union[float, int], element_type: ir.Type, shape: List[int]
 ):
-    """PyTorch allow the binary operation between tensor and scalar. But MLIR
-    does not.
+    """PyTorch allow the binary operation between tensor and scalar. But MLIR does not.
     So we need to convert scalars to the corresponding tensors."""
     element = (
         ir.FloatAttr.get(element_type, float(scalar))
-        if str(element_type) == "f32"
+        if str(element_type) == "f32" or str(element_type) == "f16" or str(element_type) == "bf16"
         else ir.IntegerAttr.get(element_type, int(scalar))
     )
     attr = ir.DenseElementsAttr.get_splat(
@@ -135,18 +132,15 @@ def addmm_op(
     From PyTorch `aten.addmm.default` operator to MLIR TOSA `matmul` operation.
 
     Note: this function first reshapes the input matrices to 3D tensors
-    (since tosa.MatMulOp requires it). Then it multiplies these reshaped
-    matrices.
+    (since tosa.MatMulOp requires it). Then it multiplies these reshaped matrices.
     Finally, it adds the input tensor to the matrix multiplication result.
 
     Args:
         node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding
-        operations.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
 
     Returns:
-        op: The operation representing the result of adding the matrix
-        multiplication
+        op: The operation representing the result of adding the matrix multiplication
             to the input tensor.
     """
     # get input
@@ -231,7 +225,7 @@ def mul_op(node, symbol_table):
             result_type,
             input1,
             input2,
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0),
         )
 
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -251,7 +245,7 @@ def div_op(node, symbol_table):
             result_type,
             input1,
             tosa.ReciprocalOp(input2.type, input2).result,
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0),
         )
 
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -304,8 +298,7 @@ def rsqrt_op(node, symbol_table):
 def amax_op(node, symbol_table):
     """
     Import the amax operation.
-    From PyTorch `aten.amax.default` operator to MLIR TOSA `reduce_max`
-    operation.
+    From PyTorch `aten.amax.default` operator to MLIR TOSA `reduce_max` operation.
 
     Note: This conversion function returns the maximum value of each slice
           of the input tensor in the given dimension(s). This is consistent
@@ -315,7 +308,7 @@ def amax_op(node, symbol_table):
     dim_val = node.args[1][0]
     if dim_val < 0:
         dim_val += len(ir.RankedTensorType(input1.type).shape)
-    signless_type = ir.IntegerType.get_signless(32)
+    signless_type = ir.IntegerType.get_signless(64)
     dim_attr = ir.IntegerAttr.get(signless_type, dim_val)
     op = tosa.ReduceMaxOp(input1, dim_attr)
     return op
@@ -324,11 +317,9 @@ def amax_op(node, symbol_table):
 def reshape_op(node, symbol_table):
     """
     Import the reshape operation.
-    From PyTorch `aten.reshape.default` operator to MLIR TOSA `reshape`
-    operation.
+    From PyTorch `aten.reshape.default` operator to MLIR TOSA `reshape` operation.
 
-    Note: If the new shape contains one and only one `-1`, the size of the new
-    shape will be inferred automatically.
+    Note: If the new shape contains one and only one `-1`, the size of the new shape will be inferred automatically.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
     new_shape = []
@@ -365,8 +356,7 @@ def reshape_op(node, symbol_table):
 def unsqueeze_op(node, symbol_table):
     """
     Import the unsqueeze operation.
-    From PyTorch `aten.unsqueeze.default` operator to MLIR TOSA `reshape`
-    operation.
+    From PyTorch `aten.unsqueeze.default` operator to MLIR TOSA `reshape` operation.
 
     Note: "unsqueeze" means inserting a new dimension of size 1 at the specified
           position. For more information, please refer to
@@ -387,8 +377,8 @@ def select_op(node, symbol_table):
     Import the select operation.
     From PyTorch `aten.select.int` operator to MLIR TOSA `reshape` operation.
 
-    Note: "select" means slicing the input tensor along the selected dimension
-    at the given index. For more information, please refer to
+    Note: "select" means slicing the input tensor along the selected dimension at
+          the given index. For more information, please refer to
           https://pytorch.org/docs/stable/generated/torch.select.html
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
@@ -419,11 +409,10 @@ def select_op(node, symbol_table):
 def slice_op(node, symbol_table):
     """
     Import the slice operation.
-    From PyTorch `aten.slice.Tensor` operator to MLIR tensor `extract_slice`
-    operation.
+    From PyTorch `aten.slice.Tensor` operator to MLIR tensor `extract_slice` operation.
 
-    Note: "slice" means slicing the input tensor along the selected dimension
-    from a given start index to an end index.
+    Note: "slice" means slicing the input tensor along the selected dimension from a
+          given start index to an end index.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     dim = node.args[1]
@@ -488,6 +477,7 @@ def convert_element_type_op(node, symbol_table):
         torch.float64: ir.F64Type.get(),
         torch.float32: ir.F32Type.get(),
         torch.float16: ir.F16Type.get(),
+        torch.bfloat16: ir.BF16Type.get(),
     }
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     to_cast_type = types_mapping[node.args[1]]
@@ -499,11 +489,10 @@ def convert_element_type_op(node, symbol_table):
 def clone_op(node, symbol_table):
     """
     Import the clone operation.
-    From PyTorch `aten.clone.default` operator to MLIR TOSA `identity`
-    operation.
+    From PyTorch `aten.clone.default` operator to MLIR TOSA `identity` operation.
 
-    Note: Since MLIR follow the SSA form, when using the `identity` operation,
-    we actually deep-copies the original tensor.
+    Note: Since MLIR follow the SSA form, when using the `identity` operation, we
+          actually deep-copies the original tensor.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     sizes = ir.RankedTensorType(input_tensor.type).shape
@@ -516,27 +505,22 @@ def clone_op(node, symbol_table):
 def var_mean_op(node, symbol_table):
     """
     Import the variance & mean operation.
-    From PyTorch `aten.var_mean.default` operator to two MLIR TOSA `mul`
-    operation.
+    From PyTorch `aten.var_mean.default` operator to two MLIR TOSA `mul` operation.
 
     Note: The conversion procedure can be splited into two steps:
-          1. In the first part, we calculate the mean value along the given
-          dimension(s) in `mean_dim_op` function. We first reduce the input
-          tensor along the given dimension(s) using tosa's `reduce_sum`
-          operation. Then we calculate the mean value by multiplying the
-          reciprocal of the total size of the reduced dimension(s).
-          2. In the second part, we calculate the variance value. We follow the
-          formula in this link:
-          https://pytorch.org/docs/stable/generated/torch.var_mean.html. We
-          first calculate (\bar{x} - x_i), where \bar{x} is the mean value we
-          calculated in the first step. By applying tosa's `mul` operation, we
-          get (\bar{x} - x_i) ^ 2. Then we reduce the multiplication result to
-          get \sum_{i=0}^{N}(\bar{x} - x_i) ^ 2. Finally, we divide the
-          reduction sum result by the total size of the reduced dimension(s)
-          minus the correction.
+          1. In the first part, we calculate the mean value along the given dimension(s)
+             in `mean_dim_op` function. We first reduce the input tensor along the given
+             dimension(s) using tosa's `reduce_sum` operation. Then we calculate the mean
+             value by multiplying the reciprocal of the total size of the reduced dimension(s).
+          2. In the second part, we calculate the variance value. We follow the formula in
+             this link: https://pytorch.org/docs/stable/generated/torch.var_mean.html. We first
+             calculate (\bar{x} - x_i), where \bar{x} is the mean value we calculated in the first
+             step. By applying tosa's `mul` operation, we get (\bar{x} - x_i) ^ 2. Then we reduce
+             the multiplication result to get \sum_{i=0}^{N}(\bar{x} - x_i) ^ 2. Finally, we divide
+             the reduction sum result by the total size of the reduced dimension(s) minus the
+             correction.
 
-          `keepdim` argument is supported. It's handled by the applying a
-          `reshape` operation.
+          `keepdim` argument is supported. It's handled by the applying a `reshape` operation.
 
     """
 
@@ -550,7 +534,7 @@ def var_mean_op(node, symbol_table):
         # reduce along each dimension in `_dim`
         for _dim_item in _dim:
             reduce_dim_attr = ir.IntegerAttr.get(
-                ir.IntegerType.get_signless(32), _dim_item
+                ir.IntegerType.get_signless(64), _dim_item
             )
             reduce_sum_op: ir.Operation = tosa.ReduceSumOp(
                 reduce_sum_result, reduce_dim_attr
@@ -560,8 +544,7 @@ def var_mean_op(node, symbol_table):
 
         tensor_shp = ir.RankedTensorType(_input_tensor.type).shape
         dim_size = 1
-        # calculate the total size on all reduction dimensions to get the
-        # denominator
+        # calculate the total size on all reduction dimensions to get the denominator
         for _dim_item in _dim:
             dim_size *= tensor_shp[_dim_item]
 
@@ -578,7 +561,7 @@ def var_mean_op(node, symbol_table):
             reduce_sum_op.results[0].type,
             reciprocal_op.results[0],
             reduce_sum_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0),
         )
 
     def var_dim_op(
@@ -596,14 +579,14 @@ def var_mean_op(node, symbol_table):
             _input_tensor.type,
             sub_op.results[0],
             sub_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0),
         )
 
         # the result of `mul_op` is the first tensor we need to reduce
         reduce_sum_op = mul_op
         for _dim_item in _dim:
             reduce_dim_attr = ir.IntegerAttr.get(
-                ir.IntegerType.get_signless(32), _dim_item
+                ir.IntegerType.get_signless(64), _dim_item
             )
             reduce_sum_op: ir.Operation = tosa.ReduceSumOp(
                 reduce_sum_op.results[0], reduce_dim_attr
@@ -628,7 +611,7 @@ def var_mean_op(node, symbol_table):
             reduce_sum_op.results[0].type,
             reciprocal_op.results[0],
             reduce_sum_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0),
         )
 
     mean_input_tensor = symbol_table.get((str(node.args[0]), 0))
@@ -670,8 +653,7 @@ def var_mean_op(node, symbol_table):
 def permute_op(node, symbol_table):
     """
     Import the permute operation.
-    From PyTorch `aten.permute.default` operator to MLIR TOSA `transpose`
-    operation.
+    From PyTorch `aten.permute.default` operator to MLIR TOSA `transpose` operation.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     perm = node.args[1]
@@ -696,14 +678,13 @@ def permute_op(node, symbol_table):
 def embedding_op(node, symbol_table):
     """
     Import the embedding operation.
-    From PyTorch `aten.embedding.default` operator to MLIR TOSA `reshape`
-    operation.
+    From PyTorch `aten.embedding.default` operator to MLIR TOSA `reshape` operation.
 
-    Note: Althought this conversion function will finally return a `reshape`
-    operation, the core is the `gather` operation. It can generate a tensor for
-    which each element in the output is a slice of the values tensor based on
-    the value of indices. In this case, we use `gather` to extract elements from
-    the weight tensor based on the `indices` argument.
+    Note: Althought this conversion function will finally return a `reshape` operation,
+          the core is the `gather` operation. It can generate a tensor for which each
+          element in the output is a slice of the values tensor based on the value of
+          indices. In this case, we use `gather` to extract elements from the weight
+          tensor based on the `indices` argument.
     """
     indices = symbol_table.get((str(node.args[1]), 0))
     weight = symbol_table.get((str(node.args[0]), 0))
@@ -774,8 +755,10 @@ def expand_op(node, symbol_table) -> ir.Operation:
         element = ir.IntegerAttr.get(result_element_type, 0)
     elif result_element_type == ir.F32Type.get():
         element = ir.FloatAttr.get(result_element_type, 0.0)
-    else:
-        raise NotImplementedError("Unsupported element type!")
+    elif result_element_type == ir.F16Type.get():
+        element = ir.FloatAttr.get(result_element_type, 0.0)
+    elif result_element_type == ir.BF16Type.get():
+        element = ir.FloatAttr.get(result_element_type, 0.0)
     new_size_tensor_type = ir.RankedTensorType.get(
         new_size, result_element_type
     )
@@ -790,8 +773,7 @@ def expand_op(node, symbol_table) -> ir.Operation:
 def sum_op(node, symbol_table):
     """
     Import the sum operation.
-    From PyTorch `aten.sum.dim_IntList` operator to MLIR TOSA `reduce_sum`
-    operation.
+    From PyTorch `aten.sum.dim_IntList` operator to MLIR TOSA `reduce_sum` operation.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     reduce_sum_dims = node.args[1]
@@ -803,7 +785,7 @@ def sum_op(node, symbol_table):
     reduce_sum_op = None
     for dim in reduce_sum_dims:
         reduce_dim_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(32), dim
+            ir.IntegerType.get_signless(64), dim
         )
         reduce_sum_op = tosa.ReduceSumOp(
             _reduce_sum_input_tensor, reduce_dim_attr
@@ -812,62 +794,61 @@ def sum_op(node, symbol_table):
 
     return reduce_sum_op
 
+# def t_op(node, symbol_table):
+#     """
+#     Import the tensor transpose operation.
+#     From PyTorch `aten.t.default` operator to MLIR TOSA `reduce_sum` operation.
+#     """
+#     assert len(node.args) == 1
+#     input1 = symbol_table.get((str(node.args[0]), 0))
+#     if input1 is None:
+#         return
 
-def t_op(node, symbol_table):
-    """
-    Import the tensor transpose operation.
-    From PyTorch `aten.t.default` operator to MLIR TOSA `reduce_sum` operation.
-    """
-    assert len(node.args) == 1
-    input1 = symbol_table.get((str(node.args[0]), 0))
-    if input1 is None:
-        return
+#     input_shape = list(ir.RankedTensorType(input1.type).shape)
+#     output_shape = list(node.meta["tensor_meta"].shape)
+#     if len(input_shape) == 2:
+#         perm_const_op = tosa.ConstOp(
+#             ir.DenseElementsAttr.get(memoryview(array.array("i", [1, 0])))
+#         )
+#         result_element_type = ir.RankedTensorType(input1.type).element_type
+#         permute_result_type = ir.RankedTensorType.get(
+#             output_shape, result_element_type
+#         )
+#         op = tosa.TransposeOp(
+#             permute_result_type, input1, perm_const_op.results[0]
+#         )
 
-    input_shape = list(ir.RankedTensorType(input1.type).shape)
-    output_shape = list(node.meta["tensor_meta"].shape)
-    if len(input_shape) == 2:
-        perm_const_op = tosa.ConstOp(
-            ir.DenseElementsAttr.get(memoryview(array.array("i", [1, 0])))
-        )
-        result_element_type = ir.RankedTensorType(input1.type).element_type
-        permute_result_type = ir.RankedTensorType.get(
-            output_shape, result_element_type
-        )
-        op = tosa.TransposeOp(
-            permute_result_type, input1, perm_const_op.results[0]
-        )
-
-    return op
+#     return op
 
 
-def transpose_op(node, symbol_table):
-    """
-    Import the tensor permute operation based on input dims.
-    From PyTorch `aten.transpose.int` operator to MLIR TOSA `reduce_sum`
-    operation.
-    """
-    assert len(node.args) == 3
-    input1 = symbol_table.get((str(node.args[0]), 0))
-    if input1 is None:
-        return
-    dim1 = int(node.args[1])
-    dim2 = int(node.args[2])
-    input_shape = list(ir.RankedTensorType(input1.type).shape)
-    perm_list = [i for i in range(len(input_shape))]
-    temp = perm_list[dim1]
-    perm_list[dim1] = perm_list[dim2]
-    perm_list[dim2] = temp
-    output_shape = list(node.meta["tensor_meta"].shape)
-    perm_const_op = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-    )
-    result_element_type = ir.RankedTensorType(input1.type).element_type
-    permute_result_type = ir.RankedTensorType.get(
-        output_shape, result_element_type
-    )
-    op = tosa.TransposeOp(permute_result_type, input1, perm_const_op.results[0])
+# def transpose_op(node, symbol_table):
+#     """
+#     Import the tensor permute operation based on input dims.
+#     From PyTorch `aten.transpose.int` operator to MLIR TOSA `reduce_sum`
+#     operation.
+#     """
+#     assert len(node.args) == 3
+#     input1 = symbol_table.get((str(node.args[0]), 0))
+#     if input1 is None:
+#         return
+#     dim1 = int(node.args[1])
+#     dim2 = int(node.args[2])
+#     input_shape = list(ir.RankedTensorType(input1.type).shape)
+#     perm_list = [i for i in range(len(input_shape))]
+#     temp = perm_list[dim1]
+#     perm_list[dim1] = perm_list[dim2]
+#     perm_list[dim2] = temp
+#     output_shape = list(node.meta["tensor_meta"].shape)
+#     perm_const_op = tosa.ConstOp(
+#         ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+#     )
+#     result_element_type = ir.RankedTensorType(input1.type).element_type
+#     permute_result_type = ir.RankedTensorType.get(
+#         output_shape, result_element_type
+#     )
+#     op = tosa.TransposeOp(permute_result_type, input1, perm_const_op.results[0])
 
-    return op
+#     return op
 
 
 ops_registry = {
@@ -893,6 +874,6 @@ ops_registry = {
     "convert_element_type.default": convert_element_type_op,
     "permute.default": permute_op,
     "unsqueeze.default": unsqueeze_op,
-    "t.default": t_op,
-    "transpose.int": transpose_op,
+    # "t.default": t_op,
+    # "transpose.int": transpose_op,
 }
