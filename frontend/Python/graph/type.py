@@ -39,6 +39,8 @@ class TensorDType(Enum):
     Int32 = "int32"
     Int64 = "int64"
     Float32 = "float32"
+    Float64 = "float64"
+    Float16 = "float16"
     Bool = "bool"
 
 

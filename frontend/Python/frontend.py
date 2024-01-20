@@ -137,6 +137,13 @@ class DynamoCompiler:
             "exp.default": ExpOp,
             "erf.default": ErfOp,
             "getitem": GetItemOp,
+            "convolution.default": Conv2dOp,
+            "max_pool2d_with_indices.default": MaxPool2dWithIndicesOp,
+            "relu.default": ReluOp,
+            "iota.default": IotaOp,
+            "sigmoid.default": SigmoidOp,
+            "scalar_tensor.default": ScalarTensorOp,
+            "where.self": WhereOp
         }
 
     @property
@@ -165,6 +172,7 @@ class DynamoCompiler:
         gm_node_name: str,
         node_name: str,
         node_input: Tuple,
+        node_users: List[str],
         node_output_shape: list = [],
         node_output_dtype: TensorDType = None,
         node_kwargs: Optional[Dict] = None,
@@ -191,8 +199,11 @@ class DynamoCompiler:
         for input_arg in node_input:
             if isinstance(input_arg, torch.fx.Node):
                 buddy_node.add_argument(str(input_arg))
+            elif isinstance(input_arg, torch.dtype):
+                buddy_node.add_argument(self._torch_dtype_translate(str(input_arg)))
             else:
                 buddy_node.add_argument(input_arg)
+        
         if node_kwargs is None:
             node_kwargs = {}
         buddy_node._keyword_arguments.update(node_kwargs)
@@ -240,6 +251,9 @@ class DynamoCompiler:
                 self._func_name,
             )
             for gm_node in _gm.graph.nodes:
+                node_users = []
+                for user in gm_node.users.keys():
+                    node_users.append(str(user))
                 if gm_node.op == "placeholder":
                     node_dtype = self._torch_dtype_translate(
                         str(gm_node.meta["tensor_meta"].dtype)
@@ -248,6 +262,7 @@ class DynamoCompiler:
                         gm_node.op,
                         gm_node.name,
                         gm_node.args,
+                        node_users,
                         gm_node.meta["tensor_meta"].shape,
                         node_dtype,
                     )
@@ -257,6 +272,7 @@ class DynamoCompiler:
                         gm_node.op,
                         gm_node.name,
                         gm_node.args,
+                        node_users
                     )
 
                 elif gm_node.target is operator.getitem:
@@ -267,6 +283,7 @@ class DynamoCompiler:
                         str(gm_node.target.__name__),
                         gm_node.name,
                         gm_node.args,
+                        node_users,
                         gm_node.meta["tensor_meta"].shape,
                         node_dtype,
                     )
@@ -295,6 +312,7 @@ class DynamoCompiler:
                         str(gm_node.target.__name__),
                         gm_node.name,
                         gm_node.args,
+                        node_users,
                         node_shape,
                         node_dtype,
                         node_kwargs=gm_node.kwargs,

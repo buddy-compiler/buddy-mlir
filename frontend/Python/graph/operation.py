@@ -80,8 +80,10 @@ class Op:
         self._name = None
         self._arguments = []
         self._keyword_arguments = {}
-        self._tensor_meta = {}
-        self._op_type = None
+        self._tensor_meta: List[TensorMeta] = {}
+        self._op_type: OpType = None
+        self._children: List[str] = []
+        self._parents: List[str] = []
 
     def add_argument(self, arg):
         """
@@ -92,6 +94,26 @@ class Op:
             The input argument to be added.
         """
         self._arguments.append(arg)
+
+    def add_parent(self, parent: str):
+        """
+        Add an parent node's name to the operation node.
+
+        Parameters:
+        - parent: str
+            The parent node's name to be added.
+        """
+        self._parents.append(parent)
+
+    def add_children(self, child):
+        """
+        Add an user node's name to the operation node.
+
+        Parameters:
+        - user: str
+            The user node's name to be added.
+        """
+        self._children.append(child)
 
     @property
     def args(self):
@@ -372,3 +394,47 @@ class ErfOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
+
+class Conv2dOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+        self._layout = "NCHW_FCHW"
+
+class ReluOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+class SigmoidOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+class IotaOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.PlaceholderType
+
+class ScalarTensorOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.PlaceholderType
+
+class WhereOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+class MaxPool2dWithIndicesOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+        self._layout = "NCHW"
+
+
+class MaxPool2dOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+        self._layout = "NCHW"

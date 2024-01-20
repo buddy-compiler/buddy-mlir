@@ -80,8 +80,6 @@ class Graph:
         The model inputs represented as TensorMeta objects.
     - _fake_params: List[TensorMeta]
         The fake parameters represented as TensorMeta objects.
-    - _outputs: Union[None, List[TensorMeta]]
-        The model outputs represented as TensorMeta objects, if set.
     - device: str
         The hardware for graph runtime.
     - _imported_module: Union[None, ImportedModuleType]
@@ -122,8 +120,8 @@ class Graph:
         """
         self._body = []
         self._inputs = inputs
+        self.node_table: Dict[str, Op] = {}
         self._fake_params = fake_params
-        self._outputs = None
         self.device = "cpu"
         self._imported_module = None
         self._ops_registry = ops_registry
@@ -131,7 +129,7 @@ class Graph:
         self._ctx = ir.Context()
         self._output_memref = None
         self._output_descriptor = None
-        self.ee_ = None
+        self.execution_engine = None
 
     def add_node(self, node: Op):
         """
@@ -151,6 +149,7 @@ class Graph:
         # The op_node is now part of the graph's body
         """
         self._body.append(node)
+        self.node_table[node.name] = node
 
     def lower_to_top_level_ir(self, do_params_pack=False):
         """
