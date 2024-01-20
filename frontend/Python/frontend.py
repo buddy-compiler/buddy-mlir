@@ -162,10 +162,16 @@ class DynamoCompiler:
                 return TensorDType.Int64
             case "torch.int32":
                 return TensorDType.Int32
+            case "torch.float16":
+                return TensorDType.Float16
             case "torch.float32":
                 return TensorDType.Float32
+            case "torch.float64":
+                return TensorDType.Float64
             case "torch.bool":
                 return TensorDType.Bool
+            case _:
+                raise NotImplementedError(f"Unsupported dtype: {dtype}")
 
     def _create_node(
         self,
@@ -199,11 +205,13 @@ class DynamoCompiler:
         for input_arg in node_input:
             if isinstance(input_arg, torch.fx.Node):
                 buddy_node.add_argument(str(input_arg))
+                buddy_node.add_parent(str(input_arg))
             elif isinstance(input_arg, torch.dtype):
                 buddy_node.add_argument(self._torch_dtype_translate(str(input_arg)))
             else:
                 buddy_node.add_argument(input_arg)
-        
+        for user in node_users:
+            buddy_node.add_children(user)
         if node_kwargs is None:
             node_kwargs = {}
         buddy_node._keyword_arguments.update(node_kwargs)
@@ -300,7 +308,7 @@ class DynamoCompiler:
                     elif num_returns > 1:
                         node_dtype = tuple(
                             [
-                                self._torch_dtype_translate(val_item.dtype)
+                                self._torch_dtype_translate(str(val_item.dtype))
                                 for val_item in val
                             ]
                         )

@@ -1010,7 +1010,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     else:
         in_channels = list(ir.RankedTensorType(weight.type).shape)[1]
         out_channels = list(ir.RankedTensorType(weight.type).shape)[0]
-    if len(node._parent) == 2:
+    if len(node._parents) == 2:
         new_size_tensor_type = ir.RankedTensorType.get(
             [out_channels], result_element_type
         )
