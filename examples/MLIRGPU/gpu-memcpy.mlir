@@ -1,39 +1,74 @@
+// RUN: mlir-opt %s \
+// RUN: | mlir-opt -gpu-kernel-outlining \
+// RUN: | mlir-opt -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm),nvvm-attach-target)' \
+// RUN: | mlir-opt -gpu-async-region -gpu-to-llvm -gpu-module-to-binary="format=%gpu_compilation_format" \
+// RUN: | mlir-opt -async-to-async-runtime -async-runtime-ref-counting \
+// RUN: | mlir-opt -convert-async-to-llvm -convert-func-to-llvm \
+// RUN: | mlir-cpu-runner \
+// RUN:   --shared-libs=%mlir_cuda_runtime \
+// RUN:   --shared-libs=%mlir_async_runtime \
+// RUN:   --shared-libs=%mlir_runner_utils \
+// RUN:   --entry-point-result=void -O0 \
+// RUN: | FileCheck %s
+
 func.func @main() {
-  %data = memref.alloc() : memref<1x6xi32>
-  %memcpy_data = memref.alloc() : memref<1x6xi32>
-  %cst0 = arith.constant 0 : i32
-  %cst1 = arith.constant 1 : i32
-  %cst2 = arith.constant 2 : i32
-  %cst4 = arith.constant 4 : i32
-  %cst8 = arith.constant 8 : i32
-  %cst16 = arith.constant 16 : i32
+  %c0    = arith.constant 0 : index
+  %c1    = arith.constant 1 : index
+  %count = arith.constant 2 : index
 
-  %c0 = arith.constant 0 : index
-  %c1 = arith.constant 1 : index
-  %c2 = arith.constant 2 : index
-  %c3 = arith.constant 3 : index
-  %c4 = arith.constant 4 : index
-  %c5 = arith.constant 5 : index
-  %c6 = arith.constant 6 : index
+  // initialize an array of size 2 on the host memory(h0), and store 42 in both elements. 
+  // then, register the array to the GPU host memory.
+  %h0 = memref.alloc(%count) : memref<?xi32>
+  %h0_unranked = memref.cast %h0 : memref<?xi32> to memref<*xi32>
+  gpu.host_register %h0_unranked : memref<*xi32>
 
-  memref.store %cst0, %data[%c0, %c0] : memref<1x6xi32>
-  memref.store %cst1, %data[%c0, %c1] : memref<1x6xi32>
-  memref.store %cst2, %data[%c0, %c2] : memref<1x6xi32>
-  memref.store %cst4, %data[%c0, %c3] : memref<1x6xi32>
-  memref.store %cst8, %data[%c0, %c4] : memref<1x6xi32>
-  memref.store %cst16, %data[%c0, %c5] : memref<1x6xi32>
-  
-  %cast_data = memref.cast %data : memref<1x6xi32> to memref<*xi32>
-  gpu.host_register %cast_data : memref<*xi32>
-  
-  %t0 = gpu.wait async
-  %t1 = gpu.memcpy async [%t0] %memcpy_data, %data : memref<1x6xi32>, memref<1x6xi32>
+  %v0 = arith.constant 42 : i32
+  memref.store %v0, %h0[%c0] : memref<?xi32>
+  memref.store %v0, %h0[%c1] : memref<?xi32>
 
-  %cast_memcpy_data = memref.cast %memcpy_data : memref<1x6xi32> to memref<*xi32>
-  gpu.host_register %cast_memcpy_data : memref<*xi32>
-  
-  call @printMemrefI32(%cast_data) : (memref<*xi32>) -> ()
-  call @printMemrefI32(%cast_memcpy_data) : (memref<*xi32>) -> ()
+  // copy the array from the host memory to the device memory, and store it in %b0.
+  %t0, %f0 = async.execute () -> !async.value<memref<?xi32>> {
+    %b0 = gpu.alloc(%count) : memref<?xi32>
+    gpu.memcpy %b0, %h0 : memref<?xi32>, memref<?xi32>
+    async.yield %b0 : memref<?xi32>
+  }
+
+  // fork two asynchronous tasks, each copying %b0 to a new device array, %b1 and %b2.
+  %t1, %f1 = async.execute [%t0] (
+    %f0 as %b0 : !async.value<memref<?xi32>>
+  ) -> !async.value<memref<?xi32>> {
+    %b1 = gpu.alloc(%count) : memref<?xi32>
+    gpu.memcpy %b1, %b0 : memref<?xi32>, memref<?xi32>
+    async.yield %b1 : memref<?xi32>
+  }
+  %t2, %f2 = async.execute [%t0] (
+    %f0 as %b0 : !async.value<memref<?xi32>>
+  ) -> !async.value<memref<?xi32>> {
+    %b2 = gpu.alloc(%count) : memref<?xi32>
+    gpu.memcpy %b2, %b0 : memref<?xi32>, memref<?xi32>
+    async.yield %b2 : memref<?xi32>
+  }
+
+  // join the two tasks, and launch a GPU kernel that adds the elements of %b1 and %b2, 
+  // and stores the result back to the host array.
+  %t3 = async.execute [%t1, %t2] (
+    %f1 as %b1 : !async.value<memref<?xi32>>,
+    %f2 as %b2 : !async.value<memref<?xi32>>
+  ) {
+    gpu.launch blocks(%bx, %by, %bz) in (%grid_x = %c1, %grid_y = %c1, %grid_z = %c1)
+               threads(%tx, %ty, %tz) in (%block_x = %count, %block_y = %c1, %block_z = %c1) {
+      %v1 = memref.load %b1[%tx] : memref<?xi32>
+      %v2 = memref.load %b2[%tx] : memref<?xi32>
+      %sum = arith.addi %v1, %v2 : i32
+      memref.store %sum, %h0[%tx] : memref<?xi32>
+      gpu.terminator
+    }
+    async.yield
+  }
+
+  async.await %t3 : !async.token
+  // CHECK: [84, 84]
+  call @printMemrefI32(%h0_unranked) : (memref<*xi32>) -> ()
   return
 }
 
