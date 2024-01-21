@@ -11,13 +11,21 @@
 // RUN:   --entry-point-result=void -O0 \
 // RUN: | FileCheck %s
 
+// 
+// This examples aims to show how to use gpu.memcpy
+// The gpu.memcpy dialect is a dialect for copying data between different memory spaces, such as host memory and device memory. 
+// It provides an operation that can copy a memref from one location to another, optionally in an asynchronous manner. 
+// Its purpose is to enable data transfer between different devices or between device and host, without relying on specific drivers or libraries.
+// The gpu.memcpy dialect has only one operation:
+//  * gpu.memcpy: Copy a memref from a source to a destination. 
+//    It requires specifying the destination, the source, and their types. 
+//    It can also take an optional async token and a list of async dependencies, which indicate that the copy should be performed asynchronously
+// 
 func.func @main() {
   %c0    = arith.constant 0 : index
   %c1    = arith.constant 1 : index
   %count = arith.constant 2 : index
 
-  // initialize an array of size 2 on the host memory(h0), and store 42 in both elements. 
-  // then, register the array to the GPU host memory.
   %h0 = memref.alloc(%count) : memref<?xi32>
   %h0_unranked = memref.cast %h0 : memref<?xi32> to memref<*xi32>
   gpu.host_register %h0_unranked : memref<*xi32>
