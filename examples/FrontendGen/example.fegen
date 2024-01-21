@@ -5,7 +5,7 @@ funDefine
 inputs [attributeValue<string>, attributeValue<toy.functionType>]
 // regions []
 grammar [prototype block]
-ir [operation<toy.func>]
+ir [operation<toy.func>]    
 
 prototype
 grammar [Def funcName funcParams]
@@ -40,7 +40,7 @@ blockExpr
 grammar [varDecl | returnExpr | expression]
 
 Identifier
-grammar [{a-z}*]
+grammar [[a-z]*]
 
 ParentheseOpen
 grammar ['(']

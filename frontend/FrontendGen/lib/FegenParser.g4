@@ -38,13 +38,13 @@ lexerSuffixedRule
     ;
 
 charset
-    : LeftBrace 
+    : LeftBracket 
     ( UppercaseSet 
     | LowercaseSet 
     | NumberSet 
     | identifier 
     | UnsignedIntLiteral
-    ) RightBrace
+    )+ RightBracket
     ;
 
 

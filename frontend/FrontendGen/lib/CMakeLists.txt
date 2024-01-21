@@ -1,3 +1,5 @@
+include_directories()
+
 antlr_target(FegenLexer FegenLexer.g4
             PACKAGE fegen
             LEXER
@@ -23,12 +25,25 @@ add_library(fegen_antlr_generated
     ${ANTLR_FegenParser_CXX_OUTPUTS}
 )
 
+add_library(FegenRule
+    FegenRule.cpp
+)
+
+llvm_map_components_to_libnames(llvm_libs support)
+
+target_link_libraries(FegenRule
+    PRIVATE
+    ${llvm_libs}
+)
+
 add_library(fegenVisitor
     FegenVisitor.cpp
 )
 
 target_link_libraries(fegenVisitor
-    PRIVATE
+    PUBLIC
     fegen_antlr_generated
     antlr4_static
+    FegenRule
 )
+

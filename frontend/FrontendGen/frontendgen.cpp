@@ -56,10 +56,16 @@ int main(int argc, char *argv[]) {
   CommonTokenStream tokens(&lexer);
   FegenParser parser(&tokens);
   auto fegenModuleCst = parser.fegenModule();
+  
 
   // dump fegen ast
   if (emitAction == Action::dumpAst){
     llvm::errs() << fegenModuleCst->toStringTree() << "\n";
+  }else if(emitAction == Action::dumpAntlr){
+    FegenVisitor visitor;
+    visitor.visit(fegenModuleCst);
+    fegen::RuleMap::getRuleMap().emitG4File(llvm::outs());
   }
+
   return 0;
 }
