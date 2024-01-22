@@ -24,8 +24,11 @@ dynamo_compiler = DynamoCompiler(
     aot_autograd_decomposition=inductor_decomp,
 )
 
-foo_mlir = dynamo.optimize(dynamo_compiler)(foo)
-foo_mlir(x)
+graphs = dynamo_compiler.importer(foo, x)
+assert len(graphs) == 1
+graph = graphs[0]
+graph.lower_to_top_level_ir()
+print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
@@ -44,10 +47,33 @@ foo_mlir(x)
 # CHECK: return %{{.*}} : tensor<f32>, tensor<f32>
 # CHECK: }
 # CHECK: }
-print(dynamo_compiler.imported_module)
 
-foo_keepdim_mlir = dynamo.optimize(dynamo_compiler)(foo_keepdim)
-foo_keepdim_mlir(x)
+graphs = dynamo_compiler.importer(foo_keepdim, x)
+assert len(graphs) == 2
+graphs[0].lower_to_top_level_ir()
+print(graphs[0]._imported_module)
+
+# CHECK: module {
+# CHECK-LABEL: func.func @forward
+# CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.reciprocal
+# CHECK: %{{.*}} = tosa.mul
+# CHECK: %{{.*}} = tosa.sub
+# CHECK: %{{.*}} = tosa.mul
+# CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.reciprocal
+# CHECK: %{{.*}} = tosa.mul
+# CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tosa.reshape
+# CHECK: return %{{.*}} : tensor<f32>, tensor<f32>
+# CHECK: }
+# CHECK: }
+
+graphs[1].lower_to_top_level_ir()
+print(graphs[1]._imported_module)
+
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = tosa.reduce_sum
@@ -63,4 +89,3 @@ foo_keepdim_mlir(x)
 # CHECK: return %{{.*}} : tensor<1x1x1xf32>, tensor<1x1x1xf32>
 # CHECK: }
 # CHECK: }
-print(dynamo_compiler.imported_module)

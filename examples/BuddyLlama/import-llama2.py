@@ -19,6 +19,7 @@
 # ===---------------------------------------------------------------------------
 
 import os
+import time
 
 import numpy
 import torch
@@ -49,14 +50,17 @@ dynamo_compiler = DynamoCompiler(
 
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
-    gm, params = dynamo_compiler.importer(
-        model, torch.tensor([[1 for _ in range(40)]], dtype=torch.int64)
-    )
+    data = torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
+    graphs = dynamo_compiler.importer(model, data)
 
+assert len(graphs) == 1
+graph = graphs[0]
+params = dynamo_compiler.imported_params[graph]
+graph.lower_to_top_level_ir(True)
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 # Write the MLIR module to the file.
 with open(os.path.join(path_prefix, "llama.mlir"), "w") as module_file:
-    print(gm, file=module_file)
+    print(graph._imported_module, file=module_file)
 
 # Concatenate all parameters into a single numpy array and write to a file.
 all_param = numpy.concatenate(

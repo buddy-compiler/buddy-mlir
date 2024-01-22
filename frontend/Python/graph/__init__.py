@@ -1,4 +1,4 @@
-# ===- math.py -----------------------------------------------------------------
+# ===- __init__.py -------------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,19 +14,9 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# The registry of mappings from Torch node to MLIR math dialect operations.
+# Init the packages in graph directory.
 #
 # ===---------------------------------------------------------------------------
 
-from mlir.dialects import math
-
-
-def erf_op(node, symbol_table):
-    input_ = symbol_table.get((str(node.args[0]), 0))
-    op = math.ErfOp(input_)
-    return op
-
-
-ops_registry = {
-    "ErfOp": erf_op,
-}
+from .graph import Graph, Tensordtype, TensorMeta
+from .op_def import *
