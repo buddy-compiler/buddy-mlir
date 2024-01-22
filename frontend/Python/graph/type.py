@@ -77,3 +77,8 @@ class TensorMeta:
         """
         self.shape = shape
         self.dtype = dtype
+
+class DeviceType(Enum):
+    CPU = 'cpu'
+    GPU = 'gpu'
+    UNKNOW = 'unknow'

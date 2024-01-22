@@ -20,4 +20,4 @@
 
 from .graph import Graph
 from .operation import *
-from .type import TensorDType, TensorMeta
+from .type import TensorDType, TensorMeta, DeviceType

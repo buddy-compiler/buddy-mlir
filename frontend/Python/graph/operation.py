@@ -126,10 +126,18 @@ class Op:
     @property
     def name(self):
         return self._name
+    
+    @name.setter
+    def name(self, new_name):
+        self._name = new_name
 
     @property
     def tensor_meta(self):
         return self._tensor_meta
+
+    @tensor_meta.setter
+    def tensor_meta(self, new_tensor_meta):
+        self._tensor_meta = new_tensor_meta
 
 
 class PlaceholderOp(Op):

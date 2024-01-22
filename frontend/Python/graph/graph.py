@@ -19,10 +19,11 @@
 # ===---------------------------------------------------------------------------
 
 from typing import Any, List, Optional
+from types import FunctionType
 import ctypes
 import functools
-
 import numpy as np
+
 import mlir.ir as ir
 import mlir.dialects.func as func
 from mlir.passmanager import *
@@ -70,7 +71,7 @@ def make_output_memref_descriptor(ranks, dtypes):
 class Graph:
     """
     Graph is a graph-level expression for the Buddy Compiler frontends.
-    It acts as a model compute graph, which converts a Graph into an equivalent 
+    It acts as a model compute graph, which converts a Graph into an equivalent
     MLIR module.
 
     Attributes:
@@ -130,6 +131,16 @@ class Graph:
         self._output_memref = None
         self._output_descriptor = None
         self.execution_engine = None
+        self.op_groups: Dict[str, List[Op]] = {}
+        self.group_map_device: Dict[str, DeviceType] = {}
+
+    @property
+    def body(self):
+        return self._body
+
+    @body.setter
+    def body(self, new_body):
+        self._body = new_body
 
     def add_node(self, node: Op):
         """
@@ -150,6 +161,85 @@ class Graph:
         """
         self._body.append(node)
         self.node_table[node.name] = node
+
+    def init_op_group(self):
+        for i, op in enumerate(self._body):
+            if isinstance(op, PlaceholderOp):
+                continue
+            group = [op]
+            subgraph_name = "subgraph{}".format(i)
+            self.group_map_device[subgraph_name] = DeviceType.UNKNOW
+            self.op_groups[subgraph_name] = group
+
+    def fuse_ops(self, pattern_list: List[FunctionType]):
+        # TODO: discuss two fuse strategy
+        # 1. fuse ops adapt for DSA(hardware dependent)
+        # 2. common fuse strategy(hardware independent)
+        self.init_op_group()
+        for pattern_func in pattern_list:
+            pattern_func(self)
+
+    def build_subgraph_by_group(self):
+        subgraphs_inputs = {}
+        for subgraph_name in self.op_groups.keys():
+            subgraphs_inputs[subgraph_name] = []
+            for op in self.op_groups[subgraph_name]:
+                for parent in op._parents:
+                    if (
+                        self.node_table[parent]
+                        not in self.op_groups[subgraph_name]
+                    ):
+                        subgraphs_inputs[subgraph_name].append(parent)
+        subgraphs_outputs = {}
+        output_node = []
+        for node in self._body:
+            if isinstance(node, OutputOp):
+                for parent in node._parents:
+                    output_node.append(parent)
+        for subgraph_name in self.op_groups.keys():
+            subgraphs_outputs[subgraph_name] = []
+            for op in self.op_groups[subgraph_name]:
+                for key in subgraphs_inputs.keys():
+                    if op.name in subgraphs_inputs[key]:
+                        subgraphs_outputs[subgraph_name].append(op.name)
+                if (op.name in output_node) and (
+                    op.name not in subgraphs_outputs[subgraph_name]
+                ):
+                    subgraphs_outputs[subgraph_name].append(op.name)
+        subgraphs = {}
+        for subgraph_name in self.op_groups.keys():
+            subgraph_input = []
+            subgraph_body = []
+            for inp in subgraphs_inputs[subgraph_name]:
+                node = self.node_table[inp]
+                node_shape = node.tensor_meta["shape"]
+                node_dtype = node.tensor_meta["dtype"]
+                input_tensor_meta = TensorMeta(node_shape, node_dtype)
+                subgraph_input.append(input_tensor_meta)
+                placeholder_node = PlaceholderOp()
+                placeholder_node.name = inp
+                placeholder_node.tensor_meta = input_tensor_meta
+                for op in self.op_groups[subgraph_name]:
+                    if inp in node._parents:
+                        placeholder_node.add_children(op.name)
+                subgraph_body.append(placeholder_node)
+            for op in self.op_groups[subgraph_name]:
+                subgraph_body.append(op)
+            output_node = OutputOp()
+            output_node.name = "output"
+            for output in subgraphs_outputs[subgraph_name]:
+                output_node.add_argument(output)
+                output_node.add_parent(output)
+            subgraph_body.append(output_node)
+            subgraph = Graph(
+                subgraphs_inputs, [], self._ops_registry, subgraph_name
+            )
+            subgraph.body = subgraph_body
+            for op in subgraph_body:
+                subgraph.node_table[op.name] = op
+            subgraphs[subgraph_name] = subgraph
+
+        return subgraphs, subgraphs_inputs, subgraphs_outputs
 
     def lower_to_top_level_ir(self, do_params_pack=False):
         """
@@ -418,7 +508,7 @@ class GraphImporter:
         Imports a placeholder node from the Buddy graph.
 
         Parameters:
-        - node (PlaceholderOp): The PlaceholderOp node representing the 
+        - node (PlaceholderOp): The PlaceholderOp node representing the
         placeholder.
         - args_list (List[mlir.ir.BlockArgument]): List of input memrefs.
 
