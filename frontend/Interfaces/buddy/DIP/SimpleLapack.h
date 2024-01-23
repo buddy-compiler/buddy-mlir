@@ -18,6 +18,7 @@
 // processing.
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef INCLUDE_UTILS_SIMPLELAPACK_H
 #define INCLUDE_UTILS_SIMPLELAPACK_H
 #include <assert.h>
