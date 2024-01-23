@@ -19,20 +19,20 @@ MLIR_ASYNC_RUNTIME := ./../llvm/build/lib/libmlir_async_runtime.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
 
-openacc-enter-data-lower:
-	@${MLIR_OPT} openacc-enter-data.mlir | \
+openacc-serial-lower:
+	@${MLIR_OPT} openacc-serial.mlir | \
 	${MLIR_OPT} -convert-openacc-to-scf -convert-scf-to-cf -convert-func-to-llvm -convert-cf-to-llvm -o log.mlir
 
-openacc-exit-data-lower:
-	@${MLIR_OPT} openacc-exit-data.mlir | \
+openacc-bound-lower:
+	@${MLIR_OPT} openacc-bound.mlir | \
 	${MLIR_OPT} -convert-openacc-to-scf -convert-scf-to-cf -convert-func-to-llvm -convert-cf-to-llvm -o log.mlir
 
 openacc-update-lower:
 	@${MLIR_OPT} openacc-update.mlir | \
 	${MLIR_OPT} -convert-openacc-to-scf -convert-scf-to-cf -convert-func-to-llvm -convert-cf-to-llvm -o log.mlir
 
-openacc-host-data-lower:
-	@${MLIR_OPT} openacc-host-data.mlir | \
+openacc-data-lower:
+	@${MLIR_OPT} openacc-data.mlir | \
 	${MLIR_OPT} -convert-openacc-to-scf -convert-scf-to-cf -convert-func-to-llvm -convert-cf-to-llvm -o log.mlir
 
 openacc-loop-lower:
