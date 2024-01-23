@@ -3,12 +3,12 @@
 // RUN:     gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)" \
 // RUN: | mlir-cpu-runner -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} 
 //        -shared-libs=${MLIR_CUDA_RUNTIME}
-// 
+
 // The gpu.shuffle dialect is a dialect for exchanging data within the same subgroup1. 
 // It provides some operations that can move data in different dimensions and directions, 
 // such as swap, broadcast, rotate, etc2. Its purpose is to implement some efficient parallel algorithms, 
 // such as reduction, scan, sort, etc.
-// 
+
 func.func @main() {
   %arg = memref.alloc() : memref<13xf32>
   %dst = memref.cast %arg : memref<13xf32> to memref<?xf32>
@@ -26,9 +26,6 @@ func.func @main() {
     %val = arith.sitofp %t0 : i32 to f32
     %width = arith.index_cast %block_x : index to i32
     %offset = arith.constant 4 : i32
-    // 
-    // Based on the bool value of %valid, choose to jump to the two basic blocks ^bb1 or ^bb0 
-    // and pass the value of %shfl as the parameter
     // The shuffle operation uses the xor mode, which means that each thread exchanges its value 
     // with another thread whose index is obtained by bitwise xor with a given offset. 
     // The offset is 4, so the threads with indices 0, 4, 8, and 12 swap their values with the threads 
@@ -45,7 +42,6 @@ func.func @main() {
     // The initial values of the buffer are the thread indices converted to floating-point values, 
     // i.e., [0.0, 1.0, 2.0, …, 12.0]. After the shuffle operation, 
     // the values are [4.0, 5.0, 6.0, 7.0, 0.0, 1.0, 2.0, 3.0, 12.0, -1.0, -1.0, -1.0, 8.0]. 
-    // 
     %shfl, %valid = gpu.shuffle xor %val, %offset, %width : f32
     cf.cond_br %valid, ^bb1(%shfl : f32), ^bb0
   ^bb0:

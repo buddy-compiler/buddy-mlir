@@ -6,7 +6,8 @@
 // RUN:   --entry-point-result=void \
 // RUN: | FileCheck %s
 
-// This example performs an element-wise addition and multiplication on GPU using the gpu.all_reduce add gpu.all_reduce mul dialect.
+// This example performs an element-wise addition and multiplication on GPU using the gpu.all_reduce 
+// add gpu.all_reduce mul dialect.
 func.func @main() {
   %data = memref.alloc() : memref<2x6xf32>
   %sum = memref.alloc() : memref<2xf32>
