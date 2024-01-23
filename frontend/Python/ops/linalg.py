@@ -20,9 +20,6 @@
 
 from typing import Dict, Tuple, List
 
-# TODO: Do not rely on torch.
-import torch
-
 import mlir.ir as ir
 from mlir.dialects import tosa, linalg, arith, tensor, math
 import copy
@@ -118,14 +115,9 @@ def unsqueeze_op(
     node: UnsqueezeOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
-    # TODO: update docstring.
     """
     Import the unsqueeze operation.
     From buddy UnsqueezeOp to MLIR TOSA `reshape` operation.
-
-    Note: "unsqueeze" means inserting a new dimension of size 1 at the specified
-          position. For more information, please refer to
-          https://pytorch.org/docs/stable/generated/torch.unsqueeze.html
 
     Args:
         node: Containing information from the input graph node.
@@ -276,9 +268,8 @@ def ones_op(
 
     return op
 
-# TODO: Do not rely on Torch node.
 def full_op(
-    node: torch.fx.Node,
+    node: FullOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
@@ -1129,10 +1120,9 @@ def matmul_op(
     node: MatmulOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
-    # TODO: update docstring.
     """
     Import the tensor matmul operation.
-    From PyTorch `aten.mm.default` operator to MLIR linalg `matmul` operation.
+    From Buddy MatmulOp to MLIR linalg `matmul` operation.
 
     Note: This op, compute input node's matrix multiplication result.
     Args:
@@ -1696,11 +1686,9 @@ def silu_op(
     node: SiluOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
-    # TODO: update docstring.
     """
     Import the tensor silu activation operation.
-    From PyTorch `aten.silu.default` operator to MLIR linalg `generic`
-    operation.
+    From Buddy SiluOp to MLIR linalg `generic` operation.
 
     Note: This op, compute input node's silu activation result.
     Args:
@@ -1822,6 +1810,91 @@ def param_extract(
     axis = ir.ArrayAttr.get([axis], None)
     return tensor.ExpandShapeOp(tensor_type, extract_slice_op.result, axis)
 
+def where_op(
+    node: WhereOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Import the tensor where operation.
+    From Buddy WhereOp to MLIR linalg `generic` operation.
+
+    Note: This op, compute input node's silu activation result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
+
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
+    assert len(node.args) == 3
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    input2 = symbol_table.get((str(node.args[1]), 0))
+    input3 = symbol_table.get((str(node.args[2]), 0))
+    if input1 is None or input2 is None or input3 is None:
+        return
+
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    output = tensor.EmptyOp(output_shape, mlir_dtype)
+    generic_map = ir.AffineMap.get_permutation(
+        [i for i in range(len(output_shape))]
+    )
+    op = linalg.GenericOp(
+        [tensor_type],
+        [input1, input3],
+        [output],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(
+                    generic_map.get_submap(
+                        [i for i in range(len(output_shape))]
+                    )
+                ),
+                ir.AffineMapAttr.get(
+                    generic_map.get_submap(
+                        [i for i in range(len(output_shape))]
+                    )
+                ),
+                ir.AffineMapAttr.get(
+                    generic_map.get_submap(
+                        [i for i in range(len(output_shape))]
+                    )
+                ),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(output_shape)
+        ),
+    )
+    block = ir.Block.create_at_start(
+        op.region,
+        [
+            ir.RankedTensorType(input1.type).element_type,
+            ir.RankedTensorType(input3.type).element_type,
+            ir.RankedTensorType(output.result.type).element_type,
+        ],
+    )
+    select_op = arith.SelectOp(block.arguments[0], input2, block.arguments[1])
+    block.append(select_op)
+    block.append(linalg.YieldOp([select_op.result]))
+
+    return op
+
+def scalar_tensor_op(node: ScalarTensorOp, symbol_table):
+    """
+    Import the tensor Scalar_Tensor operation.
+    From Buddy ScalarTensorOp to MLIR arith `ConstantOp` operation.
+    """
+    assert len(node.args) == 1
+    dtype = node.tensor_meta["dtype"]
+    attr = mlir_element_attr_get(dtype, node.args[0])
+    op = arith.ConstantOp(dtype, attr)
+
+    return op
 
 ops_registry = {
     "param.extract": param_extract,
@@ -1843,7 +1916,7 @@ ops_registry = {
     "RsqrtOp": rsqrt_op,
     "MulOp": mul_op,
     "TOp": t_op,
-    "TransposeSpecificDimOp": transpose_op,
+    "TransposeOp": transpose_op,
     "IndexOp": index_op,
     "NegOp": neg_op,
     "CatOp": cat_op,
@@ -1854,4 +1927,6 @@ ops_registry = {
     "CloneOp": clone_op,
     "SiluOp": silu_op,
     "AddOp": add_op,
+    "WhereOp": where_op,
+    "ScalarTensorOp": scalar_tensor_op,
 }

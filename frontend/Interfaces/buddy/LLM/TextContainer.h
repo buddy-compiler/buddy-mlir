@@ -325,7 +325,7 @@ template <typename T, size_t N> std::string Text<T, N>::revertLlama() {
   const int CLS_ID = 1;
   const int SEP_ID = 2;
 
-  for (size_t i = 0; i < this->getSize(); i++) {
+  for (size_t i = 0; i < this->tokenCnt; i++) {
     int id = this->aligned[i];
     if (id == PAD_ID || id == CLS_ID)
       continue;

@@ -25,9 +25,10 @@ from ..graph import TensorDType
 
 
 def mlir_element_type_get(type_name):
-    # TODO: update docstring.
     """
-    Get the element type base on type_name.
+    Get the mlir element type base on TensorDType's enum type.
+    Args:
+        type_name: The TensorDType's enum type.
     """
     match type_name:
         case TensorDType.Float32:
@@ -39,9 +40,11 @@ def mlir_element_type_get(type_name):
 
 
 def mlir_element_attr_get(type_name, value):
-    # TODO: update docstring.
     """
-    Get the element attribute base on type_name and value.
+    Get the mlir element attribute base on TensorDType's enum type and value.
+    Args:
+        type_name: The TensorDType's enum type.
+        value: The real value for mlir element attribute.
     """
     match type_name:
         case TensorDType.Float32:

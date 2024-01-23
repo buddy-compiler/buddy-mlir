@@ -2,7 +2,6 @@
 
 import torch
 import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
 from torch._functorch.aot_autograd import aot_autograd_decompositions
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import linalg

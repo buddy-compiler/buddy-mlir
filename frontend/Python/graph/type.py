@@ -22,23 +22,58 @@ from enum import Enum
 
 
 class TensorDType(Enum):
-    # TODO: update docstring.
     """
-    Enum class for declare tensor dtype.
+    Enum class for declaring tensor data types.
+
+    Members:
+    - Int32: str
+        Represents the 32-bit integer data type.
+    - Int64: str
+        Represents the 64-bit integer data type.
+    - Float32: str
+        Represents the 32-bit floating-point data type.
+    - Bool: str
+        Represents the boolean data type.
     """
 
     Int32 = "int32"
     Int64 = "int64"
+    Float16 = "float16"
     Float32 = "float32"
+    Float64 = "float64"
     Bool = "bool"
 
 
 class TensorMeta:
-    # TODO: update docstring.
     """
-    Store tensor's shape and dtype, overlook tensor's raw data.
+    Store tensor metadata, including shape and data type, while overlooking raw 
+    data.
+
+    Attributes:
+    - shape: tuple
+        Represents the shape of the tensor.
+    - dtype: str
+        Represents the data type of the tensor.
+
+    Methods:
+    - __init__(shape: tuple, dtype: str) -> None:
+        Initializes a new instance of the TensorMeta class with the specified 
+        shape and data type.
+
+    Example:
+    meta = TensorMeta(shape=(3, 4), dtype='float32')
+    # Access metadata attributes: meta.shape, meta.dtype
     """
 
     def __init__(self, shape, dtype) -> None:
+        """
+        Initialize a new instance of the TensorMeta class.
+
+        Parameters:
+        - shape: tuple
+            Represents the shape of the tensor.
+        - dtype: str
+            Represents the data type of the tensor.
+        """
         self.shape = shape
         self.dtype = dtype

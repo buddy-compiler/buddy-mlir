@@ -34,9 +34,24 @@ from .type import *
 
 
 def make_output_memref_descriptor(ranks, dtypes):
-    # TODO: update docstring.
     """
-    Make output memref descriptor for the given memref ranks and dtypes.
+    Make an output memref descriptor for the given memref ranks and dtypes.
+
+    Parameters:
+    - ranks: List[int]
+        A list of integers representing the ranks of each memref.
+    - dtypes: List[str]
+        A list of strings representing the data types of each memref.
+
+    Returns:
+    ctypes.Structure
+        An output memref descriptor struct.
+
+    Example:
+    ranks = [2, 3, 1]
+    dtypes = [np.float32, np.int64, np.bool]
+    descriptor = make_output_memref_descriptor(ranks, dtypes)
+    # Use the descriptor in your code
     """
     memref_descriptor = []
     for i, rank, dtype in zip(range(len(ranks)), ranks, dtypes):
@@ -53,24 +68,34 @@ def make_output_memref_descriptor(ranks, dtypes):
 
 
 class Graph:
-    # TODO: update docstring.
-    # TODO: Consider the device member binds to Graph or Op.
     """
-    Graph is graph level expression of the frontends of Buddy Compiler.
-    Graph acts as a model compute graph for the Buddy Compiler frontends,
-    which converts an Graph into an equivalent MLIR module.
+    Graph is a graph-level expression for the Buddy Compiler frontends.
+    It acts as a model compute graph, which converts a Graph into an equivalent 
+    MLIR module.
 
     Attributes:
-        body: The op sequence of graph.
-        inputs: The model inputs.
-        params: The model params.
-        outputs: The mlir func's outputs.
-        device: The hardware for graph runtime.
-        imported_module: The imported MLIR module after compilation.
-        ops_registry: The ops lower strategy for graph.
-        func_name: The func name for mlir module.
-        ctx: The context of mlir module.
-        output_memref: Memref pointer in mlir func output.
+    - _body: List[Op]
+        The sequence of operation nodes in the graph.
+    - _inputs: List[TensorMeta]
+        The model inputs represented as TensorMeta objects.
+    - _fake_params: List[TensorMeta]
+        The fake parameters represented as TensorMeta objects.
+    - device: str
+        The hardware for graph runtime.
+    - _imported_module: Union[None, ImportedModuleType]
+        The imported MLIR module after compilation, if set.
+    - _ops_registry: dict
+        The ops lower strategy for the graph.
+    - _func_name: str
+        The function name for the MLIR module.
+    - _ctx: ir.Context
+        The context of the MLIR module.
+    - _output_memref: Union[None, ctypes.POINTER]
+        The memref pointer in the MLIR function output, if set.
+    - _output_descriptor: Union[None, OutputDescriptorType]
+        The output descriptor for the MLIR function, if set.
+    - ee_: Union[None, ExecutionEngineType]
+        The execution engine for the graph, if set.
     """
 
     def __init__(
@@ -80,19 +105,23 @@ class Graph:
         ops_registry: dict,
         func_name: str,
     ) -> None:
-        # TODO: update docstring.
         """
         Initializes the Graph.
 
         Args:
-            fx_graph: The torch fx graph to be lowered.
-            inputs: The torch fx graph's inputs.
-            params_flat: The real params of the torch fx graph.
+            inputs: List[TensorMeta]
+                The model inputs represented as TensorMeta objects.
+            fake_params: List[TensorMeta]
+                The fake parameters represented as TensorMeta objects.
+            ops_registry: dict
+                The ops lower strategy for the graph.
+            func_name: str
+                The function name for the MLIR module.
         """
         self._body = []
         self._inputs = inputs
+        self.node_table: Dict[str, Op] = {}
         self._fake_params = fake_params
-        self._outputs = None
         self.device = "cpu"
         self._imported_module = None
         self._ops_registry = ops_registry
@@ -100,16 +129,43 @@ class Graph:
         self._ctx = ir.Context()
         self._output_memref = None
         self._output_descriptor = None
-        self.ee_ = None
+        self.execution_engine = None
 
     def add_node(self, node: Op):
-        # TODO: update docstring.
+        """
+        Adds an operation node to the graph's body.
+
+        Parameters:
+        - node: Op
+            The operation node to be added to the graph.
+
+        Returns:
+        None
+
+        Example:
+        graph_instance = Graph(inputs, fake_params, ops_registry, func_name)
+        op_node = Op()
+        graph_instance.add_node(op_node)
+        # The op_node is now part of the graph's body
+        """
         self._body.append(node)
+        self.node_table[node.name] = node
 
     def lower_to_top_level_ir(self, do_params_pack=False):
-        # TODO: update docstring.
         """
-        Lower graph to top level mlir dialects.
+        Lowers the graph to top-level MLIR dialects.
+
+        Parameters:
+        - do_params_pack: bool, optional (default=False)
+            Flag indicating whether to perform parameters packing to one memref.
+
+        Returns:
+        None
+
+        Example:
+        graph_instance = Graph(inputs, fake_params, ops_registry, func_name)
+        graph_instance.lower_to_top_level_ir(do_params_pack=True)
+        # The graph is now lowered to top-level MLIR dialects
         """
         with ir.Location.unknown(self._ctx):
             fx_importer = GraphImporter(
@@ -279,7 +335,17 @@ class GraphImporter:
                 raise NotImplementedError(f"Unsupported dtype {dtype}")
 
     def _pack_params(self) -> None:
-        # TODO: update docstring.
+        """
+        Packs parameters of the graph to one memref.
+
+        Returns:
+        None
+
+        Example:
+        graph_instance = Graph(inputs, fake_params, ops_registry, func_name)
+        graph_instance._pack_params()
+        # The parameters of the graph are now packed to one memref.
+        """
         dtypes = list(set([param.dtype for param in self._params]))
         dtypes.sort(key=str)
         self._current_param_pack_offset = {dtype: 0 for dtype in dtypes}
@@ -323,12 +389,6 @@ class GraphImporter:
             def generated_func(*args):
                 args_list = list(args)
                 for node in self._body:
-                    # TODO: raise an error for unsupported ops. 
-                    # if not (
-                    #     node.op in ["output", "placeholder", "call_function"]
-                    #     or node.target is operator.getitem
-                    # ):
-                    #     continue
                     if isinstance(node, OutputOp):
                         output_node_args = node.args
                         returns = [
@@ -354,13 +414,16 @@ class GraphImporter:
     def _import_placeholder(
         self, node: PlaceholderOp, args_list: List[ir.BlockArgument]
     ):
-        # TODO: update docstring.
         """
-        Imports a placeholder node from the FX graph.
+        Imports a placeholder node from the Buddy graph.
 
-        Args:
-            node (PlaceholderOp): The FX node representing the placeholder.
-            args_list (List[mlir.ir.BlockArgument]): List of input tensors.
+        Parameters:
+        - node (PlaceholderOp): The PlaceholderOp node representing the 
+        placeholder.
+        - args_list (List[mlir.ir.BlockArgument]): List of input memrefs.
+
+        Returns:
+        None
         """
         if self._num_input_visited < len(self._params) and self._do_param_pack:
             dtype = node.tensor_meta["dtype"]
