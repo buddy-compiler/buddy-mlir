@@ -121,24 +121,6 @@ gpu-memset-run:
 	gpu.module(convert-gpu-to-nvvm), gpu-to-llvm, gpu-module-to-binary)" |\
 	${MLIR_CPU_RUNNER} -entry-point-result=void -shared-libs=${MLIR_CUDA_RUNTIME} -shared-libs=${MLIR_RUNNER_UTILS}
 
-gpu-spmm-lower:
-	@${MLIR_OPT} gpu-spmm.mlir -gpu-kernel-outlining | \
-	${MLIR_OPT}  -convert-vector-to-scf -convert-scf-to-cf -convert-cf-to-llvm -convert-vector-to-llvm|\
-	${MLIR_OPT} -convert-arith-to-llvm -gpu-to-llvm -reconcile-unrealized-casts -o log.mlir
-
-gpu-spmm-translate:
-	@${MLIR_OPT} gpu-spmm.mlir -gpu-kernel-outlining | \
-	${MLIR_OPT}  -convert-vector-to-scf -convert-scf-to-cf -convert-cf-to-llvm -convert-vector-to-llvm|\
-	${MLIR_OPT} -convert-arith-to-llvm -gpu-to-llvm -reconcile-unrealized-casts |\
-	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
-
-gpu-spmm-run:
-	@${MLIR_OPT} gpu-spmm.mlir -gpu-kernel-outlining | \
-	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target)" | \
-	${MLIR_OPT}  -convert-vector-to-scf -convert-scf-to-cf -convert-cf-to-llvm -convert-vector-to-llvm|\
-	${MLIR_OPT} -convert-arith-to-llvm -gpu-to-llvm -reconcile-unrealized-casts |\
-	${MLIR_CPU_RUNNER} -entry-point-result=void  -shared-libs=${MLIR_CUDA_RUNTIME} -shared-libs=${MLIR_RUNNER_UTILS} 
-
 gpu-shuffle-lower:
 	@${MLIR_OPT} gpu-shuffle.mlir -gpu-kernel-outlining | \
 	${MLIR_OPT} -pass-pipeline="builtin.module(nvvm-attach-target,\
