@@ -124,6 +124,41 @@ vector-exp-predication-matmul-run:
 		-dlopen=${CROSS_MLIR_C_RUNNER_UTILS} \
 		-dlopen=${CROSS_MLIR_RUNNER_UTILS}
 
+vector-exp-predication-matmul-aot:
+	@${BUDDY_OPT} ./vector-exp-predication-matmul.mlir \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-math-to-llvm \
+		-lower-vector-exp \
+		-lower-rvv \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts |\
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${LLC} -mtriple riscv64  -mattr=+v,+m -riscv-v-vector-bits-min=128 --filetype=obj -o log.o
+	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o  \
+		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
+		-o a.out
+	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
+
+# vector-exp-predication-matmul-elf:
+# 	@${BUDDY_OPT} ./vector-exp-predication-matmul.mlir \
+# 		-lower-affine \
+# 		-convert-scf-to-cf \
+# 		-convert-math-to-llvm \
+# 		-lower-vector-exp \
+# 		-lower-rvv \
+# 		-convert-vector-to-llvm \
+# 		-finalize-memref-to-llvm \
+# 		-convert-func-to-llvm \
+# 		-reconcile-unrealized-casts |\
+# 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+# 	${LLC} -mtriple riscv64  -mattr=+v,+m -riscv-v-vector-bits-min=128 -filetype=obj -o log.o
+# 	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o  \
+# 		-static \
+# 		-o log.elf
+
 vector-exp-add-mask-run:
 	@${BUDDY_OPT} ./vector-exp-add-mask.mlir \
 		-lower-affine \
@@ -187,3 +222,7 @@ vector-exp-add-predication-asm:
 	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
+
+vector-exp-dynamic-vector-dump:
+	@${BUDDY_OPT} ./vector-exp-dynamic-vector.mlir \
+		-o log.mlir

@@ -92,7 +92,7 @@ $ buddy-opt <input> -lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
 
 ```
 $ cd buddy-mlir/build/bin
-$ ./buddy-opt ../../examples/DIPDialect/dip.mlir --lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
+$ ./buddy-opt ../../frontend/Interfaces/DIP.mlir --lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
 ```
 
 - Edge detection example:
@@ -106,8 +106,8 @@ This example can also show the "magic" of AutoConfig mechanism that can help you
 To generate build files for these examples 
 
 ```
-cd buddy-mlir/build
-cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON -DBUDDY_MLIR_ENABLE_DIP_LIB=ON
+$ cd buddy-mlir/build
+$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON -DBUDDY_MLIR_ENABLE_DIP_LIB=ON
 ```
 
 ```
@@ -141,7 +141,6 @@ $ ./rotation2D ../../examples/images/YuTu.png result-dip-rotate.png
  - Resize example:
 ```
 $ cd buddy-mlir/build
-$ cmake -G Ninja .. -DBUDDY_EXAMPLES=ON -DBUDDY_ENABLE_OPENCV=ON
 $ ninja resize2D
 $ cd bin
 $ ./resize2D ../../examples/images/YuTu.png result-dip-resize.png
@@ -238,7 +237,7 @@ Example:
 
 ```
 $ cd buddy-mlir/build/bin
-$ ./buddy-opt ../../examples/BudDialect/TestConstant.mlir --lower-bud
+$ ./buddy-opt ../../examples/BudDialect/bud-print.mlir --lower-bud
 ```
 
 ## DSL Examples
