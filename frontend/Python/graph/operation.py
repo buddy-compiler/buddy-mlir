@@ -54,6 +54,7 @@ class OpType(Enum):
     ConcatType = 4
     PlaceholderType = 5
     GetItemType = 6
+    Unfusable = 7
 
 
 class Op:
@@ -80,7 +81,7 @@ class Op:
         self._name = None
         self._arguments = []
         self._keyword_arguments = {}
-        self._tensor_meta: List[TensorMeta] = {}
+        self._tensor_meta: Dict = {}
         self._op_type: OpType = None
         self._children: List[str] = []
         self._parents: List[str] = []
@@ -446,3 +447,14 @@ class MaxPool2dOp(Op):
         super().__init__()
         self._op_type = OpType.ReduceType
         self._layout = "NCHW"
+
+class CallOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self.call_func_name = ""
+        self._op_type = OpType.Unfusable
+
+class FuncOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.Unfusable
