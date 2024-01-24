@@ -534,8 +534,6 @@ class GraphImporter:
             def generated_func(*args):
                 args_list = list(args)
                 for node in self._body:
-                    # if node == self._body[5]:
-                    #     return args[1]
                     if node in extern_func:
                         continue
                     if isinstance(node, OutputOp):
@@ -613,12 +611,17 @@ class GraphImporter:
 
         """
         op_name = node.__class__.__name__
-        op_ret: ir.Operation | ir.Value | tuple | ir.OpResult = (
+        op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)
         )
-        if isinstance(op_ret, tuple):
+        if isinstance(op_ret, tuple | List):
             for i, operation in enumerate(op_ret):
-                self._symbol_table[(str(node.name), i)] = operation.result
+                if isinstance(operation, ir.Operation):
+                    self._symbol_table[(str(node.name), i)] = operation.result
+                elif isinstance(operation, ir.OpResult):
+                    self._symbol_table[(str(node.name), i)] = operation
+                else:
+                    raise NotImplementedError
         elif isinstance(op_ret, ir.OpResult):
             self._symbol_table[(str(node.name), 0)] = op_ret
         else:

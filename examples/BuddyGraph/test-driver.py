@@ -64,10 +64,10 @@ with torch.no_grad():
     graphs = dynamo_compiler.importer(model, data)
 
 assert len(graphs) == 1
-for g in graphs:
-    g.lower_to_top_level_ir()
-    print(g._imported_module)
 pattern_list = [simply_fuse]
 graphs[0].fuse_ops(pattern_list)
 driver = GraphDriver(graphs[0])
+for subgraph in driver.subgraphs:
+    subgraph.lower_to_top_level_ir()
+    print(subgraph._imported_module)
 print(driver.construct_main_graph(True))

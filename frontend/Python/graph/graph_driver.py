@@ -13,6 +13,10 @@ class GraphDriver:
             self._subgraphs_outputs,
         ) = graph.build_subgraph_by_group()
 
+    @property
+    def subgraphs(self):
+        return list(self._subgraphs.values())
+
     def construct_main_graph(self, do_param_pack=False):
         main_graph = Graph(
             self._graph._inputs,
