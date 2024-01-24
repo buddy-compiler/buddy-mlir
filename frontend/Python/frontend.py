@@ -43,6 +43,7 @@ from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.math import ops_registry as math_ops_registry
 from .graph import Graph, TensorDType, TensorMeta
 from .graph.operation import *
+from .graph.transform import maxpool2d_simplify
 
 
 class DynamoCompiler:
@@ -143,7 +144,7 @@ class DynamoCompiler:
             "iota.default": IotaOp,
             "sigmoid.default": SigmoidOp,
             "scalar_tensor.default": ScalarTensorOp,
-            "where.self": WhereOp
+            "where.self": WhereOp,
         }
 
     @property
@@ -327,6 +328,8 @@ class DynamoCompiler:
                     )
 
                 graph.add_node(buddy_node)
+            transform_list = [maxpool2d_simplify]
+            graph.perform(transform_list)
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
             return self.dynamo_run()

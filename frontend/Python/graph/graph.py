@@ -19,6 +19,7 @@
 # ===---------------------------------------------------------------------------
 
 from typing import Any, List, Optional
+from types import FunctionType
 import ctypes
 import functools
 
@@ -150,6 +151,10 @@ class Graph:
         """
         self._body.append(node)
         self.node_table[node.name] = node
+
+    def perform(self, func_list: List[FunctionType]):
+        for transform_func in func_list:
+            transform_func(self)
 
     def lower_to_top_level_ir(self, do_params_pack=False):
         """
