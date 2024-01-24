@@ -1,0 +1,1 @@
+from .fuse_ops import simply_fuse

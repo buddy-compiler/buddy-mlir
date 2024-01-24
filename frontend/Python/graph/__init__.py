@@ -19,5 +19,6 @@
 # ===---------------------------------------------------------------------------
 
 from .graph import Graph
+from .graph_driver import GraphDriver
 from .operation import *
 from .type import TensorDType, TensorMeta, DeviceType

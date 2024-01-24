@@ -41,6 +41,7 @@ import torch.utils._pytree as pytree
 from .ops.linalg import ops_registry as linalg_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.math import ops_registry as math_ops_registry
+from .ops.func import ops_registry as func_ops_registry
 from .graph import Graph, TensorDType, TensorMeta
 from .graph.operation import *
 
@@ -91,6 +92,7 @@ class DynamoCompiler:
         self._ops_registry.update(math_ops_registry)
         self._ops_registry.update(linalg_ops_registry)
         self._ops_registry.update(tosa_ops_registry)
+        self._ops_registry.update(func_ops_registry)
         self._ops_registry.update(primary_registry)
         self._ops_map = {
             "output": OutputOp,

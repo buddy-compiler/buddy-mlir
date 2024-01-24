@@ -194,8 +194,8 @@ class Graph:
         output_node = []
         for node in self._body:
             if isinstance(node, OutputOp):
-                for parent in node._parents:
-                    output_node.append(parent)
+                for arg in node.args:
+                    output_node.append(arg)
         for subgraph_name in self.op_groups.keys():
             subgraphs_outputs[subgraph_name] = []
             for op in self.op_groups[subgraph_name]:
@@ -232,7 +232,7 @@ class Graph:
                 output_node.add_parent(output)
             subgraph_body.append(output_node)
             subgraph = Graph(
-                subgraphs_inputs, [], self._ops_registry, subgraph_name
+                subgraph_input, [], self._ops_registry, subgraph_name
             )
             subgraph.body = subgraph_body
             for op in subgraph_body:
@@ -450,12 +450,63 @@ class GraphImporter:
                 )
             mlir_dtype = self._str_to_mlir_dtype(dtype)
             self._param_packs.append(
-                ir.RankedTensorType.get([param_total_size], mlir_dtype)
+                ir.MemRefType.get([param_total_size], mlir_dtype)
             )
 
     def import_graph(self) -> ir.Module:
         """
         Imports buddy graph and generates an MLIR module in high-level dialects.
+
+        Returns:
+            mlir.ir.Module: An MLIR module in high-level dialects.
+        """
+        assert self._do_param_pack == False
+        with ir.InsertionPoint(self._module.body):
+            arguments = []
+            inputs = self._params + self._inputs
+            for arg in inputs:
+                shape_list = list(arg.shape)
+                dtype = arg.dtype
+                mlir_dtype = self._str_to_mlir_dtype(dtype)
+                tensor_arg = ir.RankedTensorType.get(shape_list, mlir_dtype)
+                arguments.append(tensor_arg)
+            extern_func = []
+            for node in self._body:
+                if isinstance(node, FuncOp):
+                    extern_func.append(node)
+                    self._import_op(node)
+            @func.FuncOp.from_py_func(*arguments, name=self._func_name)
+            def generated_func(*args):
+                args_list = list(args)
+                for node in self._body:
+                    if node in extern_func:
+                        continue
+                    if isinstance(node, OutputOp):
+                        output_node_args = node.args
+                        returns = [
+                            self._symbol_table.get((str(output_arg), 0))
+                            for output_arg in output_node_args
+                        ]
+                        self._symbol_table[("output", 0)] = returns
+                    elif isinstance(node, PlaceholderOp):
+                        self._import_placeholder(node, args_list)
+                    elif isinstance(node, GetItemOp):
+                        self._symbol_table[
+                            (str(node.name), 0)
+                        ] = self._symbol_table[
+                            (str(node.args[0]), node.args[1])
+                        ]
+                    else:
+                        self._import_op(node)
+
+                return self._symbol_table.get(("output", 0))
+
+        return self._module
+
+    def import_main_graph(self) -> ir.Module:
+        """
+        Imports buddy main graph to organize all subgraphs and generates an MLIR
+        module in high-level dialects with memref.
 
         Returns:
             mlir.ir.Module: An MLIR module in high-level dialects.
@@ -472,13 +523,21 @@ class GraphImporter:
                 shape_list = list(arg.shape)
                 dtype = arg.dtype
                 mlir_dtype = self._str_to_mlir_dtype(dtype)
-                tensor_arg = ir.RankedTensorType.get(shape_list, mlir_dtype)
+                tensor_arg = ir.MemRefType.get(shape_list, mlir_dtype)
                 arguments.append(tensor_arg)
-
+            extern_func = []
+            for node in self._body:
+                if isinstance(node, FuncOp):
+                    extern_func.append(node)
+                    self._import_op(node)
             @func.FuncOp.from_py_func(*arguments, name=self._func_name)
             def generated_func(*args):
                 args_list = list(args)
                 for node in self._body:
+                    # if node == self._body[5]:
+                    #     return args[1]
+                    if node in extern_func:
+                        continue
                     if isinstance(node, OutputOp):
                         output_node_args = node.args
                         returns = [
@@ -519,7 +578,7 @@ class GraphImporter:
             dtype = node.tensor_meta["dtype"]
             pack_of_dtype = None
             for pack in args_list:
-                if ir.RankedTensorType(
+                if ir.MemRefType(
                     pack.type
                 ).element_type == self._str_to_mlir_dtype(dtype):
                     pack_of_dtype = pack
@@ -563,7 +622,8 @@ class GraphImporter:
         elif isinstance(op_ret, ir.OpResult):
             self._symbol_table[(str(node.name), 0)] = op_ret
         else:
-            self._symbol_table[(str(node.name), 0)] = op_ret.result
+            for i, result in enumerate(op_ret.results):
+                self._symbol_table[(str(node.name), i)] = result
 
     def get_output_nodes(self):
         """

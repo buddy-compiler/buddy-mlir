@@ -24,7 +24,7 @@ import time
 import numpy
 import torch
 from transformers import LlamaForCausalLM, LlamaTokenizer
-from torch._functorch.aot_autograd import aot_autograd_decompositions
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
@@ -45,7 +45,7 @@ model.config.use_cache = False
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=aot_autograd_decompositions,
+    aot_autograd_decomposition=inductor_decomp,
 )
 
 # Import the model into MLIR module and parameters.
