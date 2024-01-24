@@ -507,6 +507,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
         TensorDType.Float32: ir.F32Type.get(),
         TensorDType.Float16: ir.F16Type.get(),
         TensorDType.Int32: ir.IntegerType.get_signless(32),
+        TensorDType.Bool: ir.IntegerType.get_signless(1)
     }
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     to_cast_type = types_mapping[node.args[1]]
