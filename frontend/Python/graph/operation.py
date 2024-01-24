@@ -442,3 +442,15 @@ class MaxPool2dOp(Op):
         super().__init__()
         self._op_type = OpType.ReduceType
         self._layout = "NCHW"
+
+
+class ReciprocalOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SqrtOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType

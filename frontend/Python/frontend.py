@@ -145,6 +145,8 @@ class DynamoCompiler:
             "sigmoid.default": SigmoidOp,
             "scalar_tensor.default": ScalarTensorOp,
             "where.self": WhereOp,
+            "sqrt.default": SqrtOp,
+            "reciprocal.default": ReciprocalOp,
         }
 
     @property
@@ -196,7 +198,7 @@ class DynamoCompiler:
             data type.
             node_kwargs: The restful attributes for op node.
         """
-        op_class = self._ops_map.get(gm_node_name)
+        op_class = self._ops_map[gm_node_name]
         buddy_node = op_class()
         buddy_node._name = node_name
         if gm_node_name == "output":
