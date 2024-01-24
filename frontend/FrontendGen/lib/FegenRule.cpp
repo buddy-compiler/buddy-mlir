@@ -17,6 +17,21 @@ void fegen::FegenRule::setContent(llvm::StringRef content) {
   this->content = content;
 }
 
+fegen::FegenIR fegen::FegenRule::getIRContent() { return this->irContent; }
+void fegen::FegenRule::setIRContent(fegen::FegenIR irContent) {
+  this->irContent = irContent;
+}
+
+bool fegen::FegenRule::addInput(fegen::FegenValue *value) {
+  auto p = this->inputList.insert({value->getName(), value});
+  return p.second;
+}
+
+bool fegen::FegenRule::addReturn(fegen::FegenValue *value) {
+  auto p = this->returnList.insert({value->getName(), value});
+  return p.second;
+}
+
 fegen::RuleMap::~RuleMap() {
   for (auto p : this->name2RuleMap) {
     auto rule = p.second;
@@ -24,7 +39,7 @@ fegen::RuleMap::~RuleMap() {
   }
 }
 
-fegen::FegenRule *fegen::RuleMap::at(llvm::StringRef name) {
+fegen::FegenRule *fegen::RuleMap::find(llvm::StringRef name) {
   auto rule = this->name2RuleMap.find(name);
   if (rule == this->name2RuleMap.end()) {
     // TODO: output error
