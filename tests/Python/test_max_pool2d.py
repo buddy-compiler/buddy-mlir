@@ -8,16 +8,16 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
 
-class Convolution(torch.nn.Module):
+class TestModule(torch.nn.Module):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.conv = torch.nn.Conv2d(3, 255, (5, 5), 3, 3, bias=False)
+        self.pool = torch.nn.MaxPool2d((5, 5), 3, (2, 2))
 
     def forward(self, a):
-        return self.conv(a)
+        return self.pool(a)
 
 
-model = Convolution()
+model = TestModule()
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,

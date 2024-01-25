@@ -35,7 +35,22 @@ dynamo_compiler = DynamoCompiler(
     aot_autograd_decomposition=inductor_decomp,
 )
 
+data = torch.randn([1, 3, 224, 224])
+right_result = model(data)
+
+with torch.no_grad():
+    model_opt = torch.compile(model, backend=dynamo_compiler)
+    test_result = model_opt(data)
+
+print(torch.allclose(right_result, test_result, atol=1e-5))
+print(right_result)
+print(test_result)
+
+
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
-    data = torch.ones([1, 3, 224, 224])
     graphs = dynamo_compiler.importer(model, data)
+
+assert len(graphs) == 1
+graphs[0].lower_to_top_level_ir()
+print(graphs[0]._imported_module)

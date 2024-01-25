@@ -401,7 +401,10 @@ def unsqueeze_op(node: UnsqueezeOp, symbol_table):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     dim = node.args[1]
     sizes = ir.RankedTensorType(input_tensor.type).shape
-    sizes.insert(dim, 1)
+    if dim == -1:
+        sizes.append(1)
+    else:
+        sizes.insert(dim, 1)
     new_shape_content = array.array("i", sizes)
     new_shape_content = memoryview(new_shape_content)
     op = tosa.ReshapeOp(input_tensor, new_shape_content)
@@ -925,7 +928,10 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
             permute_result_type, input1, perm_const_op.results[0]
         ).result
     out_shape = node.tensor_meta["shape"]
-    pad = [0 for _ in range(len(out_shape) - len(pad))] + pad
+    if len(pad) == 1:
+        pad = [pad[0]] * 4
+    elif len(pad) == 2:
+        pad = [pad[0]] * 2 + [pad[1]] * 2
     kernel_attr = ir._denseI64ArrayAttr(kernel, None)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
     pad_attr = ir._denseI64ArrayAttr(pad, None)
@@ -1022,8 +1028,10 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     assert input1 != None and weight != None and bias_tensor != None
     stride = node.args[3]
     input_padding = node.args[4]
-    for i in range(len(input_padding), 4):
-        input_padding = [0] + input_padding
+    if len(input_padding) == 1:
+        input_padding = [input_padding[0]] * 4
+    elif len(input_padding) == 2:
+        input_padding = [input_padding[0]] * 2 + [input_padding[1]] * 2
     dilation = node.args[5]
     groups = node.args[8]
     out_shape = node.tensor_meta["shape"]
@@ -1036,8 +1044,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
         out_shape = perm_shape
     output = ir.RankedTensorType.get(out_shape, result_element_type)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
-    if groups > 1:
-        raise NotImplementedError
+    assert groups == 1, 'tosa.conv2d only support one group'
     if is_kernel_transposed:
         if sum(input_padding) > 0 or sum(dilation) > len(dilation):
             raise NotImplementedError
