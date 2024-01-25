@@ -42,7 +42,7 @@ with torch.no_grad():
     model_opt = torch.compile(model, backend=dynamo_compiler)
     test_result = model_opt(data)
 
-print(torch.allclose(right_result, test_result, atol=1e-5))
+assert torch.allclose(right_result, test_result, atol=1e-5)
 print(right_result)
 print(test_result)
 
