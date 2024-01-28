@@ -220,7 +220,7 @@ def addmm_op(
 def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
     """
     Import batch matrix multiplication operation.
-    From buddy graph ir's `BatchMatmulOp` operator to MLIR TOSA `matmul`
+    From buddy graph ir's `BatchMatmulOp` operator to MLIR TOSA `matmul` 
     operation.
     """
     input_ = symbol_table.get((str(node.args[0]), 0))

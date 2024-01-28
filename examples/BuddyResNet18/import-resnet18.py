@@ -42,7 +42,7 @@ with torch.no_grad():
     model_opt = torch.compile(model, backend=dynamo_compiler)
     test_result = model_opt(data)
 
-print(torch.allclose(right_result, test_result, atol=1e-5))
+assert torch.allclose(right_result, test_result, atol=1e-5)
 print(right_result)
 print(test_result)
 
@@ -56,5 +56,10 @@ with torch.no_grad():
     graphs = dynamo_compiler.importer(model, data)
 
 assert len(graphs) == 1
+<<<<<<< HEAD
 graphs[0].lower_to_top_level_ir(True)
 print(graphs[0]._imported_module)
+=======
+graphs[0].lower_to_top_level_ir()
+print(graphs[0]._imported_module)
+>>>>>>> yuliang/resnet-with-maxpool
