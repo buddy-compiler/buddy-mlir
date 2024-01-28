@@ -9,20 +9,54 @@ bool fegen::FegenType::operator==(fegen::FegenType *another) {
 
 llvm::StringRef fegen::FegenType::getName() { return this->name; }
 
-fegen::FegenValue::FegenValue(FegenType *type, ValueKind valueKind,
-                              std::string name, bool isList)
-    : type(type), valueKind(valueKind), name(name), isList(isList) {}
+fegen::FegenValue::LiteralValue::LiteralValue(
+    std::variant<int, float, std::string> value)
+    : value(value) {}
 
+fegen::FegenValue::RuleInOutputValue::RuleInOutputValue(SourceSectionType ty,
+                                                        FegenValue *value)
+    : srcSectype(ty), value(value), sourceRule(value->getSource()) {}
+
+fegen::FegenValue::RuleAttributeValue::RuleAttributeValue(AttributeKind kind,
+                                                          FegenRule *src)
+    : attrType(kind), sourceRule(src) {}
+
+fegen::FegenValue::FegenValue(FegenRule *source, FegenType *type,
+                              ValueKind valueKind, std::string name,
+                              bool isList)
+    : source(source), type(type), valueKind(valueKind), name(name),
+      isList(isList) {}
+
+fegen::FegenRule *fegen::FegenValue::getSource() { return this->source; }
 fegen::FegenType *fegen::FegenValue::getType() { return this->type; }
 llvm::StringRef fegen::FegenValue::getName() { return this->name; }
 
 fegen::ValueKind fegen::FegenValue::getValueKind() { return this->valueKind; }
 
-fegen::FegenValue *fegen::FegenValue::getBindingValue() {
-  return this->bindingValue;
+std::variant<std::monostate, fegen::FegenValue::LiteralValue,
+             fegen::FegenValue::RuleInOutputValue,
+             fegen::FegenValue::RuleAttributeValue>&
+fegen::FegenValue::getBindingValue() {
+  return this->bindingInfo;
 }
-void fegen::FegenValue::setBindingValue(fegen::FegenValue *value) {
-  this->bindingValue = value;
+void fegen::FegenValue::setBindingValue(
+    std::variant<std::monostate, fegen::FegenValue::LiteralValue,
+                 fegen::FegenValue::RuleInOutputValue,
+                 fegen::FegenValue::RuleAttributeValue>
+        info) {
+  this->bindingInfo = info;
+}
+
+bool fegen::FegenValue::ifList() {
+  return this->isList;
+}
+
+void fegen::FegenValue::setRuleIndex(int index) {
+  this->ruleIndex = index;
+}
+
+int fegen::FegenValue::getRuleIndex() {
+  return this->ruleIndex;
 }
 
 fegen::ValueMap::~ValueMap() {
@@ -49,11 +83,12 @@ fegen::FegenType *fegen::ValueMap::createType(std::string name) {
   return new fegen::FegenType(name);
 }
 
-fegen::FegenValue *fegen::ValueMap::createValue(std::string name,
-                                                FegenType *type,
+fegen::FegenValue *fegen::ValueMap::createValue(fegen::FegenRule *source,
+                                                std::string name,
+                                                fegen::FegenType *type,
                                                 ValueKind valueKind,
                                                 bool isList) {
-  return new fegen::FegenValue(type, valueKind, name, isList);
+  return new fegen::FegenValue(source, type, valueKind, name, isList);
 }
 
 fegen::FegenType *fegen::ValueMap::findType(std::string name) {

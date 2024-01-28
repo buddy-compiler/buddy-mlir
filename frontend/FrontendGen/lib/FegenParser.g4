@@ -8,7 +8,6 @@ fegenModule
 	: (parserGrammarNode | lexerGrammarNode)+
 	;
 
-//TODO: add lexer grammar definaion to reduce sema work
 lexerGrammarNode
     : LexerRuleName lexerGrammarSpec
     ;
@@ -168,10 +167,10 @@ cppCode
 	;
 
 parserGrammarSpec
-	: GRAMMAR LeftBracket antlrRule RightBracket
+	: GRAMMAR LeftBracket parserAntlrRule RightBracket
 	;
 
-antlrRule
+parserAntlrRule
 	: alternatives+
 	;
 
@@ -190,7 +189,7 @@ suffixedRule
     ;
 
 parenSurroundedElem
-    : LeftParen antlrRule RightParen
+    : LeftParen parserAntlrRule RightParen
     ;
 
 ruleSuffix

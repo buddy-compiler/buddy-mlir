@@ -5,7 +5,7 @@ funDefine
 inputs [attributeValue<string>, attributeValue<toy.functionType>]
 // regions []
 grammar [prototype block]
-ir [operation<toy.func>]    
+ir [operation<toy.func>]
 
 prototype
 grammar [Def funcName funcParams]
@@ -15,7 +15,7 @@ returns [attributeValue<SymbolNameAttr> name = $Identifier.text]
 grammar [Identifier]
 
 funcParams
-inputs [list<cppValue<"Type">>]
+inputs [list<cppValue<"Type">> x]
 returns [attributeValue<toy.functionType> v]
 grammar [ParentheseOpen declList? ParentheseClose]
 ir [attribute<toy.functionType>]
