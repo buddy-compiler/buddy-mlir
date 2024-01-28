@@ -361,7 +361,7 @@ class GraphImporter:
             param_total_size = 0
             for param in params_of_dtype:
                 param_total_size += functools.reduce(
-                    lambda x, y: x * y, list(param.shape)+[1]
+                    lambda x, y: x * y, list(param.shape), 1
                 )
             mlir_dtype = self._str_to_mlir_dtype(dtype)
             self._param_packs.append(
@@ -443,7 +443,7 @@ class GraphImporter:
                 node, self._current_param_pack_offset[dtype], pack_of_dtype
             ).result
             self._current_param_pack_offset[dtype] += functools.reduce(
-                lambda x, y: x * y, list(node.tensor_meta["shape"])+[1]
+                lambda x, y: x * y, list(node.tensor_meta["shape"]), 1
             )
         elif self._do_param_pack:
             if len(self._params) > 0:

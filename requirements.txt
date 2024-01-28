@@ -5,3 +5,4 @@ tokenizers == 0.13.3
 sentencepiece == 0.1.99
 accelerate
 protobuf
+torchvision

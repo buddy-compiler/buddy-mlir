@@ -1781,7 +1781,7 @@ def param_extract(
     }
     tensor_element_type = dtype_mapping[node.tensor_meta["dtype"]]
     output_shape = list(node.tensor_meta["shape"])
-    extract_size = functools.reduce(lambda x, y: x * y, output_shape+[1])
+    extract_size = functools.reduce(lambda x, y: x * y, output_shape, 1)
     offset_attr = ir._denseI64ArrayAttr([offset], None)
     size_attr = ir._denseI64ArrayAttr([extract_size], None)
     stride = [1]
