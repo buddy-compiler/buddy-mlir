@@ -37,7 +37,7 @@ dynamo_compiler = DynamoCompiler(
 
 data = torch.randn([1, 3, 224, 224])
 right_result = model(data)
-
+torch._dynamo.reset()
 with torch.no_grad():
     model_opt = torch.compile(model, backend=dynamo_compiler)
     test_result = model_opt(data)
@@ -46,11 +46,20 @@ assert torch.allclose(right_result, test_result, atol=1e-5)
 print(right_result)
 print(test_result)
 
-
+torch._dynamo.reset()
+dynamo_compiler = DynamoCompiler(
+    primary_registry=tosa.ops_registry,
+    aot_autograd_decomposition=inductor_decomp,
+)
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
     graphs = dynamo_compiler.importer(model, data)
 
 assert len(graphs) == 1
+<<<<<<< HEAD
+graphs[0].lower_to_top_level_ir(True)
+print(graphs[0]._imported_module)
+=======
 graphs[0].lower_to_top_level_ir()
 print(graphs[0]._imported_module)
+>>>>>>> yuliang/resnet-with-maxpool
