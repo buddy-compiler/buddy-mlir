@@ -142,7 +142,6 @@ Img<T, N> imread(const String &filename, int flags) {
     throw std::runtime_error("Decoder not found for the given image.");
   }
 
-  if (decoder) {
     // Converts a pointer to BmpDecoder<T, N>
     BmpDecoder<T, N> *bmpDecoderPtr =
         dynamic_cast<BmpDecoder<T, N> *>(decoder.get());
@@ -222,7 +221,6 @@ Img<T, N> imread(const String &filename, int flags) {
       PngDecoderPtr->readData(Image);
       return Image;
     }
-  }
 }
 
 template <typename T, size_t N>
@@ -270,7 +268,6 @@ static bool imwrite(const String &filename, Img<T, N> &img_vec) {
     throw std::runtime_error("Encoder not found for the given image.");
   }
 
-  if (encoder) {
     // Convert to a pointer of BmpEncoder<T, N>
     BmpEncoder<T, N> *bmpEncoderPtr =
         dynamic_cast<BmpEncoder<T, N> *>(encoder.get());
@@ -303,9 +300,6 @@ static bool imwrite(const String &filename, Img<T, N> &img_vec) {
       code = pngEncoderPtr->write(img_vec, params);
       return code;
     }
-  }
-
-  return true;
 }
 } // namespace dip
 #endif
