@@ -19,6 +19,7 @@
 # ===---------------------------------------------------------------------------
 
 from typing import Any, List, Optional
+from types import FunctionType
 import ctypes
 import functools
 
@@ -151,6 +152,10 @@ class Graph:
         self._body.append(node)
         self.node_table[node.name] = node
 
+    def perform(self, func_list: List[FunctionType]):
+        for transform_func in func_list:
+            transform_func(self)
+
     def lower_to_top_level_ir(self, do_params_pack=False):
         """
         Lowers the graph to top-level MLIR dialects.
@@ -229,7 +234,7 @@ class Graph:
             pm.add("eliminate-empty-tensors")
             pm.add("empty-tensor-to-alloc-tensor")
             pm.add("convert-elementwise-to-linalg")
-            pm.add("func.func(linalg-bufferize)")
+            pm.add('one-shot-bufferize')
             pm.add("func.func(convert-linalg-to-affine-loops)")
             pm.add("affine-loop-fusion")
             pm.add("func.func(affine-parallelize)")
@@ -356,7 +361,7 @@ class GraphImporter:
             param_total_size = 0
             for param in params_of_dtype:
                 param_total_size += functools.reduce(
-                    lambda x, y: x * y, list(param.shape)
+                    lambda x, y: x * y, list(param.shape), 1
                 )
             mlir_dtype = self._str_to_mlir_dtype(dtype)
             self._param_packs.append(
@@ -438,7 +443,7 @@ class GraphImporter:
                 node, self._current_param_pack_offset[dtype], pack_of_dtype
             ).result
             self._current_param_pack_offset[dtype] += functools.reduce(
-                lambda x, y: x * y, list(node.tensor_meta["shape"])
+                lambda x, y: x * y, list(node.tensor_meta["shape"]), 1
             )
         elif self._do_param_pack:
             if len(self._params) > 0:

@@ -1,29 +1,32 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
 
-class Convolution(torch.nn.Module):
+class TestModule(torch.nn.Module):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.conv = torch.nn.Conv2d(3, 255, (5, 5), 3, 3, bias=False)
+        self.pool = torch.nn.MaxPool2d((5, 5), 3, (2, 2))
 
     def forward(self, a):
-        return self.conv(a)
+        return self.pool(a)
 
 
-model = Convolution()
+model = TestModule()
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
 )
 
 in1 = torch.randn((1, 3, 640, 480))
+
+model_opt = torch.compile(model, backend=dynamo_compiler)
+assert torch.allclose(model_opt(in1), model(in1), equal_nan=True)
+
 graphs = dynamo_compiler.importer(model, in1)
 assert len(graphs) == 1
 graph = graphs[0]
@@ -33,9 +36,8 @@ print(graph._imported_module)
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.transpose
-# CHECK: %{{.*}} = "tosa.const"()
-# CHECK: %{{.*}} = tosa.transpose
-# CHECK: %{{.*}} = tosa.conv2d
+# CHECK: %{{.*}} = tosa.max_pool2d
+# CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.transpose
 # CHECK: return %{{.*}}
 # CHECK: }

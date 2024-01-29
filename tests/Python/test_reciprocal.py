@@ -4,27 +4,25 @@ import torch
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
+from buddy.compiler.ops import math
 
 
-def foo(x, y, keepdim):
-    return torch.mean(x, y, keepdim=keepdim)
+def foo(x):
+    return torch.ops.aten.reciprocal(x)
 
 
-in1 = torch.ones([13, 13], dtype=torch.float32)
-in2 = [-1]
-in3 = True
+x = torch.randn(10, 3, 6)
+
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
+    primary_registry=math.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
 )
 
 foo_mlir = torch.compile(foo, backend=dynamo_compiler)
-assert torch.allclose(
-    foo_mlir(in1, in2, keepdim=in3), foo(in1, in2, keepdim=in3), equal_nan=True
-)
-graphs = dynamo_compiler.importer(foo, in1, in2, in3)
+assert torch.allclose(foo_mlir(x), foo(x), equal_nan=True)
+
+graphs = dynamo_compiler.importer(foo, x)
 assert len(graphs) == 1
 graph = graphs[0]
 graph.lower_to_top_level_ir()
@@ -32,10 +30,7 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tosa.reduce_sum
-# CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.reciprocal
-# CHECK: %{{.*}} = tosa.mul
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }
