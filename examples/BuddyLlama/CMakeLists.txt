@@ -5,14 +5,14 @@ add_custom_command(
 )
 
 add_custom_command(
-  OUTPUT llama.o
-  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/llama.mlir 
+  OUTPUT forward.o
+  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/forward.mlir 
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -linalg-bufferize
+            -one-shot-bufferize
             -matmul-paralell-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -43,12 +43,55 @@ add_custom_command(
         ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_MLIR_BINARY_DIR}/llvm-as |
         ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
-          -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/llama.o
-  DEPENDS buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/llama.mlir
-  COMMENT "Building llama.o "
+          -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/forward.o
+  COMMENT "Building forward.o "
   VERBATIM)
 
-add_library(LLAMA STATIC llama.o)
+add_custom_command(
+    OUTPUT subgraph.o
+    COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/subgraph0.mlir 
+              -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+            ${BUDDY_BINARY_DIR}/buddy-opt
+            -arith-expand
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -one-shot-bufferize
+            -matmul-paralell-vectorization-optimize
+            -batchmatmul-optimize
+            -convert-linalg-to-affine-loops
+            -affine-loop-fusion
+            -affine-parallelize
+            -lower-affine
+            -convert-scf-to-openmp
+            -func-bufferize-dynamic-offset
+            -tensor-bufferize
+            -arith-bufferize
+            -buffer-deallocation
+            -finalizing-bufferize
+            -convert-vector-to-scf
+            -expand-strided-metadata
+            -cse
+            -convert-vector-to-llvm
+            -memref-expand
+            -arith-expand
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm 
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_MLIR_BINARY_DIR}/llvm-as |
+          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+            -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/subgraph.o
+    COMMENT "Building subgraph.o "
+    VERBATIM)
+
+add_library(LLAMA STATIC forward.o subgraph.o)
 
 SET_SOURCE_FILES_PROPERTIES(
   template.o

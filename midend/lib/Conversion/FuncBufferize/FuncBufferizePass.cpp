@@ -25,36 +25,17 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
-#include <utility>
 #include <mlir/IR/OperationSupport.h>
+#include <utility>
 using namespace mlir;
 using namespace mlir::func;
-
-namespace {
-
-class FuncBufferizeDynamicOffsetPattern : public ConversionPattern {
-public:
-  explicit FuncBufferizeDynamicOffsetPattern(MLIRContext *context)
-      : ConversionPattern(FuncOp::getOperationName(), 1, context) {}
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto loc = op->getLoc();
-    auto func_op = llvm::cast<func::FuncOp>(*op);
-
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-} // namespace
 
 namespace {
 class FuncBufferizeDynamicOffsetPass
     : public PassWrapper<FuncBufferizeDynamicOffsetPass,
                          OperationPass<ModuleOp>> {
 public:
-  FuncBufferizeDynamicOffsetPass()=default;
+  FuncBufferizeDynamicOffsetPass() = default;
   llvm::StringRef getArgument() const final {
     return "func-bufferize-dynamic-offset";
   }
@@ -64,13 +45,10 @@ public:
   std::unique_ptr<Pass> clonePass() const override {
     return std::make_unique<FuncBufferizeDynamicOffsetPass>();
   }
-  
+
   void getDependentDialects(::mlir::DialectRegistry &registry) const override {
-    
-  registry.insert<bufferization::BufferizationDialect>();
-
-  registry.insert<memref::MemRefDialect>();
-
+    registry.insert<bufferization::BufferizationDialect>();
+    registry.insert<memref::MemRefDialect>();
   }
 
   void runOnOperation() override;
@@ -89,22 +67,27 @@ void FuncBufferizeDynamicOffsetPass::runOnOperation() {
   ModuleOp module = getOperation();
   TypeConverter typeConverter;
   typeConverter.addConversion([](Type type) { return type; });
-  typeConverter.addConversion([&](RankedTensorType type){
+  typeConverter.addConversion([&](RankedTensorType type) {
     auto shape = type.getShape();
     llvm::SmallVector<int64_t, 8> stride;
     stride.reserve(shape.size());
     int64_t initial_value = 1;
     stride.insert(stride.begin(), initial_value);
-    for(auto i=shape.size()-1;i>0;i--){
-      initial_value*=shape[i];
+    for (auto i = shape.size() - 1; i > 0; i--) {
+      initial_value *= shape[i];
       stride.insert(stride.begin(), initial_value);
     }
-    return MemRefType::get(type.getShape(), type.getElementType(), StridedLayoutAttr::get(context, mlirShapedTypeGetDynamicSize(), ArrayRef<int64_t>(stride)));
+    return MemRefType::get(
+        type.getShape(), type.getElementType(),
+        StridedLayoutAttr::get(context, mlirShapedTypeGetDynamicSize(),
+                               ArrayRef<int64_t>(stride)));
   });
   typeConverter.addArgumentMaterialization(materializeToTensor);
   typeConverter.addSourceMaterialization(materializeToTensor);
-  typeConverter.addTargetMaterialization([](OpBuilder &builder, BaseMemRefType type,
-                              ValueRange inputs, Location loc) -> Value {
+  typeConverter.addTargetMaterialization([](OpBuilder &builder,
+                                            BaseMemRefType type,
+                                            ValueRange inputs,
+                                            Location loc) -> Value {
     assert(inputs.size() == 1 && "expected exactly one input");
 
     if (auto inputType = dyn_cast<MemRefType>(inputs[0].getType())) {
@@ -114,8 +97,8 @@ void FuncBufferizeDynamicOffsetPass::runOnOperation() {
       auto rankedDestType = dyn_cast<MemRefType>(type);
       if (!rankedDestType)
         return nullptr;
-      FailureOr<Value> replacement =
-          bufferization::castOrReallocMemRefValue(builder, inputs[0], rankedDestType);
+      FailureOr<Value> replacement = bufferization::castOrReallocMemRefValue(
+          builder, inputs[0], rankedDestType);
       if (failed(replacement))
         return nullptr;
       return *replacement;
@@ -131,26 +114,18 @@ void FuncBufferizeDynamicOffsetPass::runOnOperation() {
   ConversionTarget target(*context);
   target.addLegalDialect<memref::MemRefDialect>();
   target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
-    // #define DEBUG_TYPE "wlq"
-    // for(auto ty:op.getFunctionType().getInputs()){
-    //   LLVM_DEBUG(llvm::dbgs()<< typeConverter.convertType(ty)<<" "<<ty<<"\n");
-    // }
-    // LLVM_DEBUG(llvm::dbgs()<< "--------------------------------\n");
-    // for(auto ty:op.getFunctionType().getResults()){
-    //   LLVM_DEBUG(llvm::dbgs()<< typeConverter.convertType(ty)<<" "<<ty<<"\n");
-    // }
-    // #undef DEBUG_TYPE
     return typeConverter.isSignatureLegal(op.getFunctionType()) &&
            typeConverter.isLegal(&op.getBody());
   });
   RewritePatternSet patterns(context);
   populateFunctionOpInterfaceTypeConversionPattern<FuncOp>(patterns,
-                                                             typeConverter);
+                                                           typeConverter);
   populateReturnOpTypeConversionPattern(patterns, typeConverter);
   target.addLegalOp<ModuleOp, bufferization::ToTensorOp,
-                      bufferization::ToMemrefOp>();
-  target.markUnknownOpDynamicallyLegal([&](Operation* op){
-    return isLegalForReturnOpTypeConversionPattern(op, typeConverter) || isNotBranchOpInterfaceOrReturnLikeOp(op);
+                    bufferization::ToMemrefOp>();
+  target.markUnknownOpDynamicallyLegal([&](Operation *op) {
+    return isLegalForReturnOpTypeConversionPattern(op, typeConverter) ||
+           isNotBranchOpInterfaceOrReturnLikeOp(op);
   });
   if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
     signalPassFailure();

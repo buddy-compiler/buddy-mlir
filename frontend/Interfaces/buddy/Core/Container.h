@@ -60,8 +60,6 @@ public:
   ~MemRef();
   // Get the data pointer.
   T *getData();
-  T *getPtr();
-  intptr_t getoffset();
   // Get the sizes (shape).
   const intptr_t *getSizes() { return sizes; }
   // Get the strides.
@@ -296,18 +294,6 @@ template <typename T, std::size_t N> T *MemRef<T, N>::getData() {
   size_t size = product(this->sizes);
   assert((size > 0) && "Invalid container data size.");
   return aligned;
-}
-
-template <typename T, std::size_t N> T *MemRef<T, N>::getPtr() {
-  size_t size = product(this->sizes);
-  assert((size > 0) && "Invalid container data size.");
-  return allocated;
-}
-
-template <typename T, std::size_t N> intptr_t MemRef<T, N>::getoffset() {
-  size_t size = product(this->sizes);
-  assert((size > 0) && "Invalid container data size.");
-  return offset;
 }
 
 // Get the element at index.

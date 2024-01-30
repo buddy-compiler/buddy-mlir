@@ -7,7 +7,7 @@ endif()
 if(BUDDY_LLAMA_EXAMPLES)
   add_subdirectory(BuddyLlama)
 endif()
-add_subdirectory(BuddyGraph)
+
 if (BUDDY_BERT_EXAMPLES)
   add_subdirectory(BuddyBert)
 endif()
