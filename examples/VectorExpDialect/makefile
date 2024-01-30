@@ -222,3 +222,7 @@ vector-exp-add-predication-asm:
 	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
+
+vector-exp-dynamic-vector-dump:
+	@${BUDDY_OPT} ./vector-exp-dynamic-vector.mlir \
+		-o log.mlir

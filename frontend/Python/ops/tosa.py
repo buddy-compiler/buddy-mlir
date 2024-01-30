@@ -55,6 +55,8 @@ from ..graph import (
     ReluOp,
     IotaOp,
     SigmoidOp,
+    ReciprocalOp,
+    MeanOp,
 )
 from .utils import *
 
@@ -399,7 +401,10 @@ def unsqueeze_op(node: UnsqueezeOp, symbol_table):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     dim = node.args[1]
     sizes = ir.RankedTensorType(input_tensor.type).shape
-    sizes.insert(dim, 1)
+    if dim == -1:
+        sizes.append(1)
+    else:
+        sizes.insert(dim, 1)
     new_shape_content = array.array("i", sizes)
     new_shape_content = memoryview(new_shape_content)
     op = tosa.ReshapeOp(input_tensor, new_shape_content)
@@ -507,7 +512,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
         TensorDType.Float32: ir.F32Type.get(),
         TensorDType.Float16: ir.F16Type.get(),
         TensorDType.Int32: ir.IntegerType.get_signless(32),
-        TensorDType.Bool: ir.IntegerType.get_signless(1)
+        TensorDType.Bool: ir.IntegerType.get_signless(1),
     }
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     to_cast_type = types_mapping[node.args[1]]
@@ -539,7 +544,7 @@ def var_mean_op(node: VarMeanOp, symbol_table):
     From buddy graph ir's `VarMeanOp` operator to two MLIR TOSA `mul`
     operation.
 
-    Note: By now, this conversion function follows PyTorch's `var_mean` 
+    Note: By now, this conversion function follows PyTorch's `var_mean`
     semantic.
 
           The conversion procedure can be splited into two steps:
@@ -923,7 +928,10 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
             permute_result_type, input1, perm_const_op.results[0]
         ).result
     out_shape = node.tensor_meta["shape"]
-    pad = [0 for _ in range(len(out_shape) - len(pad))] + pad
+    if len(pad) == 1:
+        pad = [pad[0]] * 4
+    elif len(pad) == 2:
+        pad = [pad[0]] * 2 + [pad[1]] * 2
     kernel_attr = ir._denseI64ArrayAttr(kernel, None)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
     pad_attr = ir._denseI64ArrayAttr(pad, None)
@@ -1019,8 +1027,10 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     assert input1 != None and weight != None and bias_tensor != None
     stride = node.args[3]
     input_padding = node.args[4]
-    for i in range(len(input_padding), 4):
-        input_padding = [0] + input_padding
+    if len(input_padding) == 1:
+        input_padding = [input_padding[0]] * 4
+    elif len(input_padding) == 2:
+        input_padding = [input_padding[0]] * 2 + [input_padding[1]] * 2
     dilation = node.args[5]
     groups = node.args[8]
     out_shape = node.tensor_meta["shape"]
@@ -1033,8 +1043,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
         out_shape = perm_shape
     output = ir.RankedTensorType.get(out_shape, result_element_type)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
-    if groups > 1:
-        raise NotImplementedError
+    assert groups == 1, 'tosa.conv2d only support one group'
     if is_kernel_transposed:
         if sum(input_padding) > 0 or sum(dilation) > len(dilation):
             raise NotImplementedError
@@ -1140,6 +1149,63 @@ def sigmoid_op(node: SigmoidOp, symbol_table):
 
     return op
 
+
+def reciprocal_op(node: ReciprocalOp, symbol_table):
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    return tosa.ReciprocalOp(input_tensor.type, input_tensor)
+
+
+def mean_op(node: MeanOp, symbol_table):
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    keepdim = node.args[2]
+    dims = [x for x in node.args[1]]
+    if isinstance(dims, int):
+        dims = [dims]
+
+    for dim_item_idx, _ in enumerate(dims):
+        if dims[dim_item_idx] < 0:
+            dims[dim_item_idx] += len(
+                ir.RankedTensorType(input_tensor.type).shape
+            )
+
+    reduce_sum_result = input_tensor
+    for dim_item in dims:
+        reduce_dim_attr = ir.IntegerAttr.get(
+            ir.IntegerType.get_signless(32), dim_item
+        )
+        reduce_sum_op = tosa.ReduceSumOp(reduce_sum_result, reduce_dim_attr)
+        reduce_sum_result = reduce_sum_op.results[0]
+
+    tensor_shp = ir.RankedTensorType(input_tensor.type).shape
+    dim_size = 1
+
+    for dim_item in dims:
+        dim_size *= tensor_shp[dim_item]
+
+    denominator_const_op = tosa.ConstOp(
+        ir.DenseElementsAttr.get(memoryview(array.array("f", [dim_size])))
+    )
+    reciprocal_op = tosa.ReciprocalOp(
+        denominator_const_op.results[0].type, denominator_const_op
+    )
+
+    ret = tosa.MulOp(
+        reduce_sum_op.results[0].type,
+        reciprocal_op.results[0],
+        reduce_sum_op.results[0],
+        ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+    )
+
+    if not keepdim:
+        result_shp = ir.RankedTensorType(ret.results[0].type).shape
+        result_shp = [siz for siz in result_shp if siz != 1]
+        ret = tosa.ReshapeOp(
+            ret.results[0], memoryview(array.array("i", result_shp))
+        )
+
+    return ret
+
+
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,
@@ -1170,4 +1236,6 @@ ops_registry = {
     "ReluOp": relu_op,
     "IotaOp": iota_op,
     "SigmoidOp": sigmoid_op,
+    "ReciprocalOp": reciprocal_op,
+    "MeanOp": mean_op,
 }

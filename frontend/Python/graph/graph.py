@@ -240,6 +240,10 @@ class Graph:
             subgraphs[subgraph_name] = subgraph
 
         return subgraphs, subgraphs_inputs, subgraphs_outputs
+    
+    def perform(self, func_list: List[FunctionType]):
+        for transform_func in func_list:
+            transform_func(self)
 
     def lower_to_top_level_ir(self, do_params_pack=False):
         """
@@ -319,7 +323,7 @@ class Graph:
             pm.add("eliminate-empty-tensors")
             pm.add("empty-tensor-to-alloc-tensor")
             pm.add("convert-elementwise-to-linalg")
-            pm.add("func.func(linalg-bufferize)")
+            pm.add('one-shot-bufferize')
             pm.add("func.func(convert-linalg-to-affine-loops)")
             pm.add("affine-loop-fusion")
             pm.add("func.func(affine-parallelize)")
@@ -446,11 +450,11 @@ class GraphImporter:
             param_total_size = 0
             for param in params_of_dtype:
                 param_total_size += functools.reduce(
-                    lambda x, y: x * y, list(param.shape)
+                    lambda x, y: x * y, list(param.shape), 1
                 )
             mlir_dtype = self._str_to_mlir_dtype(dtype)
             self._param_packs.append(
-                ir.MemRefType.get([param_total_size], mlir_dtype)
+                ir.RankedTensorType.get([param_total_size], mlir_dtype)
             )
 
     def import_graph(self) -> ir.Module:
@@ -587,7 +591,7 @@ class GraphImporter:
                 node, self._current_param_pack_offset[dtype], pack_of_dtype
             ).result
             self._current_param_pack_offset[dtype] += functools.reduce(
-                lambda x, y: x * y, list(node.tensor_meta["shape"])
+                lambda x, y: x * y, list(node.tensor_meta["shape"]), 1
             )
         elif self._do_param_pack:
             if len(self._params) > 0:
@@ -613,12 +617,17 @@ class GraphImporter:
 
         """
         op_name = node.__class__.__name__
-        op_ret: ir.Operation | ir.Value | tuple | ir.OpResult = (
+        op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)
         )
-        if isinstance(op_ret, tuple):
+        if isinstance(op_ret, tuple | List):
             for i, operation in enumerate(op_ret):
-                self._symbol_table[(str(node.name), i)] = operation.result
+                if isinstance(operation, ir.Operation):
+                    self._symbol_table[(str(node.name), i)] = operation.result
+                elif isinstance(operation, ir.OpResult):
+                    self._symbol_table[(str(node.name), i)] = operation
+                else:
+                    raise NotImplementedError
         elif isinstance(op_ret, ir.OpResult):
             self._symbol_table[(str(node.name), 0)] = op_ret
         else:

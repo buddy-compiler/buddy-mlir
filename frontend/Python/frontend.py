@@ -44,6 +44,7 @@ from .ops.math import ops_registry as math_ops_registry
 from .ops.func import ops_registry as func_ops_registry
 from .graph import Graph, TensorDType, TensorMeta
 from .graph.operation import *
+from .graph.transform import maxpool2d_simplify
 
 
 class DynamoCompiler:
@@ -145,7 +146,9 @@ class DynamoCompiler:
             "iota.default": IotaOp,
             "sigmoid.default": SigmoidOp,
             "scalar_tensor.default": ScalarTensorOp,
-            "where.self": WhereOp
+            "where.self": WhereOp,
+            "sqrt.default": SqrtOp,
+            "reciprocal.default": ReciprocalOp,
         }
 
     @property
@@ -197,7 +200,7 @@ class DynamoCompiler:
             data type.
             node_kwargs: The restful attributes for op node.
         """
-        op_class = self._ops_map.get(gm_node_name)
+        op_class = self._ops_map[gm_node_name]
         buddy_node = op_class()
         buddy_node._name = node_name
         if gm_node_name == "output":
@@ -329,6 +332,8 @@ class DynamoCompiler:
                     )
 
                 graph.add_node(buddy_node)
+            transform_list = [maxpool2d_simplify]
+            graph.perform(transform_list)
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
             return self.dynamo_run()

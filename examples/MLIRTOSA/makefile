@@ -16,6 +16,13 @@ MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
 
+tosa-resize-lower-to-linalg:
+	@${MLIR_OPT} ./tosa-resize.mlir \
+		-pass-pipeline="builtin.module( \
+			func.func(tosa-to-linalg) \
+		)" \
+		-o ./log.mlir
+
 tosa-resize-lower:
 	@${MLIR_OPT} ./tosa-resize.mlir \
 		-pass-pipeline="builtin.module( \
@@ -26,7 +33,6 @@ tosa-resize-lower:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -44,7 +50,6 @@ tosa-resize-translate:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -62,7 +67,6 @@ tosa-resize-run:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -81,7 +85,6 @@ tosa-sigmoid-lower:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -99,7 +102,6 @@ tosa-sigmoid-translate:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -117,7 +119,6 @@ tosa-sigmoid-run:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -136,7 +137,6 @@ tosa-log-lower:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -154,7 +154,6 @@ tosa-log-translate:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -172,7 +171,6 @@ tosa-log-run:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -191,7 +189,6 @@ tosa-add-lower:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -209,7 +206,6 @@ tosa-add-translate:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -227,7 +223,6 @@ tosa-add-run:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
 			convert-func-to-llvm, \
@@ -246,7 +241,6 @@ tosa-concat-lower:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			expand-strided-metadata, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
@@ -265,7 +259,6 @@ tosa-concat-translate:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			expand-strided-metadata, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \
@@ -284,7 +277,6 @@ tosa-concat-run:
 			func-bufferize, \
 			func.func(buffer-deallocation, convert-linalg-to-loops), \
 			convert-scf-to-cf, \
-			convert-linalg-to-llvm, \
 			expand-strided-metadata, \
 			finalize-memref-to-llvm, \
 			convert-math-to-llvm, \

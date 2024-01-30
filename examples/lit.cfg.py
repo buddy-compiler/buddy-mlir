@@ -38,6 +38,7 @@ config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
 config.excludes = [
     'BuddyBert',
     'BuddyLlama',
+    'BuddyBert',
     'ConvOpt',
     'DAPDialect',
     'DIPDialect',

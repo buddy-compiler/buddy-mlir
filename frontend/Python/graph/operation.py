@@ -127,7 +127,6 @@ class Op:
     @property
     def name(self):
         return self._name
-    
     @name.setter
     def name(self, new_name):
         self._name = new_name
@@ -458,3 +457,14 @@ class FuncOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.Unfusable
+
+class ReciprocalOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SqrtOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
