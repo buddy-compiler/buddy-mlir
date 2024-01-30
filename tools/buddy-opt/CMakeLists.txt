@@ -35,4 +35,5 @@ target_link_libraries(buddy-opt
   LowerLinalgToGemminiPass
   SchedulingOnDevices
   LowerSche
+  FuncBufferizeDynamicOffset
   )

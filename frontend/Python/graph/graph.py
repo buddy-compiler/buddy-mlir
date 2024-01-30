@@ -245,7 +245,7 @@ class Graph:
         for transform_func in func_list:
             transform_func(self)
 
-    def lower_to_top_level_ir(self, do_params_pack=False):
+    def lower_to_top_level_ir(self):
         """
         Lowers the graph to top-level MLIR dialects.
 
@@ -266,7 +266,6 @@ class Graph:
                 self._body,
                 self._fake_params,
                 self._inputs,
-                do_params_pack,
                 self._func_name,
                 self._ops_registry,
             )
@@ -376,9 +375,9 @@ class GraphImporter:
         body: List[Op],
         params: List[TensorMeta],
         inputs: List[TensorMeta],
-        do_param_pack: bool,
         func_name: str,
         ops_registry: dict,
+        do_param_pack: bool = False,
     ):
         """
         Initializes the buddy Graph importer.
@@ -538,8 +537,6 @@ class GraphImporter:
             def generated_func(*args):
                 args_list = list(args)
                 for node in self._body:
-                    # if node == self._body[5]:
-                    #     return args[1]
                     if node in extern_func:
                         continue
                     if isinstance(node, OutputOp):

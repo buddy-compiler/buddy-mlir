@@ -336,7 +336,7 @@ class DynamoCompiler:
             graph.perform(transform_list)
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
-            return self.dynamo_run()
+            return _gm.forward
 
         return aot_module_simplified(
             gm,
