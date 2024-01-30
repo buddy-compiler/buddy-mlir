@@ -52,7 +52,7 @@
 #include "buddy/DIP/imgcodecs/replenishment.h"
 
 namespace dip {
-int validateToInt(size_t sz) {
+inline int validateToInt(size_t sz) {
   int valueInt = (int)sz;
   assert((size_t)valueInt == sz);
   return valueInt;
@@ -77,26 +77,31 @@ struct PaletteEntry {
 #define descale(x, n) (((x) + (1 << ((n)-1))) >> (n))
 #define saturate(x) (uchar)(((x) & ~255) == 0 ? (x) : ~((x) >> 31))
 
-void icvCvt_BGR2Gray_8u_C3C1R(const uchar *bgr, int bgr_step, uchar *gray,
-                              int gray_step, _Size size, int swap_rb = 0);
+inline void icvCvt_BGR2Gray_8u_C3C1R(const uchar *bgr, int bgr_step,
+                                     uchar *gray, int gray_step, _Size size,
+                                     int swap_rb = 0);
 
-void FillGrayPalette(PaletteEntry *palette, int bpp, bool negative = false);
-bool IsColorPalette(PaletteEntry *palette, int bpp);
-void CvtPaletteToGray(const PaletteEntry *palette, uchar *grayPalette,
-                      int entries);
-uchar *FillUniColor(uchar *data, uchar *&line_end, int step, int width3, int &y,
-                    int height, int count3, PaletteEntry clr);
-uchar *FillUniGray(uchar *data, uchar *&line_end, int step, int width3, int &y,
-                   int height, int count3, uchar clr);
-uchar *FillColorRow8(uchar *data, uchar *indices, int len,
-                     PaletteEntry *palette);
-uchar *FillGrayRow8(uchar *data, uchar *indices, int len, uchar *palette);
-uchar *FillColorRow4(uchar *data, uchar *indices, int len,
-                     PaletteEntry *palette);
-uchar *FillGrayRow4(uchar *data, uchar *indices, int len, uchar *palette);
-uchar *FillColorRow1(uchar *data, uchar *indices, int len,
-                     PaletteEntry *palette);
-uchar *FillGrayRow1(uchar *data, uchar *indices, int len, uchar *palette);
+inline void FillGrayPalette(PaletteEntry *palette, int bpp,
+                            bool negative = false);
+inline bool IsColorPalette(PaletteEntry *palette, int bpp);
+inline void CvtPaletteToGray(const PaletteEntry *palette, uchar *grayPalette,
+                             int entries);
+inline uchar *FillUniColor(uchar *data, uchar *&line_end, int step, int width3,
+                           int &y, int height, int count3, PaletteEntry clr);
+inline uchar *FillUniGray(uchar *data, uchar *&line_end, int step, int width3,
+                          int &y, int height, int count3, uchar clr);
+inline uchar *FillColorRow8(uchar *data, uchar *indices, int len,
+                            PaletteEntry *palette);
+inline uchar *FillGrayRow8(uchar *data, uchar *indices, int len,
+                           uchar *palette);
+inline uchar *FillColorRow4(uchar *data, uchar *indices, int len,
+                            PaletteEntry *palette);
+inline uchar *FillGrayRow4(uchar *data, uchar *indices, int len,
+                           uchar *palette);
+inline uchar *FillColorRow1(uchar *data, uchar *indices, int len,
+                            PaletteEntry *palette);
+inline uchar *FillGrayRow1(uchar *data, uchar *indices, int len,
+                           uchar *palette);
 
 #define SCALE 14
 #define cR (int)(0.299 * (1 << SCALE) + 0.5)

@@ -105,7 +105,7 @@ protected:
   static void writeDataToBuf(void *png_ptr, uchar *src, size_t size);
 };
 
-bool isBigEndian() {
+inline bool isBigEndian() {
   int num = 1;
   char *ptr = (char *)&num;
   return (*ptr == 0);

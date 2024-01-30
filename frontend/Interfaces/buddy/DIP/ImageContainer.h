@@ -127,6 +127,7 @@ template <typename T, size_t N> Img<T, N> &Img<T, N>::operator=(Img<T, N> &&m) {
 template <typename T, size_t N>
 Img<T, N> &Img<T, N>::operator=(const Img<T, N> &m) {
   MemRef<T, N>::operator=(m);
+  return *this;
 }
 
 /**
