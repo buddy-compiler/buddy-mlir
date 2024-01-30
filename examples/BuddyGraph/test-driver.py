@@ -3,6 +3,7 @@ import torch
 import torch._dynamo as dynamo
 from transformers import LlamaForCausalLM, LlamaTokenizer
 from torch._inductor.decomposition import decompositions as inductor_decomp
+import numpy
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
@@ -64,10 +65,18 @@ with torch.no_grad():
     graphs = dynamo_compiler.importer(model, data)
 
 assert len(graphs) == 1
+graph = graphs[0]
+params = dynamo_compiler.imported_params[graph]
 pattern_list = [simply_fuse]
 graphs[0].fuse_ops(pattern_list)
 driver = GraphDriver(graphs[0])
-for subgraph in driver.subgraphs:
-    subgraph.lower_to_top_level_ir()
-    print(subgraph._imported_module)
-print(driver.construct_main_graph(True))
+driver.subgraphs[0].lower_to_top_level_ir()
+path_prefix = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(path_prefix, "subgraph.mlir"), "w") as module_file:
+    print(driver.subgraphs[0]._imported_module, file=module_file)
+with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
+    print(driver.construct_main_graph(True), file=module_file)
+all_param = numpy.concatenate(
+    [param.detach().numpy().reshape([-1]) for param in params]
+)
+all_param.tofile(os.path.join(path_prefix, "arg0.data"))

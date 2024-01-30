@@ -69,6 +69,7 @@ void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
 void registerDeviceSchedulePass();
 void registerLowerSchePass();
+void registerFuncBufferizeDynamicOffsetPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -98,7 +99,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerConvOptimizePass();
   mlir::buddy::registerDeviceSchedulePass();
-  mlir::buddy::registerLowerSchePass();;
+  mlir::buddy::registerLowerSchePass();
+  mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
