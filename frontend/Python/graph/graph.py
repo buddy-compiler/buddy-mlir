@@ -240,7 +240,7 @@ class Graph:
             subgraphs[subgraph_name] = subgraph
 
         return subgraphs, subgraphs_inputs, subgraphs_outputs
-    
+
     def perform(self, func_list: List[FunctionType]):
         for transform_func in func_list:
             transform_func(self)
@@ -322,7 +322,7 @@ class Graph:
             pm.add("eliminate-empty-tensors")
             pm.add("empty-tensor-to-alloc-tensor")
             pm.add("convert-elementwise-to-linalg")
-            pm.add('one-shot-bufferize')
+            pm.add("one-shot-bufferize")
             pm.add("func.func(convert-linalg-to-affine-loops)")
             pm.add("affine-loop-fusion")
             pm.add("func.func(affine-parallelize)")
@@ -453,7 +453,7 @@ class GraphImporter:
                 )
             mlir_dtype = self._str_to_mlir_dtype(dtype)
             self._param_packs.append(
-                ir.RankedTensorType.get([param_total_size], mlir_dtype)
+                ir.MemRefType.get([param_total_size], mlir_dtype)
             )
 
     def import_graph(self) -> ir.Module:
@@ -478,6 +478,7 @@ class GraphImporter:
                 if isinstance(node, FuncOp):
                     extern_func.append(node)
                     self._import_op(node)
+
             @func.FuncOp.from_py_func(*arguments, name=self._func_name)
             def generated_func(*args):
                 args_list = list(args)
@@ -533,6 +534,7 @@ class GraphImporter:
                 if isinstance(node, FuncOp):
                     extern_func.append(node)
                     self._import_op(node)
+
             @func.FuncOp.from_py_func(*arguments, name=self._func_name)
             def generated_func(*args):
                 args_list = list(args)
@@ -619,7 +621,9 @@ class GraphImporter:
         )
         if isinstance(op_ret, tuple | List):
             for i, operation in enumerate(op_ret):
-                if isinstance(operation, ir.Operation):
+                if isinstance(operation, ir.Operation) or isinstance(
+                    operation, ir.OpView
+                ):
                     self._symbol_table[(str(node.name), i)] = operation.result
                 elif isinstance(operation, ir.OpResult):
                     self._symbol_table[(str(node.name), i)] = operation

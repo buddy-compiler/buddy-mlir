@@ -23,7 +23,6 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include <cstdint>
-#include <iostream>
 #include <memory>
 #include <mlir/IR/OperationSupport.h>
 #include <utility>

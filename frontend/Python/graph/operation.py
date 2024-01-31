@@ -50,11 +50,12 @@ class OpType(Enum):
     BroadcastType = 0
     ElementwiseType = 1
     ReshapeType = 2
-    ReduceType = 3
-    ConcatType = 4
-    PlaceholderType = 5
-    GetItemType = 6
-    Unfusable = 7
+    SliceLikeType = 3
+    ReduceType = 4
+    ConcatType = 5
+    PlaceholderType = 6
+    GetItemType = 7
+    Unfusable = 8
 
 
 class Op:

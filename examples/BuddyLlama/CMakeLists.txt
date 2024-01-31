@@ -1,7 +1,7 @@
 add_custom_command(
-  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyLlama/llama.mlir ${BUDDY_EXAMPLES_DIR}/BuddyLlama/arg0.data
+  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyLlama/forward.mlir ${BUDDY_EXAMPLES_DIR}/BuddyLlama/subgraph0.mlir ${BUDDY_EXAMPLES_DIR}/BuddyLlama/arg0.data
   COMMAND ${Python3_EXECUTABLE} ${BUDDY_EXAMPLES_DIR}/BuddyLlama/import-llama2.py
-  COMMENT "Generating llama.mlir and arg0.data..."
+  COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
 )
 
 add_custom_command(
@@ -44,6 +44,7 @@ add_custom_command(
         ${LLVM_MLIR_BINARY_DIR}/llvm-as |
         ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
           -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/forward.o
+  DEPENDS buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/forward.mlir
   COMMENT "Building forward.o "
   VERBATIM)
 
@@ -88,6 +89,7 @@ add_custom_command(
           ${LLVM_MLIR_BINARY_DIR}/llvm-as |
           ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
             -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/subgraph.o
+    DEPENDS buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/subgraph0.mlir
     COMMENT "Building subgraph.o "
     VERBATIM)
 
