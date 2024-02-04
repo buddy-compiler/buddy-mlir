@@ -14,4 +14,4 @@
 .cache
 
 # Python venv
-venv
+venv*
