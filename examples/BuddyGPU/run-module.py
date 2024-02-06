@@ -68,6 +68,7 @@ def lower_to_llvm_cpu(module: Module) -> Module:
     pm.add("affine-loop-fusion")
     pm.add("func.func(affine-parallelize)")
     pm.add("lower-affine")
+    pm.add("convert-scf-to-openmp")
     pm.add("func-bufferize")
     pm.add("arith-bufferize")
     pm.add("func.func(tensor-bufferize)")
@@ -81,6 +82,7 @@ def lower_to_llvm_cpu(module: Module) -> Module:
     pm.add("finalize-memref-to-llvm")
     pm.add("convert-scf-to-cf")
     pm.add("func.func(llvm-request-c-wrappers)")
+    pm.add("convert-openmp-to-llvm")
     pm.add("convert-math-to-llvm")
     pm.add("convert-math-to-libm")
     pm.add("convert-func-to-llvm")
@@ -181,14 +183,13 @@ def test():
         newModule = lower_to_llvm_cpu(module)
         memref_ptrs = get_memref_descriptors(res_type+args_type)
 
-        engine = ExecutionEngine(newModule)
+        engine = ExecutionEngine(newModule,shared_libs=['/usr/lib/libomp.so'])
         engine.invoke(funcName, *memref_ptrs)
         out = rt.ranked_memref_to_numpy(memref_ptrs[0][0])
+        print(out)
         input1 = rt.ranked_memref_to_numpy(memref_ptrs[1][0])
         input2 = rt.ranked_memref_to_numpy(memref_ptrs[2][0])
         numpy_out = np.matmul(input1, input2)
         print(f"MLIR equal to PyTorch? {np.allclose(out, numpy_out)}")
 
 test()
-# When GC, sigsegv
-# result is untouched
