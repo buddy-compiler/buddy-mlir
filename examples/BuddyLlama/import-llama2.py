@@ -58,18 +58,18 @@ with torch.no_grad():
 assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
-graph.lower_to_top_level_ir(True)
+graph.lower_to_top_level_ir(False)
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 # Write the MLIR module to the file.
 with open(os.path.join(path_prefix, "llama.mlir"), "w") as module_file:
     print(graph._imported_module, file=module_file)
 
-# Concatenate all parameters into a single numpy array and write to a file.
-all_param = numpy.concatenate(
-    [param.detach().numpy().reshape([-1]) for param in params]
-)
-
-# if file exists, skip dumping
 param_file = os.path.dirname(os.path.abspath(__file__)) + "/arg0.data"
 if not os.path.exists(param_file):
+    # Concatenate all parameters into a single numpy array and write to a file.
+    all_param = numpy.concatenate(
+        [param.detach().numpy().reshape([-1]) for param in params]
+    )
+    # if file exists, skip dumping
+
     all_param.tofile(param_file)
