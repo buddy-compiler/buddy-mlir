@@ -1,4 +1,4 @@
-# ===- import-llama2.py --------------------------------------------------------
+# ===- matmul.py --------------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# ===---------------------------------------------------------------------------
+# ===--------------------------------------------------------------------------
 #
-# This is the test of llama2 model.
+# This file demonstrates the usage of Buddy's frontend for PyTorch module.
 #
-# ===---------------------------------------------------------------------------
+# ===--------------------------------------------------------------------------
 
 import os
 import time
@@ -30,19 +30,23 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
+dtype = torch.float32
 
-# Retrieve the LLaMA model path from environment variables.
-model_path = os.environ.get("LLAMA_MODEL_PATH")
-model_path = "/home/liam/PLCT/Llama-2-7b-chat-hf"
-if model_path is None:
-    raise EnvironmentError(
-        "The environment variable 'LLAMA_MODEL_PATH' is not set or is invalid."
-    )
+# model with simple Matmul
+class MatmulModule(torch.nn.Module):
+    def __init__(self, sizes):
+        super(MatmulModule, self).__init__()
+        assert len(sizes) == 3
+        self.sizes = sizes
+        self.weight = torch.nn.Parameter(torch.randn(sizes[1], sizes[2]))
 
-# Initialize the tokenizer and model from the specified model path.
-tokenizer = LlamaTokenizer.from_pretrained(model_path)
-model = LlamaForCausalLM.from_pretrained(model_path, torchscript=True)
-model.config.use_cache = False
+    def forward(self, input):
+        assert input.shape[0] == self.sizes[0]
+        assert input.shape[1] == self.sizes[1]
+        return torch.matmul(input, self.weight)
+
+model = MatmulModule((16, 16, 16))
+model.type(dtype)
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
@@ -52,24 +56,14 @@ dynamo_compiler = DynamoCompiler(
 
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
-    data = torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
+    a_shape = model.sizes[:2]
+    data = torch.randn(*a_shape, dtype=dtype)
     graphs = dynamo_compiler.importer(model, data)
 
-assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
 graph.lower_to_top_level_ir(True)
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 # Write the MLIR module to the file.
-with open(os.path.join(path_prefix, "llama.mlir"), "w") as module_file:
+with open(os.path.join(path_prefix, "matmul.mlir"), "w") as module_file:
     print(graph._imported_module, file=module_file)
-
-# Concatenate all parameters into a single numpy array and write to a file.
-all_param = numpy.concatenate(
-    [param.detach().numpy().reshape([-1]) for param in params]
-)
-
-# if file exists, skip dumping
-param_file = os.path.dirname(os.path.abspath(__file__)) + "/arg0.data"
-if not os.path.exists(param_file):
-    all_param.tofile(param_file)
