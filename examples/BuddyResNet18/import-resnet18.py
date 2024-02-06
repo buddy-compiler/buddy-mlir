@@ -18,6 +18,9 @@
 #
 # ===---------------------------------------------------------------------------
 
+import os
+
+import numpy
 import torch
 import torchvision
 from torch._inductor.decomposition import decompositions as inductor_decomp
@@ -41,5 +44,16 @@ with torch.no_grad():
     graphs = dynamo_compiler.importer(model, data)
 
 assert len(graphs) == 1
-graphs[0].lower_to_top_level_ir(do_params_pack=True)
-print(graphs[0]._imported_module)
+graph = graphs[0]
+params = dynamo_compiler.imported_params[graph]
+graph.lower_to_top_level_ir(do_params_pack=True)
+path_prefix = os.path.dirname(os.path.abspath(__file__))
+# Write the MLIR module to the file.
+with open(os.path.join(path_prefix, "resnet.mlir"), "w") as module_file:
+    print(graph._imported_module, file=module_file)
+
+# Concatenate all parameters into a single numpy array and write to a file.
+all_param = numpy.concatenate(
+    [param.detach().numpy().reshape([-1]) for param in params]
+)
+all_param.tofile(os.path.join(path_prefix, "arg0.data"))
