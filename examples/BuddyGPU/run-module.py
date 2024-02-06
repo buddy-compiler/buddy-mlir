@@ -8,8 +8,10 @@ from mlir.ir import *
 import numpy as np
 import ctypes
 import gc
+import torch
 
-def to_numpy(element_type:str) -> np.dtype:
+
+def to_numpy(element_type: str) -> np.dtype:
     match element_type:
         case "f16":
             return np.float16
@@ -29,8 +31,9 @@ def to_numpy(element_type:str) -> np.dtype:
             return ValueError("bf16 is not supported by numpy")
         case _:
             raise ValueError(f"Unsupported type: {element_type}")
-        
-def to_mlir(dtype:np.dtype) -> ir.Type:
+
+
+def to_mlir(dtype: np.dtype) -> ir.Type:
     match dtype:
         case np.float16:
             return ir.F16Type.get()
@@ -49,6 +52,7 @@ def to_mlir(dtype:np.dtype) -> ir.Type:
         case _:
             raise ValueError(f"Unsupported type: {dtype}")
 
+
 def lower_to_llvm_cpu(module: Module) -> Module:
     pm = PassManager("builtin.module")
     pm.add("func.func(tosa-to-linalg-named)")
@@ -59,7 +63,7 @@ def lower_to_llvm_cpu(module: Module) -> Module:
     pm.add("eliminate-empty-tensors")
     pm.add("empty-tensor-to-alloc-tensor")
     pm.add("convert-elementwise-to-linalg")
-    pm.add('one-shot-bufferize')
+    pm.add("one-shot-bufferize")
     pm.add("func.func(convert-linalg-to-affine-loops)")
     pm.add("affine-loop-fusion")
     pm.add("func.func(affine-parallelize)")
@@ -84,8 +88,8 @@ def lower_to_llvm_cpu(module: Module) -> Module:
     pm.run(module.operation)
     return module
 
-def new_ranked_memref_descriptor(nparray:np.ndarray):
-    """Returns a ranked memref descriptor for the given numpy array."""
+
+def new_ranked_memref_descriptor(nparray: np.ndarray):
     ctp = rt.as_ctype(nparray.dtype)
     if nparray.ndim == 0:
         x = rt.make_zero_d_memref_descriptor(ctp)()
@@ -106,8 +110,11 @@ def new_ranked_memref_descriptor(nparray:np.ndarray):
     # Numpy uses byte quantities to express strides, MLIR OTOH uses the
     # torch abstraction which specifies strides in terms of elements.
     strides_ctype_t = ctypes.c_longlong * nparray.ndim
-    x.strides = strides_ctype_t(*[x // nparray.itemsize for x in nparray.strides])
+    x.strides = strides_ctype_t(
+        *[x // nparray.itemsize for x in nparray.strides]
+    )
     return x
+
 
 def testMemrefAdd():
     with Context():
@@ -145,52 +152,42 @@ def testMemrefAdd():
         npout = rt.ranked_memref_to_numpy(res_memref_ptr[0])
         print(npout)
 
+def get_memref_descriptors(args: list[Type]):
+    memref_ptrs = []
+    for arg in args:
+        elem_type = to_numpy(str(arg.element_type))
+        np_arg = np.random.rand(*arg.shape).astype(elem_type)
+        memref_ptrs.append(
+            ctypes.pointer(
+                ctypes.pointer(new_ranked_memref_descriptor(np_arg))
+            )
+        )
+    return memref_ptrs
+
 def test():
     with Context() as ctx:
-        file = open("/home/liam/PLCT/buddy-mlir/examples/BuddyGPU/matmul.mlir", "r")
+        file = open(
+            "/home/liam/PLCT/buddy-mlir/examples/BuddyGPU/matmul.mlir", "r"
+        )
         module: Module = Module.parse(file.read())
-        funcOp: func.FuncOp = module.operation.regions[0].blocks[0].operations[0]
-        funcName = str(funcOp.name).replace('\"', '')
+        funcOp: func.FuncOp = (
+            module.operation.regions[0].blocks[0].operations[0]
+        )
+        funcName = str(funcOp.name).replace('"', "")
         assert isinstance(funcOp, func.FuncOp)
         args_type: list[Type] = [arg.type for arg in funcOp.arguments]
         res_type = funcOp.type.results
 
-        # np_args: list[np.ndarray] = []
-        # for arg in args_type:
-        #     elem_type = to_numpy(str(arg.element_type))
-        #     np_args.append(np.random.rand(*arg.shape).astype(elem_type))
-        # for res in res_type:
-        #     elem_type = to_numpy(str(res.element_type))
-        #     np_args.append(np.random.rand(*res.shape).astype(elem_type))
-        # newModule = lower_to_llvm_cpu(module)
-        # memref_ptrs = [ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(np_arg))) for np_arg in np_args]
-        # engine = ExecutionEngine(newModule)
-        # print(gc.isenabled())
-        # for np_arg in np_args:
-        #     print(np_arg)
-        # engine.invoke(funcName, *memref_ptrs)
-
-        # arg1 = np.random.rand(*args_type[0].shape).astype(np.float32)
-        # arg2 = np.random.rand(*args_type[1].shape).astype(np.float32)
-
-        arg1 = np.ones(args_type[0].shape).astype(np.float32)
-        arg2 = np.ones(args_type[1].shape).astype(np.float32)
-
-        res = np.random.rand(*res_type[0].shape).astype(np.float32)
-
-        arg1_memref_ptr = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(arg1)))
-        arg2_memref_ptr = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(arg2)))
-        res_memref_ptr = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(res)))
         newModule = lower_to_llvm_cpu(module)
-        print(newModule)
-        engine = ExecutionEngine(newModule)
-        engine.invoke(funcName,res_memref_ptr, arg1_memref_ptr, arg2_memref_ptr)
-        out = rt.ranked_memref_to_numpy(res_memref_ptr[0])
+        memref_ptrs = get_memref_descriptors(res_type+args_type)
 
-        numpy_out = np.matmul(arg1, arg2)
-        print(out)
-        print(numpy_out)
-        print(np.allclose(out, numpy_out))
+        engine = ExecutionEngine(newModule)
+        engine.invoke(funcName, *memref_ptrs)
+        out = rt.ranked_memref_to_numpy(memref_ptrs[0][0])
+        input1 = rt.ranked_memref_to_numpy(memref_ptrs[1][0])
+        input2 = rt.ranked_memref_to_numpy(memref_ptrs[2][0])
+        numpy_out = np.matmul(input1, input2)
+        print(f"MLIR equal to PyTorch? {np.allclose(out, numpy_out)}")
 
 test()
 # When GC, sigsegv
