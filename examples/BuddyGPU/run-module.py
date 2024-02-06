@@ -170,20 +170,24 @@ def test():
         #     print(np_arg)
         # engine.invoke(funcName, *memref_ptrs)
 
-        arg1 = np.random.rand(*args_type[0].shape).astype(np.float32)
-        arg2 = np.random.rand(*args_type[1].shape).astype(np.float32)
+        # arg1 = np.random.rand(*args_type[0].shape).astype(np.float32)
+        # arg2 = np.random.rand(*args_type[1].shape).astype(np.float32)
+
+        arg1 = np.ones(args_type[0].shape).astype(np.float32)
+        arg2 = np.ones(args_type[1].shape).astype(np.float32)
+
         res = np.random.rand(*res_type[0].shape).astype(np.float32)
 
         arg1_memref_ptr = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(arg1)))
         arg2_memref_ptr = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(arg2)))
         res_memref_ptr = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(res)))
         newModule = lower_to_llvm_cpu(module)
+        print(newModule)
         engine = ExecutionEngine(newModule)
-        engine.invoke(funcName, arg1_memref_ptr, arg2_memref_ptr, res_memref_ptr)
+        engine.invoke(funcName,res_memref_ptr, arg1_memref_ptr, arg2_memref_ptr)
         out = rt.ranked_memref_to_numpy(res_memref_ptr[0])
 
-        arg1_2d = arg1.reshape(16,16)
-        numpy_out = np.matmul(arg2, arg1_2d)
+        numpy_out = np.matmul(arg1, arg2)
         print(out)
         print(numpy_out)
         print(np.allclose(out, numpy_out))
