@@ -32,37 +32,22 @@ from buddy.compiler.ops import tosa
 
 dtype = torch.float32
 
-# model with simple Matmul
-class MatmulModule(torch.nn.Module):
-    def __init__(self, sizes):
-        super(MatmulModule, self).__init__()
-        assert len(sizes) == 3
-        self.sizes = sizes
-        self.weight = torch.nn.Parameter(torch.randn(sizes[1], sizes[2]))
+def foo(x, y):
+    return torch.matmul(x, y)
 
-    def forward(self, input):
-        assert input.shape[0] == self.sizes[0]
-        assert input.shape[1] == self.sizes[1]
-        return torch.matmul(input, self.weight)
-
-model = MatmulModule((16, 16, 16))
-model.type(dtype)
-
+in1 = torch.ones([16, 16], dtype=torch.float32)
+in2 = torch.ones([16, 16], dtype=torch.float32)
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
 )
 
-# Import the model into MLIR module and parameters.
-with torch.no_grad():
-    a_shape = model.sizes[:2]
-    data = torch.randn(*a_shape, dtype=dtype)
-    graphs = dynamo_compiler.importer(model, data)
-
+graphs = dynamo_compiler.importer(foo, in1, in2)
+assert len(graphs) == 1
 graph = graphs[0]
-params = dynamo_compiler.imported_params[graph]
-graph.lower_to_top_level_ir(True)
+graph.lower_to_top_level_ir()
+
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 # Write the MLIR module to the file.
 with open(os.path.join(path_prefix, "matmul.mlir"), "w") as module_file:
