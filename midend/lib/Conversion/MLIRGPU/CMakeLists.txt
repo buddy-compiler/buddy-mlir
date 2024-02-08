@@ -1,6 +1,6 @@
 add_mlir_library(MLIRGPUPasses
   GPUHostRegister.cpp
-  GPUBufferize.cpp
+  ConvertMemcpyToGPU.cpp
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Bufferization
 
