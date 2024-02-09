@@ -35,8 +35,8 @@ dtype = torch.float32
 def foo(x, y):
     return torch.matmul(x, y)
 
-in1 = torch.ones([5376, 2048], dtype=torch.float32)
-in2 = torch.ones([2048, 5376], dtype=torch.float32)
+in1 = torch.ones([16, 16], dtype=torch.float32)
+in2 = torch.ones([16, 16], dtype=torch.float32)
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
