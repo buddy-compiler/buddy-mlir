@@ -9,6 +9,7 @@ import numpy as np
 import ctypes
 import gc
 import torch
+import os
 
 
 def to_numpy(element_type: str) -> np.dtype:
@@ -117,23 +118,21 @@ def new_ranked_memref_descriptor(nparray: np.ndarray):
     )
     return x
 
+
 def get_memref_descriptors(args: list[Type]):
     memref_ptrs = []
     for arg in args:
         elem_type = to_numpy(str(arg.element_type))
         np_arg = np.random.rand(*arg.shape).astype(elem_type)
         memref_ptrs.append(
-            ctypes.pointer(
-                ctypes.pointer(new_ranked_memref_descriptor(np_arg))
-            )
+            ctypes.pointer(ctypes.pointer(new_ranked_memref_descriptor(np_arg)))
         )
     return memref_ptrs
 
+
 def test():
     with Context() as ctx:
-        file = open(
-            "/home/liam/PLCT/buddy-mlir/examples/BuddyGPU/matmul.mlir", "r"
-        )
+        file = open("./matmul.mlir", "r")
         module: Module = Module.parse(file.read())
         funcOp: func.FuncOp = (
             module.operation.regions[0].blocks[0].operations[0]
@@ -142,11 +141,32 @@ def test():
         assert isinstance(funcOp, func.FuncOp)
         args_type: list[Type] = [arg.type for arg in funcOp.arguments]
         res_type = funcOp.type.results
+        os.system(
+            "buddy-opt matmul-converted.mlir -convert-scf-to-cf -memref-expand -finalize-memref-to-llvm -convert-arith-to-llvm -convert-gpu-to-nvvm='has-redux=1' -o matmul-nvvm.mlir"
+        )
+        os.system(
+            "mlir-opt matmul-nvvm.mlir -llvm-request-c-wrappers -o matmul-wrapper.mlir"
+        )
+        os.system(
+            'mlir-opt matmul-wrapper.mlir --test-lower-to-nvvm="cubin-chip=sm_80 cubin-features=+ptx71 cubin-format=fatbin" -o matmul-cubin.mlir'
+        )
 
-        newModule = lower_to_llvm_cpu(module)
-        memref_ptrs = get_memref_descriptors(res_type+args_type)
+        file = open("./matmul-cubin.mlir", "r")
+        # newModule = lower_to_llvm_cpu(module)
+        newModule = Module.parse(file.read())
+        memref_ptrs = get_memref_descriptors(res_type + args_type)
 
-        engine = ExecutionEngine(newModule,shared_libs=['/usr/lib/libomp.so'])
+        engine = ExecutionEngine(
+            newModule,
+            shared_libs=[
+                "/usr/lib/libomp.so",
+                "../../llvm/build/lib/libmlir_c_runner_utils.so",
+                "../../llvm/build/lib/libmlir_async_runtime.so",
+                "../../llvm/build/lib/libmlir_runner_utils.so",
+                "../../llvm/build/lib/libmlir_cuda_runtime.so",
+            ],
+            opt_level=3,
+        )
         engine.invoke(funcName, *memref_ptrs)
         out = rt.ranked_memref_to_numpy(memref_ptrs[0][0])
         print(out)
@@ -154,5 +174,6 @@ def test():
         input2 = rt.ranked_memref_to_numpy(memref_ptrs[2][0])
         numpy_out = np.matmul(input1, input2)
         print(f"MLIR equal to PyTorch? {np.allclose(out, numpy_out)}")
+
 
 test()

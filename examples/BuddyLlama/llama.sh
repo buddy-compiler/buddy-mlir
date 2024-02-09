@@ -7,6 +7,6 @@ buddy-opt memcpy-converted.mlir -convert-scf-to-cf -memref-expand -finalize-memr
 mlir-opt llama-nvvm.mlir -llvm-request-c-wrappers -o llama-wrapper.mlir
 mlir-opt llama-wrapper.mlir --test-lower-to-nvvm="cubin-chip=sm_80 cubin-features=+ptx71 cubin-format=fatbin" -o llama-cubin.mlir
 mlir-translate llama-cubin.mlir --mlir-to-llvmir -o llama.ll
-/home/liam/IPRC/llvm-project/build/bin/llc llama.ll -filetype=obj -relocation-model=pic -O3 -o llama.o
-clang llama.o llama-main.cpp.o /home/liam/IPRC/llvm-project/build/lib/libmlir_cuda_runtime.so /home/liam/IPRC/llvm-project/build/lib/libmlir_c_runner_utils.so -lstdc++ -o llama.out
+../../llvm/build/bin/llc llama.ll -filetype=obj -relocation-model=pic -O3 -o llama.o
+clang llama.o llama-main.cpp.o ../../llvm/build/lib/libmlir_cuda_runtime.so ../../llvm/build/lib/libmlir_c_runner_utils.so -lstdc++ -o llama.out
 ./llama.out
