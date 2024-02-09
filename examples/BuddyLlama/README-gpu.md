@@ -127,11 +127,27 @@ gpu.module @forward_kernel_753 {
 
 ### 2.4 Converting to LLVM and NVVM operations
 This step converts the operations to LLVM dialect operations, and then convert some math functions to NVVM intrinsics.
+The `convert-memcpy-to-gpu` operation converts bufferized cpu memory operations to GPU async operations.
+The `gpu-async-region` operation adds async tokens to the sequence. However it does not fully utilize CUDA stream for maximum throughput. A custom pass is required to analyze the data dependency and add async tokens to the sequence to maximize throughput.
 
 ```
-buddy-opt llama-outlined.mlir -gpu-host-register -o llama-host-registered.mlir
-mlir-opt llama-host-registered.mlir -convert-scf-to-cf -memref-expand -finalize-memref-to-llvm -convert-arith-to-llvm -convert-gpu-to-nvvm='has-redux=1' -o llama-nvvm.mlir
+buddy-opt llama-outlined.mlir -convert-memcpy-to-gpu -gpu-async-region -o memcpy-converted.mlir
+mlir-opt memcpy-converted.mlir -convert-scf-to-cf -memref-expand -finalize-memref-to-llvm -convert-arith-to-llvm -convert-gpu-to-nvvm='has-redux=1' -o llama-nvvm.mlir
 ```
+
+The async operations right now would look like this:
+```
+%364 = gpu.memcpy async [%asyncToken_723] %memref_722, %363 : memref<40x11008xf32>, memref<40x11008xf32>
+%365 = memref.get_global @__constant_40x32000xf32 : memref<40x32000xf32>
+%memref_724, %asyncToken_725 = gpu.alloc async [%364] () : memref<40x32000xf32>
+%366 = gpu.memcpy async [%asyncToken_725] %memref_724, %365 : memref<40x32000xf32>, memref<40x32000xf32>
+%memref_726, %asyncToken_727 = gpu.alloc async [%366] () : memref<1x40xi32>
+%367 = gpu.launch_func async [%asyncToken_727] @forward_kernel::@forward_kernel blocks in (%c40, %c1, %c1) threads in (%c1, %c1, %c1)  args(%memref_708 : memref<1x40xi64>, %c0 : index, %memref_726 : memref<1x40xi32>)
+%expand_shape = memref.expand_shape %memref_128 [[0, 1], [2]] : memref<32000x4096xf32> into memref<1x32000x4096xf32>
+%memref_728, %asyncToken_729 = gpu.alloc async [%367] () : memref<1x40x4096xf32>
+%368 = gpu.launch_func async [%asyncToken_729] @forward_kernel_0::@forward_kernel blocks in (%c40, %c4096, %c1) threads in (%c1, %c1, %c1)  args(%memref_726 : memref<1x40xi32>, %c0 : index, %expand_shape : memref<1x32000x4096xf32>, %memref_728 : memref<1x40x4096xf32>)
+```
+We would need to create as much cuda streams as possible and add async tokens. A `gpu.wait` is required to gather results for multiple streams and create a new stream.
 
 Why do we need the `convert-gpu-to-nvvm` step? If it is not applied, and we are using the unmodified lowering pipeline from torch to linalg, the generated LLVM IR would look like this:
 ```
