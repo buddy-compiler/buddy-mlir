@@ -62,6 +62,7 @@ class DynamoCompiler:
         func_name: str = "forward",
         primary_registry: Optional[dict] = None,
         aot_autograd_decomposition: Optional[dict] = None,
+        verbose=False,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -71,10 +72,14 @@ class DynamoCompiler:
             primary_registry (dict, optional): The primary operations registry.
             aot_autograd_decomposition (Optional[dict], optional):
             The ahead-of-time autograd decomposition dictionary.
+            verbose (bool): Controls whether to print additional information for
+                debugging purposes. The default value is False, indicating that
+                no extra debug information will be printed.
         Attributes:
             _func_name: The function name to be used.
             _aot_autograd_decomposition (Optional[dict], optional):
             The ahead-of-time autograd decomposition dictionary.
+            _verbose: The option for the verbosity option of output.
             _imported_graphs: The buddy graphs from dynamo importer.
             _ops_registry (dict, optional): The buddy operations' lower func
             registry.
@@ -82,10 +87,14 @@ class DynamoCompiler:
             _ops_map: The torch aten ops map with buddy ops.
 
         """
+        # Make custom dynamo compiler take effect.
+        dynamo.reset()
+        # Initialize the attributes.
         if primary_registry is None:
             primary_registry = {}
         self._func_name = func_name
         self._aot_autograd_decomposition = aot_autograd_decomposition
+        self._verbose = verbose
         self._imported_graphs = []
         self._ops_registry = {}
         self._imported_params = {}
@@ -242,6 +251,10 @@ class DynamoCompiler:
             **dict(gm.named_buffers(remove_duplicate=False)),
         }
         params_flat, _ = pytree.tree_flatten(params)
+
+        if self._verbose:
+            print("Graph in tabular form:")
+            gm.graph.print_tabular()
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
