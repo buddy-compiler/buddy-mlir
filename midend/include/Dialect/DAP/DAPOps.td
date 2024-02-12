@@ -21,7 +21,7 @@
 #ifndef DAP_DAPOPS_TD
 #define DAP_DAPOPS_TD
 
-include "DAPDialect.td"
+include "DAP/DAPDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/EnumAttr.td"

@@ -21,7 +21,7 @@
 #ifndef SCHE_SCHEOPS_TD
 #define SCHE_SCHEOPS_TD
 
-include "ScheDialect.td"
+include "Sche/ScheDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"

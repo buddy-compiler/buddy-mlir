@@ -21,7 +21,7 @@
 #ifndef VECTOREXP_VECTOREXPOPS_TD
 #define VECTOREXP_VECTOREXPOPS_TD
 
-include "VectorExpDialect.td"
+include "VectorExp/VectorExpDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 

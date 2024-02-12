@@ -1,4 +1,4 @@
-//===- GemminiDialect.h - MLIR Dialect for RISC-V Gemmmini extension ------===//
+//===-------- RVVOps.td - Python bindings for RVV --*- tablegen -*--------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,11 +14,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef GEMMINI_GEMMINIOPS_H
-#define GEMMINI_GEMMINIOPS_H
+#ifndef PYTHON_BINDINGS_RVV_OPS
+#define PYTHON_BINDINGS_RVV_OPS
 
-#include "mlir/IR/Dialect.h"
-
-#include "Gemmini/GemminiDialect.h.inc"
+// include "mlir/Bindings/Python/Attributes.td"
+include "RVV/RVV.td"
 
 #endif
