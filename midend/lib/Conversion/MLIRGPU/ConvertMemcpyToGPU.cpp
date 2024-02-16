@@ -52,28 +52,6 @@ using namespace mlir;
 using namespace vector;
 
 //===----------------------------------------------------------------------===//
-// Rewrite Pattern
-//===----------------------------------------------------------------------===//
-
-namespace {
-
-class ConvertMemcpyToGPUPattern : public ConversionPattern {
-public:
-  explicit ConvertMemcpyToGPUPattern(MLIRContext *context)
-      : ConversionPattern(gpu::LaunchFuncOp().getOperationName(), 1, context) {}
-
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
-                  ConversionPatternRewriter &rewriter) const override {
-    llvm::errs() << op->getName().getStringRef() << "\n";
-    return success();
-  }
-
-private:
-};
-} // end anonymous namespace
-
-//===----------------------------------------------------------------------===//
 // ConvertMemcpyToGPUPass
 //===----------------------------------------------------------------------===//
 
@@ -92,6 +70,10 @@ public:
 
   ) {}
 
+  Option<bool> processArgs{*this, "process-args",
+                                   llvm::cl::desc("Whether the pass processes the input args."),
+                                   llvm::cl::init(false)};
+
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -102,37 +84,38 @@ public:
 void ConvertMemcpyToGPUPass::runOnOperation() {
   auto funcOp = getOperation();
   std::set<gpu::AllocOp *> unDeallocatedOperations;
-
-  // Copy all function arguments to gpu, needs deallocation
   OpBuilder builder(funcOp->getContext());
-  builder.setInsertionPointToStart(&(funcOp.getBody().front()));
-  unsigned numArgs = funcOp.getNumArguments();
-  for (unsigned i = 0; i < numArgs; ++i) {
-    BlockArgument arg = funcOp.getArgument(i);
-    // Create a gpu.alloc op, then copy memory to it
-    // TODO: Move this out of operation, make the copy process async
-    auto memrefType = dyn_cast<MemRefType>(arg.getType());
-    auto gpuAllocOp = builder.create<gpu::AllocOp>(
-        builder.getUnknownLoc(), TypeRange({memrefType}), ValueRange({}));
-    unDeallocatedOperations.insert(&gpuAllocOp);
-    auto gpuMemcpyOp = builder.create<gpu::MemcpyOp>(
-        gpuAllocOp.getLoc(), TypeRange(), ValueRange(), gpuAllocOp.getResult(0),
-        arg);
-    // Replace all users with GPU memory
-    auto users = arg.getUsers();
-    std::vector<Operation *> usersVec(users.begin(), users.end());
-    for (auto user : usersVec) {
-      // Don't replace memcpy's operand
-      if (isa<gpu::MemcpyOp>(user))
-        continue;
-      for (size_t j = 0; j < user->getNumOperands(); j++) {
-        if (user->getOperand(j) == arg) {
-          user->setOperand(j, gpuAllocOp.getResult(0));
+  // Copy all function arguments to gpu, needs deallocation
+  if (processArgs){
+    builder.setInsertionPointToStart(&(funcOp.getBody().front()));
+    unsigned numArgs = funcOp.getNumArguments();
+    for (unsigned i = 0; i < numArgs; ++i) {
+      BlockArgument arg = funcOp.getArgument(i);
+      // Create a gpu.alloc op, then copy memory to it
+      // TODO: Move this out of operation, make the copy process async
+      auto memrefType = dyn_cast<MemRefType>(arg.getType());
+      auto gpuAllocOp = builder.create<gpu::AllocOp>(
+          builder.getUnknownLoc(), TypeRange({memrefType}), ValueRange({}));
+      unDeallocatedOperations.insert(&gpuAllocOp);
+      auto gpuMemcpyOp = builder.create<gpu::MemcpyOp>(
+          gpuAllocOp.getLoc(), TypeRange(), ValueRange(),
+          gpuAllocOp.getResult(0), arg);
+      // Replace all users with GPU memory
+      auto users = arg.getUsers();
+      std::vector<Operation *> usersVec(users.begin(), users.end());
+      for (auto user : usersVec) {
+        // Don't replace memcpy's operand
+        if (isa<gpu::MemcpyOp>(user))
+          continue;
+        for (size_t j = 0; j < user->getNumOperands(); j++) {
+          if (user->getOperand(j) == arg) {
+            user->setOperand(j, gpuAllocOp.getResult(0));
+          }
         }
       }
     }
   }
-
+  
   funcOp->walk<WalkOrder::PreOrder>([&](Operation *nestedOp) {
     // Replace all allocations with GPU.alloc
     if (auto allocOp = dyn_cast<memref::AllocOp>(nestedOp)) {
@@ -211,6 +194,7 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
         for (auto user : usersVec) {
           if (isa<gpu::MemcpyOp>(user))
             continue;
+          // TODO: replace with src.replaceAllUsesExcept()
           for (size_t j = 0; j < user->getNumOperands(); j++) {
             if (user->getOperand(j) == src) {
               user->setOperand(j, dst);
