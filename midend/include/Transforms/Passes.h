@@ -36,6 +36,13 @@ namespace buddy {
 #define GEN_PASS_REGISTRATION
 #include "Transforms/Passes.h.inc"
 
+void populateGemminiLegalizeForLLVMExportPatterns(
+    LLVMTypeConverter &converter, RewritePatternSet &patterns, int64_t dim,
+    int64_t addrLen, int64_t accRows, int64_t bankRows, size_t sizeOfElemT,
+    size_t sizeOfAccT);
+
+void configureGemminiLegalizeForExportTarget(LLVMConversionTarget &target);
+
 } // namespace buddy
 } // namespace mlir
 
