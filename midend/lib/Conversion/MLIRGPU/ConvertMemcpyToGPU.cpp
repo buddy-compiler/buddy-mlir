@@ -87,7 +87,7 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
   // Make sure the gpu function is already outlined.
   funcOp->walk<WalkOrder::PreOrder>([&](Operation *nestedOp) {
     if (auto gpuLaunchOp = dyn_cast<gpu::LaunchOp>(nestedOp)) {
-      llvm_unreachable("The gpu function should be outlined. No gpu.launch op should be in the function.");
+      nestedOp->emitOpError("The gpu function should be outlined.");
     }
     return WalkResult::advance();
   });
