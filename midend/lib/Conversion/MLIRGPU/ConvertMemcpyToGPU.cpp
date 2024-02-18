@@ -83,6 +83,15 @@ public:
 
 void ConvertMemcpyToGPUPass::runOnOperation() {
   auto funcOp = getOperation();
+
+  // Make sure the gpu function is already outlined.
+  funcOp->walk<WalkOrder::PreOrder>([&](Operation *nestedOp) {
+    if (auto gpuLaunchOp = dyn_cast<gpu::LaunchOp>(nestedOp)) {
+      llvm_unreachable("The gpu function should be outlined. No gpu.launch op should be in the function.");
+    }
+    return WalkResult::advance();
+  });
+
   std::set<gpu::AllocOp *> unDeallocatedOperations;
   OpBuilder builder(funcOp->getContext());
   // Copy all function arguments to gpu, needs deallocation
