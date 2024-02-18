@@ -36,4 +36,9 @@ target_link_libraries(buddy-opt
   SchedulingOnDevices
   LowerSche
   MLIRGPUPasses
+  BuddyGPUTransformOPs
+  MLIRTestTransforms
+  MLIRTestTransformDialect
+  MLIRTransforms
+  MLIRTransformUtils
   )
