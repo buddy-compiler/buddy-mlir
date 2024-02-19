@@ -72,7 +72,7 @@ public:
 
   Option<bool> processArgs{*this, "process-args",
                                    llvm::cl::desc("Whether the pass processes the input args."),
-                                   llvm::cl::init(false)};
+                                   llvm::cl::init(true)};
 
   void runOnOperation() override;
 

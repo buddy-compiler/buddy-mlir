@@ -23,18 +23,26 @@
 #include "mlir/Dialect/Vector/Transforms/LoweringPatterns.h"
 #include "mlir/Dialect/Vector/Transforms/VectorDistribution.h"
 #include "mlir/Dialect/Vector/Transforms/VectorRewritePatterns.h"
+#include "mlir/IR/BuiltinAttributeInterfaces.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Value.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
+#include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/Debug.h"
+#include <iostream>
+#include <optional>
+
+#include "Utils/GPUUtils.h"
 
 using namespace mlir;
 using namespace mlir::buddy::buddygpu;
 
-transform_dialect::
-    BuddyGPUTransformExtensions::BuddyGPUTransformExtensions() {
+transform_dialect::BuddyGPUTransformExtensions::BuddyGPUTransformExtensions() {
   // CreateAsyncGroupsOp depends on the following two dialects.
   declareGeneratedDialect<mlir::gpu::GPUDialect>();
   declareGeneratedDialect<mlir::nvgpu::NVGPUDialect>();
@@ -207,93 +215,69 @@ rewriteScfIfAsWarpExecuteOnLane0(RewriterBase &rewriter, Location loc,
   return VectorDistributionResult{warpOp};
 }
 
-// TODO: Refactor in a generic util that can be reused.
-// static HAL::ExecutableExportOp
-// getExecutableExportOpForFunc(HAL::ExecutableVariantOp halExecutableVariantOp,
-//                              func::FuncOp funcOp) {
-//   if (!halExecutableVariantOp || !funcOp)
-//     return {};
-//   HAL::ExecutableExportOp exportOp;
-//   halExecutableVariantOp->walk([&](HAL::ExecutableExportOp op) {
-//     if (op.getSymName() != funcOp.getName())
-//       return WalkResult::advance();
-//     exportOp = op;
-//     return WalkResult::interrupt();
-//   });
-//   return exportOp;
-// }
-
 DiagnosedSilenceableFailure
 transform_dialect::VectorToWarpExecuteOnLane0Op::applyToOne(
     transform::TransformRewriter &rewriter, scf::IfOp target,
     transform::ApplyToEachResultList &results,
     transform::TransformState &state) {
-  // if (!isa<HAL::ExecutableOp, HAL::ExecutableVariantOp>(state.getTopLevel())) {
-  //   results.assign(1, nullptr);
-  //   return emitDefaultSilenceableFailure(state.getTopLevel())
-  //          << "requires HAL::ExecutableOp or "
-  //             "HAL::ExecutableVariantOp toplevel "
-  //             "so that IR is properly isolated. This is required so "
-  //             "we can "
-  //             "safely inspect the HAL::ExecutableExportOp under "
-  //             "multi-threaded "
-  //             "pass assumptions.";
-  // }
+  auto gpuLaunchOp = target->getParentOfType<gpu::LaunchOp>();
+  // HAL-related operations are skipped for now.
 
-  // auto halExecutableVariantOp =
-  //     target->getParentOfType<HAL::ExecutableVariantOp>();
-  // auto funcOp = target->getParentOfType<func::FuncOp>();
-  // HAL::ExecutableExportOp exportOp =
-  //     getExecutableExportOpForFunc(halExecutableVariantOp, funcOp);
-  // if (!halExecutableVariantOp || !funcOp || !exportOp) {
-  //   // Return a silenceable failure and set the expected 1 result to
-  //   // nullptr.
-  //   results.assign(1, nullptr);
-  //   return emitDefaultSilenceableFailure(target)
-  //          << "export op is missing --- the transform is not "
-  //             "applied";
-  // }
+  // std::optional<ArrayAttr> maybeAttr = exportOp.getWorkgroupSize();
+  //  TODO: Pervasive 3 constant in IREE.
+  //  if (!maybeAttr || maybeAttr->size() != 3) {
+  //    // Return a silenceable failure and set the expected 1 result to
+  //    // nullptr.
+  //    results.assign(1, nullptr);
+  //    return emitDefaultSilenceableFailure(target)
+  //           << "export op must have workgroup_size attribute set "
+  //              "with 3 entries "
+  //              "--- the transform is not applied";
+  //  }
 
-  //std::optional<ArrayAttr> maybeAttr = exportOp.getWorkgroupSize();
-  // TODO: Pervasive 3 constant in IREE.
-  // if (!maybeAttr || maybeAttr->size() != 3) {
-  //   // Return a silenceable failure and set the expected 1 result to
-  //   // nullptr.
-  //   results.assign(1, nullptr);
-  //   return emitDefaultSilenceableFailure(target)
-  //          << "export op must have workgroup_size attribute set "
-  //             "with 3 entries "
-  //             "--- the transform is not applied";
-  // }
+  // We must obtain the block size using the following function
+  // If getBlockSize is used, it returns the value inside the block itself
+  // hence no defining op could be obtained
+  auto blockSizeX = gpuLaunchOp.getBlockSizeOperandValues();
+  auto definingOp = blockSizeX.x.getDefiningOp();
+  int64_t workgroupSizeX = -1;
+  if (auto constantOp = dyn_cast<arith::ConstantIndexOp>(definingOp)) {
+    mlir::TypedAttr indexAttr = constantOp.getValueAttr();
+    mlir::IntegerAttr intAttr = indexAttr.dyn_cast<IntegerAttr>();
+    auto apsInt = intAttr.getAPSInt();
+    workgroupSizeX = apsInt.getExtValue();
+  }
+  uint64_t warpSize = getWarpSize();
 
-  // int64_t workgroupSizeX = llvm::cast<IntegerAttr>((*maybeAttr)[0]).getInt();
-  // int64_t warpSize = getWarpSize();
-  // if (workgroupSizeX % warpSize != 0) {
-  //   // Return a silenceable failure and set the expected 1 result to
-  //   // nullptr.
-  //   results.assign(1, nullptr);
-  //   return emitDefaultSilenceableFailure(target)
-  //          << "vector distribution requires workgroup size for x to "
-  //             "be a "
-  //          << "multiple of the warp size: " << workgroupSizeX << " vs "
-  //          << warpSize << " --- the transform is not applied";
-  // }
+  // int64_t workgroupSizeX =
+  // llvm::cast<IntegerAttr>((*maybeAttr)[0]).getInt(); int64_t warpSize =
+  // getWarpSize();
+  if (workgroupSizeX % warpSize != 0) {
+    // Return a silenceable failure and set the expected 1 result to
+    // nullptr.
+    results.assign(1, nullptr);
+    return emitDefaultSilenceableFailure(target)
+           << "vector distribution requires workgroup size for x to "
+              "be a "
+           << "multiple of the warp size: " << workgroupSizeX << " vs "
+           << warpSize << " --- the transform is not applied";
+  }
 
-  // Location loc = target->getLoc();
-  // rewriter.setInsertionPoint(target);
-  // FailureOr<VectorDistributionResult> vectorDistributionResult =
-  //     rewriteScfIfAsWarpExecuteOnLane0(rewriter, loc, target, workgroupSizeX,
-  //                                      warpSize);
-  // if (failed(vectorDistributionResult)) {
-  //   // Return a silenceable failure and set the expected 1 result to
-  //   // nullptr.
-  //   results.assign(1, nullptr);
-  //   return mlir::emitSilenceableFailure(
-  //       target, "scf::ifOp needs to be predicated on threadIdx.x == 0 "
-  //               "--- the transform is not applied");
-  // }
+  Location loc = target->getLoc();
+  rewriter.setInsertionPoint(target);
+  FailureOr<VectorDistributionResult> vectorDistributionResult =
+      rewriteScfIfAsWarpExecuteOnLane0(rewriter, loc, target, workgroupSizeX,
+                                       warpSize);
+  if (failed(vectorDistributionResult)) {
+    // Return a silenceable failure and set the expected 1 result to
+    // nullptr.
+    results.assign(1, nullptr);
+    return mlir::emitSilenceableFailure(
+        target, "scf::ifOp needs to be predicated on threadIdx.x == 0 "
+                "--- the transform is not applied");
+  }
 
-  // results.push_back(vectorDistributionResult->warpOp);
+  results.push_back(vectorDistributionResult->warpOp);
   return DiagnosedSilenceableFailure::success();
 }
 
@@ -433,8 +417,8 @@ struct HoistSharedMemoryAlloc : public OpRewritePattern<memref::AllocOp> {
   using OpRewritePattern<memref::AllocOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(memref::AllocOp alloc,
                                 PatternRewriter &rewriter) const override {
-    // if (!iree_compiler::hasSharedMemoryAddressSpace(alloc.getType()))
-    //   return failure();
+    if (!hasSharedMemoryAddressSpace(alloc.getType()))
+      return failure();
     auto warpParent = alloc->getParentOfType<vector::WarpExecuteOnLane0Op>();
     if (!warpParent)
       return failure();
@@ -503,19 +487,20 @@ static void populatePropagateVectorDistribution(Operation *target,
                                                 RewritePatternSet &patterns,
                                                 PatternBenefit benefit,
                                                 unsigned subgroupSize) {
-  // auto groupReductionFn =
-  //     [subgroupSize](Location loc, OpBuilder &builder, Value input,
-  //                    vector::CombiningKind kind, uint32_t size) {
-  //       return mlir::iree_compiler::emitGPUGroupReduction(
-  //           loc, builder, input, kind, size, subgroupSize,
-  //           /*expandSubgroupReduce=*/true);
-  //     };
-  // assert(target->hasTrait<OpTrait::IsIsolatedFromAbove>());
-  // vector::populatePropagateWarpVectorDistributionPatterns(
-  //     patterns, simpleDistributionFunction, simpleWarpShuffleFunction, benefit);
-  // vector::populateDistributeReduction(patterns, groupReductionFn, benefit);
-  // patterns.add<WarpOpLoad, HoistSharedMemoryAlloc>(target->getContext(),
-  //                                                  benefit);
+  auto groupReductionFn =
+      [subgroupSize](Location loc, OpBuilder &builder, Value input,
+                     vector::CombiningKind kind, uint32_t size) {
+        return emitGPUGroupReduction(
+            loc, builder, input, kind, size, subgroupSize,
+            /*expandSubgroupReduce=*/true);
+      };
+  assert(target->hasTrait<OpTrait::IsIsolatedFromAbove>());
+  vector::populatePropagateWarpVectorDistributionPatterns(
+      patterns, simpleDistributionFunction, simpleWarpShuffleFunction,
+      benefit);
+  vector::populateDistributeReduction(patterns, groupReductionFn, benefit);
+  patterns.add<WarpOpLoad, HoistSharedMemoryAlloc>(target->getContext(),
+                                                   benefit);
 }
 
 static void warpSyncronizationFn(Location loc, OpBuilder &builder,
@@ -552,55 +537,55 @@ transform_dialect::VectorWarpDistributionOp::applyToOne(
   //   return emitDefaultDefiniteFailure(target);
   // }
 
-  // // TODO: Hook up into the ApplyPatternOp in CommonExtensions.cpp to
-  // // automatically get listening capabilities.
+  // TODO: Hook up into the ApplyPatternOp in CommonExtensions.cpp to
+  // automatically get listening capabilities.
 
-  // MLIRContext *ctx = target->getContext();
-  // // MultiReduction lowering is necessary until we have explicit
-  // // support for distributing that op.
-  // RewritePatternSet preProcessingPatterns(ctx);
-  // populateMultiReductionLoweringPatterns(target, preProcessingPatterns,
-  //                                        /*benefit=*/1);
-  // vector::ShapeCastOp::getCanonicalizationPatterns(preProcessingPatterns, ctx);
-  // vector::BroadcastOp::getCanonicalizationPatterns(preProcessingPatterns, ctx);
-  // vector::ExtractOp::getCanonicalizationPatterns(preProcessingPatterns, ctx);
-  // transform::ErrorCheckingTrackingListener listener(state, *this);
-  // auto checkErrors = llvm::make_scope_exit([&]() {
-  //   // The TrackingListener API makes checking for errors mandatory. It is safe
-  //   // to drop payload ops during this transform, so we can ignore all errors.
-  //   (void)listener.checkAndResetError();
-  // });
-  // GreedyRewriteConfig config;
-  // config.listener = &listener;
-  // if (failed(applyPatternsAndFoldGreedily(
-  //         target, std::move(preProcessingPatterns), config))) {
-  //   return mlir::emitDefiniteFailure(target,
-  //                                    "multi-reduce patterns failed to apply");
-  // }
+  MLIRContext *ctx = target->getContext();
+  // MultiReduction lowering is necessary until we have explicit
+  // support for distributing that op.
+  RewritePatternSet preProcessingPatterns(ctx);
+  populateMultiReductionLoweringPatterns(target, preProcessingPatterns,
+                                         /*benefit=*/1);
+  vector::ShapeCastOp::getCanonicalizationPatterns(preProcessingPatterns, ctx);
+  vector::BroadcastOp::getCanonicalizationPatterns(preProcessingPatterns, ctx);
+  vector::ExtractOp::getCanonicalizationPatterns(preProcessingPatterns, ctx);
+  transform::ErrorCheckingTrackingListener listener(state, *this);
+  auto checkErrors = llvm::make_scope_exit([&]() {
+    // The TrackingListener API makes checking for errors mandatory. It is safe
+    // to drop payload ops during this transform, so we can ignore all errors.
+    (void)listener.checkAndResetError();
+  });
+  GreedyRewriteConfig config;
+  config.listener = &listener;
+  if (failed(applyPatternsAndFoldGreedily(
+          target, std::move(preProcessingPatterns), config))) {
+    return mlir::emitDefiniteFailure(target,
+                                     "multi-reduce patterns failed to apply");
+  }
 
-  // RewritePatternSet patterns(ctx);
-  // populateVectorTransferWriteDistribution(target, patterns,
-  //                                         /*benefit=*/2);
-  // populatePropagateVectorDistribution(target, patterns,
-  //                                     /*benefit=*/1,
-  //                                     subgroupSize->getSExtValue());
-  // if (failed(
-  //         applyPatternsAndFoldGreedily(target, std::move(patterns), config))) {
-  //   return mlir::emitDefiniteFailure(
-  //       target, "warp distribution patterns failed to apply");
-  // }
+  RewritePatternSet patterns(ctx);
+  populateVectorTransferWriteDistribution(target, patterns,
+                                          /*benefit=*/2);
+  populatePropagateVectorDistribution(target, patterns,
+                                      /*benefit=*/1,
+                                     /*subgroupSize=*/kWarpSize);
+  if (failed(
+          applyPatternsAndFoldGreedily(target, std::move(patterns), config))) {
+    return mlir::emitDefiniteFailure(
+        target, "warp distribution patterns failed to apply");
+  }
 
-  // RewritePatternSet endPatterns(ctx);
-  // vector::WarpExecuteOnLane0LoweringOptions options;
-  // options.warpAllocationFn = allocateGlobalSharedMemory;
-  // options.warpSyncronizationFn = warpSyncronizationFn;
-  // populateWarpExecuteOnLane0ToScf(target, endPatterns, options,
-  //                                 /*benefit=*/0);
-  // if (failed(applyPatternsAndFoldGreedily(target, std::move(endPatterns),
-  //                                         config))) {
-  //   return mlir::emitDefiniteFailure(
-  //       target, "warp execute on lane 0 to scf patterns failed to apply");
-  // }
+  RewritePatternSet endPatterns(ctx);
+  vector::WarpExecuteOnLane0LoweringOptions options;
+  options.warpAllocationFn = allocateGlobalSharedMemory;
+  options.warpSyncronizationFn = warpSyncronizationFn;
+  populateWarpExecuteOnLane0ToScf(target, endPatterns, options,
+                                  /*benefit=*/0);
+  if (failed(applyPatternsAndFoldGreedily(target, std::move(endPatterns),
+                                          config))) {
+    return mlir::emitDefiniteFailure(
+        target, "warp execute on lane 0 to scf patterns failed to apply");
+  }
 
   return DiagnosedSilenceableFailure::success();
 }

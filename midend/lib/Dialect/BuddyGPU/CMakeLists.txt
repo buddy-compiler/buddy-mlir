@@ -6,6 +6,7 @@ add_mlir_library(BuddyGPUTransformOPs
 
   LINK_LIBS PUBLIC
   LLVMSupport
+  BuddyGPUUtils
   MLIRAffineDialect
   MLIRArithDialect
   MLIRBufferizationDialect
