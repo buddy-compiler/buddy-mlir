@@ -1,3 +1,22 @@
+//===- FuncBufferizePass.cpp ----------------------------------------------===//
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file implements the func-bufferize with dynamic offset.
+//
+//===----------------------------------------------------------------------===//
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
@@ -66,11 +85,15 @@ void FuncBufferizeDynamicOffsetPass::runOnOperation() {
   ModuleOp module = getOperation();
   TypeConverter typeConverter;
   typeConverter.addConversion([](Type type) { return type; });
+
+  // Convert RankedTensorType to MemrefType with dynamic offset.
   typeConverter.addConversion([&](RankedTensorType type) {
     auto shape = type.getShape();
     llvm::SmallVector<int64_t, 8> stride;
     stride.reserve(shape.size());
     int64_t initial_value = 1;
+
+    // Compute MemrefType's stride.
     stride.insert(stride.begin(), initial_value);
     for (auto i = shape.size() - 1; i > 0; i--) {
       initial_value *= shape[i];
@@ -117,8 +140,12 @@ void FuncBufferizeDynamicOffsetPass::runOnOperation() {
            typeConverter.isLegal(&op.getBody());
   });
   RewritePatternSet patterns(context);
+
+  // Bufferize func's input args
   populateFunctionOpInterfaceTypeConversionPattern<FuncOp>(patterns,
                                                            typeConverter);
+
+  // Bufferize func's return op.
   populateReturnOpTypeConversionPattern(patterns, typeConverter);
   target.addLegalOp<ModuleOp, bufferization::ToTensorOp,
                     bufferization::ToMemrefOp>();

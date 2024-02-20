@@ -27,6 +27,10 @@ from .utils import *
 
 
 def func_op(node: FuncOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
+    """
+    Import the buddy FuncOp.
+    From Buddy FuncOp to MLIR FUNC Func operation.
+    """
     arguments = []
     for arg in node.args:
         shape = list(arg.shape)
@@ -46,6 +50,10 @@ def func_op(node: FuncOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
 
 
 def call_op(node: CallOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
+    """
+    Import the buddy CallOp.
+    From Buddy CallOp to MLIR FUNC call operation.
+    """
     arguments = []
     for arg in node.args:
         input_node = symbol_table.get((str(arg), 0))
@@ -83,7 +91,7 @@ def param_extract(
         operations.
 
     Returns:
-        op: The operation return the tensor.expand_shape op.
+        op: The operation return the memref.expand_shape op.
     """
     dtype_mapping = {
         TensorDType.Float32: ir.F32Type.get(),

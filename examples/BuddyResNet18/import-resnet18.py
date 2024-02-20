@@ -43,8 +43,6 @@ with torch.no_grad():
     test_result = model_opt(data)
 
 assert torch.allclose(right_result, test_result, atol=1e-5)
-print(right_result)
-print(test_result)
 
 torch._dynamo.reset()
 dynamo_compiler = DynamoCompiler(
@@ -56,5 +54,5 @@ with torch.no_grad():
     graphs = dynamo_compiler.importer(model, data)
 
 assert len(graphs) == 1
-graphs[0].lower_to_top_level_ir(True)
+graphs[0].lower_to_top_level_ir()
 print(graphs[0]._imported_module)

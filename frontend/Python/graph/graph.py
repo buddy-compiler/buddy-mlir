@@ -163,6 +163,12 @@ class Graph:
         self.node_table[node.name] = node
 
     def init_op_group(self):
+        """
+        Initializes operation groups within the graph.
+
+        Returns:
+        - None
+        """
         for i, op in enumerate(self._body):
             if isinstance(op, PlaceholderOp):
                 continue
@@ -172,76 +178,39 @@ class Graph:
             self.op_groups[subgraph_name] = group
 
     def fuse_ops(self, pattern_list: List[FunctionType]):
+        """
+        Fuse operations in the graph based on provided fusion patterns.
+
+        Args:
+        - pattern_list (List[FunctionType]): A list of functions representing
+        fusion patterns.
+
+        Returns:
+        - None
+        """
         # TODO: discuss two fuse strategy
         # 1. fuse ops adapt for DSA(hardware dependent)
         # 2. common fuse strategy(hardware independent)
+
+        # Initialize operation groups
         self.init_op_group()
+
+        # Apply fusion patterns
         for pattern_func in pattern_list:
             pattern_func(self)
 
-    def build_subgraph_by_group(self):
-        subgraphs_inputs = {}
-        for subgraph_name in self.op_groups.keys():
-            subgraphs_inputs[subgraph_name] = []
-            for op in self.op_groups[subgraph_name]:
-                for parent in op._parents:
-                    if (
-                        self.node_table[parent]
-                        not in self.op_groups[subgraph_name]
-                    ):
-                        subgraphs_inputs[subgraph_name].append(parent)
-        subgraphs_outputs = {}
-        output_node = []
-        for node in self._body:
-            if isinstance(node, OutputOp):
-                for arg in node.args:
-                    output_node.append(arg)
-        for subgraph_name in self.op_groups.keys():
-            subgraphs_outputs[subgraph_name] = []
-            for op in self.op_groups[subgraph_name]:
-                for key in subgraphs_inputs.keys():
-                    if op.name in subgraphs_inputs[key]:
-                        subgraphs_outputs[subgraph_name].append(op.name)
-                if (op.name in output_node) and (
-                    op.name not in subgraphs_outputs[subgraph_name]
-                ):
-                    subgraphs_outputs[subgraph_name].append(op.name)
-        subgraphs = {}
-        for subgraph_name in self.op_groups.keys():
-            subgraph_input = []
-            subgraph_body = []
-            for inp in subgraphs_inputs[subgraph_name]:
-                node = self.node_table[inp]
-                node_shape = node.tensor_meta["shape"]
-                node_dtype = node.tensor_meta["dtype"]
-                input_tensor_meta = TensorMeta(node_shape, node_dtype)
-                subgraph_input.append(input_tensor_meta)
-                placeholder_node = PlaceholderOp()
-                placeholder_node.name = inp
-                placeholder_node.tensor_meta = input_tensor_meta
-                for op in self.op_groups[subgraph_name]:
-                    if inp in node._parents:
-                        placeholder_node.add_children(op.name)
-                subgraph_body.append(placeholder_node)
-            for op in self.op_groups[subgraph_name]:
-                subgraph_body.append(op)
-            output_node = OutputOp()
-            output_node.name = "output"
-            for output in subgraphs_outputs[subgraph_name]:
-                output_node.add_argument(output)
-                output_node.add_parent(output)
-            subgraph_body.append(output_node)
-            subgraph = Graph(
-                subgraph_input, [], self._ops_registry, subgraph_name
-            )
-            subgraph.body = subgraph_body
-            for op in subgraph_body:
-                subgraph.node_table[op.name] = op
-            subgraphs[subgraph_name] = subgraph
-
-        return subgraphs, subgraphs_inputs, subgraphs_outputs
-
     def perform(self, func_list: List[FunctionType]):
+        """
+        Perform a series of transformations on the graph using the provided list
+        of functions.
+
+        Args:
+        - func_list (List[FunctionType]): A list of functions representing
+        transformations to be applied to the graph.
+
+        Returns:
+        - None
+        """
         for transform_func in func_list:
             transform_func(self)
 

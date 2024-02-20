@@ -1151,11 +1151,19 @@ def sigmoid_op(node: SigmoidOp, symbol_table):
 
 
 def reciprocal_op(node: ReciprocalOp, symbol_table):
+    """
+    Import the buddy ReciprocalOp.
+    From Buddy ReciprocalOp to MLIR TOSA `ReciprocalOp` operation.
+    """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     return tosa.ReciprocalOp(input_tensor.type, input_tensor)
 
 
 def mean_op(node: MeanOp, symbol_table):
+    """
+    Import the buddy MeanOp.
+    From Buddy MeanOp to MLIR TOSA operation.
+    """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     keepdim = node.args[2]
     dims = [x for x in node.args[1]]
