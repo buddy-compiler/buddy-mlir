@@ -16,6 +16,7 @@ CROSS_MLIR_CPU_RUNNER := ../../thirdparty/build-cross-mlir/bin/mlir-cpu-runner
 CROSS_MLIR_C_RUNNER_UTILS := ../../thirdparty/build-cross-mlir/lib/libmlir_c_runner_utils.so
 CROSS_MLIR_RUNNER_UTILS := ../../thirdparty/build-cross-mlir/lib/libmlir_runner_utils.so
 CROSS_MLIR_LIB := ../../thirdparty/build-cross-mlir/lib
+CROSS_BUDDY_MLIR_LIB := ../../thirdparty/build-cross-buddy-mlir/lib/
 
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
@@ -142,22 +143,25 @@ vector-exp-predication-matmul-aot:
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 a.out
 
-# vector-exp-predication-matmul-elf:
-# 	@${BUDDY_OPT} ./vector-exp-predication-matmul.mlir \
-# 		-lower-affine \
-# 		-convert-scf-to-cf \
-# 		-convert-math-to-llvm \
-# 		-lower-vector-exp \
-# 		-lower-rvv \
-# 		-convert-vector-to-llvm \
-# 		-finalize-memref-to-llvm \
-# 		-convert-func-to-llvm \
-# 		-reconcile-unrealized-casts |\
-# 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
-# 	${LLC} -mtriple riscv64  -mattr=+v,+m -riscv-v-vector-bits-min=128 -filetype=obj -o log.o
-# 	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o  \
-# 		-static \
-# 		-o log.elf
+vector-exp-predication-matmul-elf:
+	@${BUDDY_OPT} ./vector-exp-predication-matmul.mlir \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-math-to-llvm \
+		-lower-vector-exp \
+		-lower-rvv \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts |\
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${LLC} -mtriple riscv64  -mattr=+v,+m -riscv-v-vector-bits-min=128 -filetype=obj -o log.o
+	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o  \
+		-static \
+		-L${CROSS_BUDDY_MLIR_LIB} \
+		-lStaticMLIRCRunnerUtils -lStaticMLIRRunnerUtils \
+		-lstdc++ \
+		-o test.elf
 
 vector-exp-add-mask-run:
 	@${BUDDY_OPT} ./vector-exp-add-mask.mlir \
