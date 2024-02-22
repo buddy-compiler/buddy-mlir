@@ -191,6 +191,9 @@ void calcAndStorewTailProcessingMorph(
     Value zeroPadding, Value inputCol, VectorType vectorMaskTy, Type elemTy,
     Value kernelValue, Value zeroPaddingElem, DIP_OP op);
 
+// Utility function for traversing an image with support for boundary extrapolation,
+// variable anchor point positioning, and tail processing. It is used to compose more
+// complicated operations on top of it, like 2D Correlation and morphological operations.
 void traverseImagewBoundaryExtrapolation(
     OpBuilder &rewriter, Location loc, MLIRContext *ctx, Value input,
     Value kernel, Value output, Value centerX, Value centerY,
