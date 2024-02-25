@@ -200,6 +200,18 @@ void traverseImagewBoundaryExtrapolation(
     Value constantValue, Value strideVal, Type elemTy,
     buddy::dip::BoundaryOption boundaryOptionAttr, int64_t stride, DIP_OP op);
 
+// Intended for the same purpose as above function on 4 dimensional memref
+// inputs. These memrefs must be in NCHW_FCHW format were,
+// 1. N is the batch size.
+// 2. C is the no. of channels in input.
+// 3. H is the height of the respective container.
+// 4. W is the width of the respective container.
+void traverseImagewBoundaryExtrapolation4DMemRefsNCHWFCHW(
+    OpBuilder &rewriter, Location loc, MLIRContext *ctx, Value input,
+    Value kernel, Value output, Value centerX, Value centerY,
+    Value constantValue, Value strideVal, Type elemTy,
+    buddy::dip::BoundaryOption boundaryOptionAttr, int64_t stride, DIP_OP op);
+
 // Function for applying type check mechanisms for all DIP dialect operations.
 template <typename DIPOP>
 DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args);
