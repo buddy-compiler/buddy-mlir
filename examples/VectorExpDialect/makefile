@@ -161,7 +161,45 @@ vector-exp-predication-matmul-elf:
 		-L${CROSS_BUDDY_MLIR_LIB} \
 		-lStaticMLIRCRunnerUtils -lStaticMLIRRunnerUtils \
 		-lstdc++ \
-		-o test.elf
+		-o matmul-predication-perf.elf
+
+vector-exp-scalar-matmul-elf:
+	@${BUDDY_OPT} ./vector-exp-scalar-matmul.mlir \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+        -convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+        -convert-func-to-llvm \
+		-reconcile-unrealized-casts |\
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${LLC} -O0 -mtriple riscv64  -mattr=+v,+m -riscv-v-vector-bits-min=128 -filetype=obj -o log.o
+	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o  \
+		-static \
+		-L${CROSS_BUDDY_MLIR_LIB} \
+		-lStaticMLIRCRunnerUtils -lStaticMLIRRunnerUtils \
+		-lstdc++ \
+		-o matmul-scalar-perf.elf
+
+vector-exp-O3-matmul-elf:
+	@${BUDDY_OPT} ./vector-exp-scalar-matmul.mlir \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+        -convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+        -convert-func-to-llvm \
+		-reconcile-unrealized-casts |\
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${LLC} -O3 -mtriple riscv64  -mattr=+v,+m -riscv-v-vector-bits-min=128 -filetype=obj -o log.o
+	@${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc log.o  \
+		-static \
+		-L${CROSS_BUDDY_MLIR_LIB} \
+		-lStaticMLIRCRunnerUtils -lStaticMLIRRunnerUtils \
+		-lstdc++ \
+		-o matmul-o3-perf.elf
 
 vector-exp-add-mask-run:
 	@${BUDDY_OPT} ./vector-exp-add-mask.mlir \
