@@ -32,6 +32,7 @@ target_link_libraries(buddy-opt
   LowerVectorExpPass
   BuddyGemmini
   LowerGemminiPass
+  LowerGemminiToLLVMPass
   LowerLinalgToGemminiPass
   SchedulingOnDevices
   LowerSche

@@ -23,8 +23,6 @@
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVMPass.h"
-#include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
-#include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -35,6 +33,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/DialectConversion.h"
 
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
@@ -43,126 +42,17 @@
 using namespace mlir;
 using namespace buddy;
 
-// PrintOpLowering refers to the toy.print op.
-class PrintOpLowering : public ConversionPattern {
-public:
-  explicit PrintOpLowering(MLIRContext *context)
-      : ConversionPattern(gemmini::PrintOp::getOperationName(), 1, context) {}
-
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto context = rewriter.getContext();
-    auto memRefType = llvm::cast<MemRefType>(*op->operand_type_begin());
-    auto memRefShape = memRefType.getShape();
-    Type memElementType = memRefType.getElementType();
-    auto loc = op->getLoc();
-    ModuleOp parentModule = op->getParentOfType<ModuleOp>();
-    auto printfRef = getOrInsertPrintf(rewriter, parentModule);
-    Value formatSpecifierCst;
-    if (memElementType == rewriter.getF32Type() ||
-        memElementType == rewriter.getF64Type()) {
-      formatSpecifierCst = getOrCreateGlobalString(
-          loc, rewriter, "frmt_spec", StringRef("%f \0", 4), parentModule);
-    } else if (memElementType == rewriter.getI8Type() ||
-               memElementType == rewriter.getI32Type()) {
-      formatSpecifierCst = getOrCreateGlobalString(
-          loc, rewriter, "frmt_spec", StringRef("%d \0", 4), parentModule);
-    }
-    Value newLineCst = getOrCreateGlobalString(
-        loc, rewriter, "nl", StringRef("\n\0", 2), parentModule);
-    SmallVector<Value, 4> loopIvs;
-    for (unsigned i = 0, e = memRefShape.size(); i != e; ++i) {
-      auto lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-      auto upperBound =
-          rewriter.create<arith::ConstantIndexOp>(loc, memRefShape[i]);
-      auto step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-      auto loop =
-          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
-      for (Operation &nested : *loop.getBody())
-        rewriter.eraseOp(&nested);
-      loopIvs.push_back(loop.getInductionVar());
-
-      rewriter.setInsertionPointToEnd(loop.getBody());
-
-      if (i != e - 1)
-        rewriter.create<LLVM::CallOp>(loc, getPrintfType(context), printfRef,
-                                      newLineCst);
-      rewriter.create<scf::YieldOp>(loc);
-      rewriter.setInsertionPointToStart(loop.getBody());
-    }
-
-    auto printOp = cast<gemmini::PrintOp>(op);
-    Value elementLoad =
-        rewriter.create<memref::LoadOp>(loc, printOp.getInput(), loopIvs);
-    if (elementLoad.getType() == rewriter.getF32Type())
-      elementLoad = rewriter.create<mlir::LLVM::FPExtOp>(
-          loc, rewriter.getF64Type(), elementLoad);
-    else if (elementLoad.getType() == rewriter.getI8Type())
-      elementLoad = rewriter.create<mlir::LLVM::SExtOp>(
-          loc, rewriter.getI32Type(), elementLoad);
-    rewriter.create<LLVM::CallOp>(
-        loc, getPrintfType(context), printfRef,
-        ArrayRef<Value>({formatSpecifierCst, elementLoad}));
-
-    rewriter.eraseOp(op);
-    return success();
-  }
-
-private:
-  static LLVM::LLVMFunctionType getPrintfType(MLIRContext *context) {
-    auto llvmI32Ty = IntegerType::get(context, 32);
-    auto llvmPtr = LLVM::LLVMPointerType::get(context);
-    return LLVM::LLVMFunctionType::get(llvmI32Ty, llvmPtr, true);
-  }
-
-  static FlatSymbolRefAttr getOrInsertPrintf(PatternRewriter &rewriter,
-                                             ModuleOp module) {
-    auto *context = module.getContext();
-    if (module.lookupSymbol<LLVM::LLVMFuncOp>("printf"))
-      return SymbolRefAttr::get(context, "printf");
-
-    PatternRewriter::InsertionGuard insertGuard(rewriter);
-    rewriter.setInsertionPointToStart(module.getBody());
-    rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "printf",
-                                      getPrintfType(context));
-    return SymbolRefAttr::get(context, "printf");
-  }
-
-  static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
-                                       StringRef name, StringRef value,
-                                       ModuleOp module) {
-    LLVM::GlobalOp global;
-    if (!(global = module.lookupSymbol<LLVM::GlobalOp>(name))) {
-      OpBuilder::InsertionGuard insertGuard(builder);
-      builder.setInsertionPointToStart(module.getBody());
-      auto type = LLVM::LLVMArrayType::get(
-          IntegerType::get(builder.getContext(), 8), value.size());
-      global = builder.create<LLVM::GlobalOp>(loc, type, true,
-                                              LLVM::Linkage::Internal, name,
-                                              builder.getStringAttr(value), 0);
-    }
-
-    Value globalPtr = builder.create<LLVM::AddressOfOp>(loc, global);
-    Value cst0 = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
-                                                  builder.getIndexAttr(0));
-    return builder.create<LLVM::GEPOp>(
-        loc, LLVM::LLVMPointerType::get(builder.getContext()), global.getType(),
-        globalPtr, ArrayRef<Value>({cst0, cst0}));
-  }
-};
-
 namespace {
-class LowerGemminiToLLVMPass
-    : public PassWrapper<LowerGemminiToLLVMPass, OperationPass<ModuleOp>> {
+class LowerGemminiPass
+    : public PassWrapper<LowerGemminiPass, OperationPass<ModuleOp>> {
 public:
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerGemminiToLLVMPass)
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerGemminiPass)
   StringRef getArgument() const final { return "lower-gemmini"; }
   StringRef getDescription() const final {
     return "gemmini dialect lowering pass.";
   }
-  LowerGemminiToLLVMPass() = default;
-  LowerGemminiToLLVMPass(const LowerGemminiToLLVMPass &) {}
+  LowerGemminiPass() = default;
+  LowerGemminiPass(const LowerGemminiPass &) {}
 
   Option<int64_t> dim{*this, "dim", llvm::cl::desc("Size of systolic array."),
                       llvm::cl::init(16)};
@@ -184,18 +74,18 @@ public:
   // Override explicitly to allow conditional dialect dependence.
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<LLVM::LLVMDialect>();
-    registry.insert<LLVM::LLVMDialect>();
     registry.insert<arith::ArithDialect>();
     registry.insert<memref::MemRefDialect>();
     registry.insert<scf::SCFDialect>();
-    registry.insert<gemmini::GemminiDialect>();
+    registry.insert<func::FuncDialect>();
+    // registry.insert<gemmini::GemminiDialect>();
   }
 
   void runOnOperation() override;
 };
 } // namespace
 
-void LowerGemminiToLLVMPass::runOnOperation() {
+void LowerGemminiPass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
   // The default elem_t is int8_t,
@@ -208,26 +98,27 @@ void LowerGemminiToLLVMPass::runOnOperation() {
   size_t sizeOfAccT = sizeof(int32_t);
   if (accType == "f32")
     sizeOfAccT = sizeof(float);
-  LLVMTypeConverter converter(context);
+  ConversionTarget target(*context);
+  target.addLegalDialect<memref::MemRefDialect, arith::ArithDialect, 
+                         scf::SCFDialect, func::FuncDialect>();
   RewritePatternSet patterns(context);
-  LLVMConversionTarget target(*context);
-  configureGemminiLegalizeForExportTarget(target);
-  populateGemminiLegalizeForLLVMExportPatterns(converter, patterns, dim,
+  // func call op
+  // configureGemminiLegalizeForFuncExportTarget(target);
+  populateGemminiLegalizeForFuncExportPatterns(patterns, dim,
                                                addrLen, accRows, bankRows,
                                                sizeOfElemT, sizeOfAccT);
-  populateAffineToStdConversionPatterns(patterns);
-  populateSCFToControlFlowConversionPatterns(patterns);
-  mlir::arith::populateArithToLLVMConversionPatterns(converter, patterns);
-  populateFinalizeMemRefToLLVMConversionPatterns(converter, patterns);
-  cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
-  populateFuncToLLVMConversionPatterns(converter, patterns);
-  patterns.add<PrintOpLowering>(&getContext());
+  // intrinsic op
+  // configureGemminiLegalizeForExportTarget(target);
+  // populateGemminiLegalizeForLLVMExportPatterns(converter, patterns, dim,
+  //                                              addrLen, accRows, bankRows,
+  //                                              sizeOfElemT, sizeOfAccT);
+
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
 }
 
 namespace mlir {
 namespace buddy {
-void registerLowerGemminiPass() { PassRegistration<LowerGemminiToLLVMPass>(); }
+void registerLowerGemminiPass() { PassRegistration<LowerGemminiPass>(); }
 } // namespace buddy
 } // namespace mlir
