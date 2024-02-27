@@ -36,7 +36,7 @@ if model_path is None:
     )
 
 model = LeNet()
-torch.load(model_path + "/lenet-model.pth")
+model = torch.load(model_path + "/lenet-model.pth")
 model = model.eval()
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
