@@ -19,7 +19,7 @@ MTRIPLE := x86_64-apple-darwin
 endif
 
 buddy-lenet-lower:
-	@${MLIR_OPT} ./lenet.mlir \
+	@${MLIR_OPT} ./fake-lenet.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" | \
 		${MLIR_OPT} \
 		-eliminate-empty-tensors \
@@ -45,7 +45,7 @@ buddy-lenet-lower:
 		-o ./log.mlir
 
 buddy-lenet-translate:
-	@${MLIR_OPT} ./lenet.mlir \
+	@${MLIR_OPT} ./fake-lenet.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" | \
 		${MLIR_OPT} \
 		-eliminate-empty-tensors \
@@ -69,3 +69,31 @@ buddy-lenet-translate:
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir -o log.ll
+
+
+buddy-lenet-run:
+	@${MLIR_OPT} ./fake-lenet.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" | \
+		${MLIR_OPT} \
+		-eliminate-empty-tensors \
+		-convert-tensor-to-linalg \
+		-linalg-bufferize \
+		-convert-linalg-to-affine-loops \
+		-lower-affine \
+		-func-bufferize \
+		-arith-bufferize \
+		-tensor-bufferize \
+		-buffer-deallocation \
+		-finalizing-bufferize \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-llvm-request-c-wrappers \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}

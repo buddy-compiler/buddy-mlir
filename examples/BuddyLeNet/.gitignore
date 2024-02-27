@@ -1,3 +1,8 @@
 log.mlir
 log.ll
 log.s
+data
+*.data
+__pycache__
+*.pth
+lenet.mlir

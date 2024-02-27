@@ -99,6 +99,10 @@ set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
 if(BUDDY_ENABLE_OPENCV)
   add_definitions(-DBUDDY_ENABLE_OPENCV)
+  find_package(JPEG REQUIRED)
+  find_package(PNG REQUIRED)
+  find_package(OpenCV REQUIRED CONFIG)
+  include_directories(${OpenCV_INCLUDE_DIRS})
 endif()
 
 # Generate libraries into `lib` of build directory.

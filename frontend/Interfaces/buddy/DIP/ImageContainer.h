@@ -144,7 +144,8 @@ Img<T, N>::Img(T *data, intptr_t sizes[N]) : MemRef<T, N>(data, sizes) {}
 template <typename T, size_t N>
 Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
   if (image.channels() == 1) {
-    assert((N == 2) && "For gray images, the number of dimensions must be 2.");
+    assert((N == 2 || N == 4) &&
+           "For gray images, the number of dimensions can be 2 or 4.");
   } else if (image.channels() == 3) {
     assert((N == 4) && "For RGB images, the number of dimensions must be 4, "
                        "either in NHWC or NCHW layout.");
@@ -174,6 +175,31 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
             this->aligned[k] = (T)image.at<uchar>(i, j);
           }
           k++;
+        }
+      }
+    }
+  } else {
+    // Use custom layout setting.
+    // Only support gray scale image and NCHW now.
+    for (size_t i = 0; i < N; i++) {
+      this->sizes[i] = sizes[i];
+    }
+    size_t size = this->product(this->sizes);
+    this->setStrides();
+    this->allocated = new T[size];
+    this->aligned = this->allocated;
+    size_t k = 0;
+    for (int batch = 0; batch < this->sizes[0]; batch++) {
+      for (int channel = 0; channel < this->sizes[1]; channel++) {
+        for (int row = 0; row < this->sizes[2]; row++) {
+          for (int col = 0; col < this->sizes[3]; col++) {
+            if (norm) {
+              this->aligned[k] = (T)image.at<uchar>(row, col) / 255;
+            } else {
+              this->aligned[k] = (T)image.at<uchar>(row, col);
+            }
+            k++;
+          }
         }
       }
     }
