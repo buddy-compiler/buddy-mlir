@@ -51,8 +51,8 @@ class OpType(Enum):
     ElementwiseType = 1
     ReshapeType = 2
     SliceLikeType = 3
-    ReduceType = 4
-    ConcatType = 5
+    TransposeType = 4
+    ReduceType = 5
     PlaceholderType = 6
     GetItemType = 7
     Unfusable = 8
@@ -118,6 +118,18 @@ class Op:
         self._children.append(child)
 
     @property
+    def parents(self):
+        return self._parents
+
+    @property
+    def children(self):
+        return self._children
+
+    @property
+    def op_type(self):
+        return self._op_type
+
+    @property
     def args(self):
         return self._arguments
 
@@ -162,7 +174,7 @@ class GetItemOp(Op):
 class OutputOp(Op):
     def __init__(self) -> None:
         super().__init__()
-        self._op_type = OpType.GetItemType
+        self._op_type = OpType.Unfusable
 
 
 class ArangeOp(Op):
@@ -186,7 +198,7 @@ class ViewOp(Op):
 class EmbeddingOp(Op):
     def __init__(self) -> None:
         super().__init__()
-        self._op_type = OpType.ReshapeType
+        self._op_type = OpType.SliceLikeType
 
 
 class OnesOp(Op):
@@ -216,7 +228,7 @@ class MaskedFillOp(Op):
 class SliceOp(Op):
     def __init__(self) -> None:
         super().__init__()
-        self._op_type = OpType.ReshapeType
+        self._op_type = OpType.SliceLikeType
 
 
 class ToCopyOp(Op):
@@ -258,13 +270,13 @@ class MulOp(Op):
 class TransposeOp(Op):
     def __init__(self) -> None:
         super().__init__()
-        self._op_type = OpType.ReshapeType
+        self._op_type = OpType.TransposeType
 
 
 class IndexOp(Op):
     def __init__(self) -> None:
         super().__init__()
-        self._op_type = OpType.ReshapeType
+        self._op_type = OpType.SliceLikeType
 
 
 class NegOp(Op):
@@ -276,7 +288,7 @@ class NegOp(Op):
 class CatOp(Op):
     def __init__(self) -> None:
         super().__init__()
-        self._op_type = OpType.ConcatType
+        self._op_type = OpType.SliceLikeType
 
 
 class SqueezeOp(Op):
@@ -306,7 +318,7 @@ class SoftmaxOp(Op):
 class CloneOp(Op):
     def __init__(self) -> None:
         super().__init__()
-        self._op_type = OpType.ReduceType
+        self._op_type = OpType.SliceLikeType
 
 
 class SiluOp(Op):
@@ -360,7 +372,7 @@ class ExpandOp(Op):
 class PermuteOp(Op):
     def __init__(self) -> None:
         super().__init__()
-        self._op_type = OpType.ReshapeType
+        self._op_type = OpType.TransposeType
 
 
 class ReshapeOp(Op):
@@ -372,7 +384,7 @@ class ReshapeOp(Op):
 class SelectOp(Op):
     def __init__(self) -> None:
         super().__init__()
-        self._op_type = OpType.ReshapeType
+        self._op_type = OpType.SliceLikeType
 
 
 class SumDimOp(Op):
@@ -396,7 +408,7 @@ class VarMeanOp(Op):
 class TOp(Op):
     def __init__(self) -> None:
         super().__init__()
-        self._op_type = OpType.ReshapeType
+        self._op_type = OpType.TransposeType
 
 
 class ErfOp(Op):

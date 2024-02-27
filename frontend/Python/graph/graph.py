@@ -119,7 +119,7 @@ class Graph:
             func_name: str
                 The function name for the MLIR module.
         """
-        self._body = []
+        self._body: List[Op] = []
         self._inputs = inputs
         self.node_table: Dict[str, Op] = {}
         self._fake_params = fake_params
@@ -133,6 +133,7 @@ class Graph:
         self.execution_engine = None
         self.op_groups: Dict[str, List[Op]] = {}
         self.group_map_device: Dict[str, DeviceType] = {}
+        self.op_map_group: Dict[str, str] = {}
 
     @property
     def body(self):
@@ -176,6 +177,7 @@ class Graph:
             subgraph_name = "subgraph{}".format(i)
             self.group_map_device[subgraph_name] = DeviceType.UNKNOW
             self.op_groups[subgraph_name] = group
+            self.op_map_group[op.name] = subgraph_name
 
     def fuse_ops(self, pattern_list: List[FunctionType]):
         """
