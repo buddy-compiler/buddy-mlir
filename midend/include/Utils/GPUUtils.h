@@ -154,7 +154,13 @@ hoistOneStaticallyBoundAllocation(func::FuncOp funcOp, OpBuilder &builder,
 template <typename AllocLikeOpType>
 void hoistStaticallyBoundAllocationsInFunc(RewriterBase &rewriter,
                                            func::FuncOp funcOp);
-                                           
+
+//===----------------------------------------------------------------------===//
+// Utility from compiler/src/iree/compiler/Codegen/LLVMGPU/Utils/LLVMGPUUtils.h
+//===----------------------------------------------------------------------===//
+void createAsyncGroups(RewriterBase &rewriter, func::FuncOp funcOp,
+                       bool useMMASync);
+
 } // namespace buddy::buddygpu
 } // namespace mlir
 
