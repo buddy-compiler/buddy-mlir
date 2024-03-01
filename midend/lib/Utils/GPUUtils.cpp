@@ -28,13 +28,19 @@
 #ifndef UTILS_GPUUTILS_DEF
 #define UTILS_GPUUTILS_DEF
 
+#include "mlir/Analysis/Liveness.h"
+#include "mlir/Analysis/Presburger/IntegerRelation.h"
+#include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/ValueBoundsOpInterface.h"
+#include "mlir/Transforms/TopologicalSortUtils.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -156,34 +162,34 @@ bool canPerformVectorAccessUsingAllThreads(ArrayRef<int64_t> shape,
 
 /// Pick an unrolling order that will allow tensorcore operation to reuse LHS
 /// register. This is needed to get good performance on sm_80 target.
-// std::optional<SmallVector<int64_t>>
-// gpuMmaUnrollOrder(vector::ContractionOp contract) {
-//   SmallVector<int64_t> order;
-//   // First make reduction the outer dimensions.
-//   for (auto [index, iter] : llvm::enumerate(contract.getIteratorTypes())) {
-//     if (vector::isReductionIterator(iter)) {
-//       order.push_back(index);
-//     }
-//   }
+std::optional<SmallVector<int64_t>>
+gpuMmaUnrollOrder(vector::ContractionOp contract) {
+  SmallVector<int64_t> order;
+  // First make reduction the outer dimensions.
+  for (auto [index, iter] : llvm::enumerate(contract.getIteratorTypes())) {
+    if (vector::isReductionIterator(iter)) {
+      order.push_back(index);
+    }
+  }
 
-//   llvm::SmallDenseSet<int64_t> dims;
-//   for (AffineExpr expr : contract.getIndexingMapsArray()[0].getResults()) {
-//     dims.insert(cast<AffineDimExpr>(expr).getPosition());
-//   }
-//   // Then parallel dimensions that are part of Lhs as we want to re-use Lhs.
-//   for (auto [index, iter] : llvm::enumerate(contract.getIteratorTypes())) {
-//     if (vector::isParallelIterator(iter) && dims.count(index)) {
-//       order.push_back(index);
-//     }
-//   }
-//   // Then the remaining parallel loops.
-//   for (auto [index, iter] : llvm::enumerate(contract.getIteratorTypes())) {
-//     if (vector::isParallelIterator(iter) && !dims.count(index)) {
-//       order.push_back(index);
-//     }
-//   }
-//   return order;
-// }
+  llvm::SmallDenseSet<int64_t> dims;
+  for (AffineExpr expr : contract.getIndexingMapsArray()[0].getResults()) {
+    dims.insert(expr.cast<AffineDimExpr>().getPosition());
+  }
+  // Then parallel dimensions that are part of Lhs as we want to re-use Lhs.
+  for (auto [index, iter] : llvm::enumerate(contract.getIteratorTypes())) {
+    if (vector::isParallelIterator(iter) && dims.count(index)) {
+      order.push_back(index);
+    }
+  }
+  // Then the remaining parallel loops.
+  for (auto [index, iter] : llvm::enumerate(contract.getIteratorTypes())) {
+    if (vector::isParallelIterator(iter) && !dims.count(index)) {
+      order.push_back(index);
+    }
+  }
+  return order;
+}
 
 //===----------------------------------------------------------------------===//
 // GPU workgroup memory
@@ -940,6 +946,181 @@ bool hasSharedMemoryAddressSpace(MemRefType memrefType) {
 //   return false;
 // }
 
+//===----------------------------------------------------------------------===//
+// Utility from compiler/src/iree/compiler/Codegen/Transforms/Transforms.h
+//===----------------------------------------------------------------------===//
+
+template <typename AllocLikeOpType>
+std::optional<Value>
+hoistOneStaticallyBoundAllocation(func::FuncOp funcOp, OpBuilder &builder,
+                                  Location loc, MemRefType allocLikeType,
+                                  ValueRange dynamicSizes,
+                                  std::optional<uint64_t> alignment) {
+  IntegerAttr alignmentAttr =
+      alignment ? builder.getI64IntegerAttr(alignment.value()) : nullptr;
+  // For static case just create a new allocation in the entry block of the same
+  // size. No need to insert a subview.
+  if (dynamicSizes.empty()) {
+    OpBuilder::InsertionGuard g(builder);
+    builder.setInsertionPointToStart(&funcOp.getBody().front());
+    Value allocation =
+        builder.create<AllocLikeOpType>(loc, allocLikeType, alignmentAttr);
+    if (std::is_same<AllocLikeOpType, memref::AllocOp>::value) {
+      builder.setInsertionPoint(funcOp.getBody().front().getTerminator());
+      builder.create<memref::DeallocOp>(loc, allocation);
+    }
+    return allocation;
+  }
+
+  /// For the dynamic but bounded case, insert an allocation of the shape of the
+  /// bounds, and a subview of the required size to be used as a replacement.
+  SmallVector<int64_t> staticShape;
+  SmallVector<OpFoldResult> subviewSizes;
+  staticShape.reserve(allocLikeType.getRank());
+  subviewSizes.reserve(allocLikeType.getRank());
+
+  int index = 0;
+  for (auto dimSize : allocLikeType.getShape()) {
+    if (!ShapedType::isDynamic(dimSize)) {
+      staticShape.push_back(dimSize);
+      subviewSizes.push_back(builder.getIndexAttr(dimSize));
+      continue;
+    }
+    Value dynamicSize = dynamicSizes[index++];
+    auto ub = ValueBoundsConstraintSet::computeConstantBound(
+        presburger::BoundType::UB, dynamicSize, /*dim=*/std::nullopt,
+        /*stopCondition=*/nullptr, /*closedUB=*/true);
+    if (failed(ub)) {
+      return std::nullopt;
+    }
+    staticShape.push_back(ub.value());
+    subviewSizes.push_back(dynamicSize);
+  }
+  SmallVector<OpFoldResult> offsets(allocLikeType.getRank(),
+                                    builder.getIndexAttr(0));
+  SmallVector<OpFoldResult> strides(allocLikeType.getRank(),
+                                    builder.getIndexAttr(1));
+
+  Value allocation;
+  {
+    OpBuilder::InsertionGuard g(builder);
+    builder.setInsertionPointToStart(&funcOp.getBody().front());
+    auto allocationType =
+        MemRefType::get(staticShape, allocLikeType.getElementType());
+    allocation =
+        builder.create<AllocLikeOpType>(loc, allocationType, alignmentAttr);
+  }
+
+  Value subviewOp = builder.create<memref::SubViewOp>(loc, allocation, offsets,
+                                                      subviewSizes, strides);
+
+  if (std::is_same<AllocLikeOpType, memref::AllocOp>::value) {
+    builder.setInsertionPoint(funcOp.getBody().front().getTerminator());
+    builder.create<memref::DeallocOp>(loc, allocation);
+  }
+  return subviewOp;
+}
+
+template <typename AllocLikeOpType>
+std::optional<Value>
+hoistOneStaticallyBoundAllocation(func::FuncOp funcOp, OpBuilder &builder,
+                                  AllocLikeOpType allocLikeOp) {
+  OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPoint(allocLikeOp);
+  return hoistOneStaticallyBoundAllocation<AllocLikeOpType>(
+      funcOp, builder, allocLikeOp.getLoc(), allocLikeOp.getType(),
+      allocLikeOp.getDynamicSizes(), allocLikeOp.getAlignment());
+}
+
+/// Some uses of a AllocLike can be replaced with a `memref.subview`
+/// easily. Other uses (like a use in a `scf.yield` or `func.return`) are
+/// non-trivial because of compatibility between types of different SSA values.
+static bool isUseReplaceableWithSubview(OpOperand &use) {
+  Operation *user = use.getOwner();
+  return isa<linalg::LinalgOp, memref::DeallocOp, memref::StoreOp,
+             memref::SubViewOp>(user);
+}
+
+template <typename AllocLikeOpType>
+void hoistStaticallyBoundAllocationsInFunc(RewriterBase &rewriter,
+                                           func::FuncOp funcOp) {
+  SmallVector<AllocLikeOpType> allocLikeOps;
+
+  // Collect all allocLikes that are hoistable.
+  funcOp.walk([&](AllocLikeOpType allocLikeOp) {
+    if (allocLikeOp->getBlock() == &funcOp.getBody().front())
+      return;
+    if (allocLikeOp.getDynamicSizes().empty()) {
+      allocLikeOps.push_back(allocLikeOp);
+      return;
+    }
+    if (llvm::all_of(allocLikeOp->getUses(), [](OpOperand &use) {
+          return isUseReplaceableWithSubview(use);
+        })) {
+      allocLikeOps.push_back(allocLikeOp);
+      return;
+    }
+  });
+
+  // Hoist the allocLikes and replace all uses.
+  for (auto allocLikeOp : allocLikeOps) {
+    // Record potential memref::DeallocOps to clean up after hoisting occurs.
+    SmallVector<memref::DeallocOp> deallocOps;
+    for (Operation *user : allocLikeOp->getUsers()) {
+      auto dealloc = dyn_cast<memref::DeallocOp>(user);
+      if (dealloc)
+        deallocOps.push_back(dealloc);
+    }
+
+    LLVM_DEBUG({
+      llvm::dbgs() << "Alloca Op : ";
+      allocLikeOp->dump();
+      int numUses = std::distance(allocLikeOp.getResult().use_begin(),
+                                  allocLikeOp.getResult().use_end());
+      llvm::dbgs() << " num Uses : " << numUses;
+    });
+    std::optional<Value> replacement =
+        hoistOneStaticallyBoundAllocation(funcOp, rewriter, allocLikeOp);
+    if (!replacement)
+      continue;
+    LLVM_DEBUG({
+      llvm::dbgs() << "Replacement : ";
+      replacement->dump();
+    });
+    Value replacementVal = replacement.value();
+    rewriter.replaceOp(allocLikeOp, replacementVal);
+
+    for (memref::DeallocOp deallocOp : deallocOps)
+      rewriter.eraseOp(deallocOp);
+  }
+}
+
+/// Explicit instantiations for `hoistStaticallyBoundAllocationsInFunc` and
+/// dependent functions.
+template std::optional<Value>
+hoistOneStaticallyBoundAllocation<memref::AllocOp>(
+    func::FuncOp funcOp, OpBuilder &builder, Location loc,
+    MemRefType allocLikeType, ValueRange dynamicSizes,
+    std::optional<uint64_t> alignment);
+template std::optional<Value>
+hoistOneStaticallyBoundAllocation<memref::AllocaOp>(
+    func::FuncOp funcOp, OpBuilder &builder, Location loc,
+    MemRefType allocLikeType, ValueRange dynamicSizes,
+    std::optional<uint64_t> alignment);
+template std::optional<Value>
+hoistOneStaticallyBoundAllocation<memref::AllocOp>(func::FuncOp funcOp,
+                                                   OpBuilder &builder,
+                                                   memref::AllocOp allocLikeOp);
+template std::optional<Value>
+hoistOneStaticallyBoundAllocation<memref::AllocaOp>(
+    func::FuncOp funcOp, OpBuilder &builder, memref::AllocaOp allocLikeOp);
+template void
+hoistStaticallyBoundAllocationsInFunc<memref::AllocOp>(RewriterBase &rewriter,
+                                                       func::FuncOp funcOp);
+template void
+hoistStaticallyBoundAllocationsInFunc<memref::AllocaOp>(RewriterBase &rewriter,
+                                                        func::FuncOp funcOp);
+
 } // namespace buddygpu
-} // namespace buddy
+} // namespace mlir::buddy
 #endif // UTILS_GPUUTILS_DEF

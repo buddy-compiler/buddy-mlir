@@ -57,6 +57,77 @@ void buddy::registerBuddyTransformOps(DialectRegistry &registry) {
   registry.addExtensions<transform_dialect::BuddyGPUTransformExtensions>();
 }
 
+#pragma region CommonExtensions
+
+//===----------------------------------------------------------------------===//
+// HoistStaticAllocOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure transform_dialect::HoistStaticAllocOp::applyToOne(
+    transform::TransformRewriter &rewriter, func::FuncOp target,
+    transform::ApplyToEachResultList &results,
+    transform::TransformState &state) {
+  hoistStaticallyBoundAllocationsInFunc<memref::AllocOp>(
+      rewriter, target);
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform_dialect::HoistStaticAllocOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  transform::onlyReadsHandle(getTarget(), effects);
+  transform::modifiesPayload(effects);
+}
+
+//===---------------------------------------------------------------------===//
+// ApplyUnrollVectorsGpuMmaSyncPatternsOp
+//===---------------------------------------------------------------------===//
+
+static std::optional<SmallVector<int64_t>>
+getGPUTensorCoreNativeMmaSyncVectorSize(Operation *op) {
+  return getMmaNativeVectorSize(op);
+}
+
+void transform_dialect::ApplyUnrollVectorsGpuMmaSyncPatternsOp::
+    populatePatterns(RewritePatternSet &patterns) {
+  auto unrollOrder = [](Operation *op) -> std::optional<SmallVector<int64_t>> {
+    auto contract = dyn_cast<vector::ContractionOp>(op);
+    if (!contract)
+      return std::nullopt;
+    return gpuMmaUnrollOrder(contract);
+  };
+  vector::populateVectorUnrollPatterns(
+      patterns, vector::UnrollVectorOptions()
+                    .setNativeShapeFn(getGPUTensorCoreNativeMmaSyncVectorSize)
+                    .setUnrollTraversalOrderFn(unrollOrder));
+}
+
+//===---------------------------------------------------------------------===//
+// ApplyUnrollVectorsGpuWmmaSyncPatternsOp
+//===---------------------------------------------------------------------===//
+
+static std::optional<SmallVector<int64_t>>
+getGPUTensorCoreNativeWmmaVectorSize(Operation *op) {
+  return getWmmaNativeVectorSize(op);
+}
+
+void transform_dialect::ApplyUnrollVectorsGpuWmmaSyncPatternsOp::
+    populatePatterns(RewritePatternSet &patterns) {
+  auto unrollOrder = [](Operation *op) -> std::optional<SmallVector<int64_t>> {
+    auto contract = dyn_cast<vector::ContractionOp>(op);
+    if (!contract)
+      return std::nullopt;
+    return gpuMmaUnrollOrder(contract);
+  };
+  vector::populateVectorUnrollPatterns(
+      patterns, vector::UnrollVectorOptions()
+                    .setNativeShapeFn(getGPUTensorCoreNativeWmmaVectorSize)
+                    .setUnrollTraversalOrderFn(unrollOrder));
+}
+
+#pragma endregion // CommonExtensions
+
+#pragma region GPUExtensions
+
 //===---------------------------------------------------------------------===//
 // VectorToWarpExecuteOnLane0Op.
 //===---------------------------------------------------------------------===//
@@ -589,6 +660,8 @@ transform_dialect::VectorWarpDistributionOp::applyToOne(
 
   return DiagnosedSilenceableFailure::success();
 }
+
+#pragma endregion // GPUExtensions
 
 #define GET_OP_CLASSES
 #include "BuddyGPU/BuddyGPUTransformOps.cpp.inc"

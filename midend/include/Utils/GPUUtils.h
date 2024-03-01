@@ -60,10 +60,10 @@ bool canPerformVectorAccessUsingAllThreads(ArrayRef<int64_t> shape,
                                            int64_t threadCount,
                                            int64_t vectorSize);
 
-// /// Pick an unrolling order that will allow tensorcore operation to reuse LHS
-// /// register. This is needed to get good performance on sm_80 target.
-// std::optional<SmallVector<int64_t>>
-// gpuMmaUnrollOrder(vector::ContractionOp contract);
+/// Pick an unrolling order that will allow tensorcore operation to reuse LHS
+/// register. This is needed to get good performance on sm_80 target.
+std::optional<SmallVector<int64_t>>
+gpuMmaUnrollOrder(vector::ContractionOp contract);
 
 //===----------------------------------------------------------------------===//
 // GPU workgroup memory
@@ -121,7 +121,41 @@ Value unpackToVector(Location loc, OpBuilder &builder, Value packedInput,
 // /// Returns true if the index map represents a transpose that benefits from
 // /// using shared memory when CodeGen towards the GPU.
 // bool sharedMemTransposeFilter(AffineMap indexMap);
-}
-}
+
+//===----------------------------------------------------------------------===//
+// Utility from compiler/src/iree/compiler/Codegen/Transforms/Transforms.h
+//===----------------------------------------------------------------------===//
+/// Creates an allocation in the entry block of the function if the size is
+/// statically bounded. For a static allocation, it returns an allocation
+/// of the same size but in the entry basic block. For dynamic (still bounded)
+/// allocations creates an allocation, and inserts a subview to match the
+/// dynamic shape of the allocation. Returns std::nullopt if the method
+/// couldnt creat an allocation in the entry block.
+template <typename AllocLikeOpType>
+std::optional<Value>
+hoistOneStaticallyBoundAllocation(func::FuncOp funcOp, OpBuilder &builder,
+                                  Location loc, MemRefType allocaType,
+                                  ValueRange dynamicSizes,
+                                  std::optional<uint64_t> alignment);
+
+/// Hoists `allocaOp` to the entry block of the function if the size is
+/// statically bounded. For a static allocation, it returns an allocation
+/// of the same size but in the entry basic block. For dynamic (still bounded)
+/// allocations creates an allocation, and inserts a subview to match the
+/// dynamic shape of the allocation. The method returns a value, but
+/// does not replace the uses of the `allocaOp`.
+template <typename AllocLikeOpType>
+std::optional<Value>
+hoistOneStaticallyBoundAllocation(func::FuncOp funcOp, OpBuilder &builder,
+                                  AllocLikeOpType allocaOp);
+
+/// Traverse funcOp and try to hoist every AllocaOp to the entry block of the
+/// function if the size is statically bounded.
+template <typename AllocLikeOpType>
+void hoistStaticallyBoundAllocationsInFunc(RewriterBase &rewriter,
+                                           func::FuncOp funcOp);
+                                           
+} // namespace buddy::buddygpu
+} // namespace mlir
 
 #endif // INCLUDE_UTILS_GPUUTILS_H
