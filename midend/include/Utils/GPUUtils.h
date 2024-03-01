@@ -26,6 +26,7 @@ namespace buddy::buddygpu{
 static constexpr int32_t kNumGPUDims = 3;
 static constexpr int32_t kWarpSize = 32;
 
+
 //===----------------------------------------------------------------------===//
 // GPU processor IDs and sizes
 //===----------------------------------------------------------------------===//

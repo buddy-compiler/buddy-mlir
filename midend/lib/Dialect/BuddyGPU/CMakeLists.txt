@@ -38,4 +38,5 @@ add_mlir_library(BuddyGPUTransformOPs
   MLIRVectorToGPU
   MLIRVectorTransforms
   MLIRViewLikeInterface
+  MLIRGPUPasses
   )

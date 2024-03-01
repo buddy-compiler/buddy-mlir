@@ -3,6 +3,8 @@ add_mlir_library(MLIRGPUPasses
   ConvertMemcpyToGPU.cpp
   AsyncRegion.cpp
   MergeGPUAlloc.cpp
+  LegalizeShmemAllocation.cpp
+  GPUPipelining.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Bufferization

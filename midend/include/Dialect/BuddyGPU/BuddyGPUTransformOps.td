@@ -683,51 +683,51 @@ def EliminateGpuBarriersOp :
   }];
 }
 
-// def PipelineSharedMemoryCopiesOp : Op<
-//     Transform_Dialect, "buddy.pipeline_shared_memory_copies", [
-//       FunctionalStyleTransformOpTrait,
-//       MemoryEffectsOpInterface,
-//       TransformEachOpTrait,
-//       TransformOpInterface,
-//       ReportTrackingListenerFailuresOpTrait]> {
-//   let description = [{
-//     This applies software pipelining to a given scf.for loop. The pipelining
-//     strategy will look for a copy to shared memory and pipeline it to overlap
-//     it with the rest of the loop.
-//     It is user responsability to ensure that there are no dependency between
-//     `depth` iterations of the loop by using multi-buffering.
+def PipelineSharedMemoryCopiesOp : Op<
+    Transform_Dialect, "buddy.pipeline_shared_memory_copies", [
+      FunctionalStyleTransformOpTrait,
+      MemoryEffectsOpInterface,
+      TransformEachOpTrait,
+      TransformOpInterface,
+      ReportTrackingListenerFailuresOpTrait]> {
+  let description = [{
+    This applies software pipelining to a given scf.for loop. The pipelining
+    strategy will look for a copy to shared memory and pipeline it to overlap
+    it with the rest of the loop.
+    It is user responsability to ensure that there are no dependency between
+    `depth` iterations of the loop by using multi-buffering.
 
-//     `depth` will indicate how many stages the software pipeline should have.
-//     `peel_epilogue` allows to force the epilogue to be peeled out instead of
-//     potentially using predicated operations for the epilogue phase.
+    `depth` will indicate how many stages the software pipeline should have.
+    `peel_epilogue` allows to force the epilogue to be peeled out instead of
+    potentially using predicated operations for the epilogue phase.
 
-//     #### Return modes
-//     This transform consumes the scf.for handle and produces a result handle
-//     which points to a) the new scf.for loop generated (success case) or b) the
-//     existing scf.for loop (failure case).
-//   }];
+    #### Return modes
+    This transform consumes the scf.for handle and produces a result handle
+    which points to a) the new scf.for loop generated (success case) or b) the
+    existing scf.for loop (failure case).
+  }];
 
-//   let arguments = (
-//       ins TransformHandleTypeInterface:$for_op,
-//           I64Attr:$depth,
-//           UnitAttr:$peel_epilogue,
-//           UnitAttr:$use_mma_sync);
-//   let results = (outs TransformHandleTypeInterface:$result);
+  let arguments = (
+      ins TransformHandleTypeInterface:$for_op,
+          I64Attr:$depth,
+          UnitAttr:$peel_epilogue,
+          UnitAttr:$use_mma_sync);
+  let results = (outs TransformHandleTypeInterface:$result);
 
-//   let cppNamespace = "mlir::buddy::buddygpu::transform_dialect";
+  let cppNamespace = "mlir::buddy::buddygpu::transform_dialect";
 
-//   let assemblyFormat = [{ 
-//     $for_op 
-//     attr-dict 
-//     `:` functional-type(operands, results)}];
+  let assemblyFormat = [{ 
+    $for_op 
+    attr-dict 
+    `:` functional-type(operands, results)}];
 
-//   let extraClassDeclaration = [{
-//     ::mlir::DiagnosedSilenceableFailure applyToOne(
-//         ::mlir::transform::TransformRewriter &rewriter,
-//         ::mlir::scf::ForOp forOp,
-//         ::mlir::transform::ApplyToEachResultList &results,
-//         ::mlir::transform::TransformState &state);
-//   }];
-// }
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::transform::TransformRewriter &rewriter,
+        ::mlir::scf::ForOp forOp,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
+  }];
+}
 
 #endif // BUDDYGPU_TRANSFORM_OPS_TD

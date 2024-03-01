@@ -39,6 +39,7 @@
 #include <optional>
 
 #include "Utils/GPUUtils.h"
+#include "BuddyGPU/Passes.h"
 
 using namespace mlir;
 using namespace mlir::buddy::buddygpu;
@@ -1386,24 +1387,24 @@ transform_dialect::EliminateGpuBarriersOp::applyToOne(
 // PipelineSharedMemoryCopiesOp
 //===----------------------------------------------------------------------===//
 
-// DiagnosedSilenceableFailure
-// transform_dialect::PipelineSharedMemoryCopiesOp::applyToOne(
-//     transform::TransformRewriter &rewriter, scf::ForOp forOp,
-//     transform::ApplyToEachResultList &results,
-//     transform::TransformState &state) {
-//   int64_t depth(getDepth());
-//   auto schedule = getUseMmaSync()
-//                       ? PipeliningSchedulingStrategy::nvidiaTensorCore
-//                       : PipeliningSchedulingStrategy::loadGlobalStage0;
-//   FailureOr<scf::ForOp> pipelinedFor = pipelineSharedMemoryCopy(
-//       rewriter, forOp, schedule, getPeelEpilogue(), depth);
-//   if (failed(pipelinedFor)) {
-//     results.push_back(forOp);
-//     return DiagnosedSilenceableFailure::success();
-//   }
-//   results.push_back(pipelinedFor.value());
-//   return DiagnosedSilenceableFailure::success();
-// }
+DiagnosedSilenceableFailure
+transform_dialect::PipelineSharedMemoryCopiesOp::applyToOne(
+    transform::TransformRewriter &rewriter, scf::ForOp forOp,
+    transform::ApplyToEachResultList &results,
+    transform::TransformState &state) {
+  int64_t depth(getDepth());
+  auto schedule = getUseMmaSync()
+                      ? PipeliningSchedulingStrategy::nvidiaTensorCore
+                      : PipeliningSchedulingStrategy::loadGlobalStage0;
+  FailureOr<scf::ForOp> pipelinedFor = pipelineSharedMemoryCopy(
+      rewriter, forOp, schedule, getPeelEpilogue(), depth);
+  if (failed(pipelinedFor)) {
+    results.push_back(forOp);
+    return DiagnosedSilenceableFailure::success();
+  }
+  results.push_back(pipelinedFor.value());
+  return DiagnosedSilenceableFailure::success();
+}
 
 #pragma endregion // GPUExtensions
 

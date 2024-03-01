@@ -46,4 +46,5 @@ add_mlir_library(BuddyGPUUtils
   MLIRTransformUtils
   MLIRVectorDialect
   MLIRViewLikeInterface
+  MLIRGPUPasses
 )
