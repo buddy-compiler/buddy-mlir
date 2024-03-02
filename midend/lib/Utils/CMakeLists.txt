@@ -3,6 +3,7 @@ add_mlir_library(BuddyUtils
   DIPUtils.cpp
   DAPUtils.cpp
   AffineTransformUtils.cpp
+  TileSizeSelection.cpp
   )
 
 add_mlir_library(BuddyDIPUtils
