@@ -39,16 +39,20 @@
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
 #include "Gemmini/Transform.h"
+#include "Transforms/Passes.h"
 
-using namespace mlir;
-using namespace buddy;
+namespace mlir {
+namespace buddy {
+
+#define GEN_PASS_DEF_LOWERGEMMINIPASS
+#include "Transforms/Passes.h.inc"
 
 // PrintOpLowering refers to the toy.print op.
 class PrintOpLowering : public ConversionPattern {
 public:
   explicit PrintOpLowering(MLIRContext *context)
-      : ConversionPattern(gemmini::PrintOp::getOperationName(), 1, context) {}
-
+      : ConversionPattern(::buddy::gemmini::PrintOp::getOperationName(), 1,
+                          context) {}
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
@@ -92,7 +96,7 @@ public:
       rewriter.setInsertionPointToStart(loop.getBody());
     }
 
-    auto printOp = cast<gemmini::PrintOp>(op);
+    auto printOp = cast<::buddy::gemmini::PrintOp>(op);
     Value elementLoad =
         rewriter.create<memref::LoadOp>(loc, printOp.getInput(), loopIvs);
     if (elementLoad.getType() == rewriter.getF32Type())
@@ -153,81 +157,49 @@ private:
 };
 
 namespace {
-class LowerGemminiToLLVMPass
-    : public PassWrapper<LowerGemminiToLLVMPass, OperationPass<ModuleOp>> {
-public:
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerGemminiToLLVMPass)
-  StringRef getArgument() const final { return "lower-gemmini"; }
-  StringRef getDescription() const final {
-    return "gemmini dialect lowering pass.";
-  }
-  LowerGemminiToLLVMPass() = default;
-  LowerGemminiToLLVMPass(const LowerGemminiToLLVMPass &) {}
-
-  Option<int64_t> dim{*this, "dim", llvm::cl::desc("Size of systolic array."),
-                      llvm::cl::init(16)};
-  Option<int64_t> addrLen{*this, "addr_len",
-                          llvm::cl::desc("The length of address."),
-                          llvm::cl::init(32)};
-  Option<int64_t> accRows{*this, "acc_rows", llvm::cl::desc("The row of acc."),
-                          llvm::cl::init(1024)};
-  Option<int64_t> bankRows{*this, "bank_rows",
-                           llvm::cl::desc("The row of the bank."),
-                           llvm::cl::init(4096)};
-  Option<std::string> elemType{*this, "elem_t",
-                               llvm::cl::desc("The type of elem_t."),
-                               llvm::cl::init("i8")};
-  Option<std::string> accType{*this, "acc_t",
-                              llvm::cl::desc("The type of acc_t."),
-                              llvm::cl::init("i32")};
-
-  // Override explicitly to allow conditional dialect dependence.
+struct LowerGemminiToLLVMPass
+    : public impl::LowerGemminiPassBase<LowerGemminiToLLVMPass> {
+  using LowerGemminiPassBase<LowerGemminiToLLVMPass>::LowerGemminiPassBase;
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<LLVM::LLVMDialect>();
     registry.insert<LLVM::LLVMDialect>();
     registry.insert<arith::ArithDialect>();
     registry.insert<memref::MemRefDialect>();
     registry.insert<scf::SCFDialect>();
-    registry.insert<gemmini::GemminiDialect>();
+    registry.insert<::buddy::gemmini::GemminiDialect>();
   }
 
-  void runOnOperation() override;
+  void runOnOperation() override {
+    MLIRContext *context = &getContext();
+    ModuleOp module = getOperation();
+    // The default elem_t is int8_t,
+    // so the default size of elem_t is 1 type.
+    size_t sizeOfElemT = sizeof(int8_t);
+    if (elemType == "f32")
+      sizeOfElemT = sizeof(float);
+    // The default acc_t is int32_t,
+    // so the default size of acc_t is 4 type.
+    size_t sizeOfAccT = sizeof(int32_t);
+    if (accType == "f32")
+      sizeOfAccT = sizeof(float);
+    LLVMTypeConverter converter(context);
+    RewritePatternSet patterns(context);
+    LLVMConversionTarget target(*context);
+    configureGemminiLegalizeForExportTarget(target);
+    populateGemminiLegalizeForLLVMExportPatterns(converter, patterns, dim,
+                                                 addrLen, accRows, bankRows,
+                                                 sizeOfElemT, sizeOfAccT);
+    populateAffineToStdConversionPatterns(patterns);
+    populateSCFToControlFlowConversionPatterns(patterns);
+    mlir::arith::populateArithToLLVMConversionPatterns(converter, patterns);
+    populateFinalizeMemRefToLLVMConversionPatterns(converter, patterns);
+    cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
+    populateFuncToLLVMConversionPatterns(converter, patterns);
+    patterns.add<PrintOpLowering>(&getContext());
+    if (failed(applyPartialConversion(module, target, std::move(patterns))))
+      signalPassFailure();
+  }
 };
 } // namespace
-
-void LowerGemminiToLLVMPass::runOnOperation() {
-  MLIRContext *context = &getContext();
-  ModuleOp module = getOperation();
-  // The default elem_t is int8_t,
-  // so the default size of elem_t is 1 type.
-  size_t sizeOfElemT = sizeof(int8_t);
-  if (elemType == "f32")
-    sizeOfElemT = sizeof(float);
-  // The default acc_t is int32_t,
-  // so the default size of acc_t is 4 type.
-  size_t sizeOfAccT = sizeof(int32_t);
-  if (accType == "f32")
-    sizeOfAccT = sizeof(float);
-  LLVMTypeConverter converter(context);
-  RewritePatternSet patterns(context);
-  LLVMConversionTarget target(*context);
-  configureGemminiLegalizeForExportTarget(target);
-  populateGemminiLegalizeForLLVMExportPatterns(converter, patterns, dim,
-                                               addrLen, accRows, bankRows,
-                                               sizeOfElemT, sizeOfAccT);
-  populateAffineToStdConversionPatterns(patterns);
-  populateSCFToControlFlowConversionPatterns(patterns);
-  mlir::arith::populateArithToLLVMConversionPatterns(converter, patterns);
-  populateFinalizeMemRefToLLVMConversionPatterns(converter, patterns);
-  cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
-  populateFuncToLLVMConversionPatterns(converter, patterns);
-  patterns.add<PrintOpLowering>(&getContext());
-  if (failed(applyPartialConversion(module, target, std::move(patterns))))
-    signalPassFailure();
-}
-
-namespace mlir {
-namespace buddy {
-void registerLowerGemminiPass() { PassRegistration<LowerGemminiToLLVMPass>(); }
 } // namespace buddy
 } // namespace mlir

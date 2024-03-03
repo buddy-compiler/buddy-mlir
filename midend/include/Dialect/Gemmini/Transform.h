@@ -42,19 +42,4 @@ typedef uint32_t scale_t_bits;
 typedef float scale_t;
 typedef int32_t scale_acc_t;
 
-namespace mlir {
-
-class LLVMConversionTarget;
-class LLVMTypeConverter;
-class RewritePatternSet;
-using OwningRewritePatternList = RewritePatternSet;
-
-void populateGemminiLegalizeForLLVMExportPatterns(
-    LLVMTypeConverter &converter, RewritePatternSet &patterns, int64_t dim,
-    int64_t addrLen, int64_t accRows, int64_t bankRows, size_t sizeOfElemT,
-    size_t sizeOfAccT);
-void configureGemminiLegalizeForExportTarget(LLVMConversionTarget &target);
-
-} // namespace mlir
-
 #endif // GEMMINI_TRANSLATE_H

@@ -30,10 +30,11 @@
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
 #include "Gemmini/Transform.h"
+#include "Transforms/Passes.h"
 #include "mlir/Support/LLVM.h"
 
-using namespace mlir;
 using namespace buddy::gemmini;
+using namespace mlir;
 
 namespace {
 
@@ -2080,7 +2081,7 @@ private:
   size_t sizeOfAccT;
 };
 
-void mlir::populateGemminiLegalizeForLLVMExportPatterns(
+void mlir::buddy::populateGemminiLegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns, int64_t dim,
     int64_t addrLen, int64_t accRows, int64_t bankRows, size_t sizeOfElemT,
     size_t sizeOfAccT) {
@@ -2106,7 +2107,7 @@ void mlir::populateGemminiLegalizeForLLVMExportPatterns(
                                         bankRows, sizeOfElemT, sizeOfAccT);
 }
 
-void mlir::configureGemminiLegalizeForExportTarget(
+void mlir::buddy::configureGemminiLegalizeForExportTarget(
     LLVMConversionTarget &target) {
   target.addLegalOp<
       Flush_IntrOp, ConfigSt_IntrOp, ConifgLd_IntrOp, ConfigEX_IntrOp,
