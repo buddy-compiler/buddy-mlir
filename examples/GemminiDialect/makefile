@@ -5,12 +5,12 @@ BUDDY_LLC := ../../build/bin/buddy-llc
 INTERFACES:= ../../frontend/Interfaces
 
 mvin-mvout-run:
-	@${BUDDY_OPT} ./mvin-mvout.mlir -lower-gemmini | \
+	@${BUDDY_OPT} ./mvin-mvout.mlir -lower-gemmini -lower-gemmini-to-llvm | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
 		-mattr=+buddyext,+D -float-abi=hard \
 		-o log.o
-	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
+	@riscv64-unknown-linux-gnu-gcc -static log.o -L /home/qzylalala/work_space/buddy-mlir/libgemmini -l gemmini -O2 -o a.out
 	@spike --extension=gemmini pk a.out
 
 matrix-add-run:
