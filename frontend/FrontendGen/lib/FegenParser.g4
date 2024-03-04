@@ -4,229 +4,247 @@ options {
     tokenVocab = FegenLexer;
 }
 
-fegenModule
-	: (parserGrammarNode | lexerGrammarNode)+
-	;
-
-lexerGrammarNode
-    : LexerRuleName lexerGrammarSpec
+fegenSpec
+    : fegenDecl rules EOF
     ;
 
-lexerGrammarSpec
-    : GRAMMAR LeftBracket lexerAntlrRule RightBracket
-	;
-
-lexerAntlrRule
-	: lexerAlternatives+
-	;
-
-lexerAlternatives
-    : lexerAlternative ('|' lexerAlternative)*
+fegenDecl
+    : FEGEN identifier Semi
     ;
 
-lexerAlternative
-    : lexerSuffixedRule ruleSuffix?
+rules
+    : ruleSpec*
     ;
 
-// TODO: add charset here
-lexerSuffixedRule
-    : lexerParenSurroundedElem
-    | SingleQuotationString
-    | LexerRuleName
-    | charset
+ruleSpec
+    : parserRuleSpec
+    | lexerRuleSpec
     ;
 
-charset
-    : LeftBracket 
-    ( UppercaseSet 
-    | LowercaseSet 
-    | NumberSet 
-    | identifier 
-    | UnsignedIntLiteral
-    )+ RightBracket
+parserRuleSpec
+    : ParserRuleName Colon ruleBlock Semi
     ;
 
-
-lexerParenSurroundedElem
-    : LeftParen lexerAntlrRule RightParen
+ruleBlock
+    : ruleAltList
     ;
 
-parserGrammarNode
-	: ParserRuleName inputsSpec? returnsSpec? parserGrammarSpec irSpec?
-	;
-
-inputsSpec
-	: INPUTS valueDecls
-	;
-
-returnsSpec
-	: RETURNS valueDecls cppCode?
-	;
-
-valueDecls
-	: LeftBracket valueDeclSpec (Comma valueDeclSpec)* RightBracket
-	;
-
-valueDeclSpec
-	: listValueDeclSpec
-    | tdValueDeclSpec
-	| cppValueDeclSpec
-	;
-
-listValueDeclSpec
-    : LIST Less (tdTypeSpec | cppTypeSpec) Greater identifier?
+ruleAltList
+    : actionAlt (OR actionAlt)*
     ;
 
-tdValueDeclSpec
-	: tdTypeSpec (identifier (Assign tdValueSpec)?)?
-	;
-
-tdTypeSpec
-    : tdValueKind Less tdType (Comma tdType)* Greater
-    ;
-
-tdValueSpec
-    : attrRef
-    | StringLiteral
-    | tensorLiteral
-    | expression
-    ;
-
-attrRef
-    : Dollar identifier Dot identifier
-    ;
-
-tensorLiteral
-    : LeftBracket (tensorLiteral (Comma tensorLiteral)*)? RightBracket
-    | SignedIntLiteral
-    | RealLiteral
-    ;
-
-expression
-    : term ( ( Plus | Minus ) term )*
-    ;
-
-term
-    : powerExpr ( (Star | Div | MOD) powerExpr )*
-    ;
-
-powerExpr
-    : unaryExpr ( StarStar unaryExpr )*
-    ;
-
-unaryExpr
-    : (Minus | Plus) ? primaryExpression
-    ;
-
-primaryExpression
-    : SignedIntLiteral
-    | RealLiteral
-    | parenSurroundedExpr
-    ;
-
-parenSurroundedExpr
-    : LeftParen expression RightParen
-    ;
-
-tdType
-	: builtinType
-	| userDefineType
-	;
-
-tdValueKind
-	: OPERAND_VALUE
-	| ATTRIBUTE_VALUE
-	;
-
-cppValueDeclSpec
-	: cppTypeSpec identifier?
-	;
-
-cppTypeSpec
-    : CPP_VALUE Less cppType (Comma cppType)* Greater
-    ;
-
-builtinType
-	: INT
-	| FLOAT
-	| TENSOR
-    | STRING
-	;
-
-userDefineType
-	: identifier (Dot identifier)?
-	;
-
-cppType
-	: StringLiteral
-	;
-
-// TODO:  push to cpp channel
-cppCode
-	: LeftBrace RightBrace
-	;
-
-parserGrammarSpec
-	: GRAMMAR LeftBracket parserAntlrRule RightBracket
-	;
-
-parserAntlrRule
-	: alternatives+
-	;
-
-alternatives
-    : alternative ('|' alternative)*
+actionAlt
+    : alternative actionBlock?
     ;
 
 alternative
-    : suffixedRule ruleSuffix?
+    : element*
     ;
 
-suffixedRule
-    : parenSurroundedElem
-    | SingleQuotationString
-    | identifier
+element
+    : atom (ebnfSuffix |)
+    | ebnf
     ;
 
-parenSurroundedElem
-    : LeftParen parserAntlrRule RightParen
+atom
+    : terminalDef
+    | ruleref
+    | notSet
     ;
 
-ruleSuffix
-    : Star QuestionMark
-    | Plus QuestionMark
-    | QuestionMark
-    | Star
-    | Plus
+// terminal rule reference
+terminalDef
+    : LexerRuleName
+    | StringLiteral
     ;
 
-irSpec
-	: IR LeftBracket singleIrDecl (Comma singleIrDecl)*  RightBracket
-	;
-
-singleIrDecl
-	: irKind Less tdType Greater irParameters?
-	;
-
-irKind
-	: OP_IR
-	| ATTRIBUTE_IR
-	| TYPE_IR
-	;
-
-irParameters
-    : LeftParen irInputs* Arror irOutputs* RightParen
+// parser rule reference
+ruleref
+    : ParserRuleName
     ;
 
-irInputs
+notSet
+    : Tilde setElement
+    | Tilde blockSet
+    ;
+
+setElement
+    : LexerRuleName
+    | StringLiteral
+    | characterRange
+    ;
+
+characterRange
+    : StringLiteral Range StringLiteral
+    ;
+
+blockSet
+    : LeftParen setElement (OR setElement)* RightParen
+    ;
+
+ebnfSuffix
+    : QuestionMark QuestionMark?
+    | Star QuestionMark?
+    | Plus QuestionMark?
+    ;
+
+ebnf
+    : block blockSuffix?
+    ;
+
+block
+    : LeftParen altList RightParen
+    ;
+
+blockSuffix
+    : ebnfSuffix
+    ;
+
+altList
+    : alternative (OR alternative)*
+    ;
+
+// lexer rule
+lexerRuleSpec
+    : LexerRuleName Colon lexerRuleBlock Semi
+    ;
+
+lexerRuleBlock
+    : lexerAltList
+    ;
+
+lexerAltList
+    : lexerAlt (OR lexerAlt)*
+    ;
+
+lexerAlt
+    : lexerElements lexerCommands?
+    |
+    ;
+
+// E.g., channel(HIDDEN), skip, more, mode(INSIDE), push(INSIDE), pop
+
+lexerCommands
+    : Arror lexerCommand (Comma lexerCommand)*
+    ;
+
+lexerCommand
+    : lexerCommandName
+    ;
+
+lexerCommandName
     : identifier
     ;
 
-irOutputs
-    : identifier
+lexerElements
+    : lexerElement+
+    |
+    ;
+
+lexerElement
+    : lexerAtom ebnfSuffix?
+    | lexerBlock ebnfSuffix?
+    ;
+
+lexerAtom
+    : characterRange
+    | terminalDef
+    | notSet
+    | Dot
+    ;
+
+lexerBlock
+    : LeftParen lexerAltList RightParen
+    ;
+
+actionBlock
+    : LeftBrace inputsSpec? returnsSpec? actionSpec? irSpec? RightBrace
+    ;
+
+inputsSpec
+	: INPUTS varDecls
+	;
+
+varDecls
+	: LeftBracket varDeclSpec (Comma varDeclSpec)* RightBracket
+	;
+
+varDeclSpec
+	: type identifier?
+	;
+
+type
+    : LIST Less type Greater
+    | CPP_VALUE Less StringLiteral Greater
+    | (OPERAND_VALUE | ATTRIBUTE_VALUE) Less prefixedName (Comma prefixedName)* Greater
+    ;
+
+prefixedName
+    : identifier (Dot identifier)? 
     ;
 
 identifier
     : LexerRuleName
     | ParserRuleName
+    ;
+
+returnsSpec
+	: RETURNS varDecls
+	;
+
+actionSpec
+    : ACTIONS LeftBrace (statement Semi)* RightBrace
+    ;
+
+statement
+    : varDeclStmt
+    | functionCallStmt
+    | assignStmt
+    ;
+
+varDeclStmt
+    : type identifier (Assign (variable | functionCallStmt))?
+    ;
+
+functionCallStmt
+    :  functionAccess LeftParen paramList? RightParen
+    ;
+
+functionAccess
+    : FUNCTION Less StringLiteral Greater
+    | (OPERATION | ATTRIBUTE) Less identifier (Dot identifier)? Greater
+    | builtinFunction
+    ;
+
+builtinFunction
+    : identifier
+    ;
+
+
+paramList
+    : variable (Comma variable)*
+    ;
+
+assignStmt
+    : identifier Assign expression
+    ;
+
+expression
+    : variable
+    | functionCallStmt
+    | NULL
+    ;
+
+variable
+    : identifier
+    | Dollar identifier LeftParen IntLiteral? RightParen ruleSuffix?
+    ;
+
+ruleSuffix
+    : Dot variable
+    | Dot RETURNS LeftBracket IntLiteral RightBracket
+    ;   
+
+irSpec
+    : IR LeftBracket (OPERATION | ATTRIBUTE) Less identifier (Dot identifier)? Greater RightBracket
     ;

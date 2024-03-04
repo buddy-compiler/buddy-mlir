@@ -1,0 +1,257 @@
+fegen example2;
+
+module
+    : structDefine* funDefine+
+    ;
+
+expression
+    : Number
+    {   inputs [attributeValue<F64ElementsAttr> numberAttr]
+        returns [operandValue<F64Tensor> ret]
+        actions {
+            cppValue<'double'> number = function<'std::stod'>($Number().text);
+            numberAttr = attribute<F64ElementsAttr>(number);
+        }
+        // ret = operation<toy.constant>(numberAttr);
+        // 声明或使用一个operation
+        ir [operation<toy.constant>]
+    }
+    | tensorLiteral
+    {
+        inputs [attributeValue<F64ElementsAttr> in]
+        returns [operandValue<F64Tensor>]
+        actions {
+            in = function<'getTensor'>($tensorLiteral());
+        }
+        ir [operation<toy.constant>]
+    }
+    | identifierExpr
+    {
+        inputs [operandValue<F64Tensor> in]
+        returns [operandValue<F64Tensor> ret]
+        actions {ret = in;}
+    }
+    | expression Mul expression
+    {
+        inputs [operandValue<F64Tensor>, operandValue<F64Tensor>]
+        returns [operandValue<F64Tensor>]
+        ir [operation<toy.mul>]
+    }
+    | expression Add expression
+    {
+        inputs [operandValue<F64Tensor>, operandValue<F64Tensor>]
+        returns [operandValue<F64Tensor>]
+        ir [operation<toy.add>]
+    }
+    | expression Dot expression
+    {
+        inputs [operandValue<Toy_StructType> input, attributeValue<I64Attr> index]
+        returns [operandValue<F64Tensor> output] 
+        actions {
+            index = function<'getMemberIndex'>($expression(1).text);
+        }
+        ir [operation<toy.StructAccessOp>]
+    }
+    | structLiteral
+    {
+        inputs [attributeValue<ArrayAttr>]
+        returns [operandValue<Toy_StructType>]
+        ir [operation<toy.StructConstantOp>]
+    }
+    ;
+
+identifierExpr
+    : Identifier
+    {
+        returns [operandValue<F64Tensor, Toy_StructType> in]
+        actions {
+            in = function<'findSymbol'>($Identifier().text);
+        }
+    }
+    | Identifier ParentheseOpen (expression(Comma expression)*)? ParentheseClose 
+    {
+        inputs [attributeValue<FlatSymbolRefAttr> callee, list<operandValue<Toy_type>> ins]
+        returns [operandValue<Toy_type> ret]
+        actions {
+            // TODO: table
+            callee = function<'findSymbol'>($Identifier().text);
+            // TODO: how to get a list
+            ins = getInputs($expression());
+        }
+        ir [operation<toy.GenericCallOp>]
+    }
+    ; 
+
+returnExpr
+    : Return
+    {
+        inputs [list<operandValue<toyType>> in]
+        ir [operation<toy.ReturnOp>]
+    } 
+    | Return expression 
+    {
+        inputs [list<operandValue<toyType>> in]
+        ir [operation<toy.ReturnOp>]
+    }
+    ;
+
+tensorLiteral
+    : SbracketOpen (tensorLiteral (Comma tensorLiteral)*)? SbracketClose 
+    | Number 
+    ;
+
+type
+    : AngleBracketsOpen Number (Comma Number)* AngleBracketsClose
+    ;
+
+funDefine
+    : prototype block
+    {
+        inputs [attributeValue<SymbolNameAttr>, attributeValue<toy.functionType>]
+        ir [operation<toy.func>]
+    }
+    ;
+
+prototype
+    : Def funcName funcParams
+    {
+        inputs [attributeValue<SymbolNameAttr> in1, attributeValue<toy.functionType> in2]
+        returns[attributeValue<SymbolNameAttr> ret1, attributeValue<toy.functionType> ret2]
+    }
+    ;
+
+funcName
+    : Identifier
+    {
+        inputs [cppValue<'string'> text]
+        returns [attributeValue<SymbolNameAttr> name]
+        actions {
+            text = $Identifier().text;
+        }
+        ir [attribute<SymbolNameAttr>]
+    }
+    ;
+
+funcParams
+    : ParentheseOpen declList? ParentheseClose
+    {
+        inputs [list<cppValue<'Type'>>]
+        returns [attributeValue<toy.functionType>]
+        ir [attribute<toy.functionType>]
+    }
+    ;
+
+declList
+    : varDecl (Comma varDecl)*
+    {
+        returns [list<cppValue<'Type'>> ret]
+        actions {
+            // get types of vardecl
+            ret = getTypes(varDecl);
+        }
+    }
+    ;
+
+varDecl
+    : Var Identifier (type)? (Equal expression)?
+    | Identifier Identifier (Equal expression)?
+    | Identifier
+    ;
+
+block
+    : BracketOpen (blockExpr Semicolon)* BracketClose
+    ;
+    
+blockExpr
+    : varDecl 
+    | returnExpr 
+    | Expression
+    ;
+
+ParentheseOpen 
+    : '('
+    ;
+
+ParentheseClose 
+    : ')'
+    ;
+
+BracketOpen 
+    : '{'
+    ;
+
+BracketClose 
+    : '}'
+    ;
+
+SbracketOpen 
+    : '['
+    ;
+
+SbracketClose 
+    : ']'
+    ;
+
+Return
+    : 'return'
+    ;
+    
+Semicolon
+    : ';'
+    ;
+
+Var 
+    : 'var'
+    ;
+
+Def 
+    : 'def'
+    ;
+
+Struct 
+    : 'struct'
+    ;
+
+Identifier
+    : ('a'..'z' | 'A'..'Z')('a'..'z' | 'A'..'Z' | '0'..'9' | '_')
+    ; 
+
+Number
+    : ('0'..'9')+
+    ;
+
+Equal
+    : '='
+    ;
+
+AngleBracketsOpen 
+    : '<'
+    ;
+
+AngleBracketsClose
+    : '>' 
+    ;
+
+Comma
+    : ','
+    ;
+
+Add  
+    : '+'
+    ;
+
+Mul 
+    : '*'
+    ;
+
+Dot 
+    : '.'
+    ;
+
+WS
+    : ('\r' | '\t' | '\n') -> skip
+    ;
+    
+Comment 
+    : '#' .*? '\n' ->skip
+    ;

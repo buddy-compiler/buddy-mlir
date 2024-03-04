@@ -14,13 +14,19 @@ fragment NOZERODIGIT: [1-9];
 
 fragment DIGIT: [0-9];
 
+fragment SQuoteLiteral
+    : '\'' (('\\' ([btnfr"'\\] | . |EOF))|( ~ ['\r\n\\]))* '\''
+    ;
+
 // key words
+
+FEGEN: 'fegen';
 
 INPUTS: 'inputs';
 
 RETURNS: 'returns';
 
-GRAMMAR: 'grammar';
+ACTIONS: 'actions';
 
 IR: 'ir';
 
@@ -32,9 +38,11 @@ CPP_VALUE: 'cppValue';
 
 LIST: 'list';
 
-OP_IR: 'operation';
+OPERATION: 'operation';
 
-ATTRIBUTE_IR: 'attribute';
+ATTRIBUTE: 'attribute';
+
+FUNCTION: 'function';
 
 TYPE_IR: 'typeDef';
 
@@ -46,6 +54,11 @@ TENSOR: 'tensor';
 
 STRING: 'string';
 
+NULL: 'null';
+
+
+
+
 // identifiers
 
 LexerRuleName: UPPERCASE (NONDIGIT | DIGIT)*;
@@ -54,21 +67,14 @@ ParserRuleName: LOWERCASE (NONDIGIT | DIGIT)*;
 
 // literal
 
-SingleQuotationString: '\'' Schar* '\'';
+StringLiteral
+    : SQuoteLiteral
+    ;
 
-StringLiteral: '"' Schar* '"';
+IntLiteral
+    : '0' | NOZERODIGIT DIGIT*
+    ;
 
-SignedIntLiteral: (Plus | Minus)? UnsignedIntLiteral;
-
-UnsignedIntLiteral: '0' | NOZERODIGIT DIGIT*;
-
-RealLiteral: SignedIntLiteral Dot UnsignedIntLiteral;
-
-UppercaseSet: UPPERCASE Minus UPPERCASE;
-
-LowercaseSet: LOWERCASE Minus LOWERCASE;
-
-NumberSet: DIGIT Minus DIGIT;
 
 // marks
 
@@ -119,6 +125,10 @@ MOD: '%';
 Arror: '->';
 
 Underline: '_';
+
+Tilde: '~';
+
+Range: '..';
 
 Whitespace: [ \t]+ -> skip;
 
