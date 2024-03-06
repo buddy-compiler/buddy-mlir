@@ -5,7 +5,11 @@ options {
 }
 
 fegenSpec
-    : fegenDecl rules EOF
+    : fegenDecl prequelConstruct* rules EOF
+    ;
+
+prequelConstruct
+    : BeginInclude INCLUDE_CONTENT* EndInclude
     ;
 
 fegenDecl

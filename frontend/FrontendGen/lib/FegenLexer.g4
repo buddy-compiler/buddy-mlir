@@ -130,6 +130,8 @@ Tilde: '~';
 
 Range: '..';
 
+BeginInclude: '@header' LeftBrace -> pushMode (TargetLanguageAction);
+
 Whitespace: [ \t]+ -> skip;
 
 Newline: ('\r' '\n'? | '\n') -> skip;
@@ -137,3 +139,14 @@ Newline: ('\r' '\n'? | '\n') -> skip;
 BlockComment: '/*' .*? '*/' -> skip;
 
 LineComment: '//' ~ [\r\n]* -> skip;
+
+mode TargetLanguageAction;
+
+EndInclude: RightBrace -> popMode;
+
+INCLUDE_CONTENT
+    : .
+    | '\n'
+    | ' '
+    ;
+
