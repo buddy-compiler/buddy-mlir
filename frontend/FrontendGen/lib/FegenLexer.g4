@@ -30,6 +30,10 @@ ACTIONS: 'actions';
 
 IR: 'ir';
 
+PARAMETERS: 'parameters';
+
+ASSEMBLYFORMAT: 'assemblyFormat';
+
 OPERAND_VALUE: 'operandValue';
 
 ATTRIBUTE_VALUE: 'attributeValue';
@@ -57,7 +61,9 @@ STRING: 'string';
 NULL: 'null';
 
 
+//assmblyFormat identifier
 
+AssmblyIden: BackQuote Less BackQuote (NONDIGIT | Less | Greater | LeftParen | RightParen | Dollar)* BackQuote Less BackQuote;
 
 // identifiers
 
@@ -129,6 +135,8 @@ Underline: '_';
 Tilde: '~';
 
 Range: '..';
+
+BackQuote: '`';
 
 BeginInclude: '@header' LeftBrace -> pushMode (TargetLanguageAction);
 

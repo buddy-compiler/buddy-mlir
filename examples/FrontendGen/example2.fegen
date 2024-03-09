@@ -1,5 +1,9 @@
 fegen example2;
 
+type toy.struct{
+parameters [list<cppValue<'Type'>>]assemblyFormat['`<`custom<ElementTypes>($elemTypes)>`']
+}
+
 module
     : structDefine* funDefine+
     ;
@@ -165,7 +169,7 @@ block
 blockExpr
     : varDecl 
     | returnExpr 
-    | Expression
+    | expression
     ;
 
 ParentheseOpen 

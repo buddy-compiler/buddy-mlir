@@ -5,11 +5,23 @@ options {
 }
 
 fegenSpec
-    : fegenDecl prequelConstruct* rules EOF
+    : fegenDecl prequelConstruct* usertype* rules EOF
     ;
 
 prequelConstruct
     : BeginInclude INCLUDE_CONTENT* EndInclude
+    ;
+
+usertype
+    : TYPE_IR typename LeftBrace typeRuleBlock RightBrace
+    ;
+
+typename 
+    : identifier
+    ;
+
+typeRuleBlock
+    : 
     ;
 
 fegenDecl
@@ -162,7 +174,7 @@ lexerBlock
     ;
 
 actionBlock
-    : LeftBrace inputsSpec? returnsSpec? actionSpec? irSpec? RightBrace
+    : LeftBrace inputsSpec? returnsSpec? actionSpec? irSpec? parametersSpec? assemblyFormatSpec? RightBrace
     ;
 
 inputsSpec
@@ -251,4 +263,12 @@ ruleSuffix
 
 irSpec
     : IR LeftBracket (OPERATION | ATTRIBUTE) Less identifier (Dot identifier)? Greater RightBracket
+    ;
+
+parametersSpec
+    : PARAMETERS varDecls
+    ; 
+
+assemblyFormatSpec
+    : ASSEMBLYFORMAT LeftBracket AssmblyIden RightBracket
     ;
