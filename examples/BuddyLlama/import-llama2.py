@@ -33,6 +33,7 @@ from buddy.compiler.ops import tosa
 
 # Retrieve the LLaMA model path from environment variables.
 model_path = os.environ.get("LLAMA_MODEL_PATH")
+model_path = "/home/liam/PLCT/Llama-2-7b-chat-hf"
 if model_path is None:
     raise EnvironmentError(
         "The environment variable 'LLAMA_MODEL_PATH' is not set or is invalid."
@@ -63,8 +64,12 @@ path_prefix = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(path_prefix, "llama.mlir"), "w") as module_file:
     print(graph._imported_module, file=module_file)
 
-# Concatenate all parameters into a single numpy array and write to a file.
-all_param = numpy.concatenate(
-    [param.detach().numpy().reshape([-1]) for param in params]
-)
-all_param.tofile(os.path.join(path_prefix, "arg0.data"))
+param_file = os.path.dirname(os.path.abspath(__file__)) + "/arg0.data"
+if not os.path.exists(param_file):
+    # Concatenate all parameters into a single numpy array and write to a file.
+    all_param = numpy.concatenate(
+        [param.detach().numpy().reshape([-1]) for param in params]
+    )
+    # if file exists, skip dumping
+
+    all_param.tofile(param_file)

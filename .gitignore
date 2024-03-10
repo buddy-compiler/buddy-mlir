@@ -12,3 +12,6 @@
 
 # Clangd cache
 .cache
+
+# Python venv
+venv*
