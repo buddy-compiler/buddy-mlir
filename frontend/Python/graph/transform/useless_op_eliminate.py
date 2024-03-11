@@ -1,4 +1,4 @@
-# ===- maxpool2d_simplify.py ---------------------------------------------------
+# ===- useless_op_eliminate.py ---------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# simplify the maxpool2d with getitem.
+# eliminate the useless ops.
 #
 # ===---------------------------------------------------------------------------
 
@@ -27,9 +27,9 @@ def maxpool2d_simplify(graph: Graph):
     Fuse the maxpool op and getitem op to simpllify graph.
 
     Args:
-        graph (torch.fx.GraphModule): The Graph to be simplified.
+        graph (Graph): The Graph to be simplified.
     """
-    for i, node in enumerate(graph._body):
+    for i, node in enumerate(graph.body):
         if isinstance(node, MaxPool2dWithIndicesOp):
             getitem_num = 0
             for user in node._children:
@@ -47,8 +47,16 @@ def maxpool2d_simplify(graph: Graph):
                     new_node.add_argument(arg)
                 for parent in node._parents:
                     new_node.add_parent(parent)
+                    parent_node = graph.node_table[parent]
+                    for cindex, child in enumerate(parent_node.children):
+                        if child == node.name:
+                            parent_node.children[cindex] = new_node.name
                 for child in getitem_node._children:
                     new_node.add_children(child)
+                    child_node = graph.node_table[child]
+                    for pindex, parent in enumerate(child_node.parents):
+                        if parent == getitem_node.name:
+                            child_node.parents[pindex] = new_node.name
                 new_node.tensor_meta["shape"] = getitem_node.tensor_meta[
                     "shape"
                 ]
@@ -59,8 +67,8 @@ def maxpool2d_simplify(graph: Graph):
                 del graph.node_table[node.name]
                 del graph.node_table[getitem_node.name]
                 graph.node_table[new_node.name] = new_node
-                del graph._body[i]
-                for j, op in enumerate(graph._body):
+                del graph.body[i]
+                for j, op in enumerate(graph.body):
                     if op == getitem_node:
-                        graph._body[j] = new_node
+                        graph.body[j] = new_node
                         break

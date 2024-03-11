@@ -22,8 +22,8 @@ from typing import Any, List, Optional
 from types import FunctionType
 import ctypes
 import functools
-
 import numpy as np
+
 import mlir.ir as ir
 import mlir.dialects.func as func
 from mlir.passmanager import *
@@ -71,7 +71,7 @@ def make_output_memref_descriptor(ranks, dtypes):
 class Graph:
     """
     Graph is a graph-level expression for the Buddy Compiler frontends.
-    It acts as a model compute graph, which converts a Graph into an equivalent 
+    It acts as a model compute graph, which converts a Graph into an equivalent
     MLIR module.
 
     Attributes:
@@ -119,7 +119,7 @@ class Graph:
             func_name: str
                 The function name for the MLIR module.
         """
-        self._body = []
+        self._body: List[Op] = []
         self._inputs = inputs
         self.node_table: Dict[str, Op] = {}
         self._fake_params = fake_params
@@ -131,6 +131,17 @@ class Graph:
         self._output_memref = None
         self._output_descriptor = None
         self.execution_engine = None
+        self.op_groups: Dict[str, List[Op]] = {}
+        self.group_map_device: Dict[str, DeviceType] = {}
+        self.op_map_group: Dict[str, str] = {}
+
+    @property
+    def body(self):
+        return self._body
+
+    @body.setter
+    def body(self, new_body):
+        self._body = new_body
 
     def add_node(self, node: Op):
         """
@@ -152,11 +163,60 @@ class Graph:
         self._body.append(node)
         self.node_table[node.name] = node
 
+    def init_op_group(self):
+        """
+        Initializes operation groups within the graph.
+
+        Returns:
+        - None
+        """
+        for i, op in enumerate(self._body):
+            if isinstance(op, PlaceholderOp):
+                continue
+            group = [op]
+            subgraph_name = "subgraph{}".format(i)
+            self.group_map_device[subgraph_name] = DeviceType.UNKNOW
+            self.op_groups[subgraph_name] = group
+            self.op_map_group[op.name] = subgraph_name
+
+    def fuse_ops(self, pattern_list: List[FunctionType]):
+        """
+        Fuse operations in the graph based on provided fusion patterns.
+
+        Args:
+        - pattern_list (List[FunctionType]): A list of functions representing
+        fusion patterns.
+
+        Returns:
+        - None
+        """
+        # TODO: discuss two fuse strategy
+        # 1. fuse ops adapt for DSA(hardware dependent)
+        # 2. common fuse strategy(hardware independent)
+
+        # Initialize operation groups
+        self.init_op_group()
+
+        # Apply fusion patterns
+        for pattern_func in pattern_list:
+            pattern_func(self)
+
     def perform(self, func_list: List[FunctionType]):
+        """
+        Perform a series of transformations on the graph using the provided list
+        of functions.
+
+        Args:
+        - func_list (List[FunctionType]): A list of functions representing
+        transformations to be applied to the graph.
+
+        Returns:
+        - None
+        """
         for transform_func in func_list:
             transform_func(self)
 
-    def lower_to_top_level_ir(self, do_params_pack=False):
+    def lower_to_top_level_ir(self):
         """
         Lowers the graph to top-level MLIR dialects.
 
@@ -177,7 +237,6 @@ class Graph:
                 self._body,
                 self._fake_params,
                 self._inputs,
-                do_params_pack,
                 self._func_name,
                 self._ops_registry,
             )
@@ -234,7 +293,7 @@ class Graph:
             pm.add("eliminate-empty-tensors")
             pm.add("empty-tensor-to-alloc-tensor")
             pm.add("convert-elementwise-to-linalg")
-            pm.add('one-shot-bufferize')
+            pm.add("one-shot-bufferize")
             pm.add("func.func(convert-linalg-to-affine-loops)")
             pm.add("affine-loop-fusion")
             pm.add("func.func(affine-parallelize)")
@@ -287,9 +346,9 @@ class GraphImporter:
         body: List[Op],
         params: List[TensorMeta],
         inputs: List[TensorMeta],
-        do_param_pack: bool,
         func_name: str,
         ops_registry: dict,
+        do_param_pack: bool = False,
     ):
         """
         Initializes the buddy Graph importer.
@@ -365,12 +424,64 @@ class GraphImporter:
                 )
             mlir_dtype = self._str_to_mlir_dtype(dtype)
             self._param_packs.append(
-                ir.RankedTensorType.get([param_total_size], mlir_dtype)
+                ir.MemRefType.get([param_total_size], mlir_dtype)
             )
 
     def import_graph(self) -> ir.Module:
         """
         Imports buddy graph and generates an MLIR module in high-level dialects.
+
+        Returns:
+            mlir.ir.Module: An MLIR module in high-level dialects.
+        """
+        assert self._do_param_pack == False
+        with ir.InsertionPoint(self._module.body):
+            arguments = []
+            inputs = self._params + self._inputs
+            for arg in inputs:
+                shape_list = list(arg.shape)
+                dtype = arg.dtype
+                mlir_dtype = self._str_to_mlir_dtype(dtype)
+                tensor_arg = ir.RankedTensorType.get(shape_list, mlir_dtype)
+                arguments.append(tensor_arg)
+            extern_func = []
+            for node in self._body:
+                if isinstance(node, FuncOp):
+                    extern_func.append(node)
+                    self._import_op(node)
+
+            @func.FuncOp.from_py_func(*arguments, name=self._func_name)
+            def generated_func(*args):
+                args_list = list(args)
+                for node in self._body:
+                    if node in extern_func:
+                        continue
+                    if isinstance(node, OutputOp):
+                        output_node_args = node.args
+                        returns = [
+                            self._symbol_table.get((str(output_arg), 0))
+                            for output_arg in output_node_args
+                        ]
+                        self._symbol_table[("output", 0)] = returns
+                    elif isinstance(node, PlaceholderOp):
+                        self._import_placeholder(node, args_list)
+                    elif isinstance(node, GetItemOp):
+                        self._symbol_table[
+                            (str(node.name), 0)
+                        ] = self._symbol_table[
+                            (str(node.args[0]), node.args[1])
+                        ]
+                    else:
+                        self._import_op(node)
+
+                return self._symbol_table.get(("output", 0))
+
+        return self._module
+
+    def import_main_graph(self) -> ir.Module:
+        """
+        Imports buddy main graph to organize all subgraphs and generates an MLIR
+        module in high-level dialects with memref.
 
         Returns:
             mlir.ir.Module: An MLIR module in high-level dialects.
@@ -387,13 +498,20 @@ class GraphImporter:
                 shape_list = list(arg.shape)
                 dtype = arg.dtype
                 mlir_dtype = self._str_to_mlir_dtype(dtype)
-                tensor_arg = ir.RankedTensorType.get(shape_list, mlir_dtype)
+                tensor_arg = ir.MemRefType.get(shape_list, mlir_dtype)
                 arguments.append(tensor_arg)
+            extern_func = []
+            for node in self._body:
+                if isinstance(node, FuncOp):
+                    extern_func.append(node)
+                    self._import_op(node)
 
             @func.FuncOp.from_py_func(*arguments, name=self._func_name)
             def generated_func(*args):
                 args_list = list(args)
                 for node in self._body:
+                    if node in extern_func:
+                        continue
                     if isinstance(node, OutputOp):
                         output_node_args = node.args
                         returns = [
@@ -423,7 +541,7 @@ class GraphImporter:
         Imports a placeholder node from the Buddy graph.
 
         Parameters:
-        - node (PlaceholderOp): The PlaceholderOp node representing the 
+        - node (PlaceholderOp): The PlaceholderOp node representing the
         placeholder.
         - args_list (List[mlir.ir.BlockArgument]): List of input memrefs.
 
@@ -434,7 +552,7 @@ class GraphImporter:
             dtype = node.tensor_meta["dtype"]
             pack_of_dtype = None
             for pack in args_list:
-                if ir.RankedTensorType(
+                if ir.MemRefType(
                     pack.type
                 ).element_type == self._str_to_mlir_dtype(dtype):
                     pack_of_dtype = pack
@@ -469,16 +587,24 @@ class GraphImporter:
 
         """
         op_name = node.__class__.__name__
-        op_ret: ir.Operation | ir.Value | tuple | ir.OpResult = (
+        op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)
         )
-        if isinstance(op_ret, tuple):
+        if isinstance(op_ret, tuple | List):
             for i, operation in enumerate(op_ret):
-                self._symbol_table[(str(node.name), i)] = operation.result
+                if isinstance(operation, ir.Operation) or isinstance(
+                    operation, ir.OpView
+                ):
+                    self._symbol_table[(str(node.name), i)] = operation.result
+                elif isinstance(operation, ir.OpResult):
+                    self._symbol_table[(str(node.name), i)] = operation
+                else:
+                    raise NotImplementedError
         elif isinstance(op_ret, ir.OpResult):
             self._symbol_table[(str(node.name), 0)] = op_ret
         else:
-            self._symbol_table[(str(node.name), 0)] = op_ret.result
+            for i, result in enumerate(op_ret.results):
+                self._symbol_table[(str(node.name), i)] = result
 
     def get_output_nodes(self):
         """

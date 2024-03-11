@@ -1756,60 +1756,6 @@ def silu_op(
 
     return op
 
-
-def param_extract(
-    node: PlaceholderOp,
-    offset,
-    params_mlir_node,
-):
-    """
-    Extract param from packed params.
-
-    Note: This function extract slice from packed params tensor, and expand
-    shape by param node shape.
-    Args:
-        node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding
-        operations.
-
-    Returns:
-        op: The operation return the tensor.expand_shape op.
-    """
-    dtype_mapping = {
-        TensorDType.Float32: ir.F32Type.get(),
-        TensorDType.Int64: ir.IntegerType.get_signless(64),
-    }
-    tensor_element_type = dtype_mapping[node.tensor_meta["dtype"]]
-    output_shape = list(node.tensor_meta["shape"])
-    extract_size = functools.reduce(lambda x, y: x * y, output_shape, 1)
-    offset_attr = ir._denseI64ArrayAttr([offset], None)
-    size_attr = ir._denseI64ArrayAttr([extract_size], None)
-    stride = [1]
-    stride_attr = ir._denseI64ArrayAttr(stride, None)
-    tensor_type = ir.RankedTensorType.get([extract_size], tensor_element_type)
-    extract_slice_op = tensor.ExtractSliceOp(
-        tensor_type,
-        params_mlir_node,
-        [],
-        [],
-        [],
-        offset_attr,
-        size_attr,
-        stride_attr,
-    )
-    if len(output_shape) == 1 or len(output_shape) == 0:
-        return extract_slice_op
-    tensor_type = ir.RankedTensorType.get(output_shape, tensor_element_type)
-    axis = ir.ArrayAttr.get(
-        [
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(64), i)
-            for i in range(len(output_shape))
-        ],
-        None,
-    )
-    axis = ir.ArrayAttr.get([axis], None)
-    return tensor.ExpandShapeOp(tensor_type, extract_slice_op.result, axis)
-
 def where_op(
     node: WhereOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
@@ -1897,7 +1843,6 @@ def scalar_tensor_op(node: ScalarTensorOp, symbol_table):
     return op
 
 ops_registry = {
-    "param.extract": param_extract,
     "MatmulOp": matmul_op,
     "ArangeOp": arange_op,
     "UnsqueezeOp": unsqueeze_op,

@@ -962,7 +962,6 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
         )
     return op
 
-
 def convolution2d_op(node: Conv2dOp, symbol_table):
     """
     Import the convolution operation.
@@ -1092,7 +1091,6 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
         )
     return op
 
-
 def relu_op(node: ReluOp, symbol_table):
     """
     Import the tensor relu operation.
@@ -1112,7 +1110,6 @@ def relu_op(node: ReluOp, symbol_table):
     op = tosa.MaximumOp(tensor_type, input1, zero_op)
 
     return op
-
 
 def iota_op(node: IotaOp, symbol_table):
     """
@@ -1135,7 +1132,6 @@ def iota_op(node: IotaOp, symbol_table):
 
     return op
 
-
 def sigmoid_op(node: SigmoidOp, symbol_table):
     """
     Import the tensor sigmoid operation.
@@ -1155,11 +1151,19 @@ def sigmoid_op(node: SigmoidOp, symbol_table):
 
 
 def reciprocal_op(node: ReciprocalOp, symbol_table):
+    """
+    Import the buddy ReciprocalOp.
+    From Buddy ReciprocalOp to MLIR TOSA `ReciprocalOp` operation.
+    """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     return tosa.ReciprocalOp(input_tensor.type, input_tensor)
 
 
 def mean_op(node: MeanOp, symbol_table):
+    """
+    Import the buddy MeanOp.
+    From Buddy MeanOp to MLIR TOSA operation.
+    """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     keepdim = node.args[2]
     dims = [x for x in node.args[1]]
