@@ -728,11 +728,12 @@ transform_dialect::VectorToMMAConversionOp::applyToOne(
     transform::ApplyToEachResultList &results,
     transform::TransformState &state) {
   if (!target->hasTrait<OpTrait::IsIsolatedFromAbove>()) {
-    target->emitOpError(
-        "applies only to isolated-from-above targets because it "
-        "needs to apply "
-        "patterns greedily");
-    return emitDefaultDefiniteFailure(target);
+    // target->emitOpError(
+    //     "applies only to isolated-from-above targets because it "
+    //     "needs to apply "
+    //     "patterns greedily");
+    // return emitDefaultDefiniteFailure(target);
+    
   }
 
   auto funcOp = dyn_cast<func::FuncOp>(target);

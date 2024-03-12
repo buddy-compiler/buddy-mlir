@@ -132,6 +132,17 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       builder.setInsertionPointAfter(allocOp);
       auto result = allocOp->getResult(0);
       auto memrefType = dyn_cast<MemRefType>(result.getType());
+      auto memorySpace = memrefType.getMemorySpace();
+
+      //Bypass all operations that are already on the GPU.
+      if (memorySpace){
+        if (auto intMemorySpace = llvm::dyn_cast<IntegerAttr>(memorySpace)) {
+          if (intMemorySpace.getInt() != 0) {
+            return WalkResult::advance();
+          }
+        }
+      }
+      
       auto gpuAllocOp = builder.create<gpu::AllocOp>(
           allocOp->getLoc(), TypeRange({memrefType}), ValueRange({}));
       auto users = result.getUsers();

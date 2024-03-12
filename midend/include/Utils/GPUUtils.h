@@ -162,6 +162,13 @@ void hoistStaticallyBoundAllocationsInFunc(RewriterBase &rewriter,
 void createAsyncGroups(RewriterBase &rewriter, func::FuncOp funcOp,
                        bool useMMASync);
 
+//===----------------------------------------------------------------------===//
+// Utility from compiler/src/iree/compiler/Codegen/Utils/Utils.h
+//===----------------------------------------------------------------------===//
+
+Operation *createLinalgCopyOp(OpBuilder &b, Location loc, Value from, Value to,
+                              ArrayRef<NamedAttribute> attributes = {});
+
 } // namespace buddy::buddygpu
 } // namespace mlir
 
