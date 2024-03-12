@@ -1,4 +1,4 @@
-# ===- maxpool2d_simplify.py ---------------------------------------------------
+# ===- useless_op_eliminate.py ---------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# simplify the maxpool2d with getitem.
+# eliminate the useless ops.
 #
 # ===---------------------------------------------------------------------------
 
@@ -27,9 +27,9 @@ def maxpool2d_simplify(graph: Graph):
     Fuse the maxpool op and getitem op to simpllify graph.
 
     Args:
-        graph (torch.fx.GraphModule): The Graph to be simplified.
+        graph (Graph): The Graph to be simplified.
     """
-    for i, node in enumerate(graph._body):
+    for i, node in enumerate(graph.body):
         if isinstance(node, MaxPool2dWithIndicesOp):
             getitem_num = 0
             for user in node._children:
@@ -59,8 +59,8 @@ def maxpool2d_simplify(graph: Graph):
                 del graph.node_table[node.name]
                 del graph.node_table[getitem_node.name]
                 graph.node_table[new_node.name] = new_node
-                del graph._body[i]
-                for j, op in enumerate(graph._body):
+                del graph.body[i]
+                for j, op in enumerate(graph.body):
                     if op == getitem_node:
-                        graph._body[j] = new_node
+                        graph.body[j] = new_node
                         break

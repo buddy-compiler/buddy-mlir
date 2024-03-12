@@ -50,10 +50,12 @@ class OpType(Enum):
     BroadcastType = 0
     ElementwiseType = 1
     ReshapeType = 2
-    ReduceType = 3
-    ConcatType = 4
-    PlaceholderType = 5
-    GetItemType = 6
+    SliceLikeType = 3
+    ReduceType = 4
+    ConcatType = 5
+    PlaceholderType = 6
+    GetItemType = 7
+    Unfusable = 8
 
 
 class Op:
@@ -80,7 +82,7 @@ class Op:
         self._name = None
         self._arguments = []
         self._keyword_arguments = {}
-        self._tensor_meta: List[TensorMeta] = {}
+        self._tensor_meta: Dict = {}
         self._op_type: OpType = None
         self._children: List[str] = []
         self._parents: List[str] = []
@@ -126,7 +128,6 @@ class Op:
     @property
     def name(self):
         return self._name
-
     @name.setter
     def name(self, new_name):
         self._name = new_name
@@ -134,6 +135,10 @@ class Op:
     @property
     def tensor_meta(self):
         return self._tensor_meta
+
+    @tensor_meta.setter
+    def tensor_meta(self, new_tensor_meta):
+        self._tensor_meta = new_tensor_meta
 
 
 class PlaceholderOp(Op):
@@ -443,6 +448,16 @@ class MaxPool2dOp(Op):
         self._op_type = OpType.ReduceType
         self._layout = "NCHW"
 
+class CallOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self.call_func_name = ""
+        self._op_type = OpType.Unfusable
+
+class FuncOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.Unfusable
 
 class ReciprocalOp(Op):
     def __init__(self) -> None:

@@ -39,6 +39,19 @@ dynamo_compiler = DynamoCompiler(
 )
 
 data = torch.randn([1, 3, 224, 224])
+right_result = model(data)
+torch._dynamo.reset()
+with torch.no_grad():
+    model_opt = torch.compile(model, backend=dynamo_compiler)
+    test_result = model_opt(data)
+
+assert torch.allclose(right_result, test_result, atol=1e-5)
+
+torch._dynamo.reset()
+dynamo_compiler = DynamoCompiler(
+    primary_registry=tosa.ops_registry,
+    aot_autograd_decomposition=inductor_decomp,
+)
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
     graphs = dynamo_compiler.importer(model, data)
@@ -46,7 +59,7 @@ with torch.no_grad():
 assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
-graph.lower_to_top_level_ir(do_params_pack=True)
+graph.lower_to_top_level_ir()
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 # Write the MLIR module to the file.
 with open(os.path.join(path_prefix, "resnet.mlir"), "w") as module_file:

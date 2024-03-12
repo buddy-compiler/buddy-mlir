@@ -77,3 +77,19 @@ class TensorMeta:
         """
         self.shape = shape
         self.dtype = dtype
+
+class DeviceType(Enum):
+    """
+    Enumeration class representing different types of devices.
+
+    Attributes:
+    - CPU: Central Processing Unit.
+    - GPU: Graphics Processing Unit.
+    - UNKNOW: Unknown device type.
+
+    Each attribute represents a specific device type and is associated with a
+    string value.
+    """
+    CPU = 'cpu'
+    GPU = 'gpu'
+    UNKNOW = 'unknow'
