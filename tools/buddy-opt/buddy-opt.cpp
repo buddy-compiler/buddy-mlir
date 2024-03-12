@@ -72,6 +72,7 @@ void registerDeviceSchedulePass();
 void registerLowerSchePass();
 void registerGPUHostRegisterPass();
 void registerConvertMemcpyToGPUPass();
+void registerLegalizeShmemOutliningPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -106,6 +107,7 @@ int main(int argc, char **argv) {
   // Register gpu passes
   mlir::buddy::registerGPUHostRegisterPass();
   mlir::buddy::registerConvertMemcpyToGPUPass();
+  mlir::buddy::registerLegalizeShmemOutliningPass();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.

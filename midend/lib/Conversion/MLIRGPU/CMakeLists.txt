@@ -3,7 +3,7 @@ add_mlir_library(MLIRGPUPasses
   ConvertMemcpyToGPU.cpp
   AsyncRegion.cpp
   MergeGPUAlloc.cpp
-  LegalizeShmemAllocation.cpp
+  LegalizeShmemOutlining.cpp
   GPUPipelining.cpp
 
   ADDITIONAL_HEADER_DIRS

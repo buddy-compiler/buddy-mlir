@@ -66,13 +66,12 @@ public:
     return "Convert memref opertaions to gpu operations.";
   }
   ConvertMemcpyToGPUPass() = default;
-  ConvertMemcpyToGPUPass(const ConvertMemcpyToGPUPass &
+  ConvertMemcpyToGPUPass(const ConvertMemcpyToGPUPass &) {}
 
-  ) {}
-
-  Option<bool> processArgs{*this, "process-args",
-                                   llvm::cl::desc("Whether the pass processes the input args."),
-                                   llvm::cl::init(true)};
+  Option<bool> processArgs{
+      *this, "process-args",
+      llvm::cl::desc("Whether the pass processes the input args."),
+      llvm::cl::init(true)};
 
   void runOnOperation() override;
 
@@ -95,7 +94,7 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
   std::set<gpu::AllocOp *> unDeallocatedOperations;
   OpBuilder builder(funcOp->getContext());
   // Copy all function arguments to gpu, needs deallocation
-  if (processArgs){
+  if (processArgs) {
     builder.setInsertionPointToStart(&(funcOp.getBody().front()));
     unsigned numArgs = funcOp.getNumArguments();
     for (unsigned i = 0; i < numArgs; ++i) {
@@ -124,7 +123,7 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       }
     }
   }
-  
+
   funcOp->walk<WalkOrder::PreOrder>([&](Operation *nestedOp) {
     // Replace all allocations with GPU.alloc
     if (auto allocOp = dyn_cast<memref::AllocOp>(nestedOp)) {
@@ -134,15 +133,15 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       auto memrefType = dyn_cast<MemRefType>(result.getType());
       auto memorySpace = memrefType.getMemorySpace();
 
-      //Bypass all operations that are already on the GPU.
-      if (memorySpace){
+      // Bypass all operations that are already on the GPU.
+      if (memorySpace) {
         if (auto intMemorySpace = llvm::dyn_cast<IntegerAttr>(memorySpace)) {
           if (intMemorySpace.getInt() != 0) {
             return WalkResult::advance();
           }
         }
       }
-      
+
       auto gpuAllocOp = builder.create<gpu::AllocOp>(
           allocOp->getLoc(), TypeRange({memrefType}), ValueRange({}));
       auto users = result.getUsers();
@@ -156,8 +155,7 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
                 deallocOp->getLoc(), TypeRange(), ValueRange(),
                 gpuAllocOp.getResult(0));
             deallocOp->erase();
-          } 
-          else if (user->getOperand(j) == result) {
+          } else if (user->getOperand(j) == result) {
             user->setOperand(j, gpuAllocOp.getResult(0));
           }
         }
@@ -227,7 +225,7 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
     else if (auto returnOp = dyn_cast<func::ReturnOp>(nestedOp)) {
       builder.setInsertionPoint(returnOp);
 
-      for (auto* gpuAllocOp: unDeallocatedOperations){
+      for (auto *gpuAllocOp : unDeallocatedOperations) {
         auto gpuDeallocOp = builder.create<gpu::DeallocOp>(
             builder.getUnknownLoc(), TypeRange(), ValueRange(),
             gpuAllocOp->getResult(0));
@@ -236,11 +234,11 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       for (unsigned i = 0; i < returnOp.getNumOperands(); ++i) {
         auto val = returnOp->getOperand(i);
         auto memRefType = dyn_cast<MemRefType>(val.getType());
-        auto allocOp = builder.create<memref::AllocOp>(
-            builder.getUnknownLoc(), memRefType);
+        auto allocOp = builder.create<memref::AllocOp>(builder.getUnknownLoc(),
+                                                       memRefType);
         auto gpuMemcpyOp = builder.create<gpu::MemcpyOp>(
-            allocOp.getLoc(), TypeRange(), ValueRange(),
-            allocOp->getResult(0), val);
+            allocOp.getLoc(), TypeRange(), ValueRange(), allocOp->getResult(0),
+            val);
         auto gpuDeallocOp = builder.create<gpu::DeallocOp>(
             gpuMemcpyOp->getLoc(), TypeRange(), ValueRange(), val);
         returnOp->setOperand(i, allocOp->getResult(0));
