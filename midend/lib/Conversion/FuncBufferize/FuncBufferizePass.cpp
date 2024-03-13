@@ -53,6 +53,7 @@ class FuncBufferizeDynamicOffsetPass
     : public PassWrapper<FuncBufferizeDynamicOffsetPass,
                          OperationPass<ModuleOp>> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(FuncBufferizeDynamicOffsetPass)
   FuncBufferizeDynamicOffsetPass() = default;
   llvm::StringRef getArgument() const final {
     return "func-bufferize-dynamic-offset";

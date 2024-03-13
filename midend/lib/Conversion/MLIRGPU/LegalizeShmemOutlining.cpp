@@ -46,6 +46,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
+#include <cstdint>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
@@ -104,56 +105,6 @@ static void injectGpuIndexOperations(Location loc, Region &launchFuncOpBody,
   // operations. Iterate backwards since args are erased and indices change.
   for (const auto &indexOp : enumerate(indexOps))
     map.map(firstBlock.getArgument(indexOp.index()), indexOp.value());
-}
-
-/// Identifies operations that are beneficial to sink into kernels. These
-/// operations may not have side-effects, as otherwise sinking (and hence
-/// duplicating them) is not legal.
-static bool isLikelyAnIndexComputation(Operation *op) {
-  return matchPattern(op, m_Constant()) ||
-         isa<memref::DimOp, arith::SelectOp, arith::CmpIOp>(op);
-}
-
-/// For a given operation `op`, computes whether it is beneficial to sink the
-/// operation into the kernel. An operation can be sunk if doing so does not
-/// introduce new kernel arguments. Whether a value is already available in the
-/// kernel (and hence does not introduce new arguments) is checked by
-/// querying `existingDependencies` and `availableValues`.
-/// If an operand is not yet available, we recursively check whether it can be
-/// made available by siking its defining op.
-/// Operations that are indentified for sinking are added to `beneficiaryOps` in
-/// the order they should appear in the kernel. Furthermore, `availableValues`
-/// is updated with results that will be available after sinking the identified
-/// ops.
-static bool extractBeneficiaryOps(
-    Operation *op, const SetVector<Value> &existingDependencies,
-    SetVector<Operation *> &beneficiaryOps,
-    llvm::SmallPtrSetImpl<Value> &availableValues,
-    llvm::function_ref<bool(Operation *)> isSinkingBeneficiary) {
-  if (beneficiaryOps.count(op))
-    return true;
-
-  if (!isSinkingBeneficiary(op))
-    return false;
-
-  for (Value operand : op->getOperands()) {
-    // It is already visible in the kernel, keep going.
-    if (availableValues.count(operand))
-      continue;
-    // Else check whether it can be made available via sinking or already is a
-    // dependency.
-    Operation *definingOp = operand.getDefiningOp();
-    if ((!definingOp || !extractBeneficiaryOps(definingOp, existingDependencies,
-                                               beneficiaryOps, availableValues,
-                                               isSinkingBeneficiary)) &&
-        !existingDependencies.count(operand))
-      return false;
-  }
-  // We will sink the operation, mark its results as now available.
-  beneficiaryOps.insert(op);
-  for (Value result : op->getResults())
-    availableValues.insert(result);
-  return true;
 }
 
 /// Return the provided KernelDim3 as an array of i32 constants if possible.
@@ -312,7 +263,7 @@ public:
       // Insert just after the function.
       Block::iterator insertPt(func->getNextNode());
       
-      // Collects all allocations for shared memory.
+      // Collects all allocations for shared memory outside the kernel.
       // The collection must happen before the kernel outlining. 
       // It moves back all shared allocations back into their GPU body
       // Allowing the functions to create kernels without shared memory
@@ -341,17 +292,11 @@ public:
             user->erase();
             continue;
           }
-          // Locates the outermost forall op, i.e., the future gpu kernel wrapper
-          auto forallOp=user->getParentOfType<scf::ForallOp>();
-          if (!forallOp) {
-            continue;
-          }
-          while (forallOp->getParentOfType<scf::ForallOp>()){
-            forallOp=forallOp->getParentOfType<scf::ForallOp>();
-          }
-          OpBuilder builder(forallOp);
-          builder.setInsertionPointToStart(forallOp.getBody());
-          auto newAllocOp = builder.create<memref::AllocOp>(forallOp.getLoc(), memrefType);
+          // Locates the gpu kernel wrapper
+          auto launchOp=user->getParentOfType<gpu::LaunchOp>();
+          OpBuilder builder(launchOp);
+          builder.setInsertionPointToStart(&launchOp.getBody().getBlocks().front());
+          auto newAllocOp = builder.create<memref::AllocOp>(launchOp.getLoc(), memrefType);
           allocOp->replaceAllUsesWith(newAllocOp);
           allocOp->erase();
           break;
@@ -373,6 +318,51 @@ public:
         // insertion into the parent module.
         auto kernelModule = createKernelModule(outlinedFunc, symbolTable);
         symbolTable.insert(kernelModule, insertPt);
+
+        size_t counter = 0;
+        // Walk the funcop and replace all shmem allocations with global memref
+        outlinedFunc->walk([&](memref::AllocOp allocOp) {
+          auto result = allocOp->getResult(0);
+          auto memrefType = dyn_cast<MemRefType>(result.getType());
+          auto memorySpace = memrefType.getMemorySpace();
+          if (!memorySpace)
+            allocOp->emitOpError()
+                << "Found non-shared memory inside a kernel function";
+          else {
+            if (auto intMemorySpace =
+                    llvm::dyn_cast<IntegerAttr>(memorySpace)) {
+              if (intMemorySpace.getInt() != 3) {
+                return WalkResult::advance();
+              }
+            } else if (auto gpuMemorySpace =
+                           llvm::dyn_cast<gpu::AddressSpaceAttr>(memorySpace)) {
+              if (gpuMemorySpace.getValue() != gpu::AddressSpace::Workgroup) {
+                return WalkResult::advance();
+              }
+            } else
+              return WalkResult::advance();
+          }
+
+          OpBuilder builder(outlinedFunc);
+
+          auto name = Twine("shmem_", std::to_string(counter++)).str();
+
+          auto globalOp = builder.create<memref::GlobalOp>(
+              kernelModule->getLoc(),
+              /*sym_name=*/name,
+              /*sym_visibility=*/builder.getStringAttr("private"),
+              /*type=*/memrefType,
+              /*initial_value=*/ElementsAttr(),
+              /*constant=*/false,
+              /*alignment=*/builder.getI64IntegerAttr(64));
+          //symbolTable.insert(globalOp);
+          builder.setInsertionPointAfter(allocOp);
+          Value getGlobalOp = builder.create<memref::GetGlobalOp>(
+              allocOp->getLoc(), globalOp.getType(), name);
+          allocOp.replaceAllUsesWith(getGlobalOp);
+          allocOp->erase();
+          return WalkResult::advance();
+        });
 
         // Potentially changes signature, pulling in constants.
         convertToLaunchFuncOp(op, outlinedFunc, operands.getArrayRef());
