@@ -133,13 +133,19 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       auto memrefType = dyn_cast<MemRefType>(result.getType());
       auto memorySpace = memrefType.getMemorySpace();
 
-      // Bypass all operations that are already on the GPU.
+      // Filter operations.
       if (memorySpace) {
         if (auto intMemorySpace = llvm::dyn_cast<IntegerAttr>(memorySpace)) {
           if (intMemorySpace.getInt() != 0) {
             return WalkResult::advance();
           }
         }
+        else if (auto gpuMemorySpace = llvm::dyn_cast<gpu::AddressSpaceAttr>(memorySpace)){
+          if (gpuMemorySpace.getValue()!=gpu::AddressSpace::Global) {
+            return WalkResult::advance();
+          }
+        }
+        else return WalkResult::advance();
       }
 
       auto gpuAllocOp = builder.create<gpu::AllocOp>(

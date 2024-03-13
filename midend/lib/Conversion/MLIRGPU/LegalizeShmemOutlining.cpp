@@ -28,6 +28,7 @@
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/Dialect/GPU/Transforms/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -60,6 +61,7 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 using namespace mlir;
 using namespace vector;
 
@@ -75,7 +77,7 @@ namespace mlir {
 
 using namespace mlir;
 
-namespace {
+
 
 template <typename OpTy>
 static void createForAllDimensions(OpBuilder &builder, Location loc,
@@ -289,9 +291,13 @@ static void convertToLaunchFuncOp(gpu::LaunchOp launchOp,
 /// The gpu.modules are intended to be compiled to a cubin blob independently in
 /// a separate pass. The external functions can then be annotated with the
 /// symbol of the cubin accessor function.
+
+namespace {
 class LegalizeShmemOutliningPass
     : public PassWrapper<LegalizeShmemOutliningPass, OperationPass<ModuleOp>> {
 public:
+  std::vector<Operation *> shmemAllocations;
+  std::map<Operation*, Operation*> shmemGlobalPairs;
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LegalizeShmemOutliningPass)
   StringRef getArgument() const final { return "legalize-shmem-outlining"; }
   StringRef getDescription() const final {
@@ -300,10 +306,59 @@ public:
 
   void runOnOperation() override {
     SymbolTable symbolTable(getOperation());
+    
     bool modified = false;
     for (auto func : getOperation().getOps<func::FuncOp>()) {
       // Insert just after the function.
       Block::iterator insertPt(func->getNextNode());
+      
+      // Collects all allocations for shared memory.
+      // The collection must happen before the kernel outlining. 
+      // It moves back all shared allocations back into their GPU body
+      // Allowing the functions to create kernels without shared memory
+      // as parameters.
+      func.walk([&](memref::AllocOp allocOp) {
+        auto result = allocOp->getResult(0);
+        auto memrefType = dyn_cast<MemRefType>(result.getType());
+        auto memorySpace = memrefType.getMemorySpace();
+        if (!memorySpace) return WalkResult::advance();
+        else {
+          if (auto intMemorySpace = llvm::dyn_cast<IntegerAttr>(memorySpace)) {
+            if (intMemorySpace.getInt() != 3) {
+              return WalkResult::advance();
+            }
+          } else if (auto gpuMemorySpace =
+                         llvm::dyn_cast<gpu::AddressSpaceAttr>(memorySpace)) {
+            if (gpuMemorySpace.getValue() != gpu::AddressSpace::Workgroup) {
+              return WalkResult::advance();
+            }
+          } else
+            return WalkResult::advance();
+        }
+        auto users = allocOp->getUsers();
+        for (auto user: users) {
+          if (isa<memref::DeallocOp>(user)){
+            user->erase();
+            continue;
+          }
+          // Locates the outermost forall op, i.e., the future gpu kernel wrapper
+          auto forallOp=user->getParentOfType<scf::ForallOp>();
+          if (!forallOp) {
+            continue;
+          }
+          while (forallOp->getParentOfType<scf::ForallOp>()){
+            forallOp=forallOp->getParentOfType<scf::ForallOp>();
+          }
+          OpBuilder builder(forallOp);
+          builder.setInsertionPointToStart(forallOp.getBody());
+          auto newAllocOp = builder.create<memref::AllocOp>(forallOp.getLoc(), memrefType);
+          allocOp->replaceAllUsesWith(newAllocOp);
+          allocOp->erase();
+          break;
+        }
+        return WalkResult::advance();
+      });
+
       auto funcWalkResult = func.walk([&](gpu::LaunchOp op) {
         SetVector<Value> operands;
         std::string kernelFnName =
@@ -326,6 +381,7 @@ public:
       });
       if (funcWalkResult.wasInterrupted())
         return signalPassFailure();
+
     }
 
     // If any new module was inserted in this module, annotate this module as
