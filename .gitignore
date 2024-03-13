@@ -12,3 +12,6 @@
 
 # Clangd cache
 .cache
+
+# Python virtual environment
+venv/
