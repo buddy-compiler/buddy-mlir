@@ -403,4 +403,38 @@ def DIP_MorphGrad2DOp : DIP_Op<"morphgrad_2d"> {
   }];
 }
 
+def DIP_PerspectiveTransformOp : DIP_Op<"perspective_transform"> {
+  let summary = [{This operation intends to provide utility for perspective transformation of images
+                    via the DIP dialect.
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefO,
+                       Arg<AnyRankedOrUnrankedMemRef, "matrixMemref",
+                           [MemRead]>:$matrix);
+
+  let assemblyFormat = [{
+    $memrefI `,` $memrefO `,` $matrix attr-dict `:` type($memrefI) `,` type($memrefO) `,` type($matrix)
+  }];
+}
+
+def DIP_PerspectiveTransform3dOp : DIP_Op<"perspective_transform_3d"> {
+  let summary = [{This operation intends to provide utility for perspective transformation in 3D space
+                    for images via the DIP dialect.
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefO,
+                       Arg<AnyRankedOrUnrankedMemRef, "matrixMemref",
+                           [MemRead]>:$matrix);
+
+  let assemblyFormat = [{
+    $memrefI `,` $memrefO `,` $matrix attr-dict `:` type($memrefI) `,` type($memrefO) `,` type($matrix)
+  }];
+}
+
 #endif // DIP_DIPOPS_TD
