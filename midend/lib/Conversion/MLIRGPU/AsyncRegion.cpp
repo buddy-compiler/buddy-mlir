@@ -16,8 +16,7 @@
 //===---------------------------------------------------------------------===//
 //
 // This file implements the GPU dialect pattern rewriters that make GPU op
-// within a region execute asynchronously, with data flow analysis to 
-// maximize parallelism.
+// within a region execute asynchronously.
 //
 //===---------------------------------------------------------------------===//
 
