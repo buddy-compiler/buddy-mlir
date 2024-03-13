@@ -105,6 +105,7 @@ class Graph:
         fake_params: List[TensorMeta],
         ops_registry: dict,
         func_name: str,
+        verbose: bool = False,
     ) -> None:
         """
         Initializes the Graph.
@@ -127,6 +128,7 @@ class Graph:
         self._imported_module = None
         self._ops_registry = ops_registry
         self._func_name = func_name
+        self._verbose = verbose
         self._ctx = ir.Context()
         self._output_memref = None
         self._output_descriptor = None
@@ -280,8 +282,11 @@ class Graph:
         if self._imported_module is None:
             self.lower_to_top_level_ir()
 
+        self._ctx.enable_multithreading(enable=not self._verbose)
         with ir.Location.unknown(self._ctx):
             pm = PassManager("builtin.module")
+            if self._verbose:
+                pm.enable_ir_printing()
             pm.add("func.func(tosa-to-linalg-named)")
             pm.add("func.func(tosa-to-linalg)")
             pm.add("func.func(tosa-to-tensor)")
