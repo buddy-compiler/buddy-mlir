@@ -1689,30 +1689,36 @@ void traverseImagewBoundaryExtrapolation4DMemRefsNCHWFCHW(
     Value constantValue, Value strideVal, Type elemTy,
     buddy::dip::BoundaryOption boundaryOptionAttr, int64_t stride, DIP_OP op) {
   // Create constant indices.
-  Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-  Value c2 = rewriter.create<arith::ConstantIndexOp>(loc, 2);
-  Value c3 = rewriter.create<arith::ConstantIndexOp>(loc, 3);
+  auto c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+  auto c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+  auto c2 = rewriter.create<arith::ConstantIndexOp>(loc, 2);
+  auto c3 = rewriter.create<arith::ConstantIndexOp>(loc, 3);
 
-  IntegerType i1 = IntegerType::get(ctx, 1);
+  auto i1 = IntegerType::get(ctx, 1);
 
   // Create DimOps.
-  Value inputBatchSize = rewriter.create<memref::DimOp>(loc, input, c0);
-  Value inputNumChannels = rewriter.create<memref::DimOp>(loc, input, c1);
-  Value inputRow = rewriter.create<memref::DimOp>(loc, input, c2);
-  Value inputCol = rewriter.create<memref::DimOp>(loc, input, c3);
+  auto inputBatchSize = rewriter.create<memref::DimOp>(loc, input, c0);
+  auto inputNumChannels = rewriter.create<memref::DimOp>(loc, input, c1);
+  auto inputRow = rewriter.create<memref::DimOp>(loc, input, c2);
+  auto inputCol = rewriter.create<memref::DimOp>(loc, input, c3);
 
-  // TODO: Add an assert to ensure that second dimension of both input and
-  // kernel is same, since they both represent number of channels in input.
+  auto outputNumChannels = rewriter.create<memref::DimOp>(loc, kernel, c0);
+  auto kernelRow = rewriter.create<memref::DimOp>(loc, kernel, c2);
+  auto kernelCol = rewriter.create<memref::DimOp>(loc, kernel, c3);
 
-  Value outputNumChannels = rewriter.create<memref::DimOp>(loc, kernel, c0);
-  Value kernelRow = rewriter.create<memref::DimOp>(loc, kernel, c2);
-  Value kernelCol = rewriter.create<memref::DimOp>(loc, kernel, c3);
+  auto outputNumChannelsViaOutputContainer =
+      rewriter.create<memref::DimOp>(loc, output, c1);
+  if (outputNumChannels.getResult() !=
+      outputNumChannelsViaOutputContainer.getResult()) {
+    // Logical Error: Inconsistent number of output channels in
+    // kernel/filter container shape and output container shape.
+    return;
+  }
 
   // Variables used for detecting rowMid, rowDown, colMid and colRight
   // regions.
-  Value rowMidHelper = rewriter.create<arith::AddIOp>(loc, inputRow, centerY);
-  Value colMidHelper = rewriter.create<arith::AddIOp>(loc, inputCol, centerX);
+  auto rowMidHelper = rewriter.create<arith::AddIOp>(loc, inputRow, centerY);
+  auto colMidHelper = rewriter.create<arith::AddIOp>(loc, inputCol, centerX);
 
   SmallVector<Value, 8> lowerBounds(7, c0);
   SmallVector<Value, 8> uperBounds{
@@ -1720,18 +1726,18 @@ void traverseImagewBoundaryExtrapolation4DMemRefsNCHWFCHW(
       kernelRow,      inputCol,          kernelCol};
   SmallVector<int64_t, 8> steps{1, 1, 1, 1, 1, stride, 1};
 
-  VectorType vectorTy32 = VectorType::get({stride}, elemTy);
-  VectorType vectorMaskTy = VectorType::get({stride}, i1);
+  auto vectorTy32 = VectorType::get({stride}, elemTy);
+  auto vectorMaskTy = VectorType::get({stride}, i1);
 
-  Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, elemTy);
-  Value zeroPadding =
+  auto zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, elemTy);
+  auto zeroPadding =
       rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
 
   AffineExpr a, b, c;
   bindDims(ctx, a, b, c);
-  AffineMap calcHelper = AffineMap::get(3, 0, {a + b - c}, ctx);
+  auto calcHelper = AffineMap::get(3, 0, {a + b - c}, ctx);
 
-  Value pseudoCol = rewriter.create<affine::AffineApplyOp>(
+  auto pseudoCol = rewriter.create<affine::AffineApplyOp>(
       loc, calcHelper, ValueRange{inputCol, kernelCol, c1});
 
   affine::buildAffineLoopNest(
@@ -1767,145 +1773,160 @@ void traverseImagewBoundaryExtrapolation4DMemRefsNCHWFCHW(
                   loc, rowUpCond,
                   [&](OpBuilder &builder, Location loc) {
                     // rowUp
-                    if (boundaryOptionAttr ==
-                        buddy::dip::BoundaryOption::ConstantPadding) {
-                      Value inputVec = builder.create<vector::BroadcastOp>(
-                          loc, vectorTy32, constantValue);
-                      // calcAndStoreFMAwoTailProcessing4DMemRefs(
-                      //     builder, loc, vectorTy32, inputVec, kernelVec,
-                      //     output, ivs[0], ivs[1], ivs[3], ivs[5]);
+                    // if (boundaryOptionAttr ==
+                    //     buddy::dip::BoundaryOption::ConstantPadding) {
+                    //   Value inputVec = builder.create<vector::BroadcastOp>(
+                    //       loc, vectorTy32, constantValue);
+                    // calcAndStoreFMAwoTailProcessing4DMemRefs(
+                    //     builder, loc, vectorTy32, inputVec, kernelVec,
+                    //     output, ivs[0], ivs[1], ivs[3], ivs[5]);
 
-                      Value rightMaskHelper = builder.create<arith::SubIOp>(
-                          loc, colLastElem, colMidHelper);
-                      Value rightMaskElem = builder.create<arith::SubIOp>(
-                          loc, strideVal, rightMaskHelper);
-                      Value rightMask = builder.create<vector::CreateMaskOp>(
-                          loc, vectorMaskTy, rightMaskElem);
+                    //   Value rightMaskHelper = builder.create<arith::SubIOp>(
+                    //       loc, colLastElem, colMidHelper);
+                    //   Value rightMaskElem = builder.create<arith::SubIOp>(
+                    //       loc, strideVal, rightMaskHelper);
+                    //   Value rightMask = builder.create<vector::CreateMaskOp>(
+                    //       loc, vectorMaskTy, rightMaskElem);
 
-                      Value tailCond =
-                          tailChecker(builder, loc, calcHelper, strideVal,
-                                      kernelCol, c1, pseudoCol, ivs[5]);
+                    //   Value tailCond =
+                    //       tailChecker(builder, loc, calcHelper, strideVal,
+                    //                   kernelCol, c1, pseudoCol, ivs[5]);
 
-                      calcAndStoreFMAwTailProcessing4DMemRefs(
-                          builder, loc, vectorTy32, inputVec, kernelVec, output,
-                          ivs[0], ivs[1], ivs[3], ivs[5], tailCond, zeroPadding,
-                          inputCol, vectorMaskTy);
+                    //   calcAndStoreFMAwTailProcessing4DMemRefs(
+                    //       builder, loc, vectorTy32, inputVec, kernelVec,
+                    //       output, ivs[0], ivs[1], ivs[3], ivs[5], tailCond,
+                    //       zeroPadding, inputCol, vectorMaskTy);
 
-                    } else {
-                      Value colLeftCond = builder.create<arith::CmpIOp>(
-                          loc, arith::CmpIPredicate::slt, currCol, centerX);
+                    // } else {
+                    Value colLeftCond = builder.create<arith::CmpIOp>(
+                        loc, arith::CmpIPredicate::slt, currCol, centerX);
 
-                      builder.create<scf::IfOp>(
-                          loc, colLeftCond,
-                          [&](OpBuilder &builder, Location loc) {
-                            // colLeft & rowUp
-                            Value inputVec;
-                            Value leftMaskElem = builder.create<arith::SubIOp>(
-                                loc, centerX, currCol);
-                            Value leftMask =
-                                createInvertedMask(builder, loc, strideVal,
-                                                   vectorMaskTy, leftMaskElem);
+                    builder.create<scf::IfOp>(
+                        loc, colLeftCond,
+                        [&](OpBuilder &builder, Location loc) {
+                          // colLeft & rowUp
+                          Value inputVec;
+                          Value leftMaskElem = builder.create<arith::SubIOp>(
+                              loc, centerX, currCol);
+                          Value leftMask =
+                              createInvertedMask(builder, loc, strideVal,
+                                                 vectorMaskTy, leftMaskElem);
 
-                            if (boundaryOptionAttr ==
-                                buddy::dip::BoundaryOption::ReplicatePadding) {
-                              Value paddingVal = builder.create<memref::LoadOp>(
-                                  loc, input,
-                                  ValueRange{ivs[0], ivs[2], c0, c0});
-                              Value padding =
-                                  builder.create<vector::BroadcastOp>(
-                                      loc, vectorTy32, paddingVal);
+                          if (boundaryOptionAttr ==
+                              buddy::dip::BoundaryOption::ReplicatePadding) {
+                            Value paddingVal = builder.create<memref::LoadOp>(
+                                loc, input, ValueRange{ivs[0], ivs[2], c0, c0});
+                            Value padding = builder.create<vector::BroadcastOp>(
+                                loc, vectorTy32, paddingVal);
 
-                              Value leftPaddingOffset =
-                                  builder.create<arith::SubIOp>(loc, c0,
-                                                                leftMaskElem);
-                              inputVec = builder.create<vector::MaskedLoadOp>(
-                                  loc, vectorTy32, input,
-                                  ValueRange{ivs[0], ivs[2], c0,
-                                             leftPaddingOffset},
-                                  leftMask, padding);
-                            }
+                            Value leftPaddingOffset =
+                                builder.create<arith::SubIOp>(loc, c0,
+                                                              leftMaskElem);
+                            inputVec = builder.create<vector::MaskedLoadOp>(
+                                loc, vectorTy32, input,
+                                ValueRange{ivs[0], ivs[2], c0,
+                                           leftPaddingOffset},
+                                leftMask, padding);
+                          } else if (boundaryOptionAttr ==
+                                     buddy::dip::BoundaryOption::
+                                         ConstantPadding) {
+                            inputVec = builder.create<vector::BroadcastOp>(
+                                loc, vectorTy32, constantValue);
+                          }
 
-                            calcAndStoreFMAwoTailProcessing4DMemRefs(
-                                builder, loc, vectorTy32, inputVec, kernelVec,
-                                output, ivs[0], ivs[1], ivs[3], ivs[5]);
+                          calcAndStoreFMAwoTailProcessing4DMemRefs(
+                              builder, loc, vectorTy32, inputVec, kernelVec,
+                              output, ivs[0], ivs[1], ivs[3], ivs[5]);
 
-                            builder.create<scf::YieldOp>(loc);
-                          },
-                          [&](OpBuilder &builder, Location loc) {
-                            // (colMid or colRight) & rowUp
-                            Value colMidCond = builder.create<arith::CmpIOp>(
-                                loc, arith::CmpIPredicate::slt, colLastElem,
-                                colMidHelper);
+                          builder.create<scf::YieldOp>(loc);
+                        },
+                        [&](OpBuilder &builder, Location loc) {
+                          // (colMid or colRight) & rowUp
+                          Value colMidCond = builder.create<arith::CmpIOp>(
+                              loc, arith::CmpIPredicate::slt, colLastElem,
+                              colMidHelper);
 
-                            builder.create<scf::IfOp>(
-                                loc, colMidCond,
-                                [&](OpBuilder &builder, Location loc) {
-                                  // colMid & rowUp
-                                  Value inputVec;
-                                  if (boundaryOptionAttr ==
-                                      buddy::dip::BoundaryOption::
-                                          ReplicatePadding) {
-                                    inputVec = builder.create<vector::LoadOp>(
-                                        loc, vectorTy32, input,
-                                        ValueRange{ivs[0], ivs[2], c0, imCol});
-                                  }
+                          builder.create<scf::IfOp>(
+                              loc, colMidCond,
+                              [&](OpBuilder &builder, Location loc) {
+                                // colMid & rowUp
+                                Value inputVec;
+                                if (boundaryOptionAttr ==
+                                    buddy::dip::BoundaryOption::
+                                        ReplicatePadding) {
+                                  inputVec = builder.create<vector::LoadOp>(
+                                      loc, vectorTy32, input,
+                                      ValueRange{ivs[0], ivs[2], c0, imCol});
+                                } else if (boundaryOptionAttr ==
+                                           buddy::dip::BoundaryOption::
+                                               ConstantPadding) {
+                                  inputVec =
+                                      builder.create<vector::BroadcastOp>(
+                                          loc, vectorTy32, constantValue);
+                                }
 
-                                  calcAndStoreFMAwoTailProcessing4DMemRefs(
-                                      builder, loc, vectorTy32, inputVec,
-                                      kernelVec, output, ivs[0], ivs[1], ivs[3],
-                                      ivs[5]);
-                                  builder.create<scf::YieldOp>(loc);
-                                },
-                                [&](OpBuilder &builder, Location loc) {
-                                  // colRight & rowUp
-                                  Value inputVec;
-                                  Value rightMaskHelper =
+                                calcAndStoreFMAwoTailProcessing4DMemRefs(
+                                    builder, loc, vectorTy32, inputVec,
+                                    kernelVec, output, ivs[0], ivs[1], ivs[3],
+                                    ivs[5]);
+                                builder.create<scf::YieldOp>(loc);
+                              },
+                              [&](OpBuilder &builder, Location loc) {
+                                // colRight & rowUp
+                                Value inputVec;
+                                Value rightMaskHelper =
+                                    builder.create<arith::SubIOp>(
+                                        loc, colLastElem, colMidHelper);
+                                Value rightMaskElem =
+                                    builder.create<arith::SubIOp>(
+                                        loc, strideVal, rightMaskHelper);
+                                Value rightMask =
+                                    builder.create<vector::CreateMaskOp>(
+                                        loc, vectorMaskTy, rightMaskElem);
+
+                                if (boundaryOptionAttr ==
+                                    buddy::dip::BoundaryOption::
+                                        ReplicatePadding) {
+                                  Value rightRange =
                                       builder.create<arith::SubIOp>(
-                                          loc, colLastElem, colMidHelper);
-                                  Value rightMaskElem =
-                                      builder.create<arith::SubIOp>(
-                                          loc, strideVal, rightMaskHelper);
-                                  Value rightMask =
-                                      builder.create<vector::CreateMaskOp>(
-                                          loc, vectorMaskTy, rightMaskElem);
+                                          loc, inputCol, c1);
+                                  Value paddingVal =
+                                      builder.create<memref::LoadOp>(
+                                          loc, input,
+                                          ValueRange{ivs[0], ivs[2], c0,
+                                                     rightRange});
+                                  Value padding =
+                                      builder.create<vector::BroadcastOp>(
+                                          loc, vectorTy32, paddingVal);
 
-                                  if (boundaryOptionAttr ==
-                                      buddy::dip::BoundaryOption::
-                                          ReplicatePadding) {
-                                    Value rightRange =
-                                        builder.create<arith::SubIOp>(
-                                            loc, inputCol, c1);
-                                    Value paddingVal =
-                                        builder.create<memref::LoadOp>(
-                                            loc, input,
-                                            ValueRange{ivs[0], ivs[2], c0,
-                                                       rightRange});
-                                    Value padding =
-                                        builder.create<vector::BroadcastOp>(
-                                            loc, vectorTy32, paddingVal);
+                                  inputVec =
+                                      builder.create<vector::MaskedLoadOp>(
+                                          loc, vectorTy32, input,
+                                          ValueRange{ivs[0], ivs[2], c0, imCol},
+                                          rightMask, padding);
+                                } else if (boundaryOptionAttr ==
+                                           buddy::dip::BoundaryOption::
+                                               ConstantPadding) {
+                                  inputVec =
+                                      builder.create<vector::BroadcastOp>(
+                                          loc, vectorTy32, constantValue);
+                                }
 
-                                    inputVec =
-                                        builder.create<vector::MaskedLoadOp>(
-                                            loc, vectorTy32, input,
-                                            ValueRange{ivs[0], ivs[2], c0,
-                                                       imCol},
-                                            rightMask, padding);
-                                  }
-                                  Value tailCond = tailChecker(
-                                      builder, loc, calcHelper, strideVal,
-                                      kernelCol, c1, pseudoCol, ivs[5]);
+                                Value tailCond = tailChecker(
+                                    builder, loc, calcHelper, strideVal,
+                                    kernelCol, c1, pseudoCol, ivs[5]);
 
-                                  calcAndStoreFMAwTailProcessing4DMemRefs(
-                                      builder, loc, vectorTy32, inputVec,
-                                      kernelVec, output, ivs[0], ivs[1], ivs[3],
-                                      ivs[5], tailCond, zeroPadding, inputCol,
-                                      vectorMaskTy);
+                                calcAndStoreFMAwTailProcessing4DMemRefs(
+                                    builder, loc, vectorTy32, inputVec,
+                                    kernelVec, output, ivs[0], ivs[1], ivs[3],
+                                    ivs[5], tailCond, zeroPadding, inputCol,
+                                    vectorMaskTy);
 
-                                  builder.create<scf::YieldOp>(loc);
-                                });
-                            builder.create<scf::YieldOp>(loc);
-                          });
-                    }
+                                builder.create<scf::YieldOp>(loc);
+                              });
+                          builder.create<scf::YieldOp>(loc);
+                        });
+                    // }
                     builder.create<scf::YieldOp>(loc);
                   },
                   [&](OpBuilder &builder, Location loc) {
@@ -2070,182 +2091,199 @@ void traverseImagewBoundaryExtrapolation4DMemRefsNCHWFCHW(
                         },
                         [&](OpBuilder &builder, Location loc) {
                           // rowDown
-                          if (boundaryOptionAttr ==
-                              buddy::dip::BoundaryOption::ConstantPadding) {
-                            Value inputVec =
-                                builder.create<vector::BroadcastOp>(
-                                    loc, vectorTy32, constantValue);
+                          //   if (boundaryOptionAttr ==
+                          //       buddy::dip::BoundaryOption::ConstantPadding)
+                          //       {
+                          // Value inputVec =
+                          //     builder.create<vector::BroadcastOp>(
+                          //         loc, vectorTy32, constantValue);
 
-                            //   calcAndStoreFMAwoTailProcessing4DMemRefs(
-                            //       builder, loc, vectorTy32, inputVec,
-                            //       kernelVec, output, ivs[0], ivs[1], ivs[3],
-                            //       ivs[5]);
+                          //     //   calcAndStoreFMAwoTailProcessing4DMemRefs(
+                          //     //       builder, loc, vectorTy32, inputVec,
+                          //     //       kernelVec, output, ivs[0], ivs[1],
+                          //     ivs[3],
+                          //     //       ivs[5]);
 
-                            Value rightMaskHelper =
-                                builder.create<arith::SubIOp>(loc, colLastElem,
-                                                              colMidHelper);
-                            Value rightMaskElem = builder.create<arith::SubIOp>(
-                                loc, strideVal, rightMaskHelper);
-                            Value rightMask =
-                                builder.create<vector::CreateMaskOp>(
-                                    loc, vectorMaskTy, rightMaskElem);
+                          //     Value rightMaskHelper =
+                          //         builder.create<arith::SubIOp>(loc,
+                          //         colLastElem,
+                          //                                       colMidHelper);
+                          //     Value rightMaskElem =
+                          //     builder.create<arith::SubIOp>(
+                          //         loc, strideVal, rightMaskHelper);
+                          //     Value rightMask =
+                          //         builder.create<vector::CreateMaskOp>(
+                          //             loc, vectorMaskTy, rightMaskElem);
 
-                            Value tailCond =
-                                tailChecker(builder, loc, calcHelper, strideVal,
-                                            kernelCol, c1, pseudoCol, ivs[5]);
+                          //     Value tailCond =
+                          //         tailChecker(builder, loc, calcHelper,
+                          //         strideVal,
+                          //                     kernelCol, c1, pseudoCol,
+                          //                     ivs[5]);
 
-                            calcAndStoreFMAwTailProcessing4DMemRefs(
-                                builder, loc, vectorTy32, inputVec, kernelVec,
-                                output, ivs[0], ivs[1], ivs[3], ivs[5],
-                                tailCond, zeroPadding, inputCol, vectorMaskTy);
+                          //     calcAndStoreFMAwTailProcessing4DMemRefs(
+                          //         builder, loc, vectorTy32, inputVec,
+                          //         kernelVec, output, ivs[0], ivs[1], ivs[3],
+                          //         ivs[5], tailCond, zeroPadding, inputCol,
+                          //         vectorMaskTy);
 
-                          } else {
-                            Value colLeftCond = builder.create<arith::CmpIOp>(
-                                loc, arith::CmpIPredicate::slt, currCol,
-                                centerX);
+                          //   } else {
+                          Value colLeftCond = builder.create<arith::CmpIOp>(
+                              loc, arith::CmpIPredicate::slt, currCol, centerX);
 
-                            builder.create<scf::IfOp>(
-                                loc, colLeftCond,
-                                [&](OpBuilder &builder, Location loc) {
-                                  // colLeft & rowDown
-                                  Value inputVec;
-                                  Value downRange =
+                          builder.create<scf::IfOp>(
+                              loc, colLeftCond,
+                              [&](OpBuilder &builder, Location loc) {
+                                // colLeft & rowDown
+                                Value inputVec;
+                                Value downRange = builder.create<arith::SubIOp>(
+                                    loc, inputRow, c1);
+                                Value leftMaskElem =
+                                    builder.create<arith::SubIOp>(loc, centerX,
+                                                                  currCol);
+                                Value leftMask = createInvertedMask(
+                                    builder, loc, strideVal, vectorMaskTy,
+                                    leftMaskElem);
+
+                                if (boundaryOptionAttr ==
+                                    buddy::dip::BoundaryOption::
+                                        ReplicatePadding) {
+                                  Value paddingVal =
+                                      builder.create<memref::LoadOp>(
+                                          loc, input,
+                                          ValueRange{ivs[0], ivs[2], downRange,
+                                                     c0});
+                                  Value padding =
+                                      builder.create<vector::BroadcastOp>(
+                                          loc, vectorTy32, paddingVal);
+
+                                  Value leftPaddingOffset =
                                       builder.create<arith::SubIOp>(
-                                          loc, inputRow, c1);
-                                  Value leftMaskElem =
-                                      builder.create<arith::SubIOp>(
-                                          loc, centerX, currCol);
-                                  Value leftMask = createInvertedMask(
-                                      builder, loc, strideVal, vectorMaskTy,
-                                      leftMaskElem);
+                                          loc, c0, leftMaskElem);
+                                  inputVec =
+                                      builder.create<vector::MaskedLoadOp>(
+                                          loc, vectorTy32, input,
+                                          ValueRange{ivs[0], ivs[2], downRange,
+                                                     leftPaddingOffset},
+                                          leftMask, padding);
+                                } else if (boundaryOptionAttr ==
+                                           buddy::dip::BoundaryOption::
+                                               ConstantPadding) {
+                                  inputVec =
+                                      builder.create<vector::BroadcastOp>(
+                                          loc, vectorTy32, constantValue);
+                                }
 
-                                  if (boundaryOptionAttr ==
-                                      buddy::dip::BoundaryOption::
-                                          ReplicatePadding) {
-                                    Value paddingVal =
-                                        builder.create<memref::LoadOp>(
-                                            loc, input,
-                                            ValueRange{ivs[0], ivs[2],
-                                                       downRange, c0});
-                                    Value padding =
-                                        builder.create<vector::BroadcastOp>(
-                                            loc, vectorTy32, paddingVal);
+                                calcAndStoreFMAwoTailProcessing4DMemRefs(
+                                    builder, loc, vectorTy32, inputVec,
+                                    kernelVec, output, ivs[0], ivs[1], ivs[3],
+                                    ivs[5]);
 
-                                    Value leftPaddingOffset =
-                                        builder.create<arith::SubIOp>(
-                                            loc, c0, leftMaskElem);
-                                    inputVec =
-                                        builder.create<vector::MaskedLoadOp>(
-                                            loc, vectorTy32, input,
-                                            ValueRange{ivs[0], ivs[2],
-                                                       downRange,
-                                                       leftPaddingOffset},
-                                            leftMask, padding);
-                                  }
+                                builder.create<scf::YieldOp>(loc);
+                              },
+                              [&](OpBuilder &builder, Location loc) {
+                                // (colMid or colRight) & rowDown
+                                Value colMidCond =
+                                    builder.create<arith::CmpIOp>(
+                                        loc, arith::CmpIPredicate::slt,
+                                        colLastElem, colMidHelper);
 
-                                  calcAndStoreFMAwoTailProcessing4DMemRefs(
-                                      builder, loc, vectorTy32, inputVec,
-                                      kernelVec, output, ivs[0], ivs[1], ivs[3],
-                                      ivs[5]);
+                                builder.create<scf::IfOp>(
+                                    loc, colMidCond,
+                                    [&](OpBuilder &builder, Location loc) {
+                                      // colMid & rowDown
+                                      Value inputVec;
+                                      Value downRange =
+                                          builder.create<arith::SubIOp>(
+                                              loc, inputRow, c1);
+                                      if (boundaryOptionAttr ==
+                                          buddy::dip::BoundaryOption::
+                                              ReplicatePadding) {
+                                        inputVec =
+                                            builder.create<vector::LoadOp>(
+                                                loc, vectorTy32, input,
+                                                ValueRange{ivs[0], ivs[2],
+                                                           downRange, imCol});
+                                      } else if (boundaryOptionAttr ==
+                                                 buddy::dip::BoundaryOption::
+                                                     ConstantPadding) {
+                                        inputVec =
+                                            builder.create<vector::BroadcastOp>(
+                                                loc, vectorTy32, constantValue);
+                                      }
 
-                                  builder.create<scf::YieldOp>(loc);
-                                },
-                                [&](OpBuilder &builder, Location loc) {
-                                  // (colMid or colRight) & rowDown
-                                  Value colMidCond =
-                                      builder.create<arith::CmpIOp>(
-                                          loc, arith::CmpIPredicate::slt,
-                                          colLastElem, colMidHelper);
+                                      calcAndStoreFMAwoTailProcessing4DMemRefs(
+                                          builder, loc, vectorTy32, inputVec,
+                                          kernelVec, output, ivs[0], ivs[1],
+                                          ivs[3], ivs[5]);
 
-                                  builder.create<scf::IfOp>(
-                                      loc, colMidCond,
-                                      [&](OpBuilder &builder, Location loc) {
-                                        // colMid & rowDown
-                                        Value inputVec;
-                                        Value downRange =
-                                            builder.create<arith::SubIOp>(
-                                                loc, inputRow, c1);
-                                        if (boundaryOptionAttr ==
-                                            buddy::dip::BoundaryOption::
-                                                ReplicatePadding) {
-                                          inputVec =
-                                              builder.create<vector::LoadOp>(
-                                                  loc, vectorTy32, input,
-                                                  ValueRange{ivs[0], ivs[2],
-                                                             downRange, imCol});
-                                        }
+                                      builder.create<scf::YieldOp>(loc);
+                                    },
+                                    [&](OpBuilder &builder, Location loc) {
+                                      // colRight & rowDown
+                                      Value inputVec;
+                                      Value rightMaskHelper =
+                                          builder.create<arith::SubIOp>(
+                                              loc, colLastElem, colMidHelper);
+                                      Value rightMaskElem =
+                                          builder.create<arith::SubIOp>(
+                                              loc, strideVal, rightMaskHelper);
+                                      Value rightMask =
+                                          builder.create<vector::CreateMaskOp>(
+                                              loc, vectorMaskTy, rightMaskElem);
 
-                                        calcAndStoreFMAwoTailProcessing4DMemRefs(
-                                            builder, loc, vectorTy32, inputVec,
-                                            kernelVec, output, ivs[0], ivs[1],
-                                            ivs[3], ivs[5]);
+                                      Value downRange =
+                                          builder.create<arith::SubIOp>(
+                                              loc, inputRow, c1);
+                                      Value rightRange =
+                                          builder.create<arith::SubIOp>(
+                                              loc, inputCol, c1);
 
-                                        builder.create<scf::YieldOp>(loc);
-                                      },
-                                      [&](OpBuilder &builder, Location loc) {
-                                        // colRight & rowDown
-                                        Value inputVec;
-                                        Value rightMaskHelper =
-                                            builder.create<arith::SubIOp>(
-                                                loc, colLastElem, colMidHelper);
-                                        Value rightMaskElem =
-                                            builder.create<arith::SubIOp>(
-                                                loc, strideVal,
-                                                rightMaskHelper);
-                                        Value rightMask =
+                                      if (boundaryOptionAttr ==
+                                          buddy::dip::BoundaryOption::
+                                              ReplicatePadding) {
+
+                                        Value paddingVal =
+                                            builder.create<memref::LoadOp>(
+                                                loc, input,
+                                                ValueRange{ivs[0], ivs[2],
+                                                           downRange,
+                                                           rightRange});
+                                        Value padding =
+                                            builder.create<vector::BroadcastOp>(
+                                                loc, vectorTy32, paddingVal);
+
+                                        inputVec =
                                             builder
-                                                .create<vector::CreateMaskOp>(
-                                                    loc, vectorMaskTy,
-                                                    rightMaskElem);
+                                                .create<vector::MaskedLoadOp>(
+                                                    loc, vectorTy32, input,
+                                                    ValueRange{ivs[0], ivs[2],
+                                                               downRange,
+                                                               imCol},
+                                                    rightMask, padding);
+                                      } else if (boundaryOptionAttr ==
+                                                 buddy::dip::BoundaryOption::
+                                                     ConstantPadding) {
+                                        inputVec =
+                                            builder.create<vector::BroadcastOp>(
+                                                loc, vectorTy32, constantValue);
+                                      }
 
-                                        Value downRange =
-                                            builder.create<arith::SubIOp>(
-                                                loc, inputRow, c1);
-                                        Value rightRange =
-                                            builder.create<arith::SubIOp>(
-                                                loc, inputCol, c1);
+                                      Value tailCond = tailChecker(
+                                          builder, loc, calcHelper, strideVal,
+                                          kernelCol, c1, pseudoCol, ivs[5]);
 
-                                        if (boundaryOptionAttr ==
-                                            buddy::dip::BoundaryOption::
-                                                ReplicatePadding) {
+                                      calcAndStoreFMAwTailProcessing4DMemRefs(
+                                          builder, loc, vectorTy32, inputVec,
+                                          kernelVec, output, ivs[0], ivs[1],
+                                          ivs[3], ivs[5], tailCond, zeroPadding,
+                                          inputCol, vectorMaskTy);
 
-                                          Value paddingVal =
-                                              builder.create<memref::LoadOp>(
-                                                  loc, input,
-                                                  ValueRange{ivs[0], ivs[2],
-                                                             downRange,
-                                                             rightRange});
-                                          Value padding =
-                                              builder
-                                                  .create<vector::BroadcastOp>(
-                                                      loc, vectorTy32,
-                                                      paddingVal);
-
-                                          inputVec =
-                                              builder
-                                                  .create<vector::MaskedLoadOp>(
-                                                      loc, vectorTy32, input,
-                                                      ValueRange{ivs[0], ivs[2],
-                                                                 downRange,
-                                                                 imCol},
-                                                      rightMask, padding);
-                                        }
-                                        Value tailCond = tailChecker(
-                                            builder, loc, calcHelper, strideVal,
-                                            kernelCol, c1, pseudoCol, ivs[5]);
-
-                                        calcAndStoreFMAwTailProcessing4DMemRefs(
-                                            builder, loc, vectorTy32, inputVec,
-                                            kernelVec, output, ivs[0], ivs[1],
-                                            ivs[3], ivs[5], tailCond,
-                                            zeroPadding, inputCol,
-                                            vectorMaskTy);
-
-                                        builder.create<scf::YieldOp>(loc);
-                                      });
-                                  builder.create<scf::YieldOp>(loc);
-                                });
-                          }
+                                      builder.create<scf::YieldOp>(loc);
+                                    });
+                                builder.create<scf::YieldOp>(loc);
+                              });
+                          //   }
                           builder.create<scf::YieldOp>(loc);
                         });
                     builder.create<scf::YieldOp>(loc);
