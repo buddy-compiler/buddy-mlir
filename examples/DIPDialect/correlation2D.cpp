@@ -64,6 +64,8 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
     cout << "Could not read the image: " << argv[1] << endl;
   }
 
+  // std::cout << image.cols << "\n\n";
+
   // Define the kernel.
   float *kernelAlign = laplacianKernelAlign;
   int kernelRows = laplacianKernelRows;
