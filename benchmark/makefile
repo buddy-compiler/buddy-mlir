@@ -4,13 +4,13 @@ MLIR_OPT := ../llvm/build/bin/mlir-opt
 MLIR_CPU_RUNNER := ../llvm/build/bin/mlir-cpu-runner
 OPT_FLAG := -O3
 
-STRIP := 64
+STRIP := 2
 FILTER_min := 3
-FILTER_max := 19
-FILTER_step := 4
-OUTPUT_min := 64
-OUTPUT_max := 1024
-OUTPUT_step := 64
+FILTER_max := 3
+FILTER_step := 1
+OUTPUT_min := 6
+OUTPUT_max := 6
+OUTPUT_step := 1
 
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../llvm/build/lib/libmlir_runner_utils.so
@@ -36,9 +36,6 @@ BUDDY_OPT_OPTIONS := -conv-vectorization="strip-mining=${STRIP}" -lower-affine -
 MLIR_OPT_OPTIONS := -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-scf-to-cf -convert-vector-to-llvm --finalize-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts
 
 $(OUT):$(SOURCE)
-	@echo $*
-	@${BUDDY_OPT} tempFile/$*.mlir ${BUDDY_OPT_OPTIONS} | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 	@${MLIR_OPT} tempFile/$*.mlir ${MLIR_OPT_OPTIONS} | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
