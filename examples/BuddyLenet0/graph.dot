@@ -1,0 +1,50 @@
+// Buddy Graph
+digraph {
+	arg0_1 -> convolution
+	arg1_1 -> convolution
+	arg2_1 -> convolution_1
+	arg3_1 -> convolution_1
+	arg4_1 -> convolution_2
+	arg5_1 -> convolution_2
+	arg6_1 -> permute
+	arg7_1 -> addmm
+	arg8_1 -> permute_1
+	arg9_1 -> addmm_1
+	arg10_1 -> convolution
+	convolution -> relu
+	relu -> getitem
+	getitem -> convolution_1
+	convolution_1 -> relu_1
+	relu_1 -> getitem_2
+	getitem_2 -> convolution_2
+	convolution_2 -> view
+	view -> addmm
+	permute -> addmm
+	addmm -> addmm_1
+	permute_1 -> addmm_1
+	addmm_1 -> output
+	arg0_1 [fillcolor=white shape=ellipse style=filled]
+	arg1_1 [fillcolor=white shape=ellipse style=filled]
+	arg2_1 [fillcolor=white shape=ellipse style=filled]
+	arg3_1 [fillcolor=white shape=ellipse style=filled]
+	arg4_1 [fillcolor=white shape=ellipse style=filled]
+	arg5_1 [fillcolor=white shape=ellipse style=filled]
+	arg6_1 [fillcolor=white shape=ellipse style=filled]
+	arg7_1 [fillcolor=white shape=ellipse style=filled]
+	arg8_1 [fillcolor=white shape=ellipse style=filled]
+	arg9_1 [fillcolor=white shape=ellipse style=filled]
+	arg10_1 [fillcolor=white shape=ellipse style=filled]
+	convolution [fillcolor=deepskyblue shape=box style=filled]
+	relu [fillcolor=deepskyblue shape=box style=filled]
+	getitem [fillcolor=red shape=box style=filled]
+	convolution_1 [fillcolor=deepskyblue shape=box style=filled]
+	relu_1 [fillcolor=deepskyblue shape=box style=filled]
+	getitem_2 [fillcolor=red shape=box style=filled]
+	convolution_2 [fillcolor=deepskyblue shape=box style=filled]
+	view [fillcolor=deepskyblue shape=box style=filled]
+	permute [fillcolor=deepskyblue shape=box style=filled]
+	addmm [fillcolor=deepskyblue shape=box style=filled]
+	permute_1 [fillcolor=deepskyblue shape=box style=filled]
+	addmm_1 [fillcolor=deepskyblue shape=box style=filled]
+	output [fillcolor=white shape=ellipse style=filled]
+}

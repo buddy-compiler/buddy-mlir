@@ -53,7 +53,7 @@ with torch.no_grad():
 assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
-graph.lower_to_top_level_ir(do_params_pack=True)
+graph.lower_to_top_level_ir()
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 # Write the MLIR module to the file.
 with open(os.path.join(path_prefix, "lenet.mlir"), "w") as module_file:

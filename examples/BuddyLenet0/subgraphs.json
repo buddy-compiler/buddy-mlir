@@ -1,0 +1,216 @@
+{
+  "graphs": [
+    {
+      "graph_name": "subgraph0",
+      "nodes": [
+        {
+          "name": "arg0_1",
+          "children": [
+            "convolution"
+          ],
+          "parents": []
+        },
+        {
+          "name": "arg1_1",
+          "children": [
+            "convolution"
+          ],
+          "parents": []
+        },
+        {
+          "name": "arg2_1",
+          "children": [
+            "convolution_1"
+          ],
+          "parents": []
+        },
+        {
+          "name": "arg3_1",
+          "children": [
+            "convolution_1"
+          ],
+          "parents": []
+        },
+        {
+          "name": "arg4_1",
+          "children": [
+            "convolution_2"
+          ],
+          "parents": []
+        },
+        {
+          "name": "arg5_1",
+          "children": [
+            "convolution_2"
+          ],
+          "parents": []
+        },
+        {
+          "name": "relu",
+          "children": [
+            "getitem"
+          ],
+          "parents": [
+            "convolution"
+          ]
+        },
+        {
+          "name": "getitem",
+          "children": [
+            "convolution_1"
+          ],
+          "parents": [
+            "relu"
+          ]
+        },
+        {
+          "name": "convolution_1",
+          "children": [
+            "relu_1"
+          ],
+          "parents": [
+            "getitem",
+            "arg2_1",
+            "arg3_1"
+          ]
+        },
+        {
+          "name": "relu_1",
+          "children": [
+            "getitem_2"
+          ],
+          "parents": [
+            "convolution_1"
+          ]
+        },
+        {
+          "name": "getitem_2",
+          "children": [
+            "convolution_2"
+          ],
+          "parents": [
+            "relu_1"
+          ]
+        }
+      ],
+      "device": "cpu"
+    },
+    {
+      "graph_name": "subgraph1",
+      "nodes": [
+        {
+          "name": "arg6_1",
+          "children": [
+            "permute"
+          ],
+          "parents": []
+        },
+        {
+          "name": "arg7_1",
+          "children": [
+            "addmm"
+          ],
+          "parents": []
+        },
+        {
+          "name": "arg8_1",
+          "children": [
+            "permute_1"
+          ],
+          "parents": []
+        },
+        {
+          "name": "arg9_1",
+          "children": [
+            "addmm_1"
+          ],
+          "parents": []
+        },
+        {
+          "name": "arg10_1",
+          "children": [
+            "convolution"
+          ],
+          "parents": []
+        },
+        {
+          "name": "convolution",
+          "children": [
+            "relu"
+          ],
+          "parents": [
+            "arg10_1",
+            "arg0_1",
+            "arg1_1"
+          ]
+        },
+        {
+          "name": "convolution_2",
+          "children": [
+            "view"
+          ],
+          "parents": [
+            "getitem_2",
+            "arg4_1",
+            "arg5_1"
+          ]
+        },
+        {
+          "name": "view",
+          "children": [
+            "addmm"
+          ],
+          "parents": [
+            "convolution_2"
+          ]
+        },
+        {
+          "name": "permute",
+          "children": [
+            "addmm"
+          ],
+          "parents": [
+            "arg6_1"
+          ]
+        },
+        {
+          "name": "addmm",
+          "children": [
+            "addmm_1"
+          ],
+          "parents": [
+            "arg7_1",
+            "view",
+            "permute"
+          ]
+        },
+        {
+          "name": "permute_1",
+          "children": [
+            "addmm_1"
+          ],
+          "parents": [
+            "arg8_1"
+          ]
+        },
+        {
+          "name": "addmm_1",
+          "children": [
+            "output"
+          ],
+          "parents": [
+            "arg9_1",
+            "addmm",
+            "permute_1"
+          ]
+        },
+        {
+          "name": "output",
+          "children": [],
+          "parents": []
+        }
+      ],
+      "device": "gpu"
+    }
+  ]
+}

@@ -20,9 +20,13 @@
 
 from typing import Any, List, Optional
 from types import FunctionType
+from pathlib import Path
+
 import ctypes
 import functools
 import numpy as np
+import json
+import graphviz
 
 import mlir.ir as ir
 import mlir.dialects.func as func
@@ -163,21 +167,41 @@ class Graph:
         self._body.append(node)
         self.node_table[node.name] = node
 
-    def init_op_group(self):
+    def init_op_group(self, path : Path):
         """
         Initializes operation groups within the graph.
 
         Returns:
         - None
         """
-        for i, op in enumerate(self._body):
-            if isinstance(op, PlaceholderOp):
-                continue
-            group = [op]
-            subgraph_name = "subgraph{}".format(i)
-            self.group_map_device[subgraph_name] = DeviceType.UNKNOW
-            self.op_groups[subgraph_name] = group
-            self.op_map_group[op.name] = subgraph_name
+        # for i, op in enumerate(self._body):
+        #     if isinstance(op, PlaceholderOp):
+        #         continue
+        #     group = [op]
+        #     subgraph_name = "subgraph{}".format(i)
+        #     self.group_map_device[subgraph_name] = DeviceType.UNKNOW
+        #     self.op_groups[subgraph_name] = group
+        #     self.op_map_group[op.name] = subgraph_name
+        with open(path, 'r') as file:
+            data = json.load(file)
+            subgraphs = data["graphs"]
+            for subgraph in subgraphs:
+                subgraph_name = subgraph["graph_name"]
+                subgraph_device = subgraph["device"]
+                if subgraph_device == "cpu":
+                    self.group_map_device[subgraph_name] = DeviceType.CPU
+                elif subgraph_device == "gpu":
+                    self.group_map_device[subgraph_name] = DeviceType.GPU
+                else:
+                    self.group_map_device[subgraph_name] = DeviceType.UNKNOW
+
+                group = []
+                for node in subgraph["nodes"]:
+                    op_name = node["name"]
+                    op = self.node_table[op_name]
+                    group.append(op)
+                    self.op_map_group[op_name] = subgraph_name
+                self.op_groups[subgraph_name] = group
 
     def fuse_ops(self, pattern_list: List[FunctionType]):
         """
@@ -326,6 +350,21 @@ class Graph:
         self.lower_to_top_level_ir()
         self.lower_to_llvm_ir()
 
+    def graph2dot(self):
+        dot = graphviz.Digraph(comment='Buddy Graph')
+        for op in self._body:
+            for child in op._children:
+                dot.edge(op._name, child)
+        for op in self._body:
+            if isinstance(op, PlaceholderOp):
+                dot.node(op._name, shape="ellipse", fillcolor="white", style="filled")
+            elif isinstance(op, OutputOp):
+                dot.node(op._name, shape="ellipse", fillcolor="white", style="filled")
+            elif isinstance(op, MaxPool2dOp):
+                dot.node(op._name, shape="box", fillcolor="red", style="filled")
+            else:
+                dot.node(op._name, shape="box", fillcolor="deepskyblue", style="filled")
+        dot.save(filename="graph.dot")
 
 class GraphImporter:
     """
