@@ -1312,6 +1312,1050 @@ private:
   size_t sizeOfAccT;
 };
 
+class GemminiTileConvLowering : public OpRewritePattern<TileConvOp> {
+
+  void gemminiLoopConvWs(
+      int batchSize, int inDim, int inChannels, int outChannels, int outDim,
+      int poolOutDim, int stride, int padding, int kernelDim,
+      int kernelDilation, int poolSize, int poolStride, int poolPadding,
+      int batches, int porows, int pocols, int pochs, int krows, int kcols,
+      int kchs, int lpad, int rpad, int upad, int dpad, int plpad, int prpad,
+      int pupad, int pdpad, int orows, int ocols, Value &weights, Value &output,
+      Value &bias, Value &input, bool noBias, bool noPool, bool downsample,
+      bool writ180, bool inputDilated, int act, bool transOutput1203,
+      bool transWeight1203, bool transWeight0132, bool transInput3120,
+      int maxPixelsPerRow, bool dw, TileConvOp &tileConvOp,
+      PatternRewriter &rewriter) const {
+    Location loc = tileConvOp.getLoc();
+    // loopConvWsConfig1
+    uint64_t rs1 = (uint64_t)outChannels << 48 | (uint64_t)inChannels << 32 |
+                   (uint64_t)inDim << 16 | (uint64_t)batchSize;
+    uint64_t rs2 = (uint64_t)padding << 48 | (uint64_t)stride << 32 |
+                   (uint64_t)poolOutDim << 16 | (uint64_t)outDim;
+    TypedAttr rs1Attr = rewriter.getI64IntegerAttr(rs1);
+    TypedAttr rs2Attr = rewriter.getI64IntegerAttr(rs2);
+    Value rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr);
+    Value rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr);
+    auto libraryCallName = getLibraryCallSymbolRef(tileConvOp, 
+                                                  "loop_conv_ws_config1",
+                                                  rewriter);
+    rewriter.create<func::CallOp>(
+      loc, libraryCallName->getValue(), TypeRange(), 
+      ValueRange({rs1Value, rs2Value}));
+    // loopConvWsConfig2
+    rs1 = (uint64_t)kernelDim << 48 | (uint64_t)poolSize << 32 |
+          (uint64_t)poolStride << 16 | (uint64_t)poolPadding;
+    rs2 = (uint64_t)batches << 48 | (uint64_t)porows << 32 |
+          (uint64_t)pocols << 16 | (uint64_t)pochs;
+    rs1Attr = rewriter.getI64IntegerAttr(rs1);
+    rs2Attr = rewriter.getI64IntegerAttr(rs2);
+    rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr);
+    rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr);
+    libraryCallName = getLibraryCallSymbolRef(tileConvOp, 
+                                              "loop_conv_ws_config2",
+                                              rewriter);
+    rewriter.create<func::CallOp>(
+      loc, libraryCallName->getValue(), TypeRange(), 
+      ValueRange({rs1Value, rs2Value}));
+    // loopConvWsConfig3
+    rs1 = (uint64_t)krows << 48 | (uint64_t)kcols << 32 | (uint64_t)kchs << 16 |
+          (uint64_t)lpad;
+    rs2 = (uint64_t)rpad << 48 | (uint64_t)upad << 32 | (uint64_t)dpad << 16 |
+          (uint64_t)plpad;
+    rs1Attr = rewriter.getI64IntegerAttr(rs1);
+    rs2Attr = rewriter.getI64IntegerAttr(rs2);
+    rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr);
+    rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr);
+    libraryCallName = getLibraryCallSymbolRef(tileConvOp, 
+                                              "loop_conv_ws_config3",
+                                              rewriter);
+    rewriter.create<func::CallOp>(
+      loc, libraryCallName->getValue(), TypeRange(), 
+      ValueRange({rs1Value, rs2Value}));
+    // loopConvWsConfig4
+    rs1 = (uint64_t)orows << 48 | (uint64_t)prpad << 32 |
+          (uint64_t)pupad << 16 | (uint64_t)pdpad;
+    rs2 = (uint64_t)kernelDilation << 16 | (uint64_t)ocols;
+    rs1Attr = rewriter.getI64IntegerAttr(rs1);
+    rs2Attr = rewriter.getI64IntegerAttr(rs2);
+    rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr);
+    rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr);
+    libraryCallName = getLibraryCallSymbolRef(tileConvOp, 
+                                              "loop_conv_ws_config4",
+                                              rewriter);
+    rewriter.create<func::CallOp>(
+      loc, libraryCallName->getValue(), TypeRange(), 
+      ValueRange({rs1Value, rs2Value}));
+    // loopConvWsconfig5
+    libraryCallName = getLibraryCallSymbolRef(tileConvOp, 
+                                              "loop_conv_ws_config5",
+                                              rewriter);
+    rewriter.create<func::CallOp>(
+      loc, libraryCallName->getValue(), TypeRange(), 
+      ValueRange({weights, output}));
+    // loopConvWsconfig6
+    libraryCallName = getLibraryCallSymbolRef(tileConvOp, 
+                                              "loop_conv_ws_config6",
+                                              rewriter);
+    rewriter.create<func::CallOp>(
+      loc, libraryCallName->getValue(), TypeRange(), 
+      ValueRange({bias, input}));
+    // loopConvWs
+    rs1 = (uint64_t)maxPixelsPerRow << 8 | dw << 6 | transInput3120 << 5 |
+          transWeight0132 << 4 | transWeight1203 << 3 | transOutput1203 << 2 |
+          writ180 << 1 | noBias;
+    rs2 = act << 3 | inputDilated << 2 | downsample << 1 | noPool;
+    rs1Attr = rewriter.getI64IntegerAttr(rs1);
+    rs2Attr = rewriter.getI64IntegerAttr(rs2);
+    rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr);
+    rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr);
+    libraryCallName = getLibraryCallSymbolRef(tileConvOp, 
+                                              "loop_conv_ws",
+                                              rewriter);
+    rewriter.create<func::CallOp>(
+      loc, libraryCallName->getValue(), TypeRange(), 
+      ValueRange({rs1Value, rs2Value}));
+  }
+
+  void spTiledConv(int batchSize, int inRowDim, int inColDim, int inChannels,
+                   int outChannels, int outRowDim, int outColDim,
+                   int poolOutRowDim, int poolOutColDim, int stride,
+                   int padding, int kernelDim, int kernelDilation, int inStride,
+                   int weightStride, int outStride, int poolSize,
+                   int poolStride, int poolPadding, int batches, int porows,
+                   int pocols, int pochs, int krows, int kcols, int kchs,
+                   int lpad, int rpad, int upad, int dpad, int plpad, int prpad,
+                   int pupad, int pdpad, Value &input, Value &weights,
+                   Value &output, Value &bias, int act, acc_scale_t scale,
+                   bool wrot180, bool transOutput1203, bool transInput3120,
+                   bool transWeight1203, bool transWeight0132, bool noBias,
+                   bool noPool, bool downsample, bool inputDilated, bool dw,
+                   TileConvOp &tileConvOp,
+                   PatternRewriter &rewriter) const {
+
+    Location loc = tileConvOp.getLoc();
+    if (dw) {
+      kchs = 1;
+      pochs = 1;
+    }
+
+    const int orows = porows * poolStride + poolSize - 1 - pupad - pdpad;
+    const int ocols = pocols * poolStride + poolSize - 1 - plpad - prpad;
+    const int ochs = pochs;
+
+    // Calculate image dimensions
+    // Note: "irows" and "icols" includes padding
+    const int dilatedKrows = krows + (kernelDilation - 1) * (krows - 1);
+    const int dilatedKcols = kcols + (kernelDilation - 1) * (kcols - 1);
+    int irows = orows * stride + dilatedKrows - 1;
+    int icols = ocols * stride + dilatedKcols - 1;
+    int irowsUnpadded = irows - upad - dpad;
+    int icolsUnpadded = icols - lpad - rpad;
+
+    const int ichs = kchs;
+
+#define UNDILATED(x) ((inputDilated) ? (((x) + 1) / 2) : (x))
+
+    if (inputDilated) {
+      irowsUnpadded = (irowsUnpadded + 1) / 2;
+      icolsUnpadded = (icolsUnpadded + 1) / 2;
+
+      irows = irowsUnpadded + UNDILATED(upad) + UNDILATED(dpad);
+      icols = icolsUnpadded + UNDILATED(lpad) + UNDILATED(rpad);
+    }
+
+#ifdef HAS_FIRST_LAYER_OPTIMIZATIONS
+    const bool transposed =
+        transOutput1203 || transInput3120 || transWeight1203 || transWeight0132;
+    int maxPixelsPerRow = transposed || wrot180 || downsample || inputDilated ||
+                                  kernelDilation > 1 || ichs > dim
+                              ? 1
+                              : dim / ichs;
+    if (maxPixelsPerRow > kcols)
+      maxPixelsPerRow = kcols;
+#else
+    const int maxPixelsPerRow = 1;
+#endif
+    // Calculate spad address offsets
+    const int outChannelsPerBank = ochs / dim + (ochs % dim != 0);
+    const int inChannelsPerBank = kchs / dim + (kchs % dim != 0);
+    const int bRows = transWeight0132
+                          ? inChannelsPerBank * kcols * krows * ochs
+                          : outChannelsPerBank * kcols * krows * kchs;
+
+    static uint32_t dSpAddrRow = 0;
+    static uint32_t cSpAddrRow = 0;
+
+    const uint32_t aSpAddrStart = 0;
+    const uint32_t bSpAddrStart = BANK_NUM * bankRows - bRows;
+    const uint32_t dSpAddrStart = (1 << (addrLen - 1)) + dSpAddrRow;
+    const uint32_t cSpAddrStart = (3 << (addrLen - 2)) + cSpAddrRow;
+
+    if (bias != 0) {
+      dSpAddrRow = (dSpAddrRow + accRows / 2) % accRows;
+    }
+
+    if (output != 0) {
+      cSpAddrRow = (cSpAddrRow + accRows / 2) % accRows;
+    }
+    if (inRowDim == inColDim && outRowDim == outColDim &&
+        poolOutRowDim == poolOutColDim) {
+      gemminiLoopConvWs(
+          batchSize, inRowDim, inChannels, outChannels, outRowDim,
+          poolOutRowDim, stride, padding, kernelDim, kernelDilation, poolSize,
+          poolStride, poolPadding, batches, porows, pocols, pochs, krows, kcols,
+          kchs, lpad, rpad, upad, dpad, plpad, prpad, pupad, pdpad, orows,
+          ocols, weights, output, bias, input, noBias, noPool, downsample,
+          wrot180, inputDilated, act, transOutput1203, transWeight1203,
+          transWeight0132, transInput3120, maxPixelsPerRow, dw, tileConvOp,
+          rewriter);
+      return;
+    }
+    if (!noPool) {
+      llvm::outs() << "Pooling with rectangular convolutions is currently not "
+                      "supported.\n";
+      return;
+    }
+    // Only rectangular convolutions will use the following C code
+    // mvin bias
+    const size_t maxBlockLen = MAX_BYTES / (dim * 1);
+    const size_t maxBlockLenAcc = MAX_BYTES / (dim * 4);
+    if (bias != NULL) {
+      // TODO we probably don't need quite this many nested loops for this part
+      const int maxOchsPerMvin =
+          ochs < (int)(maxBlockLenAcc * dim) ? ochs : maxBlockLenAcc * dim;
+      Value zeroValue = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getI64IntegerAttr(0));
+      rewriter.create<ConfigLdOp>(loc, zeroValue,
+                                  llvm::APFloat((float)MVIN_SCALE_IDENTITY),
+                                  false, 2, batches * orows * ocols);
+      for (int b = 0; b < batches; b++)
+        for (int orow = 0; orow < orows; orow++)
+          for (int ocol = 0; ocol < ocols; ocol += dim) {
+            const int I = ocols - ocol > dim ? dim : ocols - ocol;
+            for (int och = 0; och < ochs; och += maxOchsPerMvin) {
+              const int J =
+                  ochs - och > maxOchsPerMvin ? maxOchsPerMvin : ochs - och;
+              const uint32_t dSpAddr = dSpAddrStart +
+                                       (och / dim) * batches * orows * ocols +
+                                       b * orows * ocols + orow * ocols + ocol;
+              if (noBias) {
+                gemminiMvin3Offset(tileConvOp, zeroValue, 0 * sizeOfAccT,
+                                  dSpAddr, J, I, addrLen,
+                                  rewriter);
+              } else {
+                gemminiMvin3Offset(tileConvOp, bias, och * sizeOfAccT, dSpAddr,
+                                  J, I, addrLen, rewriter);
+              }
+            }
+          }
+    }
+    // mvin input
+    if (input != NULL) {
+      int maxChsPerMvin =
+          ichs < (int)(maxBlockLen * dim) ? ichs : maxBlockLen * dim;
+      if (transInput3120) {
+        maxChsPerMvin =
+            batches < (int)(maxBlockLen * dim) ? batches : maxBlockLen * dim;
+      }
+      const int dramStride =
+          transInput3120 ? batchSize * sizeOfElemT : inChannels * sizeOfElemT;
+      const int spadStride =
+          transInput3120
+              ? ichs * (irows >> downsample) * (icols >> downsample)
+              : batches * (irows >> downsample) * (icols >> downsample);
+      Value strideValue = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getI64IntegerAttr(dramStride << downsample));
+      rewriter.create<ConfigLdOp>(loc, strideValue,
+                                  llvm::APFloat((float)MVIN_SCALE_IDENTITY),
+                                  false, 0, spadStride, maxPixelsPerRow);
+      const int b_it = transInput3120 ? maxChsPerMvin : 1;
+      const int ich_it = transInput3120 ? 1 : maxChsPerMvin;
+      for (int b = 0; b < batches; b += b_it)
+        for (int irow = -UNDILATED(upad);
+             irow < irowsUnpadded + UNDILATED(dpad); irow += 1 + downsample) {
+          const int irowPadded = irow + UNDILATED(upad);
+          for (int icol = -UNDILATED(lpad);
+               icol < icolsUnpadded + UNDILATED(rpad);) {
+            // TODO There might be some unnecessary mvins here at the edge of
+            // the image
+            int I = icolsUnpadded - icol > (dim << downsample)
+                        ? (dim << downsample)
+                        : icolsUnpadded - icol;
+            if (icol < 0) {
+              I = -icol > dim ? dim : -icol;
+            } else if (icol >= icolsUnpadded) {
+              I = icolsUnpadded + UNDILATED(rpad) - icol > dim
+                      ? dim
+                      : icolsUnpadded + UNDILATED(rpad) - icol;
+            }
+            const int icolPadded = icol + UNDILATED(lpad);
+            for (int ich = 0; ich < ichs; ich += ich_it) {
+              int K = ichs - ich > maxChsPerMvin ? maxChsPerMvin : ichs - ich;
+              if (transInput3120) {
+                K = batches - b > maxChsPerMvin ? maxChsPerMvin : batches - b;
+              }
+#define DS(x) ((x) >> (downsample))
+              uint32_t aSpAddr = aSpAddrStart +
+                                 (ich / dim) * batches * DS(irows) * DS(icols) +
+                                 b * DS(irows) * DS(icols) +
+                                 DS(irowPadded) * DS(icols) + DS(icolPadded);
+              if (transInput3120) {
+                aSpAddr = aSpAddrStart +
+                          (b / dim) * ichs * DS(irows) * DS(icols) +
+                          ich * DS(irows) * DS(icols) +
+                          DS(irowPadded) * DS(icols) + DS(icolPadded);
+              }
+              const bool is_zeros = irow < 0 || irow >= irowsUnpadded ||
+                                    icol < 0 || icol >= icolsUnpadded;
+              size_t offset =
+                  (b * inRowDim * inColDim + irow * inColDim + icol) *
+                      inStride +
+                  ich;
+              Value memAddr = input;
+              if (is_zeros) {
+                memAddr = rewriter.create<arith::ConstantOp>(
+                    loc, rewriter.getI64IntegerAttr(0));
+                offset = 0;
+              } else if (transInput3120) {
+                offset = (ich * inRowDim * inColDim + irow * inColDim + icol) *
+                             batchSize +
+                         b;
+              }
+              gemminiMvinOffset(tileConvOp, memAddr, offset * sizeOfElemT, 
+                                aSpAddr, K, I >> downsample, addrLen, rewriter);
+            }
+            icol += I;
+          }
+        }
+    }
+    // mvin weights
+    if (weights != NULL) {
+      int max_chs_per_mvin =
+          ochs < (int)(maxBlockLen * dim) ? ochs : maxBlockLen * dim;
+      if (transWeight0132) {
+        max_chs_per_mvin =
+            kchs < (int)(maxBlockLen * dim) ? kchs : maxBlockLen * dim;
+      }
+      size_t dramStride = weightStride * sizeOfElemT;
+      if (dw) {
+        dramStride = sizeOfElemT;
+      } else if (transWeight1203) {
+        dramStride = kernelDim * kernelDim * outChannels * sizeOfElemT;
+      } else if (transWeight0132) {
+        dramStride = inChannels * sizeOfElemT;
+      }
+      const size_t spadBlockStride =
+          transWeight0132 ? krows * kcols * ochs : krows * kcols * kchs;
+      Value dramStrideValue = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getI64IntegerAttr(dramStride));
+      rewriter.create<ConfigLdOp>(loc, dramStrideValue,
+                                  llvm::APFloat((float)MVIN_SCALE_IDENTITY),
+                                  false, 1, spadBlockStride);
+
+      const size_t och_it = transWeight0132 ? dim : max_chs_per_mvin;
+      const size_t kch_it = transWeight0132 ? max_chs_per_mvin : dim;
+      for (int och = 0; och < ochs; och += och_it) {
+        for (int krow = 0; krow < krows; krow++)
+          for (int kcol = 0; kcol < kcols; kcol++)
+            for (int kch = 0; kch < kchs; kch += kch_it) {
+              int K = kchs - kch > dim ? dim : kchs - kch;
+              int J =
+                  ochs - och > max_chs_per_mvin ? max_chs_per_mvin : ochs - och;
+              if (transWeight0132) {
+                K = ochs - och > dim ? dim : ochs - och;
+                J = kchs - kch > max_chs_per_mvin ? max_chs_per_mvin
+                                                  : kchs - kch;
+              }
+              uint32_t bSpAddr = bSpAddrStart +
+                                 (och / dim) * krows * kcols * kchs +
+                                 krow * kcols * kchs + kcol * kchs + kch;
+              if (transWeight0132) {
+                bSpAddr = bSpAddrStart + (kch / dim) * krows * kcols * ochs +
+                          krow * kcols * ochs + kcol * ochs + och;
+              }
+              size_t offset =
+                  (krow * kernelDim * inChannels + kcol * inChannels + kch) *
+                      weightStride +
+                  och;
+              if (dw) {
+                offset = krow * kernelDim + kcol;
+              } else if (transWeight1203) {
+                offset =
+                    (kch * kernelDim * kernelDim + krow * kernelDim + kcol) *
+                        outChannels +
+                    och;
+              } else if (transWeight0132) {
+                offset = (krow * kernelDim * outChannels + kcol * outChannels +
+                          och) *
+                             inChannels +
+                         kch;
+              }
+              gemminiMvin2Offset(tileConvOp, weights, offset * sizeOfElemT,
+                                bSpAddr, J, K, addrLen, rewriter);
+            }
+      }
+    }
+    // Compute
+    {
+      const int b_it = transInput3120 ? dim : 1;
+      const int ocol_it = transInput3120 ? 1 : (dim << inputDilated);
+      if (transInput3120) {
+        rewriter.create<ConfigExOp>(loc, /*dataflow = */ OUTPUT_STATIONARY,
+                                    /*act = */ 0, /*shift = */ 0,
+                                    /*scale = */ llvm::APFloat((float)0),
+                                    /*cStride = */ orows * ocols,
+                                    /*aStride = */ irows * icols,
+                                    /*aTranspose = */ 0, /*bTranspose*/ 0,
+                                    /*setOnlyStrides = */ true);
+      }
+      for (int och = 0; och < ochs; och += dim) {
+        for (int krow = 0; krow < krows; krow++) {
+          for (int kcol = 0; kcol < kcols; kcol += maxPixelsPerRow) {
+            for (int kch = 0; kch < kchs; kch += dim) {
+              bool newWeights = true;
+              for (int b = 0; b < batches; b += b_it) {
+                for (int orow = 0; orow < orows; orow++) {
+                  // Skip some kernel rows due to input-dilation
+                  if (inputDilated &&
+                      ((krow * kernelDilation + orow * stride - upad) % 2 !=
+                       0)) {
+                    continue;
+                  }
+                  for (int ocol = 0; ocol < ocols;) {
+                    // Skip some cols dimensions due to input-dilation
+                    if (inputDilated &&
+                        ((kcol + ocol * stride - lpad) % 2 != 0)) {
+                      ocol++;
+                      continue;
+                    }
+                    int irow = orow * stride + krow * kernelDilation;
+                    int icol = ocol * stride + kcol * kernelDilation;
+                    if (inputDilated) {
+                      irow = (irow + 1) / 2;
+                      icol = (icol + 1) / 2;
+                    }
+                    const int pixels = kcols - kcol > maxPixelsPerRow
+                                           ? maxPixelsPerRow
+                                           : kcols - kcol;
+                    const uint32_t cSpAddr =
+                        cSpAddrStart + (och / dim) * batches * orows * ocols +
+                        b * orows * ocols + orow * ocols + ocol;
+                    // Over here, construct a new matrix
+                    //
+                    // Let us assume that we only ever operate on
+                    // one pixel in one row.
+                    // Thus, krows == kcols == 1
+                    //
+                    // Then, for every set of I, J, and K values
+                    //     - I = ocols
+                    //     - J = ochs
+                    //     - K = kchs
+                    int I = UNDILATED(ocols - ocol > (dim << inputDilated)
+                                          ? (dim << inputDilated)
+                                          : ocols - ocol);
+                    const int J = ochs - och > dim ? dim : ochs - och;
+                    const int K =
+                        pixels * (kchs - kch > dim ? dim : kchs - kch);
+                    if (transInput3120) {
+                      I = batches - b > dim ? dim : batches - b;
+                    }
+                    uint32_t aSpAddr =
+                        aSpAddrStart +
+                        (kch / dim) * batches * DS(irows) * DS(icols) +
+                        b * DS(irows) * DS(icols) + DS(irow) * DS(icols) +
+                        DS(icol);
+                    if (transInput3120) {
+                      aSpAddr = aSpAddrStart +
+                                (b / dim) * kchs * DS(irows) * DS(icols) +
+                                kch * DS(irows) * DS(icols) +
+                                DS(irow) * DS(icols) + DS(icol);
+                    }
+                    const int krow_ = wrot180 ? krows - krow - 1 : krow;
+                    const int kcol_ = wrot180 ? kcols - kcol - 1 : kcol;
+                    uint32_t bSpAddr =
+                        bSpAddrStart + (och / dim) * krows * kcols * kchs +
+                        krow_ * kcols * kchs + kcol_ * kchs + kch;
+                    if (transWeight0132) {
+                      bSpAddr = bSpAddrStart +
+                                (kch / dim) * krows * kcols * ochs +
+                                krow_ * kcols * ochs + kcol_ * ochs + och;
+                    }
+                    const uint32_t perSpAddr =
+                        newWeights ? bSpAddr : GARBAGE_ADDR;
+
+                    Value garbageAddrOp = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(GARBAGE_ADDR));
+                    Value iOp = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(I));
+                    Value jOp = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(J));
+                    Value kOp = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(K));
+                    Value perSpAddrOp = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(perSpAddr));
+                    Value aSpAddrOp = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(aSpAddr));
+                    Value cSpAddrOp = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(cSpAddr));
+
+                    rewriter.create<PreloadOp>(loc, perSpAddrOp, cSpAddrOp, kOp,
+                                               jOp, iOp, jOp);
+                    if (newWeights) {
+                      rewriter.create<ComputePreloadedOp>(
+                          loc, aSpAddrOp, garbageAddrOp, iOp, kOp, iOp, jOp);
+                    } else {
+                      rewriter.create<ComputeAccumulatedOp>(
+                          loc, aSpAddrOp, garbageAddrOp, iOp, kOp, iOp, jOp);
+                    }
+                    ocol += ocol_it;
+                    newWeights = false;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+#undef DS
+#undef UNDILATED
+    // mvout output
+    if (output != NULL) {
+      if (noPool) {
+        for (int b = 0; b < batches; b++)
+          for (int orow = 0; orow < orows; orow++)
+            for (int ocol = 0; ocol < ocols; ocol += dim) {
+              const int I = ocols - ocol > dim ? dim : ocols - ocol;
+              for (int och = 0; och < ochs; och += dim) {
+                const int J = ochs - och > dim ? dim : ochs - och;
+                const uint32_t cSpAddr =
+                    cSpAddrStart + (och / dim) * batches * orows * ocols +
+                    b * orows * ocols + orow * ocols + ocol;
+                size_t outOffset =
+                    (b * outRowDim * outColDim + orow * outColDim + ocol) *
+                        outStride +
+                    och;
+                if (transOutput1203) {
+                  outOffset =
+                      (orow * outColDim * batchSize + ocol * batchSize + b) *
+                          outChannels +
+                      och;
+                }
+                gemminiMvoutOffset(tileConvOp, output, outOffset * sizeOfElemT, 
+                                  cSpAddr, J, I, addrLen, rewriter);
+              }
+            }
+      } else {
+        printf("Pooling with rectangular convolutions is currently not "
+               "supported.\n");
+        exit(1);
+      }
+    }
+  }
+
+  void tiledConv(int batchSize, int inRowDim, int inColDim, int inChannels,
+                 int outChannels, int outRowDim, int outColDim, int stride,
+                 int inputDilation, int kernelDilation, int padding,
+                 int kernelDim, int inStride, int weightStride, int outStride,
+                 bool wrot180, bool transOutput1203, bool transInput3120,
+                 bool transWeight1203, bool transWeight0132, int batches,
+                 int porows, int pocols, int pochs, int krows, int kcols,
+                 int kchs, const Value &input, const Value &weights,
+                 const Value &bias, Value &output, int act, acc_scale_t scale,
+                 int poolSize, int poolStride, int poolPadding,
+                 TileConvOp &tileConvOp,
+                 PatternRewriter &rewriter) const {
+    bool noBias = false;
+    bool noPool = poolStride == 0;
+    if (noPool) {
+      poolSize = 1;
+      poolStride = 1;
+      poolPadding = 0;
+    }
+    const bool downsample = stride == 2 && kernelDim == 1 &&
+                            inRowDim % 2 == 0 && inColDim % 2 == 0 &&
+                            padding == 0 && noPool && inputDilation == 1 &&
+                            !transInput3120;
+    const int inputDilated = inputDilation == 2;
+    int64_t stDramStride = transOutput1203
+                               ? batchSize * outChannels * sizeOfElemT
+                               : outChannels * sizeOfElemT;
+    Location loc = tileConvOp.getLoc();
+    Value strideValue = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(stDramStride));
+    rewriter.create<ConfigStOp>(loc, strideValue, act, llvm::APFloat(scale));
+    rewriter.create<ConfigExOp>(
+        loc, /*dataflow = */ WEIGHT_STATIONARY, /*act = */ 0, /*shift = */ 0,
+        /*scale = */ llvm::APFloat((float)0), /*cStride = */ inputDilation,
+        /*aStride = */ stride >> downsample,
+        /*aTranspose = */ transInput3120, /*bTranspose*/ transWeight0132,
+        /*setOnlyStrides = */ false);
+    const int poolOutRowDim =
+        (outRowDim + 2 * poolPadding - poolSize) / poolStride + 1;
+    const int poolOutColDim =
+        (outColDim + 2 * poolPadding - poolSize) / poolStride + 1;
+    const int dilatedInRowDim = inRowDim + (inputDilation - 1) * (inRowDim - 1);
+    const int dilatedInColDim = inColDim + (inputDilation - 1) * (inColDim - 1);
+
+    int porowEnd = poolOutRowDim;
+
+    for (int b = 0; b < batchSize; b += batches) {
+      for (int porow = 0; porow < porowEnd; porow += porows) {
+        const int orow = porow * poolStride - poolPadding;
+        for (int pocol = 0; pocol < poolOutColDim; pocol += pocols) {
+          const int ocol = pocol * poolStride - poolPadding;
+          for (int poch = 0; poch < outChannels; poch += pochs) {
+            for (int krow = 0; krow < kernelDim; krow += krows) {
+              const int orow_floored = orow < 0 ? 0 : orow;
+
+              int irow =
+                  orow_floored * stride + krow * kernelDilation - padding;
+              for (int kcol = 0; kcol < kernelDim; kcol += kcols) {
+                const int ocol_floored = ocol < 0 ? 0 : ocol;
+                int icol =
+                    ocol_floored * stride + kcol * kernelDilation - padding;
+
+                for (int kch = 0; kch < inChannels; kch += kchs) {
+                  TypedAttr offsetAttr = rewriter.getI64IntegerAttr(
+                      ((b * poolOutRowDim * poolOutColDim +
+                        porow * poolOutColDim + pocol) *
+                           outChannels +
+                       poch) *
+                      sizeOfElemT);
+                  Value offsetValue =
+                      rewriter.create<arith::ConstantOp>(loc, offsetAttr);
+                  Value out = rewriter.create<arith::AddIOp>(
+                      tileConvOp.getLoc(), rewriter.getI64Type(), output,
+                      offsetValue);
+                  if (transOutput1203) {
+                    offsetAttr = rewriter.getI64IntegerAttr(
+                        ((porow * poolOutColDim * batchSize +
+                          pocol * batchSize + b) *
+                             outChannels +
+                         poch) *
+                        sizeOfElemT);
+                    offsetValue =
+                        rewriter.create<arith::ConstantOp>(loc, offsetAttr);
+                    out = rewriter.create<arith::AddIOp>(tileConvOp.getLoc(),
+                                                         rewriter.getI64Type(),
+                                                         output, offsetValue);
+                  }
+
+                  if (krow + krows < kernelDim || kcol + kcols < kernelDim ||
+                      kch + kchs < inChannels) {
+                    out = rewriter.create<arith::ConstantOp>(
+                        tileConvOp.getLoc(), rewriter.getI64IntegerAttr(0));
+                  }
+                  Value pochValue = rewriter.create<arith::ConstantOp>(
+                      tileConvOp.getLoc(),
+                      rewriter.getI64IntegerAttr(poch * sizeOfAccT));
+                  Value bias_ = rewriter.create<arith::AddIOp>(
+                      tileConvOp.getLoc(), rewriter.getI64Type(), bias,
+                      pochValue);
+                  if (krow > 0 || kcol > 0 || kch > 0) {
+                    bias_ = rewriter.create<arith::ConstantOp>(
+                        tileConvOp.getLoc(), rewriter.getI64IntegerAttr(0));
+                  }
+
+                  const int batches_ =
+                      batchSize - b > batches ? batches : batchSize - b;
+                  const int porows_ = poolOutRowDim - porow > porows
+                                          ? porows
+                                          : poolOutRowDim - porow;
+                  const int pocols_ = poolOutColDim - pocol > pocols
+                                          ? pocols
+                                          : poolOutColDim - pocol;
+                  const int pochs_ =
+                      outChannels - poch > pochs ? pochs : outChannels - poch;
+                  const int krows_ =
+                      kernelDim - krow > krows ? krows : kernelDim - krow;
+                  const int kcols_ =
+                      kernelDim - kcol > kcols ? kcols : kernelDim - kcol;
+                  const int kchs_ =
+                      inChannels - kch > kchs ? kchs : inChannels - kch;
+
+                  const int ocols_ = pocols_ * poolStride + poolSize - 1;
+                  const int orows_ = porows_ * poolStride + poolSize - 1;
+
+                  const int plpad = ocol < 0 ? -ocol : 0;
+                  const int prpad =
+                      ocol + ocols_ > outColDim ? ocol + ocols_ - outColDim : 0;
+                  const int pupad = orow < 0 ? -orow : 0;
+                  const int pdpad =
+                      orow + orows_ > outRowDim ? orow + orows_ - outRowDim : 0;
+
+                  const int dilatedKrows_ =
+                      krows_ + (kernelDilation - 1) * (krows_ - 1);
+                  const int dilatedKcols_ =
+                      kcols_ + (kernelDilation - 1) * (kcols_ - 1);
+
+                  const int icols_ =
+                      (ocols_ - plpad - prpad) * stride + dilatedKcols_ - 1;
+                  const int irows_ =
+                      (orows_ - pupad - pdpad) * stride + dilatedKrows_ - 1;
+
+                  int lpad = icol < 0 ? -icol : 0;
+                  int rpad = icol + icols_ > dilatedInColDim
+                                 ? icol + icols_ - dilatedInColDim
+                                 : 0;
+                  int upad = irow < 0 ? -irow : 0;
+                  int dpad = irow + irows_ > dilatedInRowDim
+                                 ? irow + irows_ - dilatedInRowDim
+                                 : 0;
+
+                  if (inputDilated) {
+                    lpad += lpad == 0 && icol % 2 != 0;
+                    rpad += rpad == 0 && (icol + icols_) % 2 != 1;
+                    upad += upad == 0 && irow % 2 != 0;
+                    dpad += dpad == 0 && (irow + irows_) % 2 != 1;
+                  }
+
+                  int krow_ = krow;
+                  int kcol_ = kcol;
+                  if (wrot180) {
+                    krow_ = kernelDim - krow - krows_;
+                    kcol_ = kernelDim - kcol - kcols_;
+                  }
+                  offsetAttr = rewriter.getI64IntegerAttr(
+                      ((krow_ * kernelDim * inChannels + kcol_ * inChannels +
+                        kch) *
+                           outChannels +
+                       poch) *
+                      sizeOfElemT);
+                  offsetValue = rewriter.create<arith::ConstantOp>(
+                      tileConvOp.getLoc(), offsetAttr);
+                  Value weightsSlice = rewriter.create<arith::AddIOp>(
+                      tileConvOp.getLoc(), rewriter.getI64Type(), weights,
+                      offsetValue);
+                  if (transWeight1203) {
+                    offsetAttr = rewriter.getI64IntegerAttr(
+                        ((kch * kernelDim * kernelDim + krow_ * kernelDim +
+                          kcol_) *
+                             outChannels +
+                         poch) *
+                        sizeOfElemT);
+                    offsetValue = rewriter.create<arith::ConstantOp>(
+                        tileConvOp.getLoc(), offsetAttr);
+                    weightsSlice = rewriter.create<arith::AddIOp>(
+                        tileConvOp.getLoc(), rewriter.getI64Type(), weights,
+                        offsetValue);
+                  } else if (transWeight0132) {
+                    offsetAttr = rewriter.getI64IntegerAttr(
+                        ((krow_ * kernelDim * outChannels +
+                          kcol_ * outChannels + poch) *
+                             inChannels +
+                         kch) *
+                        sizeOfElemT);
+                    offsetValue = rewriter.create<arith::ConstantOp>(
+                        tileConvOp.getLoc(), offsetAttr);
+                    weightsSlice = rewriter.create<arith::AddIOp>(
+                        tileConvOp.getLoc(), rewriter.getI64Type(), weights,
+                        offsetValue);
+                  }
+                  offsetAttr = rewriter.getI64IntegerAttr(
+                      ((b * inRowDim * inColDim +
+                        ((irow + upad) >> inputDilated) * inColDim +
+                        ((icol + lpad) >> inputDilated)) *
+                           inChannels +
+                       kch) *
+                      sizeOfElemT);
+                  offsetValue = rewriter.create<arith::ConstantOp>(
+                      tileConvOp.getLoc(), offsetAttr);
+                  Value in = rewriter.create<arith::AddIOp>(
+                      tileConvOp.getLoc(), rewriter.getI64Type(), input,
+                      offsetValue);
+                  if (transInput3120) {
+                    offsetAttr = rewriter.getI64IntegerAttr(
+                        ((kch * inRowDim * inColDim +
+                          ((irow + upad) >> inputDilated) * inColDim +
+                          ((icol + lpad) >> inputDilated)) *
+                             batchSize +
+                         b) *
+                        sizeOfElemT);
+                    in = rewriter.create<arith::AddIOp>(tileConvOp.getLoc(),
+                                                        rewriter.getI64Type(),
+                                                        input, offsetValue);
+                  }
+
+                  spTiledConv(
+                      batchSize, inRowDim, inColDim, inChannels, outChannels,
+                      outRowDim, outColDim, poolOutRowDim, poolOutColDim,
+                      stride, padding, kernelDim, kernelDilation, inStride,
+                      weightStride, outStride, poolSize, poolStride,
+                      poolPadding, batches_, porows_, pocols_, pochs_, krows_,
+                      kcols_, kchs_, lpad, rpad, upad, dpad, plpad, prpad,
+                      pupad, pdpad, in, weightsSlice, out, bias_, act, scale,
+                      wrot180, transOutput1203, transInput3120, transWeight1203,
+                      transWeight0132, noBias, noPool, downsample, inputDilated,
+                      false, tileConvOp, rewriter);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    IntegerAttr flushAttr = rewriter.getI64IntegerAttr(0);
+    Value flushValue = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64Type(), flushAttr);
+    auto libraryCallName = getLibraryCallSymbolRef(tileConvOp, 
+                                                  "flush",
+                                                  rewriter);
+    rewriter.replaceOpWithNewOp<func::CallOp>(
+      tileConvOp, libraryCallName->getValue(), TypeRange(), 
+      ValueRange({flushValue, flushValue}));
+  }
+
+  int tiledConvTotalSpadRows(bool acc, int stride, int inputDilation,
+                             int kernelDilation, bool downsample,
+                             bool transWeight0132, bool transInput3120,
+                             int batches, int porows, int pocols, int ochs,
+                             int krows, int kcols, int kchs, int poolSize,
+                             int poolStride) const {
+
+    const int orows = porows * poolStride + poolSize - 1;
+    const int ocols = pocols * poolStride + poolSize - 1;
+
+    const int krowsDilated = krows + (kernelDilation - 1) * (krows - 1);
+    const int kcolsDilated = kcols + (kernelDilation - 1) * (kcols - 1);
+
+    int irows = orows * stride + krowsDilated - 1;
+    int icols = ocols * stride + kcolsDilated - 1;
+    const int ichs = kchs;
+
+    irows = irows / inputDilation + (irows % inputDilation != 0);
+    icols = icols / inputDilation + (icols % inputDilation != 0);
+
+    const int inChannelsPerBank = ichs / dim + (ichs % dim != 0);
+    const int outChannelsPerBank = ochs / dim + (ochs % dim != 0);
+    const int batchesPerBank = batches / dim + (batches % dim != 0);
+
+    const int aRows = transInput3120
+                          ? (batchesPerBank * ichs * (irows >> downsample) *
+                             (icols >> downsample))
+                          : (inChannelsPerBank * batches *
+                             (irows >> downsample) * (icols >> downsample));
+
+    const int bRows = transWeight0132
+                          ? inChannelsPerBank * kcols * krows * ochs
+                          : outChannelsPerBank * kcols * krows * kchs;
+
+    const int cRows = outChannelsPerBank * batches * orows * ocols;
+
+    return acc ? cRows : aRows + bRows;
+  }
+
+public:
+  using OpRewritePattern<TileConvOp>::OpRewritePattern;
+  explicit GemminiTileConvLowering(MLIRContext *context,
+                                   int64_t dim, int64_t addrLen,
+                                   int64_t accRows, int64_t bankRows,
+                                   size_t sizeOfElemT, size_t sizeOfAccT)
+      : OpRewritePattern(context), dim(dim), addrLen(addrLen),
+        accRows(accRows), bankRows(bankRows), sizeOfElemT(sizeOfElemT),
+        sizeOfAccT(sizeOfAccT) {}
+  LogicalResult
+  matchAndRewrite(TileConvOp tileConvOp,
+                  PatternRewriter &rewriter) const override {
+    Value input = tileConvOp.getInput();
+    Value output = tileConvOp.getOutput();
+    Value weights = tileConvOp.getWeights();
+    Value bias = tileConvOp.getBias();
+    MemRefType inputType = dyn_cast<MemRefType>(input.getType());
+    MemRefType biasType = dyn_cast<MemRefType>(bias.getType());
+    ArrayRef<int64_t> inputShape = inputType.getShape();
+    ArrayRef<int64_t> biasShape = biasType.getShape();
+
+    Value outRowDimValue = tileConvOp.getOutRowDim();
+    int outRowDim = getNumberFromValue(outRowDimValue);
+    Value outColDimValue = tileConvOp.getOutColDim();
+    int outColDim = getNumberFromValue(outColDimValue);
+    Value kernelDimValue = tileConvOp.getKernelDim();
+    int kernelDim = getNumberFromValue(kernelDimValue);
+    int batchSize = inputShape[0];
+    int inRowDim = inputShape[1];
+    int inColDim = inputShape[2];
+    int inChannels = inputShape[3];
+    int outChannels = biasShape[0];
+    int stride = tileConvOp.getStride();
+    int inputDilation = tileConvOp.getInputDilation();
+    int kernelDilation = tileConvOp.getKernelDilation();
+    int padding = tileConvOp.getPadding();
+    int act = tileConvOp.getAct();
+    float scale = tileConvOp.getScale().convertToFloat();
+    int poolSize = tileConvOp.getPoolSize();
+    int poolStride = tileConvOp.getPoolStride();
+    int poolPadding = tileConvOp.getPoolPadding();
+    bool wrot180 = tileConvOp.getWrot180();
+    bool transOutput1203 = tileConvOp.getTransOutput1203();
+    bool transInput3120 = tileConvOp.getTransInput3120();
+    bool transWeight1203 = tileConvOp.getTransWeight1203();
+    bool transWeight0132 = tileConvOp.getTransWeight0132();
+    Location loc = tileConvOp.getLoc();
+    IntegerType i64Type = rewriter.getI64Type();
+    Value inputExtractOp =
+        rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, input);
+    Value inputIndexCastOp =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, inputExtractOp);
+    Value outputExtractOp =
+        rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, output);
+    Value outputIndexCastOp =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, outputExtractOp);
+    Value biasExtractOp =
+        rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, bias);
+    Value biasIndexCastOp =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, biasExtractOp);
+    Value weightsExtractOp =
+        rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, weights);
+    Value weightsIndexCastOp =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, weightsExtractOp);
+    const bool noPool = poolSize == 0;
+    if (noPool) {
+      poolSize = 1;
+      poolStride = 1;
+      poolPadding = 0;
+    }
+    const int poolOutRowDim =
+        (outRowDim + 2 * poolPadding - poolSize) / poolStride + 1;
+    const int poolOutColDim =
+        (outColDim + 2 * poolPadding - poolSize) / poolStride + 1;
+    const bool downsample = stride == 2 && kernelDim == 1 && padding == 0 &&
+                            noPool && inRowDim % 2 == 0 && inColDim % 2 == 0;
+    int args[] = {batchSize, poolOutRowDim, poolOutColDim, outChannels,
+                  kernelDim, kernelDim,     inChannels};
+    const int maxArgs[] = {batchSize, poolOutRowDim, poolOutColDim, outChannels,
+                           kernelDim, kernelDim,     inChannels};
+    const int orowsIdx = 1;
+    const int ocolsIdx = 2;
+    const int outChannelsIdx = 3;
+    const int inChannelsIdx = 6;
+    const int maxSpadRows = (BANK_NUM * bankRows / 2);
+    const int maxAccRows = (accRows / 2);
+    int spadRows = tiledConvTotalSpadRows(
+        false, stride, inputDilation, kernelDilation, downsample,
+        transWeight0132, transInput3120, args[0], args[1], args[2], args[3],
+        args[4], args[5], args[6], poolSize, poolStride);
+    int accRows = tiledConvTotalSpadRows(
+        true, stride, inputDilation, kernelDilation, downsample,
+        transWeight0132, transInput3120, args[0], args[1], args[2], args[3],
+        args[4], args[5], args[6], poolSize, poolStride);
+    while (spadRows > maxSpadRows || accRows > maxAccRows) {
+      int maxVal = -1;
+      int maxIdx = -1;
+      for (size_t i = 0; i < sizeof(args) / sizeof(args[0]); i++) {
+        if (!(i == ocolsIdx && args[i] <= dim && args[orowsIdx] > 1) &&
+            args[i] > maxVal) {
+          maxVal = args[i];
+          maxIdx = i;
+        }
+      }
+
+      if (maxIdx == outChannelsIdx || maxIdx == inChannelsIdx) {
+        if (args[maxIdx] % dim != 0) {
+          args[maxIdx] = (args[maxIdx] / dim) * dim;
+        } else {
+          args[maxIdx] -= dim;
+        }
+        args[maxIdx] = args[maxIdx] == 0 ? 1 : args[maxIdx];
+      } else {
+        args[maxIdx]--;
+      }
+      spadRows = tiledConvTotalSpadRows(
+          false, stride, inputDilation, kernelDilation, downsample,
+          transWeight0132, transInput3120, args[0], args[1], args[2], args[3],
+          args[4], args[5], args[6], poolSize, poolStride);
+      accRows = tiledConvTotalSpadRows(
+          true, stride, inputDilation, kernelDilation, downsample,
+          transWeight0132, transInput3120, args[0], args[1], args[2], args[3],
+          args[4], args[5], args[6], poolSize, poolStride);
+    }
+    bool notIncreased = false;
+    while (!notIncreased) {
+      notIncreased = true;
+
+      int argsCandidate[] = {args[0], args[1], args[2], args[3],
+                             args[4], args[5], args[6]};
+      argsCandidate[ocolsIdx]++;
+
+      if (argsCandidate[ocolsIdx] > maxArgs[ocolsIdx])
+        continue;
+
+      spadRows = tiledConvTotalSpadRows(
+          false, stride, inputDilation, kernelDilation, downsample,
+          transWeight0132, transInput3120, argsCandidate[0], argsCandidate[1],
+          argsCandidate[2], argsCandidate[3], argsCandidate[4],
+          argsCandidate[5], argsCandidate[6], poolSize, poolStride);
+      accRows = tiledConvTotalSpadRows(
+          true, stride, inputDilation, kernelDilation, downsample,
+          transWeight0132, transInput3120, argsCandidate[0], argsCandidate[1],
+          argsCandidate[2], argsCandidate[3], argsCandidate[4],
+          argsCandidate[5], argsCandidate[6], poolSize, poolStride);
+
+      if (spadRows <= maxSpadRows && accRows <= maxAccRows) {
+        args[ocolsIdx] = argsCandidate[ocolsIdx];
+        notIncreased = false;
+      }
+    }
+
+    bool nothingIncreased = false;
+    while (!nothingIncreased) {
+      nothingIncreased = true;
+      for (size_t i = 0; i < sizeof(args) / sizeof(args[0]); i++) {
+        int argsCandidate[] = {args[0], args[1], args[2], args[3],
+                               args[4], args[5], args[6]};
+        argsCandidate[i]++;
+
+        if (argsCandidate[i] > maxArgs[i])
+          continue;
+        spadRows = tiledConvTotalSpadRows(
+            false, stride, inputDilation, kernelDilation, downsample,
+            transWeight0132, transInput3120, argsCandidate[0], argsCandidate[1],
+            argsCandidate[2], argsCandidate[3], argsCandidate[4],
+            argsCandidate[5], argsCandidate[6], poolSize, poolStride);
+        accRows = tiledConvTotalSpadRows(
+            true, stride, inputDilation, kernelDilation, downsample,
+            transWeight0132, transInput3120, argsCandidate[0], argsCandidate[1],
+            argsCandidate[2], argsCandidate[3], argsCandidate[4],
+            argsCandidate[5], argsCandidate[6], poolSize, poolStride);
+
+        if (spadRows <= maxSpadRows && accRows <= maxAccRows) {
+          args[i] = argsCandidate[i];
+          nothingIncreased = false;
+        }
+      }
+    }
+    const int batches = args[0];
+    const int orows = args[1];
+    const int ocols = args[2];
+    const int ochs = args[3];
+    const int krows = args[4];
+    const int kcols = args[5];
+    const int kchs = args[6];
+
+    const int inStride = inChannels;
+    const int outStride = outChannels;
+    const int weightStride = outChannels;
+    tiledConv(batchSize, inRowDim, inColDim, inChannels, outChannels, outRowDim,
+              outColDim, stride, inputDilation, kernelDilation, padding,
+              kernelDim, inStride, weightStride, outStride, wrot180,
+              transOutput1203, transInput3120, transWeight1203, transWeight0132,
+              batches, orows, ocols, ochs, krows, kcols, kchs, inputIndexCastOp,
+              weightsIndexCastOp, biasIndexCastOp, outputIndexCastOp, act,
+              scale, poolSize, noPool ? 0 : poolStride, poolPadding, tileConvOp,
+              rewriter);
+    return success();
+  }
+
+private:
+  int64_t dim;
+  int64_t addrLen;
+  int64_t accRows;
+  int64_t bankRows;
+  size_t sizeOfElemT;
+  size_t sizeOfAccT;
+};
+
 void mlir::populateGemminiLegalizeForFuncExportPatterns(
     RewritePatternSet &patterns, int64_t dim, int64_t addrLen, 
     int64_t accRows, int64_t bankRows, size_t sizeOfElemT,
@@ -1334,6 +2378,6 @@ void mlir::populateGemminiLegalizeForFuncExportPatterns(
   patterns.add<GemminiComputeAccumulatedLowering>(patterns.getContext(), addrLen);
   patterns.add<GemminiTileMatMulLowering>(patterns.getContext(), dim, addrLen, accRows,
                                           bankRows, sizeOfElemT, sizeOfAccT);
-//   patterns.add<GemminiTileConvLowering>(patterns.getContext(), dim, addrLen, accRows,
-//                                         bankRows, sizeOfElemT, sizeOfAccT);
+  patterns.add<GemminiTileConvLowering>(patterns.getContext(), dim, addrLen, accRows,
+                                        bankRows, sizeOfElemT, sizeOfAccT);
 }
