@@ -36,6 +36,7 @@
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/IR/OperationSupport.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -43,7 +44,6 @@
 #include "llvm/Support/Debug.h"
 #include <cstdint>
 #include <memory>
-#include <mlir/IR/OperationSupport.h>
 #include <utility>
 using namespace mlir;
 using namespace mlir::func;
