@@ -19,8 +19,8 @@ We follow this compilation flow `Linalg -> Gemmini -> Func -> LLVM IR`. And we s
 ```makefile
 mvin-mvout-run:
 	@${BUDDY_OPT} ./mvin-mvout.mlir \
-    -lower-gemmini-to-func \
-    -lower-gemmini-to-llvm | \
+	-lower-gemmini-to-func \
+	-lower-gemmini-to-llvm | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
 		-mattr=+buddyext,+D -float-abi=hard \
