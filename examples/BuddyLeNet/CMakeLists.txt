@@ -1,5 +1,5 @@
 add_custom_command(
-  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/lenet.mlir ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/arg0.data
+  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/forward.mlir ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/subgraph0.mlir ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/arg0.data
   COMMAND python3 ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/buddy-lenet-import.py
   COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files"
 )

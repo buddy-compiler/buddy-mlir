@@ -36,7 +36,6 @@
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/IR/OperationSupport.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -53,6 +52,7 @@ class FuncBufferizeDynamicOffsetPass
     : public PassWrapper<FuncBufferizeDynamicOffsetPass,
                          OperationPass<ModuleOp>> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(FuncBufferizeDynamicOffsetPass)
   FuncBufferizeDynamicOffsetPass() = default;
   llvm::StringRef getArgument() const final {
     return "func-bufferize-dynamic-offset";
