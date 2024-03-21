@@ -6,3 +6,5 @@ data
 __pycache__
 *.pth
 lenet.mlir
+forward.mlir
+subgraph0.mlir
