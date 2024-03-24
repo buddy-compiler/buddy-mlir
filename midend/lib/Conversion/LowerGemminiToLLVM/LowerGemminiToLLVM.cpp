@@ -162,23 +162,6 @@ public:
   LowerGemminiToLLVMPass() = default;
   LowerGemminiToLLVMPass(const LowerGemminiToLLVMPass &) {}
 
-  Option<int64_t> dim{*this, "dim", llvm::cl::desc("Size of systolic array."),
-                      llvm::cl::init(16)};
-  Option<int64_t> addrLen{*this, "addr_len",
-                          llvm::cl::desc("The length of address."),
-                          llvm::cl::init(32)};
-  Option<int64_t> accRows{*this, "acc_rows", llvm::cl::desc("The row of acc."),
-                          llvm::cl::init(1024)};
-  Option<int64_t> bankRows{*this, "bank_rows",
-                           llvm::cl::desc("The row of the bank."),
-                           llvm::cl::init(4096)};
-  Option<std::string> elemType{*this, "elem_t",
-                               llvm::cl::desc("The type of elem_t."),
-                               llvm::cl::init("i8")};
-  Option<std::string> accType{*this, "acc_t",
-                              llvm::cl::desc("The type of acc_t."),
-                              llvm::cl::init("i32")};
-
   // Override explicitly to allow conditional dialect dependence.
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<LLVM::LLVMDialect>();
@@ -186,7 +169,6 @@ public:
     registry.insert<memref::MemRefDialect>();
     registry.insert<scf::SCFDialect>();
     registry.insert<func::FuncDialect>();
-    // registry.insert<gemmini::GemminiDialect>();
   }
 
   void runOnOperation() override;
