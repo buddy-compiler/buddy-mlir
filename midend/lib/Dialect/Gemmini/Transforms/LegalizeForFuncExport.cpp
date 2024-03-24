@@ -222,7 +222,7 @@ void gemminiMvoutOffset(Operation *op, const Value &mem, const size_t offset,
 
 } // namespace
 
-struct GemminiFlushLowering : public OpRewritePattern<FlushOp> {
+struct GemminiFlushLowering2 : public OpRewritePattern<FlushOp> {
   using OpRewritePattern<FlushOp>::OpRewritePattern;
   LogicalResult
   matchAndRewrite(FlushOp flushOp, PatternRewriter &rewriter) const override {
@@ -244,7 +244,7 @@ struct GemminiFlushLowering : public OpRewritePattern<FlushOp> {
   }
 };
 
-struct GemminiConfigStLowering : public OpRewritePattern<ConfigStOp> {
+struct GemminiConfigStLowering2 : public OpRewritePattern<ConfigStOp> {
   using OpRewritePattern<ConfigStOp>::OpRewritePattern;
   LogicalResult
   matchAndRewrite(ConfigStOp configStOp, 
@@ -275,9 +275,9 @@ struct GemminiConfigStLowering : public OpRewritePattern<ConfigStOp> {
   }
 };
 
-struct GemminiConfigLdLowering : public OpRewritePattern<ConfigLdOp> {
+struct GemminiConfigLdLowering2 : public OpRewritePattern<ConfigLdOp> {
   using OpRewritePattern<ConfigLdOp>::OpRewritePattern;
-  explicit GemminiConfigLdLowering(MLIRContext *context, int64_t dim)
+  explicit GemminiConfigLdLowering2(MLIRContext *context, int64_t dim)
       : OpRewritePattern(context), dim(dim) {}
   LogicalResult
   matchAndRewrite(ConfigLdOp configLdOp, 
@@ -312,9 +312,9 @@ private:
   int64_t dim;
 };
 
-struct GemminiMvinLowering : public OpRewritePattern<MvinOp> {
+struct GemminiMvinLowering2 : public OpRewritePattern<MvinOp> {
   using OpRewritePattern<MvinOp>::OpRewritePattern;
-  explicit GemminiMvinLowering(MLIRContext *context, int64_t addrLen)
+  explicit GemminiMvinLowering2(MLIRContext *context, int64_t addrLen)
       : OpRewritePattern(context), addrLen(addrLen) {}
   LogicalResult
   matchAndRewrite(MvinOp mvinOp, PatternRewriter &rewriter) const override {
@@ -350,9 +350,9 @@ private:
   int64_t addrLen;
 };
 
-struct GemminiMvin2Lowering : public OpRewritePattern<Mvin2Op> {
+struct GemminiMvin2Lowering2 : public OpRewritePattern<Mvin2Op> {
   using OpRewritePattern<Mvin2Op>::OpRewritePattern;
-  explicit GemminiMvin2Lowering(MLIRContext *context, int64_t addrLen)
+  explicit GemminiMvin2Lowering2(MLIRContext *context, int64_t addrLen)
       : OpRewritePattern(context), addrLen(addrLen) {}
   LogicalResult
   matchAndRewrite(Mvin2Op mvin2Op, PatternRewriter &rewriter) const override {
@@ -389,9 +389,9 @@ private:
   int64_t addrLen;
 };
 
-struct GemminiMvin3Lowering : public OpRewritePattern<Mvin3Op> {
+struct GemminiMvin3Lowering2 : public OpRewritePattern<Mvin3Op> {
   using OpRewritePattern<Mvin3Op>::OpRewritePattern;
-  explicit GemminiMvin3Lowering(MLIRContext *context, int64_t addrLen)
+  explicit GemminiMvin3Lowering2(MLIRContext *context, int64_t addrLen)
       : OpRewritePattern(context), addrLen(addrLen) {}
   LogicalResult
   matchAndRewrite(Mvin3Op mvin3Op, PatternRewriter &rewriter) const override {
@@ -428,9 +428,9 @@ private:
   int64_t addrLen;
 };
 
-struct GemminiMvoutLowering : public OpRewritePattern<MvoutOp> {
+struct GemminiMvoutLowering2 : public OpRewritePattern<MvoutOp> {
   using OpRewritePattern<MvoutOp>::OpRewritePattern;
-  explicit GemminiMvoutLowering(MLIRContext *context, int64_t addrLen)
+  explicit GemminiMvoutLowering2(MLIRContext *context, int64_t addrLen)
       : OpRewritePattern(context), addrLen(addrLen) {}
   LogicalResult
   matchAndRewrite(MvoutOp mvoutOp, PatternRewriter &rewriter) const override {
@@ -466,7 +466,7 @@ private:
   int64_t addrLen;
 };
 
-struct GemminiConfigExLowering : public OpRewritePattern<ConfigExOp> {
+struct GemminiConfigExLowering2 : public OpRewritePattern<ConfigExOp> {
   using OpRewritePattern<ConfigExOp>::OpRewritePattern;
   LogicalResult
   matchAndRewrite(ConfigExOp configExOp, 
@@ -500,7 +500,7 @@ struct GemminiConfigExLowering : public OpRewritePattern<ConfigExOp> {
   }
 };
 
-struct GemminiConfigNormLowering : public OpRewritePattern<ConfigNormOp> {
+struct GemminiConfigNormLowering2 : public OpRewritePattern<ConfigNormOp> {
   using OpRewritePattern<ConfigNormOp>::OpRewritePattern;
   LogicalResult
   matchAndRewrite(ConfigNormOp configNormOp, 
@@ -532,10 +532,10 @@ struct GemminiConfigNormLowering : public OpRewritePattern<ConfigNormOp> {
   }
 };
 
-struct GemminiPreloadZerosLowering
+struct GemminiPreloadZerosLowering2
     : public OpRewritePattern<PreloadZerosOp> {
   using OpRewritePattern<PreloadZerosOp>::OpRewritePattern;
-  explicit GemminiPreloadZerosLowering(MLIRContext *context,
+  explicit GemminiPreloadZerosLowering2(MLIRContext *context,
                                        int64_t dim, int64_t addrLen)
       : OpRewritePattern(context), dim(dim), addrLen(addrLen) {}
   LogicalResult
@@ -574,9 +574,9 @@ private:
   int64_t addrLen;
 };
 
-struct GemminiPreloadLowering : public OpRewritePattern<PreloadOp> {
+struct GemminiPreloadLowering2 : public OpRewritePattern<PreloadOp> {
   using OpRewritePattern<PreloadOp>::OpRewritePattern;
-  explicit GemminiPreloadLowering(MLIRContext *context, int64_t addrLen)
+  explicit GemminiPreloadLowering2(MLIRContext *context, int64_t addrLen)
       : OpRewritePattern(context), addrLen(addrLen) {}
   LogicalResult
   matchAndRewrite(PreloadOp preloadOp, 
@@ -620,10 +620,10 @@ private:
   int64_t addrLen;
 };
 
-struct GemminiComputePreloadedLowering
+struct GemminiComputePreloadedLowering2
     : public OpRewritePattern<ComputePreloadedOp> {
   using OpRewritePattern<ComputePreloadedOp>::OpRewritePattern;
-  explicit GemminiComputePreloadedLowering(MLIRContext *context,
+  explicit GemminiComputePreloadedLowering2(MLIRContext *context,
                                            int64_t addrLen)
       : OpRewritePattern(context), addrLen(addrLen) {}
   LogicalResult
@@ -667,10 +667,10 @@ private:
   int64_t addrLen;
 };
 
-struct GemminiComputeAccumulatedLowering
+struct GemminiComputeAccumulatedLowering2
     : public OpRewritePattern<ComputeAccumulatedOp> {
   using OpRewritePattern<ComputeAccumulatedOp>::OpRewritePattern;
-  explicit GemminiComputeAccumulatedLowering(MLIRContext *context,
+  explicit GemminiComputeAccumulatedLowering2(MLIRContext *context,
                                              int64_t addrLen)
       : OpRewritePattern(context), addrLen(addrLen) {}
   LogicalResult
@@ -714,7 +714,7 @@ private:
   int64_t addrLen;
 };
 
-class GemminiTileMatMulLowering : public OpRewritePattern<TileMatMulOp> {
+class GemminiTileMatMulLowering2 : public OpRewritePattern<TileMatMulOp> {
   void gemminiLoopWs(size_t i, size_t j, size_t k, size_t padI, size_t padJ,
                      size_t padK, Value &a, Value &b, Value &d, Value &c,
                      size_t aRowStride, size_t bRowStride, size_t dRowStride,
@@ -965,8 +965,8 @@ class GemminiTileMatMulLowering : public OpRewritePattern<TileMatMulOp> {
           const size_t cCols = dim - (j0 == j - 1 ? padJ : 0);
           const size_t cRows = dim - (i0 == j - 1 ? padI : 0);
 
-          gemminiMvoutOffset(tileMatMulOp, c, offset, cSpAddr, cCols, cRows, addrLen,
-                             rewriter);
+          gemminiMvoutOffset(tileMatMulOp, c, offset, cSpAddr, cCols, cRows, 
+                            addrLen, rewriter);
         }
       }
     }
@@ -1160,7 +1160,7 @@ class GemminiTileMatMulLowering : public OpRewritePattern<TileMatMulOp> {
 
 public:
   using OpRewritePattern<TileMatMulOp>::OpRewritePattern;
-  explicit GemminiTileMatMulLowering(MLIRContext *context,
+  explicit GemminiTileMatMulLowering2(MLIRContext *context,
                                      int64_t dim, int64_t addrLen,
                                      int64_t accRows, int64_t bankRows,
                                      size_t sizeOfElemT, size_t sizeOfAccT)
@@ -1312,7 +1312,7 @@ private:
   size_t sizeOfAccT;
 };
 
-class GemminiTileConvLowering : public OpRewritePattern<TileConvOp> {
+class GemminiTileConvLowering2 : public OpRewritePattern<TileConvOp> {
 
   void gemminiLoopConvWs(
       int batchSize, int inDim, int inChannels, int outChannels, int outDim,
@@ -2148,7 +2148,7 @@ class GemminiTileConvLowering : public OpRewritePattern<TileConvOp> {
 
 public:
   using OpRewritePattern<TileConvOp>::OpRewritePattern;
-  explicit GemminiTileConvLowering(MLIRContext *context,
+  explicit GemminiTileConvLowering2(MLIRContext *context,
                                    int64_t dim, int64_t addrLen,
                                    int64_t accRows, int64_t bankRows,
                                    size_t sizeOfElemT, size_t sizeOfAccT)
@@ -2360,24 +2360,28 @@ void mlir::populateGemminiLegalizeForFuncExportPatterns(
     RewritePatternSet &patterns, int64_t dim, int64_t addrLen, 
     int64_t accRows, int64_t bankRows, size_t sizeOfElemT,
     size_t sizeOfAccT) {
-//   patterns
-//       .add<ForwardOperands<func::CallOp>, ForwardOperands<func::CallIndirectOp>,
-//            ForwardOperands<func::ReturnOp>>(converter, &converter.getContext());
-  patterns.add<GemminiFlushLowering>(patterns.getContext());
-  patterns.add<GemminiConfigStLowering>(patterns.getContext());
-  patterns.add<GemminiConfigLdLowering>(patterns.getContext(), dim);
-  patterns.add<GemminiMvinLowering>(patterns.getContext(), addrLen);
-  patterns.add<GemminiMvin2Lowering>(patterns.getContext(), addrLen);
-  patterns.add<GemminiMvin3Lowering>(patterns.getContext(), addrLen);
-  patterns.add<GemminiMvoutLowering>(patterns.getContext(), addrLen);
-  patterns.add<GemminiConfigExLowering>(patterns.getContext());
-  patterns.add<GemminiConfigNormLowering>(patterns.getContext());
-  patterns.add<GemminiPreloadZerosLowering>(patterns.getContext(), dim, addrLen);
-  patterns.add<GemminiPreloadLowering>(patterns.getContext(), addrLen);
-  patterns.add<GemminiComputePreloadedLowering>(patterns.getContext(), addrLen);
-  patterns.add<GemminiComputeAccumulatedLowering>(patterns.getContext(), addrLen);
-  patterns.add<GemminiTileMatMulLowering>(patterns.getContext(), dim, addrLen, accRows,
-                                          bankRows, sizeOfElemT, sizeOfAccT);
-  patterns.add<GemminiTileConvLowering>(patterns.getContext(), dim, addrLen, accRows,
-                                        bankRows, sizeOfElemT, sizeOfAccT);
+
+  patterns.add<GemminiFlushLowering2>(patterns.getContext());
+  patterns.add<GemminiConfigStLowering2>(patterns.getContext());
+  patterns.add<GemminiConfigLdLowering2>(patterns.getContext(), dim);
+  patterns.add<GemminiMvinLowering2>(patterns.getContext(), addrLen);
+  patterns.add<GemminiMvin2Lowering2>(patterns.getContext(), addrLen);
+  patterns.add<GemminiMvin3Lowering2>(patterns.getContext(), addrLen);
+  patterns.add<GemminiMvoutLowering2>(patterns.getContext(), addrLen);
+  patterns.add<GemminiConfigExLowering2>(patterns.getContext());
+  patterns.add<GemminiConfigNormLowering2>(patterns.getContext());
+  patterns.add<GemminiPreloadZerosLowering2>(patterns.getContext(), 
+                                            dim, addrLen);
+  patterns.add<GemminiPreloadLowering2>(patterns.getContext(), 
+                                      addrLen);
+  patterns.add<GemminiComputePreloadedLowering2>(patterns.getContext(), 
+                                                addrLen);
+  patterns.add<GemminiComputeAccumulatedLowering2>(patterns.getContext(), 
+                                                  addrLen);
+  patterns.add<GemminiTileMatMulLowering2>(patterns.getContext(), 
+                                          dim, addrLen, accRows, bankRows, 
+                                          sizeOfElemT, sizeOfAccT);
+  patterns.add<GemminiTileConvLowering2>(patterns.getContext(), 
+                                        dim, addrLen, accRows, bankRows, 
+                                        sizeOfElemT, sizeOfAccT);
 }

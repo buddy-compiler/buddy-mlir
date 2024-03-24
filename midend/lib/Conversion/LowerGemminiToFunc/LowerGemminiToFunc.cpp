@@ -114,6 +114,8 @@ void LowerGemminiToFuncPass::runOnOperation() {
 
 namespace mlir {
 namespace buddy {
-void registerLowerGemminiToFuncPass() { PassRegistration<LowerGemminiToFuncPass>(); }
+void registerLowerGemminiToFuncPass() { 
+  PassRegistration<LowerGemminiToFuncPass>();
+}
 } // namespace buddy
 } // namespace mlir
