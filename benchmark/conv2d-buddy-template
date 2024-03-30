@@ -1,7 +1,4 @@
-#map = affine_map<(d0, d1, d2) -> (d0 + d1 - d2)>
 #map0 = affine_map<(d0, d1) -> (d0 + d1 - 1)>
-#map1 = affine_map<(d0) -> (d0)>
-
 module {
   func.func private @printMemrefF32(memref<*xf32>)
   func.func private @print_flops(f64)
@@ -19,124 +16,6 @@ module {
     return %0 : memref<?x?xf32>
   }
 
-  func.func @alloc_4d_filled_f32(%arg0: index, %arg1: index, %arg2: index, %arg3: index, %arg4: f32) -> memref<?x?x?x?xf32> {
-    %c0 = arith.constant 0 : index
-    %c1 = arith.constant 1 : index
-    %0 = memref.alloc(%arg0, %arg1, %arg2, %arg3) : memref<?x?x?x?xf32>
-    scf.for %arg5 = %c0 to %arg0 step %c1 {
-      scf.for %arg6 = %c0 to %arg1 step %c1 {
-        scf.for %arg7 = %c0 to %arg2 step %c1 {
-          scf.for %arg8 = %c0 to %arg3 step %c1 {
-            memref.store %arg4, %0[%arg5, %arg6, %arg7, %arg8] : memref<?x?x?x?xf32>
-          }
-        }
-      }
-    }
-    return %0 : memref<?x?x?x?xf32>
-  }
-
-  func.func @corr_2d_nchw_fchw_constant_padding(%arg0: memref<?x?x?x?xf32>, %arg1: memref<?x?x?x?xf32>, %arg2: memref<?x?x?x?xf32>, %arg3: index, %arg4: index, %arg5: f32) attributes {llvm.emit_c_interface} {
-    %c256 = arith.constant 256 : index
-    %c0 = arith.constant 0 : index
-    %c1 = arith.constant 1 : index
-    %c2 = arith.constant 2 : index
-    %c3 = arith.constant 3 : index
-    %dim = memref.dim %arg0, %c0 : memref<?x?x?x?xf32>
-    %dim_0 = memref.dim %arg0, %c1 : memref<?x?x?x?xf32>
-    %dim_1 = memref.dim %arg0, %c2 : memref<?x?x?x?xf32>
-    %dim_2 = memref.dim %arg0, %c3 : memref<?x?x?x?xf32>
-    %dim_3 = memref.dim %arg1, %c0 : memref<?x?x?x?xf32>
-    %dim_4 = memref.dim %arg1, %c2 : memref<?x?x?x?xf32>
-    %dim_5 = memref.dim %arg1, %c3 : memref<?x?x?x?xf32>
-    %0 = arith.addi %dim_1, %arg4 : index
-    %1 = arith.addi %dim_2, %arg3 : index
-    %cst = arith.constant 0.000000e+00 : f32
-    %2 = vector.broadcast %cst : f32 to vector<256xf32>
-    %3 = affine.apply #map(%dim_2, %dim_5, %c1)
-    affine.for %arg6 = #map1(%c0) to #map1(%dim) {
-      affine.for %arg7 = #map1(%c0) to #map1(%dim_3) {
-        affine.for %arg8 = #map1(%c0) to #map1(%dim_0) {
-          affine.for %arg9 = #map1(%c0) to #map1(%dim_1) {
-            affine.for %arg10 = #map1(%c0) to #map1(%dim_4) {
-              affine.for %arg11 = #map1(%c0) to #map1(%dim_2) step 256 {
-                affine.for %arg12 = #map1(%c0) to #map1(%dim_5) {
-                  %4 = arith.addi %arg9, %arg10 : index
-                  %5 = arith.addi %arg11, %arg12 : index
-                  %6 = memref.load %arg1[%arg7, %arg8, %arg10, %arg12] : memref<?x?x?x?xf32>
-                  %7 = vector.broadcast %6 : f32 to vector<256xf32>
-                  %8 = arith.subi %4, %arg4 : index
-                  %9 = arith.subi %5, %arg3 : index
-                  %10 = arith.addi %5, %c256 : index
-                  %11 = arith.cmpi slt, %4, %arg4 : index
-                  %12 = arith.cmpf one, %6, %cst : f32
-                  scf.if %12 {
-                    scf.if %11 {
-                      %13 = vector.broadcast %arg5 : f32 to vector<256xf32>
-                      %14 = vector.load %arg2[%arg6, %arg8, %arg9, %arg11] : memref<?x?x?x?xf32>, vector<256xf32>
-                      %15 = vector.fma %13, %7, %14 : vector<256xf32>
-                      vector.store %15, %arg2[%arg6, %arg8, %arg9, %arg11] : memref<?x?x?x?xf32>, vector<256xf32>
-                    } else {
-                      %13 = arith.cmpi slt, %4, %0 : index
-                      scf.if %13 {
-                        %14 = arith.cmpi slt, %5, %arg3 : index
-                        scf.if %14 {
-                          %15 = arith.subi %arg3, %5 : index
-                          %16 = vector.create_mask %15 : vector<256xi1>
-                          %17 = vector.create_mask %c256 : vector<256xi1>
-                          %18 = arith.subi %17, %16 : vector<256xi1>
-                          %19 = vector.broadcast %arg5 : f32 to vector<256xf32>
-                          %20 = arith.subi %c0, %15 : index
-                          %21 = vector.maskedload %arg0[%arg6, %arg8, %8, %20], %18, %19 : memref<?x?x?x?xf32>, vector<256xi1>, vector<256xf32> into vector<256xf32>
-                          %22 = vector.load %arg2[%arg6, %arg8, %arg9, %arg11] : memref<?x?x?x?xf32>, vector<256xf32>
-                          %23 = vector.fma %21, %7, %22 : vector<256xf32>
-                          vector.store %23, %arg2[%arg6, %arg8, %arg9, %arg11] : memref<?x?x?x?xf32>, vector<256xf32>
-                        } else {
-                          %15 = arith.cmpi slt, %10, %1 : index
-                          scf.if %15 {
-                            %16 = vector.load %arg0[%arg6, %arg8, %8, %9] : memref<?x?x?x?xf32>, vector<256xf32>
-                            %17 = vector.load %arg2[%arg6, %arg8, %arg9, %arg11] : memref<?x?x?x?xf32>, vector<256xf32>
-                            %18 = vector.fma %16, %7, %17 : vector<256xf32>
-                            vector.store %18, %arg2[%arg6, %arg8, %arg9, %arg11] : memref<?x?x?x?xf32>, vector<256xf32>
-                          } else {
-                            %16 = arith.subi %10, %1 : index
-                            %17 = arith.subi %c256, %16 : index
-                            %18 = vector.create_mask %17 : vector<256xi1>
-                            %19 = vector.broadcast %arg5 : f32 to vector<256xf32>
-                            %20 = vector.maskedload %arg0[%arg6, %arg8, %8, %9], %18, %19 : memref<?x?x?x?xf32>, vector<256xi1>, vector<256xf32> into vector<256xf32>
-                            %21 = affine.apply #map(%c256, %dim_5, %c1)
-                            %22 = arith.subi %3, %arg11 : index
-                            %23 = arith.cmpi sge, %22, %21 : index
-                            scf.if %23 {
-                              %24 = vector.load %arg2[%arg6, %arg8, %arg9, %arg11] : memref<?x?x?x?xf32>, vector<256xf32>
-                              %25 = vector.fma %20, %7, %24 : vector<256xf32>
-                              vector.store %25, %arg2[%arg6, %arg8, %arg9, %arg11] : memref<?x?x?x?xf32>, vector<256xf32>
-                            } else {
-                              %24 = arith.subi %dim_2, %arg11 : index
-                              %25 = vector.create_mask %24 : vector<256xi1>
-                              %26 = vector.maskedload %arg2[%arg6, %arg8, %arg9, %arg11], %25, %2 : memref<?x?x?x?xf32>, vector<256xi1>, vector<256xf32> into vector<256xf32>
-                              %27 = vector.fma %20, %7, %26 : vector<256xf32>
-                              vector.maskedstore %arg2[%arg6, %arg8, %arg9, %arg11], %25, %27 : memref<?x?x?x?xf32>, vector<256xi1>, vector<256xf32>
-                            }
-                          }
-                        }
-                      } else {
-                        %14 = vector.broadcast %arg5 : f32 to vector<256xf32>
-                        %15 = vector.load %arg2[%arg6, %arg8, %arg9, %arg11] : memref<?x?x?x?xf32>, vector<256xf32>
-                        %16 = vector.fma %14, %7, %15 : vector<256xf32>
-                        vector.store %16, %arg2[%arg6, %arg8, %arg9, %arg11] : memref<?x?x?x?xf32>, vector<256xf32>
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    return
-  }
-
   func.func @conv_2d(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>, %arg2: memref<?x?xf32>) {
     linalg.conv_2d ins (%arg0, %arg1: memref<?x?xf32>, memref<?x?xf32>)
                   outs (%arg2: memref<?x?xf32>)
@@ -144,7 +23,6 @@ module {
   }
 
   func.func @main() {
-    %c1 = arith.constant 1 : index
     %c2 = arith.constant 2 : index
     %c3 = arith.constant 3 : index
 
@@ -152,26 +30,26 @@ module {
     %cst = arith.constant 1.000000e+00 : f32
     %cst_0 = arith.constant 0.000000e+00 : f32
 
-    %current_filter = arith.constant 256 : index
-    %current_output = arith.constant 512 : index
+    %current_filter = arith.constant TEMPLATE_FILTER : index
+    %current_output = arith.constant TEMPLATE_OUTPUT : index
     %current_image = affine.apply #map0(%current_output, %current_filter)
 
     // Filter.
-    %filter = call @alloc_4d_filled_f32(%c1, %c1, %current_filter, %current_filter, %cst) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
+    %filter = call @alloc_2d_filled_f32(%current_filter, %current_filter, %cst) : (index, index, f32) -> memref<?x?xf32>
     // Image.
-    %image = call @alloc_4d_filled_f32(%c1, %c1, %current_image, %current_image, %cst) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
+    %image = call @alloc_2d_filled_f32(%current_image, %current_image, %cst) : (index, index, f32) -> memref<?x?xf32>
     // Output.
-    %output = call @alloc_4d_filled_f32(%c1, %c1, %current_output, %current_output, %cst_0) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
+    %output = call @alloc_2d_filled_f32(%current_output, %current_output, %cst_0) : (index, index, f32) -> memref<?x?xf32>
 
     // Execution times.
-    %reps = arith.constant 1 : index
+    %reps = arith.constant 20 : index
 
     // Record start time.
     %t_start = call @rtclock() : () -> f64
 
     // Execute convolution for specific times.
     affine.for %arg0 = 0 to %reps {
-      //func.call @corr_2d_nchw_fchw_constant_padding(%image, %filter, %output, %c1, %c1, %cst_0) : (memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, index, index, f32) -> ()
+      func.call @conv_2d(%image, %filter, %output) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
     }
 
     // Record end time.
@@ -179,16 +57,26 @@ module {
     // Get the total running time.
     %t = arith.subf %t_end, %t_start : f64
 
-    vector.print %t : f64
-
     // Print output.
-    %print_output = memref.cast %output : memref<?x?x?x?xf32> to memref<*xf32>
+    %print_output = memref.cast %output : memref<?x?xf32> to memref<*xf32>
     // call @printMemrefF32(%print_output) : (memref<*xf32>) -> ()
 
-    memref.dealloc %image : memref<?x?x?x?xf32>
-    memref.dealloc %filter : memref<?x?x?x?xf32>
-    memref.dealloc %output : memref<?x?x?x?xf32>
+    // 2 * [filter size]^2 * [output size]^2.
+    %flops1 = arith.muli %current_output, %current_output : index
+    %flops2 = arith.muli %current_filter, %current_filter : index
+    %flops3 = arith.muli %c2, %flops2 : index
+    %flops4 = arith.muli %flops1, %flops3 : index
+    // Calculate FLOPS.
+    %num_flops = arith.muli %reps, %flops4 : index
+    %num_flops_i = arith.index_cast %num_flops : index to i64
+    %num_flops_f = arith.sitofp %num_flops_i : i64 to f64
+    %flops = arith.divf %num_flops_f, %t : f64
+    // Print the FLOPS.
+    vector.print %flops : f64
+
+    memref.dealloc %image : memref<?x?xf32>
+    memref.dealloc %filter : memref<?x?xf32>
+    memref.dealloc %output : memref<?x?xf32>
     return
   }
 }
-

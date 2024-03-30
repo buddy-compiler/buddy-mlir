@@ -1773,31 +1773,6 @@ void traverseImagewBoundaryExtrapolation4DMemRefsNCHWFCHW(
                   loc, rowUpCond,
                   [&](OpBuilder &builder, Location loc) {
                     // rowUp
-                    // if (boundaryOptionAttr ==
-                    //     buddy::dip::BoundaryOption::ConstantPadding) {
-                    //   Value inputVec = builder.create<vector::BroadcastOp>(
-                    //       loc, vectorTy32, constantValue);
-                    // calcAndStoreFMAwoTailProcessing4DMemRefs(
-                    //     builder, loc, vectorTy32, inputVec, kernelVec,
-                    //     output, ivs[0], ivs[1], ivs[3], ivs[5]);
-
-                    //   Value rightMaskHelper = builder.create<arith::SubIOp>(
-                    //       loc, colLastElem, colMidHelper);
-                    //   Value rightMaskElem = builder.create<arith::SubIOp>(
-                    //       loc, strideVal, rightMaskHelper);
-                    //   Value rightMask = builder.create<vector::CreateMaskOp>(
-                    //       loc, vectorMaskTy, rightMaskElem);
-
-                    //   Value tailCond =
-                    //       tailChecker(builder, loc, calcHelper, strideVal,
-                    //                   kernelCol, c1, pseudoCol, ivs[5]);
-
-                    //   calcAndStoreFMAwTailProcessing4DMemRefs(
-                    //       builder, loc, vectorTy32, inputVec, kernelVec,
-                    //       output, ivs[0], ivs[1], ivs[3], ivs[5], tailCond,
-                    //       zeroPadding, inputCol, vectorMaskTy);
-
-                    // } else {
                     Value colLeftCond = builder.create<arith::CmpIOp>(
                         loc, arith::CmpIPredicate::slt, currCol, centerX);
 
@@ -1926,7 +1901,6 @@ void traverseImagewBoundaryExtrapolation4DMemRefsNCHWFCHW(
                               });
                           builder.create<scf::YieldOp>(loc);
                         });
-                    // }
                     builder.create<scf::YieldOp>(loc);
                   },
                   [&](OpBuilder &builder, Location loc) {
@@ -2091,43 +2065,6 @@ void traverseImagewBoundaryExtrapolation4DMemRefsNCHWFCHW(
                         },
                         [&](OpBuilder &builder, Location loc) {
                           // rowDown
-                          //   if (boundaryOptionAttr ==
-                          //       buddy::dip::BoundaryOption::ConstantPadding)
-                          //       {
-                          // Value inputVec =
-                          //     builder.create<vector::BroadcastOp>(
-                          //         loc, vectorTy32, constantValue);
-
-                          //     //   calcAndStoreFMAwoTailProcessing4DMemRefs(
-                          //     //       builder, loc, vectorTy32, inputVec,
-                          //     //       kernelVec, output, ivs[0], ivs[1],
-                          //     ivs[3],
-                          //     //       ivs[5]);
-
-                          //     Value rightMaskHelper =
-                          //         builder.create<arith::SubIOp>(loc,
-                          //         colLastElem,
-                          //                                       colMidHelper);
-                          //     Value rightMaskElem =
-                          //     builder.create<arith::SubIOp>(
-                          //         loc, strideVal, rightMaskHelper);
-                          //     Value rightMask =
-                          //         builder.create<vector::CreateMaskOp>(
-                          //             loc, vectorMaskTy, rightMaskElem);
-
-                          //     Value tailCond =
-                          //         tailChecker(builder, loc, calcHelper,
-                          //         strideVal,
-                          //                     kernelCol, c1, pseudoCol,
-                          //                     ivs[5]);
-
-                          //     calcAndStoreFMAwTailProcessing4DMemRefs(
-                          //         builder, loc, vectorTy32, inputVec,
-                          //         kernelVec, output, ivs[0], ivs[1], ivs[3],
-                          //         ivs[5], tailCond, zeroPadding, inputCol,
-                          //         vectorMaskTy);
-
-                          //   } else {
                           Value colLeftCond = builder.create<arith::CmpIOp>(
                               loc, arith::CmpIPredicate::slt, currCol, centerX);
 
@@ -2283,7 +2220,6 @@ void traverseImagewBoundaryExtrapolation4DMemRefsNCHWFCHW(
                                     });
                                 builder.create<scf::YieldOp>(loc);
                               });
-                          //   }
                           builder.create<scf::YieldOp>(loc);
                         });
                     builder.create<scf::YieldOp>(loc);
