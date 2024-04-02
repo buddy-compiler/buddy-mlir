@@ -13,7 +13,7 @@ prequelConstruct
     ;
 
 usertype
-    : TYPE_IR typename LeftBrace typeRuleBlock RightBrace
+    : TYPE_IR typename typeRuleBlock
     ;
 
 typename 
@@ -21,7 +21,7 @@ typename
     ;
 
 typeRuleBlock
-    : 
+    : LeftBrace parametersSpec? assemblyFormatSpec? RightBrace
     ;
 
 fegenDecl
@@ -174,7 +174,7 @@ lexerBlock
     ;
 
 actionBlock
-    : LeftBrace inputsSpec? returnsSpec? actionSpec? irSpec? parametersSpec? assemblyFormatSpec? RightBrace
+    : LeftBrace inputsSpec? returnsSpec? actionSpec? irSpec? RightBrace
     ;
 
 inputsSpec
@@ -191,8 +191,7 @@ varDeclSpec
 
 type
     : LIST Less type Greater
-    | CPP_VALUE Less StringLiteral Greater
-    | (OPERAND_VALUE | ATTRIBUTE_VALUE) Less prefixedName (Comma prefixedName)* Greater
+    | INT | STRING | VECTOR | FLOAT | TENSOR
     ;
 
 prefixedName

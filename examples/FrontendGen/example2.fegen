@@ -1,7 +1,8 @@
 fegen example2;
 
-type toy.struct{
-parameters [list<cppValue<'Type'>>]assemblyFormat['`<`custom<ElementTypes>($elemTypes)>`']
+typeDef struct{
+    parameters [list<anytype>]
+    assemblyFormat['`<`custom<ElementTypes>($elemTypes)>`']
 }
 
 module
@@ -10,92 +11,103 @@ module
 
 expression
     : Number
-    {   inputs [attributeValue<F64ElementsAttr> numberAttr]
-        returns [operandValue<F64Tensor> ret]
+    {   inputs [const float numberAttr]
+        returns [tensor ret]
         actions {
-            cppValue<'double'> number = function<'std::stod'>($Number().text);
-            numberAttr = attribute<F64ElementsAttr>(number);
+            'double' number = function<'std::stod'>($Number().text);
+            numberAttr = double<number>;
         }
         // ret = operation<toy.constant>(numberAttr);
         // 声明或使用一个operation
-        ir [operation<toy.constant>]
+        ir [constant]
     }
     | tensorLiteral
     {
-        inputs [attributeValue<F64ElementsAttr> in]
-        returns [operandValue<F64Tensor>]
+        inputs [float in]
+        returns [tensor]
         actions {
             in = function<'getTensor'>($tensorLiteral());
         }
-        ir [operation<toy.constant>]
+        ir [constant]
     }
     | identifierExpr
     {
-        inputs [operandValue<F64Tensor> in]
-        returns [operandValue<F64Tensor> ret]
+        inputs [tensor in]
+        returns [tensor ret]
         actions {ret = in;}
     }
     | expression Mul expression
     {
-        inputs [operandValue<F64Tensor>, operandValue<F64Tensor>]
-        returns [operandValue<F64Tensor>]
-        ir [operation<toy.mul>]
+        inputs [tensor, tensor]
+        returns [tensor]
+        ir [mul]
     }
     | expression Add expression
     {
-        inputs [operandValue<F64Tensor>, operandValue<F64Tensor>]
-        returns [operandValue<F64Tensor>]
-        ir [operation<toy.add>]
+        inputs [tensor, tensor]
+        returns [tensor]
+        ir [add]
     }
     | expression Dot expression
     {
-        inputs [operandValue<Toy_StructType> input, attributeValue<I64Attr> index]
-        returns [operandValue<F64Tensor> output] 
+        inputs [struct input, const int index]
+        returns [tensor output] 
         actions {
             index = function<'getMemberIndex'>($expression(1).text);
         }
-        ir [operation<toy.StructAccessOp>]
+        ir [StructAccessOp]
     }
     | structLiteral
     {
-        inputs [attributeValue<ArrayAttr>]
-        returns [operandValue<Toy_StructType>]
-        ir [operation<toy.StructConstantOp>]
+        inputs [cosnt array in]
+        returns [struct ret]
+        actions {
+            // 使用时，需要把类型实例化出来 
+            l = function<'getElementTypes'>($structLiteral)
+            ret.type = struct<l>
+        }
+        ir [StructConstantOp]
     }
     ;
 
 identifierExpr
     : Identifier
     {
-        returns [operandValue<F64Tensor, Toy_StructType> in]
+        // TODO:: 组合类型的处理
+        // 对组合类型进行特殊处理，比如参考toy例程里的部分
+        // def Toy_Type : AnyTypeOf<[F64Tensor, Toy_StructType]>;
+        returns [<tensor, struct> ret]
         actions {
-            in = function<'findSymbol'>($Identifier().text);
+            // 应该出现在td文件中
+            ret.type = ret_type AnyTypeOf <tensor, struct>;
+            ret = function<'findSymbol'>($Identifier().text);
         }
     }
     | Identifier ParentheseOpen (expression(Comma expression)*)? ParentheseClose 
     {
-        inputs [attributeValue<FlatSymbolRefAttr> callee, list<operandValue<Toy_type>> ins]
-        returns [operandValue<Toy_type> ret]
+        // TODO:: callee怎么表示
+        inputs [const attr callee, list<'type'> ins]
+        returns [type ret]
         actions {
             // TODO: table
             callee = function<'findSymbol'>($Identifier().text);
             // TODO: how to get a list
             ins = getInputs($expression());
         }
-        ir [operation<toy.GenericCallOp>]
+        ir [GenericCallOp]
     }
     ; 
 
 returnExpr
     : Return
     {
-        inputs [list<operandValue<toyType>> in]
-        ir [operation<toy.ReturnOp>]
+        inputs [list<'Type'> in]
+        ir [ReturnOp]
     } 
     | Return expression 
     {
-        inputs [list<operandValue<toyType>> in]
-        ir [operation<toy.ReturnOp>]
+        inputs [list<'Type'> in]
+        ir [ReturnOp]
     }
     ;
 
@@ -111,44 +123,44 @@ type
 funDefine
     : prototype block
     {
-        inputs [attributeValue<SymbolNameAttr>, attributeValue<toy.functionType>]
-        ir [operation<toy.func>]
+        inputs [const attr symbolname, const attr functype]
+        ir [func]
     }
     ;
 
 prototype
     : Def funcName funcParams
     {
-        inputs [attributeValue<SymbolNameAttr> in1, attributeValue<toy.functionType> in2]
-        returns[attributeValue<SymbolNameAttr> ret1, attributeValue<toy.functionType> ret2]
+        inputs [const attr in1, const attr in2]
+        returns[const attr ret1, const attr ret2]
     }
     ;
 
 funcName
     : Identifier
     {
-        inputs [cppValue<'string'> text]
-        returns [attributeValue<SymbolNameAttr> name]
+        inputs ['string' text]
+        returns [const attr name]
         actions {
             text = $Identifier().text;
         }
-        ir [attribute<SymbolNameAttr>]
+        ir [SymbolNameAttr]
     }
     ;
 
 funcParams
     : ParentheseOpen declList? ParentheseClose
     {
-        inputs [list<cppValue<'Type'>>]
-        returns [attributeValue<toy.functionType>]
-        ir [attribute<toy.functionType>]
+        inputs [list<'Type'>]
+        returns [const attr]
+        ir [functionType]
     }
     ;
 
 declList
     : varDecl (Comma varDecl)*
     {
-        returns [list<cppValue<'Type'>> ret]
+        returns [list<'Type'> ret]
         actions {
             // get types of vardecl
             ret = getTypes(varDecl);

@@ -58,8 +58,9 @@ TENSOR: 'tensor';
 
 STRING: 'string';
 
-NULL: 'null';
+VECTOR: 'vector';
 
+NULL: 'null';
 
 //assmblyFormat identifier
 
