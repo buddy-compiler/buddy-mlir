@@ -62,6 +62,10 @@ VECTOR: 'vector';
 
 NULL: 'null';
 
+CPPTYPE: '\'' NONDIGIT* '\'';
+
+ANYTYPE: 'type';
+
 //assmblyFormat identifier
 
 AssmblyIden: BackQuote Less BackQuote (NONDIGIT | Less | Greater | LeftParen | RightParen | Dollar)* BackQuote Less BackQuote;
@@ -138,6 +142,8 @@ Tilde: '~';
 Range: '..';
 
 BackQuote: '`';
+
+
 
 BeginInclude: '@header' LeftBrace -> pushMode (TargetLanguageAction);
 

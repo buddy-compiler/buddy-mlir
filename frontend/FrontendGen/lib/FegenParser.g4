@@ -191,7 +191,7 @@ varDeclSpec
 
 type
     : LIST Less type Greater
-    | INT | STRING | VECTOR | FLOAT | TENSOR
+    | INT | STRING | VECTOR | FLOAT | TENSOR | ANYTYPE | CPPTYPE
     ;
 
 prefixedName
