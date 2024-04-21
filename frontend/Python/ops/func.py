@@ -37,8 +37,12 @@ def func_op(node: FuncOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
         mlir_dtype = mlir_element_type_get(arg.dtype)
         stride = []
         for dim, dim_size in enumerate(shape):
-            stride.append(functools.reduce(lambda x, y: x * y, shape[dim+1:]+[1]))
-        memref_attr = ir.Attribute.parse("strided<{}, offset: ?>".format(stride))
+            stride.append(
+                functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1])
+            )
+        memref_attr = ir.Attribute.parse(
+            "strided<{}, offset: ?>".format(stride)
+        )
         arguments.append(ir.MemRefType.get(shape, mlir_dtype, memref_attr))
     results = []
     for i, shape in enumerate(node.tensor_meta["shape"]):
@@ -61,8 +65,12 @@ def call_op(node: CallOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
         stride = []
         shape = memref_type.shape
         for dim, dim_size in enumerate(shape):
-            stride.append(functools.reduce(lambda x, y: x * y, shape[dim+1:]+[1]))
-        memref_attr = ir.Attribute.parse("strided<{}, offset: ?>".format(stride))
+            stride.append(
+                functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1])
+            )
+        memref_attr = ir.Attribute.parse(
+            "strided<{}, offset: ?>".format(stride)
+        )
         dest = ir.MemRefType.get(shape, memref_type.element_type, memref_attr)
         cast_op = memref.CastOp(dest, input_node)
         arguments.append(cast_op)
@@ -98,7 +106,10 @@ def param_extract(
         TensorDType.Int64: ir.IntegerType.get_signless(64),
     }
     memref_element_type = dtype_mapping[node.tensor_meta["dtype"]]
-    output_shape = list(node.tensor_meta["shape"])
+    if(len(node.tensor_meta['shape'])== 0):
+        output_shape = [1]
+    else:
+        output_shape = list(node.tensor_meta["shape"])
     subview_size = functools.reduce(lambda x, y: x * y, output_shape)
     offset_attr = ir._denseI64ArrayAttr([offset], None)
     size_attr = ir._denseI64ArrayAttr([subview_size], None)
@@ -125,7 +136,9 @@ def param_extract(
         return memref_subview_op
     stride = []
     for dim, dim_size in enumerate(output_shape):
-        stride.append(functools.reduce(lambda x, y: x * y, output_shape[dim+1:]+[1]))
+        stride.append(
+            functools.reduce(lambda x, y: x * y, output_shape[dim + 1 :] + [1])
+        )
     memref_attr = ir.Attribute.parse(
         "strided<{}, offset: {}>".format(stride, offset)
     )
@@ -143,7 +156,9 @@ def param_extract(
         None,
     )
     axis = ir.ArrayAttr.get([axis], None)
-    expand_shape_op = memref.ExpandShapeOp(memref_type, memref_subview_op.result, axis)
+    expand_shape_op = memref.ExpandShapeOp(
+        memref_type, memref_subview_op.result, axis
+    )
     return expand_shape_op
 
 ops_registry = {

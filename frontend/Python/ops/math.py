@@ -28,7 +28,8 @@ def erf_op(node, symbol_table):
 
 def sqrt_op(node, symbol_table):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
-    return math.SqrtOp(input_tensor)
+    op = math.SqrtOp(input_tensor)
+    return op
 
 
 ops_registry = {

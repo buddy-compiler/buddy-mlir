@@ -21,6 +21,7 @@
 import array
 from typing import Dict, List, Tuple, Union
 import numpy
+import sys
 
 import mlir.ir as ir
 from mlir.dialects import tensor, tosa
@@ -57,6 +58,8 @@ from ..graph import (
     SigmoidOp,
     ReciprocalOp,
     MeanOp,
+    ClampMinOp,
+    ClampMaxOp,
 )
 from .utils import *
 
@@ -969,10 +972,14 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     """
     assert len(node.args) == 9
     input1 = symbol_table.get((str(node.args[0]), 0))
+    #general situation
     weight = symbol_table.get((str(node.args[1]), 0))
+    #The case where the number of groups in a grouped convolution coincides with the number of channels
+    weight1 = symbol_table.get((str(node.args[1]), 0)) 
     is_kernel_transposed = node.args[6]
     dtype = node.tensor_meta["dtype"]
     result_element_type = mlir_element_type_get(dtype)
+    groups = node.args[8]
     if node._layout.find("NCHW") != -1:
         perm_list = [0, 2, 3, 1]
         perm_const_op = tosa.ConstOp(
@@ -1007,6 +1014,25 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
         weight = tosa.TransposeOp(
             permute_result_type, weight, perm_const_op.results[0]
         ).result
+        #Weight kernel shape[OC,KH,KW,IC]
+    if node._layout.find("FCHW") != -1:
+        perm_list = [1, 2, 0, 3]
+        perm_const_op = tosa.ConstOp(
+            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+        )
+        out_shape = list(ir.RankedTensorType(weight.type).shape)
+        perm_shape = []
+        perm_shape.append(out_shape[1])
+        perm_shape.append(out_shape[2])
+        perm_shape.append(out_shape[0])
+        perm_shape.append(out_shape[3])
+        permute_result_type = ir.RankedTensorType.get(
+            perm_shape, result_element_type
+        )
+        weight1 = tosa.TransposeOp(
+            permute_result_type, weight, perm_const_op.results[0]
+        ).result
+        #Weight kernel shape[KH,KW,C,M]
     if is_kernel_transposed:
         in_channels = list(ir.RankedTensorType(weight.type).shape)[0]
         out_channels = list(ir.RankedTensorType(weight.type).shape)[1]
@@ -1032,7 +1058,6 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     elif len(input_padding) == 2:
         input_padding = [input_padding[0]] * 2 + [input_padding[1]] * 2
     dilation = node.args[5]
-    groups = node.args[8]
     out_shape = node.tensor_meta["shape"]
     if node._layout.find("NCHW") != -1:
         perm_shape = []
@@ -1043,7 +1068,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
         out_shape = perm_shape
     output = ir.RankedTensorType.get(out_shape, result_element_type)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
-    assert groups == 1, 'tosa.conv2d only support one group'
+    #assert groups == 1, 'tosa.conv2d only support one group'    
     if is_kernel_transposed:
         if sum(input_padding) > 0 or sum(dilation) > len(dilation):
             raise NotImplementedError
@@ -1064,15 +1089,26 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     else:
         input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
         dilation_attr = ir._denseI64ArrayAttr(dilation, None)
-        op = tosa.Conv2DOp(
-            output,
-            input1,
-            weight,
-            bias_tensor,
-            input_padding_attr,
-            stride_attr,
-            dilation_attr,
-        )
+        if groups == 1:
+            op = tosa.Conv2DOp(
+                output,
+                input1,
+                weight,
+                bias_tensor,
+                input_padding_attr,
+                stride_attr,
+                dilation_attr,
+            )
+        else:
+            op = tosa.DepthwiseConv2DOp(
+                output,
+                input1,
+                weight1,
+                bias_tensor,
+                input_padding_attr,
+                stride_attr,
+                dilation_attr,
+            )
     if node._layout.find("NCHW") != -1:
         perm_list = [0, 3, 1, 2]
         perm_const_op = tosa.ConstOp(
@@ -1213,6 +1249,38 @@ def mean_op(node: MeanOp, symbol_table):
 
     return ret
 
+def clamp_min_op(node:ClampMinOp, symbol_table):
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    min_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    sizes = ir.RankedTensorType(input1.type).shape
+    result_element_type = ir.RankedTensorType(input1.type).element_type
+    clampmin_result_tensor_type = ir.RankedTensorType.get(
+        sizes, result_element_type
+    )
+    intValue = round(min_value)
+    min_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), intValue)
+    max_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), sys.maxsize)
+    min_fp = ir.FloatAttr.get(ir.F32Type.get(), min_value)
+    max_fp = ir.FloatAttr.get(ir.F32Type.get(), float('inf'))
+    op = tosa.ClampOp(clampmin_result_tensor_type, input1, min_int, max_int, min_fp, max_fp)
+    return op
+
+
+def clamp_max_op(node:ClampMaxOp, symbol_table):
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    max_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    sizes = ir.RankedTensorType(input1.type).shape
+    result_element_type = ir.RankedTensorType(input1.type).element_type
+    clampmax_result_tensor_type = ir.RankedTensorType.get(
+    sizes, result_element_type
+    )
+    intValue = round(max_value)
+    min_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), -sys.maxsize)
+    max_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), intValue)
+    min_fp = ir.FloatAttr.get(ir.F32Type.get(), -float('inf'))
+    max_fp = ir.FloatAttr.get(ir.F32Type.get(), max_value)
+    op = tosa.ClampOp(clampmax_result_tensor_type, input1, min_int, max_int, min_fp, max_fp)
+    return op
 
 ops_registry = {
     "AddOp": add_op,
@@ -1246,4 +1314,6 @@ ops_registry = {
     "SigmoidOp": sigmoid_op,
     "ReciprocalOp": reciprocal_op,
     "MeanOp": mean_op,
+    "ClampMinOp": clamp_min_op,
+    "ClampMaxOp": clamp_max_op,
 }

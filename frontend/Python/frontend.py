@@ -158,6 +158,8 @@ class DynamoCompiler:
             "where.self": WhereOp,
             "sqrt.default": SqrtOp,
             "reciprocal.default": ReciprocalOp,
+            "clamp_min.default": ClampMinOp,
+            "clamp_max.default": ClampMaxOp,
         }
 
     @property
