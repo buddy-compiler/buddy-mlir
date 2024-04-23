@@ -44,27 +44,40 @@ LIST: 'list';
 
 OPERATION: 'operation';
 
-ATTRIBUTE: 'attribute';
+ATTRIBUTE: 'Attribute';
+
+TYPE: 'Type';
 
 FUNCTION: 'function';
 
-TYPE_IR: 'typeDef';
+TYPEDEF: 'typedef';
+
+ATTRIBUTEDEF: 'attributedef';
 
 INT: 'int';
 
 FLOAT: 'float';
 
+DOUBLE: 'double';
+
 TENSOR: 'tensor';
 
 STRING: 'string';
 
-VECTOR: 'vector';
+INTATTR: 'intAttr';
+
+FLOATATTR: 'floatAttr';
+
+DOUBLEATTR: 'doubleAttr';
+
+TENSORATTR: 'tensorAttr';
+
+STRINGATTR: 'stringAttr';
 
 NULL: 'null';
 
-CPPTYPE: '\'' NONDIGIT* '\'';
-
-ANYTYPE: 'type';
+// AnyTypeOf method
+ANYTYPEOF: 'AnyTypeOf';
 
 //assmblyFormat identifier
 

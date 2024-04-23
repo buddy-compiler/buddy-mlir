@@ -1,8 +1,10 @@
 fegen example2;
 
-typeDef struct{
-    parameters [list<anytype>]
-    assemblyFormat['`<`custom<ElementTypes>($elemTypes)>`']
+typedef struct{
+    parameters [list<Type>]
+
+    // TODO:确定一个合理的形式
+    // assemblyFormat['`<`custom<ElementTypes>($elemTypes)>`']
 }
 
 module
@@ -11,7 +13,7 @@ module
 
 expression
     : Number
-    {   inputs [const float numberAttr]
+    {   inputs [floatAttr numberAttr]
         returns [tensor ret]
         actions {
             'double' number = function<'std::stod'>($Number().text);
@@ -50,7 +52,7 @@ expression
     }
     | expression Dot expression
     {
-        inputs [struct input, const int index]
+        inputs [struct input, intAttr index]
         returns [tensor output] 
         actions {
             index = function<'getMemberIndex'>($expression(1).text);
@@ -59,12 +61,12 @@ expression
     }
     | structLiteral
     {
-        inputs [cosnt array in]
+        inputs [tensorAttr in]
         returns [struct ret]
         actions {
             // 使用时，需要把类型实例化出来 
-            l = function<'getElementTypes'>($structLiteral)
-            ret.type = struct<l>
+            list<Type> l = function<'getElementTypes'>($structLiteral());
+            ret.type = struct<l>;
         }
         ir [StructConstantOp]
     }
@@ -78,16 +80,16 @@ identifierExpr
         // def Toy_Type : AnyTypeOf<[F64Tensor, Toy_StructType]>;
         returns [<tensor, struct> ret]
         actions {
-            // 应该出现在td文件中
+            // 应该出现在td文件中, AnyTypeOf处可以自定义混合类型名字，也可以自动生成
             ret.type = ret_type AnyTypeOf <tensor, struct>;
             ret = function<'findSymbol'>($Identifier().text);
         }
     }
     | Identifier ParentheseOpen (expression(Comma expression)*)? ParentheseClose 
     {
-        // TODO:: callee怎么表示
-        inputs [const attr callee, list<'type'> ins]
-        returns [type ret]
+        // TODO:: callee怎么修改
+        inputs [Attribute callee, list<Type> ins]
+        returns [Type ret]
         actions {
             // TODO: table
             callee = function<'findSymbol'>($Identifier().text);
@@ -101,12 +103,12 @@ identifierExpr
 returnExpr
     : Return
     {
-        inputs [list<'Type'> in]
+        inputs [list<Type> in]
         ir [ReturnOp]
     } 
     | Return expression 
     {
-        inputs [list<'Type'> in]
+        inputs [list<Type> in]
         ir [ReturnOp]
     }
     ;
@@ -123,7 +125,7 @@ type
 funDefine
     : prototype block
     {
-        inputs [const attr symbolname, const attr functype]
+        inputs [Attribute symbolname, Attribute functype]
         ir [func]
     }
     ;
@@ -131,8 +133,8 @@ funDefine
 prototype
     : Def funcName funcParams
     {
-        inputs [const attr in1, const attr in2]
-        returns[const attr ret1, const attr ret2]
+        inputs [Attribute in1, Attribute in2]
+        returns[Attribute ret1, Attribute ret2]
     }
     ;
 
@@ -140,7 +142,7 @@ funcName
     : Identifier
     {
         inputs ['string' text]
-        returns [const attr name]
+        returns [Attribute name]
         actions {
             text = $Identifier().text;
         }
@@ -151,8 +153,8 @@ funcName
 funcParams
     : ParentheseOpen declList? ParentheseClose
     {
-        inputs [list<'Type'>]
-        returns [const attr]
+        inputs [list<Type>]
+        returns [Attribute]
         ir [functionType]
     }
     ;
@@ -160,7 +162,7 @@ funcParams
 declList
     : varDecl (Comma varDecl)*
     {
-        returns [list<'Type'> ret]
+        returns [list<Type> ret]
         actions {
             // get types of vardecl
             ret = getTypes(varDecl);

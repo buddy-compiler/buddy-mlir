@@ -13,7 +13,7 @@ prequelConstruct
     ;
 
 usertype
-    : TYPE_IR typename typeRuleBlock
+    : TYPEDEF typename typeRuleBlock
     ;
 
 typename 
@@ -21,7 +21,15 @@ typename
     ;
 
 typeRuleBlock
-    : LeftBrace parametersSpec? assemblyFormatSpec? RightBrace
+    : LeftBrace parametersSpec assemblyFormatSpec? RightBrace
+    ;
+
+parametersSpec
+    : PARAMETERS varDecls
+    ; 
+
+assemblyFormatSpec
+    : ASSEMBLYFORMAT LeftBracket AssmblyIden RightBracket
     ;
 
 fegenDecl
@@ -187,12 +195,19 @@ varDecls
 
 varDeclSpec
 	: type identifier?
+    | attr identifier?
+    | Less type Comma type (Comma type)* Greater identifier?
 	;
+
 
 type
     : LIST Less type Greater
-    | INT | STRING | VECTOR | FLOAT | TENSOR | ANYTYPE | CPPTYPE
+    | INT | STRING | DOUBLE | FLOAT | TENSOR | TYPE | cpptype | identifier
     ;
+
+attr
+	: INTATTR | STRINGATTR | DOUBLEATTR | FLOATATTR | TENSORATTR | ATTRIBUTE
+	;
 
 prefixedName
     : identifier (Dot identifier)? 
@@ -241,12 +256,14 @@ paramList
     ;
 
 assignStmt
-    : identifier Assign expression
+    : identifier (Dot identifier)? Assign expression
     ;
 
 expression
-    : variable
+    : typestmt
     | functionCallStmt
+    | variable
+    | anytypeofstmt
     | NULL
     ;
 
@@ -255,19 +272,24 @@ variable
     | Dollar identifier LeftParen IntLiteral? RightParen ruleSuffix?
     ;
 
+typestmt 
+    : type Less expression Greater
+    ;
+
+anytypeofstmt
+    : identifier? ANYTYPEOF Less type Comma type (Comma type)* Greater
+    ;
+
 ruleSuffix
     : Dot variable
     | Dot RETURNS LeftBracket IntLiteral RightBracket
     ;   
 
 irSpec
-    : IR LeftBracket (OPERATION | ATTRIBUTE) Less identifier (Dot identifier)? Greater RightBracket
+    : IR LeftBracket  identifier (Dot identifier)? RightBracket
     ;
 
-parametersSpec
-    : PARAMETERS varDecls
-    ; 
-
-assemblyFormatSpec
-    : ASSEMBLYFORMAT LeftBracket AssmblyIden RightBracket
+// C++ type
+cpptype
+    : StringLiteral
     ;
