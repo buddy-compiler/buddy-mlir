@@ -4,7 +4,11 @@ typedef struct{
     parameters [list<Type>]
 
     // TODO:确定一个合理的形式
-    // assemblyFormat['`<`custom<ElementTypes>($elemTypes)>`']
+    assemblyFormat['$elemTypes']
+}
+
+attributedef intattrbute{
+    parameters [int]
 }
 
 module

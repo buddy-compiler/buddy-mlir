@@ -5,22 +5,27 @@ options {
 }
 
 fegenSpec
-    : fegenDecl prequelConstruct* usertype* rules EOF
+    : fegenDecl prequelConstruct* userdef* rules EOF
+    ;
+
+fegenDecl
+    : FEGEN identifier Semi
     ;
 
 prequelConstruct
     : BeginInclude INCLUDE_CONTENT* EndInclude
     ;
 
-usertype
-    : TYPEDEF typename typeRuleBlock
+userdef
+    : TYPEDEF username userRuleBlock
+    | ATTRIBUTEDEF username userRuleBlock
     ;
 
-typename 
+username 
     : identifier
     ;
 
-typeRuleBlock
+userRuleBlock
     : LeftBrace parametersSpec assemblyFormatSpec? RightBrace
     ;
 
@@ -29,11 +34,7 @@ parametersSpec
     ; 
 
 assemblyFormatSpec
-    : ASSEMBLYFORMAT LeftBracket AssmblyIden RightBracket
-    ;
-
-fegenDecl
-    : FEGEN identifier Semi
+    : ASSEMBLYFORMAT LeftBracket StringLiteral RightBracket
     ;
 
 rules

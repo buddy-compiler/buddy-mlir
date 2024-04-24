@@ -80,8 +80,7 @@ NULL: 'null';
 ANYTYPEOF: 'AnyTypeOf';
 
 //assmblyFormat identifier
-
-AssmblyIden: BackQuote Less BackQuote (NONDIGIT | Less | Greater | LeftParen | RightParen | Dollar)* BackQuote Less BackQuote;
+//AssmblyIden: BackQuote Less BackQuote (NONDIGIT | Less | Greater | LeftParen | RightParen | Dollar)* BackQuote Less BackQuote;
 
 // identifiers
 
