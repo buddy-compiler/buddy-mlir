@@ -63,10 +63,29 @@ public:
     Value fillOpInputValue =
         rewriter.create<arith::ConstantOp>(loc, fillOpInsType, fillOpInputAttr);
     rewriter.create<linalg::FillOp>(loc, fillOpInputValue, bias);
-    rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
-        matMulOp, input0, input1, output0, bias, /*aScaleFactor = */ scale1,
-        /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1, /*act = */ 0,
-        /*accScale = */ scale1, /*bertScale = */ scale0);
+
+    // If this matmul operation is followed by a transpose operation, do fusion.
+    // We assume that the result of this matmul op only has one user.
+    if (matMulOp->hasOneUse()) {
+      // llvm::outs() << "Step in. \n";
+      Operation* userOp = *matMulOp->user_begin();
+      if (auto transposeOp = dyn_cast<linalg::TransposeOp>(userOp)) {
+        // (A * B)T = BT * AT
+        rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
+            matMulOp, input1, input0, output0, bias, /*aScaleFactor = */ scale1,
+            /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1, /*act = */0,
+            /*accScale = */ scale1, /*bertScale = */ scale0,
+            /*aTranspose = */ true, /*bTranspose = */ true);
+        rewriter.eraseOp(transposeOp);
+      }
+    } else {
+      // llvm::outs() << "Not step in. \n";
+      rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
+          matMulOp, input0, input1, output0, bias, /*aScaleFactor = */ scale1,
+          /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1, /*act = */ 0,
+          /*accScale = */ scale1, /*bertScale = */ scale0);
+    }
+
     rewriter.create<memref::DeallocOp>(loc, bias);
     return success();
   }
