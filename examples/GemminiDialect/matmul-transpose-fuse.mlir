@@ -2,21 +2,35 @@
 // RUN:     --convert-linalg-to-gemmini | \
 // RUN: FileCheck %s
 
-func.func @matmul_transpose(%lhs: memref<3x4xi8>, %rhs: memref<4x3xi8>,
-                            %output: memref<3x3xi8>) {
+memref.global "private" @gv1 : memref<3x4xi8> = dense<[[1, 2, 3, 4],
+                                                       [5, 6, 7, 8],
+                                                       [9, 10, 11, 12]]>
+memref.global "private" @gv2 : memref<4x3xi8> = dense<[[1, 1, 1],
+                                                       [1, 1, 1],
+                                                       [1, 1, 1],
+                                                       [1, 1, 1]]>
+
+func.func @main() -> i8 {
+    %arrayA = memref.get_global @gv1 : memref<3x4xi8>
+    %arrayB = memref.get_global @gv2 : memref<4x3xi8>
+    %arrayC = memref.alloc() : memref<3x3xi8>
+    %cst0 = arith.constant 0 : i8
+    gemmini.print %arrayC : memref<3x3xi8>
     // Matrix-matrix multiplication
-    %matmul = memref.alloc() : memref<3x3xi8>
-    // CHECK: gemmini.tile_matmul %arg0 %arg1 %arg2 %alloc_0
+    // CHECK: gemmini.tile_matmul %1 %0 %alloc %alloc_0 {aTranspose = true, bTranspose = true} : 
+    // CHECK-SAME: memref<4x3xi8> memref<3x4xi8> memref<3x3xi8> memref<3x4xi32>
     linalg.matmul 
-        ins(%lhs, %rhs: memref<3x4xi8>, memref<4x3xi8>) 
-    outs(%output: memref<3x3xi8>)
+        ins(%arrayA, %arrayB: memref<3x4xi8>, memref<4x3xi8>) 
+    outs(%arrayC: memref<3x3xi8>)
 
     // transpose
     linalg.transpose 
-        ins(%matmul: memref<3x3xi8>)
-    outs(%output: memref<3x3xi8>)
+        ins(%arrayC: memref<3x3xi8>)
+    outs(%arrayC: memref<3x3xi8>)
     permutation = [1, 0]
 
-    memref.dealloc %matmul : memref<3x3xi8>
-    return
+    gemmini.print %arrayC : memref<3x3xi8>
+    memref.dealloc %arrayC : memref<3x3xi8>
+
+    return %cst0 : i8
 }

@@ -49,6 +49,18 @@ matmul-os-run:
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
 
+matmul-transpose-fuse-run:
+	@${BUDDY_OPT} ./matmul-transpose-fuse.mlir \
+		-convert-linalg-to-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.o
+	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
+	@spike --extension=gemmini pk a.out
+
 compute-accumulated-run:
 	@${BUDDY_OPT} ./compute-accumulated.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \

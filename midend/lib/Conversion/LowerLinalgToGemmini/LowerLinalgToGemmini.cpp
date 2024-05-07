@@ -64,22 +64,35 @@ public:
         rewriter.create<arith::ConstantOp>(loc, fillOpInsType, fillOpInputAttr);
     rewriter.create<linalg::FillOp>(loc, fillOpInputValue, bias);
 
+    // llvm::outs() << " has "
+    //                << std::distance(output0.getUses().begin(),
+    //                                 output0.getUses().end())
+    //                << " uses:\n";
+    // for (Operation *userOp : output0.getUsers()) {
+    //   llvm::outs() << "    - " << userOp->getName() << "\n";
+    // }
+
     // If this matmul operation is followed by a transpose operation, do fusion.
-    // We assume that the result of this matmul op only has one user.
-    if (matMulOp->hasOneUse()) {
-      // llvm::outs() << "Step in. \n";
-      Operation* userOp = *matMulOp->user_begin();
+    // We should make sure that the result of this matmul op only has one user.
+    Operation* fuseOp = *output0.user_begin();
+    int output0Use = 0;
+    for (auto userOp : output0.getUsers()) {
       if (auto transposeOp = dyn_cast<linalg::TransposeOp>(userOp)) {
-        // (A * B)T = BT * AT
-        rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
+        fuseOp = transposeOp;
+        output0Use ++;
+      }
+    }
+
+    if (output0Use) {
+      // llvm::outs() << "Fuse linalg.matmul and linalg.transpose. \n";
+      rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
             matMulOp, input1, input0, output0, bias, /*aScaleFactor = */ scale1,
             /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1, /*act = */0,
             /*accScale = */ scale1, /*bertScale = */ scale0,
-            /*aTranspose = */ true, /*bTranspose = */ true);
-        rewriter.eraseOp(transposeOp);
-      }
+            /*repeatingBias = */ false, /*aTranspose = */ true, 
+            /*bTranspose = */ true);
+      rewriter.eraseOp(fuseOp);
     } else {
-      // llvm::outs() << "Not step in. \n";
       rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
           matMulOp, input0, input1, output0, bias, /*aScaleFactor = */ scale1,
           /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1, /*act = */ 0,
