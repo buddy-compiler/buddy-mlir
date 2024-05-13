@@ -29,6 +29,7 @@ In the 2024 OSPP, three additional operators are needed to achieve universal RFF
 
 ### Pre-Task
 1. Algorithm Validation
+
 Before using Rewrite Pattern in MLIR to develop a pass, it is highly recommended to validate the algorithm in handwritten MLIR first. This process can help developers to find the correct pass pipeline and operation syntax (for whatever dialect).
 
 Once buddy-opt is compiled (from the buddy-mlir project), use radf5.mlir and the Makefile documents to compute the a demo RFFT with 25 numbers. You need to change the paths in the Makefile first, then run the "make run-radf5" command to compute the result. Please paste the result in the OSPP Project Proposal (项目申请书).
@@ -323,11 +324,13 @@ run-radf5:
 ```
 
 2. Develop and Debug
+
 Develop the first loop of radf3 function in mlir and paste the radf3.mlir and Makefile code in the OSPP Project Proposal (项目申请书).
 
 The C-style code can be find in pocketfft.c file from the [PocketFFT library](https://gitlab.mpcdf.mpg.de/mtr/pocketfft). You can reuse the code in radf5.mlir. Please also design an example like "run-radf5"; input with three numbers is enough.
 
 3. Extra Task
+
 After algorithm validation, there is still some work remaining. This include rewriting the above algorithm into a lowering pass, writing examples, and benchmarks.
 
 Follow MLIR's [toy tutorial](https://mlir.llvm.org/docs/Tutorials/Toy/) or check the code of DAP/DIP dialects(designed in buddy-mlir) to understand the process for developing a dialect operation. 
