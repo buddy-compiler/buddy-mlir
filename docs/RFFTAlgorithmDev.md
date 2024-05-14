@@ -300,18 +300,13 @@ endif
 
 run-radf5:
 	@${BUDDY_OPT} ./radf5.mlir  \
-		-tensor-bufferize \
-		-linalg-bufferize \
-		-tensor-bufferize \
-		-bufferization-bufferize \
-		-func-bufferize \
+		-one-shot-bufferize=bufferize-function-boundaries \
 		-arith-expand  \
 		-convert-math-to-funcs \
 		-convert-vector-to-scf \
 		-convert-linalg-to-loops \
 		-convert-scf-to-cf \
 		-convert-cf-to-llvm \
-		-finalizing-bufferize \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
