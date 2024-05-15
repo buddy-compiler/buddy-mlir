@@ -47,6 +47,7 @@
 #include "Gemmini/GemminiOps.h"
 #include "Sche/ScheDialect.h"
 #include "Sche/ScheOps.h"
+#include "BuddyGPU/BuddyGPUTransformOps.h"
 
 namespace mlir {
 namespace buddy {
@@ -70,6 +71,9 @@ void registerLowerLinalgToGemminiPass();
 void registerDeviceSchedulePass();
 void registerLowerSchePass();
 void registerFuncBufferizeDynamicOffsetPass();
+void registerGPUHostRegisterPass();
+void registerConvertMemcpyToGPUPass();
+void registerLegalizeShmemOutliningPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -102,6 +106,11 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
 
+  // Register gpu passes
+  mlir::buddy::registerGPUHostRegisterPass();
+  mlir::buddy::registerConvertMemcpyToGPUPass();
+  mlir::buddy::registerLegalizeShmemOutliningPass();
+
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
   registerAllDialects(registry);
@@ -117,6 +126,8 @@ int main(int argc, char **argv) {
                   buddy::sche::ScheDialect>();
   // clang-format on
 
-  return mlir::failed(
-      mlir::MlirOptMain(argc, argv, "buddy-mlir optimizer driver", registry));
+  mlir::buddy::registerBuddyTransformOps(registry);
+
+  return mlir::failed(mlir::MlirOptMain(
+      argc, argv, "buddy-mlir optimizer driver", registry));
 }
