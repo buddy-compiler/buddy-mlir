@@ -24,6 +24,30 @@
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImageContainer.h>
 
+template<typename T,size_t N>
+bool testcvdp(cv::Mat testImgcv,Img<T,N> testImg,bool norm = false)
+{
+	int cvn = testImgcv.dims;
+	if(cvn!=N) return false;
+	for(int i=0;i<N;i++)
+	{
+		if(testImgcv.size[i]!=testImg.getSizes()[i]) return false;
+	}
+	T *data= testImg.getData();
+	if(N==2)
+	{
+		int k=0;
+		for(size_t i=0;i<testImg.getSizes()[0];i++)
+		{
+			for(size_t j=0;j<testImg.getSizes()[1];j++)
+			{
+				if(data[k]!=(T)testImgcv.at<uchar>(i,j)) return false;
+				k++;
+			}
+		}
+	}
+	return true;
+}
 int main() {
   // The original test image is a gray scale image, and the pixel values are as
   // follows:
@@ -132,8 +156,16 @@ int main() {
   const Img<float, 2> testBracketOperator2(grayimage_bmp);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator2[15]);
-
-
+  //===--------------------------------------------------------------------===//
+  // Test Opencv Image without norm
+  //===--------------------------------------------------------------------===//
+  cv::Mat testImgcv=cv::imread(
+		  "../../../../tests/Interface/core/TestGrayImage.bmp",
+		  cv::IMREAD_GRAYSCALE);
+  Img<float,2> testImg(testImgcv);
+  bool test=testcvdp<float,2>(testImgcv,testImg);
+  //CHECK: 1
+  fprintf(stderr,"%d \n",test);
   //===--------------------------------------------------------------------===//
   // Test jpeg format image.
   //===--------------------------------------------------------------------===//
