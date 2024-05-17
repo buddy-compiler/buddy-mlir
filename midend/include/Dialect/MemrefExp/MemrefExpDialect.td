@@ -31,6 +31,10 @@ def MemrefExp_Dialect : Dialect {
   let name = "memref_exp";
   let summary = "The Memref Experiment Dialect.";
   let cppNamespace = "::buddy::memref_exp";
+  let description = [{
+    The `memref_exp` dialect is for testing and demonstrating ideas of memref
+    dialect.
+  }];
 }
 
 //===----------------------------------------------------------------------===//
