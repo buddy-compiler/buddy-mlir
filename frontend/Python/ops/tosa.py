@@ -51,12 +51,15 @@ from ..graph import (
     TOp,
     TransposeOp,
     MaxPool2dOp,
+    AvgPool2dOp,
     Conv2dOp,
     ReluOp,
     IotaOp,
     SigmoidOp,
     ReciprocalOp,
     MeanOp,
+    ClampMinOp,
+    ClampMaxOp,
 )
 from .utils import *
 
@@ -220,7 +223,7 @@ def addmm_op(
 def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
     """
     Import batch matrix multiplication operation.
-    From buddy graph ir's `BatchMatmulOp` operator to MLIR TOSA `matmul` 
+    From buddy graph ir's `BatchMatmulOp` operator to MLIR TOSA `matmul`
     operation.
     """
     input_ = symbol_table.get((str(node.args[0]), 0))
@@ -894,11 +897,7 @@ def transpose_op(node: TransposeOp, symbol_table):
     return op
 
 
-def maxpool2d_op(node: MaxPool2dOp, symbol_table):
-    """
-    Import the maxpool2d operation.
-    From Buddy MaxPool2dOp to MLIR TOSA `max_pool2d` operation.
-    """
+def pool2d_op(node: MaxPool2dOp | AvgPool2dOp, symbol_table, type):
     if len(node.args) == 5:
         raise NotImplementedError
     input1 = symbol_table.get((str(node.args[0]), 0))
@@ -943,7 +942,18 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
         perm_shape.append(out_shape[1])
         out_shape = perm_shape
     output = ir.RankedTensorType.get(out_shape, result_element_type)
-    op = tosa.MaxPool2dOp(output, input1, kernel_attr, stride_attr, pad_attr)
+    match type:
+        case "max":
+            op = tosa.MaxPool2dOp(
+                output, input1, kernel_attr, stride_attr, pad_attr
+            )
+        case "avg":
+            acc_attr = ir.TypeAttr.get(value=result_element_type)
+            op = tosa.AvgPool2dOp(
+                output, input1, kernel_attr, stride_attr, pad_attr, acc_attr
+            )
+        case _:
+            raise NotImplementedError
     if node._layout.find("NCHW") != -1:
         perm_list = [0, 3, 1, 2]
         perm_const_op = tosa.ConstOp(
@@ -961,6 +971,23 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
             permute_result_type, op.result, perm_const_op.results[0]
         )
     return op
+
+
+def maxpool2d_op(node: MaxPool2dOp, symbol_table):
+    """
+    Import the maxpool2d operation.
+    From Buddy MaxPool2dOp to MLIR TOSA `max_pool2d` operation.
+    """
+    return pool2d_op(node, symbol_table, "max")
+
+
+def avgpool2d_op(node: AvgPool2dOp, symbol_table):
+    """
+    Import the avgpool2d operation.
+    From Buddy AvgPool2dOp to MLIR TOSA `avg_pool2d` operation.
+    """
+    return pool2d_op(node, symbol_table, "avg")
+
 
 def convolution2d_op(node: Conv2dOp, symbol_table):
     """
@@ -1043,7 +1070,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
         out_shape = perm_shape
     output = ir.RankedTensorType.get(out_shape, result_element_type)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
-    assert groups == 1, 'tosa.conv2d only support one group'
+    assert groups == 1, "tosa.conv2d only support one group"
     if is_kernel_transposed:
         if sum(input_padding) > 0 or sum(dilation) > len(dilation):
             raise NotImplementedError
@@ -1091,6 +1118,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
         )
     return op
 
+
 def relu_op(node: ReluOp, symbol_table):
     """
     Import the tensor relu operation.
@@ -1110,6 +1138,7 @@ def relu_op(node: ReluOp, symbol_table):
     op = tosa.MaximumOp(tensor_type, input1, zero_op)
 
     return op
+
 
 def iota_op(node: IotaOp, symbol_table):
     """
@@ -1131,6 +1160,7 @@ def iota_op(node: IotaOp, symbol_table):
     op = tosa.ConstOp(attr)
 
     return op
+
 
 def sigmoid_op(node: SigmoidOp, symbol_table):
     """
@@ -1214,6 +1244,67 @@ def mean_op(node: MeanOp, symbol_table):
     return ret
 
 
+def clamp_op(
+    node: ClampMinOp | ClampMaxOp,
+    symbol_table,
+    min_int,
+    max_int,
+    min_fp,
+    max_fp,
+):
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    op = tosa.ClampOp(tensor_type, input1, min_int, max_int, min_fp, max_fp)
+    return op
+
+
+def clamp_min_op(node: ClampMinOp | ClampMaxOp, symbol_table):
+    """
+    Import the clamp operation.
+    From Buddy ClampOp to MLIR TOSA `ClampOp` operation.
+    """
+    assert len(node.args) == 2
+    clamp_val = node.args[1]
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    max_int = ir.UnitAttr.get()
+    max_fp = ir.UnitAttr.get()
+    min_int = ir.UnitAttr.get()
+    min_fp = ir.UnitAttr.get()
+    match dtype:
+        case TensorDType.Float32 | TensorDType.Float64:
+            min_fp = ir.FloatAttr.get(mlir_dtype, clamp_val)
+        case TensorDType.Int32 | TensorDType.Int64:
+            min_int = ir.IntegerAttr.get(mlir_dtype, clamp_val)
+
+    return clamp_op(node, symbol_table, min_int, max_int, min_fp, max_fp)
+
+
+def clamp_max_op(node: ClampMinOp, symbol_table):
+    """
+    Import the clamp operation.
+    From Buddy ClampOp to MLIR TOSA `ClampOp` operation.
+    """
+    assert len(node.args) == 2
+    clamp_val = node.args[1]
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    max_int = ir.UnitAttr.get()
+    max_fp = ir.UnitAttr.get()
+    min_int = ir.UnitAttr.get()
+    min_fp = ir.UnitAttr.get()
+    match dtype:
+        case TensorDType.Float32 | TensorDType.Float64:
+            max_fp = ir.FloatAttr.get(mlir_dtype, clamp_val)
+        case TensorDType.Int32 | TensorDType.Int64:
+            max_int = ir.IntegerAttr.get(mlir_dtype, clamp_val)
+
+    return clamp_op(node, symbol_table, min_int, max_int, min_fp, max_fp)
+
+
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,
@@ -1240,10 +1331,13 @@ ops_registry = {
     "TOp": t_op,
     "TransposeOp": transpose_op,
     "MaxPool2dOp": maxpool2d_op,
+    "AvgPool2dOp": avgpool2d_op,
     "Conv2dOp": convolution2d_op,
     "ReluOp": relu_op,
     "IotaOp": iota_op,
     "SigmoidOp": sigmoid_op,
     "ReciprocalOp": reciprocal_op,
     "MeanOp": mean_op,
+    "ClampMinOp": clamp_min_op,
+    "ClampMaxOp": clamp_max_op,
 }

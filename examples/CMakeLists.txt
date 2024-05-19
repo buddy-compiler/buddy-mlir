@@ -16,6 +16,10 @@ if (BUDDY_LENET_EXAMPLES)
   add_subdirectory(BuddyLeNet)
 endif()
 
+if (BUDDY_DENSENET_EXAMPLES)
+  add_subdirectory(BuddyDensenet)
+endif()
+
 if(BUDDY_DSL_EXAMPLES)
   add_subdirectory(ToyDSL)
 endif()
