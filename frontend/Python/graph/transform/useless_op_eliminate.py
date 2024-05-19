@@ -64,3 +64,14 @@ def maxpool2d_simplify(graph: Graph):
                     if op == getitem_node:
                         graph.body[j] = new_node
                         break
+
+
+def useless_placeholder_eliminate(graph: Graph):
+    to_delete_list = []
+    for i, node in enumerate(graph.body):
+        if isinstance(node, PlaceholderOp):
+            if len(node._children) == 0 and len(node._parents) == 0:
+                to_delete_list.append((i, node.name))
+    for i, name in reversed(to_delete_list):
+        del graph.node_table[name]
+        del graph.body[i]
