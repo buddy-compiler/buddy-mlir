@@ -40,4 +40,3 @@ target_link_directories(buddy-densenet-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})
 
 set(BUDDY_DENSENET_LIBS DENSENET mlir_c_runner_utils)
 target_link_libraries(buddy-densenet-run ${BUDDY_DENSENET_LIBS})
-
