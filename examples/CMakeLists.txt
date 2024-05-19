@@ -17,7 +17,7 @@ if (BUDDY_LENET_EXAMPLES)
 endif()
 
 if (BUDDY_DENSENET_EXAMPLES)
-  add_subdirectory(BuddyDenseNet)
+  add_subdirectory(BuddyDensenet)
 endif()
 
 if(BUDDY_DSL_EXAMPLES)
