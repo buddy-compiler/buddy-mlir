@@ -21,7 +21,7 @@
 import array
 from typing import Dict, List, Tuple, Union
 import numpy
-
+import math
 import mlir.ir as ir
 from mlir.dialects import tensor, tosa
 
@@ -57,6 +57,7 @@ from ..graph import (
     SigmoidOp,
     ReciprocalOp,
     MeanOp,
+    AdaptiveAvgPool2dOP,
 )
 from .utils import *
 
@@ -961,7 +962,35 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
             permute_result_type, op.result, perm_const_op.results[0]
         )
     return op
-
+def adaptive_avg_pool2d_op(node:AdaptiveAvgPool2dOP, symbol_table):
+    assert len(node.args) == 2
+    #Only support NCHW now
+    assert node._layout.find("NCHW")!=-1
+    
+    print(list(node.args[1]))
+    print(type(node.args[1]))
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    input_size = list(ir.RankedTensorType(input1.type).shape)[-1]
+    out_shape = node.tensor_meta["shape"]
+    out_size = node.tensor_meta["shape"][-1]
+    #out_size = node.args[1]
+    stride = math.floor((input_size) / (out_size))
+    kernel = input_size - (out_size - 1) * stride
+    pad = [0]*4
+    stride = [stride]*2
+    kernel = [kernel]*2
+    pad_attr = ir._denseI64ArrayAttr(pad, None)
+    kernel_attr = ir._denseI64ArrayAttr(kernel, None)
+    stride_attr = ir._denseI64ArrayAttr(stride, None)
+    
+    dtype = node.tensor_meta["dtype"]
+    result_element_type = mlir_element_type_get(dtype)
+    
+    output = ir.RankedTensorType.get(out_shape, result_element_type)
+    ##acc_type type of operands i.e i32..
+    acc_type_attr = ir._typeAttr(result_element_type, None)
+    op = tosa.AvgPool2dOp(output, input1, kernel_attr, stride_attr, pad_attr,acc_type_attr)
+    return op
 def convolution2d_op(node: Conv2dOp, symbol_table):
     """
     Import the convolution operation.
@@ -1246,4 +1275,5 @@ ops_registry = {
     "SigmoidOp": sigmoid_op,
     "ReciprocalOp": reciprocal_op,
     "MeanOp": mean_op,
+    "AdaptiveAvgPool2dOP":adaptive_avg_pool2d_op,
 }
