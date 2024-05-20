@@ -41,6 +41,7 @@ config.excludes = [
     'BuddyLlama',
     'BuddyBert',
     'BuddyResNet18',
+    'BuddyVGG',
     'ConvOpt',
     'DAPDialect',
     'DIPDialect',

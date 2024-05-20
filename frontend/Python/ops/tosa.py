@@ -57,6 +57,12 @@ from ..graph import (
     SigmoidOp,
     ReciprocalOp,
     MeanOp,
+    MinimumOp,
+    LogOp,
+    AbsOp,
+    TileOp,
+    NegateOp,
+    AdaptiveAvgPool2dOp,
 )
 from .utils import *
 
@@ -254,6 +260,16 @@ def sub_op(node: SubOp, symbol_table):
     return _gen_arith_binary_op(input1, input2, tosa.SubOp)
 
 
+def minimum_op(node: MinimumOp, symbol_table):
+    """
+    Import tensor subtraction operation.
+    From buddy graph ir's `MinimumOp` operator to MLIR TOSA `minimum` operation.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    return _gen_arith_binary_op(input1, input2, tosa.MinimumOp)
+
+
 def mul_op(node: MulOp, symbol_table):
     """
     Import tensor division operation.
@@ -303,7 +319,46 @@ def tanh_op(node: TanhOp, symbol_table):
     sizes = ir.RankedTensorType(input1.type).shape
     result_element_type = ir.RankedTensorType(input1.type).element_type
     tanhResultTensorType = ir.RankedTensorType.get(sizes, result_element_type)
+    op = tosa.LogOp(tanhResultTensorType, input1)
+    return op
+
+
+def log_op(node: LogOp, symbol_table):
+    """
+    Import elementwise log operation.
+    From buddy graph ir's `LogOp` operator to MLIR TOSA `log` operation.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    sizes = ir.RankedTensorType(input1.type).shape
+    result_element_type = ir.RankedTensorType(input1.type).element_type
+    tanhResultTensorType = ir.RankedTensorType.get(sizes, result_element_type)
     op = tosa.TanhOp(tanhResultTensorType, input1)
+    return op
+
+
+def abs_op(node: AbsOp, symbol_table):
+    """
+    Import elementwise abs operation.
+    From buddy graph ir's `AbsOp` operator to MLIR TOSA `abs` operation.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    sizes = ir.RankedTensorType(input1.type).shape
+    result_element_type = ir.RankedTensorType(input1.type).element_type
+    tanhResultTensorType = ir.RankedTensorType.get(sizes, result_element_type)
+    op = tosa.TanhOp(tanhResultTensorType, input1)
+    return op
+
+
+def negate_op(node: NegateOp, symbol_table):
+    """
+    Import elementwise abs operation.
+    From buddy graph ir's `NegateOp` operator to MLIR TOSA `negate` operation.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    sizes = ir.RankedTensorType(input1.type).shape
+    result_element_type = ir.RankedTensorType(input1.type).element_type
+    tanhResultTensorType = ir.RankedTensorType.get(sizes, result_element_type)
+    op = tosa.NegateOp(tanhResultTensorType, input1)
     return op
 
 
@@ -349,6 +404,46 @@ def amax_op(node: AmaxOp, symbol_table):
     dim_attr = ir.IntegerAttr.get(signless_type, dim_val)
     op = tosa.ReduceMaxOp(input1, dim_attr)
     return op
+
+
+def tile_op(node: TileOp, symbol_table):
+    """
+    Import the tile operation.
+    This function converts a hypothetical `TileOp` node from an intermediate representation to the MLIR TOSA `tile` operation.
+
+    Parameters:
+    node: The node representing the tile operation in the intermediate representation.
+    symbol_table: A table that maps variable names to their corresponding MLIR values.
+
+    Returns:
+    The MLIR TOSA `tile` operation.
+    """
+    # Get the input tensor from the symbol table
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    
+    # Get the repeat multiples
+    multiples = node.args[1]
+    
+    # Ensure multiples is a list of integers
+    if not isinstance(multiples, list):
+        raise TypeError("Multiples must be a list of integers.")
+    
+    # Convert multiples to the appropriate MLIR attribute type (DenseI64ArrayAttr)
+    multiples_attr = ir.DenseI64ArrayAttr.get(multiples)
+    
+    # Determine the shape of the output tensor
+    input_shape = ir.RankedTensorType(input1.type).shape
+    output_shape = [input_dim * multiple for input_dim, multiple in zip(input_shape, multiples)]
+    
+    # Create the output tensor type
+    element_type = ir.RankedTensorType(input1.type).element_type
+    output_type = ir.RankedTensorType.get(output_shape, element_type)
+    
+    # Create the TileOp instance
+    op = tosa.TileOp(output=output_type, input1=input1, multiples=multiples_attr)
+    
+    return op
+
 
 
 def reshape_op(node: ReshapeOp, symbol_table):
@@ -513,6 +608,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
         TensorDType.Float16: ir.F16Type.get(),
         TensorDType.Int32: ir.IntegerType.get_signless(32),
         TensorDType.Bool: ir.IntegerType.get_signless(1),
+        TensorDType.Int64: ir.IntegerType.get_signless(64),
     }
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     to_cast_type = types_mapping[node.args[1]]
@@ -962,6 +1058,75 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
         )
     return op
 
+
+def adapative_avgpool2d_op(node: AdaptiveAvgPool2dOp, symbol_table):
+    """
+    Import the adaptive_avg_pool2d operation.
+    From Buddy AdaptiveAvgPool2dOp to MLIR TOSA `avg_pool2d` operation.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    output_size = node.args[1]
+    dtype = node.tensor_meta["dtype"]
+    result_element_type = mlir_element_type_get(dtype)
+    
+
+    if node._layout.find("NCHW") != -1:
+        perm_list = [0, 2, 3, 1]
+        perm_const_op = tosa.ConstOp(
+            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+        )
+        out_shape = list(ir.RankedTensorType(input1.type).shape)
+        perm_shape = [out_shape[0], out_shape[2], out_shape[3], out_shape[1]]
+        permute_result_type = ir.RankedTensorType.get(
+            perm_shape, result_element_type
+        )
+        input1 = tosa.TransposeOp(
+            permute_result_type, input1, perm_const_op.results[0]
+        ).result
+
+    input_shape = list(ir.RankedTensorType(input1.type).shape)
+    in_height, in_width = input_shape[1], input_shape[2]
+    out_height, out_width = output_size
+
+    stride_height = in_height // out_height
+    stride_width = in_width // out_width
+    kernel_height = in_height - (out_height - 1) * stride_height
+    kernel_width = in_width - (out_width - 1) * stride_width
+
+    kernel = [kernel_height, kernel_width]
+    stride = [stride_height, stride_width]
+    pad = [0, 0, 0, 0]  # No padding for adaptive pooling
+    acc_type = ir.F32Type.get()
+
+    kernel_attr = ir._denseI64ArrayAttr(kernel, None)
+    stride_attr = ir._denseI64ArrayAttr(stride, None)
+    pad_attr = ir._denseI64ArrayAttr(pad, None)
+    acc_type_arr = ir._typeAttr(acc_type, None)
+
+    out_shape = node.tensor_meta["shape"]
+    if node._layout.find("NCHW") != -1:
+        perm_shape = [out_shape[0], out_shape[2], out_shape[3], out_shape[1]]
+        out_shape = perm_shape
+
+    output = ir.RankedTensorType.get(out_shape, result_element_type)
+    op = tosa.AvgPool2dOp(output, input1, kernel_attr, stride_attr, pad_attr, acc_type_arr)
+
+    if node._layout.find("NCHW") != -1:
+        perm_list = [0, 3, 1, 2]
+        perm_const_op = tosa.ConstOp(
+            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+        )
+        perm_shape = [out_shape[0], out_shape[3], out_shape[1], out_shape[2]]
+        permute_result_type = ir.RankedTensorType.get(
+            perm_shape, result_element_type
+        )
+        op = tosa.TransposeOp(
+            permute_result_type, op.result, perm_const_op.results[0]
+        )
+    
+    return op
+
+
 def convolution2d_op(node: Conv2dOp, symbol_table):
     """
     Import the convolution operation.
@@ -1246,4 +1411,10 @@ ops_registry = {
     "SigmoidOp": sigmoid_op,
     "ReciprocalOp": reciprocal_op,
     "MeanOp": mean_op,
+    "MinimumOp": minimum_op,
+    "LogOp": log_op,
+    "AbsOp": abs_op,
+    "TileOp": tile_op,
+    "NegateOp": negate_op,
+    "AdaptiveAvgPool2dOp": adapative_avgpool2d_op,
 }
