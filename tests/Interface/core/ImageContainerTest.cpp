@@ -159,13 +159,13 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test Opencv Image without norm
   //===--------------------------------------------------------------------===//
-  cv::Mat testImgcv=cv::imread(
+  cv::Mat testImgcvbmp=cv::imread(
 		  "../../../../tests/Interface/core/TestGrayImage.bmp",
 		  cv::IMREAD_GRAYSCALE);
-  Img<float,2> testImg(testImgcv);
-  bool test=testcvdp<float,2>(testImgcv,testImg);
+  Img<float,2> testImgbmp(testImgcvbmp);
+  bool testbmp=testcvdp<float,2>(testImgcvbmp,testImgbmp);
   //CHECK: 1
-  fprintf(stderr,"%d \n",test);
+  fprintf(stderr,"%d \n",testbmp);
   //===--------------------------------------------------------------------===//
   // Test jpeg format image.
   //===--------------------------------------------------------------------===//
@@ -264,7 +264,16 @@ int main() {
   const Img<float, 2> testBracketOperator4(grayimage_jpg);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator4[15]);
-
+  //===--------------------------------------------------------------------===//
+  // Test Opencv Image without norm
+  //===--------------------------------------------------------------------===//
+  cv::Mat testImgcvjpg=cv::imread(
+                  "../../../../tests/Interface/core/TestGrayImage.jpg",
+                  cv::IMREAD_GRAYSCALE);
+  Img<float,2> testImgjpg(testImgcvjpg);
+  bool testjpg=testcvdp<float,2>(testImgcvjpg,testImgjpg);
+  //CHECK: 1
+  fprintf(stderr,"%d \n",testjpg);
 
   //===--------------------------------------------------------------------===//
   // Test png format image.
@@ -364,6 +373,13 @@ int main() {
   const Img<float, 2> testBracketOperator6(grayimage_png);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator6[15]);
-  
+
+   cv::Mat testImgcvpng=cv::imread(
+                  "../../../../tests/Interface/core/TestGrayImage.png",
+                  cv::IMREAD_GRAYSCALE);
+  Img<float,2> testImgpng(testImgcvpng);
+  bool testpng=testcvdp<float,2>(testImgcvpng,testImgpng);
+  ///CHECK: 1
+  fprintf(stderr,"%d \n",testpng);
   return 0;
 }
