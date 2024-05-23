@@ -205,6 +205,18 @@ class LessThanOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.BroadcastType
+        
+
+class LessEqualOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.BroadcastType
+        
+      
+class GreaterThanOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.BroadcastType
 
 
 class AbsOp(Op):

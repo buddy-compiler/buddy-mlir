@@ -12,6 +12,10 @@ if (BUDDY_BERT_EXAMPLES)
   add_subdirectory(BuddyBert)
 endif()
 
+if (BUDDY_CODET5_EXAMPLES)
+  add_subdirectory(BuddyCodeT5)
+endif()
+
 if (BUDDY_VGG_EXAMPLES)
   add_subdirectory(BuddyVGG)
 endif()
