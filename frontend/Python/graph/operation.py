@@ -205,6 +205,54 @@ class LessThanOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.BroadcastType
+        
+
+class LessEqualOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.BroadcastType
+        
+      
+class GreaterThanOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.BroadcastType
+
+
+class AbsOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+        
+class LogOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+        
+        
+class NegateOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class MinimumOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.BroadcastType
+        
+        
+class TileOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.PlaceholderType
+        
+        
+class AdaptiveAvgPool2dOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+        self._layout = "NCHW"
 
 
 class MaskedFillOp(Op):
