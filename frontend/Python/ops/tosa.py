@@ -1004,7 +1004,8 @@ def adaptive_avg_pool2d_op(node: AdaptiveAvgPool2dOp, symbol_table):
         out_shape = [out_shape[0], out_shape[2], out_shape[3], out_shape[1]]
 
     output = ir.RankedTensorType.get(out_shape, result_element_type)
-    op = tosa.AvgPool2dOp(output, input1, kernel_attr, stride_attr, pad_attr)
+    acc_type = ir.TypeAttr.get(result_element_type)
+    op = tosa.AvgPool2dOp(output, input1, kernel_attr, stride_attr, pad_attr, acc_type)
 
     if node._layout.find("NCHW") != -1:
         perm_list = [0, 3, 1, 2]
