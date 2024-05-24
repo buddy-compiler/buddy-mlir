@@ -1,4 +1,4 @@
-//===- InceptionV3Benchmark.cpp -------------------------------------------===//
+//===- buddy-vgg-main.cpp -----------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,121 +13,133 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-//
-// This file implements the benchmark for e2e inceptionv3.
-//
-//===----------------------------------------------------------------------===//
 
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImageContainer.h>
-#include <opencv2/opencv.hpp>
-
-#include <string>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <opencv2/opencv.hpp>
 #include <string>
 #include <utility>
 #include <vector>
-constexpr size_t ParamsSize = 44426;
 
-// Declare the inceptionv3 C interface.
-extern "C" {
-void _mlir_ciface_forward(MemRef<float, 2> *output, MemRef<float, 1> *arg0,Img<float, 4> *input);
-}
+constexpr size_t ParamsSize = 138357544;
 
+/// Declare vgg forward function.
+extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
+                                     MemRef<float, 1> *arg0,
+                                     Img<float, 4> *input);
+
+/// Function for preprocessing the image to match model input requirements.
 const cv::Mat imagePreprocessing() {
+  // Get the directory of the vgg example and construct the image path.
   std::string vggDir = getenv("VGG16_EXAMPLE_PATH");
-  std::string inputImage = vggDir+"dog.png";
+  std::string imgPath = vggDir + "dog.png" ;
+  // Read the image in grayscale mode.
+  cv::Mat inputImage = cv::imread(imgPath, cv::IMREAD_GRAYSCALE);
   assert(!inputImage.empty() && "Could not read the image.");
   cv::Mat resizedImage;
   int imageWidth = 224;
   int imageHeight = 224;
+  // Resize the image to 28x28 pixels.
   cv::resize(inputImage, resizedImage, cv::Size(imageWidth, imageHeight),
              cv::INTER_LINEAR);
   return resizedImage;
 }
 
-
 /// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
-void loadParameters(const std::string &floatParamPath,
-                    MemRef<float, 1> &floatParam
-                    ) {
-  std::ifstream floatParamFile(floatParamPath, std::ios::in | std::ios::binary);
-  if (!floatParamFile.is_open()) {
-    std::string errMsg = "Failed to open float param file: " +
-                         std::filesystem::canonical(floatParamPath).string();
-    throw std::runtime_error(errMsg);
+/// Load parameters into data container.
+void loadParameters(const std::string &paramFilePath,
+                    MemRef<float, 1> &params) {
+  const auto loadStart = std::chrono::high_resolution_clock::now();
+  // Open the parameter file in binary mode.
+  std::ifstream paramFile(paramFilePath, std::ios::in | std::ios::binary);
+  if (!paramFile.is_open()) {
+    throw std::runtime_error("[Error] Failed to open params file!");
   }
-  floatParamFile.read(reinterpret_cast<char *>(floatParam.getData()),
-                      floatParam.getSize() * sizeof(float));
-  if (floatParamFile.fail()) {
-    throw std::runtime_error("Failed to read float param file");
+  printLogLabel();
+  std::cout << "Loading params..." << std::endl;
+  printLogLabel();
+  // Print the canonical path of the parameter file.
+  std::cout << "Params file: " << std::filesystem::canonical(paramFilePath)
+            << std::endl;
+  // Read the parameter data into the provided memory reference.
+  paramFile.read(reinterpret_cast<char *>(params.getData()),
+                 sizeof(float) * (params.getSize()));
+  if (paramFile.fail()) {
+    throw std::runtime_error("Error occurred while reading params file!");
   }
-  floatParamFile.close();
-
+  paramFile.close();
 }
-// Softmax function.
+
+/// Softmax function to convert logits to probabilities.
 void softmax(float *input, size_t size) {
-  assert(0 <= size <= sizeof(input) / sizeof(float));
-  int i;
-  float m, sum, constant;
-  m = -INFINITY;
+  size_t i;
+  float max_value = -INFINITY;
+  double sum = 0.0;
+  // Find the maximum value in the input array for numerical stability.
   for (i = 0; i < size; ++i) {
-    if (m < input[i]) {
-      m = input[i];
+    if (max_value < input[i]) {
+      max_value = input[i];
     }
   }
-
-  sum = 0.0;
+  // Calculate the sum of the exponentials of the input elements, normalized by
+  // the max value.
   for (i = 0; i < size; ++i) {
-    sum += exp(input[i] - m);
+    sum += exp(input[i] - max_value);
   }
-
-  constant = m + log(sum);
+  // Normalize the input array with the softmax calculation.
   for (i = 0; i < size; ++i) {
-    input[i] = exp(input[i] - constant);
+    input[i] = exp(input[i] - max_value) / sum;
   }
 }
 
-
-int main(){
+int main() {
   // Print the title of this example.
-  const std::string title = "Vgg16 Inference Powered by Buddy Compiler";
+  const std::string title = "VGG Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
+  // Preprocess the image to match the input requirements of the model.
   cv::Mat image = imagePreprocessing();
 
-  intptr_t sizesInput[4] = {1,1,224,224};
-  intptr_t sizesOutnput[2] = {1, 1000};
-  std::cout << "imagesize:"<<image.size() << std::endl;
+  // Define the sizes of the input and output tensors.
+  intptr_t sizesInput[4] = {1, 3, 224, 224};
+  intptr_t sizesOutput[2] = {1, 1000};
+
+  // Create input and output containers for the image and model output.
   Img<float, 4> input(image, sizesInput, true);
-  MemRef<float, 2> output(sizesOutnput);
-  
+  MemRef<float, 2> output(sizesOutput);
+
+  // Load model parameters from the specified file.
   std::string vggDir = getenv("VGG16_EXAMPLE_PATH");
-  std::string paramsDir = vggDir+"/arg0.data";
+  std::string paramsDir = vggDir + "/arg0.data";
   MemRef<float, 1> paramsContainer({ParamsSize});
   loadParameters(paramsDir, paramsContainer);
-  
-  _mlir_ciface_forward(&output,&paramsContainer,&input);
-  
-  auto out = output.getData();//结果展平
+
+  // Call the forward function of the model.
+  _mlir_ciface_forward(&output, &paramsContainer, &input);
+
+  // Apply softmax to the output logits to get probabilities.
+  auto out = output.getData();
   softmax(out, 1000);
-  std::cout << "out:" << *out <<std::endl;
+
   // Find the classification and print the result.
   float maxVal = 0;
   float maxIdx = 0;
-  for (int i = 0; i < 1001; ++i) {
+  for (int i = 0; i < 1000; ++i) {
     if (out[i] > maxVal) {
       maxVal = out[i];
       maxIdx = i;
     }
   }
+
   std::cout << "Classification: " << maxIdx << std::endl;
   std::cout << "Probability: " << maxVal << std::endl;
+
   return 0;
 }
