@@ -57,8 +57,80 @@ from ..graph import (
     SigmoidOp,
     ReciprocalOp,
     MeanOp,
+    AdaptiveAvgpool2dOp
 )
 from .utils import *
+
+def AdaptiveAvgpool2d_op(node: AdaptiveAvgpool2dOp, symbol_table):
+    if len(node.args) == 3:
+        raise NotImplementedError
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    shape = list(ir.RankedTensorType(input1.type).shape)
+    dtype = node.tensor_meta["dtype"]
+    result_element_type = mlir_element_type_get(dtype)
+    if node._layout.find("NCHW") != -1:
+        perm_list = [0, 2, 3, 1]
+        perm_const_op = tosa.ConstOp(
+            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+        )
+        #shape = list(ir.RankedTensorType(input1.type).shape)
+        perm_shape = []
+        perm_shape.append(shape[0])
+        perm_shape.append(shape[2])
+        perm_shape.append(shape[3])
+        perm_shape.append(shape[1])
+        permute_result_type = ir.RankedTensorType.get(
+            perm_shape, result_element_type
+        )
+        input1 = tosa.TransposeOp(
+            permute_result_type, input1, perm_const_op.results[0]
+        ).result
+    out_shape = node.tensor_meta["shape"]
+    if node._layout.find("NCHW") != -1:
+        perm_shape = []
+        perm_shape.append(out_shape[0])
+        perm_shape.append(out_shape[2])
+        perm_shape.append(out_shape[3])
+        perm_shape.append(out_shape[1])
+        out_shape = perm_shape
+    output = ir.RankedTensorType.get(out_shape, result_element_type)
+    acc_type = ir.TypeAttr.get(result_element_type)
+    
+    # compute kernel and stride
+    if len(shape) != 4:
+        print("inputshape not correct")
+        raise NotImplementedError
+    
+    print("out_shape:",out_shape)
+    inputshape2d = numpy.array(shape[-2:],dtype=numpy.int64)
+    print("inputshape2d",inputshape2d)
+    out_shape2d = numpy.array(out_shape[1:3],dtype=numpy.int64)
+    print("out_shape2d",out_shape2d)
+    stride = numpy.floor(inputshape2d/out_shape2d).astype(numpy.int64)
+    print("stride",stride)
+    stride_attr = ir._denseI64ArrayAttr(list(stride), None)
+    kernel = inputshape2d - (out_shape2d - 1) * stride
+    kernel_attr = ir._denseI64ArrayAttr(list(kernel), None)
+    pad = [0,0,0,0]
+    pad_attr = ir._denseI64ArrayAttr(pad, None)
+    op = tosa.AvgPool2dOp(output, input1, kernel_attr, stride_attr, pad_attr,acc_type=acc_type)
+    if node._layout.find("NCHW") != -1:
+        perm_list = [0, 3, 1, 2]
+        perm_const_op = tosa.ConstOp(
+            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+        )
+        perm_shape = []
+        perm_shape.append(out_shape[0])
+        perm_shape.append(out_shape[3])
+        perm_shape.append(out_shape[1])
+        perm_shape.append(out_shape[2])
+        permute_result_type = ir.RankedTensorType.get(
+            perm_shape, result_element_type
+        )
+        op = tosa.TransposeOp(
+            permute_result_type, op.result, perm_const_op.results[0]
+        )
+    return op
 
 
 def _normalize_binary_operator_shape(shp1, shp2):
@@ -1246,4 +1318,5 @@ ops_registry = {
     "SigmoidOp": sigmoid_op,
     "ReciprocalOp": reciprocal_op,
     "MeanOp": mean_op,
+    "AdaptiveAvgpool2dOp": AdaptiveAvgpool2d_op,
 }

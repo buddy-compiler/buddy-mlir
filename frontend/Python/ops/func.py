@@ -107,7 +107,7 @@ def param_extract(
     }
     memref_element_type = dtype_mapping[node.tensor_meta["dtype"]]
     output_shape = list(node.tensor_meta["shape"])
-    subview_size = functools.reduce(lambda x, y: x * y, output_shape)
+    subview_size = functools.reduce(lambda x, y: x * y, output_shape,1)
     offset_attr = ir._denseI64ArrayAttr([offset], None)
     size_attr = ir._denseI64ArrayAttr([subview_size], None)
     stride = [1]

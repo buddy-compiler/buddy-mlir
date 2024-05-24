@@ -140,6 +140,11 @@ class Op:
     def tensor_meta(self, new_tensor_meta):
         self._tensor_meta = new_tensor_meta
 
+class AdaptiveAvgpool2dOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType 
+        self._layout = "NCHW"
 
 class PlaceholderOp(Op):
     def __init__(self) -> None:

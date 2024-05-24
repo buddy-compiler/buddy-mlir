@@ -158,6 +158,7 @@ class DynamoCompiler:
             "where.self": WhereOp,
             "sqrt.default": SqrtOp,
             "reciprocal.default": ReciprocalOp,
+            "_adaptive_avg_pool2d.default":AdaptiveAvgpool2dOp,
         }
 
     @property
