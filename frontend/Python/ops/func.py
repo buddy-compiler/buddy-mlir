@@ -106,7 +106,10 @@ def param_extract(
         TensorDType.Int64: ir.IntegerType.get_signless(64),
     }
     memref_element_type = dtype_mapping[node.tensor_meta["dtype"]]
-    output_shape = list(node.tensor_meta["shape"])
+    if(len(node.tensor_meta['shape'])== 0):
+        output_shape = [1]
+    else:
+        output_shape = list(node.tensor_meta["shape"])
     subview_size = functools.reduce(lambda x, y: x * y, output_shape)
     offset_attr = ir._denseI64ArrayAttr([offset], None)
     size_attr = ir._denseI64ArrayAttr([subview_size], None)
