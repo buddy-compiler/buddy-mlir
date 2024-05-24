@@ -159,6 +159,8 @@ class DynamoCompiler:
             "sqrt.default": SqrtOp,
             "reciprocal.default": ReciprocalOp,
             "_adaptive_avg_pool2d.default": AdaptiveAvgPool2dOp,
+            "clamp_min.default": ClampMinOp,
+            "clamp_max.default": ClampMaxOp,
         }
 
     @property
