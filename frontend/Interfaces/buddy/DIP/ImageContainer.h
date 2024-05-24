@@ -189,16 +189,36 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
     this->allocated = new T[size];
     this->aligned = this->allocated;
     size_t k = 0;
-    for (int batch = 0; batch < this->sizes[0]; batch++) {
-      for (int channel = 0; channel < this->sizes[1]; channel++) {
-        for (int row = 0; row < this->sizes[2]; row++) {
-          for (int col = 0; col < this->sizes[3]; col++) {
-            if (norm) {
-              this->aligned[k] = (T)image.at<uchar>(row, col) / 255;
-            } else {
-              this->aligned[k] = (T)image.at<uchar>(row, col);
+    if(this->sizes[1]==1)
+    {
+      for (int batch = 0; batch < this->sizes[0]; batch++) {
+        for (int channel = 0; channel < this->sizes[1]; channel++) {
+          for (int row = 0; row < this->sizes[2]; row++) {
+            for (int col = 0; col < this->sizes[3]; col++) {
+              if (norm) {
+                this->aligned[k] = (T)image.at<uchar>(row, col) / 255;
+              } else {
+                this->aligned[k] = (T)image.at<uchar>(row, col);
+              }
+              k++;
             }
-            k++;
+          }
+        }
+      }
+    }
+    else if(this->sizes[1]==3)
+    {
+      for (int batch = 0; batch < this->sizes[0]; batch++) {
+        for (int channel = 0; channel < this->sizes[1]; channel++) {
+          for (int row = 0; row < this->sizes[2]; row++) {
+            for (int col = 0; col < this->sizes[3]; col++) {
+              if (norm) {
+                this->aligned[k] = (T)image.at<cv::Vec3b>(row, col)[2-channel] / 255;
+              } else {
+                this->aligned[k] = (T)image.at<cv::Vec3b>(row, col)[2-channel];
+              }
+              k++;
+            }
           }
         }
       }

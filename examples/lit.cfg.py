@@ -36,7 +36,7 @@ config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
 # subdirectories contain auxiliary inputs for various tests in their parent
 # directories.
 config.excludes = [
-    'BuddyLeNet',
+   'BuddyLeNet',
     'BuddyBert',
     'BuddyLlama',
     'BuddyBert',
@@ -64,6 +64,7 @@ config.excludes = [
     'ToyDSL',
     'VectorExpDialect',
     'log.mlir'
+    'Buddyvgg',
 ]
 
 config.buddy_tools_dir = os.path.join(config.buddy_obj_root, 'bin')
