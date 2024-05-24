@@ -62,7 +62,8 @@ config.excludes = [
     'SIMDExperiment',
     'ToyDSL',
     'VectorExpDialect',
-    'log.mlir'
+    'log.mlir',
+    'Buddyvgg',
 ]
 
 config.buddy_tools_dir = os.path.join(config.buddy_obj_root, 'bin')
