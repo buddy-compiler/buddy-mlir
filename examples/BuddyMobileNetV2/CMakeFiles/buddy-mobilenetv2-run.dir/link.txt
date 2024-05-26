@@ -1,1 +1,0 @@
-/usr/bin/c++ -rdynamic CMakeFiles/buddy-mobilenetv2-run.dir/buddy-mobilenetv2-main.o -o buddy-mobilenetv2-run   -L/home/zhuxinye/buddy-mlir/examples/BuddyMobileNetV2  libMOBILENETV2.a -lmlir_c_runner_utils 

@@ -1,3 +1,0 @@
-file(REMOVE_RECURSE
-  "libMOBILENETV2.a"
-)
