@@ -1010,7 +1010,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     else:
         in_channels = list(weight_shape)[1]
         out_channels = list(weight_shape)[0]
-    is_depthwise = (groups == in_channels) or (groups == out_channels)
+    is_depthwise = ((groups == in_channels) or (groups == out_channels)) and (groups != 1)
 
     # Prepare bias tensor.
     if len(node._parents) == 2:
