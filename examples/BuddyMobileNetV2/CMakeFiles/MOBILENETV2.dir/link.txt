@@ -1,0 +1,2 @@
+/usr/bin/ar qc libMOBILENETV2.a subgraph0.o forward.o
+/usr/bin/ranlib libMOBILENETV2.a
