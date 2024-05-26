@@ -18,6 +18,14 @@ fragment SQuoteLiteral
     : '\'' (('\\' ([btnfr"'\\] | . |EOF))|( ~ ['\r\n\\]))* '\''
     ;
 
+// literal
+
+UnsignedInt: NOZERODIGIT DIGIT* | '0';
+
+ScienceReal : (Plus | Minus)? UnsignedInt Dot UnsignedInt ( 'E' (Plus | Minus)? UnsignedInt )?;
+
+ConstBoolean: 'true' | 'false';
+
 // key words
 
 FEGEN: 'fegen';
@@ -30,29 +38,39 @@ ACTIONS: 'actions';
 
 IR: 'ir';
 
-PARAMETERS: 'parameters';
-
-ASSEMBLYFORMAT: 'assemblyFormat';
-
 OPERAND_VALUE: 'operandValue';
 
 ATTRIBUTE_VALUE: 'attributeValue';
 
 CPP_VALUE: 'cppValue';
 
-LIST: 'list';
-
 OPERATION: 'operation';
-
-ATTRIBUTE: 'Attribute';
-
-TYPE: 'Type';
 
 FUNCTION: 'function';
 
 TYPEDEF: 'typedef';
 
-ATTRIBUTEDEF: 'attributedef';
+OPDEF: 'opdef';
+
+ARGUMENTS: 'arguments';
+
+RESULTS: 'results';
+
+BODY: 'body';
+
+EMPTY: 'null';
+
+PARAMETERS: 'parameters';
+
+ASSEMBLY_FORMAT: 'assemblyFormat';
+
+
+// types
+TYPE: 'Type';
+
+TYPETEMPLATE: 'TypeTemplate';
+
+BOOL: 'bool';
 
 INT: 'int';
 
@@ -60,27 +78,43 @@ FLOAT: 'float';
 
 DOUBLE: 'double';
 
-TENSOR: 'tensor';
+F64TENSOR: 'F64Tensor';
+
+F64VECTOR: 'F64Vector';
 
 STRING: 'string';
 
-INTATTR: 'intAttr';
+LIST: 'list';
 
-FLOATATTR: 'floatAttr';
+ANY: 'any';
 
-DOUBLEATTR: 'doubleAttr';
+OPTIONAL: 'optional';
 
-TENSORATTR: 'tensorAttr';
+INTEGER: 'Integer';
 
-STRINGATTR: 'stringAttr';
+FLOATPOINT: 'FloatPoint';
 
-NULL: 'null';
+TENSOR: 'Tensor';
 
-// AnyTypeOf method
-ANYTYPEOF: 'AnyTypeOf';
+VECTOR: 'Vector';
 
-//assmblyFormat identifier
-//AssmblyIden: BackQuote Less BackQuote (NONDIGIT | Less | Greater | LeftParen | RightParen | Dollar)* BackQuote Less BackQuote;
+CPP: 'cpp';
+
+OPERAND: 'operand';
+
+ATTRIBUTE: 'attribute';
+
+// stmt
+
+IF: 'if';
+
+ELSE: 'else';
+
+FOR: 'for';
+
+IN: 'in';
+
+WHILE: 'while';
 
 // identifiers
 
@@ -94,16 +128,24 @@ StringLiteral
     : SQuoteLiteral
     ;
 
-IntLiteral
-    : '0' | NOZERODIGIT DIGIT*
-    ;
-
 
 // marks
 
+AND: '&&';
+
+Logic_OR: '||';
+
+EQUAL: '==';
+
+NOT_EQUAL: '!=';
+
 Less: '<';
 
+LessEqual: '<=';
+
 Greater: '>';
+
+GreaterEqual: '>=';
 
 Comma: ',';
 
@@ -151,11 +193,9 @@ Underline: '_';
 
 Tilde: '~';
 
+Exclamation: '!';
+
 Range: '..';
-
-BackQuote: '`';
-
-
 
 BeginInclude: '@header' LeftBrace -> pushMode (TargetLanguageAction);
 

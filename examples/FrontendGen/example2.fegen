@@ -1,279 +1,104 @@
-fegen example2;
+fegen toy
 
-typedef struct{
-    parameters [list<Type>]
-
-    // TODO:确定一个合理的形式
-    assemblyFormat['$elemTypes']
+typedef struct {
+    parameters [list<Type> elementTypes]
 }
 
-attributedef intattrbute{
-    parameters [int]
+Type Toy_Type = any<[tensor, struct]>;
+
+opdef constant {
+    arguments [attribute double numberAttr]
+    results [operand Tensor res]
+    body {
+        list<int> shape = shapeOf(res);
+        // full是一个内置函数，创建memref，并将每个元素都填充numberAttr
+        res = full(shape, numberAttr);    
+    }
 }
+
+opdef add {
+    arguments [operand Tensor lhs, operand Tensor rhs]
+    results [operand Tensor res]
+    body {
+        // 这个'+'也是一个内置的函数
+        res = lhs + rhs;
+    }
+}
+
+opdef mul {
+    arguments [operand Tensor lhs, operand Tensor rhs]
+    results [operand Tensor res]
+    body {
+        // 这个'*'也是一个内置的函数
+        res = lhs * rhs;
+    }
+}
+
+opdef reshape {
+    arguments [operand F64Tensor input]
+    results [operand F64Tensor output]
+    body {
+        list<int> shape = shapeOf(output);
+        output = reshape(input, shape);
+    }
+}
+
+double stod(string numStr){
+    double res = 0;
+    int index;
+    int i;
+    for(i = 0; i <= len(numStr)-1; i=i+1){
+        char c = numStr[0];
+        int charNum;
+        if(c == '0'){
+            charNum = 0;
+        }else if (c == '1'){
+            charNum = 1;
+        }else if (c == '2'){
+            charNum = 2;
+        }else if (c == '3'){
+            charNum = 3;
+        }else if (c == '4'){
+            charNum = 4;
+        }else if (c == '5'){
+            charNum = 5;
+        }else if (c == '6'){
+            charNum = 6;
+        }else if (c == '7'){
+            charNum = 7;
+        }else if (c == '8'){
+            charNum = 8;
+        }else if (c == '9'){
+            charNum = 9;
+        }else if (c == '.'){
+            index = i;
+        }
+        res = res * 10;
+        res = res + charNum;    
+    }
+    res = res * 0.1**(len(numStr) - 1 - index);
+    return res;
+}
+
 
 module
     : structDefine* funDefine+
     ;
 
+structDefine
+    : Struct Identifier BracketOpen (varDecl Semicolon)* BracketClose
+    ;
+
+// cpp value --get--> mlir::attribute || --constant Operation--> mlir::Value
+//           ========                 ||
 expression
     : Number
-    {   inputs [floatAttr numberAttr]
-        returns [tensor ret]
+    {   returns [operand F64Tensor ret]
         actions {
-            'double' number = function<'std::stod'>($Number().text);
-            numberAttr = double<number>;
-        }
-        // ret = operation<toy.constant>(numberAttr);
-        // 声明或使用一个operation
-        ir [constant]
-    }
-    | tensorLiteral
-    {
-        inputs [float in]
-        returns [tensor]
-        actions {
-            in = function<'getTensor'>($tensorLiteral());
-        }
-        ir [constant]
-    }
-    | identifierExpr
-    {
-        inputs [tensor in]
-        returns [tensor ret]
-        actions {ret = in;}
-    }
-    | expression Mul expression
-    {
-        inputs [tensor, tensor]
-        returns [tensor]
-        ir [mul]
-    }
-    | expression Add expression
-    {
-        inputs [tensor, tensor]
-        returns [tensor]
-        ir [add]
-    }
-    | expression Dot expression
-    {
-        inputs [struct input, intAttr index]
-        returns [tensor output] 
-        actions {
-            index = function<'getMemberIndex'>($expression(1).text);
-        }
-        ir [StructAccessOp]
-    }
-    | structLiteral
-    {
-        inputs [tensorAttr in]
-        returns [struct ret]
-        actions {
-            // 使用时，需要把类型实例化出来 
-            list<Type> l = function<'getElementTypes'>($structLiteral());
-            ret.type = struct<l>;
-        }
-        ir [StructConstantOp]
-    }
-    ;
-
-identifierExpr
-    : Identifier
-    {
-        // TODO:: 组合类型的处理
-        // 对组合类型进行特殊处理，比如参考toy例程里的部分
-        // def Toy_Type : AnyTypeOf<[F64Tensor, Toy_StructType]>;
-        returns [<tensor, struct> ret]
-        actions {
-            // 应该出现在td文件中, AnyTypeOf处可以自定义混合类型名字，也可以自动生成
-            ret.type = ret_type AnyTypeOf <tensor, struct>;
-            ret = function<'findSymbol'>($Identifier().text);
+            // Type  mlir::Value  ret of operator | Attribute | Cpp Value
+            double numberAttr = stod($Number().getText());
+            Type retType = Tensor<[], double>;
+            ret = constant(numberAttr, retType);
         }
     }
-    | Identifier ParentheseOpen (expression(Comma expression)*)? ParentheseClose 
-    {
-        // TODO:: callee怎么修改
-        inputs [Attribute callee, list<Type> ins]
-        returns [Type ret]
-        actions {
-            // TODO: table
-            callee = function<'findSymbol'>($Identifier().text);
-            // TODO: how to get a list
-            ins = getInputs($expression());
-        }
-        ir [GenericCallOp]
-    }
-    ; 
-
-returnExpr
-    : Return
-    {
-        inputs [list<Type> in]
-        ir [ReturnOp]
-    } 
-    | Return expression 
-    {
-        inputs [list<Type> in]
-        ir [ReturnOp]
-    }
-    ;
-
-tensorLiteral
-    : SbracketOpen (tensorLiteral (Comma tensorLiteral)*)? SbracketClose 
-    | Number 
-    ;
-
-type
-    : AngleBracketsOpen Number (Comma Number)* AngleBracketsClose
-    ;
-
-funDefine
-    : prototype block
-    {
-        inputs [Attribute symbolname, Attribute functype]
-        ir [func]
-    }
-    ;
-
-prototype
-    : Def funcName funcParams
-    {
-        inputs [Attribute in1, Attribute in2]
-        returns[Attribute ret1, Attribute ret2]
-    }
-    ;
-
-funcName
-    : Identifier
-    {
-        inputs ['string' text]
-        returns [Attribute name]
-        actions {
-            text = $Identifier().text;
-        }
-        ir [SymbolNameAttr]
-    }
-    ;
-
-funcParams
-    : ParentheseOpen declList? ParentheseClose
-    {
-        inputs [list<Type>]
-        returns [Attribute]
-        ir [functionType]
-    }
-    ;
-
-declList
-    : varDecl (Comma varDecl)*
-    {
-        returns [list<Type> ret]
-        actions {
-            // get types of vardecl
-            ret = getTypes(varDecl);
-        }
-    }
-    ;
-
-varDecl
-    : Var Identifier (type)? (Equal expression)?
-    | Identifier Identifier (Equal expression)?
-    | Identifier
-    ;
-
-block
-    : BracketOpen (blockExpr Semicolon)* BracketClose
-    ;
-    
-blockExpr
-    : varDecl 
-    | returnExpr 
-    | expression
-    ;
-
-ParentheseOpen 
-    : '('
-    ;
-
-ParentheseClose 
-    : ')'
-    ;
-
-BracketOpen 
-    : '{'
-    ;
-
-BracketClose 
-    : '}'
-    ;
-
-SbracketOpen 
-    : '['
-    ;
-
-SbracketClose 
-    : ']'
-    ;
-
-Return
-    : 'return'
-    ;
-    
-Semicolon
-    : ';'
-    ;
-
-Var 
-    : 'var'
-    ;
-
-Def 
-    : 'def'
-    ;
-
-Struct 
-    : 'struct'
-    ;
-
-Identifier
-    : ('a'..'z' | 'A'..'Z')('a'..'z' | 'A'..'Z' | '0'..'9' | '_')
-    ; 
-
-Number
-    : ('0'..'9')+
-    ;
-
-Equal
-    : '='
-    ;
-
-AngleBracketsOpen 
-    : '<'
-    ;
-
-AngleBracketsClose
-    : '>' 
-    ;
-
-Comma
-    : ','
-    ;
-
-Add  
-    : '+'
-    ;
-
-Mul 
-    : '*'
-    ;
-
-Dot 
-    : '.'
-    ;
-
-WS
-    : ('\r' | '\t' | '\n') -> skip
-    ;
-    
-Comment 
-    : '#' .*? '\n' ->skip
     ;

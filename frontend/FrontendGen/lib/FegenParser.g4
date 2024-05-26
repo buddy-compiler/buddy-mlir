@@ -5,45 +5,85 @@ options {
 }
 
 fegenSpec
-    : fegenDecl prequelConstruct* userdef* rules EOF
+    : fegenDecl (prequelConstruct | functionDecl | typeDefinationDecl | statement | opDecl | rules)* EOF
     ;
 
 fegenDecl
-    : FEGEN identifier Semi
+    : FEGEN identifier
     ;
 
+// preprocess declare
 prequelConstruct
     : BeginInclude INCLUDE_CONTENT* EndInclude
     ;
 
-userdef
-    : TYPEDEF username userRuleBlock
-    | ATTRIBUTEDEF username userRuleBlock
+// function declare
+functionDecl
+    : typeSpec funcName LeftParen funcParams? RightParen statementBlock
     ;
 
-username 
+funcName
     : identifier
     ;
 
-userRuleBlock
-    : LeftBrace parametersSpec assemblyFormatSpec? RightBrace
+funcParams
+    : typeSpec identifier (Comma typeSpec identifier)*
+    ;
+
+// typedef declare
+typeDefinationDecl
+    : TYPEDEF typeDefinationName typeDefinationBlock
+    ; 
+
+typeDefinationName
+    : prefixedName
+    ;
+
+typeDefinationBlock
+    : LeftBrace parametersSpec assemblyFormatSpec? RightBrace 
     ;
 
 parametersSpec
     : PARAMETERS varDecls
-    ; 
-
-assemblyFormatSpec
-    : ASSEMBLYFORMAT LeftBracket StringLiteral RightBracket
     ;
 
+assemblyFormatSpec
+    : ASSEMBLY_FORMAT LeftBracket StringLiteral RightBracket
+    ;
+
+// opdef declare
+opDecl
+    : OPDEF opName opBlock
+    ;
+
+opName
+    : prefixedName
+    ;
+
+opBlock
+    : LeftBrace argumentSpec? resultSpec? bodySpec? RightBrace
+    ;
+
+argumentSpec
+    : ARGUMENTS varDecls
+    ;
+
+resultSpec
+    : RESULTS varDecls
+    ;
+
+bodySpec
+    : BODY statementBlock
+    ;
+
+// rule definations
 rules
-    : ruleSpec*
+    : ruleSpec+
     ;
 
 ruleSpec
     : parserRuleSpec
-    | lexerRuleSpec
+    | lexerRuleSpec 
     ;
 
 parserRuleSpec
@@ -148,7 +188,6 @@ lexerAlt
     ;
 
 // E.g., channel(HIDDEN), skip, more, mode(INSIDE), push(INSIDE), pop
-
 lexerCommands
     : Arror lexerCommand (Comma lexerCommand)*
     ;
@@ -182,8 +221,9 @@ lexerBlock
     : LeftParen lexerAltList RightParen
     ;
 
+// action block declare
 actionBlock
-    : LeftBrace inputsSpec? returnsSpec? actionSpec? irSpec? RightBrace
+    : LeftBrace inputsSpec? returnsSpec? actionSpec? RightBrace
     ;
 
 inputsSpec
@@ -191,23 +231,7 @@ inputsSpec
 	;
 
 varDecls
-	: LeftBracket varDeclSpec (Comma varDeclSpec)* RightBracket
-	;
-
-varDeclSpec
-	: type identifier?
-    | attr identifier?
-    | Less type Comma type (Comma type)* Greater identifier?
-	;
-
-
-type
-    : LIST Less type Greater
-    | INT | STRING | DOUBLE | FLOAT | TENSOR | TYPE | cpptype | identifier
-    ;
-
-attr
-	: INTATTR | STRINGATTR | DOUBLEATTR | FLOATATTR | TENSORATTR | ATTRIBUTE
+	: LeftBracket typeSpec identifier (Comma typeSpec identifier)* RightBracket
 	;
 
 prefixedName
@@ -224,73 +248,197 @@ returnsSpec
 	;
 
 actionSpec
-    : ACTIONS LeftBrace (statement Semi)* RightBrace
+    : ACTIONS statementBlock
+    ;
+
+statementBlock
+    : LeftBrace statement* RightBrace
     ;
 
 statement
-    : varDeclStmt
-    | functionCallStmt
-    | assignStmt
+    : varDeclStmt Semi
+    | assignStmt Semi
+    | functionCall Semi
+    | opInvokeStmt Semi
+    | ifStmt
+    | forStmt
     ;
 
 varDeclStmt
-    : type identifier (Assign (variable | functionCallStmt))?
-    ;
-
-functionCallStmt
-    :  functionAccess LeftParen paramList? RightParen
-    ;
-
-functionAccess
-    : FUNCTION Less StringLiteral Greater
-    | (OPERATION | ATTRIBUTE) Less identifier (Dot identifier)? Greater
-    | builtinFunction
-    ;
-
-builtinFunction
-    : identifier
-    ;
-
-
-paramList
-    : variable (Comma variable)*
+    : typeSpec identifier (Assign expression)?
     ;
 
 assignStmt
-    : identifier (Dot identifier)? Assign expression
+    : identifier Assign expression
     ;
 
+functionCall
+    : funcName LeftParen (expression (Comma expression)*)? RightParen
+    ;
+
+opInvokeStmt
+    : opName LeftParen opParams? (Comma opResTypeParams)? RightParen+
+    ;
+
+opParams
+    : identifier (Comma identifier)*
+    ;
+
+opResTypeParams
+    : typeInstance (Comma typeInstance)*
+    ;
+
+ifStmt
+    : IF LeftParen expression RightParen statementBlock (ELSE IF LeftParen expression RightParen statementBlock)* (ELSE statementBlock)?
+    ;
+
+forStmt
+    : FOR LeftParen assignStmt Semi expression Semi assignStmt RightParen statementBlock
+    ;
+
+// expression
 expression
-    : typestmt
-    | functionCallStmt
-    | variable
-    | anytypeofstmt
-    | NULL
+    : andExpr (Logic_OR andExpr)*
     ;
 
-variable
-    : identifier
-    | Dollar identifier LeftParen IntLiteral? RightParen ruleSuffix?
+andExpr
+    : equExpr  (AND equExpr )*
     ;
 
-typestmt 
-    : type Less expression Greater
+equExpr 
+    : compareExpr  ((EQUAL | NOT_EQUAL) compareExpr)*
     ;
 
-anytypeofstmt
-    : identifier? ANYTYPEOF Less type Comma type (Comma type)* Greater
+compareExpr
+    : addExpr ((Less | LessEqual | Greater | GreaterEqual) addExpr)*
     ;
 
-ruleSuffix
-    : Dot variable
-    | Dot RETURNS LeftBracket IntLiteral RightBracket
-    ;   
-
-irSpec
-    : IR LeftBracket  identifier (Dot identifier)? RightBracket
+addExpr
+    : term ((Plus | Minus) term)*
     ;
 
-// C++ type
-cpptype
+term
+    : powerExpr ((Star | Div | MOD) powerExpr)*
+    ;
+
+powerExpr
+    : unaryExpr (StarStar unaryExpr)*
+    ;
+
+unaryExpr
+    : (Minus | Plus | Exclamation)? primaryExpr
+    ;
+
+parenSurroundedExpr
+    : LeftParen expression RightParen
+    ;
+
+primaryExpr
+    : constant
+    | identifier
+    | functionCall
+    | parenSurroundedExpr
+    | contextMethodInvoke
+    | typeSpec
+    | variableAccess
+    ;
+
+constant
+    : numericLiteral
+    | charLiteral
+    | boolLiteral
+    | listLiteral
+    ;
+
+// ex: $ctx(0).getText()
+contextMethodInvoke
+    : Dollar identifier LeftParen intLiteral? RightParen Dot functionCall
+    ;
+
+variableAccess
+    : identifier LeftBracket expression RightBracket
+    ;
+
+numericLiteral
+    : intLiteral
+    | realLiteral
+    ;
+
+intLiteral
+    : UnsignedInt
+    | (Plus | Minus) UnsignedInt
+    ;
+
+realLiteral
+    : ScienceReal
+    ;
+
+charLiteral
     : StringLiteral
+    ;
+
+boolLiteral
+    : ConstBoolean
+    ;
+
+listLiteral
+    : LeftBracket (expression (Comma expression)*)? RightBracket
+    ;
+
+// type system
+typeSpec
+    : valueKind? typeInstance 
+    | typeTemplate
+    | valueKind? collectType
+    ;
+
+valueKind
+    : CPP
+    | OPERAND
+    | ATTRIBUTE
+    ;
+
+typeInstance
+    : typeTemplate (Less typeTemplateParam (Comma typeTemplateParam)* Greater)?
+    | builtinTypeInstances
+    | identifier
+    ;
+
+typeTemplate
+    : prefixedName
+    | builtinTypeTemplate
+    | TYPE
+    | identifier
+    ;
+
+typeTemplateParam
+    : expression
+    | builtinTypeInstances
+    ;
+
+builtinTypeInstances
+    : BOOL
+    | INT
+    | FLOAT
+    | DOUBLE
+    | F64TENSOR
+    | F64VECTOR
+    | STRING
+    ;
+
+builtinTypeTemplate
+    : INTEGER
+    | FLOATPOINT
+    | TENSOR
+    | VECTOR
+    ;
+
+collectType
+    : collectProtoType Less expression Greater
+    ;
+
+collectProtoType
+    : ANY
+    | LIST
+    | OPTIONAL
     ;
