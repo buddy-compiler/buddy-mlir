@@ -15,6 +15,10 @@ tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 text = "Replace me by any text you'd like."
 encoded_text = tokenizer(text, return_tensors="pt")
 with torch.no_grad():
-    module, params = dynamo_compiler.importer(model, **encoded_text)
-    print(module)
-    print(params)
+    graphs = dynamo_compiler.importer(model, **encoded_text)
+
+graph = graphs[0]
+params = dynamo_compiler.imported_params[graph]    
+graph.lower_to_top_level_ir(do_params_pack=True)
+print(graph._imported_module)
+print(params)

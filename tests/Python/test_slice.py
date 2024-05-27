@@ -5,7 +5,7 @@ import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
+from buddy.compiler.ops import linalg
 
 
 def foo(x, dim, start_idx, end_idx):
@@ -19,12 +19,15 @@ end_idx = 3
 
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
+    primary_registry=linalg.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
 )
 
-foo_mlir = dynamo.optimize(dynamo_compiler)(foo)
-foo_mlir(x, dim, start_idx, end_idx)
+graphs = dynamo_compiler.importer(foo, x, dim, start_idx, end_idx)
+assert len(graphs) == 1
+graph = graphs[0]
+graph.lower_to_top_level_ir()
+print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
@@ -32,4 +35,3 @@ foo_mlir(x, dim, start_idx, end_idx)
 # CHECK: return %{{.*}} : tensor<3x2x2xf32>
 # CHECK: }
 # CHECK: }
-print(dynamo_compiler.imported_module)

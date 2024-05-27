@@ -8,12 +8,10 @@ on:
 
 jobs:
   build:
-
     runs-on: self-hosted
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: 'true'
       - name: Set up ninja
@@ -23,7 +21,7 @@ jobs:
         run: |
           echo "commit=$(git submodule status llvm | awk '{print $1;}')" >> $GITHUB_OUTPUT
       - name: Cache llvm build directory
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: llvm
           key: build-${{ steps.llvm-build-dir.outputs.commit }}

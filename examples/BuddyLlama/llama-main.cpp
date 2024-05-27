@@ -18,12 +18,9 @@
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
 #include <cstddef>
-#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <limits>
-#include <type_traits>
 
 using namespace buddy;
 
@@ -54,8 +51,8 @@ void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 /// Print information for each iteration.
 void printIterInfo(size_t iterIdx, std::string str, double time) {
   std::cout << "\033[32;1m[Iteration " << iterIdx << "] \033[0m";
-  std::cout << "Token: " << str << " | " << "Time: " << time << "s"
-            << std::endl;
+  std::cout << "Token: " << str << " | "
+            << "Time: " << time << "s" << std::endl;
 }
 
 /// Tokenize input data in the container.
@@ -131,8 +128,8 @@ int main() {
   //  - Parameters container.
   Text<size_t, 2> outputContainer;
   MemRef<float, 3> resultContainer[2] = {
-      MemRef<float, 3>({1, MaxTokenLength, MaxVocabSize}, false, 0),
-      MemRef<float, 3>({1, MaxTokenLength, HiddenSize}, false, 0)};
+      MemRef<float, 3>({1, MaxTokenLength, HiddenSize}, false, 0),
+      MemRef<float, 3>({1, MaxTokenLength, MaxVocabSize}, false, 0)};
   Text<size_t, 2> inputContainer(inputStr);
   MemRef<float, 1> paramsContainer({ParamsSize});
 
@@ -161,7 +158,7 @@ int main() {
     // Determine the generated token.
     int tokenIndex = inputContainer.getTokenCnt() - 1;
     const float *startPtr =
-        resultContainer[0].getData() + tokenIndex * MaxVocabSize;
+        resultContainer[1].getData() + tokenIndex * MaxVocabSize;
     const float *endPtr = startPtr + MaxVocabSize;
     int maxIndex = findMaxIndex(startPtr, endPtr);
     std::string tok = inputContainer.getStr(maxIndex);

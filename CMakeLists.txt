@@ -43,9 +43,11 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
 
     set(LLVM_MLIR_BINARY_DIR ${MLIR_DIR}/../../../bin)
     set(LLVM_MLIR_LIBRARY_DIR ${MLIR_DIR}/../../../lib)
-    set(LLVM_MLIR_SOURCE_DIR ${MLIR_DIR}/../../../../mlir)
     set(LLVM_PROJECT_BUILD_DIR ${MLIR_DIR}/../../../)
-    set(LLVM_PROJECT_SOURCE_DIR ${MLIR_DIR}/../../../../)
+    if(NOT DEFINED LLVM_PROJECT_SOURCE_DIR)
+      get_filename_component(LLVM_PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/llvm/ ABSOLUTE)
+    endif()
+    set(LLVM_MLIR_SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}/mlir)
 
     list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
     list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
@@ -83,18 +85,24 @@ endif()
 set(BUDDY_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(BUDDY_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
+set(BUDDY_LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include/)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include/)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${BUDDY_LIBRARY_DIR})
 
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
 if(BUDDY_ENABLE_OPENCV)
   add_definitions(-DBUDDY_ENABLE_OPENCV)
+  find_package(JPEG REQUIRED)
+  find_package(PNG REQUIRED)
+  find_package(OpenCV REQUIRED CONFIG)
+  include_directories(${OpenCV_INCLUDE_DIRS})
 endif()
 
 # Generate libraries into `lib` of build directory.
@@ -184,8 +192,13 @@ endif()
 # Initialize Python packages
 #-------------------------------------------------------------------------------
 if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
+  # Find the Python interpreter and development components,
+  # requiring a minimum version of 3.10
+  find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter Development)
+  # Create directories for the BUDDY-MLIR Python packages
   file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy)
   file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler)
+  # Create empty __init__.py files to make these directories Python packages
   file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/__init__.py "")
   file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/__init__.py "")
 endif()

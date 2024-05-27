@@ -92,7 +92,7 @@ $ buddy-opt <input> -lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
 
 ```
 $ cd buddy-mlir/build/bin
-$ ./buddy-opt ../../examples/DIPDialect/dip.mlir --lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
+$ ./buddy-opt ../../frontend/Interfaces/DIP.mlir --lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
 ```
 
 - Edge detection example:
@@ -237,7 +237,7 @@ Example:
 
 ```
 $ cd buddy-mlir/build/bin
-$ ./buddy-opt ../../examples/BudDialect/TestConstant.mlir --lower-bud
+$ ./buddy-opt ../../examples/BudDialect/bud-print.mlir --lower-bud
 ```
 
 ## DSL Examples

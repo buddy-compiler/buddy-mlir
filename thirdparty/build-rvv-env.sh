@@ -139,3 +139,31 @@ then
 else
   echo "mlir for riscv64 was built already"
 fi
+
+#-------------------------------------------------------------------------------
+# Build cross Buddy-MLIR
+#-------------------------------------------------------------------------------
+
+if [ ! -d "build-cross-buddy-mlir" ]
+then
+  mkdir build-cross-buddy-mlir
+  cd build-cross-buddy-mlir
+  cmake -G Ninja ../../ \
+    -DCMAKE_SYSTEM_NAME=Linux \
+    -DMLIR_DIR=$PWD/../build-cross-mlir/lib/cmake/mlir \
+    -DLLVM_DIR=$PWD/../build-cross-mlir/lib/cmake/llvm \
+    -DCMAKE_CROSSCOMPILING=True \
+    -DLLVM_TARGETS_TO_BUILD=RISCV \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DLLVM_NATIVE_ARCH=RISCV \
+    -DLLVM_HOST_TRIPLE=riscv64-unknown-linux-gnu \
+    -DCMAKE_C_COMPILER=$PWD/../build-local-clang/bin/clang \
+    -DCMAKE_CXX_COMPILER=$PWD/../build-local-clang/bin/clang++ \
+    -DCMAKE_C_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$PWD/../build-riscv-gnu-toolchain/sysroot --gcc-toolchain=$PWD/../build-riscv-gnu-toolchain" \
+    -DCMAKE_CXX_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$PWD/../build-riscv-gnu-toolchain/sysroot --gcc-toolchain=$PWD/../build-riscv-gnu-toolchain" \
+    -DLLVM_ENABLE_ZSTD=Off
+  ninja StaticMLIRCRunnerUtils StaticMLIRRunnerUtils
+else
+  echo "buddy-mlir libs for riscv64 was built already"
+fi

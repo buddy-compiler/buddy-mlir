@@ -1,3 +1,11 @@
+import os
+import torch
+import torch._dynamo as dynamo
+from transformers import LlamaForCausalLM, LlamaTokenizer
+from torch._inductor.decomposition import decompositions as inductor_decomp
+import numpy
+
+from buddy.compiler.frontend import DynamoCompiler
 # ===- import-llama2.py --------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,17 +25,9 @@
 # This is the test of llama2 model.
 #
 # ===---------------------------------------------------------------------------
-
-import os
-
-import numpy
-import torch
-from transformers import LlamaForCausalLM, LlamaTokenizer
-from torch._functorch.aot_autograd import aot_autograd_decompositions
-
-from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
-
+from buddy.compiler.graph import GraphDriver
+from buddy.compiler.graph.transform import simply_fuse
 
 # Retrieve the LLaMA model path from environment variables.
 model_path = os.environ.get("LLAMA_MODEL_PATH")
@@ -44,21 +44,26 @@ model.config.use_cache = False
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=aot_autograd_decompositions,
+    aot_autograd_decomposition=inductor_decomp,
 )
 
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
-    gm, params = dynamo_compiler.importer(
-        model, torch.tensor([[1 for _ in range(40)]], dtype=torch.int64)
-    )
+    data = torch.tensor([[1 for i in range(40)]], dtype=torch.int64)
+    graphs = dynamo_compiler.importer(model, data)
 
+assert len(graphs) == 1
+graph = graphs[0]
+params = dynamo_compiler.imported_params[graph]
+pattern_list = [simply_fuse]
+graphs[0].fuse_ops(pattern_list)
+driver = GraphDriver(graphs[0])
+driver.subgraphs[0].lower_to_top_level_ir()
 path_prefix = os.path.dirname(os.path.abspath(__file__))
-# Write the MLIR module to the file.
-with open(os.path.join(path_prefix, "llama.mlir"), "w") as module_file:
-    print(gm, file=module_file)
-
-# Concatenate all parameters into a single numpy array and write to a file.
+with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
+    print(driver.subgraphs[0]._imported_module, file=module_file)
+with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
+    print(driver.construct_main_graph(True), file=module_file)
 all_param = numpy.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params]
 )

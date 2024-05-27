@@ -111,14 +111,14 @@ public:
 class WBaseStream {
 public:
   // methods
-  WBaseStream();
-  virtual ~WBaseStream();
+  inline WBaseStream();
+  inline virtual ~WBaseStream();
 
-  virtual bool open(const String &filename);
-  virtual bool open(std::vector<uchar> &buf);
-  virtual void close();
-  bool isOpened();
-  int getPos();
+  inline virtual bool open(const String &filename);
+  inline virtual bool open(std::vector<uchar> &buf);
+  inline virtual void close();
+  inline bool isOpened();
+  inline int getPos();
 
 protected:
   uchar *m_start;
@@ -130,9 +130,9 @@ protected:
   bool m_is_opened;
   std::vector<uchar> *m_buf;
 
-  virtual void writeBlock();
-  virtual void release();
-  virtual void allocate();
+  inline virtual void writeBlock();
+  inline virtual void release();
+  inline virtual void allocate();
 };
 
 // class WLByteStream - uchar-oriented stream.
@@ -140,12 +140,12 @@ protected:
 // first
 class WLByteStream : public WBaseStream {
 public:
-  virtual ~WLByteStream();
+  inline virtual ~WLByteStream();
 
-  void putByte(int val);
-  void putBytes(const void *buffer, int count);
-  void putWord(int val);
-  void putDWord(int val);
+  inline void putByte(int val);
+  inline void putBytes(const void *buffer, int count);
+  inline void putWord(int val);
+  inline void putDWord(int val);
 };
 
 // class WLByteStream - uchar-oriented stream.
@@ -153,9 +153,9 @@ public:
 // last
 class WMByteStream : public WLByteStream {
 public:
-  virtual ~WMByteStream();
-  void putWord(int val);
-  void putDWord(int val);
+  inline virtual ~WMByteStream();
+  inline void putWord(int val);
+  inline void putDWord(int val);
 };
 
 inline unsigned BSWAP(unsigned v) {
@@ -165,7 +165,7 @@ inline unsigned BSWAP(unsigned v) {
 
 const int BS_DEF_BLOCK_SIZE = 1 << 15;
 
-bool bsIsBigEndian(void) {
+inline bool bsIsBigEndian(void) {
   return (((const int *)"\0\x1\x2\x3\x4\x5\x6\x7")[0] & 255) != 0;
 }
 
