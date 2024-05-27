@@ -1,2 +1,2 @@
-vgg.mlir
-arg0.data
+*.mlir
+*.data

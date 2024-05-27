@@ -19,13 +19,16 @@
 # ===---------------------------------------------------------------------------
 
 import os
-
-import numpy
+from pathlib import Path
+from typing import Set
+import numpy as np
 import torch
 import torchvision
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
+from buddy.compiler.graph import GraphDriver
+from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
 
 
@@ -60,14 +63,22 @@ with torch.no_grad():
 assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
-graph.lower_to_top_level_ir()
+pattern_list = [simply_fuse]
+graphs[0].fuse_ops(pattern_list)
+driver = GraphDriver(graphs[0])
+driver.subgraphs[0].lower_to_top_level_ir()
 path_prefix = os.path.dirname(os.path.abspath(__file__))
-# Write the MLIR module to the file.
-with open(os.path.join(path_prefix, "vgg.mlir"), "w") as module_file:
-    print(graph._imported_module, file=module_file)
+with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
+    print(driver.subgraphs[0]._imported_module, file=module_file)
+with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
+    print(driver.construct_main_graph(True), file=module_file)
 
-# Concatenate all parameters into a single numpy array and write to a file.
-all_param = numpy.concatenate(
+params = dynamo_compiler.imported_params[graph]
+current_path = os.path.dirname(os.path.abspath(__file__))
+
+float32_param = np.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params]
 )
-all_param.tofile(os.path.join(path_prefix, "arg0.data"))
+
+float32_param.tofile(Path(current_path) / "arg0.data")
+

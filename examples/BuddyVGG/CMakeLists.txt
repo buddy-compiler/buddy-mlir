@@ -1,20 +1,33 @@
 add_custom_command(
-  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyVGG/vgg.mlir ${BUDDY_EXAMPLES_DIR}/BuddyVGG/arg0.data
+  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyVGG/forward.mlir ${BUDDY_EXAMPLES_DIR}/BuddyVGG/subgraph0.mlir ${BUDDY_EXAMPLES_DIR}/BuddyVGG/arg0.data
   COMMAND python3 ${BUDDY_EXAMPLES_DIR}/BuddyVGG/buddy-vgg-import.py
-  COMMENT "Generating vgg.mlir and parameter files"
+  COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files"
 )
 
 add_custom_command(
-  OUTPUT vgg.o
-  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyVGG/vgg.mlir 
-            -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
+  OUTPUT forward.o
+  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyVGG/forward.mlir 
+            -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg, arith-bufferize, func.func(linalg-bufferize, tensor-bufferize), func-bufferize)" |
           ${LLVM_MLIR_BINARY_DIR}/mlir-opt 
+            -pass-pipeline "builtin.module(func.func(buffer-deallocation-simplification, convert-linalg-to-loops), eliminate-empty-tensors, func.func(llvm-request-c-wrappers),convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
+          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_MLIR_BINARY_DIR}/llvm-as |
+          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyVGG/forward.o
+  DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyVGG/forward.mlir
+  COMMENT "Building forward.o"
+  VERBATIM)
+
+add_custom_command(
+  OUTPUT subgraph0.o
+  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyVGG/subgraph0.mlir 
+            -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
+          ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -convert-tensor-to-linalg 
             -linalg-bufferize
             -convert-linalg-to-affine-loops
             -lower-affine
-            -func-bufferize
+            -func-bufferize-dynamic-offset
             -arith-bufferize
             -tensor-bufferize
             -buffer-deallocation
@@ -31,12 +44,12 @@ add_custom_command(
             -reconcile-unrealized-casts | 
           ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_MLIR_BINARY_DIR}/llvm-as |
-          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyVGG/vgg.o
-  DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyVGG/vgg.mlir
-  COMMENT "Building vgg.o"
+          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyVGG/subgraph0.o
+  DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyVGG/subgraph0.mlir
+  COMMENT "Building subgraph0.o"
   VERBATIM)
 
-add_library(VGG STATIC vgg.o)
+add_library(VGG STATIC subgraph0.o forward.o)
 
 SET_TARGET_PROPERTIES(VGG PROPERTIES LINKER_LANGUAGE C)
 

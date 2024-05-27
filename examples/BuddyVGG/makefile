@@ -18,7 +18,7 @@ MLIR_ASYNC_RUNTIME := ./../llvm/build/lib/libmlir_async_runtime.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
 
-buddy-lenet-lower:
+buddy-vgg-lower:
 	@${MLIR_OPT} ./manual_forward.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" | \
 		${MLIR_OPT} \
@@ -44,7 +44,7 @@ buddy-lenet-lower:
 		-reconcile-unrealized-casts \
 		-o ./log.mlir
 
-buddy-lenet-translate:
+buddy-vgg-translate:
 	@${MLIR_OPT} ./manual_forward.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" | \
 		${MLIR_OPT} \
@@ -71,7 +71,7 @@ buddy-lenet-translate:
 	${MLIR_TRANSLATE} -mlir-to-llvmir -o log.ll
 
 
-buddy-lenet-run:
+buddy-vgg-run:
 	@${MLIR_OPT} ./manual_forward.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" | \
 		${MLIR_OPT} \
