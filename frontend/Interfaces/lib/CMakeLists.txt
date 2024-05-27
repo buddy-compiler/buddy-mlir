@@ -62,14 +62,9 @@ add_custom_command(OUTPUT DAP.o
   add_custom_command(OUTPUT DAP-extend.o
   COMMAND ${CMAKE_BINARY_DIR}/bin/buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/DAP-extend.mlir 
               -extend-dap
-              -tensor-bufferize  
-              -linalg-bufferize 
-              -tensor-bufferize
+              -one-shot-bufferize
               -convert-linalg-to-loops
-              -func-bufferize
-              -arith-bufferize
               -convert-scf-to-cf
-              -finalizing-bufferize
               -expand-strided-metadata
               -lower-affine
               -convert-vector-to-llvm 

@@ -272,8 +272,8 @@ Value initMelFilter(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
 
   rewriter.setInsertionPointAfter(loopOp);
 
-  Value newMelFilter =
-      rewriter.create<bufferization::ToTensorOp>(loc, melFilterMemRef);
+  Value newMelFilter = rewriter.create<bufferization::ToTensorOp>(
+      loc, melFilterMemRef, /*restrict=*/true, /*writable=*/false);
 
   return newMelFilter;
 }
@@ -1339,7 +1339,8 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
       /*permutation=*/ArrayRef<int64_t>{1, 0});
   Value melFiltersT = transposeOp0.getResult()[0];
 
-  Value gram = rewriter.create<bufferization::ToTensorOp>(loc, spectrogram);
+  Value gram = rewriter.create<bufferization::ToTensorOp>(
+      loc, spectrogram, /*restrict=*/true, /*writable=*/false);
   Value init1 = rewriter.create<tensor::EmptyOp>(
       loc, ArrayRef<int64_t>{201, 3001}, f64Ty);
   auto transposeOp1 = rewriter.create<linalg::TransposeOp>(
@@ -1419,8 +1420,8 @@ public:
     FloatType f32 = FloatType::getF32(ctx);
     FloatType f64 = FloatType::getF64(ctx);
 
-    Value inputFeatures =
-        rewriter.create<bufferization::ToTensorOp>(loc, input);
+    Value inputFeatures = rewriter.create<bufferization::ToTensorOp>(
+        loc, input, /*restrict=*/true, /*writable=*/false);
     Value inputFeaturesSize =
         rewriter.create<tensor::DimOp>(loc, inputFeatures, c0);
     Value padConstantHigh =
