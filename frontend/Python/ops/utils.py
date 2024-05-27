@@ -37,6 +37,11 @@ def mlir_element_type_get(type_name):
             return ir.IntegerType.get_signless(64)
         case TensorDType.Bool:
             return ir.IntegerType.get_signless(1)
+        case TensorDType.BF16:
+            return ir.BF16Type.get()  # 添加 BF16 支持
+        case TensorDType.Float16:
+            return ir.F16Type.get()  # 添加 FP16 支持
+
 
 
 def mlir_element_attr_get(type_name, value):

@@ -11,7 +11,7 @@ def foo(x):
     return torch.ops.aten.sqrt(x)
 
 
-x = torch.randn(10, 3, 6)
+x = torch.randn(10, 3, 6).to(torch.float16)
 
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(

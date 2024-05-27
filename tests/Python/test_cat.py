@@ -13,8 +13,8 @@ def foo(x, y):
     return torch.cat([x, y], dim=-1)
 
 
-in1 = torch.ones([13, 13], dtype=torch.float32)
-in2 = torch.ones([13, 13], dtype=torch.float32)
+in1 = torch.ones([13, 13], dtype=torch.float16)
+in2 = torch.ones([13, 13], dtype=torch.float16)
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(
     primary_registry=linalg.ops_registry,
