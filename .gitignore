@@ -13,11 +13,17 @@
 # Clangd cache
 .cache
 *.pth.tar
+data/
+*.pth
+
+
 */build/
 # 子目录中所有的build文件夹以及更深层目录的build文件夹
 */build/
 */*/build
 
+*.o
+*.ll
 # CMake cache
 CMakeCache.txt
 CMakeFiles/

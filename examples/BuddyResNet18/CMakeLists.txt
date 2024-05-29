@@ -1,40 +1,17 @@
-cmake_minimum_required(VERSION 3.10)
-
-# 设置项目名称
-project(BuddyResNet18)
-
-# 设置 C++ 标准
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
-
-# 设置 Buddy Compiler 和 LLVM/MLIR 的路径
-set(BUDDY_COMPILER_PATH /home/jack/buddy-mlir/build) # 更新为你的 buddy-mlir 路径
-set(LLVM_MLIR_BINARY_DIR /home/jack/buddy-mlir/llvm/build/bin) # 更新为你的 LLVM/MLIR 可执行文件路径
-
-# 包含 Buddy Compiler 的头文件
-include_directories(${BUDDY_COMPILER_PATH}/include)
-
-# 链接 Buddy Compiler 的库
-link_directories(${BUDDY_COMPILER_PATH}/lib)
-
-# 查找 OpenCV 包
-find_package(OpenCV REQUIRED)
-
-# 包含 OpenCV 的头文件
-include_directories(${OpenCV_INCLUDE_DIRS})
-
-# 设置生成参数文件和 MLIR 文件的命令
 add_custom_command(
-  OUTPUT ${CMAKE_SOURCE_DIR}/arg0.data
-         ${CMAKE_SOURCE_DIR}/resnet.mlir
-  COMMAND python3 ${CMAKE_SOURCE_DIR}/import-resnet18.py
-  COMMENT "Generating resnet.mlir and parameter files"
+  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/arg0.data
+         ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/arg1.data
+         ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/forward.mlir
+         ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/subgraph0.mlir
+  COMMAND python3 ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/import-resnet18.py
+  COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files"
 )
 
-# 设置生成 object 文件的命令
+
+# Command to build the MLIR object file
 add_custom_command(
-  OUTPUT resnet.o
-  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${CMAKE_SOURCE_DIR}/resnet.mlir
+  OUTPUT forward.o
+  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/forward.mlir
             -pass-pipeline
             "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), \
             empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg, arith-bufferize, \
@@ -48,22 +25,54 @@ add_custom_command(
             convert-func-to-llvm, reconcile-unrealized-casts)" |
           ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_MLIR_BINARY_DIR}/llvm-as |
-          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O3 
-            -o ${CMAKE_BINARY_DIR}/resnet.o
-  DEPENDS ${CMAKE_SOURCE_DIR}/resnet.mlir
-  COMMENT "Building resnet.o"
-  VERBATIM
-)
+          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3 
+            -o ${BUDDY_BINARY_DIR}/../examples/BuddyResNet18/forward.o
+            DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/forward.mlir
+            COMMENT "Building forward.o"
+            VERBATIM)
 
-# 添加库
-add_library(RESNET18 STATIC resnet.o)
+add_custom_command(
+  OUTPUT subgraph0.o
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/subgraph0.mlir 
+            -pass-pipeline
+            "builtin.module(func.func(tosa-to-linalg-named, tosa-to-arith, tosa-to-linalg, tosa-to-tensor))" |
+          ${BUDDY_BINARY_DIR}/buddy-opt  
+            -convert-elementwise-to-linalg
+            -func-bufferize-dynamic-offset
+            -arith-bufferize
+            -func-bufferize
+            -tensor-bufferize
+            -linalg-bufferize
+            -finalizing-bufferize
+            -convert-linalg-to-loops
+            -lower-affine
+            -convert-scf-to-cf
+            -llvm-request-c-wrappers
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-arith-to-llvm
+            -convert-func-to-llvm
+            -expand-strided-metadata
+            -finalize-memref-to-llvm
+            -reconcile-unrealized-casts | 
+          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_MLIR_BINARY_DIR}/llvm-as |
+          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3 
+            -o ${BUDDY_BINARY_DIR}/../examples/BuddyResNet18/subgraph0.o
+  DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/subgraph0.mlir
+          buddy-opt
+  COMMENT "Building subgraph0.o"
+  VERBATIM)
+
+# Create the library from the object file
+add_library(RESNET18 STATIC subgraph0.o forward.o)
 
 SET_TARGET_PROPERTIES(RESNET18 PROPERTIES LINKER_LANGUAGE C)
 
-# 添加可执行文件
-add_executable(buddy-resnet18-run ResNet18Benchmark.cpp)
-target_link_directories(buddy-resnet18-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})
+# Add the executable
+add_executable(resnet18-run resnet18-main.cpp)
+target_link_directories(resnet18-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})
 
-# 链接库
+# Link the required libraries
 set(BUDDY_RESNET18_LIBS RESNET18 mlir_c_runner_utils ${OpenCV_LIBS})
-target_link_libraries(buddy-resnet18-run ${BUDDY_RESNET18_LIBS})
+target_link_libraries(resnet18-run ${BUDDY_RESNET18_LIBS})

@@ -1,19 +1,3 @@
-//===- ResNet18Benchmark.cpp ---------------------------------------------===//
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-//===----------------------------------------------------------------------===//
-
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImageContainer.h>
 #include <chrono>
@@ -26,19 +10,17 @@
 #include <utility>
 #include <vector>
 
-constexpr size_t ParamsSize = 11689512; // Update this according to actual size
+constexpr size_t ParamsSize = 11699112;
 const std::string ImgName = "dog.png";
 
 // Declare the resnet18 C interface.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
-                          MemRef<float, 1> *arg0,
-                          Img<float, 4> *input);
+                                     MemRef<float, 1> *arg0,MemRef<long long, 1> *arg1,
+                                     Img<float, 4> *input);
 
 const cv::Mat imagePreprocessing() {
-  // Get the directory of the ResNet18 example and construct the image path.
-  std::string resnetDir = getenv("RESNET18_EXAMPLE_PATH");
-  std::string imgPath = resnetDir + "/images/" + ImgName; 
-  // Read the image in color mode.
+  std::string resnet18Dir = getenv("RESNET18_EXAMPLE_PATH");
+  std::string imgPath = resnet18Dir + "/images/" + ImgName; 
   cv::Mat inputImage = cv::imread(imgPath, cv::IMREAD_COLOR);
   assert(!inputImage.empty() && "Could not read the image.");
   cv::Mat resizedImage;
@@ -54,7 +36,9 @@ const cv::Mat imagePreprocessing() {
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
 void loadParameters(const std::string &floatParamPath,
-                    MemRef<float, 1> &floatParam) {
+                    const std::string &int64ParamPath,
+                    MemRef<float, 1> &floatParam,
+                    MemRef<long long, 1> &int64Param) {
   std::ifstream floatParamFile(floatParamPath, std::ios::in | std::ios::binary);
   if (!floatParamFile.is_open()) {
     std::string errMsg = "Failed to open float param file: " +
@@ -67,6 +51,20 @@ void loadParameters(const std::string &floatParamPath,
     throw std::runtime_error("Failed to read float param file");
   }
   floatParamFile.close();
+
+
+  std::ifstream int64ParamFile(int64ParamPath, std::ios::in | std::ios::binary);
+  if (!int64ParamFile.is_open()) {
+    std::string errMsg = "Failed to open int64 param file: " +
+                         std::filesystem::canonical(int64ParamPath).string();
+    throw std::runtime_error(errMsg);
+  }
+  int64ParamFile.read(reinterpret_cast<char *>(int64Param.getData()),
+                      int64Param.getSize() * sizeof(long long));
+  if (int64ParamFile.fail()) {
+    throw std::runtime_error("Failed to read int64 param file");
+  }
+  int64ParamFile.close();
 }
 
 // Softmax function.
@@ -92,9 +90,8 @@ void softmax(float *input, size_t size) {
 }
 
 std::string getLabel(int idx) {
-  std::string resnetDir = getenv("RESNET18_EXAMPLE_PATH");
-  std::ifstream in(
-      resnetDir + "Labels.txt");
+  std::string resnet18Dir = getenv("RESNET18_EXAMPLE_PATH");
+  std::ifstream in(resnet18Dir + "Labels.txt");
   assert(in.is_open() && "Could not read the label file.");
   std::string label;
   for (int i = 0; i < idx; ++i)
@@ -105,7 +102,6 @@ std::string getLabel(int idx) {
 }
 
 int main() {
-  // Print the title of this example.
   const std::string title = "ResNet18 Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
@@ -120,15 +116,30 @@ int main() {
   Img<float, 4> input(image, sizesInput, true);
   MemRef<float, 2> output(sizesOutput);
 
-  // Load model parameters from the specified file.
-  std::string resnetDir = getenv("RESNET18_EXAMPLE_PATH");
-  std::string paramsDir = resnetDir + "/arg0.data";
+  std::string resnet18Dir = getenv("RESNET18_EXAMPLE_PATH");
+  std::string paramsDir = resnet18Dir + "/arg0.data";
+  std::string intDir = resnet18Dir + "/arg1.data";
+  std::cout << "Params directory: " << paramsDir << std::endl;
+
   MemRef<float, 1> paramsContainerf32({ParamsSize});
-  loadParameters(paramsDir, paramsContainerf32);
+  MemRef<long long, 1> ParamsContainerInt64({20});
+  loadParameters(paramsDir, intDir, paramsContainerf32, ParamsContainerInt64);
+
+
+  std::cout << "Before _mlir_ciface_forward call" << std::endl;
+  std::cout << "Input sizes: [" << sizesInput[0] << ", " << sizesInput[1] << ", " << sizesInput[2] << ", " << sizesInput[3] << "]" << std::endl;
+  std::cout << "Output sizes: [" << sizesOutput[0] << ", " << sizesOutput[1] << "]" << std::endl;
+
+  // Add these lines to print the values being passed to _mlir_ciface_forward
+  std::cout << "float parameters: " << paramsContainerf32.getData() << std::endl;
+  std::cout << "input data: " << input.getData() << std::endl;
+  std::cout << "output data: " << output.getData() << std::endl;
 
   // Call the forward function of the model.
-  _mlir_ciface_forward(&output, &paramsContainerf32, &input);
- 
+  _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64, &input);
+
+  std::cout << "After _mlir_ciface_forward call" << std::endl;
+
   auto out = output.getData();
   softmax(out, 1000);
   // Find the classification and print the result.
