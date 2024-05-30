@@ -79,6 +79,7 @@ public:
   // Tokens are identified by ids and thick underlines are replaced with
   // whitespaces.
   std::string revertLlama();
+  std::string revertWhisper();
 
   // Get sequence length
   size_t getTokenCnt() { return this->tokenCnt; }
@@ -345,6 +346,37 @@ template <typename T, size_t N> std::string Text<T, N>::revertLlama() {
   }
   return dst;
 }
+
+template <typename T, size_t N> std::string Text<T, N>::revertWhisper() {
+  std::string dst;
+
+  const int PAD_ID = 50257;
+  const int CLS_ID = 50258;
+  const int SEP_ID = 50257;
+  const int TRAN_ID = 50359;
+  const int NOTIMESTAMPS_ID = 50363;
+
+  for (size_t i = 0; i < this->tokenCnt; i++) {
+    int id = this->aligned[i];
+    if (id == PAD_ID || id == CLS_ID || id == TRAN_ID || id == NOTIMESTAMPS_ID || (id >= 50259 && id <= 50357)) //pad,start,type timestamps and language
+      continue;
+    if (id == SEP_ID)
+      break;
+    // Replace each "▁" with a space.
+    std::string token = this->idToTokenVec[id];
+    size_t pos = token.find("Ġ");
+    while (pos != std::string::npos) {
+      token.replace(pos, 2, " ");
+      pos = token.find("Ġ", pos + 1);
+    }
+    dst.append(token);
+  }
+  if (dst[0] == ' ') {
+    dst.erase(0, 1);
+  }
+  return dst;
+}
+
 
 template <typename T, size_t N>
 void Text<T, N>::loadVocab(const std::string &vocab) {
