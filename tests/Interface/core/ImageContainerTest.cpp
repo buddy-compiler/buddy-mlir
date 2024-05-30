@@ -36,7 +36,7 @@ bool testImgcvnorm(cv::Mat testImgcv, Img<T, N> testImg, bool norm = false) {
   int cvn = testImgcv.dims;
   if (cvn != N)
     return false;
-  for (int i = 0; i < N; i++) {
+  for (size_t i = 0; i < N; i++) {
     if (testImgcv.size[i] != testImg.getSizes()[i])
       return false;
   }
@@ -183,6 +183,7 @@ int main() {
   bool testbmp1=testImgcvnorm<float,2>(checkimgbmp,testImgbmpnorm,true);
   //CHECK: 1
   fprintf(stderr,"%d \n",testbmp1);
+
   //===--------------------------------------------------------------------===//
   // Test jpeg format image.
   //===--------------------------------------------------------------------===//
@@ -300,6 +301,8 @@ int main() {
   cv::Mat checkimgjpg(testImgcvjpg.rows,testImgcvjpg.cols,CV_32FC1);
   testImgcvjpg.convertTo(checkimgjpg,CV_32FC1,1.f/255);
   bool testjpg1=testImgcvnorm<float,2>(checkimgjpg,testImgjpgnorm,true);
+  // CHECK: 1
+  fprintf(stderr, "%d \n", testjpg1);
 
   //===--------------------------------------------------------------------===//
   // Test png format image.
@@ -418,6 +421,8 @@ int main() {
   cv::Mat checkimgpng(testImgcvpng.rows,testImgcvpng.cols,CV_32FC1);
   testImgcvpng.convertTo(checkimgpng,CV_32FC1,1.f/255);
   bool testpng1=testImgcvnorm<float,2>(checkimgpng,testImgpngnorm,true);
+  // CHECK: 1
+  fprintf(stderr, "%d \n", testpng1);
 
   return 0;
 }
