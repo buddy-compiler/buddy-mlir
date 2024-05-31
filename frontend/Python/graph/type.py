@@ -42,6 +42,7 @@ class TensorDType(Enum):
     Float32 = "float32"
     Float64 = "float64"
     Bool = "bool"
+    BFloat16 = "bfloat16"
 
 
 class TensorMeta:
