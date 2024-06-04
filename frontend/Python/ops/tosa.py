@@ -220,6 +220,21 @@ def addmm_op(
     return op
 
 
+def bmm_op_quantized(node: BatchMatmulOp, symbol_table, quantized_dtype='fp16') -> ir.Operation:
+    input_ = symbol_table.get((str(node.args[0]), 0))
+    mat2 = symbol_table.get((str(node.args[1]), 0))
+
+    input_shp = ir.RankedTensorType(input_.type).shape
+    mat2_shp = ir.RankedTensorType(mat2.type).shape
+    sizes = [input_shp[0], input_shp[1], mat2_shp[2]]
+
+    # Get the quantized element type
+    result_element_type = get_quantized_type(quantized_dtype, 16)
+    result_type = ir.RankedTensorType.get(sizes, result_element_type)
+    op = tosa.MatMulOp(result_type, input_, mat2)
+    return op
+
+
 def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
     """
     Import batch matrix multiplication operation.
@@ -245,6 +260,56 @@ def add_op(node: AddOp, symbol_table):
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
     return _gen_arith_binary_op(input1, input2, tosa.AddOp)
+
+
+def get_quantized_type(dtype, bitwidth):
+    if dtype == 'fp16':
+        return ir.F16Type.get()
+    elif dtype == 'bf16':
+        return ir.BF16Type.get()
+    else:
+        raise ValueError("Unsupported quantized type")
+
+
+def calculate_scale_and_zero_point(min_val,max_val,num_bits=8):
+    qmin = -2 ** (num_bits - 1)
+    qmax = 2 ** (num_bits - 1) - 1
+
+    scale = (max_val - min_val) / (qmax - qmin)
+    zero_point = round(qmax - max_val / scale)
+
+    return scale,zero_point
+
+def quantize(tensor,scale,zero_point):
+    return numpy.round(tensor/scale + zero_point).astype(numpy.int8)
+
+def dequantize(tensor, scale, zero_point):
+    return (tensor.astype(numpy.float32) - zero_point) * scale
+
+def reduce_tensor_to_scalar(tensor, reduce_op):
+    """
+    Reduce tensor to a scalar value using the given reduce operation.
+    """
+    shape = tensor.shape
+    while len(shape) > 1:
+        tensor = reduce_op(tensor, axes=[0])
+        shape = tensor.shape
+    return tensor
+
+def addqf_op(node: AddOp, symbol_table, quantized_dtype='f16',num_bits=8):
+    """
+    Import tensor addition operation.
+    From buddy graph ir's `AddOp` operator to MLIR TOSA `add` operation.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+
+    # Convert input tensors to quantized dtype
+    input1_cast = tosa.cast(ir.RankedTensorType.get(input1.type.shape, ir.F16Type.get()),input1)
+    input2_cast = tosa.cast(ir.RankedTensorType.get(input2.type.shape, ir.F16Type.get()),input2)
+
+    # Perform addition operation
+    return _gen_arith_binary_op(input1_cast, input2_cast, tosa.AddOp) 
 
 
 def sub_op(node: SubOp, symbol_table):
@@ -1349,14 +1414,15 @@ def clamp_max_op(node: ClampMaxOp, symbol_table):
 
 
 ops_registry = {
-    "AddOp": add_op,
+    "AddOp": addqf_op,
+    # "AddOp": add_op,
     "MulOp": mul_op,
     "SubOp": sub_op,
     "SumDimOp": sum_op,
     "TanhOp": tanh_op,
     "AmaxOp": amax_op,
     "RsqrtOp": rsqrt_op,
-    "BatchMatmulOp": bmm_op,
+    "BatchMatmulOp": bmm_op_quantized,
     "CloneOp": clone_op,
     "DivOp": div_op,
     "ExpOp": exp_op,
@@ -1382,4 +1448,5 @@ ops_registry = {
     "MeanOp": mean_op,
     "ClampMinOp": clamp_min_op,
     "ClampMaxOp": clamp_max_op,
+    # "BmmQFOP": bmm_op_quantized,
 }

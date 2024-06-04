@@ -111,17 +111,20 @@ def param_extract(
     else:
         output_shape = list(node.tensor_meta["shape"])
     subview_size = functools.reduce(lambda x, y: x * y, output_shape)
+    
     offset_attr = ir._denseI64ArrayAttr([offset], None)
     size_attr = ir._denseI64ArrayAttr([subview_size], None)
     stride = [1]
     stride_attr = ir._denseI64ArrayAttr(stride, None)
     memref_attr = ir.Attribute.parse("strided<[1], offset: {}>".format(offset))
+
     if offset == 0:
         memref_type = ir.MemRefType.get([subview_size], memref_element_type)
     else:
         memref_type = ir.MemRefType.get(
             [subview_size], memref_element_type, memref_attr
         )
+    
     memref_subview_op = memref.SubViewOp(
         memref_type,
         params_mlir_node,
