@@ -65,7 +65,5 @@ int main(int argc, char *argv[]) {
   if(emitAction == dumpAst){
     return dumpAST(moduleAST);
   }
-
-  std::cout << "hello world!" << std::endl;
   return 0;
 }

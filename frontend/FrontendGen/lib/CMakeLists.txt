@@ -23,16 +23,16 @@ add_library(fegen_antlr_generated
     ${ANTLR_FegenParser_CXX_OUTPUTS}
 )
 
-# add_library(FegenSupport
-#     FegenManager.cpp
-# )
+add_library(FegenSupport
+    FegenManager.cpp
+)
 
-# llvm_map_components_to_libnames(llvm_libs support)
+llvm_map_components_to_libnames(llvm_libs support)
 
-# target_link_libraries(FegenSupport
-#     PRIVATE
-#     ${llvm_libs}
-# )
+target_link_libraries(FegenSupport
+    PRIVATE
+    ${llvm_libs}
+)
 
 add_library(fegenVisitor
     FegenVisitor.cpp
@@ -42,6 +42,6 @@ target_link_libraries(fegenVisitor
     PUBLIC
     fegen_antlr_generated
     antlr4_static
-    # FegenSupport
+    FegenSupport
 )
 
