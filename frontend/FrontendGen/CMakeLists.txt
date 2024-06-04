@@ -1,10 +1,20 @@
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
-link_directories("${CMAKE_CURRENT_BINARY_DIR}/lib")
+
 add_subdirectory(lib)
 set (LLVM_LINK_COMPONENTS 
-support
-frontendgenlib
-) 
+    support
+)
+
+include_directories(${ANTLR_FegenLexer_OUTPUT_DIR})
+include_directories(${ANTLR_FegenParser_OUTPUT_DIR})
+
 add_llvm_tool(buddy-frontendgen  
-frontendgen.cpp
+    frontendgen.cpp
+)
+
+target_link_libraries(buddy-frontendgen
+    PRIVATE
+    fegen_antlr_generated
+    fegenVisitor
+    antlr4_static
 )
