@@ -1,5 +1,9 @@
 add_subdirectory(Interface)
 
+if(BUDDY_TESTFLOAT16)
+  add_subdirectory(Python)
+endif()
+
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
