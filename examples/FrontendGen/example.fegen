@@ -91,9 +91,10 @@ structDefine
 
 // cpp value --get--> mlir::attribute || --constant Operation--> mlir::Value
 //           ========                 ||
+
 expression
     : Number
-    {   returns [operand F64Tensor ret]
+    {   returns [operand F64Tensor ret, operand F64Tensor ret]
         actions {
             // Type  mlir::Value  ret of operator | Attribute | Cpp Value
             double numberAttr = stod($Number().getText());

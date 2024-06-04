@@ -35,7 +35,7 @@ llvm::cl::opt<std::string> inputFileName("f", llvm::cl::desc("<input file>"));
 llvm::cl::opt<std::string> grammarName("g", llvm::cl::desc("<grammar name>"));
 
 namespace {
-  enum Action { none, dumpAst, dumpAntlr, dumpAll, dumpVisitor };
+enum Action { none, dumpAst, dumpAntlr, dumpAll, dumpVisitor };
 }
 
 llvm::cl::opt<Action> emitAction(
@@ -46,7 +46,7 @@ llvm::cl::opt<Action> emitAction(
                                 "Out put the visitor file")),
     llvm::cl::values(clEnumValN(dumpAll, "all", "put out all file")));
 
-int dumpAST(fegen::FegenParser::FegenSpecContext* moduleAST) {
+int dumpAST(fegen::FegenParser::FegenSpecContext *moduleAST) {
   llvm::errs() << moduleAST->toStringTree(1 /* prety format*/) << "\n";
   return 0;
 }
@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
   fegen::FegenParser parser(&tokens);
   auto moduleAST = parser.fegenSpec();
 
-  if(emitAction == dumpAst){
+  if (emitAction == dumpAst) {
     return dumpAST(moduleAST);
   }
   return 0;
