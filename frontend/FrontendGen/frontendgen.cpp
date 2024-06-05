@@ -32,7 +32,6 @@
 #include "antlr4-common.h"
 
 llvm::cl::opt<std::string> inputFileName("f", llvm::cl::desc("<input file>"));
-llvm::cl::opt<std::string> grammarName("g", llvm::cl::desc("<grammar name>"));
 
 namespace {
 enum Action { none, dumpAst, dumpAntlr, dumpAll, dumpVisitor };
@@ -41,7 +40,7 @@ enum Action { none, dumpAst, dumpAntlr, dumpAll, dumpVisitor };
 llvm::cl::opt<Action> emitAction(
     "emit", llvm::cl::desc("Select the kind of output desired"),
     llvm::cl::values(clEnumValN(dumpAst, "ast", "Out put the ast")),
-    llvm::cl::values(clEnumValN(dumpAntlr, "antlr", "Out put the antlr file")),
+    llvm::cl::values(clEnumValN(dumpAntlr, "g4", "Out put the g4 file")),
     llvm::cl::values(clEnumValN(dumpVisitor, "visitor",
                                 "Out put the visitor file")),
     llvm::cl::values(clEnumValN(dumpAll, "all", "put out all file")));
@@ -62,8 +61,14 @@ int main(int argc, char *argv[]) {
   fegen::FegenParser parser(&tokens);
   auto moduleAST = parser.fegenSpec();
 
+  fegen::FegenVisitor visitor;
+  visitor.visit(moduleAST);
+
   if (emitAction == dumpAst) {
     return dumpAST(moduleAST);
+  }
+  if(emitAction == dumpAntlr){
+    visitor.emitG4();
   }
   return 0;
 }

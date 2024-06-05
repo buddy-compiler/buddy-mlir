@@ -1,4 +1,5 @@
 #include <type_traits>
+#include <algorithm>
 #include "FegenManager.h"
 
 fegen::FegenFunction::FegenFunction(llvm::StringRef name,
@@ -230,30 +231,34 @@ fegen::FegenValue *fegen::FegenValue::get(fegen::FegenType type,
 llvm::StringRef fegen::FegenValue::getName() { return this->name; }
 
 fegen::FegenRule::FegenRule(std::string content, fegen::FegenNode *src,
-                            FegenParser::AlternativeContext *ctx)
+                            antlr4::ParserRuleContext *ctx)
     : content(content), src(src), ctx(ctx) {}
 
 fegen::FegenRule *fegen::FegenRule::get(std::string content,
                                         fegen::FegenNode *src,
-                                        FegenParser::AlternativeContext *ctx) {
+                                        antlr4::ParserRuleContext *ctx) {
   return new fegen::FegenRule(content, src, ctx);
 }
 
-bool fegen::FegenRule::addInput(fegen::FegenValue *input) {
-  auto name = input->getName();
+llvm::StringRef fegen::FegenRule::getContent() {
+  return this->content;
+}
+
+bool fegen::FegenRule::addInput(fegen::FegenValue input) {
+  auto name = input.getName();
   if (this->inputs.count(name) == 0) {
     return false;
   }
-  this->inputs.insert({name, input});
+  this->inputs.insert({name, new fegen::FegenValue(input)});
   return true;
 }
 
-bool fegen::FegenRule::addReturn(fegen::FegenValue *output) {
-  auto name = output->getName();
+bool fegen::FegenRule::addReturn(fegen::FegenValue output) {
+  auto name = output.getName();
   if (this->returns.count(name) == 0) {
     return false;
   }
-  this->returns.insert({name, output});
+  this->returns.insert({name, new fegen::FegenValue(output)});
   return true;
 }
 
@@ -279,6 +284,59 @@ void fegen::FegenNode::addFegenRule(fegen::FegenRule *rule) {
   this->rules.push_back(rule);
 }
 
+fegen::FegenNode::~FegenNode() {
+  for(auto rule : this->rules){
+    delete rule;
+  }
+}
+
+void fegen::FegenManager::setModuleName(std::string name) {
+  this->moduleName = name;
+}
+
+std::string getChildrenText(antlr4::tree::ParseTree* ctx){
+  std::string ruleText;
+  for(auto child : ctx->children){
+    if(antlr4::tree::TerminalNode::is(child)){
+      ruleText.append(child->getText()).append(" ");
+    }else{
+      ruleText.append(getChildrenText(child)).append(" ");
+    }
+  }
+  return ruleText;
+}
+
+// TODO: emit to file
+std::string fegen::FegenManager::emitG4() {
+#define OUT std::cout
+#define OUT_TAB1 std::cout << "\t"
+#define OUT_TAB2 std::cout << "\t\t"
+
+  OUT << "grammar " << this->moduleName << ";" << std::endl;
+  for(auto node_pair : this->nodeMap){
+    auto nodeName = node_pair.first;
+    auto node = node_pair.second;
+    OUT << nodeName << std::endl;
+    auto ruleCount = node->rules.size();
+    if(ruleCount > 0){
+      OUT_TAB1 << ": " << getChildrenText(node->rules[0]->ctx) << std::endl;
+      for(size_t i = 1; i <= ruleCount - 1; i++){
+        OUT_TAB1 << "| " << getChildrenText(node->rules[i]->ctx) << std::endl;
+      }
+      OUT_TAB1 << ";" << std::endl;
+    }
+    OUT << std::endl;
+  }
+
+#undef OUT
+#undef OUT_TAB1
+#undef OUT_TAB2
+  return std::string();
+}
+
 fegen::FegenManager::~FegenManager() {
-  // TODO
+  // release nodes
+  for(auto node_pair : this->nodeMap){
+    delete node_pair.second;
+  }
 }

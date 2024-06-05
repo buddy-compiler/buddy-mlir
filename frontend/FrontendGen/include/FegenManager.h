@@ -16,6 +16,7 @@
 namespace fegen {
 
 class FegenType;
+class FegenManager;
 
 // user defined function
 class FegenFunction {
@@ -184,6 +185,7 @@ public:
 class FegenNode;
 
 class FegenRule {
+friend class FegenManager;
 private:
   std::string content;
   // from which node
@@ -191,22 +193,24 @@ private:
   std::map<llvm::StringRef, FegenValue *> inputs;
   std::map<llvm::StringRef, FegenValue *> returns;
   // context in parser tree
-  FegenParser::AlternativeContext *ctx;
+  antlr4::ParserRuleContext *ctx;
   explicit FegenRule(std::string content, FegenNode *src,
-                     FegenParser::AlternativeContext *ctx);
+                     antlr4::ParserRuleContext *ctx);
 
 public:
   static FegenRule *get(std::string content, FegenNode *src,
-                        FegenParser::AlternativeContext *ctx);
+                        antlr4::ParserRuleContext *ctx);
+  llvm::StringRef getContent();
   // check and add input value
-  bool addInput(FegenValue *input);
+  bool addInput(FegenValue input);
   // check and add return value
-  bool addReturn(FegenValue *output);
+  bool addReturn(FegenValue output);
   // set source node
   void setSrc(FegenNode *src);
 };
 
 class FegenNode {
+friend class FegenManager;
 public:
   enum class NodeType { PARSER_RULE, LEXER_RULE };
 
@@ -232,13 +236,16 @@ class FegenManager {
   friend class FegenVisitor;
 
 private:
+  std::string moduleName;
   std::vector<std::string> headFiles;
-  std::map<llvm::StringRef, FegenNode *> nodeMap;
+  std::map<std::string, FegenNode *> nodeMap;
   llvm::StringMap<FegenType *> typeMap;
   llvm::StringMap<FegenOperation *> operationMap;
   llvm::StringMap<FegenFunction *> functionMap;
 
 public:
+  void setModuleName(std::string name);
+  std::string emitG4();
   // release nodes, type, operation, function
   ~FegenManager();
 };

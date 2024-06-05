@@ -22,7 +22,16 @@ private:
   FegenManager manager;
 
 public:
+  void emitG4() {
+    this->manager.emitG4();
+  }
+
   FegenVisitor() {}
+
+  std::any visitFegenDecl(FegenParser::FegenDeclContext* ctx) override {
+    this->manager.setModuleName(ctx->identifier()->getText());
+    return nullptr;
+  }
 
   std::any
   visitParserRuleSpec(FegenParser::ParserRuleSpecContext *ctx) override {
@@ -57,15 +66,18 @@ public:
       auto returns = std::get<1>(blockValues);
       auto rule = std::any_cast<FegenRule *>(rawRule);
       for (auto in : *inputs) {
-        auto flag = rule->addInput(in);
-        // todo: throw error if flag is false
+        auto flag = rule->addInput(*in);
+        if(!flag) { // todo: error report
+          std::cerr << "input of " << rule->getContent().str() << " \"" << in->getName().str() << "\" existed." << std::endl;
+        }
       }
       for (auto out : *returns) {
-        auto flag = rule->addReturn(out);
-        // todo: throw error if flag is false
+        auto flag = rule->addReturn(*out);
+        if(!flag) { // todo: error report
+          std::cerr << "return of " << rule->getContent().str() << " \"" << out->getName().str() << "\" existed." << std::endl;
+        }
       }
     }
-
     return rawRule;
   }
 
@@ -75,11 +87,17 @@ public:
     if (ctx->inputsSpec()) {
       inputs = std::any_cast<std::vector<FegenValue *> *>(
           this->visit(ctx->inputsSpec()));
+    }else{
+      inputs = new std::vector<FegenValue *>();
     }
+
     if (ctx->returnsSpec()) {
       returns = std::any_cast<std::vector<FegenValue *> *>(
           this->visit(ctx->returnsSpec()));
+    }else{
+      returns = new std::vector<FegenValue *>();
     }
+
     if (ctx->actionSpec()) {
       this->visit(ctx->actionSpec());
     }
@@ -95,11 +113,33 @@ public:
   }
 
   std::any visitLexerRuleSpec(FegenParser::LexerRuleSpecContext *ctx) override {
+    // create node, get rules from child, and insert to node map
     auto ruleList = std::any_cast<std::vector<FegenRule *>>(
         this->visit(ctx->lexerRuleBlock()));
     auto ruleNode =
         FegenNode::get(ruleList, ctx, FegenNode::NodeType::LEXER_RULE);
+    // set source node for rules
+    for (auto rule : ruleList) {
+      rule->setSrc(ruleNode);
+    }
     this->manager.nodeMap.insert({ctx->LexerRuleName()->getText(), ruleNode});
+    return nullptr;
+  }
+
+  std::any visitLexerAltList(FegenParser::LexerAltListContext* ctx) override {
+    std::vector<fegen::FegenRule*> ruleList;
+    for(auto alt : ctx->lexerAlt()){
+      auto rule = fegen::FegenRule::get(alt->getText(), nullptr, alt);
+      ruleList.push_back(rule);
+    }
+    return ruleList;
+  }
+
+  std::any visitVarDecls(FegenParser::VarDeclsContext* ctx) override {
+    return new std::vector<FegenValue *>();
+  }
+
+  std::any visitActionSpec(FegenParser::ActionSpecContext* ctx) override {
     return nullptr;
   }
 };
