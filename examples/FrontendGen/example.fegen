@@ -1,51 +1,3 @@
-<<<<<<< HEAD
-module
-grammar [funDefine+]
-
-funDefine
-inputs [attributeValue<string>, attributeValue<toy.functionType>]
-// regions []
-grammar [prototype block]
-ir [operation<toy.func>]
-
-prototype
-grammar [Def funcName funcParams]
-
-funcName
-returns [attributeValue<SymbolNameAttr> name = $Identifier.text]
-grammar [Identifier]
-
-funcParams
-inputs [list<cppValue<"Type">> x]
-returns [attributeValue<toy.functionType> v]
-grammar [ParentheseOpen declList? ParentheseClose]
-ir [attribute<toy.functionType>]
-
-declList
-grammar [varDecl (Comma varDecl)*]
-
-varDecl
-returns [cppValue<"Type">]{
-    // code to get cppValue
-}
-grammar [
-    Var Identifier (type)? (Equal expression)? |
-    Identifier Identifier (Equal expression)? |
-    Identifier
-    ]
-
-block
-grammar [BracketOpen (blockExpr Semicolon)* BracketClose]
-
-blockExpr
-grammar [varDecl | returnExpr | expression]
-
-Identifier
-grammar [[a-z]*]
-
-ParentheseOpen
-grammar ['(']
-=======
 fegen toy
 
 typedef struct {
@@ -127,18 +79,10 @@ double stod(string numStr){
     res = res * 0.1**(len(numStr) - 1 - index);
     return res;
 }
->>>>>>> 8cb8a2b9eb8a15bf99280049e7f321d3114fb4bc
 
 ParentheseClose
 grammar [')']
 
-<<<<<<< HEAD
-Comma
-grammar [',']
-
-Var
-grammar ['var']
-=======
 module
     : structDefine* funDefine+
     ;
@@ -161,4 +105,3 @@ expression
         }
     }
     ;
->>>>>>> 8cb8a2b9eb8a15bf99280049e7f321d3114fb4bc

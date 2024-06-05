@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-include_directories()
-
-=======
->>>>>>> 8cb8a2b9eb8a15bf99280049e7f321d3114fb4bc
 antlr_target(FegenLexer FegenLexer.g4
             PACKAGE fegen
             LEXER
@@ -29,13 +24,7 @@ add_library(fegen_antlr_generated
 )
 
 add_library(FegenSupport
-<<<<<<< HEAD
-    FegenRule.cpp
-    FegenValue.cpp
-    FegenIR.cpp
-=======
     FegenManager.cpp
->>>>>>> 8cb8a2b9eb8a15bf99280049e7f321d3114fb4bc
 )
 
 llvm_map_components_to_libnames(llvm_libs support)
