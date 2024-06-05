@@ -18,7 +18,7 @@ module {
     %expanded_11 = tensor.expand_shape %extracted_slice_10 [[0, 1]] : tensor<840xf32> into tensor<10x84xf32>
     %extracted_slice_12 = tensor.extract_slice %arg0[44416] [10] [1] : tensor<44426xf32> to tensor<10xf32>
     %0 = "tosa.const"() <{value = dense<[0, 2, 3, 1]> : tensor<4xi32>}> : () -> tensor<4xi32>
-    %1 = tosa.transpose %arg1, %0 : (tensor<1x1x28x28xf32>, tensor<4xi32>) -> tensor<1x28x28x1xf32>
+    %1 = tosa.transpose arg1, %0% : (tensor<1x1x28x28xf32>, tensor<4xi32>) -> tensor<1x28x28x1xf32>
     %2 = "tosa.const"() <{value = dense<[0, 2, 3, 1]> : tensor<4xi32>}> : () -> tensor<4xi32>
     %3 = tosa.transpose %expanded, %2 : (tensor<6x1x5x5xf32>, tensor<4xi32>) -> tensor<6x5x5x1xf32>
     %4 = tosa.conv2d %1, %3, %extracted_slice_0 {dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<1x28x28x1xf32>, tensor<6x5x5x1xf32>, tensor<6xf32>) -> tensor<1x24x24x6xf32>
