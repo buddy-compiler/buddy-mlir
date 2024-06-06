@@ -80,8 +80,6 @@ double stod(string numStr){
     return res;
 }
 
-ParentheseClose
-grammar [')']
 
 module
     : structDefine* funDefine+
