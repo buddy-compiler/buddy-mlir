@@ -1,6 +1,6 @@
-#include <type_traits>
-#include <algorithm>
 #include "FegenManager.h"
+#include <algorithm>
+#include <type_traits>
 
 fegen::FegenFunction::FegenFunction(llvm::StringRef name,
                                     std::vector<FegenType *> &&inputTypeList,
@@ -31,18 +31,17 @@ fegen::FegenOperation *fegen::FegenOperation::get(
 fegen::FegenType::FegenType(fegen::FegenType::TypeKind kind,
                             std::string dialectName, std::string typeName,
                             std::vector<FegenValue> parameters)
-    : kind(kind), dialectName(std::move(dialectName)), typeName(std::move(typeName)), parameters(std::move(parameters)) {
-      }
+    : kind(kind), dialectName(std::move(dialectName)),
+      typeName(std::move(typeName)), parameters(std::move(parameters)) {}
 
 fegen::FegenType::FegenType(const fegen::FegenType &fty)
-    : kind(fty.kind), dialectName(fty.dialectName), typeName(fty.typeName), parameters(fty.parameters) {
-}
+    : kind(fty.kind), dialectName(fty.dialectName), typeName(fty.typeName),
+      parameters(fty.parameters) {}
 
 fegen::FegenType::FegenType(fegen::FegenType &&fty)
     : kind(fty.kind), dialectName(std::move(fty.dialectName)),
       typeName(std::move(fty.typeName)), parameters(std::move(fty.parameters)) {
 }
-
 
 fegen::FegenType fegen::FegenType::getMetaType() {
   return fegen::FegenType(fegen::FegenType::TypeKind::CPP, "builtin", "Type",
@@ -133,56 +132,54 @@ fegen::FegenType fegen::FegenType::getTensorType(fegen::FegenValue shape,
                          fegen::FegenLiteral::get(elementType))});
 }
 
-
 // class FegenLiteral
-fegen::FegenLiteral::FegenLiteral(
-    literalType content)
+fegen::FegenLiteral::FegenLiteral(literalType content)
     : content(std::move(content)) {
-      auto index = this->content.index();
-      switch(index){
-        case 0:
-          this->kind = fegen::FegenLiteral::LiteralKind::INT;
-          break;
-        case 1:
-          this->kind = fegen::FegenLiteral::LiteralKind::FLOAT;
-          break;
-        case 2:
-          this->kind = fegen::FegenLiteral::LiteralKind::STRING;
-          break;
-        case 3: 
-          this->kind = fegen::FegenLiteral::LiteralKind::TYPE;
-          break;
-        case 4:
-          this->kind = fegen::FegenLiteral::LiteralKind::VECTOR;
-          break;
-        default:
-          break;
-      }
-    }
-
-fegen::FegenLiteral::FegenLiteral(const FegenLiteral& flt): kind(flt.kind) {
-  switch(this->kind) {
-    case fegen::FegenLiteral::LiteralKind::INT:
-      this->content = std::get<0>(flt.content);
-      break;
-    case fegen::FegenLiteral::LiteralKind::FLOAT:
-      this->content = std::get<1>(flt.content);
-      break;
-    case fegen::FegenLiteral::LiteralKind::STRING:
-      this->content = std::get<1>(flt.content);
-      break;
-    case fegen::FegenLiteral::LiteralKind::TYPE:
-      this->content = std::get<1>(flt.content);
-      break;
-    case fegen::FegenLiteral::LiteralKind::VECTOR:
-      this->content = std::get<1>(flt.content);
-      break;
-    default:
-      break;
+  auto index = this->content.index();
+  switch (index) {
+  case 0:
+    this->kind = fegen::FegenLiteral::LiteralKind::INT;
+    break;
+  case 1:
+    this->kind = fegen::FegenLiteral::LiteralKind::FLOAT;
+    break;
+  case 2:
+    this->kind = fegen::FegenLiteral::LiteralKind::STRING;
+    break;
+  case 3:
+    this->kind = fegen::FegenLiteral::LiteralKind::TYPE;
+    break;
+  case 4:
+    this->kind = fegen::FegenLiteral::LiteralKind::VECTOR;
+    break;
+  default:
+    break;
   }
-
 }
-fegen::FegenLiteral::FegenLiteral(FegenLiteral&& flt) : content(std::move(flt.content)){}
+
+fegen::FegenLiteral::FegenLiteral(const FegenLiteral &flt) : kind(flt.kind) {
+  switch (this->kind) {
+  case fegen::FegenLiteral::LiteralKind::INT:
+    this->content = std::get<0>(flt.content);
+    break;
+  case fegen::FegenLiteral::LiteralKind::FLOAT:
+    this->content = std::get<1>(flt.content);
+    break;
+  case fegen::FegenLiteral::LiteralKind::STRING:
+    this->content = std::get<1>(flt.content);
+    break;
+  case fegen::FegenLiteral::LiteralKind::TYPE:
+    this->content = std::get<1>(flt.content);
+    break;
+  case fegen::FegenLiteral::LiteralKind::VECTOR:
+    this->content = std::get<1>(flt.content);
+    break;
+  default:
+    break;
+  }
+}
+fegen::FegenLiteral::FegenLiteral(FegenLiteral &&flt)
+    : content(std::move(flt.content)) {}
 
 fegen::FegenLiteral fegen::FegenLiteral::get(int content) {
   return fegen::FegenLiteral(content);
@@ -200,10 +197,10 @@ fegen::FegenLiteral fegen::FegenLiteral::get(FegenType content) {
   return fegen::FegenLiteral(content);
 }
 
-template<typename T>
+template <typename T>
 fegen::FegenLiteral fegen::FegenLiteral::get(std::vector<T> content) {
   std::vector<fegen::FegenLiteral> processed;
-  for(T elem : content){
+  for (T elem : content) {
     auto elemLiteral = fegen::FegenLiteral::get(elem);
     processed.push_back(elemLiteral);
   }
@@ -213,19 +210,20 @@ fegen::FegenLiteral fegen::FegenLiteral::get(std::vector<T> content) {
 // class FegenValue
 fegen::FegenValue::FegenValue(fegen::FegenType type, std::string name,
                               fegen::FegenLiteral content)
-    : type(std::move(type)), name(std::move(name)), content(std::move(content)) {}
+    : type(std::move(type)), name(std::move(name)),
+      content(std::move(content)) {}
 
-fegen::FegenValue::FegenValue(const fegen::FegenValue& rhs): type(rhs.type), name(rhs.name), content(rhs.content){
-
-}
-fegen::FegenValue::FegenValue(fegen::FegenValue&& rhs): type(std::move(rhs.type)), name(std::move(rhs.name)), content(std::move(rhs.content)) {
-
-}
+fegen::FegenValue::FegenValue(const fegen::FegenValue &rhs)
+    : type(rhs.type), name(rhs.name), content(rhs.content) {}
+fegen::FegenValue::FegenValue(fegen::FegenValue &&rhs)
+    : type(std::move(rhs.type)), name(std::move(rhs.name)),
+      content(std::move(rhs.content)) {}
 
 fegen::FegenValue *fegen::FegenValue::get(fegen::FegenType type,
-                                          std::string name, FegenLiteral content)
-                                          {
-  return new fegen::FegenValue(std::move(type), std::move(name), std::move(content));
+                                          std::string name,
+                                          FegenLiteral content) {
+  return new fegen::FegenValue(std::move(type), std::move(name),
+                               std::move(content));
 }
 
 llvm::StringRef fegen::FegenValue::getName() { return this->name; }
@@ -240,9 +238,7 @@ fegen::FegenRule *fegen::FegenRule::get(std::string content,
   return new fegen::FegenRule(content, src, ctx);
 }
 
-llvm::StringRef fegen::FegenRule::getContent() {
-  return this->content;
-}
+llvm::StringRef fegen::FegenRule::getContent() { return this->content; }
 
 bool fegen::FegenRule::addInput(fegen::FegenValue input) {
   auto name = input.getName();
@@ -285,7 +281,7 @@ void fegen::FegenNode::addFegenRule(fegen::FegenRule *rule) {
 }
 
 fegen::FegenNode::~FegenNode() {
-  for(auto rule : this->rules){
+  for (auto rule : this->rules) {
     delete rule;
   }
 }
@@ -294,12 +290,12 @@ void fegen::FegenManager::setModuleName(std::string name) {
   this->moduleName = name;
 }
 
-std::string getChildrenText(antlr4::tree::ParseTree* ctx){
+std::string getChildrenText(antlr4::tree::ParseTree *ctx) {
   std::string ruleText;
-  for(auto child : ctx->children){
-    if(antlr4::tree::TerminalNode::is(child)){
+  for (auto child : ctx->children) {
+    if (antlr4::tree::TerminalNode::is(child)) {
       ruleText.append(child->getText()).append(" ");
-    }else{
+    } else {
       ruleText.append(getChildrenText(child)).append(" ");
     }
   }
@@ -313,14 +309,14 @@ std::string fegen::FegenManager::emitG4() {
 #define OUT_TAB2 std::cout << "\t\t"
 
   OUT << "grammar " << this->moduleName << ";" << std::endl;
-  for(auto node_pair : this->nodeMap){
+  for (auto node_pair : this->nodeMap) {
     auto nodeName = node_pair.first;
     auto node = node_pair.second;
     OUT << nodeName << std::endl;
     auto ruleCount = node->rules.size();
-    if(ruleCount > 0){
+    if (ruleCount > 0) {
       OUT_TAB1 << ": " << getChildrenText(node->rules[0]->ctx) << std::endl;
-      for(size_t i = 1; i <= ruleCount - 1; i++){
+      for (size_t i = 1; i <= ruleCount - 1; i++) {
         OUT_TAB1 << "| " << getChildrenText(node->rules[i]->ctx) << std::endl;
       }
       OUT_TAB1 << ";" << std::endl;
@@ -336,7 +332,7 @@ std::string fegen::FegenManager::emitG4() {
 
 fegen::FegenManager::~FegenManager() {
   // release nodes
-  for(auto node_pair : this->nodeMap){
+  for (auto node_pair : this->nodeMap) {
     delete node_pair.second;
   }
 }

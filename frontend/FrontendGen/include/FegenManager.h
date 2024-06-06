@@ -1,12 +1,11 @@
 #ifndef FEGEN_MANAGER_H
 #define FEGEN_MANAGER_H
 
-
+#include <any>
 #include <map>
 #include <string>
-#include <vector>
-#include <any>
 #include <variant>
+#include <vector>
 
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -63,7 +62,8 @@ public:
 };
 
 class FegenType {
-friend class FegenValue;
+  friend class FegenValue;
+
 public:
   enum class TypeKind { ATTRIBUTE, OPERAND, CPP };
 
@@ -74,11 +74,10 @@ private:
   std::vector<FegenValue> parameters;
 
 public:
-  FegenType(TypeKind kind, std::string dialectName,
-                     std::string typeName,
-                     std::vector<FegenValue> parameters);
-  FegenType(const FegenType&);
-  FegenType(FegenType&& );
+  FegenType(TypeKind kind, std::string dialectName, std::string typeName,
+            std::vector<FegenValue> parameters);
+  FegenType(const FegenType &);
+  FegenType(FegenType &&);
 
   // Type
   static FegenType getMetaType();
@@ -126,66 +125,64 @@ public:
 };
 
 class FegenLiteral {
-friend class FegenType;
-friend class FegenValue;
-using literalType = std::variant<int, float, std::string, FegenType, std::vector<FegenLiteral>>;
+  friend class FegenType;
+  friend class FegenValue;
+  using literalType = std::variant<int, float, std::string, FegenType,
+                                   std::vector<FegenLiteral>>;
+
 private:
   literalType content;
+
 public:
-  enum class LiteralKind {INT, FLOAT, STRING, TYPE, VECTOR};
+  enum class LiteralKind { INT, FLOAT, STRING, TYPE, VECTOR };
   FegenLiteral(literalType content);
-  FegenLiteral(const FegenLiteral&);
-  FegenLiteral(FegenLiteral&&);
+  FegenLiteral(const FegenLiteral &);
+  FegenLiteral(FegenLiteral &&);
   static FegenLiteral get(int content);
   static FegenLiteral get(float content);
   static FegenLiteral get(std::string content);
   static FegenLiteral get(FegenType content);
-  
-  /// @brief receive vector of number string, FegenType or vector and build it to FegenLiteral
-  /// @tparam T element type, should be one of int, float, std::string, FegenType or std::vector
-  template<typename T>
-  static FegenLiteral get(std::vector<T> content);
 
-  template<typename T>
-  T getContent() {
-    return std::get<T>(this->content);
-  }
+  /// @brief receive vector of number string, FegenType or vector and build it
+  /// to FegenLiteral
+  /// @tparam T element type, should be one of int, float, std::string,
+  /// FegenType or std::vector
+  template <typename T> static FegenLiteral get(std::vector<T> content);
+
+  template <typename T> T getContent() { return std::get<T>(this->content); }
+
 private:
   LiteralKind kind;
 };
 
 class FegenValue {
-friend class FegenType;
+  friend class FegenType;
+
 private:
   FegenType type;
   std::string name;
   FegenLiteral content;
 
-  
 public:
   FegenValue(FegenType type, std::string name, FegenLiteral content);
-  FegenValue(const FegenValue& rhs);
-  FegenValue(FegenValue&& rhs);
+  FegenValue(const FegenValue &rhs);
+  FegenValue(FegenValue &&rhs);
 
-  static FegenValue *get(FegenType type, std::string name, FegenLiteral constant);
-
+  static FegenValue *get(FegenType type, std::string name,
+                         FegenLiteral constant);
 
   llvm::StringRef getName();
 
-  template<typename T>
-  T getContent(){
-    return this->content.getContent<T>();
-  }
+  template <typename T> T getContent() { return this->content.getContent<T>(); }
 
   ~FegenValue() = default;
 };
 
-
-
 class FegenNode;
 
 class FegenRule {
-friend class FegenManager;
+  friend class FegenManager;
+
 private:
   std::string content;
   // from which node
@@ -210,7 +207,8 @@ public:
 };
 
 class FegenNode {
-friend class FegenManager;
+  friend class FegenManager;
+
 public:
   enum class NodeType { PARSER_RULE, LEXER_RULE };
 

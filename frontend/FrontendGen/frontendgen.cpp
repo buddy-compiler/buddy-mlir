@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
   if (emitAction == dumpAst) {
     return dumpAST(moduleAST);
   }
-  if(emitAction == dumpAntlr){
+  if (emitAction == dumpAntlr) {
     visitor.emitG4();
   }
   return 0;
