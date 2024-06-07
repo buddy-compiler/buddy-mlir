@@ -1,5 +1,3 @@
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
-
 add_subdirectory(lib)
 set (LLVM_LINK_COMPONENTS 
     support
@@ -7,6 +5,7 @@ set (LLVM_LINK_COMPONENTS
 
 include_directories(${ANTLR_FegenLexer_OUTPUT_DIR})
 include_directories(${ANTLR_FegenParser_OUTPUT_DIR})
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 add_llvm_tool(buddy-frontendgen  
     frontendgen.cpp
