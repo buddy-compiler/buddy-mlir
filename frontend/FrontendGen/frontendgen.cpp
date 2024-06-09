@@ -32,16 +32,15 @@
 #include "antlr4-common.h"
 
 llvm::cl::opt<std::string> inputFileName("f", llvm::cl::desc("<input file>"));
-// llvm::cl::opt<std::string> grammarName("g", llvm::cl::desc("<grammar name>"));
+llvm::cl::opt<std::string> grammarName("g", llvm::cl::desc("<grammar name>"));
 
 namespace {
-enum Action { none, dumpAst, dumpTablegen, dumpAntlr, dumpAll, dumpVisitor };
+enum Action { none, dumpAst, dumpAntlr, dumpAll, dumpVisitor };
 }
 
 llvm::cl::opt<Action> emitAction(
     "emit", llvm::cl::desc("Select the kind of output desired"),
     llvm::cl::values(clEnumValN(dumpAst, "ast", "Out put the ast")),
-    llvm::cl::values(clEnumValN(dumpTablegen, "tablegen", "Out put the tablegen file")),
     llvm::cl::values(clEnumValN(dumpAntlr, "antlr", "Out put the antlr file")),
     llvm::cl::values(clEnumValN(dumpVisitor, "visitor",
                                 "Out put the visitor file")),
@@ -51,11 +50,6 @@ int dumpAST(fegen::FegenParser::FegenSpecContext *moduleAST) {
   llvm::errs() << moduleAST->toStringTree(1 /* prety format*/) << "\n";
   return 0;
 }
-
-void emitVisitorFile(llvm::raw_fd_ostream &headfile, llvm::raw_fd_ostream &cppfile) {
-  fegen::RuleMap::getRuleMap().emitVisitorFile(headfile, cppfile);
-}
-
 
 int main(int argc, char *argv[]) {
   llvm::cl::ParseCommandLineOptions(argc, argv);

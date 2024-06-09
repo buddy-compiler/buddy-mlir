@@ -236,11 +236,13 @@ private:
   /// - Visit fucntion block.
   /// - Process the return operation.
   virtual std::any visitFunDefine(ToyParser::FunDefineContext *ctx) override {
-    llvm::ScopedHashTableScope<llvm::StringRef, std::pair<mlir::Value, ToyParser::VarDeclContext *>>
+    llvm::ScopedHashTableScope<
+        llvm::StringRef, std::pair<mlir::Value, ToyParser::VarDeclContext *>>
         varScope(symbolTable);
     builder.setInsertionPointToEnd(theModule.getBody());
     // Visit function prototype.
-    mlir::toy::FuncOp function = std::any_cast<mlir::toy::FuncOp>(visit(ctx->prototype()));
+    mlir::toy::FuncOp function =
+        std::any_cast<mlir::toy::FuncOp>(visit(ctx->prototype()));
     mlir::Block &entryBlock = function.front();
 
     // Set the insertion point in the builder to the beginning of the function
@@ -264,7 +266,8 @@ private:
     // Declare all the function arguments in the symbol table.
     llvm::ArrayRef<std::string> protoArgs = args;
     llvm::ArrayRef<ToyParser::VarDeclContext *> protoVarDecls = varDecls;
-    for (auto value : llvm::zip(protoArgs, entryBlock.getArguments(), protoVarDecls)) {
+    for (auto value :
+         llvm::zip(protoArgs, entryBlock.getArguments(), protoVarDecls)) {
       declare(std::get<0>(value), std::get<1>(value), std::get<2>(value));
     }
 
@@ -302,11 +305,13 @@ private:
     /// Get parameter types.
     if (ctx->declList()) {
       ToyParser::DeclListContext *list = ctx->declList();
+      ;
       while (list->varDecl()) {
         /// If the parameter type is the struct type.
         if (list->varDecl()->Identifier().size() == 2) {
           mlir::Location location =
-              loc(list->varDecl()->start->getLine(), list->varDecl()->start->getCharPositionInLine());
+              loc(list->varDecl()->start->getLine(),
+                  list->varDecl()->start->getCharPositionInLine());
           mlir::Type type =
               getType(list->varDecl()->Identifier(0)->toString(), location);
           argTypes.push_back(type);
@@ -326,7 +331,8 @@ private:
     return func;
   }
   /// Build a struct value.
-  virtual std::any visitStructLiteral(ToyParser::StructLiteralContext *ctx) override {
+  virtual std::any
+  visitStructLiteral(ToyParser::StructLiteralContext *ctx) override {
     mlir::ArrayAttr dataAttr;
     mlir::Type dataType;
     std::tie(dataAttr, dataType) = getConstantAttr(ctx);
@@ -339,7 +345,8 @@ private:
 
   /// Return the structDefineContext that is the result of the given expression,
   /// or null if it cannot be inferred.
-  ToyParser::StructDefineContext *getStructFor(ToyParser::ExpressionContext *ctx) {
+  ToyParser::StructDefineContext *
+  getStructFor(ToyParser::ExpressionContext *ctx) {
     std::string structName;
     if (ctx->Dot()) {
       std::string memberName =
@@ -353,7 +360,8 @@ private:
       }
     } else {
       ToyParser::VarDeclContext *varDecl =
-          symbolTable.lookup(ctx->identifierExpr()->Identifier()->toString()).second;
+          symbolTable.lookup(ctx->identifierExpr()->Identifier()->toString())
+              .second;
       structName = varDecl->Identifier(0)->toString();
     }
     return structCtxMap.lookup(structName);
@@ -362,9 +370,11 @@ private:
   std::optional<size_t> getMemberIndex(ToyParser::ExpressionContext *ctx) {
     int accessIndex = 0;
     // Lookup the struct node for the LHS.
-    ToyParser::StructDefineContext *parentCtx = getStructFor(ctx->expression(0));
+    ToyParser::StructDefineContext *parentCtx =
+        getStructFor(ctx->expression(0));
     // Get the name from the RHS.
-    std::string memberName = ctx->expression(1)->identifierExpr()->Identifier()->toString();
+    std::string memberName =
+        ctx->expression(1)->identifierExpr()->Identifier()->toString();
     for (ToyParser::VarDeclContext *vardecl : parentCtx->varDecl()) {
       if (vardecl->idName == memberName)
         break;
