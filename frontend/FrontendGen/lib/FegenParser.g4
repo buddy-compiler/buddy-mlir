@@ -387,9 +387,9 @@ listLiteral
 
 // type system
 typeSpec
-    : valueKind? typeInstance 
-    | typeTemplate
-    | valueKind? collectType
+    : valueKind? typeInstance # typeInstanceSpec
+    | typeTemplate # typeTemplateSpce
+    | valueKind? collectType # collectTypeSpec
     ;
 
 valueKind
@@ -408,7 +408,6 @@ typeTemplate
     : prefixedName
     | builtinTypeTemplate
     | TYPE
-    | identifier
     ;
 
 typeTemplateParam
@@ -421,8 +420,7 @@ builtinTypeInstances
     | INT
     | FLOAT
     | DOUBLE
-    | F64TENSOR
-    | F64VECTOR
+    | CHAR
     | STRING
     ;
 
@@ -434,7 +432,7 @@ builtinTypeTemplate
     ;
 
 collectType
-    : collectProtoType Less expression Greater
+    : collectProtoType (Less expression Greater)?
     ;
 
 collectProtoType

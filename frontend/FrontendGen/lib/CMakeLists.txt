@@ -26,6 +26,7 @@ add_library(fegen_antlr_generated
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../include")
 add_library(FegenSupport
     FegenManager.cpp
+    Scope.cpp
 )
 
 llvm_map_components_to_libnames(llvm_libs support)
