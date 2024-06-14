@@ -22,12 +22,14 @@ add_library(fegen_antlr_generated
     ${ANTLR_FegenLexer_CXX_OUTPUTS} 
     ${ANTLR_FegenParser_CXX_OUTPUTS}
 )
+add_dependencies(fegen_antlr_generated antlr4_runtime)
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../include")
 add_library(FegenSupport
     FegenManager.cpp
     Scope.cpp
 )
+add_dependencies(FegenSupport fegen_antlr_generated)
 
 llvm_map_components_to_libnames(llvm_libs support)
 
