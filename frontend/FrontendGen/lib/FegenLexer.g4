@@ -78,9 +78,11 @@ FLOAT: 'float';
 
 DOUBLE: 'double';
 
-F64TENSOR: 'F64Tensor';
+// F64TENSOR: 'F64Tensor';
 
-F64VECTOR: 'F64Vector';
+// F64VECTOR: 'F64Vector';
+
+CHAR: 'char';
 
 STRING: 'string';
 
