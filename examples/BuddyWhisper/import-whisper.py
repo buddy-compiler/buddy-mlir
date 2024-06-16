@@ -46,7 +46,7 @@ model.config.use_cache = False
 ds = load_dataset(
     "/home/liweijia/librispeech_asr_dummy", "clean", split="validation"
 )
-sample = ds[0]["audio"]
+sample = ds[1]["audio"]
 input_features = processor(
     sample["array"], sampling_rate=sample["sampling_rate"], return_tensors="pt"
 ).input_features
