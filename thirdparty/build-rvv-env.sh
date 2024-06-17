@@ -69,7 +69,7 @@ if [ ! -d "build-local-clang" ]
 then
   mkdir build-local-clang
   cd build-local-clang
-  cmake -G Ninja ../../llvm/llvm \
+  cmake -G Ninja /mnt/d/llvm/llvm-project/llvm \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
     -DLLVM_ENABLE_PROJECTS="clang" \
     -DCMAKE_BUILD_TYPE=RELEASE
@@ -87,7 +87,7 @@ if [ ! -d "build-cross-clang" ]
 then
   mkdir build-cross-clang
   cd build-cross-clang
-  cmake -G Ninja ../../llvm/llvm \
+  cmake -G Ninja /mnt/d/llvm/llvm-project/llvm \
     -DLLVM_ENABLE_PROJECTS="clang" \
     -DLLVM_TARGETS_TO_BUILD="RISCV" \
     -DCMAKE_SYSTEM_NAME=Linux \
@@ -115,7 +115,7 @@ if [ ! -d "build-cross-mlir" ]
 then
   mkdir build-cross-mlir
   cd build-cross-mlir
-  cmake -G Ninja ../../llvm/llvm \
+  cmake -G Ninja /mnt/d/llvm/llvm-project/llvm \
     -DLLVM_ENABLE_PROJECTS="mlir" \
     -DLLVM_BUILD_EXAMPLES=OFF \
     -DCMAKE_CROSSCOMPILING=True \
