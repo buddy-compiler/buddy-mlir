@@ -73,7 +73,7 @@ then
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
     -DLLVM_ENABLE_PROJECTS="clang" \
     -DCMAKE_BUILD_TYPE=RELEASE
-  ninja
+  ninja -j $num_thread
   cd ..
 else
   echo "native clang was built already"
@@ -91,17 +91,18 @@ then
     -DLLVM_ENABLE_PROJECTS="clang" \
     -DLLVM_TARGETS_TO_BUILD="RISCV" \
     -DCMAKE_SYSTEM_NAME=Linux \
-    -DCMAKE_C_COMPILER=$PWD/../build-local-clang/bin/clang \
-    -DCMAKE_CXX_COMPILER=$PWD/../build-local-clang/bin/clang++ \
-    -DCMAKE_C_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$PWD/../build-riscv-gnu-toolchain/sysroot --gcc-toolchain=$PWD/../build-riscv-gnu-toolchain" \
-    -DCMAKE_CXX_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$PWD/../build-riscv-gnu-toolchain/sysroot --gcc-toolchain=$PWD/../build-riscv-gnu-toolchain" \
-    -DLLVM_TABLEGEN=$PWD/../build-local-clang/bin/llvm-tblgen \
-    -DCLANG_TABLEGEN=$PWD/../build-local-clang/bin/clang-tblgen \
+    -DCMAKE_C_COMPILER=$PWD/../../llvm/build/bin/clang \
+    -DCMAKE_CXX_COMPILER=$PWD/../../llvm/build/bin/clang++ \
+    -DCMAKE_C_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$HOME/softwares/riscv/sysroot --gcc-toolchain=$HOME/softwares/riscv" \
+    -DCMAKE_CXX_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$HOME/softwares/riscv/sysroot  --gcc-toolchain=$HOME/softwares/riscv" \
+    -DLLVM_TABLEGEN=$PWD/../../llvm/build/bin/llvm-tblgen \
+    -DCLANG_TABLEGEN=$PWD/../../llvm/build/bin/clang-tblgen \
     -DLLVM_DEFAULT_TARGET_TRIPLE=riscv64-unknown-linux-gnu \
     -DLLVM_TARGET_ARCH=RISCV64 \
     -DCMAKE_BUILD_TYPE=Release \
-    -DLLVM_ENABLE_ZSTD=Off
-  ninja clang lli
+    -DLLVM_ENABLE_ZSTD=Off \
+    -DHAVE_POSIX_REGEX=0 
+  ninja -j $num_thread clang lli
   cd ..
 else
   echo "clang cross-compiler for riscv64 was built already"
@@ -126,16 +127,17 @@ then
     -DLLVM_NATIVE_ARCH=RISCV \
     -DLLVM_HOST_TRIPLE=riscv64-unknown-linux-gnu \
     -DLLVM_DEFAULT_TARGET_TRIPLE=riscv64-unknown-linux-gnu \
-    -DCMAKE_C_COMPILER=$PWD/../build-local-clang/bin/clang \
-    -DCMAKE_CXX_COMPILER=$PWD/../build-local-clang/bin/clang++ \
-    -DCMAKE_C_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$PWD/../build-riscv-gnu-toolchain/sysroot --gcc-toolchain=$PWD/../build-riscv-gnu-toolchain" \
-    -DCMAKE_CXX_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$PWD/../build-riscv-gnu-toolchain/sysroot --gcc-toolchain=$PWD/../build-riscv-gnu-toolchain" \
-    -DMLIR_TABLEGEN=$PWD/../../llvm/build/bin/mlir-tblgen \
+    -DCMAKE_C_COMPILER=$PWD/../../llvm/build/bin/clang \
+    -DCMAKE_CXX_COMPILER=$PWD/../../llvm/build/bin/clang++ \
+    -DCMAKE_C_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$HOME/softwares/riscv/sysroot --gcc-toolchain=$HOME/softwares/riscv" \
+    -DCMAKE_CXX_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$HOME/softwares/riscv/sysroot  --gcc-toolchain=$HOME/softwares/riscv" \
     -DLLVM_TABLEGEN=$PWD/../../llvm/build/bin/llvm-tblgen \
+    -DCLANG_TABLEGEN=$PWD/../../llvm/build/bin/clang-tblgen \
+    -DMLIR_TABLEGEN=$PWD/../../llvm/build/bin/mlir-tblgen \
     -DMLIR_LINALG_ODS_YAML_GEN=$PWD/../../llvm/build/bin/mlir-linalg-ods-yaml-gen \
     -DMLIR_PDLL_TABLEGEN=$PWD/../../llvm/build/bin/mlir-pdll \
     -DLLVM_ENABLE_ZSTD=Off
-  ninja
+  ninja -j $num_thread
 else
   echo "mlir for riscv64 was built already"
 fi
@@ -158,12 +160,12 @@ then
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DLLVM_NATIVE_ARCH=RISCV \
     -DLLVM_HOST_TRIPLE=riscv64-unknown-linux-gnu \
-    -DCMAKE_C_COMPILER=$PWD/../build-local-clang/bin/clang \
-    -DCMAKE_CXX_COMPILER=$PWD/../build-local-clang/bin/clang++ \
-    -DCMAKE_C_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$PWD/../build-riscv-gnu-toolchain/sysroot --gcc-toolchain=$PWD/../build-riscv-gnu-toolchain" \
-    -DCMAKE_CXX_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$PWD/../build-riscv-gnu-toolchain/sysroot --gcc-toolchain=$PWD/../build-riscv-gnu-toolchain" \
+    -DCMAKE_C_COMPILER=$PWD/../../llvm/build/bin/clang \
+    -DCMAKE_CXX_COMPILER=$PWD/../../llvm/build/bin/clang++ \
+    -DCMAKE_C_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$HOME/softwares/riscv/sysroot --gcc-toolchain=$HOME/softwares/riscv" \
+    -DCMAKE_CXX_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=$HOME/softwares/riscv/sysroot  --gcc-toolchain=$HOME/softwares/riscv" \
     -DLLVM_ENABLE_ZSTD=Off
-  ninja StaticMLIRCRunnerUtils StaticMLIRRunnerUtils
+  ninja -j $num_thread StaticMLIRCRunnerUtils StaticMLIRRunnerUtils
 else
   echo "buddy-mlir libs for riscv64 was built already"
 fi

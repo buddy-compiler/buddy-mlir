@@ -40,13 +40,13 @@
 #include "DAP/DAPOps.h"
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
-#include "RVV/RVVDialect.h"
-#include "VectorExp/VectorExpDialect.h"
-#include "VectorExp/VectorExpOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
+#include "RVV/RVVDialect.h"
 #include "Sche/ScheDialect.h"
 #include "Sche/ScheOps.h"
+#include "VectorExp/VectorExpDialect.h"
+#include "VectorExp/VectorExpOps.h"
 
 namespace mlir {
 namespace buddy {
@@ -55,10 +55,11 @@ void registerPointwiseConvToGemmPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
+void registerBatchMatMulOptimizePass();
 void registerLowerDAPPass();
 void registerDAPVectorizePass();
 void registerLowerRVVPass();
-void registerBatchMatMulOptimizePass();
+void registerBatchMatMulToMatmulPass();
 void registerMatMulOptimizePass();
 void registerMatMulVectorizationPass();
 void registerMatMulParallelVectorizationPass();
@@ -96,6 +97,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
   mlir::buddy::registerBatchMatMulOptimizePass();
+  mlir::buddy::registerBatchMatMulToMatmulPass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerConvOptimizePass();
   mlir::buddy::registerDeviceSchedulePass();
