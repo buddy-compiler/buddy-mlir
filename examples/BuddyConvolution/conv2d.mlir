@@ -1,3 +1,20 @@
+// RUN: buddy-opt %s \
+// RUN: 	-conv-vectorization \
+// RUN: 	-convert-linalg-to-loops \
+// RUN: 	-lower-affine \
+// RUN: 	-arith-bufferize \
+// RUN: 	-convert-scf-to-cf \
+// RUN: 	-convert-vector-to-llvm \
+// RUN: 	-convert-arith-to-llvm \
+// RUN: 	-finalize-memref-to-llvm \
+// RUN: 	-llvm-request-c-wrappers \
+// RUN: 	-convert-func-to-llvm \
+// RUN: 	-reconcile-unrealized-casts \
+// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
 #map0 = affine_map<(d0, d1) -> (d0 + d1 - 1)>
 
 module {
@@ -37,13 +54,13 @@ module {
 
     call @conv_2d(%v0, %v1, %v2) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
 
-    %print_v0 = memref.cast %v0 : memref<?x?xf32> to memref<*xf32>
-    call @printMemrefF32(%print_v0) : (memref<*xf32>) -> ()
-
-    %print_v1 = memref.cast %v1 : memref<?x?xf32> to memref<*xf32>
-    call @printMemrefF32(%print_v1) : (memref<*xf32>) -> ()
-
     %print_v2 = memref.cast %v2 : memref<?x?xf32> to memref<*xf32>
+
+    // All the elements of the MemRef are the same,
+    // only check the first line to verify the correctness.
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [8, 8] strides = [8, 1] data =
+    // CHECK-NEXT: [
+    // CHECK-SAME: [9{{(, 9)*}}],
     call @printMemrefF32(%print_v2) : (memref<*xf32>) -> ()
 
     memref.dealloc %v0 : memref<?x?xf32>

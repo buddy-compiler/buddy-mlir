@@ -16,12 +16,6 @@ MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
 
-test-lower:
-	@${MLIR_OPT} ./test.mlir \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
-		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
-		-convert-func-to-llvm -reconcile-unrealized-casts \
-		-o ./log.mlir
 conv2d-lower:
 	@${BUDDY_OPT} ./conv2d.mlir \
 		-conv-vectorization \
