@@ -1026,7 +1026,6 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
         bias_tensor = symbol_table.get((str(bias), 0))
 
     # Prepare attributes.
-    input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
     dilation_attr = ir._denseI64ArrayAttr(dilation, None)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
 
@@ -1037,6 +1036,8 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             input_padding = [input_padding[0]] * 4
         elif len(input_padding) == 2:
             input_padding = [input_padding[0]] * 2 + [input_padding[1]] * 2
+        # Prepare input_padding attributes.
+        input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
         # If the input layout is NCHW, then convert to NHWC.
         if node._layout.find("NCHW") != -1:
             perm_list = [0, 2, 3, 1]
