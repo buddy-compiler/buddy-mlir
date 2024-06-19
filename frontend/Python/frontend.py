@@ -63,7 +63,7 @@ class DynamoCompiler:
         func_name: str = "forward",
         primary_registry: Optional[dict] = None,
         aot_autograd_decomposition: Optional[dict] = None,
-        verbose=False,
+        verbose: bool = False,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -256,12 +256,12 @@ class DynamoCompiler:
         }
         params_flat, _ = pytree.tree_flatten(params)
 
-        if self._verbose:
-            print("Graph in tabular form:")
-            gm.graph.print_tabular()
-
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
+            if self._verbose:
+                print("Graph in tabular form:")
+                _gm.graph.print_tabular()
+
             nonlocal params_flat
             func_inputs = []
             for inp in _inputs[len(params_flat) :]:
@@ -277,6 +277,7 @@ class DynamoCompiler:
                 fake_params,
                 self._ops_registry,
                 self._func_name,
+                verbose=self._verbose,
             )
             for gm_node in _gm.graph.nodes:
                 node_users = []
