@@ -478,7 +478,6 @@ class GraphImporter:
                         ]
                     else:
                         self._import_op(node)
-
                     new_ops = [op for op in func_op.body.blocks[0].operations]
                     if self._verbose:
                         print('='*20 + "Graph Node" + "="*20)
@@ -492,7 +491,7 @@ class GraphImporter:
                             if op not in old_ops:
                                 print(op)
                         print("")
-
+                        
                 return self._symbol_table.get(("output", 0))
 
         return self._module
@@ -605,23 +604,10 @@ class GraphImporter:
             node (Op): The buddy node representing the operation.
 
         """
-        # print(len(self._module.body.operations))
-        # print(self._module.body.operations[0])
-        # func_op = self._module.body.operations[0]
-        # old_ops = [op for op in func_op.body.blocks[0].operations]
         op_name = node.__class__.__name__
         op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)
         )
-        # new_ops = [op for op in func_op.body.blocks[0].operations]
-        # if self._verbose:
-        #     print(node.name + ":")
-        #     for op in new_ops:
-        #         if op not in old_ops:
-        #             print(op)
-        #     print("----------------------------")
-        #     print("")
-
         if isinstance(op_ret, tuple | List):
             for i, operation in enumerate(op_ret):
                 if isinstance(operation, ir.Operation) or isinstance(
