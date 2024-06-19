@@ -168,7 +168,7 @@ class DynamoCompiler:
         return self._imported_graphs
 
     @property
-    def imported_params(self):  
+    def imported_params(self):
         """Returns the imported model params after compilation."""
         return self._imported_params
 
