@@ -29,6 +29,7 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
+from buddy.compiler.graph.json_decoder import json_to_graph
 from model import LeNet
 
 # Retrieve the LeNet model path from environment variables.
@@ -74,3 +75,18 @@ float32_param = np.concatenate(
 )
 
 float32_param.tofile(Path(current_path) / "arg0.data")
+
+# Convert the lenet graph to JSON string
+json_str = graph.to_json()
+with open(os.path.join(path_prefix, "lenet.json"), "w") as module_file:
+    module_file.write(json_str)
+
+# Convert the lenet graph Json string to a lenet graph
+graph0 = json_to_graph(json_str)
+graph0.lower_to_top_level_ir()
+print(graph0._imported_module)
+
+# Convert the lenet graph to DOT string
+dot_str = graph.to_dot()
+with open(os.path.join(path_prefix, "graph.dot"), "w") as module_file:
+    module_file.write(dot_str)
