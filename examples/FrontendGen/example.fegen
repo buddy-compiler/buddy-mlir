@@ -1,141 +1,105 @@
-dialect Toy_Dialect 
-  : name = "toy" 
-  : cppNamespace = "mlir::toy"
-  ;
+fegen toy
 
-op ConstantOp 
-  : arguments = (ins F64ElementsAttr : $value)
-  : results = (outs F64Tensor)
-  : builders = [
-    OpBuilder<(ins "DenseElementsAttr" : $value),
-    [{ build($_builder, $_state, value.getType(), value); }]>, 
-    OpBuilder<(ins "double":$value)>]
-  ;
+typedef struct {
+    parameters [list<Type> elementTypes]
+}
 
-op AddOp 
-  : arguments = (ins F64Tensor : $lhs, F64Tensor: $rhs)
-  : results = (outs F64Tensor)
-  : builders = [OpBuilder<(ins "Value" : $lhs, "Value" : $rhs)>]
-  ;
+Type Toy_Type = any<[Tensor, struct]>;
 
-op CastOp 
-  : arguments = (ins F64Tensor:$input)
-  : results = (outs F64Tensor:$output)
-  ;
+opdef constant {
+    arguments [attribute double numberAttr]
+    results [operand Tensor res]
+    body {
+        list<int> shape = shapeOf(res);
+        // full是一个内置函数，创建memref，并将每个元素都填充numberAttr
+        res = full(shape, numberAttr);    
+    }
+}
 
-op FuncOp
-  : arguments = (ins
-    SymbolNameAttr:$sym_name,
-    TypeAttrOf<FunctionType>:$function_type
-  )
-  : builders = [ OpBuilder<(ins
-    "StringRef":$name, "FunctionType":$type,
-    CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
-  ]
-  ;
+opdef add {
+    arguments [operand Tensor lhs, operand Tensor rhs]
+    results [operand Tensor res]
+    body {
+        // 这个'+'也是一个内置的函数
+        res = lhs + rhs;
+    }
+}
 
-op MulOp 
-  : arguments = (ins F64Tensor:$lhs, F64Tensor:$rhs)
-  : results = (outs F64Tensor)
-  : builders = [
-    OpBuilder<(ins "Value":$lhs, "Value":$rhs)>
-  ]
-  ;
+opdef mul {
+    arguments [operand Tensor lhs, operand Tensor rhs]
+    results [operand Tensor res]
+    body {
+        // 这个'*'也是一个内置的函数
+        res = lhs * rhs;
+    }
+}
 
-op PrintOp
-  : arguments = (ins AnyTypeOf<[F64Tensor, F64MemRef]>:$input)
-  ;
+opdef reshape {
+    arguments [operand F64Tensor input]
+    results [operand F64Tensor output]
+    body {
+        list<int> shape = shapeOf(output);
+        output = reshape(input, shape);
+    }
+}
 
-op ReshapeOp 
-  : arguments = (ins F64Tensor : $input)
-  : results = (outs StaticShapeTensorOf<[F64]>)
-  ;
+double stod(string numStr){
+    double res = 0;
+    int index;
+    int i;
+    for(i = 0; i <= len(numStr)-1; i=i+1){
+        char c = numStr[0];
+        int charNum;
+        if(c == '0'){
+            charNum = 0;
+        }else if (c == '1'){
+            charNum = 1;
+        }else if (c == '2'){
+            charNum = 2;
+        }else if (c == '3'){
+            charNum = 3;
+        }else if (c == '4'){
+            charNum = 4;
+        }else if (c == '5'){
+            charNum = 5;
+        }else if (c == '6'){
+            charNum = 6;
+        }else if (c == '7'){
+            charNum = 7;
+        }else if (c == '8'){
+            charNum = 8;
+        }else if (c == '9'){
+            charNum = 9;
+        }else if (c == '.'){
+            index = i;
+        }
+        res = res * 10;
+        res = res + charNum;    
+    }
+    res = res * 0.1**(len(numStr) - 1 - index);
+    return res;
+}
 
-op ReturnOp
-  : arguments = (ins Variadic<F64Tensor>:$input)
-  : builders = [
-    OpBuilder<(ins), [{ build($_builder, $_state, std::nullopt); }]>
-  ]
-  ;
 
-op GenericCallOp
-  : arguments = (ins FlatSymbolRefAttr:$callee, Variadic<F64Tensor>:$inputs)
-  : results = (outs F64Tensor)
-  : builders = [
-    OpBuilder<(ins "StringRef":$callee, "ArrayRef<Value>":$arguments)>
-  ]
-  ;
+module
+    : structDefine* funDefine+
+    ;
 
-op TransposeOp
-  : arguments = (ins F64Tensor:$input)
-  : results = (outs F64Tensor)
-  : builders = [
-    OpBuilder<(ins "Value":$input)>
-  ]
-  ;
+structDefine
+    : Struct Identifier BracketOpen (varDecl Semicolon)* BracketClose
+    ;
 
+// cpp value --get--> mlir::attribute || --constant Operation--> mlir::Value
+//           ========                 ||
 
-rule module 
-  : funDefine 
-  ;
-
-rule expression 
-  : Number 
-  : tensorLiteral 
-  : identifierExpr 
-  : expression Add expression 
-  ;
-
-rule returnExpr 
-  : Return expression? 
-  ;
-
-rule identifierExpr 
-  : Identifier
-  : Identifier ParentheseOpen (expression (Comma expression) *)? ParentheseClose {
-    builder = GenericCallOp_1, PrintOp_0
-  }
-  ;
-
-rule tensorLiteral 
-  : SbracketOpen ( tensorLiteral ( Comma tensorLiteral ) *) ? SbracketClose 
-  : Number 
-  ;
-
-rule varDecl 
-  : Var Identifier (type) ? (Equal expression) ? {
-    builder = ReshapeOp_0 
-  }
-  ;
-
-rule type 
-  : AngleBracketOpen Number(Comma Number) * AngleBracketClose
-  ;
-
-rule funDefine 
-  : prototype block {
-    builder = ReturnOp_1  
-  }
-  ;
-
-rule prototype 
-  : Def Identifier ParentheseOpen declList ? ParentheseClose {
-    builder = FuncOp_0  
-  }
-  ;
-
-rule declList 
-  : Identifier 
-  : Identifier Comma declList
-  ;
-
-rule block 
-  : BracketOpen(blockExpr Semi) * BracketClose
-  ;
-
-rule blockExpr 
-  : varDecl
-  : returnExpr 
-  : expression
-  ;
-
+expression
+    : Number
+    {   returns [operand F64Tensor ret, operand F64Tensor ret]
+        actions {
+            // Type  mlir::Value  ret of operator | Attribute | Cpp Value
+            double numberAttr = stod($Number().getText());
+            Type retType = Tensor<[], double>;
+            ret = constant(numberAttr, retType);
+        }
+    }
+    ;
