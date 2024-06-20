@@ -2,6 +2,7 @@ if(BUDDY_EXAMPLES)
   add_subdirectory(ConvOpt)
   add_subdirectory(DIPDialect)
   add_subdirectory(DAPDialect)
+  add_subdirectory(Resize4D)
 endif()
 
 if(BUDDY_LLAMA_EXAMPLES)
