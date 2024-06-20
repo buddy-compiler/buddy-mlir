@@ -36,7 +36,7 @@ typeDefinationDecl
     ; 
 
 typeDefinationName
-    : prefixedName
+    : identifier
     ;
 
 typeDefinationBlock
@@ -432,7 +432,7 @@ builtinTypeTemplate
     ;
 
 collectType
-    : collectProtoType (Less expression Greater)?
+    : collectProtoType Less expression Greater
     ;
 
 collectProtoType

@@ -63,12 +63,14 @@ int main(int argc, char *argv[]) {
 
   fegen::FegenVisitor visitor;
   visitor.visit(moduleAST);
+  visitor.emitG4();
+  visitor.emitTypeDefination();
 
-  if (emitAction == dumpAst) {
-    return dumpAST(moduleAST);
-  }
-  if (emitAction == dumpAntlr) {
-    visitor.emitG4();
-  }
+  // if (emitAction == dumpAst) {
+  //   return dumpAST(moduleAST);
+  // }
+  // if (emitAction == dumpAntlr) {
+
+  // }
   return 0;
 }
