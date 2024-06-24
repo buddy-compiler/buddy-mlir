@@ -13,6 +13,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include "FegenManager.h"
+#include "FegenParser.h"
 #include "FegenParserBaseVisitor.h"
 #include "Scope.h"
 
@@ -38,6 +39,8 @@ private:
 public:
   void emitG4() { this->manager.emitG4(); }
   void emitTypeDefination() { this->manager.emitTypeDefination(); }
+  void emitDialectDefination() { this->manager.emitDialectDefination(); }
+  void emitOpDefination() { this->manager.emitOpDefination(); }
 
   FegenVisitor()
       : manager(FegenManager::getManager()),
@@ -302,8 +305,6 @@ public:
   std::any visitTypeTemplate(FegenParser::TypeTemplateContext *ctx) override {
     if (ctx->prefixedName()) {                             // prefixedName
       if (ctx->prefixedName()->identifier().size() == 2) { // dialect.type
-        auto dialectName = ctx->prefixedName()->identifier(0);
-        auto typeDefName = ctx->prefixedName()->identifier(1);
         // TODO: return type from other dialect
         return nullptr;
       } else { // type
@@ -355,7 +356,8 @@ public:
         this->visit(ctx->expression()));
     if (ctx->collectProtoType()->ANY()) {
       std::vector<fegen::FegenType> tys;
-      // TODO: make sure expr is a list and report if error
+      // TODO: reprot error
+      assert(expr->getKind() == fegen::FegenRightValue::LiteralKind::VECTOR);
       auto exprs =
           std::any_cast<std::vector<fegen::FegenRightValue::Expression *>>(
               expr->getContent());
@@ -521,16 +523,24 @@ public:
   // return FegenRightValue::Expression*
   std::any visitPrimaryExpr(FegenParser::PrimaryExprContext *ctx) override {
     if (ctx->identifier()) {
-      auto var = this->sstack.attemptFindVar(ctx->identifier()->getText());
+      auto name = ctx->identifier()->getText();
+      auto var = this->sstack.attemptFindVar(name);
       if (var) {
         return (FegenRightValue::Expression *)
             fegen::FegenRightValue::ExpressionTerminal::get(var);
       } else {
-        // TODO: error report
-        std::cerr << "can not find variable: " << ctx->identifier()->getText()
-                  << "." << std::endl;
-        exit(0);
-        return nullptr;
+        auto tyDef = this->sstack.attemptFindTypeDef(name);
+        if (tyDef) {
+          auto tyVar = fegen::FegenType::getTemplateType(tyDef);
+          return fegen::FegenValue::get(fegen::FegenType::getMetaTemplateType(),
+                                        "", fegen::FegenRightValue::get(tyVar));
+        } else {
+          // TODO: error report
+          std::cerr << "can not find variable: " << ctx->identifier()->getText()
+                    << "." << std::endl;
+          exit(0);
+          return nullptr;
+        }
       }
     } else if (ctx->typeSpec()) {
       auto ty = std::any_cast<fegen::FegenType>(this->visit(ctx->typeSpec()));
@@ -589,6 +599,34 @@ public:
 
   std::any visitActionSpec(FegenParser::ActionSpecContext *ctx) override {
     return nullptr;
+  }
+
+  std::any visitOpDecl(FegenParser::OpDeclContext *ctx) override {
+    auto opName = ctx->opName()->getText();
+    auto opDef =
+        std::any_cast<fegen::FegenOperation *>(this->visit(ctx->opBlock()));
+    opDef->setOpName(opName);
+    bool success = this->manager.addOperationDefination(opDef);
+    if (!success) {
+      // TODO: error report
+      std::cerr << "operation " << opName << " already exist." << std::endl;
+    }
+    return nullptr;
+  }
+
+  // return FegenOperation*
+  std::any visitOpBlock(FegenParser::OpBlockContext *ctx) override {
+    std::vector<fegen::FegenValue *> args;
+    std::vector<fegen::FegenValue *> res;
+    if (ctx->argumentSpec()) {
+      args = std::any_cast<std::vector<fegen::FegenValue *>>(
+          this->visit(ctx->argumentSpec()));
+    }
+    if (ctx->resultSpec()) {
+      res = std::any_cast<std::vector<fegen::FegenValue *>>(
+          this->visit(ctx->resultSpec()));
+    }
+    return fegen::FegenOperation::get("", args, res, ctx->bodySpec());
   }
 };
 } // namespace fegen
