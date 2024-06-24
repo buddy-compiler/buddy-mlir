@@ -398,6 +398,7 @@ valueKind
     | ATTRIBUTE
     ;
 
+// 这里的identifier是不是没用？
 typeInstance
     : typeTemplate (Less typeTemplateParam (Comma typeTemplateParam)* Greater)?
     | builtinTypeInstances

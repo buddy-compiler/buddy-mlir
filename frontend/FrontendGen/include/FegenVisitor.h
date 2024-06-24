@@ -521,6 +521,50 @@ public:
   std::any visitActionSpec(FegenParser::ActionSpecContext *ctx) override {
     return nullptr;
   }
+
+    std::any visitFunctionDecl(FegenParser::FunctionDeclContext *ctx) override{
+        auto returnType = std::any_cast<fegen::FegenType*>(this->visit(ctx->typeSpec()));
+        auto functionName = std::any_cast<llvm::StringRef>(this->visit(ctx->funcName()));
+        auto functionParams = std::any_cast<std::map<fegen::FegenType*, std::string>>(this->visit(ctx->funcParams()));
+        this->visit(ctx->statementBlock());
+
+        fegen::FegenFunction* function = fegen::FegenFunction::get(functionName, functionParams, returnType);
+        manager.functions.push_back(function);
+    }
+
+    // TODO: 类型存在性检查 
+    std::any visitTypeInstanceSpec(FegenParser::TypeInstanceSpecContext *ctx) override{
+        if(ctx->typeInstance())
+            return this->visit(ctx->typeInstance());
+        else {
+            // TODO: visit typeTemplate
+        }
+    }
+
+    std::any visitFuncName(FegenParser::FuncNameContext *ctx) override{
+        return ctx->identifier()->getText();
+    }
+
+    std::any visitFuncParams(FegenParser::FuncParamsContext *ctx) override{
+        std::map<fegen::FegenType *, std::string> params;
+        if(ctx->children.size() == 2){
+            auto typespec = std::any_cast<fegen::FegenType*>(this->visit(ctx->typeSpec(0)));
+            auto paramname = ctx->identifier(0)->getText();
+            params.insert(std::pair(typespec, paramname));
+            return params;
+        }
+        for(int i = 0; i < ctx->typeSpec().size(); i++){
+            auto typespec = std::any_cast<fegen::FegenType*>(this->visit(ctx->typeSpec(i)));
+            auto paramname = ctx->identifier(i)->getText();
+            params.insert(std::pair(typespec, paramname));
+        }
+        return params;
+    }
+
+    std::any visitStatementBlock(FegenParser::StatementBlockContext *ctx) override{
+        
+    }
+
 };
 } // namespace fegen
 #endif

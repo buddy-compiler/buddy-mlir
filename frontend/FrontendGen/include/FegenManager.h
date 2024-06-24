@@ -56,17 +56,17 @@ class FegenFunction {
 private:
   // cpp function name
   std::string name;
-  // input types
-  std::vector<FegenType *> inputTypeList;
+  // input object
+  std::map<FegenType *, std::string> inputTypeMap;
   // return type
   FegenType *returnType;
   explicit FegenFunction(llvm::StringRef name,
-                         std::vector<FegenType *> &&inputTypeList,
+                         std::map<FegenType *, std::string> &&inputTypeMap,
                          FegenType *returnType);
 
 public:
   static FegenFunction *get(llvm::StringRef name,
-                            std::vector<FegenType *> inputTypeList,
+                            std::map<FegenType *, std::string> inputTypeMap,
                             FegenType *returnType = nullptr);
   ~FegenFunction() = default;
 };
@@ -404,7 +404,8 @@ private:
   llvm::StringMap<FegenType *> typeMap;
   std::map<std::string, FegenTypeDefination *> typeDefMap;
   llvm::StringMap<FegenOperation *> operationMap;
-  llvm::StringMap<FegenFunction *> functionMap;
+  std::vector<FegenFunction *> functions;
+  // llvm::StringMap<FegenFunction *> functionMap;
   void initbuiltinTypes();
 
 public:

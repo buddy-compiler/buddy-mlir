@@ -3,15 +3,15 @@
 #include <type_traits>
 
 fegen::FegenFunction::FegenFunction(llvm::StringRef name,
-                                    std::vector<FegenType *> &&inputTypeList,
+                                    std::map<FegenType *, std::string> &&inputTypeMap,
                                     FegenType *returnType)
-    : name(name), inputTypeList(inputTypeList), returnType(returnType) {}
+    : name(name), inputTypeMap(inputTypeMap), returnType(returnType) {}
 
 fegen::FegenFunction *
 fegen::FegenFunction::get(llvm::StringRef name,
-                          std::vector<FegenType *> inputTypeList,
+                          std::map<FegenType *, std::string> inputTypeMap,
                           FegenType *returnType) {
-  return new fegen::FegenFunction(name, std::move(inputTypeList), returnType);
+  return new fegen::FegenFunction(name, std::move(inputTypeMap), returnType);
 }
 
 fegen::FegenOperation::FegenOperation(llvm::StringRef dialectName,
