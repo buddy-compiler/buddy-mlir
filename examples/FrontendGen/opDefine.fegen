@@ -1,0 +1,9 @@
+fegen toy
+
+opdef add {
+    arguments [operand Integer lhs, operand Integer rhs]
+    results [operand Integer res]
+    body {
+        res = lhs + rhs;
+    }
+}

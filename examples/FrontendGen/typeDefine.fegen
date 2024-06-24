@@ -1,0 +1,17 @@
+fegen toy
+
+typedef struct {
+    parameters [list<Type> elementTypes]
+}
+
+typedef test1 {
+    parameters [Type e]
+}
+
+typedef test2 {
+    parameters [list<int> e]
+}
+
+typedef test3 {
+    parameters [int e]
+}

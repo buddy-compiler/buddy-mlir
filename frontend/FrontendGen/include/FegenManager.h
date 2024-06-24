@@ -2,8 +2,10 @@
 #define FEGEN_MANAGER_H
 
 #include <any>
+#include <cstddef>
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -82,16 +84,24 @@ private:
   std::vector<FegenValue *> arguments;
   // results of operation
   std::vector<FegenValue *> results;
-  explicit FegenOperation(llvm::StringRef dialectName,
-                          llvm::StringRef operationName,
+  // operation body context
+  FegenParser::BodySpecContext *ctx;
+  explicit FegenOperation(std::string dialectName, std::string operationName,
                           std::vector<FegenValue *> &&arguments,
-                          std::vector<FegenValue *> &&results);
+                          std::vector<FegenValue *> &&results,
+                          FegenParser::BodySpecContext *ctx);
 
 public:
-  static FegenOperation *get(llvm::StringRef dialectName,
-                             llvm::StringRef operationName,
+  void setOpName(std::string);
+  std::string getOpName();
+  std::vector<FegenValue *> &getArguments();
+  FegenValue *getArguments(size_t i);
+  std::vector<FegenValue *> &getResults();
+  FegenValue *getResults(size_t i);
+  static FegenOperation *get(std::string operationName,
                              std::vector<FegenValue *> arguments,
-                             std::vector<FegenValue *> results);
+                             std::vector<FegenValue *> results,
+                             FegenParser::BodySpecContext *ctx);
   ~FegenOperation() = default;
 };
 
@@ -106,23 +116,31 @@ public:
 private:
   TypeKind kind;
   std::string typeName;
-  std::vector<FegenValue*> parameters;
+  std::vector<FegenValue *> parameters;
   FegenTypeDefination *typeDefine;
-  bool ifTemplate;
+  int typeLevel;
 
 public:
-  FegenType(TypeKind kind, std::vector<FegenValue*> parameters,
-            FegenTypeDefination *tyDef, bool isTemplate);
+  FegenType(TypeKind kind, std::string name,
+            std::vector<FegenValue *> parameters, FegenTypeDefination *tyDef,
+            int typeLevel);
+  FegenType(TypeKind kind, std::vector<FegenValue *> parameters,
+            FegenTypeDefination *tyDef, int typeLevel);
   FegenType(const FegenType &);
   FegenType(FegenType &&);
   TypeKind getTypeKind();
   void setTypeKind(TypeKind kind);
-  std::vector<FegenValue*> &getParameters();
-  void setParameters(std::vector<FegenValue*> &params);
+  std::vector<FegenValue *> &getParameters();
+  FegenValue *getParameters(size_t i);
+  void setParameters(std::vector<FegenValue *> &params);
   FegenTypeDefination *getTypeDefination();
   void setTypeDefination(FegenTypeDefination *tyDef);
   std::string getTypeName();
-  bool isTemplate();
+  int getTypeLevel();
+  // for generating typedef td file.
+  std::string toStringForTypedef();
+  // for generating op def td file.
+  std::string toStringForOpdef();
   ~FegenType();
   // placeholder
   static FegenType getPlaceHolder();
@@ -145,10 +163,10 @@ public:
   static FegenType getBoolType();
 
   // Integer<size>
-  static FegenType getIntegerType(FegenValue* size);
+  static FegenType getIntegerType(FegenValue *size);
 
   // FloatPoint<size>
-  static FegenType getFloatPointType(FegenValue* size);
+  static FegenType getFloatPointType(FegenValue *size);
 
   // char
   static FegenType getCharType();
@@ -157,35 +175,25 @@ public:
   static FegenType getStringType();
 
   // Vector<size, elementType>
-  static FegenType getVectorType(FegenValue* size, FegenValue* elementType);
-  static FegenType getVectorType(FegenValue* size, FegenType elementType);
+  static FegenType getVectorType(FegenValue *size, FegenType elementType);
 
   // Tensor<shape, elementType>
-  static FegenType getTensorType(FegenValue* shape, FegenValue* elementType);
-  static FegenType getTensorType(FegenValue* shape, FegenType elementType);
+  static FegenType getTensorType(FegenValue *shape, FegenType elementType);
 
   // List<elementType>
-  static FegenType getListType(FegenValue* elementType);
   static FegenType getListType(FegenType elementType);
 
   // Optional<elementType>
-  static FegenType getOptionalType(FegenValue* elementType);
   static FegenType getOptionalType(FegenType elementType);
 
   // Any<elementType1, elementType2, ...>
-  static FegenType getAnyType(std::vector<FegenValue*> elementTypes);
   static FegenType getAnyType(std::vector<FegenType> elementTypes);
 
   static FegenType getIntegerTemplate();
   static FegenType getFloatPointTemplate();
-  static FegenType getVectorTemplate();
-  static FegenType getTensorTemplate();
-  static FegenType getListTemplate();
-  static FegenType getOptionalTemplate();
-  static FegenType getAnyTemplate();
 
   static FegenType getInstanceType(FegenTypeDefination *typeDefination,
-                                   std::vector<FegenValue*> parameters);
+                                   std::vector<FegenValue *> parameters);
 
   static FegenType getTemplateType(FegenTypeDefination *typeDefination);
 };
@@ -196,23 +204,28 @@ class FegenTypeDefination {
 private:
   std::string dialectName;
   std::string name;
-  std::vector<fegen::FegenValue*> parameters;
+  std::vector<fegen::FegenValue *> parameters;
   FegenParser::TypeDefinationDeclContext *ctx;
   bool ifCustome;
+  std::string mnemonic;
 
 public:
   FegenTypeDefination(std::string dialectName, std::string name,
-                      std::vector<fegen::FegenValue*> parameters,
+                      std::vector<fegen::FegenValue *> parameters,
                       FegenParser::TypeDefinationDeclContext *ctx,
                       bool ifCustome);
   static FegenTypeDefination *get(std::string dialectName, std::string name,
-                                  std::vector<fegen::FegenValue*> parameters,
+                                  std::vector<fegen::FegenValue *> parameters,
                                   FegenParser::TypeDefinationDeclContext *ctx,
                                   bool ifCustome = true);
   std::string getDialectName();
+  void setDialectName(std::string);
   std::string getName();
-  const std::vector<fegen::FegenValue*> &getParameters();
+  std::string getMnemonic();
+  void setName(std::string);
+  const std::vector<fegen::FegenValue *> &getParameters();
   FegenParser::TypeDefinationDeclContext *getCtx();
+  void setCtx(FegenParser::TypeDefinationDeclContext *);
   bool isCustome();
 };
 
@@ -237,23 +250,28 @@ public:
     bool ifTerminal;
     LiteralKind kind;
     FegenType exprType;
-    Expression(bool, LiteralKind, FegenType&);
+    bool isLiteral;
+    bool ifConstexpr;
+    Expression(bool, LiteralKind, FegenType &, bool);
     virtual ~Expression() = default;
     virtual bool isTerminal();
     virtual std::string toString() = 0;
+    virtual std::string toStringForTypedef() = 0;
     LiteralKind getKind();
     virtual std::any getContent() = 0;
+    virtual bool isConstexpr();
   };
 
   struct ExpressionNode : public Expression {
     using opType =
         std::variant<FegenFunction *, FegenOperation *, FegenOperator>;
     opType op;
-    std::vector<Expression*> params;
-    ExpressionNode(std::vector<Expression*>, opType, FegenType&);
-    ExpressionNode(ExpressionNode&)=default;
+    std::vector<Expression *> params;
+    ExpressionNode(std::vector<Expression *>, opType, FegenType &, bool);
+    ExpressionNode(ExpressionNode &) = default;
     ~ExpressionNode();
     virtual std::string toString() override;
+    virtual std::string toStringForTypedef() override;
     virtual std::any getContent() override;
 
     /// @brief operate lhs and rhs using binary operator.
@@ -263,10 +281,12 @@ public:
     static ExpressionNode *unaryOperation(Expression *, FegenOperator);
 
     // TODO: callFunction
-    static ExpressionNode* callFunction(std::vector<Expression*>, FegenFunction*);
+    static ExpressionNode *callFunction(std::vector<Expression *>,
+                                        FegenFunction *);
 
     // TODO: callOperation
-    static ExpressionNode* callOperation(std::vector<Expression*>, FegenOperation*);
+    static ExpressionNode *callOperation(std::vector<Expression *>,
+                                         FegenOperation *);
   };
 
   struct ExpressionTerminal : public Expression {
@@ -274,38 +294,42 @@ public:
     // literal, reference of variable
     using primLiteralType =
         std::variant<std::monostate, int, float, std::string, FegenType,
-                     std::vector<Expression*>, FegenValue *>;
+                     std::vector<Expression *>, FegenValue *>;
     primLiteralType content;
-    ExpressionTerminal(primLiteralType, LiteralKind, FegenType);
-    ExpressionTerminal(ExpressionTerminal&)=default;
+    ExpressionTerminal(primLiteralType, LiteralKind, FegenType, bool);
+    ExpressionTerminal(ExpressionTerminal &) = default;
     ~ExpressionTerminal();
     virtual std::string toString() override;
+    virtual std::string toStringForTypedef() override;
     virtual std::any getContent() override;
     static ExpressionTerminal *get(std::monostate);
     static ExpressionTerminal *get(int);
     static ExpressionTerminal *get(float);
     static ExpressionTerminal *get(std::string);
     static ExpressionTerminal *get(FegenType &);
-    static ExpressionTerminal *get(std::vector<Expression*> &);
+    static ExpressionTerminal *get(std::vector<Expression *> &);
     static ExpressionTerminal *get(fegen::FegenValue *);
   };
 
 public:
   FegenRightValue(Expression *content);
-  FegenRightValue(const FegenRightValue&);
-  FegenRightValue(FegenRightValue&&);
+  FegenRightValue(const FegenRightValue &);
+  FegenRightValue(FegenRightValue &&);
   FegenRightValue::LiteralKind getKind();
   std::string toString();
+  std::string toStringForTypedef();
   std::any getContent();
+  Expression *getExpr();
 
   static FegenRightValue get();
   static FegenRightValue get(int content);
   static FegenRightValue get(float content);
   static FegenRightValue get(std::string content);
-  static FegenRightValue get(FegenType& content);
-  static FegenRightValue get(std::vector<Expression*> & content);
-  static FegenRightValue get(fegen::FegenValue * content);
-  static FegenRightValue get(Expression* expr);
+  static FegenRightValue get(FegenType &content);
+  // list
+  static FegenRightValue get(std::vector<Expression *> &content);
+  static FegenRightValue get(fegen::FegenValue *content);
+  static FegenRightValue get(Expression *expr);
   ~FegenRightValue();
 
 private:
@@ -330,10 +354,15 @@ public:
 
   std::string getName();
   FegenType &getType();
-  /// @brief return content of right value, get ExprssionNode* if kind is EXPRESSION.
-  template <typename T> T getContent() { return std::any_cast<T>(this->content.getContent()); }
+  /// @brief return content of right value, get ExprssionNode* if kind is
+  /// EXPRESSION.
+  template <typename T> T getContent() {
+    return std::any_cast<T>(this->content.getContent());
+  }
   FegenRightValue::LiteralKind getContentKind();
   std::string getContentString();
+  std::string getContentStringForTypedef();
+  FegenRightValue::Expression *getExpr();
   ~FegenValue() = default;
 };
 
@@ -398,26 +427,34 @@ private:
   const FegenManager &operator=(const FegenManager &) = delete;
   // release nodes, type, operation, function
   ~FegenManager();
+  void initbuiltinTypes();
+
+public:
   std::string moduleName;
   std::vector<std::string> headFiles;
   std::map<std::string, FegenNode *> nodeMap;
   llvm::StringMap<FegenType *> typeMap;
   std::map<std::string, FegenTypeDefination *> typeDefMap;
-  llvm::StringMap<FegenOperation *> operationMap;
-  std::vector<FegenFunction *> functions;
-  // llvm::StringMap<FegenFunction *> functionMap;
-  void initbuiltinTypes();
+  std::map<std::string, FegenOperation *> operationMap;
+  std::map<std::string, FegenFunction *> functionMap;
 
-public:
   static FegenManager &getManager();
   void setModuleName(std::string name);
 
   FegenTypeDefination *getTypeDefination(std::string name);
   bool addTypeDefination(FegenTypeDefination *tyDef);
-  std::string emitG4();
+
+  FegenOperation *getOperationDefination(std::string name);
+  bool addOperationDefination(FegenOperation *opDef);
+  void emitG4();
+  void emitTypeDefination();
+  void emitOpDefination();
+  void emitDialectDefination();
+  void emitTdFiles();
 };
 
-FegenType inferenceType(std::vector<FegenRightValue::Expression*>, FegenOperator);
+FegenType inferenceType(std::vector<FegenRightValue::Expression *>,
+                        FegenOperator);
 
 } // namespace fegen
 
