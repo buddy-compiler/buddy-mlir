@@ -1,18 +1,18 @@
 fegen toy
 
 typedef struct {
-    parameters [list<Type> elementTypes]
+    parameters [list<Type> elementTypes] // ArrayParameter<'Type'>
 }
 
 Type Toy_Type = any<[Tensor, struct]>;
 
 opdef constant {
-    arguments [attribute double numberAttr]
+    arguments [operand list<Integer<size>> numberAttr]  // Variadic<Builtin_Integer>
     results [operand Tensor res]
     body {
         list<int> shape = shapeOf(res);
         // full是一个内置函数，创建memref，并将每个元素都填充numberAttr
-        res = full(shape, numberAttr);    
+        res = full(shape, numberAttr); 
     }
 }
 
@@ -21,7 +21,7 @@ opdef add {
     results [operand Tensor res]
     body {
         // 这个'+'也是一个内置的函数
-        res = lhs + rhs;
+        res = lhs + rhs; // res = builder.create<add>(lsh, rhs);
     }
 }
 
@@ -87,14 +87,15 @@ module
 
 structDefine
     : Struct Identifier BracketOpen (varDecl Semicolon)* BracketClose
-    ;
+    ; 
 
 // cpp value --get--> mlir::attribute || --constant Operation--> mlir::Value
 //           ========                 ||
 
 expression
     : Number
-    {   returns [operand F64Tensor ret, operand F64Tensor ret]
+    {   
+        returns [operand F64Tensor ret, operand F64Tensor ret]
         actions {
             // Type  mlir::Value  ret of operator | Attribute | Cpp Value
             double numberAttr = stod($Number().getText());

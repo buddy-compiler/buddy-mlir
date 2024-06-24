@@ -57,7 +57,7 @@ opDecl
     ;
 
 opName
-    : prefixedName
+    : identifier
     ;
 
 opBlock

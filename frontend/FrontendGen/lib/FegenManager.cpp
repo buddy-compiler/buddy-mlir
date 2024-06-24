@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <fstream>
 #include <ostream>
 #include <string>
 #include <unordered_map>
@@ -19,17 +20,41 @@ fegen::FegenFunction::get(llvm::StringRef name,
   return new fegen::FegenFunction(name, std::move(inputTypeList), returnType);
 }
 
-fegen::FegenOperation::FegenOperation(llvm::StringRef dialectName,
-                                      llvm::StringRef operationName,
+fegen::FegenOperation::FegenOperation(std::string dialectName,
+                                      std::string operationName,
                                       std::vector<FegenValue *> &&arguments,
-                                      std::vector<FegenValue *> &&results)
-    : dialectName(dialectName), arguments(arguments), results(results) {}
+                                      std::vector<FegenValue *> &&results,
+                                      fegen::FegenParser::BodySpecContext *ctx)
+    : dialectName(dialectName), arguments(arguments), results(results),
+      ctx(ctx) {}
+
+void fegen::FegenOperation::setOpName(std::string name) {
+  this->operationName = name;
+}
+std::string fegen::FegenOperation::getOpName() { return this->operationName; }
+
+std::vector<fegen::FegenValue *> &fegen::FegenOperation::getArguments() {
+  return this->arguments;
+}
+
+fegen::FegenValue *fegen::FegenOperation::getArguments(size_t i) {
+  return this->arguments[i];
+}
+
+std::vector<fegen::FegenValue *> &fegen::FegenOperation::getResults() {
+  return this->results;
+}
+
+fegen::FegenValue *fegen::FegenOperation::getResults(size_t i) {
+  return this->results[i];
+}
 
 fegen::FegenOperation *fegen::FegenOperation::get(
-    llvm::StringRef dialectName, llvm::StringRef operationName,
-    std::vector<FegenValue *> arguments, std::vector<FegenValue *> results) {
-  return new fegen::FegenOperation(dialectName, operationName,
-                                   std::move(arguments), std::move(results));
+    std::string operationName, std::vector<FegenValue *> arguments,
+    std::vector<FegenValue *> results, FegenParser::BodySpecContext *ctx) {
+  return new fegen::FegenOperation(fegen::FegenManager::getManager().moduleName,
+                                   operationName, std::move(arguments),
+                                   std::move(results), ctx);
 }
 
 // class FegenType
@@ -56,6 +81,12 @@ std::string jointTypeName(std::string templateName,
   return res;
 }
 
+fegen::FegenType::FegenType(TypeKind kind, std::string name,
+                            std::vector<FegenValue *> parameters,
+                            FegenTypeDefination *tyDef, int typeLevel)
+    : kind(kind), typeName(name), parameters(std::move(parameters)),
+      typeDefine(tyDef), typeLevel(typeLevel) {}
+
 fegen::FegenType::FegenType(fegen::FegenType::TypeKind kind,
                             std::vector<FegenValue *> parameters,
                             FegenTypeDefination *tyDef, int typeLevel)
@@ -64,9 +95,8 @@ fegen::FegenType::FegenType(fegen::FegenType::TypeKind kind,
       typeLevel((typeLevel)) {}
 
 fegen::FegenType::FegenType(const fegen::FegenType &fty)
-    : kind(fty.kind),
-      typeName(jointTypeName(fty.typeDefine->getName(), fty.parameters)),
-      typeDefine(fty.typeDefine), typeLevel(fty.typeLevel) {
+    : kind(fty.kind), typeName(fty.typeName), typeDefine(fty.typeDefine),
+      typeLevel(fty.typeLevel) {
   // deep copy parameters
   for (auto paramPtr : fty.parameters) {
     this->parameters.push_back(new fegen::FegenValue(*paramPtr));
@@ -74,8 +104,7 @@ fegen::FegenType::FegenType(const fegen::FegenType &fty)
 }
 
 fegen::FegenType::FegenType(fegen::FegenType &&fty)
-    : kind(fty.kind),
-      typeName(jointTypeName(fty.typeDefine->getName(), fty.parameters)),
+    : kind(fty.kind), typeName(std::move(fty.typeName)),
       parameters(std::move(fty.parameters)), typeDefine(fty.typeDefine),
       typeLevel(fty.typeLevel) {}
 
@@ -113,6 +142,64 @@ std::string fegen::FegenType::getTypeName() { return this->typeName; }
 
 int fegen::FegenType::getTypeLevel() { return this->typeLevel; }
 
+std::string fegen::FegenType::toStringForTypedef() {
+  // handle builtin type instance
+  auto typeName = this->typeName;
+  auto typedefName = this->typeDefine->getName();
+  if (this->typeDefine->isCustome()) {
+    return this->typeDefine->getName();
+  } else if (typedefName == FEGEN_TYPE) {
+    return "\"Type\"";
+  } else if (typedefName == FEGEN_LIST) {
+    std::string res = "ArrayRefParameter<";
+    for (size_t i = 0; i <= this->parameters.size() - 1; i++) {
+      res.append(this->parameters[i]->getContentStringForTypedef());
+      if (i != this->parameters.size() - 1) {
+        res.append(", ");
+      }
+    }
+    res.append(">");
+    return res;
+  } else if (typedefName == FEGEN_INTEGER) {
+    if (this->parameters.size() == 0) {
+      return "Builtin_IntegerAttr";
+    } else {
+      if (typeName == "int") {
+        return "\"int\"";
+      } else if (typeName == "bool") {
+        return "\"bool\"";
+      }
+      int size = this->getParameters(0)->getContent<int>();
+      if (size == 64) {
+        return "\"long\"";
+      } else if (size == 16) {
+        return "\"short\"";
+      } else {
+        std::cerr << "unsupport type: " << typeName << std::endl;
+        exit(0);
+      }
+    }
+  } else if (typedefName == FEGEN_FLOATPOINT) {
+    if (this->parameters.size() == 0) {
+      return "Builtin_FloatAttr";
+    } else {
+      if (typeName == "float") {
+        return "\"float\"";
+      } else if (typeName == "double") {
+        return "\"double\"";
+      } else {
+        std::cerr << "unsupport type: " << typeName << std::endl;
+        exit(0);
+      }
+    }
+  } else {
+    std::cerr << "unsupport type: " << typeName << std::endl;
+    exit(0);
+  }
+}
+
+std::string fegen::FegenType::toStringForOpdef() { return "TODO"; }
+
 fegen::FegenType::~FegenType() {
   for (auto p : this->parameters) {
     delete p;
@@ -141,25 +228,33 @@ fegen::FegenType fegen::FegenType::getMetaTemplateType() {
 
 fegen::FegenType fegen::FegenType::getInt32Type() {
   return fegen::FegenType(
-      fegen::FegenType::TypeKind::CPP, {},
+      fegen::FegenType::TypeKind::CPP, "int",
+      {fegen::FegenValue::get(fegen::FegenType::getPlaceHolder(), "size",
+                              fegen::FegenRightValue::get())},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_INTEGER), 3);
 }
 
 fegen::FegenType fegen::FegenType::getFloatType() {
   return fegen::FegenType(
-      fegen::FegenType::TypeKind::CPP, {},
+      fegen::FegenType::TypeKind::CPP, "float",
+      {fegen::FegenValue::get(fegen::FegenType::getInt32Type(), "size",
+                              fegen::FegenRightValue::get(32))},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_FLOATPOINT), 3);
 }
 
 fegen::FegenType fegen::FegenType::getDoubleType() {
   return fegen::FegenType(
-      fegen::FegenType::TypeKind::CPP, {},
+      fegen::FegenType::TypeKind::CPP, "double",
+      {fegen::FegenValue::get(fegen::FegenType::getInt32Type(), "size",
+                              fegen::FegenRightValue::get(64))},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_FLOATPOINT), 3);
 }
 
 fegen::FegenType fegen::FegenType::getBoolType() {
   return fegen::FegenType(
-      fegen::FegenType::TypeKind::CPP, {},
+      fegen::FegenType::TypeKind::CPP, "bool",
+      {fegen::FegenValue::get(fegen::FegenType::getInt32Type(), "size",
+                              fegen::FegenRightValue::get(1))},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_INTEGER), 3);
 }
 
@@ -429,19 +524,9 @@ inline std::string OperatorToString(fegen::FegenOperator &op) {
   }
 }
 
-std::string fegen::FegenRightValue::ExpressionNode::toStringForTypedef(
-    std::string (*mapFunc)(std::string)) {
-  // make sure that op is operator
-  assert(this->op.index() == 2);
-  auto opt = std::get<2>(op);
-  assert(isBinaryOperator(opt));
-  std::string res;
-  std::string lhs = this->params[0]->toStringForTypedef(mapFunc);
-  std::string rhs = this->params[1]->toStringForTypedef(mapFunc);
-  res.append(lhs);
-  res.append(OperatorToString(opt));
-  res.append(rhs);
-  return res;
+std::string fegen::FegenRightValue::ExpressionNode::toStringForTypedef() {
+  std::cerr << "error type." << std::endl;
+  exit(0);
 }
 
 std::any fegen::FegenRightValue::ExpressionNode::getContent() { return this; }
@@ -485,24 +570,19 @@ std::string fegen::FegenRightValue::ExpressionTerminal::toString() {
   return "todo: fegen::FegenRightValue::ExpressionTerminal::toString";
 }
 
-std::string fegen::FegenRightValue::ExpressionTerminal::toStringForTypedef(
-    std::string (*mapFunc)(std::string)) {
+std::string fegen::FegenRightValue::ExpressionTerminal::toStringForTypedef() {
+  assert(this->isConstexpr());
   switch (this->kind) {
-  case fegen::FegenRightValue::LiteralKind::INT:
-    return std::to_string(std::get<int>(this->content));
-  case fegen::FegenRightValue::LiteralKind::FLOAT:
-    return std::to_string(std::get<float>(this->content));
   case fegen::FegenRightValue::LiteralKind::TYPE: {
-    auto typeName =
-        std::get<FegenType>(this->content).getTypeDefination()->getName();
-    return mapFunc(typeName);
+    auto ty = std::get<FegenType>(this->content);
+    return ty.toStringForTypedef();
   }
   case fegen::FegenRightValue::LiteralKind::VECTOR: {
     std::string res;
     res.append("[");
     auto exprs = std::get<std::vector<Expression *>>(this->content);
     for (size_t i = 0; i <= exprs.size() - 1; i++) {
-      res.append(exprs[i]->toStringForTypedef(mapFunc));
+      res.append(exprs[i]->toStringForTypedef());
       if (i != exprs.size() - 1) {
         res.append(", ");
       }
@@ -637,13 +717,11 @@ fegen::FegenRightValue::LiteralKind fegen::FegenRightValue::getKind() {
 }
 
 std::string fegen::FegenRightValue::toString() {
-  // TODO: toString
-  return "TODO: fegen::FegenRightValue::toString.";
+  return this->content->toString();
 }
 
-std::string fegen::FegenRightValue::toStringForTypedef(
-    std::string (*mapFunc)(std::string)) {
-  return this->content->toStringForTypedef(mapFunc);
+std::string fegen::FegenRightValue::toStringForTypedef() {
+  return this->content->toStringForTypedef();
 }
 
 std::any fegen::FegenRightValue::getContent() {
@@ -725,9 +803,8 @@ std::string fegen::FegenValue::getContentString() {
   return this->content.toString();
 }
 
-std::string fegen::FegenValue::getContentStringForTypedef(
-    std::string (*mapFunc)(std::string)) {
-  return this->content.toStringForTypedef(mapFunc);
+std::string fegen::FegenValue::getContentStringForTypedef() {
+  return this->content.toStringForTypedef();
 }
 
 fegen::FegenRightValue::Expression *fegen::FegenValue::getExpr() {
@@ -848,8 +925,7 @@ public:
   }
 };
 
-// TODO: emit to file
-std::string fegen::FegenManager::emitG4() {
+void fegen::FegenManager::emitG4() {
   Emitter emitter(std::cout);
   emitter << "grammar " << this->moduleName << ";";
   emitter.newLine();
@@ -872,48 +948,27 @@ std::string fegen::FegenManager::emitG4() {
     emitter.shiftTab();
     emitter.newLine();
   }
-  return std::string();
-}
-
-// turn fegen type to td type
-std::string getTdType(fegen::FegenType &ty) {
-  if (ty.getTypeDefination()->isCustome()) {
-    return ty.getTypeDefination()->getName();
-  }
-  std::string res;
-  res.append(fegen::FegenManager::getManager()
-                 .nameMapForTypeDef[ty.getTypeDefination()->getName()]);
-  // parameters
-  if (ty.getParameters().size() != 0) {
-    res.append("<");
-    for (size_t i = 0; i <= ty.getParameters().size() - 1; i++) {
-      auto param = ty.getParameters(i);
-      res.append(
-          param->getContentStringForTypedef([](std::string key) -> std::string {
-            return fegen::FegenManager::getManager().nameMapForTypeDef[key];
-          }));
-      if (i != ty.getParameters().size() - 1) {
-        res.append(", ");
-      }
-    }
-    res.append(">");
-  }
-  return res;
 }
 
 // TODO: emit to file
-std::string fegen::FegenManager::emitTypeDefination() {
-  Emitter emitter(std::cout);
+void fegen::FegenManager::emitTypeDefination() {
+  std::ofstream fileStream;
+  fileStream.open(this->moduleName + "Types.td");
+  Emitter emitter(fileStream);
   // file head
   std::string mn(this->moduleName);
   std::transform(mn.begin(), mn.end(), mn.begin(), ::toupper);
   emitter << "#ifndef " << mn << "_TYPE_TD";
   emitter.newLine();
-  emitter << "#define " << mn << "_TYPE_TD" << std::endl;
+  emitter << "#define " << mn << "_TYPE_TD";
+  emitter << "\n";
   emitter.newLine();
 
-  emitter << "include \"" << this->moduleName << "Dialect.td\"" << std::endl;
-  // TODO: include files
+  // include files
+  emitter << "include \"mlir/IR/AttrTypeBase.td\"";
+  emitter.newLine();
+  emitter << "include \"" << this->moduleName << "Dialect.td\"";
+  emitter << "\n";
   emitter.newLine();
   // Type class defination
   std::string typeClassName = this->moduleName + "Type";
@@ -940,10 +995,10 @@ std::string fegen::FegenManager::emitTypeDefination() {
     emitter.newLine();
     emitter.tab();
     // summary
-    emitter << "let summary = \"TODO\";";
+    emitter << "let summary = \"This is generated by buddy fegen.\";";
     emitter.newLine();
     // description
-    emitter << "let description = [{ TODO }];";
+    emitter << "let description = [{ This is generated by buddy fegen. }];";
     emitter.newLine();
     // parameters
     emitter << "let parameters = ( ins";
@@ -953,7 +1008,7 @@ std::string fegen::FegenManager::emitTypeDefination() {
       auto param = tyDef->getParameters()[i];
       auto &paramTy = param->getType();
       auto paramName = param->getName();
-      auto paramTyStr = getTdType(paramTy);
+      auto paramTyStr = paramTy.toStringForTypedef();
       emitter << paramTyStr << ":" << "$" << paramName;
       if (i != tyDef->getParameters().size() - 1) {
         emitter << ", ";
@@ -961,12 +1016,13 @@ std::string fegen::FegenManager::emitTypeDefination() {
       emitter.newLine();
     }
     emitter.shiftTab();
-    emitter << ");" << std::endl;
+    emitter << ");";
     emitter.newLine();
     // assemblyFormat
     // TODO: handle list, Type ...
     emitter << "let assemblyFormat = [{";
     emitter.newLine();
+    emitter.tab();
     emitter << "`<` ";
     for (size_t i = 0; i <= tyDef->getParameters().size() - 1; i++) {
       auto param = tyDef->getParameters()[i];
@@ -977,35 +1033,168 @@ std::string fegen::FegenManager::emitTypeDefination() {
       }
     }
     emitter << "`>`";
+    emitter.shiftTab();
     emitter.newLine();
     emitter << "}];";
     emitter.newLine();
+    emitter.shiftTab();
+    emitter << "}";
+    emitter.newLine();
   }
   emitter.shiftTab();
+  emitter << "\n";
   emitter << "#endif // " << mn << "_TYPE_TD";
+  fileStream.close();
+}
 
-  return std::string();
+void fegen::FegenManager::emitOpDefination() {
+  std::ofstream fileStream;
+  fileStream.open(this->moduleName + "Ops.td");
+  Emitter emitter(fileStream);
+
+  // file head
+  std::string mn(this->moduleName);
+  std::transform(mn.begin(), mn.end(), mn.begin(), ::toupper);
+  emitter << "#ifndef " << mn << "_OPS_TD";
+  emitter.newLine();
+  emitter << "#define " << mn << "_OPS_TD";
+  emitter << "\n";
+  emitter.newLine();
+
+  // TODO: custome include files
+  // include
+  emitter << "include \"mlir/IR/BuiltinAttributes.td\"";
+  emitter.newLine();
+  emitter << "include \"mlir/IR/BuiltinTypes.td\"";
+  emitter.newLine();
+  emitter << "include \"mlir/IR/CommonAttrConstraints.td\"";
+  emitter.newLine();
+  emitter << "include \"" << this->moduleName << "Dialect.td\"";
+  emitter.newLine();
+  emitter << "include \"" << this->moduleName << "Types.td\"";
+  emitter.newLine();
+  emitter << "\n";
+
+  // op class defination
+  std::string classname = this->moduleName + "Op";
+  emitter << "class " << classname
+          << "<string mnemonic, list<Trait> traits = []>:";
+  emitter.newLine();
+  emitter.tab();
+  emitter << "Op<Toy_Dialect, mnemonic, traits>;";
+  emitter << "\n";
+  emitter.shiftTab();
+  emitter.newLine();
+
+  // op definations
+  for (auto pair : this->operationMap) {
+    auto opName = pair.first;
+    auto opDef = pair.second;
+    // head of def
+    emitter << "def " << opName << " : " << classname << "<\"" << opName
+            << "\", [Pure]> {";
+    emitter.newLine();
+    emitter.tab();
+    // summary and description
+    emitter << "let summary = \"This is generated by buddy fegen.\";";
+    emitter.newLine();
+    emitter << "let description = [{This is generated by buddy fegen.}];";
+    emitter.newLine();
+    // arguments
+    emitter << "let arguments = ( ins ";
+    emitter.newLine();
+    emitter.tab();
+    for (auto param : opDef->getArguments()) {
+      auto paramTyStr = param->getType().toStringForOpdef();
+      auto paramName = param->getName();
+      emitter << paramTyStr << " : $" << paramName;
+      emitter.newLine();
+    }
+    emitter.shiftTab();
+    emitter << ");";
+    emitter.newLine();
+    // results
+    emitter << "let results = (outs ";
+    emitter.newLine();
+    emitter.tab();
+    for (auto param : opDef->getArguments()) {
+      auto paramTyStr = param->getType().toStringForOpdef();
+      auto paramName = param->getName();
+      emitter << paramTyStr << " : $" << paramName;
+      emitter.newLine();
+    }
+    emitter.shiftTab();
+    emitter << ");";
+    emitter.newLine();
+    // end of def
+    emitter.shiftTab();
+    emitter << "}";
+    emitter.newLine();
+  }
+
+  // end of file
+  emitter << "\n";
+  emitter << "#endif // " << mn << "_DIALECT_TD";
+  fileStream.close();
+}
+
+void fegen::FegenManager::emitDialectDefination() {
+  std::ofstream fileStream;
+  fileStream.open(this->moduleName + "Dialect.td");
+  Emitter emitter(fileStream);
+
+  // file head
+  std::string mn(this->moduleName);
+  std::transform(mn.begin(), mn.end(), mn.begin(), ::toupper);
+  emitter << "#ifndef " << mn << "_DIALECT_TD";
+  emitter.newLine();
+  emitter << "#define " << mn << "_DIALECT_TD";
+  emitter << "\n";
+  emitter.newLine();
+
+  // include
+  emitter << "include \"mlir/IR/OpBase.td\"";
+  emitter << "\n";
+  emitter.newLine();
+
+  // dialect defination
+  emitter << "def " << this->moduleName << "_Dialect : Dialect {";
+  emitter.newLine();
+  emitter.tab();
+  emitter << "let name = \"" << this->moduleName << "\";";
+  emitter.newLine();
+  emitter << "let summary = \"This is generated by buddy fegen.\";";
+  emitter.newLine();
+  emitter << "let description = [{This is generated by buddy fegen.}];";
+  emitter.newLine();
+  emitter << "let cppNamespace = \"::mlir::" << this->moduleName << "\";";
+  emitter.newLine();
+  emitter << "let extraClassDeclaration = [{";
+  emitter.newLine();
+  emitter.tab();
+  emitter << "/// Register all types.";
+  emitter.newLine();
+  emitter << "void registerTypes();";
+  emitter.newLine();
+  emitter.shiftTab();
+  emitter << "}];";
+  emitter.newLine();
+  emitter.shiftTab();
+  emitter << "}";
+  emitter.newLine();
+
+  // end of file
+  emitter << "#endif // " << mn << "_DIALECT_TD";
+  fileStream.close();
+}
+
+void fegen::FegenManager::emitTdFiles() {
+  this->emitDialectDefination();
+  this->emitTypeDefination();
+  this->emitOpDefination();
 }
 
 void fegen::FegenManager::initbuiltinTypes() {
-  // TODO: add type name map
-  this->cppTypeNameMap.insert({{FEGEN_TYPE, "::mlir::Type"}});
-
-  this->builderTypeNameMap.insert({{FEGEN_TYPE, "::mlir::Type"}});
-
-  this->tdTypeNameMap.insert({{FEGEN_TYPE, "\"Type\""},
-                              {FEGEN_TYPETEMPLATE, "Type"},
-                              {FEGEN_INTEGER, "Builtin_Integer"},
-                              {FEGEN_FLOATPOINT, "TODO"},
-                              {FEGEN_VECTOR, "TODO"},
-                              {FEGEN_TENSOR, "TODO"},
-                              {FEGEN_LIST, "Variadic"},
-                              {FEGEN_OPTINAL, "TODO"},
-                              {FEGEN_ANY, "TODO"}});
-
-  this->nameMapForTypeDef.insert(
-      {{FEGEN_LIST, "ArrayRefParameter"}, {FEGEN_TYPE, "\"Type\""}});
-
   // placeholder type
   auto placeholderTypeDefination = fegen::FegenTypeDefination::get(
       "fegen_builtin", FEGEN_PLACEHOLDER, {}, nullptr, false);
@@ -1026,8 +1215,11 @@ void fegen::FegenManager::initbuiltinTypes() {
   // Integer<Integer<Integer<...>>>
   auto intTypeDefination = fegen::FegenTypeDefination::get(
       "fegen_builtin", FEGEN_INTEGER, {}, nullptr, false);
-  auto intType = fegen::FegenType(fegen::FegenType::TypeKind::CPP, {},
-                                  intTypeDefination, false);
+  auto intType = fegen::FegenType(
+      fegen::FegenType::TypeKind::CPP,
+      {fegen::FegenValue::get(fegen::FegenType::getPlaceHolder(), "size",
+                              fegen::FegenRightValue::get())},
+      intTypeDefination, false);
   // parameters of Integer is int32(Integer<32>)
   intTypeDefination->parameters.push_back(
       fegen::FegenValue::get(intType, "size", fegen::FegenRightValue::get()));
@@ -1116,6 +1308,19 @@ bool fegen::FegenManager::addTypeDefination(fegen::FegenTypeDefination *tyDef) {
     return false;
   }
   this->typeDefMap[tyDef->name] = tyDef;
+  return true;
+}
+
+fegen::FegenOperation *
+fegen::FegenManager::getOperationDefination(std::string name) {
+  return this->operationMap[name];
+}
+
+bool fegen::FegenManager::addOperationDefination(fegen::FegenOperation *opDef) {
+  if (this->operationMap.count(opDef->getOpName()) != 0) {
+    return false;
+  }
+  this->operationMap[opDef->getOpName()] = opDef;
   return true;
 }
 
