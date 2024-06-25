@@ -21,7 +21,6 @@
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-scf-to-cf \
-// RUN:     -llvm-request-c-wrappers \
 // RUN:     -convert-openmp-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-math-to-llvm \
@@ -33,7 +32,11 @@
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
+func.func private @rtclock() -> f64
+
 func.func @kenerl(%t0 : tensor<32x40x128xf32>, %t1 : tensor<32x128x40xf32>, %t2 : tensor<1x1x40x40xf32>, %t3 : tensor<1x32x40x128xf32>) {
+  %t_start = call @rtclock() : () -> f64
+  
   %0 = tosa.matmul %t0, %t1 : (tensor<32x40x128xf32>, tensor<32x128x40xf32>) -> tensor<32x40x40xf32>
   %1 = tosa.reshape %0 {new_shape = array<i64: 1, 32, 40, 40>} : (tensor<32x40x40xf32>) -> tensor<1x32x40x40xf32>
   %2 = "tosa.const"() <{value = dense<11.3137083> : tensor<1x32x40x40xf32>}> : () -> tensor<1x32x40x40xf32>
@@ -54,6 +57,9 @@ func.func @kenerl(%t0 : tensor<32x40x128xf32>, %t1 : tensor<32x128x40xf32>, %t2 
   %17 = tosa.reshape %16 {new_shape = array<i64: 32, 40, 128>} : (tensor<1x32x40x128xf32>) -> tensor<32x40x128xf32>
   %18 = tosa.matmul %14, %17 : (tensor<32x40x40xf32>, tensor<32x40x128xf32>) -> tensor<32x40x128xf32>
 
+  %t_end = call @rtclock() : () -> f64
+  %time = arith.subf %t_end, %t_start : f64
+
   %tensor_unranked = tensor.cast %18 : tensor<32x40x128xf32> to tensor<*xf32>
 
   // All the elements of the MemRef are the same,
@@ -63,7 +69,11 @@ func.func @kenerl(%t0 : tensor<32x40x128xf32>, %t1 : tensor<32x128x40xf32>, %t2 
   // CHECK-SAME: [
   // CHECK-SAME: [8{{(, 8)*}}],
 
+  // Print results.
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
+  // Print timings.
+  vector.print %time : f64
+
   return
 }
 

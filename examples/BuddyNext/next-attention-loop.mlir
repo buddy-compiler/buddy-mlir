@@ -14,7 +14,6 @@
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-scf-to-cf \
-// RUN:     -llvm-request-c-wrappers \
 // RUN:     -convert-openmp-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-math-to-llvm \
@@ -27,12 +26,14 @@
 // RUN: | FileCheck %s
 
 module {
+  func.func private @rtclock() -> f64
   memref.global "private" constant @__constant_1x32x40x128xf32 : memref<1x32x40x128xf32> = dense<8.000000e+00> {alignment = 64 : i64}
   memref.global "private" constant @__constant_1x1x40x40xf32 : memref<1x1x40x40xf32> = dense<4.000000e+00> {alignment = 64 : i64}
   memref.global "private" constant @__constant_32x128x40xf32 : memref<32x128x40xf32> = dense<2.000000e+00> {alignment = 64 : i64}
   memref.global "private" constant @__constant_32x40x128xf32 : memref<32x40x128xf32> = dense<3.000000e+00> {alignment = 64 : i64}
   memref.global "private" constant @__constant_1x32x40x40xf32 : memref<1x32x40x40xf32> = dense<11.3137083> {alignment = 64 : i64}
   func.func @kenerl(%arg0: tensor<32x40x128xf32>, %arg1: tensor<32x128x40xf32>, %arg2: tensor<1x1x40x40xf32>, %arg3: tensor<1x32x40x128xf32>) {
+    %t_start = call @rtclock() : () -> f64
     %cst = arith.constant 0.0883883461 : f32
     %c0 = arith.constant 0 : index
     %cst_0 = arith.constant 0.000000e+00 : f32
@@ -276,6 +277,10 @@ module {
         }
       }
     }
+
+    %t_end = call @rtclock() : () -> f64
+    %time = arith.subf %t_end, %t_start : f64
+
     %cast = memref.cast %alloc_16 : memref<32x40x128xf32> to memref<*xf32>
     %4 = bufferization.to_tensor %cast : memref<*xf32>
 
@@ -286,7 +291,11 @@ module {
     // CHECK-SAME: [
     // CHECK-SAME: [8{{(, 8)*}}],
 
+    // Print results.
     call @printMemrefF32(%4) : (tensor<*xf32>) -> ()
+    // Print timings.
+    vector.print %time : f64
+
     return
   }
   func.func @main() {

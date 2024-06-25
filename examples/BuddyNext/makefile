@@ -40,7 +40,6 @@ next-attention-lower:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
-		-llvm-request-c-wrappers \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -73,7 +72,6 @@ next-attention-translate:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
-		-llvm-request-c-wrappers \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -106,7 +104,6 @@ next-attention-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
-		-llvm-request-c-wrappers \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -133,7 +130,6 @@ next-attention-loop-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
-		-llvm-request-c-wrappers \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -160,7 +156,6 @@ next-attention-fusion-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
-		-llvm-request-c-wrappers \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
