@@ -42,6 +42,7 @@ config.excludes = [
     'BuddyBert',
     'BuddyMobileNetV3',
     'BuddyResNet18',
+    'BuddyVGG16',
     'ConvOpt',
     'DAPDialect',
     'DIPDialect',

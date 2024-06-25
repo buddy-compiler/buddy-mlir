@@ -448,6 +448,12 @@ class MaxPool2dOp(Op):
         self._op_type = OpType.ReduceType
         self._layout = "NCHW"
 
+class AdaptiveAvgPool2dOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+        self._layout = "NCHW"
+
 class CallOp(Op):
     def __init__(self) -> None:
         super().__init__()
