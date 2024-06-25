@@ -257,6 +257,7 @@ public:
     virtual bool isTerminal();
     virtual std::string toString() = 0;
     virtual std::string toStringForTypedef() = 0;
+    virtual std::string toStringForOpdef() = 0;
     LiteralKind getKind();
     virtual std::any getContent() = 0;
     virtual bool isConstexpr();
@@ -272,6 +273,7 @@ public:
     ~ExpressionNode();
     virtual std::string toString() override;
     virtual std::string toStringForTypedef() override;
+    virtual std::string toStringForOpdef() override;
     virtual std::any getContent() override;
 
     /// @brief operate lhs and rhs using binary operator.
@@ -301,6 +303,7 @@ public:
     ~ExpressionTerminal();
     virtual std::string toString() override;
     virtual std::string toStringForTypedef() override;
+    virtual std::string toStringForOpdef() override;
     virtual std::any getContent() override;
     static ExpressionTerminal *get(std::monostate);
     static ExpressionTerminal *get(int);
@@ -318,6 +321,7 @@ public:
   FegenRightValue::LiteralKind getKind();
   std::string toString();
   std::string toStringForTypedef();
+  std::string toStringForOpdef();
   std::any getContent();
   Expression *getExpr();
 
@@ -362,6 +366,7 @@ public:
   FegenRightValue::LiteralKind getContentKind();
   std::string getContentString();
   std::string getContentStringForTypedef();
+  std::string getContentStringForOpdef();
   FegenRightValue::Expression *getExpr();
   ~FegenValue() = default;
 };
