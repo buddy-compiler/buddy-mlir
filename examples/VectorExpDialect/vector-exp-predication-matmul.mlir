@@ -85,8 +85,8 @@ func.func @main() -> i32 {
 
   call @matmul(%mem_i32, %mem_i32, %result_mem) : (memref<10x10xi32>, memref<10x10xi32>, memref<10x10xi32>) -> ()
 
-  // %print_result_mem = memref.cast %result_mem : memref<10x10xi32> to memref<*xi32>
-  // call @printMemrefI32(%print_result_mem) : (memref<*xi32>) -> ()
+  %print_result_mem = memref.cast %result_mem : memref<10x10xi32> to memref<*xi32>
+  call @printMemrefI32(%print_result_mem) : (memref<*xi32>) -> ()
 
   %ret = arith.constant 0 : i32
   return %ret : i32
