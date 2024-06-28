@@ -75,11 +75,17 @@ SET_TARGET_PROPERTIES(
   PROPERTIES
   LINKER_LANGUAGE C)
 
-add_executable(buddy-whisper-run whisper-main.cpp)
+set(BUDDY_WHISPER_FILES
+  whisper-main.h
+  whisper-main.cpp
+)
+
+add_executable(buddy-whisper-run ${BUDDY_WHISPER_FILES})
 target_link_directories(buddy-whisper-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})
 
 set(BUDDY_WHISPER_LIBS
   WHISPER
+  BuddyLibDAP
   mlir_c_runner_utils
   omp
 )

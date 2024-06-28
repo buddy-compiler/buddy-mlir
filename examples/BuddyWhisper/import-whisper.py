@@ -34,17 +34,14 @@ from buddy.compiler.graph.transform import simply_fuse
 # Retrieve the Whisper model path from environment variables.
 model_path = os.environ.get("WHISPER_MODEL_PATH")
 if model_path is None:
-    raise EnvironmentError(
-        "The environment variable 'WHISPER_MODEL_PATH' is not set or is invalid."
-    )
+    model_path = "openai/whisper-base"
 
 # Initialize the tokenizer and model from the specified model path.
 processor = WhisperProcessor.from_pretrained(model_path)
 model = WhisperForConditionalGeneration.from_pretrained(model_path)
 model.config.use_cache = False
 
-dataset_path = os.environ.get("AUDIO_DATASET_PATH")
-ds = load_dataset(dataset_path, "clean", split="validation")
+ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
 sample = ds[1]["audio"]
 input_features = processor(
     sample["array"], sampling_rate=sample["sampling_rate"], return_tensors="pt"
