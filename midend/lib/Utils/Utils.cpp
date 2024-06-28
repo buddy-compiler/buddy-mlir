@@ -91,6 +91,13 @@ Value indexToF32(OpBuilder &builder, Location loc, Value val) {
   return builder.create<arith::SIToFPOp>(loc, builder.getF32Type(), interm1);
 }
 
+// Cast a value from index type to f64 type.
+Value indexToF64(OpBuilder &builder, Location loc, Value val) {
+  Value interm1 =
+      builder.create<arith::IndexCastOp>(loc, builder.getI32Type(), val);
+  return builder.create<arith::SIToFPOp>(loc, builder.getF64Type(), interm1);
+}
+
 // Cast a value from f32 type to index type.
 Value F32ToIndex(OpBuilder &builder, Location loc, Value val) {
   Value interm1 =
@@ -161,6 +168,18 @@ Value iotaVec0F32(OpBuilder &builder, Location loc, int64_t length) {
       loc,
       DenseFPElementsAttr::get(VectorType::get(length, FloatType::getF32(ctx)),
                                ArrayRef<float>(vec)));
+  return res;
+}
+
+// Generate vector[0, 1, ..., length - 1] with f64 type
+Value iotaVec0F64(OpBuilder &builder, Location loc, int64_t length) {
+  MLIRContext *ctx = builder.getContext();
+  std::vector<double> vec(length);
+  std::iota(vec.begin(), vec.end(), .0);
+  Value res = builder.create<arith::ConstantOp>(
+      loc,
+      DenseFPElementsAttr::get(VectorType::get(length, FloatType::getF64(ctx)),
+                               ArrayRef<double>(vec)));
   return res;
 }
 

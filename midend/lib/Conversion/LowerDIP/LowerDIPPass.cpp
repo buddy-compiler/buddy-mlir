@@ -19,11 +19,13 @@
 //===----------------------------------------------------------------------===//
 
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Bufferization/Transforms/Bufferize.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
 #include <mlir/Dialect/Math/IR/Math.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
+#include <mlir/Dialect/SCF/IR/SCF.h>
 #include <mlir/Dialect/Vector/IR/VectorOps.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/Location.h>
@@ -35,6 +37,7 @@
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
 #include "Utils/DIPUtils.h"
+#include "Utils/PerspectiveTransformUtils.h"
 #include "Utils/Utils.h"
 
 using namespace mlir;
@@ -229,6 +232,86 @@ public:
                                    affineMatrix, stride);
 
     // Remove the origin rotation operation.
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+  int64_t stride;
+};
+
+class DIPPerspectiveTransformOpLowering
+    : public OpRewritePattern<dip::PerspectiveTransformOp> {
+public:
+  using OpRewritePattern<dip::PerspectiveTransformOp>::OpRewritePattern;
+
+  explicit DIPPerspectiveTransformOpLowering(MLIRContext *context,
+                                             int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
+
+  LogicalResult matchAndRewrite(dip::PerspectiveTransformOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto ctx = op->getContext();
+
+    Value input = op->getOperand(0);
+    Value output = op->getOperand(1);
+    Value _homographyMatrix = op->getOperand(2);
+    SmallVector<SmallVector<Value, 3>, 3> homographyMatrix;
+
+    for (int i = 0; i < 3; i++) {
+      Value iIdx = rewriter.create<arith::ConstantIndexOp>(loc, i);
+      SmallVector<Value, 3> tmp;
+      for (int j = 0; j < 3; j++) {
+        Value jIdx = rewriter.create<arith::ConstantIndexOp>(loc, j);
+        tmp.push_back(rewriter.create<memref::LoadOp>(loc, _homographyMatrix,
+                                                      ValueRange{iIdx, jIdx}));
+      }
+      homographyMatrix.push_back(tmp);
+    }
+    dip::perspectiveTransformController(rewriter, loc, ctx, input, output,
+                                        homographyMatrix);
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+  int64_t stride;
+};
+
+class DIPPerspectiveTransform3dOpLowering
+    : public OpRewritePattern<dip::PerspectiveTransform3dOp> {
+public:
+  using OpRewritePattern<dip::PerspectiveTransform3dOp>::OpRewritePattern;
+
+  explicit DIPPerspectiveTransform3dOpLowering(MLIRContext *context,
+                                               int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
+
+  LogicalResult matchAndRewrite(dip::PerspectiveTransform3dOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto ctx = op->getContext();
+
+    Value input = op->getOperand(0);
+    Value output = op->getOperand(1);
+    Value rowMVP = op->getOperand(2);
+    SmallVector<SmallVector<Value, 4>, 4> mvp;
+
+    for (int i = 0; i < 4; i++) {
+      Value iIdx = rewriter.create<arith::ConstantIndexOp>(loc, i);
+      SmallVector<Value, 4> tmp;
+      for (int j = 0; j < 4; j++) {
+        Value jIdx = rewriter.create<arith::ConstantIndexOp>(loc, j);
+        tmp.push_back(rewriter.create<memref::LoadOp>(loc, rowMVP,
+                                                      ValueRange{iIdx, jIdx}));
+      }
+      mvp.push_back(tmp);
+    }
+    dip::perspectiveTransform3dController(rewriter, loc, ctx, input, output,
+                                          mvp);
     rewriter.eraseOp(op);
     return success();
   }
@@ -1307,6 +1390,11 @@ void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
   patterns.add<DIPCorr2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPCorrFFT2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPRotate2DOpLowering>(patterns.getContext(), stride);
+  // patterns.add<DIPRotate3DOpLowering>(patterns.getContext(), stride);
+  patterns.add<DIPPerspectiveTransformOpLowering>(patterns.getContext(),
+                                                  stride);
+  patterns.add<DIPPerspectiveTransform3dOpLowering>(patterns.getContext(),
+                                                    stride);
   patterns.add<DIPResize2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPErosion2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPDilation2DOpLowering>(patterns.getContext(), stride);
