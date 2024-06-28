@@ -205,6 +205,13 @@ def embedding_op(
     input2 = symbol_table.get((str(node.args[1]), 0))
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
+    if dtype == "TensorDType.Float32":
+        dtype = ir.F32Type.get()
+    elif dtype == "TensorDType.Float16":
+        dtype = ir.F16Type.get()
+    else :
+        print("This data type is currently not supported")
+
     dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, dtype)
     output = tensor.EmptyOp(output_shape, dtype)
@@ -1061,19 +1068,30 @@ def mul_op(
     assert len(node.args) == 2
     input1 = symbol_table.get((str(node.args[0]), 0))
     dtype = node.tensor_meta["dtype"]
-    mlir_dtype = mlir_element_type_get(dtype)
     shape = list(node.tensor_meta["shape"])
     if isinstance(node.args[1], str):
         input2 = symbol_table.get((str(node.args[1]), 0))
     else:
         data = [node.args[1]]
         input2_shape = numpy.array(data).shape
-        tensor_type = ir.RankedTensorType.get(input2_shape, mlir_dtype)
-        element = mlir_element_attr_get(dtype, node.args[1])
+        if dtype == "TensorDType.Float32":
+            tensor_type = ir.RankedTensorType.get(input2_shape, ir.F32Type.get())
+            element = ir.FloatAttr.get(ir.F32Type.get(), node.args[1])
+        elif dtype == "TensorDType.Float16":
+            tensor_type = ir.RankedTensorType.get(input2_shape, ir.F16Type.get())
+            element = ir.FloatAttr.get(ir.F16Type.get(), node.args[1])
+        else :
+            print("This data type is currently not supported")
         attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
         input2 = arith.ConstantOp(tensor_type, attr).result
     if input1 is None or input2 is None:
         return
+    if dtype == "TensorDType.Float32":
+        mlir_dtype = ir.F32Type.get()
+    elif dtype == "TensorDType.Float16":
+        mlir_dtype = ir.F16Type.get()
+    else :
+        print("This data type is currently not supported")
     mul_result_tensor_type = ir.RankedTensorType.get(shape, mlir_dtype)
     op = tosa.MulOp(
         mul_result_tensor_type,
