@@ -98,6 +98,38 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d"> {
   }];
 }
 
+def DIP_Corr2DOpNCHWFCHW : DIP_Op<"corr_2d_nchw_fchw"> {
+  let summary = [{Same as corr_2d but with support for 4 dimensional input, filter and output. 
+    Input format is expected to be NCHW while the filter is expected to be in FCHW format where, 
+      1. N is batch size.
+      2. C is no. of input channels.
+      3. H is height of the respective container.
+      4. W is width of the respective container.
+      5. F is no. of output channels.
+    For example:
+
+    ```mlir
+      dip.corr_2d_nchw_fchw CONSTANT_PADDING %inputImage, %kernel, %output, %centerX, %centerY, %constantValue
+          : memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, index, index, index
+    ```
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "kernelMemref",
+                           [MemRead]>:$memrefK,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefCO,
+                       Index : $centerX,
+                       Index : $centerY,
+                       AnyTypeOf<[AnyI8, AnyI32, AnyI64, AnyFloat]> : $constantValue,
+                       DIP_BoundaryOptionAttr:$boundary_option);
+
+  let assemblyFormat = [{
+    $boundary_option $memrefI `,` $memrefK `,` $memrefCO `,` $centerX `,` $centerY `,` $constantValue attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefCO) `,` type($centerX) `,` type($centerY) `,` type($constantValue)
+  }];
+}
+
 def DIP_CorrFFT2DOp : DIP_Op<"corrfft_2d">
 {
   let summary = [{ 
