@@ -24,6 +24,35 @@
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImageContainer.h>
 
+bool compare_flt(float a, float b) {
+  return (std::abs(a - b)< FLT_EPSILON);
+}
+
+template <typename T, size_t N>
+bool testImgcvnorm(cv::Mat testImgcv, Img<T, N> testImg, bool norm = false) {
+  int cvn = testImgcv.dims;
+  if (cvn != N)
+    return false;
+  for (size_t i = 0; i < N; ++i) {
+    if (testImgcv.size[i] != testImg.getSizes()[i])
+      return false;
+  }
+  T *data = testImg.getData();
+  if (N == 2) {
+    size_t k = 0;
+    for (int i = 0; i < testImg.getSizes()[0]; ++i) {
+      for (int j = 0; j < testImg.getSizes()[1]; ++j) {
+        if (norm ? !compare_flt(data[k], (T)testImgcv.at<T>(i, j))
+                  : !compare_flt(data[k], (T)testImgcv.at<uchar>(i, j)))
+          return false;
+
+       ++k;
+      }
+    }
+  }
+  return true;
+}
+
 int main() {
   // The original test image is a gray scale image, and the pixel values are as
   // follows:
@@ -132,7 +161,25 @@ int main() {
   const Img<float, 2> testBracketOperator2(grayimage_bmp);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator2[15]);
-
+  //===--------------------------------------------------------------------===//
+  // Test Opencv Image without norm
+  //===--------------------------------------------------------------------===//
+  cv::Mat testImgcvbmp =
+      cv::imread("../../../../tests/Interface/core/TestGrayImage.bmp",
+                 cv::IMREAD_GRAYSCALE);
+  Img<float, 2> testImgbmp(testImgcvbmp);
+  bool testbmp = testImgcvnorm<float, 2>(testImgcvbmp, testImgbmp);
+  // CHECK: 1
+  fprintf(stderr, "%d \n", testbmp);
+  //===--------------------------------------------------------------------===//
+  // Test Opencv Image with norm
+  //===--------------------------------------------------------------------===//
+  Img<float, 2> testImgbmpnorm(testImgcvbmp, nullptr, true);
+  cv::Mat checkimgbmp(testImgcvbmp.rows, testImgcvbmp.cols, CV_32FC1);
+  testImgcvbmp.convertTo(checkimgbmp, CV_32FC1, 1.f / 255);
+  bool testbmp1 = testImgcvnorm<float, 2>(checkimgbmp, testImgbmpnorm, true);
+  // CHECK: 1
+  fprintf(stderr, "%d \n", testbmp1);
 
   //===--------------------------------------------------------------------===//
   // Test jpeg format image.
@@ -233,6 +280,26 @@ int main() {
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator4[15]);
 
+  //===--------------------------------------------------------------------===//
+  // Test Opencv Image without norm
+  //===--------------------------------------------------------------------===//
+  cv::Mat testImgcvjpg =
+      cv::imread("../../../../tests/Interface/core/TestGrayImage.jpg",
+                 cv::IMREAD_GRAYSCALE);
+  Img<float, 2> testImgjpg(testImgcvjpg);
+  bool testjpg = testImgcvnorm<float, 2>(testImgcvjpg, testImgjpg);
+  // CHECK: 1
+  fprintf(stderr, "%d \n", testjpg);
+
+  //===--------------------------------------------------------------------===//
+  // Test Opencv Image with norm
+  //===--------------------------------------------------------------------===//
+  Img<float, 2> testImgjpgnorm(testImgcvjpg, nullptr, true);
+  cv::Mat checkimgjpg(testImgcvjpg.rows, testImgcvjpg.cols, CV_32FC1);
+  testImgcvjpg.convertTo(checkimgjpg, CV_32FC1, 1.f / 255);
+  bool testjpg1 = testImgcvnorm<float, 2>(checkimgjpg, testImgjpgnorm, true);
+  // CHECK: 1
+  fprintf(stderr, "%d \n", testjpg1);
 
   //===--------------------------------------------------------------------===//
   // Test png format image.
@@ -332,6 +399,27 @@ int main() {
   const Img<float, 2> testBracketOperator6(grayimage_png);
   // CHECK: 240.0
   fprintf(stderr, "%f\n", testBracketOperator6[15]);
-  
+
+  //===--------------------------------------------------------------------===//
+  // Test Opencv Image without norm
+  //===--------------------------------------------------------------------===//
+  cv::Mat testImgcvpng =
+      cv::imread("../../../../tests/Interface/core/TestGrayImage.png",
+                 cv::IMREAD_GRAYSCALE);
+  Img<float, 2> testImgpng(testImgcvpng);
+  bool testpng = testImgcvnorm<float, 2>(testImgcvpng, testImgpng);
+  /// CHECK: 1
+  fprintf(stderr, "%d \n", testpng);
+
+  //===--------------------------------------------------------------------===//
+  // Test Opencv Image with norm
+  //===--------------------------------------------------------------------===//
+  Img<float, 2> testImgpngnorm(testImgcvpng, nullptr, true);
+  cv::Mat checkimgpng(testImgcvpng.rows, testImgcvpng.cols, CV_32FC1);
+  testImgcvpng.convertTo(checkimgpng, CV_32FC1, 1.f / 255);
+  bool testpng1 = testImgcvnorm<float, 2>(checkimgpng, testImgpngnorm, true);
+  // CHECK: 1
+  fprintf(stderr, "%d \n", testpng1);
+
   return 0;
 }
