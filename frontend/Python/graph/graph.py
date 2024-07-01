@@ -250,6 +250,12 @@ class Graph:
             match str(dtype):
                 case "i1":
                     np_type = np.dtype(np.bool_)
+                # BF16
+                case "bf16":
+                    np_type = np.dtype(np.float16)
+                # FP16
+                case "f16":
+                    np_type = np.dtype(np.float16)
                 case "i32":
                     np_type = np.dtype(np.int32)
                 case "i64":
@@ -389,6 +395,13 @@ class GraphImporter:
                 return ir.IntegerType.get_signless(32)
             case TensorDType.Int64:
                 return ir.IntegerType.get_signless(64)
+            case TensorDType.Float16:
+                print("graph use f16")
+                return ir.F16Type.get()
+            # BF16
+            case TensorDType.BF16:
+                print("graph use bf16")
+                return ir.BF16Type.get()
             case TensorDType.Float32:
                 return ir.F32Type.get()
             case TensorDType.Bool:
