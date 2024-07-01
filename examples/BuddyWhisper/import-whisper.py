@@ -14,7 +14,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the example of whisper model.
+# This is an example for whisper model.
 #
 # ===---------------------------------------------------------------------------
 
@@ -22,8 +22,7 @@ import os
 import torch
 import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
-from datasets import load_dataset
+from transformers import WhisperForConditionalGeneration
 import numpy
 
 from buddy.compiler.frontend import DynamoCompiler
@@ -36,22 +35,18 @@ model_path = os.environ.get("WHISPER_MODEL_PATH")
 if model_path is None:
     model_path = "openai/whisper-base"
 
-# Initialize the tokenizer and model from the specified model path.
-processor = WhisperProcessor.from_pretrained(model_path)
+# Initialize the model from the specified model path.
 model = WhisperForConditionalGeneration.from_pretrained(model_path)
 model.config.use_cache = False
 
-ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-sample = ds[1]["audio"]
-input_features = processor(
-    sample["array"], sampling_rate=sample["sampling_rate"], return_tensors="pt"
-).input_features
-
-decoder_input_ids = torch.tensor([[50258] * 448], dtype=torch.long)
+# Generate placeholder for inputs.
+input_features = torch.zeros(size=(1, 80, 3000), dtype=torch.float32)
+decoder_input_ids = torch.zeros(size=(1, 448), dtype=torch.long)
 inputs = {
     "input_features": input_features,
     "decoder_input_ids": decoder_input_ids,
 }
+
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,

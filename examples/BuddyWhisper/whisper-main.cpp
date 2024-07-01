@@ -13,6 +13,10 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
+//
+// This file implements an example for Whisper Model Inference. 
+//
+// ------------------------------------------------------------------------===//
 
 #include "whisper-main.h"
 
@@ -29,8 +33,6 @@ int main() {
   /// Define directories of vacabulary and parameter file.
   const std::string vocabDir = "../../examples/BuddyWhisper/vocab.txt";
   const std::string paramsDir = "../../examples/BuddyWhisper/arg0.data";
-  const std::string input_featuresDir =
-      "../../examples/BuddyWhisper/input_features.data";
 
   /// Initialize data containers
   //  - Result container
@@ -47,7 +49,8 @@ int main() {
 
   /// Fill data into containers
   //  - Output: register vocabulary.
-  //  - Parameters: generate audioInput from rawAudioData.
+  //  - Parameters: load parameters from the `arg0` file into the container.
+  //  - Input: generate audioInput from rawAudioData.
   outputContainer.loadVocab(vocabDir);
   loadParameters(paramsDir, paramsContainer);
   rawAudioData = std::move(MemRef<double, 1>(rawSpeech, inputShape));
