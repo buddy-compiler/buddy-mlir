@@ -64,17 +64,17 @@ int main() {
             << "s\n"
             << std::endl;
 
-  /// Print output to txt.
-  ofstream fout("output.txt");
-  // Generate whisper preprocessor result.
-  fout << "-----------------------------------------" << std::endl;
-  fout << "[ whisper preprocessor result ]" << std::endl;
-  fout << "-----------------------------------------" << std::endl;
-  // Print reuslt data.
-  for (int i = 0; i < 240000; ++i) {
-      fout << outputContainer[i] << std::endl;
-  }
-  fout.close();
+  // /// Print output to txt.
+  // ofstream fout("output.txt");
+  // // Generate whisper preprocessor result.
+  // fout << "-----------------------------------------" << std::endl;
+  // fout << "[ whisper preprocessor result ]" << std::endl;
+  // fout << "-----------------------------------------" << std::endl;
+  // // Print reuslt data.
+  // for (int i = 0; i < 240000; ++i) {
+  //     fout << outputContainer[i] << std::endl;
+  // }
+  // fout.close();
 
   return 0;
 }
