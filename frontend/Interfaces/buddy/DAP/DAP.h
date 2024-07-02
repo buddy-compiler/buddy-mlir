@@ -26,5 +26,6 @@
 #include "buddy/DAP/DSP/Biquad.h"
 #include "buddy/DAP/DSP/FIR.h"
 #include "buddy/DAP/DSP/IIR.h"
+#include "buddy/DAP/DSP/WhisperPreprocess.h"
 
 #endif // FRONTEND_INTERFACES_BUDDY_DAP_DAP
