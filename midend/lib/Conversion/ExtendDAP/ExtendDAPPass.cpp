@@ -249,7 +249,6 @@ Value initMelFilter(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
       rewriter.create<bufferization::ToMemrefOp>(loc, mTp, melFilter);
 
   // TODO : remove tomemref & totensor, and use insert to replace store. !!
-  // Update pass with one-shot-bufferize as well
   Value c391 = rewriter.create<ConstantIndexOp>(loc, 391);
   Value number, d1, d2;
   // rewriter.create<scf::ForOp>(loc, c0, c391, c1, std::nullopt,
@@ -686,7 +685,7 @@ Value getHanningWindow400(PatternRewriter &rewriter, Location loc) {
   return window;
 }
 
-// implement numpy reflect padding, low for left padding length, high for right
+// Implement numpy reflect padding, low for left padding length, high for right
 // padding length
 Value padReflect(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
                  Value input, int64_t low, int64_t high) {
@@ -699,7 +698,7 @@ Value padReflect(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
 
   FloatType f64Ty = rewriter.getF64Type();
   IndexType idxTy = rewriter.getIndexType();
-  // pad the left part(low) for input tensor
+  // Pad left part(low) for input tensor
   int64_t inputSize =
       llvm::cast<RankedTensorType>(input.getType()).getShape()[0];
   int64_t lowPaddedSize = inputSize + low;
@@ -712,7 +711,7 @@ Value padReflect(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
   SmallVector<Type> blockArgTypes1(sourceRank1, idxTy);
   SmallVector<Location> blockArgLocs1(sourceRank1, loc);
 
-  // create Block for padOp1 and insert operations
+  // Create Block for padOp1 and insert operations
   OpBuilder::InsertPoint ip1(rewriter.saveInsertionPoint());
   rewriter.createBlock(padOpRegion1, padOpRegion1->end(), blockArgTypes1,
                        blockArgLocs1);
@@ -726,7 +725,7 @@ Value padReflect(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
 
   Value lowPaddedInput = padOp1.getResult();
 
-  // pad the right part(high) for lowPaddedInput tensor
+  // Pad right part(high) for lowPaddedInput tensor
   lowValues.push_back(c0);
   highValues.push_back(highPadLen);
   int64_t highPaddedSize = lowPaddedSize + high;
@@ -1117,7 +1116,7 @@ void radf5(OpBuilder &builder, Location loc, Value cc, Value ch, Value wa,
   return;
 }
 
-// in-place computaion in bufferMem, which represent both the input and the
+// in-place computaion for bufferMem, represent both the input and the
 // output
 void rfft400(OpBuilder &builder, Location loc, Value bufferMem, Value f0,
              Value c0, Value c1, Value c2, Value c3, Value c4, Value c5) {
@@ -1268,7 +1267,7 @@ void absPower(OpBuilder &builder, Location loc, Value bufferMem,
   return;
 }
 
-// Compute log-mel spectrogram
+// Compute Log Mel Spectrogram
 Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
                   Value c1, Value c2, Value c3, Value c4, Value c5, Value input,
                   Value window, Value melFilters) {
@@ -1314,10 +1313,10 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
         Value bufferMem =
             builder.create<bufferization::ToMemrefOp>(loc, mTp, multiplied);
 
-        // calculate rfft, result stores in bufferMem
+        // Calculate rfft, result stores in bufferMem
         rfft400(builder, loc, bufferMem, f0, c0, c1, c2, c3, c4, c5);
 
-        // result store in one line of spectorgram, line specified by iv
+        // Result store in one line of spectorgram, line specified by iv
         absPower(builder, loc, bufferMem, spectrogram, iv, c0, c1, c2);
 
         Value timestepNext =
@@ -1358,7 +1357,7 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
       /*outputs=*/ValueRange{init2});
   Value matMulResult = matmulOp.getResultTensors()[0];
 
-  // initialize a tensor with constant 1e-10
+  // Initialize a tensor with constant 1e-10
   RankedTensorType tensorTy1 = RankedTensorType::get({80, 3001}, f64Ty);
   Value cMelFloor = rewriter.create<ConstantFloatOp>(
       loc, APFloat(double(0.0000000001)), f64Ty);
@@ -1427,7 +1426,7 @@ public:
     Value padConstantHigh =
         rewriter.create<arith::SubIOp>(loc, c480000, inputFeaturesSize);
 
-    // pad inputFeatures to MaxLength = 480000
+    // Pad inputFeatures to MaxLength = 480000
     SmallVector<int64_t> paddedShape;
     paddedShape.push_back(480000);
 
@@ -1550,8 +1549,7 @@ public:
 
 void populateExtendDAPConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<DAPWhisperPreprocessLowering>(patterns.getContext());
-  // patterns.add<DAPPadReflectLowering>(patterns.getContext());  //TODO : add
-  // new operations
+  // TODO : extract operators
 }
 
 //===----------------------------------------------------------------------===//

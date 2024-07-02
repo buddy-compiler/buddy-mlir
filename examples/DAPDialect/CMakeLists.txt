@@ -49,10 +49,10 @@ target_link_libraries(buddy-iir-vectorization
 )
 
 #-------------------------------------------------------------------------------
-# Buddy DAP Dialect Biquad Operation
+# Buddy DAP Dialect WhisperPreprocess Operation
 #-------------------------------------------------------------------------------
 
-add_executable(buddy-whisper-preprocess whisperPreprocess.cpp)
+add_executable(buddy-whisper-preprocess WhisperPreprocess.cpp)
 add_dependencies(buddy-whisper-preprocess buddy-opt)
 target_link_libraries(buddy-whisper-preprocess
   BuddyLibDAP

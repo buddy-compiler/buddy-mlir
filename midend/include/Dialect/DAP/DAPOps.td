@@ -94,13 +94,13 @@ def DAP_IirOp : DAP_Op<"iir"> {
   }];
 }
 
-def DAP_WhisperPreprocessOp : DAP_Op<"WhisperPreprocess"> {
+def DAP_WhisperPreprocessOp : DAP_Op<"whisperPreprocess"> {
   let summary = [{Preprocessor for Whisper model, do features extraction for input audio.
   Input MemRef stores the raw speech data, Output MemRef contains computed features with 
   shape memref<1x80x3000xf32>.
 
   ```mlir
-    dap.WhisperPreprocess %input, %output : memref<?xf64>, memref<1x80x3000xf32>
+    dap.whisperPreprocess %input, %output : memref<?xf64>, memref<1x80x3000xf32>
   ```
   }];
 

@@ -54,7 +54,7 @@ int main() {
   outputContainer.loadVocab(vocabDir);
   loadParameters(paramsDir, paramsContainer);
   rawAudioData = std::move(MemRef<double, 1>(rawSpeech, inputShape));
-  dap::WhisperPreprocess(&rawAudioData, &audioInput);
+  dap::whisperPreprocess(&rawAudioData, &audioInput);
 
   /// Run Whisper Inference
   //  - Perform the forward function.

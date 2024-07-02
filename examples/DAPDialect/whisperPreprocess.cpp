@@ -61,7 +61,7 @@ int main() {
   std::cout << "[ whisper preprocessor result ]" << std::endl;
   std::cout << "-----------------------------------------" << std::endl;
 
-  dap::WhisperPreprocess(&inputAudioMem, &output);
+  dap::whisperPreprocess(&inputAudioMem, &output);
 
   // Print reuslt data
   for (int i = 0; i < 240000; ++i) {

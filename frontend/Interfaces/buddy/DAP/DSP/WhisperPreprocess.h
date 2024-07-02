@@ -35,7 +35,7 @@ void _mlir_ciface_buddy_whisperPreprocess(MemRef<double, 1> *inputRawSpeech,
 } // namespace detail
 
 // Function for Whisper preprocess
-void WhisperPreprocess(MemRef<double, 1> *inputRawSpeech,
+void whisperPreprocess(MemRef<double, 1> *inputRawSpeech,
                        MemRef<float, 3> *outputFeatures) {
   detail::_mlir_ciface_buddy_whisperPreprocess(inputRawSpeech, outputFeatures);
 }
