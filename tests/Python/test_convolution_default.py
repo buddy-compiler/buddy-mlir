@@ -39,4 +39,3 @@ print(graph._imported_module)
 # CHECK: %{{.*}} = tosa.transpose
 # CHECK: return %{{.*}}
 # CHECK: }
-# CHECK: }
