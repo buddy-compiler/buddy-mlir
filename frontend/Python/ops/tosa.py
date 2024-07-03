@@ -1003,8 +1003,8 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     out_shape = node.tensor_meta["shape"]
 
     #Prepare Depthwise Conv2D information
-    is_depthwise = (groups == list(weight_shape)[0]) and (list(weight_shape)[1] == 1)and (groups != 1)
     is_grouped =  (list(weight_shape)[1] == 1) and (groups != 1)
+    is_depthwise = (groups == list(weight_shape)[0]) and is_grouped    
     
     # Prepare input channel and output channel.
     if is_kernel_transposed:
@@ -1013,7 +1013,6 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     else:
         in_channels = list(weight_shape)[1] * groups
         out_channels = list(weight_shape)[0]
-
 
     # Prepare bias tensor.
     if len(node._parents) == 2:
