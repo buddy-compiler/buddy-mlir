@@ -1002,15 +1002,18 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     result_element_type = mlir_element_type_get(dtype)
     out_shape = node.tensor_meta["shape"]
 
+    #Prepare Depthwise Conv2D information
+    is_depthwise = (groups == list(weight_shape)[0]) and (list(weight_shape)[1] == 1)and (groups != 1)
+    is_grouped =  (list(weight_shape)[1] == 1) and (groups != 1)
+    
     # Prepare input channel and output channel.
-    # TODO: confirm and modify this part.
     if is_kernel_transposed:
         in_channels = list(weight_shape)[0]
-        out_channels = list(weight_shape)[1]
+        out_channels = list(weight_shape)[1] * groups
     else:
-        in_channels = list(weight_shape)[1]
+        in_channels = list(weight_shape)[1] * groups
         out_channels = list(weight_shape)[0]
-    is_depthwise = (groups == in_channels) or (groups == out_channels)
+
 
     # Prepare bias tensor.
     if len(node._parents) == 2:
@@ -1067,9 +1070,9 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             out_shape = perm_shape
         output_type = ir.RankedTensorType.get(out_shape, result_element_type)
 
+        # Depthwise Conv2D Operation.
         if is_depthwise is True:
-            # Depthwise Conv2D Operation.
-            # TODO: the layout may lead misunderstanding
+            # If groups == in_channels,out_channels == in_channels
             if node._layout.find("FCHW") != -1:
                 perm_list = [2, 3, 0, 1]
                 perm_const_op = tosa.ConstOp(

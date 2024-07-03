@@ -11,8 +11,7 @@ from buddy.compiler.ops import tosa
 class Convolution(torch.nn.Module):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.conv = torch.nn.Conv2d(3, 255, (5, 5), 3, 3, bias=False)
-
+        self.conv = torch.nn.Conv2d(3, 3, (5, 5), 3, 3, bias=False, groups = 3)
     def forward(self, a):
         return self.conv(a)
 
@@ -24,6 +23,7 @@ dynamo_compiler = DynamoCompiler(
 )
 
 in1 = torch.randn((1, 3, 640, 480))
+print(model(in1).shape)
 graphs = dynamo_compiler.importer(model, in1)
 assert len(graphs) == 1
 graph = graphs[0]
