@@ -198,7 +198,7 @@ std::string fegen::FegenType::toStringForTypedef() {
   }
 }
 
-std::string fegen::FegenType::toStringForOpdef() { 
+std::string fegen::FegenType::toStringForOpdef() {
   // handle builtin type instance
   auto typeName = this->typeName;
   auto typedefName = this->typeDefine->getName();
@@ -226,12 +226,12 @@ std::string fegen::FegenType::toStringForOpdef() {
         return "I64";
       } else if (size == 16) {
         return "I16";
-      } 
+      }
     }
   }
 
   std::cerr << "unsupport type: " << typeName << std::endl;
-  exit(0); 
+  exit(0);
 }
 
 fegen::FegenType::~FegenType() {
@@ -1003,7 +1003,9 @@ public:
 };
 
 void fegen::FegenManager::emitG4() {
-  Emitter emitter(std::cout);
+  std::ofstream fileStream;
+  fileStream.open(this->moduleName + ".g4");
+  Emitter emitter(fileStream);
   emitter << "grammar " << this->moduleName << ";";
   emitter.newLine();
   for (auto node_pair : this->nodeMap) {
