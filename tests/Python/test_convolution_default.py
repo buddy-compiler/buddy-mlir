@@ -11,7 +11,8 @@ from buddy.compiler.ops import tosa
 class Convolution(torch.nn.Module):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.conv = torch.nn.Conv2d(3, 3, (5, 5), 3, 3, bias=False, groups = 1)
+        self.conv = torch.nn.Conv2d(3, 255, (5, 5), 3, 3, bias=False)
+
     def forward(self, a):
         return self.conv(a)
 
