@@ -13,6 +13,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include "FegenParser.h"
+#include "ParserRuleContext.h"
 
 #define FEGEN_PLACEHOLDER "Placeholder"
 #define FEGEN_TYPE "Type"
@@ -442,6 +443,13 @@ public:
   std::map<std::string, FegenTypeDefination *> typeDefMap;
   std::map<std::string, FegenOperation *> operationMap;
   llvm::StringMap<FegenFunction *> functionMap;
+  // stmt contents
+  std::unordered_map<antlr4::ParserRuleContext *, std::any> stmtContent;
+  void addStmtContent(antlr4::ParserRuleContext *ctx, std::any content);
+  template <typename T> T getStmtContent(antlr4::ParserRuleContext *ctx) {
+    assert(this->stmtContent.count(ctx));
+    return std::any_cast<T>(this->stmtContent[ctx]);
+  }
 
   static FegenManager &getManager();
   void setModuleName(std::string name);

@@ -1403,6 +1403,11 @@ bool fegen::FegenManager::addOperationDefination(fegen::FegenOperation *opDef) {
   return true;
 }
 
+void fegen::FegenManager::addStmtContent(antlr4::ParserRuleContext *ctx,
+                                         std::any content) {
+  this->stmtContent.insert({ctx, content});
+}
+
 fegen::FegenManager &fegen::FegenManager::getManager() {
   static fegen::FegenManager fmg;
   return fmg;
