@@ -1002,10 +1002,10 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     result_element_type = mlir_element_type_get(dtype)
     out_shape = node.tensor_meta["shape"]
 
-    #Prepare Depthwise Conv2D information
-    is_grouped =  (list(weight_shape)[1] == 1) and (groups != 1)
-    is_depthwise = (groups == list(weight_shape)[0]) and is_grouped    
-    
+    # Prepare Depthwise Conv2D information
+    is_grouped = (list(weight_shape)[1] == 1) and (groups != 1)
+    is_depthwise = (groups == list(weight_shape)[0]) and is_grouped
+
     # Prepare input channel and output channel.
     if is_kernel_transposed:
         in_channels = list(weight_shape)[0]
