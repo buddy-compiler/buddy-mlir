@@ -219,7 +219,41 @@ std::string fegen::FegenType::toStringForTypedef() {
   }
 }
 
-std::string fegen::FegenType::toStringForOpdef() { return "TODO"; }
+std::string fegen::FegenType::toStringForOpdef() {
+  // handle builtin type instance
+  auto typeName = this->typeName;
+  auto typedefName = this->typeDefine->getName();
+  if (this->typeDefine->isCustome()) {
+    return this->typeDefine->getName();
+  } else if (typedefName == FEGEN_LIST) {
+    std::string res = "Variadic<";
+    for (size_t i = 0; i <= this->parameters.size() - 1; i++) {
+      res.append(this->parameters[i]->getContentStringForTypedef());
+      if (i != this->parameters.size() - 1) {
+        res.append(", ");
+      }
+    }
+    res.append(">");
+    return res;
+  } else if (typedefName == FEGEN_INTEGER) {
+    if (this->parameters.size() == 0) {
+      return "Builtin_Integer";
+    } else {
+      if (typeName == "int") {
+        return "I32";
+      }
+      int size = this->getParameters(0)->getContent<int>();
+      if (size == 64) {
+        return "I64";
+      } else if (size == 16) {
+        return "I16";
+      }
+    }
+  }
+
+  std::cerr << "unsupport type: " << typeName << std::endl;
+  exit(0);
+}
 
 fegen::FegenType::~FegenType() {
   for (auto p : this->parameters) {
@@ -546,6 +580,13 @@ inline std::string OperatorToString(fegen::FegenOperator &op) {
 }
 
 std::string fegen::FegenRightValue::ExpressionNode::toStringForTypedef() {
+  assert(false);
+  std::cerr << "error type." << std::endl;
+  exit(0);
+}
+
+std::string fegen::FegenRightValue::ExpressionNode::toStringForOpdef() {
+  assert(false);
   std::cerr << "error type." << std::endl;
   exit(0);
 }
@@ -612,6 +653,34 @@ std::string fegen::FegenRightValue::ExpressionTerminal::toStringForTypedef() {
     return res;
   }
   default: {
+    std::cerr << "unsupport expression" << std::endl;
+    exit(0);
+  }
+  }
+}
+
+std::string fegen::FegenRightValue::ExpressionTerminal::toStringForOpdef() {
+  assert(this->isConstexpr());
+  switch (this->kind) {
+  case fegen::FegenRightValue::LiteralKind::TYPE: {
+    auto ty = std::get<FegenType>(this->content);
+    return ty.toStringForOpdef();
+  }
+  case fegen::FegenRightValue::LiteralKind::VECTOR: {
+    std::string res;
+    res.append("[");
+    auto exprs = std::get<std::vector<Expression *>>(this->content);
+    for (size_t i = 0; i <= exprs.size() - 1; i++) {
+      res.append(exprs[i]->toStringForOpdef());
+      if (i != exprs.size() - 1) {
+        res.append(", ");
+      }
+    }
+    res.append("]");
+    return res;
+  }
+  default: {
+    assert(false);
     std::cerr << "unsupport expression" << std::endl;
     exit(0);
   }
@@ -745,6 +814,10 @@ std::string fegen::FegenRightValue::toStringForTypedef() {
   return this->content->toStringForTypedef();
 }
 
+std::string fegen::FegenRightValue::toStringForOpdef() {
+  return this->content->toStringForOpdef();
+}
+
 std::any fegen::FegenRightValue::getContent() {
   return this->content->getContent();
 }
@@ -826,6 +899,10 @@ std::string fegen::FegenValue::getContentString() {
 
 std::string fegen::FegenValue::getContentStringForTypedef() {
   return this->content.toStringForTypedef();
+}
+
+std::string fegen::FegenValue::getContentStringForOpdef() {
+  return this->content.toStringForOpdef();
 }
 
 fegen::FegenRightValue::Expression *fegen::FegenValue::getExpr() {
@@ -947,7 +1024,9 @@ public:
 };
 
 void fegen::FegenManager::emitG4() {
-  Emitter emitter(std::cout);
+  std::ofstream fileStream;
+  fileStream.open(this->moduleName + ".g4");
+  Emitter emitter(fileStream);
   emitter << "grammar " << this->moduleName << ";";
   emitter.newLine();
   for (auto node_pair : this->nodeMap) {
@@ -1343,6 +1422,11 @@ bool fegen::FegenManager::addOperationDefination(fegen::FegenOperation *opDef) {
   }
   this->operationMap[opDef->getOpName()] = opDef;
   return true;
+}
+
+void fegen::FegenManager::addStmtContent(antlr4::ParserRuleContext *ctx,
+                                         std::any content) {
+  this->stmtContent.insert({ctx, content});
 }
 
 fegen::FegenManager &fegen::FegenManager::getManager() {

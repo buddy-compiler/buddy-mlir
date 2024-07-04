@@ -37,13 +37,13 @@ namespace {
 enum Action { none, dumpAst, dumpAntlr, dumpAll, dumpVisitor };
 }
 
-llvm::cl::opt<Action> emitAction(
-    "emit", llvm::cl::desc("Select the kind of output desired"),
-    llvm::cl::values(clEnumValN(dumpAst, "ast", "Out put the ast")),
-    llvm::cl::values(clEnumValN(dumpAntlr, "g4", "Out put the g4 file")),
-    llvm::cl::values(clEnumValN(dumpVisitor, "visitor",
-                                "Out put the visitor file")),
-    llvm::cl::values(clEnumValN(dumpAll, "all", "put out all file")));
+// llvm::cl::opt<Action> emitAction(
+//     "emit", llvm::cl::desc("Select the kind of output desired"),
+//     llvm::cl::values(clEnumValN(dumpAst, "ast", "Out put the ast")),
+//     llvm::cl::values(clEnumValN(dumpAntlr, "g4", "Out put the g4 file")),
+//     llvm::cl::values(clEnumValN(dumpVisitor, "visitor",
+//                                 "Out put the visitor file")),
+//     llvm::cl::values(clEnumValN(dumpAll, "all", "put out all file")));
 
 int dumpAST(fegen::FegenParser::FegenSpecContext *moduleAST) {
   llvm::errs() << moduleAST->toStringTree(1 /* prety format*/) << "\n";
@@ -63,15 +63,9 @@ int main(int argc, char *argv[]) {
 
   fegen::FegenVisitor visitor;
   visitor.visit(moduleAST);
-  // visitor.emitG4();
+  visitor.emitG4();
   visitor.emitTypeDefination();
   visitor.emitDialectDefination();
   visitor.emitOpDefination();
-  // if (emitAction == dumpAst) {
-  //   return dumpAST(moduleAST);
-  // }
-  // if (emitAction == dumpAntlr) {
-
-  // }
   return 0;
 }
