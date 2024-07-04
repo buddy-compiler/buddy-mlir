@@ -31,6 +31,7 @@ namespace fegen {
 
 class FegenType;
 class FegenManager;
+class FegenValue;
 
 // binary operation
 
@@ -59,18 +60,22 @@ private:
   // cpp function name
   std::string name;
   // input object
-  std::map<FegenType *, std::string> inputTypeMap;
+  std::vector<FegenValue *> inputTypeList;
   // return type
   FegenType *returnType;
-  explicit FegenFunction(llvm::StringRef name,
-                         std::map<FegenType *, std::string> &&inputTypeMap,
+  explicit FegenFunction(std::string name,
+                         std::vector<FegenValue *> &&inputTypeList,
                          FegenType *returnType);
 
 public:
-  static FegenFunction *get(llvm::StringRef name,
-                            std::map<FegenType *, std::string> inputTypeMap,
+  static FegenFunction *get(std::string name,
+                            std::vector<FegenValue *> inputTypeList,
                             FegenType *returnType = nullptr);
   ~FegenFunction() = default;
+    std::string getName();
+    std::vector<FegenValue *> &getInputTypeList();
+    FegenValue *getInputTypeList(size_t i);
+    FegenType *getReturnType();
 };
 
 class FegenValue;
@@ -141,6 +146,7 @@ public:
   std::string toStringForTypedef();
   // for generating op def td file.
   std::string toStringForOpdef();
+  static bool isSameType(FegenType *type1, FegenType *type2);
   ~FegenType();
   // placeholder
   static FegenType getPlaceHolder();
@@ -422,6 +428,7 @@ class FegenManager {
   friend class FegenVisitor;
 
 private:
+  // ScopeStack &sstack;
   FegenManager();
   FegenManager(const FegenManager &) = delete;
   const FegenManager &operator=(const FegenManager &) = delete;
@@ -451,6 +458,7 @@ public:
   void emitOpDefination();
   void emitDialectDefination();
   void emitTdFiles();
+  void emitBuiltinFunction();
 };
 
 FegenType inferenceType(std::vector<FegenRightValue::Expression *>,

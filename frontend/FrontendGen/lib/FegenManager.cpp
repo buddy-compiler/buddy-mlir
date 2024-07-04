@@ -8,16 +8,29 @@
 #include <string>
 #include <unordered_map>
 
-fegen::FegenFunction::FegenFunction(llvm::StringRef name,
-                                    std::map<FegenType *, std::string> &&inputTypeMap,
+fegen::FegenFunction::FegenFunction(std::string name,
+                                    std::vector<FegenValue *> &&inputTypeList,
                                     FegenType *returnType)
-    : name(name), inputTypeMap(inputTypeMap), returnType(returnType) {}
+    : name(name), inputTypeList(inputTypeList), returnType(returnType) {}
 
 fegen::FegenFunction *
-fegen::FegenFunction::get(llvm::StringRef name,
-                          std::map<FegenType *, std::string> inputTypeMap,
+fegen::FegenFunction::get(std::string name,
+                          std::vector<FegenValue *> inputTypeList,
                           FegenType *returnType) {
-  return new fegen::FegenFunction(name, std::move(inputTypeMap), returnType);
+  return new fegen::FegenFunction(name, std::move(inputTypeList), returnType);
+}
+std::string fegen::FegenFunction::getName() { this->name; }
+
+std::vector<fegen::FegenValue *> &fegen::FegenFunction::getInputTypeList() {
+  return this->inputTypeList;
+}
+
+fegen::FegenValue *fegen::FegenFunction::getInputTypeList(size_t i) {
+  return this->inputTypeList[i];
+}
+
+fegen::FegenType *fegen::FegenFunction::getReturnType() {
+  return this->returnType;
 }
 
 fegen::FegenOperation::FegenOperation(std::string dialectName,
@@ -141,6 +154,14 @@ void fegen::FegenType::setTypeDefination(fegen::FegenTypeDefination *tyDef) {
 std::string fegen::FegenType::getTypeName() { return this->typeName; }
 
 int fegen::FegenType::getTypeLevel() { return this->typeLevel; }
+
+bool fegen::FegenType::isSameType(fegen::FegenType *type1,
+                                  fegen::FegenType *type2) {
+  if (type1->getTypeName() == type2->getTypeName())
+    return true;
+  else
+    return false;
+}
 
 std::string fegen::FegenType::toStringForTypedef() {
   // handle builtin type instance
@@ -1341,4 +1362,31 @@ fegen::inferenceType(std::vector<fegen::FegenRightValue::Expression *> operands,
                      fegen::FegenOperator op) {
   // TODO: infer type
   return fegen::FegenType::getInt32Type();
+}
+class visitor{
+
+};
+
+void fegen::FegenManager::emitBuiltinFunction() {
+  Emitter emitter(std::cout);
+  for (auto function_pair : this->functionMap) {
+    auto functionName = function_pair.first;
+    auto function = function_pair.second;
+    auto paraList = function->getInputTypeList();
+    emitter << function->getReturnType()->toStringForTypedef() << " "
+            << functionName << "(";
+    for (auto para : paraList) {
+      emitter << para->getContentStringForTypedef() << " " << para->getName();
+      if (para != paraList.back())
+        emitter << ", ";
+    }
+    emitter << "){";
+    emitter.newLine();
+    emitter.tab();
+    // TODO::function body
+
+    emitter.shiftTab();
+    emitter.newLine();
+    emitter << "}";
+  }
 }
