@@ -1450,12 +1450,9 @@ fegen::inferenceType(std::vector<fegen::FegenRightValue::Expression *> operands,
 }
 namespace fegen{
 
-class StmtVisitor : public FegenParserBaseVisitor{
-public:
-    std::any visitStatement(FegenParser::StatementContext *ctx){
-        
-    }
-};
+// class StmtVisitor : public FegenParserBaseVisitor{
+// public:
+// };
 
 }
 void fegen::FegenManager::emitBuiltinFunction() {
