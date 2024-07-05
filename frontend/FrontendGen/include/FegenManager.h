@@ -449,13 +449,13 @@ public:
   llvm::StringMap<FegenType *> typeMap;
   std::map<std::string, FegenTypeDefination *> typeDefMap;
   std::map<std::string, FegenOperation *> operationMap;
-  llvm::StringMap<FegenFunction *> functionMap;
+  std::map<std::string, FegenFunction *> functionMap;
   // stmt contents
-  std::unordered_map<antlr4::ParserRuleContext *, std::any> stmtContent;
+  std::unordered_map<antlr4::ParserRuleContext *, std::any> stmtContentMap;
   void addStmtContent(antlr4::ParserRuleContext *ctx, std::any content);
   template <typename T> T getStmtContent(antlr4::ParserRuleContext *ctx) {
-    assert(this->stmtContent.count(ctx));
-    return std::any_cast<T>(this->stmtContent[ctx]);
+    assert(this->stmtContentMap.count(ctx));
+    return std::any_cast<T>(this->stmtContentMap[ctx]);
   }
 
   static FegenManager &getManager();

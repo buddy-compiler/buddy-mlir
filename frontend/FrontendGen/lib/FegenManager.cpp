@@ -1,3 +1,4 @@
+#include "FegenParserBaseVisitor.h"
 #include "FegenManager.h"
 #include "Scope.h"
 #include <algorithm>
@@ -1426,7 +1427,7 @@ bool fegen::FegenManager::addOperationDefination(fegen::FegenOperation *opDef) {
 
 void fegen::FegenManager::addStmtContent(antlr4::ParserRuleContext *ctx,
                                          std::any content) {
-  this->stmtContent.insert({ctx, content});
+  this->stmtContentMap.insert({ctx, content});
 }
 
 fegen::FegenManager &fegen::FegenManager::getManager() {
@@ -1447,10 +1448,16 @@ fegen::inferenceType(std::vector<fegen::FegenRightValue::Expression *> operands,
   // TODO: infer type
   return fegen::FegenType::getInt32Type();
 }
-class visitor{
+namespace fegen{
 
+class StmtVisitor : public FegenParserBaseVisitor{
+public:
+    std::any visitStatement(FegenParser::StatementContext *ctx){
+        
+    }
 };
 
+}
 void fegen::FegenManager::emitBuiltinFunction() {
   Emitter emitter(std::cout);
   for (auto function_pair : this->functionMap) {
