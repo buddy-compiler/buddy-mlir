@@ -4,6 +4,7 @@
 #include <any>
 #include <cstddef>
 #include <map>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <variant>
@@ -27,6 +28,8 @@
 #define FEGEN_LIST "List"
 #define FEGEN_OPTINAL "Optional"
 #define FEGEN_ANY "Any"
+
+#define FEGEN_NOT_IMPLEMENTED_ERROR false
 
 namespace fegen {
 
@@ -73,10 +76,10 @@ public:
                             std::vector<FegenValue *> inputTypeList,
                             FegenType *returnType = nullptr);
   ~FegenFunction() = default;
-    std::string getName();
-    std::vector<FegenValue *> &getInputTypeList();
-    FegenValue *getInputTypeList(size_t i);
-    FegenType *getReturnType();
+  std::string getName();
+  std::vector<FegenValue *> &getInputTypeList();
+  FegenValue *getInputTypeList(size_t i);
+  FegenType *getReturnType();
 };
 
 class FegenValue;
@@ -147,6 +150,8 @@ public:
   std::string toStringForTypedef();
   // for generating op def td file.
   std::string toStringForOpdef();
+  // for generating cpp type kind.
+  std::string toStringForCppKind();
   static bool isSameType(FegenType *type1, FegenType *type2);
   ~FegenType();
   // placeholder
@@ -249,10 +254,16 @@ public:
     STRING,
     TYPE,
     VECTOR,
-    EXPRESSION,
-    LEFT_VAR
+    LEFT_VAR,
+    FUNC_CALL,
+    OPERATION_CALL,
+    OPERATOR_CALL
   };
-
+  struct ExpressionNode;
+  struct FunctionCall;
+  struct OperationCall;
+  struct OperatorCall;
+  struct ExpressionTerminal;
   struct Expression {
     bool ifTerminal;
     LiteralKind kind;
@@ -265,86 +276,175 @@ public:
     virtual std::string toString() = 0;
     virtual std::string toStringForTypedef() = 0;
     virtual std::string toStringForOpdef() = 0;
+    virtual std::string toStringForCppKind() = 0;
     LiteralKind getKind();
+    FegenType &getType();
     virtual std::any getContent() = 0;
     virtual bool isConstexpr();
+
+    /// @brief operate lhs and rhs using binary operator.
+    static std::shared_ptr<OperatorCall>
+    binaryOperation(std::shared_ptr<Expression> lhs,
+                    std::shared_ptr<Expression> rhs, FegenOperator op);
+    /// @brief operate expr using unary operator
+    static std::shared_ptr<OperatorCall>
+        unaryOperation(std::shared_ptr<Expression>, FegenOperator);
+
+    // TODO: callFunction
+    static std::shared_ptr<FunctionCall>
+    callFunction(std::vector<std::shared_ptr<Expression>>, FegenFunction *);
+
+    // TODO: callOperation
+    static std::shared_ptr<OperationCall>
+    callOperation(std::vector<std::shared_ptr<Expression>>, FegenOperation *);
+
+    static std::shared_ptr<ExpressionTerminal> getPlaceHolder();
+    static std::shared_ptr<ExpressionTerminal> getInteger(long long int,
+                                                          size_t size = 32);
+    static std::shared_ptr<ExpressionTerminal> getFloatPoint(long double,
+                                                             size_t size = 32);
+    static std::shared_ptr<ExpressionTerminal> getString(std::string);
+    static std::shared_ptr<ExpressionTerminal> getType(FegenType &);
+    static std::shared_ptr<ExpressionTerminal>
+    getList(std::vector<std::shared_ptr<Expression>> &);
+    static std::shared_ptr<ExpressionTerminal>
+    getLeftValue(fegen::FegenValue *);
   };
 
   struct ExpressionNode : public Expression {
-    using opType =
-        std::variant<FegenFunction *, FegenOperation *, FegenOperator>;
-    opType op;
-    std::vector<Expression *> params;
-    ExpressionNode(std::vector<Expression *>, opType, FegenType &, bool);
-    ExpressionNode(ExpressionNode &) = default;
-    ~ExpressionNode();
+    ExpressionNode(LiteralKind, FegenType, bool);
     virtual std::string toString() override;
     virtual std::string toStringForTypedef() override;
     virtual std::string toStringForOpdef() override;
+    virtual std::string toStringForCppKind() override;
+    virtual std::any getContent() override = 0;
+  };
+
+  struct FunctionCall : public ExpressionNode {
+    FegenFunction *func;
+    std::vector<std::shared_ptr<Expression>> params;
+    FunctionCall(FegenFunction *, std::vector<std::shared_ptr<Expression>>);
+    virtual std::string toString() override;
+    virtual std::string toStringForTypedef() override;
+    virtual std::string toStringForOpdef() override;
+    virtual std::string toStringForCppKind() override;
     virtual std::any getContent() override;
+  };
 
-    /// @brief operate lhs and rhs using binary operator.
-    static ExpressionNode *binaryOperation(Expression *lhs, Expression *rhs,
-                                           FegenOperator op);
-    /// @brief operate expr using unary operator
-    static ExpressionNode *unaryOperation(Expression *, FegenOperator);
+  struct OperationCall : public ExpressionNode {
+    FegenOperation *op;
+    std::vector<std::shared_ptr<Expression>> params;
+    OperationCall(FegenOperation *, std::vector<std::shared_ptr<Expression>>);
+    virtual std::string toString() override;
+    virtual std::string toStringForTypedef() override;
+    virtual std::string toStringForOpdef() override;
+    virtual std::string toStringForCppKind() override;
+    virtual std::any getContent() override;
+  };
 
-    // TODO: callFunction
-    static ExpressionNode *callFunction(std::vector<Expression *>,
-                                        FegenFunction *);
-
-    // TODO: callOperation
-    static ExpressionNode *callOperation(std::vector<Expression *>,
-                                         FegenOperation *);
+  struct OperatorCall : public ExpressionNode {
+    FegenOperator op;
+    std::vector<std::shared_ptr<Expression>> params;
+    OperatorCall(FegenOperator, std::vector<std::shared_ptr<Expression>>);
+    virtual std::string toString() override;
+    virtual std::string toStringForTypedef() override;
+    virtual std::string toStringForOpdef() override;
+    virtual std::string toStringForCppKind() override;
+    virtual std::any getContent() override;
   };
 
   struct ExpressionTerminal : public Expression {
-    // monostate, int literal, float literal, string literal, type literal, list
-    // literal, reference of variable
-    using primLiteralType =
-        std::variant<std::monostate, int, float, std::string, FegenType,
-                     std::vector<Expression *>, FegenValue *>;
-    primLiteralType content;
-    ExpressionTerminal(primLiteralType, LiteralKind, FegenType, bool);
-    ExpressionTerminal(ExpressionTerminal &) = default;
-    ~ExpressionTerminal();
+    ExpressionTerminal(LiteralKind, FegenType, bool);
     virtual std::string toString() override;
     virtual std::string toStringForTypedef() override;
     virtual std::string toStringForOpdef() override;
+    virtual std::string toStringForCppKind() override;
+    virtual std::any getContent() override = 0;
+  };
+
+  struct PlaceHolder : public ExpressionTerminal {
+    PlaceHolder();
     virtual std::any getContent() override;
-    static ExpressionTerminal *get(std::monostate);
-    static ExpressionTerminal *get(int);
-    static ExpressionTerminal *get(float);
-    static ExpressionTerminal *get(std::string);
-    static ExpressionTerminal *get(FegenType &);
-    static ExpressionTerminal *get(std::vector<Expression *> &);
-    static ExpressionTerminal *get(fegen::FegenValue *);
+    virtual std::string toString() override;
+  };
+
+  struct IntegerLiteral : public ExpressionTerminal {
+    size_t size;
+    long long int content;
+    // size = 32
+    IntegerLiteral(int content);
+    IntegerLiteral(long long int content, size_t size);
+    virtual std::any getContent() override;
+    virtual std::string toString() override;
+  };
+
+  struct FloatPointLiteral : public ExpressionTerminal {
+    size_t size;
+    long double content;
+    FloatPointLiteral(long double content, size_t size);
+    virtual std::any getContent() override;
+    virtual std::string toString() override;
+  };
+
+  struct StringLiteral : public ExpressionTerminal {
+    std::string content;
+    StringLiteral(std::string content);
+    virtual std::any getContent() override;
+    virtual std::string toString() override;
+  };
+
+  struct TypeLiteral : public ExpressionTerminal {
+    FegenType content;
+    TypeLiteral(FegenType &content);
+    virtual std::any getContent() override;
+    virtual std::string toString() override;
+    virtual std::string toStringForTypedef() override;
+    virtual std::string toStringForOpdef() override;
+    virtual std::string toStringForCppKind() override;
+  };
+
+  struct ListLiteral : public ExpressionTerminal {
+    std::vector<std::shared_ptr<Expression>> content;
+    ListLiteral(std::vector<std::shared_ptr<Expression>> &content);
+    virtual std::any getContent() override;
+    virtual std::string toString() override;
+    virtual std::string toStringForTypedef() override;
+    virtual std::string toStringForOpdef() override;
+  };
+
+  struct LeftValue : public ExpressionTerminal {
+    FegenValue *content;
+    LeftValue(FegenValue *content);
+    virtual std::any getContent() override;
+    virtual std::string toString() override;
   };
 
 public:
-  FegenRightValue(Expression *content);
-  FegenRightValue(const FegenRightValue &);
-  FegenRightValue(FegenRightValue &&);
-  FegenRightValue::LiteralKind getKind();
+  FegenRightValue(std::shared_ptr<Expression>);
+  FegenRightValue(const FegenRightValue &) = default;
+  FegenRightValue(FegenRightValue &&) = default;
+  FegenRightValue::LiteralKind getLiteralKind();
   std::string toString();
   std::string toStringForTypedef();
   std::string toStringForOpdef();
+  std::string toStringForCppKind();
   std::any getContent();
-  Expression *getExpr();
+  FegenType &getType();
+  std::shared_ptr<Expression> getExpr();
 
-  static FegenRightValue get();
-  static FegenRightValue get(int content);
-  static FegenRightValue get(float content);
-  static FegenRightValue get(std::string content);
-  static FegenRightValue get(FegenType &content);
-  // list
-  static FegenRightValue get(std::vector<Expression *> &content);
-  static FegenRightValue get(fegen::FegenValue *content);
-  static FegenRightValue get(Expression *expr);
-  ~FegenRightValue();
+  static FegenRightValue getPlaceHolder();
+  static FegenRightValue getInteger(long long int content, size_t size = 32);
+  static FegenRightValue getFloatPoint(long double content, size_t size = 32);
+  static FegenRightValue getString(std::string content);
+  static FegenRightValue getType(FegenType &content);
+  static FegenRightValue
+  getList(std::vector<std::shared_ptr<Expression>> &content);
+  static FegenRightValue getLeftValue(fegen::FegenValue *content);
+  static FegenRightValue getByExpr(std::shared_ptr<Expression> expr);
+  ~FegenRightValue() = default;
 
 private:
-  Expression *content;
+  std::shared_ptr<Expression> content;
 };
 
 class FegenValue {
@@ -374,7 +474,8 @@ public:
   std::string getContentString();
   std::string getContentStringForTypedef();
   std::string getContentStringForOpdef();
-  FegenRightValue::Expression *getExpr();
+  std::string getContentStringForCppKind();
+  std::shared_ptr<FegenRightValue::Expression> getExpr();
   ~FegenValue() = default;
 };
 
@@ -434,7 +535,6 @@ class FegenManager {
   friend class FegenVisitor;
 
 private:
-  // ScopeStack &sstack;
   FegenManager();
   FegenManager(const FegenManager &) = delete;
   const FegenManager &operator=(const FegenManager &) = delete;
@@ -474,8 +574,9 @@ public:
   void emitBuiltinFunction();
 };
 
-FegenType inferenceType(std::vector<FegenRightValue::Expression *>,
-                        FegenOperator);
+FegenType
+    inferenceType(std::vector<std::shared_ptr<FegenRightValue::Expression>>,
+                  FegenOperator);
 
 } // namespace fegen
 

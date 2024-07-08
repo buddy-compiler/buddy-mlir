@@ -1,13 +1,17 @@
-#include "FegenParserBaseVisitor.h"
 #include "FegenManager.h"
+#include "FegenParser.h"
+#include "FegenParserBaseVisitor.h"
 #include "Scope.h"
 #include <algorithm>
+#include <any>
 #include <cassert>
 #include <cstddef>
 #include <fstream>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <unordered_map>
+#include <variant>
 
 fegen::FegenFunction::FegenFunction(std::string name,
                                     std::vector<FegenValue *> &&inputTypeList,
@@ -20,7 +24,7 @@ fegen::FegenFunction::get(std::string name,
                           FegenType *returnType) {
   return new fegen::FegenFunction(name, std::move(inputTypeList), returnType);
 }
-std::string fegen::FegenFunction::getName() { this->name; }
+std::string fegen::FegenFunction::getName() { return this->name; }
 
 std::vector<fegen::FegenValue *> &fegen::FegenFunction::getInputTypeList() {
   return this->inputTypeList;
@@ -228,12 +232,8 @@ std::string fegen::FegenType::toStringForOpdef() {
     return this->typeDefine->getName();
   } else if (typedefName == FEGEN_LIST) {
     std::string res = "Variadic<";
-    for (size_t i = 0; i <= this->parameters.size() - 1; i++) {
-      res.append(this->parameters[i]->getContentStringForTypedef());
-      if (i != this->parameters.size() - 1) {
-        res.append(", ");
-      }
-    }
+    assert(this->parameters.size() == 1);
+    res.append(this->parameters[0]->getContentStringForTypedef());
     res.append(">");
     return res;
   } else if (typedefName == FEGEN_INTEGER) {
@@ -253,6 +253,40 @@ std::string fegen::FegenType::toStringForOpdef() {
   }
 
   std::cerr << "unsupport type: " << typeName << std::endl;
+  exit(0);
+}
+
+std::string fegen::FegenType::toStringForCppKind() {
+  // handle builtin type instance
+  auto typeName = this->typeName;
+  auto typedefName = this->typeDefine->getName();
+  if (typedefName == FEGEN_LIST) {
+    assert(this->parameters.size() == 1);
+    std::string res = "std::vector<";
+    res.append(this->parameters[0]->getContentStringForTypedef());
+    res.append(">");
+    return res;
+  } else if (typedefName == FEGEN_INTEGER) {
+    assert(this->parameters.size() == 1);
+    if (typeName == "int") {
+      return "int";
+    }
+    int size = this->getParameters(0)->getContent<int>();
+    if (size == 64) {
+      return "long";
+    } else if (size == 16) {
+      return "short";
+    }
+  } else if (typedefName == FEGEN_FLOATPOINT) {
+    assert(this->parameters.size() == 1);
+    if (typeName == "float") {
+      return "float";
+    } else if (typeName == "double") {
+      return "double";
+    }
+  }
+  std::cerr << "Unsupported type: " << typeName << "in generating cpp type."
+            << std::endl;
   exit(0);
 }
 
@@ -286,7 +320,7 @@ fegen::FegenType fegen::FegenType::getInt32Type() {
   return fegen::FegenType(
       fegen::FegenType::TypeKind::CPP, "int",
       {fegen::FegenValue::get(fegen::FegenType::getPlaceHolder(), "size",
-                              fegen::FegenRightValue::get())},
+                              fegen::FegenRightValue::getPlaceHolder())},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_INTEGER), 3);
 }
 
@@ -294,7 +328,7 @@ fegen::FegenType fegen::FegenType::getFloatType() {
   return fegen::FegenType(
       fegen::FegenType::TypeKind::CPP, "float",
       {fegen::FegenValue::get(fegen::FegenType::getInt32Type(), "size",
-                              fegen::FegenRightValue::get(32))},
+                              fegen::FegenRightValue::getInteger(32))},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_FLOATPOINT), 3);
 }
 
@@ -302,7 +336,7 @@ fegen::FegenType fegen::FegenType::getDoubleType() {
   return fegen::FegenType(
       fegen::FegenType::TypeKind::CPP, "double",
       {fegen::FegenValue::get(fegen::FegenType::getInt32Type(), "size",
-                              fegen::FegenRightValue::get(64))},
+                              fegen::FegenRightValue::getInteger(64))},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_FLOATPOINT), 3);
 }
 
@@ -310,7 +344,7 @@ fegen::FegenType fegen::FegenType::getBoolType() {
   return fegen::FegenType(
       fegen::FegenType::TypeKind::CPP, "bool",
       {fegen::FegenValue::get(fegen::FegenType::getInt32Type(), "size",
-                              fegen::FegenRightValue::get(1))},
+                              fegen::FegenRightValue::getInteger(1))},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_INTEGER), 3);
 }
 
@@ -352,7 +386,7 @@ fegen::FegenType fegen::FegenType::getVectorType(fegen::FegenValue *size,
       fegen::FegenType::TypeKind::CPP,
       {size,
        fegen::FegenValue::get(fegen::FegenType::getMetaType(), "elementType",
-                              fegen::FegenRightValue::get(elementType))},
+                              fegen::FegenRightValue::getType(elementType))},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_VECTOR),
       elementType.typeLevel);
 }
@@ -364,7 +398,7 @@ fegen::FegenType fegen::FegenType::getTensorType(fegen::FegenValue *shape,
       fegen::FegenType::TypeKind::CPP,
       {shape,
        fegen::FegenValue::get(fegen::FegenType::getMetaType(), "elementType",
-                              fegen::FegenRightValue::get(elementType))},
+                              fegen::FegenRightValue::getType(elementType))},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_TENSOR),
       elementType.typeLevel);
 }
@@ -377,7 +411,7 @@ fegen::FegenType fegen::FegenType::getListType(fegen::FegenType elementType) {
       {fegen::FegenValue::get(
           elementType.typeLevel == 2 ? fegen::FegenType::getMetaTemplateType()
                                      : fegen::FegenType::getMetaType(),
-          "elementType", fegen::FegenRightValue::get(elementType))},
+          "elementType", fegen::FegenRightValue::getType(elementType))},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_LIST),
       elementType.typeLevel);
 }
@@ -391,7 +425,7 @@ fegen::FegenType::getOptionalType(fegen::FegenType elementType) {
       {fegen::FegenValue::get(
           elementType.typeLevel == 2 ? fegen::FegenType::getMetaTemplateType()
                                      : fegen::FegenType::getMetaType(),
-          "elementType", fegen::FegenRightValue::get(elementType))},
+          "elementType", fegen::FegenRightValue::getType(elementType))},
       fegen::FegenManager::getManager().getTypeDefination(FEGEN_OPTINAL),
       elementType.typeLevel);
 }
@@ -408,8 +442,8 @@ fegen::FegenType::getAnyType(std::vector<fegen::FegenType> elementTypes) {
                            : fegen::FegenType::getMetaType();
   for (auto &ty : elementTypes) {
     assert(ty.typeLevel == tyLevel);
-    p_elemTy.push_back(fegen::FegenValue::get(tyty, name + std::to_string(i),
-                                              fegen::FegenRightValue::get(ty)));
+    p_elemTy.push_back(fegen::FegenValue::get(
+        tyty, name + std::to_string(i), fegen::FegenRightValue::getType(ty)));
     i++;
   }
   return fegen::FegenType(
@@ -516,42 +550,93 @@ fegen::FegenRightValue::Expression::getKind() {
   return this->kind;
 }
 
-std::any fegen::FegenRightValue::Expression::getContent() {
-  if (this->ifTerminal) {
-    auto tPtr =
-        dynamic_cast<fegen::FegenRightValue::ExpressionTerminal *>(this);
-    return tPtr->content;
-  } else {
-    return dynamic_cast<fegen::FegenRightValue::ExpressionNode *>(this);
-    ;
-  }
+fegen::FegenType &fegen::FegenRightValue::Expression::getType() {
+  return this->exprType;
 }
 
 bool fegen::FegenRightValue::Expression::isConstexpr() {
   return this->ifConstexpr;
 }
 
-// class ExpressionNode
-
-fegen::FegenRightValue::ExpressionNode::ExpressionNode(
-    std::vector<fegen::FegenRightValue::Expression *> params,
-    std::variant<fegen::FegenFunction *, fegen::FegenOperation *,
-                 fegen::FegenOperator>
-        op,
-    FegenType &exprTy, bool ifConstexpr)
-    : Expression(false, fegen::FegenRightValue::LiteralKind::EXPRESSION, exprTy,
-                 ifConstexpr),
-      op(op), params(params) {}
-
-fegen::FegenRightValue::ExpressionNode::~ExpressionNode() {
-  for (auto p : this->params) {
-    delete p;
-  }
+std::shared_ptr<fegen::FegenRightValue::ExpressionTerminal>
+fegen::FegenRightValue::Expression::getPlaceHolder() {
+  return std::make_shared<fegen::FegenRightValue::PlaceHolder>();
 }
 
+std::shared_ptr<fegen::FegenRightValue::ExpressionTerminal>
+fegen::FegenRightValue::Expression::getInteger(long long int content,
+                                               size_t size) {
+  return std::make_shared<fegen::FegenRightValue::IntegerLiteral>(content,
+                                                                  size);
+}
+
+std::shared_ptr<fegen::FegenRightValue::ExpressionTerminal>
+fegen::FegenRightValue::Expression::getFloatPoint(long double content,
+                                                  size_t size) {
+  return std::make_shared<fegen::FegenRightValue::FloatPointLiteral>(content,
+                                                                     size);
+}
+
+std::shared_ptr<fegen::FegenRightValue::ExpressionTerminal>
+fegen::FegenRightValue::Expression::getString(std::string content) {
+  return std::make_shared<fegen::FegenRightValue::StringLiteral>(content);
+}
+
+std::shared_ptr<fegen::FegenRightValue::ExpressionTerminal>
+fegen::FegenRightValue::Expression::getType(fegen::FegenType &content) {
+  return std::make_shared<fegen::FegenRightValue::TypeLiteral>(content);
+}
+
+std::shared_ptr<fegen::FegenRightValue::ExpressionTerminal>
+fegen::FegenRightValue::Expression::getList(
+    std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>> &content) {
+  return std::make_shared<fegen::FegenRightValue::ListLiteral>(content);
+}
+
+std::shared_ptr<fegen::FegenRightValue::ExpressionTerminal>
+fegen::FegenRightValue::Expression::getLeftValue(fegen::FegenValue *content) {
+  return std::make_shared<fegen::FegenRightValue::LeftValue>(content);
+}
+
+std::shared_ptr<fegen::FegenRightValue::OperatorCall>
+fegen::FegenRightValue::Expression::binaryOperation(
+    std::shared_ptr<fegen::FegenRightValue::Expression> lhs,
+    std::shared_ptr<fegen::FegenRightValue::Expression> rhs, FegenOperator op) {
+  FegenType resTy = fegen::inferenceType({lhs, rhs}, op);
+  return std::make_shared<fegen::FegenRightValue::OperatorCall>(
+      op, std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>>{
+              lhs, rhs});
+}
+
+std::shared_ptr<fegen::FegenRightValue::OperatorCall>
+fegen::FegenRightValue::Expression::unaryOperation(
+    std::shared_ptr<fegen::FegenRightValue::Expression> v, FegenOperator op) {
+  FegenType resTy = fegen::inferenceType({v}, op);
+  return std::make_shared<fegen::FegenRightValue::OperatorCall>(
+      op, std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>>{v});
+}
+
+// class ExpressionNode
+
+fegen::FegenRightValue::ExpressionNode::ExpressionNode(LiteralKind kind,
+                                                       FegenType exprTy,
+                                                       bool ifConstexpr)
+    : Expression(false, kind, exprTy, ifConstexpr) {}
+
 std::string fegen::FegenRightValue::ExpressionNode::toString() {
-  // TODO: toString
-  return "todo: fegen::FegenRightValue::ExpressionNode::toString";
+  assert(FEGEN_NOT_IMPLEMENTED_ERROR);
+}
+
+std::string fegen::FegenRightValue::ExpressionNode::toStringForTypedef() {
+  assert(FEGEN_NOT_IMPLEMENTED_ERROR);
+}
+
+std::string fegen::FegenRightValue::ExpressionNode::toStringForOpdef() {
+  assert(FEGEN_NOT_IMPLEMENTED_ERROR);
+}
+
+std::string fegen::FegenRightValue::ExpressionNode::toStringForCppKind() {
+  assert(FEGEN_NOT_IMPLEMENTED_ERROR);
 }
 
 inline bool isBinaryOperator(fegen::FegenOperator &op) {
@@ -564,246 +649,377 @@ inline bool isBinaryOperator(fegen::FegenOperator &op) {
   }
 }
 
-inline std::string OperatorToString(fegen::FegenOperator &op) {
-  switch (op) {
-  case fegen::FegenOperator::ADD:
-    return "+";
-  case fegen::FegenOperator::SUB:
-    return "-";
-  case fegen::FegenOperator::MUL:
-    return "*";
-  case fegen::FegenOperator::DIV:
-    return "/";
-  default:
-    std::cerr << "unsupproted operator." << std::endl;
-    exit(0);
+std::string getCppOperator(fegen::FegenOperator op) {
+  // switch(op){
+  // OR,
+  // AND,
+  // EQUAL,
+  // NOT_EQUAL,
+  // LESS,
+  // LESS_EQUAL,
+  // GREATER,
+  // GREATER_EQUAL,
+  // ADD,
+  // SUB,
+  // MUL,
+  // DIV,
+  // MOD,
+  // POWER,
+  // NEG,
+  // NOT
+  // }
+}
+
+// std::string res;
+// auto opKind = this->op.index();
+// if(opKind == 0){ // function
+//   auto func = std::get<0>(this->op);
+//   // res.append(func.)
+//   // TODO: add FegenFunction methods.
+// }else if(opKind == 1) { // operation
+//   assert(false);
+//   return res;
+// }else{ // operator
+//   auto op = std::get<2>(this->op);
+//   if(isBinaryOperator(op)){
+//     assert(this->params.size() == 2);
+//     res.append(this->params[0]->toStringForCppKind());
+//     switch(op){
+//       case fegen::FegenOperator::ADD:{
+//         res.append()
+//       }
+//     }
+//     res.append(this->params[1]->toStringForCppKind());
+//   }else{
+
+//   }
+//   switch(op) {
+//     case fegen::FegenOperator::ADD: {
+
+//     }
+//   }
+// }
+
+// class FunctionCall
+inline bool isFuncParamsAllConstant(
+    std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>> &params) {
+  for (auto param : params) {
+    if (!param->isConstexpr()) {
+      return false;
+    }
   }
+  return true;
 }
 
-std::string fegen::FegenRightValue::ExpressionNode::toStringForTypedef() {
-  assert(false);
-  std::cerr << "error type." << std::endl;
-  exit(0);
+// TODO: invoke methods of FegenFunction
+fegen::FegenRightValue::FunctionCall::FunctionCall(
+    fegen::FegenFunction *func,
+    std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>> params)
+    : ExpressionNode(fegen::FegenRightValue::LiteralKind::FUNC_CALL,
+                     fegen::FegenType::getInt32Type(),
+                     isFuncParamsAllConstant(params)),
+      func(func), params(std::move(params)) {}
+
+std::string fegen::FegenRightValue::FunctionCall::toString() {
+  return "FunctionCall::toString";
 }
 
-std::string fegen::FegenRightValue::ExpressionNode::toStringForOpdef() {
-  assert(false);
-  std::cerr << "error type." << std::endl;
-  exit(0);
+std::string fegen::FegenRightValue::FunctionCall::toStringForTypedef() {
+  return "FunctionCall::toStringForTypedef";
 }
 
-std::any fegen::FegenRightValue::ExpressionNode::getContent() { return this; }
-
-fegen::FegenRightValue::ExpressionNode *
-fegen::FegenRightValue::ExpressionNode::binaryOperation(
-    fegen::FegenRightValue::Expression *lhs,
-    fegen::FegenRightValue::Expression *rhs, FegenOperator op) {
-  // TODO: infer type kind: cpp, attribute, or operand
-  FegenType resTy = fegen::inferenceType({lhs, rhs}, op);
-  return new fegen::FegenRightValue::ExpressionNode(
-      {lhs, rhs}, op, resTy, (lhs->isConstexpr() && rhs->isConstexpr()));
+std::string fegen::FegenRightValue::FunctionCall::toStringForOpdef() {
+  return "FunctionCall::toStringForOpdef";
 }
 
-fegen::FegenRightValue::ExpressionNode *
-fegen::FegenRightValue::ExpressionNode::unaryOperation(
-    fegen::FegenRightValue::Expression *v, FegenOperator op) {
-  // TODO: infer type kind: cpp, attribute, or operand
-  FegenType resTy = fegen::inferenceType({v}, op);
-  return new fegen::FegenRightValue::ExpressionNode({v}, op, resTy,
-                                                    v->isConstexpr());
+std::string fegen::FegenRightValue::FunctionCall::toStringForCppKind() {
+  return "FunctionCall::toStringForCppKind";
 }
+
+std::any fegen::FegenRightValue::FunctionCall::getContent() { return this; }
+
+// class OperationCall
+fegen::FegenRightValue::OperationCall::OperationCall(
+    fegen::FegenOperation *op,
+    std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>> params)
+    : ExpressionNode(fegen::FegenRightValue::LiteralKind::OPERATION_CALL,
+                     fegen::FegenType::getInt32Type(),
+                     isFuncParamsAllConstant(params)),
+      op(op), params(std::move(params)) {}
+
+std::string fegen::FegenRightValue::OperationCall::toString() {
+  return "OperationCall::toString";
+}
+
+std::string fegen::FegenRightValue::OperationCall::toStringForTypedef() {
+  return "OperationCall::toStringForTypedef";
+}
+
+std::string fegen::FegenRightValue::OperationCall::toStringForOpdef() {
+  return "OperationCall::toStringForOpdef";
+}
+
+std::string fegen::FegenRightValue::OperationCall::toStringForCppKind() {
+  return "OperationCall::toStringForCppKind";
+}
+
+std::any fegen::FegenRightValue::OperationCall::getContent() { return this; }
+
+// class OperatorCall
+fegen::FegenRightValue::OperatorCall::OperatorCall(
+    fegen::FegenOperator op,
+    std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>> params)
+    : ExpressionNode(fegen::FegenRightValue::LiteralKind::OPERATION_CALL,
+                     fegen::inferenceType(params, op),
+                     isFuncParamsAllConstant(params)),
+      op(op), params(std::move(params)) {}
+
+std::string fegen::FegenRightValue::OperatorCall::toString() {
+  return "OperatorCall::toString";
+}
+
+std::string fegen::FegenRightValue::OperatorCall::toStringForTypedef() {
+  return "OperatorCall::toStringForTypedef";
+}
+
+std::string fegen::FegenRightValue::OperatorCall::toStringForOpdef() {
+  return "OperatorCall::toStringForOpdef";
+}
+
+std::string fegen::FegenRightValue::OperatorCall::toStringForCppKind() {
+  return "OperatorCall::toStringForCppKind";
+}
+
+std::any fegen::FegenRightValue::OperatorCall::getContent() { return this; }
 
 // class ExpressionTerminal
 fegen::FegenRightValue::ExpressionTerminal::ExpressionTerminal(
-    primLiteralType c, fegen::FegenRightValue::LiteralKind kind,
-    FegenType exprTy, bool ifConstexpr)
-    : Expression(true, kind, exprTy, ifConstexpr), content(c) {}
-
-fegen::FegenRightValue::ExpressionTerminal::~ExpressionTerminal() {
-  if (this->kind == fegen::FegenRightValue::LiteralKind::VECTOR) {
-    auto &v = std::get<std::vector<Expression *>>(this->content);
-    for (auto p : v) {
-      delete p;
-    }
-  }
-}
+    fegen::FegenRightValue::LiteralKind kind, FegenType exprTy,
+    bool ifConstexpr)
+    : Expression(true, kind, exprTy, ifConstexpr) {}
 
 std::string fegen::FegenRightValue::ExpressionTerminal::toString() {
-  // TODO: toString
-  return "todo: fegen::FegenRightValue::ExpressionTerminal::toString";
+  assert(FEGEN_NOT_IMPLEMENTED_ERROR);
 }
 
 std::string fegen::FegenRightValue::ExpressionTerminal::toStringForTypedef() {
-  assert(this->isConstexpr());
-  switch (this->kind) {
-  case fegen::FegenRightValue::LiteralKind::TYPE: {
-    auto ty = std::get<FegenType>(this->content);
-    return ty.toStringForTypedef();
-  }
-  case fegen::FegenRightValue::LiteralKind::VECTOR: {
-    std::string res;
-    res.append("[");
-    auto exprs = std::get<std::vector<Expression *>>(this->content);
-    for (size_t i = 0; i <= exprs.size() - 1; i++) {
-      res.append(exprs[i]->toStringForTypedef());
-      if (i != exprs.size() - 1) {
-        res.append(", ");
-      }
-    }
-    res.append("]");
-    return res;
-  }
-  default: {
-    std::cerr << "unsupport expression" << std::endl;
-    exit(0);
-  }
-  }
+  assert(FEGEN_NOT_IMPLEMENTED_ERROR);
 }
 
 std::string fegen::FegenRightValue::ExpressionTerminal::toStringForOpdef() {
-  assert(this->isConstexpr());
-  switch (this->kind) {
-  case fegen::FegenRightValue::LiteralKind::TYPE: {
-    auto ty = std::get<FegenType>(this->content);
-    return ty.toStringForOpdef();
-  }
-  case fegen::FegenRightValue::LiteralKind::VECTOR: {
-    std::string res;
-    res.append("[");
-    auto exprs = std::get<std::vector<Expression *>>(this->content);
-    for (size_t i = 0; i <= exprs.size() - 1; i++) {
-      res.append(exprs[i]->toStringForOpdef());
-      if (i != exprs.size() - 1) {
-        res.append(", ");
-      }
-    }
-    res.append("]");
-    return res;
-  }
-  default: {
-    assert(false);
-    std::cerr << "unsupport expression" << std::endl;
-    exit(0);
-  }
-  }
+  assert(FEGEN_NOT_IMPLEMENTED_ERROR);
 }
 
-std::any fegen::FegenRightValue::ExpressionTerminal::getContent() {
-  switch (this->kind) {
-  case fegen::FegenRightValue::LiteralKind::INT:
-    return std::get<int>(this->content);
-  case fegen::FegenRightValue::LiteralKind::FLOAT:
-    return std::get<float>(this->content);
-  case fegen::FegenRightValue::LiteralKind::STRING:
-    return std::get<std::string>(this->content);
-  case fegen::FegenRightValue::LiteralKind::TYPE:
-    return std::get<FegenType>(this->content);
-  case fegen::FegenRightValue::LiteralKind::VECTOR:
-    return std::get<std::vector<Expression *>>(this->content);
-  case fegen::FegenRightValue::LiteralKind::LEFT_VAR:
-    return std::get<FegenValue *>(this->content);
-  default:
-    return std::monostate();
-  }
+std::string fegen::FegenRightValue::ExpressionTerminal::toStringForCppKind() {
+  assert(FEGEN_NOT_IMPLEMENTED_ERROR);
 }
 
-fegen::FegenRightValue::ExpressionTerminal *
-fegen::FegenRightValue::ExpressionTerminal::get(std::monostate content) {
-  return new fegen::FegenRightValue::ExpressionTerminal(
-      content, fegen::FegenRightValue::LiteralKind::MONOSTATE,
-      fegen::FegenType::getPlaceHolder(), true);
+// class PlaceHolder
+fegen::FegenRightValue::PlaceHolder::PlaceHolder()
+    : ExpressionTerminal(fegen::FegenRightValue::LiteralKind::MONOSTATE,
+                         fegen::FegenType::getPlaceHolder(), true) {}
+
+std::any fegen::FegenRightValue::PlaceHolder::getContent() {
+  return std::monostate();
 }
 
-fegen::FegenRightValue::ExpressionTerminal *
-fegen::FegenRightValue::ExpressionTerminal::get(int content) {
-  return new fegen::FegenRightValue::ExpressionTerminal(
-      content, fegen::FegenRightValue::LiteralKind::INT,
-      fegen::FegenType::getInt32Type(), true);
+std::string fegen::FegenRightValue::PlaceHolder::toString() { return ""; }
+
+// class IntegerLiteral
+fegen::FegenRightValue::IntegerLiteral::IntegerLiteral(int content)
+    : ExpressionTerminal(fegen::FegenRightValue::LiteralKind::INT,
+                         fegen::FegenType::getInt32Type(), true),
+      content(content) {}
+
+fegen::FegenRightValue::IntegerLiteral::IntegerLiteral(long long int content,
+                                                       size_t size)
+    : ExpressionTerminal(
+          fegen::FegenRightValue::LiteralKind::INT,
+          fegen::FegenType::getIntegerType(fegen::FegenValue::get(
+              fegen::FegenType::getInt32Type(), "size",
+              fegen::FegenRightValue::getByExpr(
+                  std::make_shared<fegen::FegenRightValue::IntegerLiteral>(
+                      size)))),
+          true),
+      content(content) {}
+
+std::any fegen::FegenRightValue::IntegerLiteral::getContent() {
+  return this->content;
 }
 
-fegen::FegenRightValue::ExpressionTerminal *
-fegen::FegenRightValue::ExpressionTerminal::get(float content) {
-  return new fegen::FegenRightValue::ExpressionTerminal(
-      content, fegen::FegenRightValue::LiteralKind::FLOAT,
-      fegen::FegenType::getFloatType(), true);
+std::string fegen::FegenRightValue::IntegerLiteral::toString() {
+  return std::to_string(this->content);
 }
 
-fegen::FegenRightValue::ExpressionTerminal *
-fegen::FegenRightValue::ExpressionTerminal::get(std::string content) {
-  return new fegen::FegenRightValue::ExpressionTerminal(
-      content, fegen::FegenRightValue::LiteralKind::STRING,
-      fegen::FegenType::getStringType(), true);
+// class FloatPointLiteral
+fegen::FegenRightValue::FloatPointLiteral::FloatPointLiteral(
+    long double content, size_t size)
+    : ExpressionTerminal(
+          fegen::FegenRightValue::LiteralKind::FLOAT,
+          fegen::FegenType::getFloatPointType(
+              fegen::FegenValue::get(fegen::FegenType::getInt32Type(), "size",
+                                     fegen::FegenRightValue::getInteger(size))),
+          true),
+      content(content) {}
+
+std::any fegen::FegenRightValue::FloatPointLiteral::getContent() {
+  return this->content;
 }
 
-fegen::FegenRightValue::ExpressionTerminal *
-fegen::FegenRightValue::ExpressionTerminal::get(fegen::FegenType &content) {
-  bool ifConstexpr = true;
+std::string fegen::FegenRightValue::FloatPointLiteral::toString() {
+  return std::to_string(this->content);
+}
+
+// class StringLiteral
+fegen::FegenRightValue::StringLiteral::StringLiteral(std::string content)
+    : ExpressionTerminal(fegen::FegenRightValue::LiteralKind::STRING,
+                         fegen::FegenType::getStringType(), true),
+      content(content) {}
+
+std::any fegen::FegenRightValue::StringLiteral::getContent() {
+  return this->content;
+}
+
+std::string fegen::FegenRightValue::StringLiteral::toString() {
+  std::string res;
+  res.append("\"");
+  res.append(this->content);
+  res.append("\"");
+  return res;
+}
+
+// class TypeLiteral
+
+// Check params of content and return ture if params are all const expr.
+inline bool isParamsConstant(fegen::FegenType &content) {
   for (auto param : content.getParameters()) {
     if (!param->getExpr()->isConstexpr()) {
-      ifConstexpr = false;
-      break;
+      return false;
     }
   }
+  return true;
+}
+
+// Get type of type literal.
+fegen::FegenType getTypeLiteralType(fegen::FegenType &content) {
   if (content.getTypeLevel() == 2) {
-    return new fegen::FegenRightValue::ExpressionTerminal(
-        content, fegen::FegenRightValue::LiteralKind::TYPE,
-        fegen::FegenType::getMetaTemplateType(), ifConstexpr);
+    return fegen::FegenType::getMetaTemplateType();
   } else if (content.getTypeLevel() == 3) {
-    return new fegen::FegenRightValue::ExpressionTerminal(
-        content, fegen::FegenRightValue::LiteralKind::TYPE,
-        fegen::FegenType::getMetaType(), ifConstexpr);
+    return fegen::FegenType::getMetaType();
   } else {
-    return new fegen::FegenRightValue::ExpressionTerminal(
-        content, fegen::FegenRightValue::LiteralKind::TYPE,
-        fegen::FegenType::getPlaceHolder(), ifConstexpr);
+    return fegen::FegenType::getPlaceHolder();
   }
 }
 
-fegen::FegenRightValue::ExpressionTerminal *
-fegen::FegenRightValue::ExpressionTerminal::get(
-    std::vector<fegen::FegenRightValue::Expression *> &content) {
-  bool ifConstexpr = true;
+fegen::FegenRightValue::TypeLiteral::TypeLiteral(fegen::FegenType &content)
+    : ExpressionTerminal(fegen::FegenRightValue::LiteralKind::TYPE,
+                         getTypeLiteralType(content),
+                         isParamsConstant(content)),
+      content(content) {}
+
+std::any fegen::FegenRightValue::TypeLiteral::getContent() {
+  return this->content;
+}
+
+std::string fegen::FegenRightValue::TypeLiteral::toString() {
+  return this->content.getTypeName();
+}
+
+std::string fegen::FegenRightValue::TypeLiteral::toStringForTypedef() {
+  return this->content.toStringForTypedef();
+}
+
+std::string fegen::FegenRightValue::TypeLiteral::toStringForOpdef() {
+  return this->content.toStringForOpdef();
+}
+
+std::string fegen::FegenRightValue::TypeLiteral::toStringForCppKind() {
+  return this->content.toStringForCppKind();
+}
+
+// class ExpressionTerminal
+
+// Return ture if all Expressions in content are all true.
+bool isExpressionListConst(
+    std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>> &content) {
   for (auto p : content) {
     if (!p->isConstexpr()) {
-      ifConstexpr = false;
+      return false;
       break;
     }
   }
-  return new fegen::FegenRightValue::ExpressionTerminal(
-      content, fegen::FegenRightValue::LiteralKind::VECTOR,
-      fegen::FegenType::getListType(content[0]->exprType), ifConstexpr);
+  return true;
 }
 
-fegen::FegenRightValue::ExpressionTerminal *
-fegen::FegenRightValue::ExpressionTerminal::get(fegen::FegenValue *content) {
-  return new fegen::FegenRightValue::ExpressionTerminal(
-      content, fegen::FegenRightValue::LiteralKind::LEFT_VAR,
-      content->getType(), content->getExpr()->isConstexpr());
+fegen::FegenRightValue::ListLiteral::ListLiteral(
+    std::vector<std::shared_ptr<Expression>> &content)
+    : ExpressionTerminal(fegen::FegenRightValue::LiteralKind::VECTOR,
+                         content[0]->exprType, isExpressionListConst(content)),
+      content(content) {}
+
+std::any fegen::FegenRightValue::ListLiteral::getContent() {
+  return this->content;
+}
+
+std::string fegen::FegenRightValue::ListLiteral::toString() {
+  std::string res;
+  res.append("[");
+  for (size_t i = 0; i <= this->content.size() - 1; i++) {
+    res.append(this->content[i]->toString());
+    if (i != this->content.size() - 1) {
+      res.append(", ");
+    }
+  }
+  res.append("]");
+  return res;
+}
+
+std::string fegen::FegenRightValue::ListLiteral::toStringForTypedef() {
+  std::string res;
+  res.append("[");
+  for (size_t i = 0; i <= this->content.size() - 1; i++) {
+    res.append(this->content[i]->toStringForTypedef());
+    if (i != this->content.size() - 1) {
+      res.append(", ");
+    }
+  }
+  res.append("]");
+  return res;
+}
+
+std::string fegen::FegenRightValue::ListLiteral::toStringForOpdef() {
+  std::string res;
+  res.append("[");
+  for (size_t i = 0; i <= this->content.size() - 1; i++) {
+    res.append(this->content[i]->toStringForOpdef());
+    if (i != this->content.size() - 1) {
+      res.append(", ");
+    }
+  }
+  res.append("]");
+  return res;
+}
+
+// class LeftValue
+fegen::FegenRightValue::LeftValue::LeftValue(fegen::FegenValue *content)
+    : ExpressionTerminal(fegen::FegenRightValue::LiteralKind::LEFT_VAR,
+                         content->getType(), content->getExpr()->isConstexpr()),
+      content(content) {}
+
+std::any fegen::FegenRightValue::LeftValue::getContent() {
+  return this->content;
+}
+
+std::string fegen::FegenRightValue::LeftValue::toString() {
+  return this->content->getName();
 }
 
 // class FegenRightValue
 fegen::FegenRightValue::FegenRightValue(
-    fegen::FegenRightValue::Expression *content)
+    std::shared_ptr<fegen::FegenRightValue::Expression> content)
     : content(content) {}
 
-fegen::FegenRightValue::FegenRightValue(const fegen::FegenRightValue &rhs) {
-  if (rhs.content->isTerminal()) {
-    auto expr =
-        dynamic_cast<fegen::FegenRightValue::ExpressionTerminal *>(rhs.content);
-    this->content = new fegen::FegenRightValue::ExpressionTerminal(*expr);
-  } else {
-    auto expr =
-        dynamic_cast<fegen::FegenRightValue::ExpressionNode *>(rhs.content);
-    this->content = new fegen::FegenRightValue::ExpressionNode(*expr);
-  }
-}
-
-fegen::FegenRightValue::FegenRightValue(fegen::FegenRightValue &&rhs) {
-  this->content = rhs.content;
-  rhs.content = nullptr;
-}
-
-fegen::FegenRightValue::LiteralKind fegen::FegenRightValue::getKind() {
+fegen::FegenRightValue::LiteralKind fegen::FegenRightValue::getLiteralKind() {
   return this->content->getKind();
 }
 
@@ -819,53 +1035,65 @@ std::string fegen::FegenRightValue::toStringForOpdef() {
   return this->content->toStringForOpdef();
 }
 
+std::string fegen::FegenRightValue::toStringForCppKind() {
+  return this->content->toStringForCppKind();
+}
+
 std::any fegen::FegenRightValue::getContent() {
   return this->content->getContent();
 }
 
-fegen::FegenRightValue::Expression *fegen::FegenRightValue::getExpr() {
+fegen::FegenType &fegen::FegenRightValue::getType() {
+  return this->content->getType();
+}
+
+std::shared_ptr<fegen::FegenRightValue::Expression>
+fegen::FegenRightValue::getExpr() {
   return this->content;
 }
 
-fegen::FegenRightValue fegen::FegenRightValue::get() {
+fegen::FegenRightValue fegen::FegenRightValue::getPlaceHolder() {
   return fegen::FegenRightValue(
-      fegen::FegenRightValue::ExpressionTerminal::get(std::monostate()));
+      fegen::FegenRightValue::Expression::getPlaceHolder());
 }
 
-fegen::FegenRightValue fegen::FegenRightValue::get(int content) {
+fegen::FegenRightValue fegen::FegenRightValue::getInteger(long long int content,
+                                                          size_t size) {
   return fegen::FegenRightValue(
-      fegen::FegenRightValue::ExpressionTerminal::get(content));
-}
-fegen::FegenRightValue fegen::FegenRightValue::get(float content) {
-  return fegen::FegenRightValue(
-      fegen::FegenRightValue::ExpressionTerminal::get(content));
-}
-fegen::FegenRightValue fegen::FegenRightValue::get(std::string content) {
-  return fegen::FegenRightValue(
-      fegen::FegenRightValue::ExpressionTerminal::get(content));
-}
-fegen::FegenRightValue fegen::FegenRightValue::get(fegen::FegenType &content) {
-  return fegen::FegenRightValue(
-      fegen::FegenRightValue::ExpressionTerminal::get(content));
-}
-
-fegen::FegenRightValue fegen::FegenRightValue::get(
-    std::vector<fegen::FegenRightValue::Expression *> &content) {
-  return fegen::FegenRightValue(
-      fegen::FegenRightValue::ExpressionTerminal::get(content));
-}
-fegen::FegenRightValue fegen::FegenRightValue::get(fegen::FegenValue *content) {
-  return fegen::FegenRightValue(
-      fegen::FegenRightValue::ExpressionTerminal::get(content));
+      fegen::FegenRightValue::Expression::getInteger(content, size));
 }
 
 fegen::FegenRightValue
-fegen::FegenRightValue::get(fegen::FegenRightValue::Expression *expr) {
+fegen::FegenRightValue::getFloatPoint(long double content, size_t size) {
+  return fegen::FegenRightValue(
+      fegen::FegenRightValue::Expression::getFloatPoint(content, size));
+}
+fegen::FegenRightValue fegen::FegenRightValue::getString(std::string content) {
+  return fegen::FegenRightValue(
+      fegen::FegenRightValue::Expression::getString(content));
+}
+fegen::FegenRightValue
+fegen::FegenRightValue::getType(fegen::FegenType &content) {
+  return fegen::FegenRightValue(
+      fegen::FegenRightValue::Expression::getType(content));
+}
+
+fegen::FegenRightValue fegen::FegenRightValue::getList(
+    std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>> &content) {
+  return fegen::FegenRightValue(
+      fegen::FegenRightValue::Expression::getList(content));
+}
+fegen::FegenRightValue
+fegen::FegenRightValue::getLeftValue(fegen::FegenValue *content) {
+  return fegen::FegenRightValue(
+      fegen::FegenRightValue::Expression::getLeftValue(content));
+}
+
+fegen::FegenRightValue fegen::FegenRightValue::getByExpr(
+    std::shared_ptr<fegen::FegenRightValue::Expression> expr) {
   assert(expr != nullptr);
   return fegen::FegenRightValue(expr);
 }
-
-fegen::FegenRightValue::~FegenRightValue() { delete this->content; }
 
 // class FegenValue
 fegen::FegenValue::FegenValue(fegen::FegenType type, std::string name,
@@ -891,7 +1119,7 @@ fegen::FegenType &fegen::FegenValue::getType() { return this->type; }
 std::string fegen::FegenValue::getName() { return this->name; }
 
 fegen::FegenRightValue::LiteralKind fegen::FegenValue::getContentKind() {
-  return this->content.getKind();
+  return this->content.getLiteralKind();
 }
 
 std::string fegen::FegenValue::getContentString() {
@@ -906,7 +1134,12 @@ std::string fegen::FegenValue::getContentStringForOpdef() {
   return this->content.toStringForOpdef();
 }
 
-fegen::FegenRightValue::Expression *fegen::FegenValue::getExpr() {
+std::string fegen::FegenValue::getContentStringForCppKind() {
+  return this->content.toStringForCppKind();
+}
+
+std::shared_ptr<fegen::FegenRightValue::Expression>
+fegen::FegenValue::getExpr() {
   return this->content.getExpr();
 }
 
@@ -986,6 +1219,8 @@ std::string getChildrenText(antlr4::tree::ParseTree *ctx) {
 
 fegen::FegenManager::FegenManager() {}
 
+namespace fegen {
+
 class Emitter {
 private:
   std::ostream &stream;
@@ -1024,10 +1259,56 @@ public:
   }
 };
 
+class StmtGenerator : FegenParserBaseVisitor {
+private:
+  FegenManager &manager;
+  Emitter &emitter;
+
+public:
+  StmtGenerator(Emitter &emitter)
+      : manager(FegenManager::getManager()), emitter(emitter) {}
+  std::any visitVarDeclStmt(FegenParser::VarDeclStmtContext *ctx) override {
+    auto var = manager.getStmtContent<FegenValue *>(ctx->identifier());
+    switch (var->getType().getTypeKind()) {
+    case fegen::FegenType::TypeKind::CPP: {
+      this->emitter << var->getType().toStringForCppKind() << " "
+                    << var->getName();
+      if (ctx->expression()) {
+        auto expr = this->manager.getStmtContent<FegenRightValue::Expression *>(
+            ctx->expression());
+        this->emitter << " = " << expr->toStringForCppKind();
+      }
+      this->emitter << ";";
+      this->emitter.newLine();
+      break;
+    }
+    case fegen::FegenType::TypeKind::ATTRIBUTE: {
+      break;
+    }
+    case fegen::FegenType::TypeKind::OPERAND: {
+      break;
+    }
+    }
+    return nullptr;
+  }
+
+  std::any visitAssignStmt(FegenParser::AssignStmtContext *ctx) override {}
+
+  std::any visitFunctionCall(FegenParser::FunctionCallContext *ctx) override {}
+
+  std::any visitOpInvokeStmt(FegenParser::OpInvokeStmtContext *ctx) override {}
+
+  std::any visitIfStmt(FegenParser::IfStmtContext *ctx) override {}
+
+  std::any visitForStmt(FegenParser::ForStmtContext *ctx) override {}
+};
+
+} // namespace fegen
+
 void fegen::FegenManager::emitG4() {
   std::ofstream fileStream;
   fileStream.open(this->moduleName + ".g4");
-  Emitter emitter(fileStream);
+  fegen::Emitter emitter(fileStream);
   emitter << "grammar " << this->moduleName << ";";
   emitter.newLine();
   for (auto node_pair : this->nodeMap) {
@@ -1055,7 +1336,7 @@ void fegen::FegenManager::emitG4() {
 void fegen::FegenManager::emitTypeDefination() {
   std::ofstream fileStream;
   fileStream.open(this->moduleName + "Types.td");
-  Emitter emitter(fileStream);
+  fegen::Emitter emitter(fileStream);
   // file head
   std::string mn(this->moduleName);
   std::transform(mn.begin(), mn.end(), mn.begin(), ::toupper);
@@ -1151,7 +1432,7 @@ void fegen::FegenManager::emitTypeDefination() {
 void fegen::FegenManager::emitOpDefination() {
   std::ofstream fileStream;
   fileStream.open(this->moduleName + "Ops.td");
-  Emitter emitter(fileStream);
+  fegen::Emitter emitter(fileStream);
 
   // file head
   std::string mn(this->moduleName);
@@ -1242,7 +1523,7 @@ void fegen::FegenManager::emitOpDefination() {
 void fegen::FegenManager::emitDialectDefination() {
   std::ofstream fileStream;
   fileStream.open(this->moduleName + "Dialect.td");
-  Emitter emitter(fileStream);
+  fegen::Emitter emitter(fileStream);
 
   // file head
   std::string mn(this->moduleName);
@@ -1319,11 +1600,11 @@ void fegen::FegenManager::initbuiltinTypes() {
   auto intType = fegen::FegenType(
       fegen::FegenType::TypeKind::CPP,
       {fegen::FegenValue::get(fegen::FegenType::getPlaceHolder(), "size",
-                              fegen::FegenRightValue::get())},
+                              fegen::FegenRightValue::getPlaceHolder())},
       intTypeDefination, false);
   // parameters of Integer is int32(Integer<32>)
-  intTypeDefination->parameters.push_back(
-      fegen::FegenValue::get(intType, "size", fegen::FegenRightValue::get()));
+  intTypeDefination->parameters.push_back(fegen::FegenValue::get(
+      intType, "size", fegen::FegenRightValue::getPlaceHolder()));
   this->typeDefMap.insert({FEGEN_INTEGER, intTypeDefination});
 
   // FloatPoint
@@ -1332,7 +1613,7 @@ void fegen::FegenManager::initbuiltinTypes() {
        fegen::FegenTypeDefination::get(
            "fegen_builtin", FEGEN_FLOATPOINT,
            {fegen::FegenValue::get(fegen::FegenType::getInt32Type(), "size",
-                                   fegen::FegenRightValue::get())},
+                                   fegen::FegenRightValue::getPlaceHolder())},
            nullptr, false)});
 
   // Char
@@ -1351,19 +1632,19 @@ void fegen::FegenManager::initbuiltinTypes() {
        fegen::FegenTypeDefination::get(
            "fegen_builtin", FEGEN_VECTOR,
            {fegen::FegenValue::get(fegen::FegenType::getInt32Type(), "size",
-                                   fegen::FegenRightValue::get()),
+                                   fegen::FegenRightValue::getPlaceHolder()),
             fegen::FegenValue::get(fegen::FegenType::getMetaType(),
                                    "elementType",
-                                   fegen::FegenRightValue::get())},
+                                   fegen::FegenRightValue::getPlaceHolder())},
            nullptr, false)});
 
   // List (this should be ahead of Tensor and Any Type defination)
   this->typeDefMap.insert(
       {FEGEN_LIST, fegen::FegenTypeDefination::get(
                        "fegen_builtin", FEGEN_LIST,
-                       {fegen::FegenValue::get(fegen::FegenType::getMetaType(),
-                                               "elementType",
-                                               fegen::FegenRightValue::get())},
+                       {fegen::FegenValue::get(
+                           fegen::FegenType::getMetaType(), "elementType",
+                           fegen::FegenRightValue::getPlaceHolder())},
                        nullptr, false)});
 
   // Tensor
@@ -1373,10 +1654,10 @@ void fegen::FegenManager::initbuiltinTypes() {
            "fegen_builtin", FEGEN_TENSOR,
            {fegen::FegenValue::get(
                 fegen::FegenType::getListType(fegen::FegenType::getInt32Type()),
-                "shape", fegen::FegenRightValue::get()),
+                "shape", fegen::FegenRightValue::getPlaceHolder()),
             fegen::FegenValue::get(fegen::FegenType::getMetaType(),
                                    "elementType",
-                                   fegen::FegenRightValue::get())},
+                                   fegen::FegenRightValue::getPlaceHolder())},
            nullptr, false)});
 
   // Optional
@@ -1385,7 +1666,7 @@ void fegen::FegenManager::initbuiltinTypes() {
                           "fegen_builtin", FEGEN_OPTINAL,
                           {fegen::FegenValue::get(
                               fegen::FegenType::getMetaType(), "elementType",
-                              fegen::FegenRightValue::get())},
+                              fegen::FegenRightValue::getPlaceHolder())},
                           nullptr, false)});
 
   // Any
@@ -1395,7 +1676,7 @@ void fegen::FegenManager::initbuiltinTypes() {
            "fegen_builtin", FEGEN_ANY,
            {fegen::FegenValue::get(
                fegen::FegenType::getListType(fegen::FegenType::getMetaType()),
-               "elementType", fegen::FegenRightValue::get())},
+               "elementType", fegen::FegenRightValue::getPlaceHolder())},
            nullptr, false)});
 }
 
@@ -1442,13 +1723,14 @@ fegen::FegenManager::~FegenManager() {
   }
 }
 
-fegen::FegenType
-fegen::inferenceType(std::vector<fegen::FegenRightValue::Expression *> operands,
-                     fegen::FegenOperator op) {
+fegen::FegenType fegen::inferenceType(
+    std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>> operands,
+    fegen::FegenOperator op) {
   // TODO: infer type
   return fegen::FegenType::getInt32Type();
 }
-namespace fegen{
+
+namespace fegen {
 
 // class StmtVisitor : public FegenParserBaseVisitor{
 // public:

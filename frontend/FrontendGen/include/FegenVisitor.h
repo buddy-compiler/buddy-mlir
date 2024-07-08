@@ -29,7 +29,9 @@ bool checkParams(std::vector<FegenValue *> &expected,
                  std::vector<FegenValue *> &actual);
 
 /// @brief check if the type of elements in list are correct.
-bool checkListLiteral(std::vector<FegenRightValue::Expression *> listLiteral);
+bool checkListLiteral(
+    std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>>
+        &listLiteral);
 
 class FegenVisitor : public FegenParserBaseVisitor {
 private:
@@ -184,8 +186,8 @@ public:
     for (size_t i = 0; i <= varCount - 1; i++) {
       auto ty = std::any_cast<fegen::FegenType>(this->visit(ctx->typeSpec(i)));
       auto varName = ctx->identifier(i)->getText();
-      auto var =
-          fegen::FegenValue::get(ty, varName, fegen::FegenRightValue::get());
+      auto var = fegen::FegenValue::get(
+          ty, varName, fegen::FegenRightValue::getPlaceHolder());
       valueList.push_back(var);
     }
 
@@ -271,12 +273,14 @@ public:
     if (ctx->builtinTypeInstances()) {
       auto ty = std::any_cast<fegen::FegenType>(
           this->visit(ctx->builtinTypeInstances()));
-      return fegen::FegenValue::get(ty, "param", fegen::FegenRightValue::get());
+      return fegen::FegenValue::get(ty, "param",
+                                    fegen::FegenRightValue::getPlaceHolder());
     } else {
-      auto expr = std::any_cast<fegen::FegenRightValue::Expression *>(
-          this->visit(ctx->expression()));
+      auto expr =
+          std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+              this->visit(ctx->expression()));
       return fegen::FegenValue::get(expr->exprType, "expression_tmp",
-                                    fegen::FegenRightValue(expr));
+                                    fegen::FegenRightValue::getByExpr(expr));
     }
   }
 
@@ -352,59 +356,67 @@ public:
 
   // return FegenType
   std::any visitCollectType(FegenParser::CollectTypeContext *ctx) override {
-    auto expr = std::any_cast<fegen::FegenRightValue::Expression *>(
-        this->visit(ctx->expression()));
+    auto expr =
+        std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+            this->visit(ctx->expression()));
     if (ctx->collectProtoType()->ANY()) {
       std::vector<fegen::FegenType> tys;
       // TODO: reprot error
       assert(expr->getKind() == fegen::FegenRightValue::LiteralKind::VECTOR);
-      auto exprs =
-          std::any_cast<std::vector<fegen::FegenRightValue::Expression *>>(
-              expr->getContent());
+      auto exprs = std::any_cast<
+          std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>>>(
+          expr->getContent());
       for (auto expr : exprs) {
         auto ty = std::any_cast<fegen::FegenType>(expr->getContent());
         tys.push_back(ty);
       }
       return fegen::FegenType::getAnyType(tys);
     } else if (ctx->collectProtoType()->LIST()) {
+      assert(expr->getKind() == fegen::FegenRightValue::LiteralKind::TYPE);
       auto ty = std::any_cast<fegen::FegenType>(expr->getContent());
       return fegen::FegenType::getListType(ty);
     } else { // optional
+      assert(expr->getKind() == fegen::FegenRightValue::LiteralKind::TYPE);
       auto ty = std::any_cast<fegen::FegenType>(expr->getContent());
       return fegen::FegenType::getOptionalType(ty);
     }
   }
 
-  // return FegenRightValue::Expression*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitExpression(FegenParser::ExpressionContext *ctx) override {
-    auto expr = std::any_cast<FegenRightValue::Expression *>(
-        this->visit(ctx->andExpr(0)));
+    auto expr =
+        std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+            this->visit(ctx->andExpr(0)));
     for (size_t i = 1; i <= ctx->andExpr().size() - 1; i++) {
-      auto rhs = std::any_cast<FegenRightValue::Expression *>(
-          this->visit(ctx->andExpr(i)));
+      auto rhs =
+          std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+              this->visit(ctx->andExpr(i)));
       expr = FegenRightValue::ExpressionNode::binaryOperation(
           expr, rhs, FegenOperator::OR);
     }
     return expr;
   }
 
-  // return FegenRightValue::Expression*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitAndExpr(FegenParser::AndExprContext *ctx) override {
-    auto expr = std::any_cast<FegenRightValue::Expression *>(
-        this->visit(ctx->equExpr(0)));
+    auto expr =
+        std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+            this->visit(ctx->equExpr(0)));
     for (size_t i = 1; i <= ctx->equExpr().size() - 1; i++) {
-      auto rhs = std::any_cast<FegenRightValue::Expression *>(
-          this->visit(ctx->equExpr(i)));
+      auto rhs =
+          std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+              this->visit(ctx->equExpr(i)));
       expr = FegenRightValue::ExpressionNode::binaryOperation(
           expr, rhs, FegenOperator::AND);
     }
     return expr;
   }
 
-  // return FegenRightValue::Expression*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitEquExpr(FegenParser::EquExprContext *ctx) override {
-    auto expr = std::any_cast<FegenRightValue::Expression *>(
-        this->visit(ctx->compareExpr(0)));
+    auto expr =
+        std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+            this->visit(ctx->compareExpr(0)));
     for (size_t i = 1; i <= ctx->compareExpr().size() - 1; i++) {
       FegenOperator op;
       if (ctx->children[2 * i - 1]->getText() == "==") {
@@ -412,17 +424,19 @@ public:
       } else {
         op = FegenOperator::NOT_EQUAL;
       }
-      auto rhs = std::any_cast<FegenRightValue::Expression *>(
-          this->visit(ctx->compareExpr(i)));
+      auto rhs =
+          std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+              this->visit(ctx->compareExpr(i)));
       expr = FegenRightValue::ExpressionNode::binaryOperation(expr, rhs, op);
     }
     return expr;
   }
 
-  // return FegenRightValue::Expression*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitCompareExpr(FegenParser::CompareExprContext *ctx) override {
-    auto expr = std::any_cast<FegenRightValue::Expression *>(
-        this->visit(ctx->addExpr(0)));
+    auto expr =
+        std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+            this->visit(ctx->addExpr(0)));
     for (size_t i = 1; i <= ctx->addExpr().size() - 1; i++) {
       FegenOperator op;
       auto opStr = ctx->children[2 * i - 1]->getText();
@@ -437,17 +451,19 @@ public:
       } else {
         op = FegenOperator::GREATER_EQUAL;
       }
-      auto rhs = std::any_cast<FegenRightValue::Expression *>(
-          this->visit(ctx->addExpr(i)));
+      auto rhs =
+          std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+              this->visit(ctx->addExpr(i)));
       expr = FegenRightValue::ExpressionNode::binaryOperation(expr, rhs, op);
     }
     return expr;
   }
 
-  // return FegenRightValue::Expression*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitAddExpr(FegenParser::AddExprContext *ctx) override {
     auto expr =
-        std::any_cast<FegenRightValue::Expression *>(this->visit(ctx->term(0)));
+        std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+            this->visit(ctx->term(0)));
     for (size_t i = 1; i <= ctx->term().size() - 1; i++) {
       FegenOperator op;
       auto opStr = ctx->children[2 * i - 1]->getText();
@@ -456,17 +472,19 @@ public:
       } else {
         op = FegenOperator::SUB;
       }
-      auto rhs = std::any_cast<FegenRightValue::Expression *>(
-          this->visit(ctx->term(i)));
+      auto rhs =
+          std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+              this->visit(ctx->term(i)));
       expr = FegenRightValue::ExpressionNode::binaryOperation(expr, rhs, op);
     }
     return expr;
   }
 
-  // return FegenRightValue::Expression*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitTerm(FegenParser::TermContext *ctx) override {
-    auto expr = std::any_cast<FegenRightValue::Expression *>(
-        this->visit(ctx->powerExpr(0)));
+    auto expr =
+        std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+            this->visit(ctx->powerExpr(0)));
     for (size_t i = 1; i <= ctx->powerExpr().size() - 1; i++) {
       FegenOperator op;
       auto opStr = ctx->children[2 * i - 1]->getText();
@@ -477,33 +495,37 @@ public:
       } else {
         op = FegenOperator::MOD;
       }
-      auto rhs = std::any_cast<FegenRightValue::Expression *>(
-          this->visit(ctx->powerExpr(i)));
+      auto rhs =
+          std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+              this->visit(ctx->powerExpr(i)));
       expr = FegenRightValue::ExpressionNode::binaryOperation(expr, rhs, op);
     }
     return expr;
   }
 
-  // return FegenRightValue::Expression*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitPowerExpr(FegenParser::PowerExprContext *ctx) override {
-    auto expr = std::any_cast<FegenRightValue::Expression *>(
-        this->visit(ctx->unaryExpr(0)));
+    auto expr =
+        std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+            this->visit(ctx->unaryExpr(0)));
     for (size_t i = 1; i <= ctx->unaryExpr().size() - 1; i++) {
-      auto rhs = std::any_cast<FegenRightValue::Expression *>(
-          this->visit(ctx->unaryExpr(i)));
+      auto rhs =
+          std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+              this->visit(ctx->unaryExpr(i)));
       expr = FegenRightValue::ExpressionNode::binaryOperation(
           expr, rhs, FegenOperator::POWER);
     }
     return expr;
   }
 
-  // return FegenRightValue::Expression*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitUnaryExpr(FegenParser::UnaryExprContext *ctx) override {
     if (ctx->children.size() == 1 || ctx->Plus()) {
       return this->visit(ctx->primaryExpr());
     }
-    auto expr = std::any_cast<FegenRightValue::Expression *>(
-        this->visit(ctx->primaryExpr()));
+    auto expr =
+        std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+            this->visit(ctx->primaryExpr()));
     FegenOperator op;
     if (ctx->Minus()) {
       op = FegenOperator::NEG;
@@ -514,26 +536,27 @@ public:
     return expr;
   }
 
-  // return FegenRightValue::Expression*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitParenSurroundedExpr(
       FegenParser::ParenSurroundedExprContext *ctx) override {
     return this->visit(ctx->expression());
   }
 
-  // return FegenRightValue::Expression*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitPrimaryExpr(FegenParser::PrimaryExprContext *ctx) override {
     if (ctx->identifier()) {
       auto name = ctx->identifier()->getText();
       auto var = this->sstack.attemptFindVar(name);
       if (var) {
-        return (FegenRightValue::Expression *)
-            fegen::FegenRightValue::ExpressionTerminal::get(var);
+        return (std::shared_ptr<fegen::FegenRightValue::Expression>)
+            fegen::FegenRightValue::ExpressionTerminal::getLeftValue(var);
       } else {
-        auto tyDef = this->sstack.attemptFindTypeDef(name);
+        // TODO
+        auto tyDef = this->manager.getTypeDefination(name);
         if (tyDef) {
           auto tyVar = fegen::FegenType::getTemplateType(tyDef);
-          return fegen::FegenValue::get(fegen::FegenType::getMetaTemplateType(),
-                                        "", fegen::FegenRightValue::get(tyVar));
+          return (std::shared_ptr<fegen::FegenRightValue::Expression>)
+              fegen::FegenRightValue::Expression::getType(tyVar);
         } else {
           // TODO: error report
           std::cerr << "can not find variable: " << ctx->identifier()->getText()
@@ -544,204 +567,221 @@ public:
       }
     } else if (ctx->typeSpec()) {
       auto ty = std::any_cast<fegen::FegenType>(this->visit(ctx->typeSpec()));
-      return (FegenRightValue::Expression *)
-          FegenRightValue::ExpressionTerminal::get(ty);
+      return (std::shared_ptr<fegen::FegenRightValue::Expression>)
+          FegenRightValue::ExpressionTerminal::getType(ty);
     } else { // constant, functionCall, parenSurroundedExpr,contextMethodInvoke,
              // and variableAccess
       return this->visit(ctx->children[0]);
     }
   }
 
-  // return ExpressionTerminal*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitIntLiteral(FegenParser::IntLiteralContext *ctx) override {
-    int number = std::stoi(ctx->getText());
-    return (FegenRightValue::Expression *)
-        fegen::FegenRightValue::ExpressionTerminal::get(number);
+    long long int number = std::stoi(ctx->getText());
+    size_t size = 32; // TODO: Get size of number.
+    return (std::shared_ptr<fegen::FegenRightValue::Expression>)
+        fegen::FegenRightValue::Expression::getInteger(number, size);
   }
 
-  // return ExpressionTerminal*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitRealLiteral(FegenParser::RealLiteralContext *ctx) override {
-    double number = std::stod(ctx->getText());
-    return (FegenRightValue::Expression *)
-        fegen::FegenRightValue::ExpressionTerminal::get(float(number));
+    long double number = std::stod(ctx->getText());
+    size_t size = 32; // TODO: Get size of number.
+    return (std::shared_ptr<fegen::FegenRightValue::Expression>)
+        fegen::FegenRightValue::Expression::getFloatPoint(number, size);
   }
 
-  // return ExpressionTerminal*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitCharLiteral(FegenParser::CharLiteralContext *ctx) override {
     std::string s = ctx->getText();
     // remove quotation marks
     std::string strWithoutQuotation = s.substr(1, s.size() - 2);
-    return (FegenRightValue::Expression *)
-        fegen::FegenRightValue::ExpressionTerminal::get(strWithoutQuotation);
+    return (std::shared_ptr<fegen::FegenRightValue::Expression>)
+        fegen::FegenRightValue::Expression::getString(strWithoutQuotation);
   }
 
-  // return ExpressionTerminal*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitBoolLiteral(FegenParser::BoolLiteralContext *ctx) override {
     int content = 0;
     if (ctx->getText() == "true") {
       content = 1;
     }
-    return (FegenRightValue::Expression *)
-        fegen::FegenRightValue::ExpressionTerminal::get(content);
+    return (std::shared_ptr<fegen::FegenRightValue::Expression>)
+        fegen::FegenRightValue::Expression::getInteger(content, 1);
   }
 
-  // return ExpressionTerminal*
+  // return std::shared_ptr<fegen::FegenRightValue::Expression>
   std::any visitListLiteral(FegenParser::ListLiteralContext *ctx) override {
-    std::vector<fegen::FegenRightValue::Expression *> elements;
+    std::vector<std::shared_ptr<fegen::FegenRightValue::Expression>> elements;
     for (auto exprCtx : ctx->expression()) {
-      auto expr = std::any_cast<fegen::FegenRightValue::Expression *>(
-          this->visit(exprCtx));
+      auto expr =
+          std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
+              this->visit(exprCtx));
       elements.push_back(expr);
     }
-    return (FegenRightValue::Expression *)
-        fegen::FegenRightValue::ExpressionTerminal::get(elements);
+    return (std::shared_ptr<fegen::FegenRightValue::Expression>)
+        fegen::FegenRightValue::Expression::getList(elements);
   }
 
   std::any visitActionSpec(FegenParser::ActionSpecContext *ctx) override {
     return nullptr;
   }
 
-    std::any visitFunctionDecl(FegenParser::FunctionDeclContext *ctx) override{
-        sstack.pushScope();
-        auto returnType = std::any_cast<fegen::FegenType>(this->visit(ctx->typeSpec()));
-        auto functionName = std::any_cast<std::string>(this->visit(ctx->funcName()));
-        auto hasfunc = manager.functionMap.find(functionName);
-        if(hasfunc != manager.functionMap.end()){
-            std::cerr << "The function name \" " << functionName
-                    << "\" has already been used. Please use another name." << std::endl;
-            exit(0);
-            return nullptr;
-        }
-        auto functionParams = std::any_cast<std::vector<fegen::FegenValue *>>(this->visit(ctx->funcParams()));
-        this->visit(ctx->statementBlock());
+  std::any visitFunctionDecl(FegenParser::FunctionDeclContext *ctx) override {
+    sstack.pushScope();
+    auto returnType =
+        std::any_cast<fegen::FegenType>(this->visit(ctx->typeSpec()));
+    auto functionName =
+        std::any_cast<std::string>(this->visit(ctx->funcName()));
+    auto hasfunc = manager.functionMap.find(functionName);
+    if (hasfunc != manager.functionMap.end()) {
+      std::cerr << "The function name \" " << functionName
+                << "\" has already been used. Please use another name."
+                << std::endl;
+      exit(0);
+      return nullptr;
+    }
+    auto functionParams = std::any_cast<std::vector<fegen::FegenValue *>>(
+        this->visit(ctx->funcParams()));
+    this->visit(ctx->statementBlock());
 
-        fegen::FegenFunction* function = fegen::FegenFunction::get(functionName, functionParams, &returnType);
-        manager.functionMap.insert(std::pair{functionName, function});
-        sstack.popScope();
+    fegen::FegenFunction *function =
+        fegen::FegenFunction::get(functionName, functionParams, &returnType);
+    manager.functionMap.insert(std::pair{functionName, function});
+    sstack.popScope();
+    return nullptr;
+  }
+
+  std::any visitFuncName(FegenParser::FuncNameContext *ctx) override {
+    auto functionName = ctx->identifier()->getText();
+    return functionName;
+  }
+
+  std::any visitFuncParams(FegenParser::FuncParamsContext *ctx) override {
+    std::vector<fegen::FegenValue *> paramsList = {};
+
+    for (size_t i = 0; i < ctx->typeSpec().size(); i++) {
+      auto paramType =
+          std::any_cast<fegen::FegenType>(this->visit(ctx->typeSpec(i)));
+      auto paramName = ctx->identifier(i)->getText();
+      auto param = fegen::FegenValue::get(paramType, paramName, nullptr);
+      paramsList.push_back(param);
+      sstack.attemptAddVar(param);
+    }
+    return paramsList;
+  }
+
+  std::any visitVarDeclStmt(FegenParser::VarDeclStmtContext *ctx) override {
+    auto varType =
+        std::any_cast<fegen::FegenType>(this->visit(ctx->typeSpec()));
+    auto varName = ctx->identifier()->getText();
+    fegen::FegenValue *var;
+    if (ctx->expression()) {
+      auto varcontent = std::any_cast<fegen::FegenRightValue::Expression *>(
+          this->visit(ctx->expression()));
+      // TODO: check error
+      // if(!fegen::FegenType::isSameType(&varType, &varcontent->exprType)){
+      //     std::cerr << "The variabel \" " << varName
+      //     << "\" need \"" << varType.getTypeName() << " \" type rightvalue."
+      //     << std::endl; exit(0); return nullptr;
+      // }
+      var = fegen::FegenValue::get(varType, varName, varcontent);
+    } else {
+      var = fegen::FegenValue::get(varType, varName, nullptr);
+    }
+    sstack.attemptAddVar(var);
+    manager.stmtContentMap.insert(std::pair{ctx, var});
+    return var;
+  }
+
+  std::any visitAssignStmt(FegenParser::AssignStmtContext *ctx) override {
+    auto varName = ctx->identifier()->getText();
+    auto varcontent = std::any_cast<fegen::FegenRightValue::Expression *>(
+        this->visit(ctx->expression()));
+    auto var = sstack.attemptFindVar(varName);
+    if (!fegen::FegenType::isSameType(&var->getType(), &varcontent->exprType)) {
+      std::cerr << "The variabel \" " << varName << "\" need \""
+                << var->getType().getTypeName() << " \" type rightvalue."
+                << std::endl;
+      exit(0);
+      return nullptr;
+    }
+    fegen::FegenValue *stmt =
+        fegen::FegenValue::get(var->getType(), varName, varcontent);
+    manager.stmtContentMap.insert(std::pair{ctx, stmt});
+
+    return stmt;
+  }
+
+  std::any visitFunctionCall(FegenParser::FunctionCallContext *ctx) override {
+    std::vector<fegen::FegenRightValue::Expression *> parasList = {};
+    auto functionName =
+        std::any_cast<std::string>(this->visit(ctx->funcName()));
+    auto hasFunc = manager.functionMap.at(functionName);
+    auto paramsNum = ctx->expression().size();
+    auto paraList = hasFunc->getInputTypeList();
+    if (paramsNum > 0) {
+      for (size_t i = 0; i < paramsNum; i++) {
+        auto oprand = std::any_cast<fegen::FegenRightValue::Expression *>(
+            this->visit(ctx->expression(i)));
+        parasList.push_back(oprand);
+      }
+      size_t len1 = paraList.size();
+      size_t len2 = parasList.size();
+      if (len1 != len2) {
+        std::cerr << "The function \" " << functionName
+                  << "\" parameter count mismatch." << std::endl;
+        exit(0);
         return nullptr;
-    }
-
-    std::any visitFuncName(FegenParser::FuncNameContext *ctx) override{
-        auto functionName = ctx->identifier()->getText();
-        return functionName;
-    }
-
-    std::any visitFuncParams(FegenParser::FuncParamsContext *ctx) override{
-        std::vector<fegen::FegenValue *> paramsList = {};
-        
-        for(size_t i = 0; i < ctx->typeSpec().size(); i++){
-        auto paramType = std::any_cast<fegen::FegenType>(this->visit(ctx->typeSpec(i)));
-        auto paramName = ctx->identifier(i)->getText();
-        auto param = fegen::FegenValue::get(paramType, paramName, nullptr);
-        paramsList.push_back(param);
-        sstack.attemptAddVar(param);
+      }
+      for (size_t i = 0; i < len1; i++) {
+        if (!fegen::FegenType::isSameType(&paraList[i]->getType(),
+                                          &parasList[i]->exprType)) {
+          std::cerr << "The function \" " << functionName << "\" parameter" << i
+                    << " type mismatch." << std::endl;
+          exit(0);
+          return nullptr;
         }
-        return paramsList;
+      }
     }
+    auto returnType = hasFunc->getReturnType();
+    fegen::FegenFunction *funcCall =
+        fegen::FegenFunction::get(functionName, paraList, returnType);
+    manager.stmtContentMap.insert(std::pair{ctx, funcCall});
+    return returnType;
+  }
 
-    std::any visitVarDeclStmt(FegenParser::VarDeclStmtContext *ctx) override{
-        auto varType = std::any_cast<fegen::FegenType>(this->visit(ctx->typeSpec()));
-        auto varName = ctx->identifier()->getText();
-        fegen::FegenValue* var;
-        if(ctx->expression()){
-            auto varcontent = std::any_cast<fegen::FegenRightValue::Expression *>(this->visit(ctx->expression()));
-            // TODO: check error
-            // if(!fegen::FegenType::isSameType(&varType, &varcontent->exprType)){
-            //     std::cerr << "The variabel \" " << varName
-            //     << "\" need \"" << varType.getTypeName() << " \" type rightvalue." << std::endl;
-            //     exit(0);
-            //     return nullptr;
-            // }
-            var = fegen::FegenValue::get(varType, varName, varcontent);
-        } else {
-            var = fegen::FegenValue::get(varType, varName, nullptr);
-        }
-        sstack.attemptAddVar(var);
-        manager.stmtContentMap.insert(std::pair{ctx, var});
-        return var;
+  std::any visitOpInvokeStmt(FegenParser::OpInvokeStmtContext *ctx) override {
+    return nullptr;
+  }
+
+  std::any visitIfStmt(FegenParser::IfStmtContext *ctx) override {
+    sstack.pushScope();
+    this->visit(ctx->expression(0));
+    this->visit(ctx->statementBlock(0));
+    if (ctx->expression().size() > 1) {
+      for (size_t i = 1; i < ctx->expression().size(); i++) {
+        this->visit(ctx->expression(i));
+        this->visit(ctx->statementBlock(i));
+      }
     }
+    if (ctx->statementBlock(ctx->expression().size() + 1))
+      this->visit(ctx->statementBlock(ctx->expression().size() + 1));
+    sstack.popScope();
 
-    std::any visitAssignStmt(FegenParser::AssignStmtContext *ctx) override{
-        auto varName = ctx->identifier()->getText();
-        auto varcontent = std::any_cast<fegen::FegenRightValue::Expression *>(this->visit(ctx->expression()));
-        auto var = sstack.attemptFindVar(varName);
-        if(!fegen::FegenType::isSameType(&var->getType(), &varcontent->exprType)){
-            std::cerr << "The variabel \" " << varName
-            << "\" need \"" << var->getType().getTypeName() << " \" type rightvalue." << std::endl;
-            exit(0);
-            return nullptr;
-        }
-        fegen::FegenValue * stmt = fegen::FegenValue::get(var->getType(), varName, varcontent);
-        manager.stmtContentMap.insert(std::pair{ctx, stmt});
+    return nullptr;
+  }
 
-        return stmt;
-    }
+  std::any visitForStmt(FegenParser::ForStmtContext *ctx) override {
+    sstack.pushScope();
+    this->visit(ctx->assignStmt(0));
+    this->visit(ctx->expression());
+    this->visit(ctx->assignStmt(1));
+    this->visit(ctx->statementBlock());
+    sstack.popScope();
 
-    std::any visitFunctionCall(FegenParser::FunctionCallContext *ctx) override{
-        std::vector<fegen::FegenRightValue::Expression *> parasList = {};
-        auto functionName =std::any_cast<std::string>(this->visit(ctx->funcName()));
-        auto hasFunc = manager.functionMap.at(functionName);
-        auto paramsNum = ctx->expression().size();
-        auto paraList = hasFunc->getInputTypeList();
-        if( paramsNum> 0){
-            for(size_t i = 0; i < paramsNum; i++){
-                auto oprand = std::any_cast<fegen::FegenRightValue::Expression *>(this->visit(ctx->expression(i)));
-                parasList.push_back(oprand);
-            }
-            size_t len1 = paraList.size();
-            size_t len2 = parasList.size();
-            if(len1 != len2){
-                std::cerr << "The function \" " << functionName
-                    << "\" parameter count mismatch." << std::endl;
-                exit(0);
-                return nullptr;
-            }
-            for(size_t i = 0; i < len1; i++){
-                if(!fegen::FegenType::isSameType(&paraList[i]->getType(), &parasList[i]->exprType)){
-                    std::cerr << "The function \" " << functionName
-                    << "\" parameter" << i << " type mismatch." << std::endl;
-                    exit(0);
-                    return nullptr;
-                }
-            }
-        }
-        auto returnType = hasFunc->getReturnType();
-        fegen::FegenFunction *funcCall = fegen::FegenFunction::get(functionName, paraList, returnType);
-        manager.stmtContentMap.insert(std::pair{ctx, funcCall});
-        return returnType;
-    }
-
-    std::any visitOpInvokeStmt(FegenParser::OpInvokeStmtContext *ctx) override{
-        return nullptr;
-    }
-
-    std::any visitIfStmt(FegenParser::IfStmtContext *ctx) override{
-        sstack.pushScope();
-        this->visit(ctx->expression(0));
-        this->visit(ctx->statementBlock(0));
-        if(ctx->expression().size() > 1){
-            for(size_t i = 1; i < ctx->expression().size(); i++){
-                this->visit(ctx->expression(i));
-                this->visit(ctx->statementBlock(i));
-            }
-        }
-        if(ctx->statementBlock(ctx->expression().size()+1))
-            this->visit(ctx->statementBlock(ctx->expression().size()+1));
-        sstack.popScope();
-
-        return nullptr;
-    } 
-
-    std::any visitForStmt(FegenParser::ForStmtContext *ctx) override{
-        sstack.pushScope();
-        this->visit(ctx->assignStmt(0));
-        this->visit(ctx->expression());
-        this->visit(ctx->assignStmt(1));
-        this->visit(ctx->statementBlock());
-        sstack.popScope();
-
-        return nullptr;
-    }
+    return nullptr;
+  }
 
   std::any visitOpDecl(FegenParser::OpDeclContext *ctx) override {
     auto opName = ctx->opName()->getText();
