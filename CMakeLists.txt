@@ -160,7 +160,7 @@ check_toolchain()
 # NB: currently, ANTLR is used in dsl examples only,
 # however, there is a plan to use in the frontend,
 # so it is kept in the top-level cmake
-if(BUDDY_DSL_EXAMPLES)
+if(BUDDY_DSL_EXAMPLES OR FeGen)
     list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Antlr)
 
     # required if linking to static library
