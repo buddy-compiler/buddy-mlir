@@ -1,4 +1,4 @@
-# ===- buddy-lenet-import.py ---------------------------------------------------
+# ===- import-whisper.py -------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,44 +14,56 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the LeNet model AOT importer.
+# This is the example of whisper model.
 #
 # ===---------------------------------------------------------------------------
 
 import os
-from pathlib import Path
-
-import numpy as np
 import torch
+import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
+from transformers import WhisperProcessor, WhisperForConditionalGeneration
+from datasets import load_dataset
+import numpy
 
 from buddy.compiler.frontend import DynamoCompiler
+from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
-from buddy.compiler.ops import tosa
-from model import LeNet
 
-# Retrieve the LeNet model path from environment variables.
-model_path = os.environ.get("LENET_EXAMPLE_PATH")
+# Retrieve the Whisper model path from environment variables.
+model_path = os.environ.get("WHISPER_MODEL_PATH")
 if model_path is None:
     raise EnvironmentError(
-        "The environment variable 'LENET_MODEL_PATH' is not set or is invalid."
+        "The environment variable 'WHISPER_MODEL_PATH' is not set or is invalid."
     )
 
-model = LeNet()
-model = torch.load(model_path + "/lenet-model.pth")
-model = model.eval()
+# Initialize the tokenizer and model from the specified model path.
+processor = WhisperProcessor.from_pretrained(model_path)
+model = WhisperForConditionalGeneration.from_pretrained(model_path)
+model.config.use_cache = False
 
+dataset_path = os.environ.get("AUDIO_DATASET_PATH")
+ds = load_dataset(dataset_path, "clean", split="validation")
+sample = ds[1]["audio"]
+input_features = processor(
+    sample["array"], sampling_rate=sample["sampling_rate"], return_tensors="pt"
+).input_features
+
+decoder_input_ids = torch.tensor([[50258] * 448], dtype=torch.long)
+inputs = {
+    "input_features": input_features,
+    "decoder_input_ids": decoder_input_ids,
+}
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
 )
 
-data = torch.randn([1, 1, 28, 28])
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
-    graphs = dynamo_compiler.importer(model, data)
+    graphs = dynamo_compiler.importer(model, **inputs)
 
 assert len(graphs) == 1
 graph = graphs[0]
@@ -61,16 +73,15 @@ graphs[0].fuse_ops(pattern_list)
 driver = GraphDriver(graphs[0])
 driver.subgraphs[0].lower_to_top_level_ir()
 path_prefix = os.path.dirname(os.path.abspath(__file__))
+
+
 with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
     print(driver.subgraphs[0]._imported_module, file=module_file)
+
 with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
-params = dynamo_compiler.imported_params[graph]
-current_path = os.path.dirname(os.path.abspath(__file__))
-
-float32_param = np.concatenate(
+all_param = numpy.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params]
 )
-
-float32_param.tofile(Path(current_path) / "arg0.data")
+all_param.tofile(os.path.join(path_prefix, "arg0.data"))

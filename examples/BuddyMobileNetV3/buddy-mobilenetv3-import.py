@@ -1,4 +1,4 @@
-# ===- buddy-lenet-import.py ---------------------------------------------------
+# ===- buddy-mobilenetv3-import.py ---------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,32 +14,31 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the LeNet model AOT importer.
+# This is the MobileNet V3 model AOT importer.
 #
 # ===---------------------------------------------------------------------------
 
 import os
-from pathlib import Path
 
+from pathlib import Path
 import numpy as np
 import torch
+import torchvision.models as models
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
-from model import LeNet
 
-# Retrieve the LeNet model path from environment variables.
-model_path = os.environ.get("LENET_EXAMPLE_PATH")
+# Retrieve the MobileNet V3 model path from environment variables.
+model_path = os.environ.get("MOBILENETV3_EXAMPLE_PATH")
 if model_path is None:
     raise EnvironmentError(
-        "The environment variable 'LENET_MODEL_PATH' is not set or is invalid."
+        "The environment variable 'MOBILENETV3_MODEL_PATH' is not set or is invalid."
     )
 
-model = LeNet()
-model = torch.load(model_path + "/lenet-model.pth")
+model = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weights.IMAGENET1K_V1, pretrained=True)
 model = model.eval()
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
@@ -47,12 +46,10 @@ dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
 )
-
-data = torch.randn([1, 1, 28, 28])
+data = torch.randn([1, 3, 224, 224])
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
     graphs = dynamo_compiler.importer(model, data)
-
 assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
@@ -69,8 +66,13 @@ with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
 params = dynamo_compiler.imported_params[graph]
 current_path = os.path.dirname(os.path.abspath(__file__))
 
-float32_param = np.concatenate(
-    [param.detach().numpy().reshape([-1]) for param in params]
-)
 
+float32_param = np.concatenate(
+    [param.detach().numpy().reshape([-1]) for param in params if param.dtype == torch.float32]
+)
 float32_param.tofile(Path(current_path) / "arg0.data")
+
+int64_param = np.concatenate(
+    [param.detach().numpy().reshape([-1]) for param in params if param.dtype == torch.int64]
+)
+int64_param.tofile(Path(current_path) / "arg1.data")
