@@ -117,7 +117,7 @@ def _scalar_to_tensor(
     doesn't support operation between scalers and tensors."""
     element = (
         ir.FloatAttr.get(element_type, float(scalar))
-        if str(element_type) == "f32"
+        if str(element_type) in ("f32", "bf16", "f16")
         else ir.IntegerAttr.get(element_type, int(scalar))
     )
     attr = ir.DenseElementsAttr.get_splat(
@@ -804,7 +804,7 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
     ).element_type
     if result_element_type == ir.IntegerType.get_signless(1):
         element = ir.IntegerAttr.get(result_element_type, 0)
-    elif result_element_type == ir.F32Type.get():
+    elif result_element_type in (ir.F32Type.get(), ir.BF16Type.get(), ir.F16Type.get()):
         element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")

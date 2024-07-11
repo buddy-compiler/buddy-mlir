@@ -56,7 +56,7 @@ def mlir_element_attr_get(type_name, value):
             return ir.IntegerAttr.get(ir.IntegerType.get_signless(64), value)
         case TensorDType.Bool:
             return ir.IntegerAttr.get(ir.IntegerType.get_signless(1), value)
-        case TensorDType.Floaf16:
+        case TensorDType.Float16:
             return ir.FloatAttr.get(ir.F16Type.get(), value)
-        case TensorDType.BFloaf16:
+        case TensorDType.BFloat16:
             return ir.FloatAttr.get(ir.BF16Type.get(), value)
