@@ -1,5 +1,5 @@
-#include "FegenParserBaseVisitor.h"
 #include "FegenManager.h"
+#include "FegenParserBaseVisitor.h"
 #include "Scope.h"
 #include <algorithm>
 #include <cassert>
@@ -20,7 +20,7 @@ fegen::FegenFunction::get(std::string name,
                           FegenType *returnType) {
   return new fegen::FegenFunction(name, std::move(inputTypeList), returnType);
 }
-std::string fegen::FegenFunction::getName() { this->name; }
+std::string fegen::FegenFunction::getName() { return this->name; }
 
 std::vector<fegen::FegenValue *> &fegen::FegenFunction::getInputTypeList() {
   return this->inputTypeList;
@@ -778,7 +778,8 @@ fegen::FegenRightValue::ExpressionTerminal *
 fegen::FegenRightValue::ExpressionTerminal::get(fegen::FegenValue *content) {
   return new fegen::FegenRightValue::ExpressionTerminal(
       content, fegen::FegenRightValue::LiteralKind::LEFT_VAR,
-      content->getType(), content->getExpr()->isConstexpr());
+      content->getType(), 
+      content->getExpr()->isConstexpr());
 }
 
 // class FegenRightValue
@@ -1448,7 +1449,7 @@ fegen::inferenceType(std::vector<fegen::FegenRightValue::Expression *> operands,
   // TODO: infer type
   return fegen::FegenType::getInt32Type();
 }
-namespace fegen{
+namespace fegen {
 
 // class StmtVisitor : public FegenParserBaseVisitor{
 // public:

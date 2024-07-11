@@ -293,7 +293,7 @@ ifStmt
     ;
 
 forStmt
-    : FOR LeftParen assignStmt Semi expression Semi assignStmt RightParen statementBlock
+    : FOR LeftParen (assignStmt | varDeclStmt) Semi expression Semi assignStmt RightParen statementBlock
     ;
 
 // expression
