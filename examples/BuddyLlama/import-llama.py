@@ -35,12 +35,11 @@ from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 
 # Retrieve the LLaMA model path from environment variables.
-# model_path = os.environ.get("LLAMA_MODEL_PATH")
-# if model_path is None:
-#     raise EnvironmentError(
-#         "The environment variable 'LLAMA_MODEL_PATH' is not set or is invalid."
-#     )
-model_path = "../../../download/llama3_model/llama3_8B_save/"
+model_path = os.environ.get("LLAMA_MODEL_PATH")
+if model_path is None:
+    raise EnvironmentError(
+        "The environment variable 'LLAMA_MODEL_PATH' is not set or is invalid."
+    )
 
 # Initialize the tokenizer and model from the specified model path.
 tokenizer = AutoTokenizer.from_pretrained(model_path)
