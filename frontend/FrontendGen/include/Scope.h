@@ -20,8 +20,8 @@ public:
 };
 
 class FegenScope {
-  using TypeDefTable = SymbolTable<FegenTypeDefination>;
-  using VariableTable = SymbolTable<FegenValue>;
+  using TypeDefTable = SymbolTable<TypeDefination>;
+  using VariableTable = SymbolTable<Value>;
   friend class ScopeStack;
 
 private:
@@ -35,15 +35,15 @@ public:
   ~FegenScope() = default;
 
   /// @brief this will not check.
-  FegenTypeDefination *findTypeDef(std::string name);
+  TypeDefination *findTypeDef(std::string name);
   /// @brief this will not check whether tyDef is already existed or not.
-  void addTypeDef(FegenTypeDefination *tyDef);
+  void addTypeDef(TypeDefination *tyDef);
   /// @brief return true if exist.
   bool isExistTypeDef(std::string name);
   /// @brief this will not check.
-  FegenValue *findVar(std::string name);
+  Value *findVar(std::string name);
   /// @brief this will not check whether var is already existed or not.
-  void addVar(FegenValue *var);
+  void addVar(Value *var);
   /// @brief return true if exist.
   bool isExistVar(std::string name);
 };
@@ -68,13 +68,13 @@ public:
   void pushScope();
   void popScope();
   /// @brief check and add var to current scope, return false if failed.
-  bool attemptAddVar(FegenValue *var);
+  bool attemptAddVar(Value *var);
   /// @brief check add find var from current scope, return nullptr if failed.
-  FegenValue *attemptFindVar(std::string name);
+  Value *attemptFindVar(std::string name);
   /// @brief check and add tyDef to current scope, return false if failed.
-  bool attemptAddTypeDef(FegenTypeDefination *tyDef);
+  bool attemptAddTypeDef(TypeDefination *tyDef);
   /// @brief check and find tyDef from current scope, return nullptr if failed.
-  FegenTypeDefination *attemptFindTypeDef(std::string name);
+  TypeDefination *attemptFindTypeDef(std::string name);
 };
 } // namespace fegen
 
