@@ -664,7 +664,7 @@ public:
       auto paramType =
           std::any_cast<fegen::FegenType>(this->visit(ctx->typeSpec(i)));
       auto paramName = ctx->identifier(i)->getText();
-      auto param = fegen::FegenValue::get(paramType, paramName, nullptr);
+      auto param = fegen::FegenValue::get(paramType, paramName, fegen::FegenRightValue::getPlaceHolder());
       paramsList.push_back(param);
       sstack.attemptAddVar(param);
     }
@@ -677,7 +677,7 @@ public:
     auto varName = ctx->identifier()->getText();
     fegen::FegenValue *var;
     if (ctx->expression()) {
-      auto varcontent = std::any_cast<fegen::FegenRightValue::Expression *>(
+      auto varcontent = std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
           this->visit(ctx->expression()));
       // TODO: check error
       // if(!fegen::FegenType::isSameType(&varType, &varcontent->exprType)){
@@ -685,9 +685,9 @@ public:
       //     << "\" need \"" << varType.getTypeName() << " \" type rightvalue."
       //     << std::endl; exit(0); return nullptr;
       // }
-      var = fegen::FegenValue::get(varType, varName, varcontent);
+      var = fegen::FegenValue::get(varType, varName, fegen::FegenRightValue::getByExpr(varcontent));
     } else {
-      var = fegen::FegenValue::get(varType, varName, nullptr);
+      var = fegen::FegenValue::get(varType, varName, fegen::FegenRightValue::getPlaceHolder());
     }
     sstack.attemptAddVar(var);
     manager.stmtContentMap.insert(std::pair{ctx, var});
@@ -696,7 +696,7 @@ public:
 
   std::any visitAssignStmt(FegenParser::AssignStmtContext *ctx) override {
     auto varName = ctx->identifier()->getText();
-    auto varcontent = std::any_cast<fegen::FegenRightValue::Expression *>(
+    auto varcontent = std::any_cast<std::shared_ptr<fegen::FegenRightValue::Expression>>(
         this->visit(ctx->expression()));
     auto var = sstack.attemptFindVar(varName);
     if (!fegen::FegenType::isSameType(&var->getType(), &varcontent->exprType)) {
@@ -707,7 +707,7 @@ public:
       return nullptr;
     }
     fegen::FegenValue *stmt =
-        fegen::FegenValue::get(var->getType(), varName, varcontent);
+        fegen::FegenValue::get(var->getType(), varName, fegen::FegenRightValue::getByExpr(varcontent));
     manager.stmtContentMap.insert(std::pair{ctx, stmt});
 
     return stmt;
