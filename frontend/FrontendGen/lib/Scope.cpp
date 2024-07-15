@@ -24,11 +24,11 @@ fegen::FegenScope::FegenScope(unsigned int scopeId,
                               fegen::FegenScope *parentScope)
     : scopeId(scopeId), parentScope(parentScope) {}
 
-fegen::FegenTypeDefination *fegen::FegenScope::findTypeDef(std::string name) {
+fegen::TypeDefination *fegen::FegenScope::findTypeDef(std::string name) {
   return this->typeTable.get(name);
 }
 
-void fegen::FegenScope::addTypeDef(FegenTypeDefination *tyDef) {
+void fegen::FegenScope::addTypeDef(TypeDefination *tyDef) {
   this->typeTable.add(tyDef->getName(), tyDef);
 }
 
@@ -36,11 +36,11 @@ bool fegen::FegenScope::isExistTypeDef(std::string name) {
   return this->typeTable.exist(name);
 }
 
-fegen::FegenValue *fegen::FegenScope::findVar(std::string name) {
+fegen::Value *fegen::FegenScope::findVar(std::string name) {
   return this->varTable.get(name);
 }
 
-void fegen::FegenScope::addVar(fegen::FegenValue *var) {
+void fegen::FegenScope::addVar(fegen::Value *var) {
   this->varTable.add(var->getName(), var);
 }
 
@@ -77,7 +77,7 @@ void fegen::ScopeStack::popScope() {
   this->scopeStack.pop();
   this->currentScope = this->scopeStack.top();
 }
-bool fegen::ScopeStack::attemptAddVar(fegen::FegenValue *var) {
+bool fegen::ScopeStack::attemptAddVar(fegen::Value *var) {
   if (this->currentScope->isExistVar(var->getName())) {
     return false;
   }
@@ -85,7 +85,7 @@ bool fegen::ScopeStack::attemptAddVar(fegen::FegenValue *var) {
   return true;
 }
 
-fegen::FegenValue *fegen::ScopeStack::attemptFindVar(std::string name) {
+fegen::Value *fegen::ScopeStack::attemptFindVar(std::string name) {
   auto p = this->currentScope;
   while (p != nullptr) {
     if (p->isExistVar(name)) {
@@ -96,7 +96,7 @@ fegen::FegenValue *fegen::ScopeStack::attemptFindVar(std::string name) {
   return nullptr;
 }
 
-bool fegen::ScopeStack::attemptAddTypeDef(fegen::FegenTypeDefination *tyDef) {
+bool fegen::ScopeStack::attemptAddTypeDef(fegen::TypeDefination *tyDef) {
   if (this->currentScope->isExistTypeDef(tyDef->getName())) {
     return false;
   }
@@ -104,7 +104,7 @@ bool fegen::ScopeStack::attemptAddTypeDef(fegen::FegenTypeDefination *tyDef) {
   return true;
 }
 
-fegen::FegenTypeDefination *
+fegen::TypeDefination *
 fegen::ScopeStack::attemptFindTypeDef(std::string name) {
   auto p = this->currentScope;
   while (p != nullptr) {
