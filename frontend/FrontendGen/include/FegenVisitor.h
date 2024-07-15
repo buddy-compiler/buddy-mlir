@@ -655,8 +655,8 @@ public:
           this->visit(ctx->expression()));
       if (!fegen::FegenType::isSameType(&varType, &varContent->exprType)) {
         std::cerr << "The variabel \"" << varName << "\" need \""
-                  << varType.getTypeName() << " \" type rightvalue. But now is " << varContent->exprType.getTypeName()
-                  << std::endl;
+                  << varType.getTypeName() << " \" type rightvalue. But now is "
+                  << varContent->exprType.getTypeName() << std::endl;
         exit(0);
         return nullptr;
       }
@@ -694,11 +694,11 @@ public:
     auto functionName =
         std::any_cast<std::string>(this->visit(ctx->funcName()));
     auto hasFunc = manager.functionMap.find(functionName);
-    if(hasFunc == manager.functionMap.end()){
-        std::cerr << "The called function \"" << functionName
-                  << "\" is not exist." << std::endl;
-        exit(0);
-        return nullptr;
+    if (hasFunc == manager.functionMap.end()) {
+      std::cerr << "The called function \"" << functionName
+                << "\" is not exist." << std::endl;
+      exit(0);
+      return nullptr;
     }
     function = hasFunc->second;
     auto paramsNum = ctx->expression().size();
@@ -739,18 +739,29 @@ public:
   }
 
   std::any visitIfStmt(FegenParser::IfStmtContext *ctx) override {
-    sstack.pushScope();
-    this->visit(ctx->expression(0));
-    this->visit(ctx->statementBlock(0));
-    for (size_t i = 1; i <= ctx->expression().size() - 1; i++) {
-      this->visit(ctx->expression(i));
-      this->visit(ctx->statementBlock(i));
+    for (size_t i = 0; i < ctx->ifBlock().size(); i++) {
+      this->visit(ctx->ifBlock(i));
     }
-    if (ctx->statementBlock(ctx->expression().size() + 1))
-      this->visit(ctx->statementBlock(ctx->expression().size() + 1));
+
+    if (ctx->elseBlock()) {
+      this->visit(ctx->elseBlock());
+    }
+    return nullptr;
+  }
+
+  std::any visitIfBlock(FegenParser::IfBlockContext *ctx) override {
+    sstack.pushScope();
+    this->visit(ctx->expression());
+    this->visit(ctx->statementBlock());
     sstack.popScope();
 
     return nullptr;
+  }
+
+  std::any visitElseBlock(FegenParser::ElseBlockContext *ctx) override {
+    sstack.pushScope();
+    this->visit(ctx->statementBlock());
+    sstack.popScope();
   }
 
   std::any visitForStmt(FegenParser::ForStmtContext *ctx) override {

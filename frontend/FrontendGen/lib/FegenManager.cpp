@@ -778,8 +778,7 @@ fegen::FegenRightValue::ExpressionTerminal *
 fegen::FegenRightValue::ExpressionTerminal::get(fegen::FegenValue *content) {
   return new fegen::FegenRightValue::ExpressionTerminal(
       content, fegen::FegenRightValue::LiteralKind::LEFT_VAR,
-      content->getType(), 
-      content->getExpr()->isConstexpr());
+      content->getType(), content->getExpr()->isConstexpr());
 }
 
 // class FegenRightValue
@@ -1451,13 +1450,68 @@ fegen::inferenceType(std::vector<fegen::FegenRightValue::Expression *> operands,
 }
 namespace fegen {
 
-// class StmtVisitor : public FegenParserBaseVisitor{
-// public:
-// };
+class StmtVisitor : public FegenParserBaseVisitor {
+private:
+  FegenManager &manager;
 
-}
+public:
+  StmtVisitor() : manager(FegenManager::getManager()) {}
+  std::any visitVarDeclStmt(FegenParser::VarDeclStmtContext *ctx) override {
+    Emitter emitter(std::cout);
+    auto varDecl =
+        std::any_cast<fegen::FegenValue *>(manager.stmtContentMap[ctx]);
+    emitter << varDecl->getType().getTypeName() << " " << varDecl->getName()
+            << " = " << varDecl->getContentString() << ";";
+    emitter.newLine();
+    return nullptr;
+  }
+  std::any visitAssignStmt(FegenParser::AssignStmtContext *ctx) override {
+    Emitter emitter(std::cout);
+    auto assignStmt =
+        std::any_cast<fegen::FegenValue *>(manager.stmtContentMap[ctx]);
+    emitter << assignStmt->getName() << " = " << assignStmt->getContentString()
+            << ";";
+    emitter.newLine();
+    return nullptr;
+  }
+  std::any visitFunctionCall(FegenParser::FunctionCallContext *ctx) override {
+    Emitter emitter(std::cout);
+    auto function =
+        std::any_cast<fegen::FegenFunction *>(manager.stmtContentMap[ctx]);
+    emitter << function->getName() << " (";
+    for (auto para : function->getInputTypeList()) {
+      emitter << para->getName();
+      if (para != function->getInputTypeList().back())
+        emitter << ", ";
+    }
+    // TODO:补充functioncall作为操作数的情况
+    emitter << ");";
+    emitter.newLine();
+    return nullptr;
+  }
+  std::any visitIfBlock(FegenParser::IfBlockContext *ctx) override {
+    Emitter emitter(std::cout);
+    auto expr = std::any_cast<fegen::FegenRightValue::Expression *>(
+        manager.stmtContentMap[ctx]);
+
+    emitter << "if (" << expr->toString() << "){";
+    emitter.newLine();
+    emitter.tab();
+    return nullptr;
+  }
+  // TODO: 支持for循环
+  std::any visitForStmt(FegenParser::ForStmtContext *ctx) override {
+    Emitter emitter(std::cout);
+    emitter << "for (";
+    return nullptr;
+  }
+};
+
+} // namespace fegen
 void fegen::FegenManager::emitBuiltinFunction() {
   Emitter emitter(std::cout);
+  fegen::StmtVisitor visitor;
+
   for (auto function_pair : this->functionMap) {
     auto functionName = function_pair.first;
     auto function = function_pair.second;
@@ -1473,7 +1527,41 @@ void fegen::FegenManager::emitBuiltinFunction() {
     emitter.newLine();
     emitter.tab();
     // TODO::function body
-
+    auto blockNum = 0;
+    auto expressionNum = 1;
+    FegenParser::IfBlockContext *ifBlock = nullptr;
+    for (auto stmt : stmtContentMap) {
+      visitor.visit(stmt.first);
+      if (stmt.second.type().name() == "string") {
+        if (std::any_cast<std::string>(stmt.second) == "IF") {
+          ifBlock = std::any_cast<FegenParser::IfBlockContext *>(stmt.first);
+          // blockNum = ifBlock->statement().size();
+          continue;
+        } else if (std::any_cast<std::string>(stmt.second) == "FOR") {
+          // TODO: 支持for循环
+          continue;
+        }
+      }
+      if (blockNum > 0)
+        blockNum--;
+      if (blockNum > 1) {
+        emitter.shiftTab();
+        // emitter << "} else if (" <<
+        // ifStmt->expression(expressionNum)->toString() << "){";
+        emitter.newLine();
+        emitter.tab();
+        expressionNum++;
+      } else if (blockNum == 1) {
+        emitter.shiftTab();
+        emitter << "} else {";
+        emitter.newLine();
+        emitter.tab();
+      } else if (blockNum == 0) {
+        emitter.shiftTab();
+        emitter << "}";
+        expressionNum = 1;
+      }
+    }
     emitter.shiftTab();
     emitter.newLine();
     emitter << "}";

@@ -289,7 +289,15 @@ opResTypeParams
     ;
 
 ifStmt
-    : IF LeftParen expression RightParen statementBlock (ELSE IF LeftParen expression RightParen statementBlock)* (ELSE statementBlock)?
+    :  ifBlock (ELSE ifBlock)* (elseBlock)?
+    ;
+
+ifBlock:
+    IF LeftParen expression RightParen statementBlock
+    ;
+
+elseBlock
+    : ELSE statementBlock
     ;
 
 forStmt
