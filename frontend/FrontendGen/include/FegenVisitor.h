@@ -645,7 +645,7 @@ public:
         this->visit(ctx->funcParams()));
     this->visit(ctx->statementBlock());
 
-        fegen::FegenFunction* function = fegen::FegenFunction::get(functionName, functionParams, &returnType);
+        fegen::Function* function = fegen::Function::get(functionName, functionParams, &returnType);
         manager.functionMap.insert(std::pair{functionName, function});
         sstack.popScope();
         return nullptr;

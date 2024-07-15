@@ -1738,14 +1738,14 @@ namespace fegen {
 
 class StmtVisitor : public FegenParserBaseVisitor {
 private:
-  FegenManager &manager;
+  Manager &manager;
 
 public:
-  StmtVisitor() : manager(FegenManager::getManager()) {}
+  StmtVisitor() : manager(Manager::getManager()) {}
   std::any visitVarDeclStmt(FegenParser::VarDeclStmtContext *ctx) override {
     Emitter emitter(std::cout);
     auto varDecl =
-        std::any_cast<fegen::FegenValue *>(manager.stmtContentMap[ctx]);
+        std::any_cast<fegen::Value *>(manager.stmtContentMap[ctx]);
     emitter << varDecl->getType().getTypeName() << " " << varDecl->getName()
             << " = " << varDecl->getContentString() << ";";
     emitter.newLine();
@@ -1754,7 +1754,7 @@ public:
   std::any visitAssignStmt(FegenParser::AssignStmtContext *ctx) override {
     Emitter emitter(std::cout);
     auto assignStmt =
-        std::any_cast<fegen::FegenValue *>(manager.stmtContentMap[ctx]);
+        std::any_cast<fegen::Value *>(manager.stmtContentMap[ctx]);
     emitter << assignStmt->getName() << " = " << assignStmt->getContentString()
             << ";";
     emitter.newLine();
@@ -1763,7 +1763,7 @@ public:
   std::any visitFunctionCall(FegenParser::FunctionCallContext *ctx) override {
     Emitter emitter(std::cout);
     auto function =
-        std::any_cast<fegen::FegenFunction *>(manager.stmtContentMap[ctx]);
+        std::any_cast<fegen::Function *>(manager.stmtContentMap[ctx]);
     emitter << function->getName() << " (";
     for (auto para : function->getInputTypeList()) {
       emitter << para->getName();
@@ -1777,7 +1777,7 @@ public:
   }
   std::any visitIfBlock(FegenParser::IfBlockContext *ctx) override {
     Emitter emitter(std::cout);
-    auto expr = std::any_cast<fegen::FegenRightValue::Expression *>(
+    auto expr = std::any_cast<fegen::RightValue::Expression *>(
         manager.stmtContentMap[ctx]);
 
     emitter << "if (" << expr->toString() << "){";
@@ -1794,7 +1794,7 @@ public:
 };
 
 } // namespace fegen
-void fegen::FegenManager::emitBuiltinFunction() {
+void fegen::Manager::emitBuiltinFunction() {
   Emitter emitter(std::cout);
   fegen::StmtVisitor visitor;
 
