@@ -40,6 +40,7 @@ module {
     %eq = arith.cmpi eq, %iter_idx, %c3 : index
     cf.cond_br %eq, ^bb4, ^bb1(%iter_idx, %iter_var: index, f32)
   ^bb4:
+    // CHECK: 20
     vector.print %1 : f32
     return
   }
