@@ -349,7 +349,7 @@ fegen::Type fegen::Type::getBoolType() {
 }
 
 fegen::Type fegen::Type::getIntegerType(fegen::Value *size) {
-  if (size->getContent<int>() == 32)
+  if (size->getContent<long long int>() == 32)
     return fegen::Type::getInt32Type();
   return fegen::Type(
       fegen::Type::TypeKind::CPP, {size},
@@ -357,9 +357,9 @@ fegen::Type fegen::Type::getIntegerType(fegen::Value *size) {
 }
 
 fegen::Type fegen::Type::getFloatPointType(fegen::Value *size) {
-  if (size->getContent<int>() == 32) {
+  if (size->getContent<long long int>() == 32) {
     return fegen::Type::getFloatType();
-  } else if (size->getContent<int>() == 64) {
+  } else if (size->getContent<long long int>() == 64) {
     return fegen::Type::getDoubleType();
   }
   return fegen::Type(
@@ -1744,19 +1744,19 @@ public:
   StmtVisitor() : manager(Manager::getManager()) {}
   std::any visitVarDeclStmt(FegenParser::VarDeclStmtContext *ctx) override {
     Emitter emitter(std::cout);
-    auto varDecl =
+    auto varType =
         std::any_cast<fegen::Value *>(manager.stmtContentMap[ctx]);
-    emitter << varDecl->getType().getTypeName() << " " << varDecl->getName()
-            << " = " << varDecl->getContentString() << ";";
+    auto varName = ctx->identifier()->toString();
+    auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(manager.stmtContentMap[ctx->expression()]);
+    emitter << varType->getName() << " " << varName << " = " << expr->toString() << ";";
     emitter.newLine();
     return nullptr;
   }
   std::any visitAssignStmt(FegenParser::AssignStmtContext *ctx) override {
     Emitter emitter(std::cout);
-    auto assignStmt =
-        std::any_cast<fegen::Value *>(manager.stmtContentMap[ctx]);
-    emitter << assignStmt->getName() << " = " << assignStmt->getContentString()
-            << ";";
+    auto varName = ctx->identifier()->toString();
+    auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(manager.stmtContentMap[ctx->expression()]);
+    emitter << varName << " = " << expr->toString() << ";";
     emitter.newLine();
     return nullptr;
   }
@@ -1775,15 +1775,39 @@ public:
     emitter.newLine();
     return nullptr;
   }
+  std::any visitIfStmt(FegenParser::IfStmtContext *ctx) override {
+    Emitter emitter(std::cout);
+    this->visit(ctx->ifBlock(0));
+    for(size_t i = 1; i < ctx->ifBlock().size(); i++){
+        emitter << " else ";
+        this->visit(ctx->ifBlock(i));
+    }
+    if(ctx->elseBlock()) this->visit(ctx->elseBlock());
+    return nullptr;
+  }
   std::any visitIfBlock(FegenParser::IfBlockContext *ctx) override {
     Emitter emitter(std::cout);
-    auto expr = std::any_cast<fegen::RightValue::Expression *>(
-        manager.stmtContentMap[ctx]);
+    auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(
+        manager.stmtContentMap[ctx->expression()]);
 
     emitter << "if (" << expr->toString() << "){";
     emitter.newLine();
     emitter.tab();
+    this->visit(ctx->statementBlock());
+    emitter.shiftTab();
+    emitter << "}";
     return nullptr;
+  }
+  std::any visitElseBlock(FegenParser::ElseBlockContext *ctx) override {
+      Emitter emitter(std::cout);
+      emitter << "else {";
+      emitter.newLine();
+      emitter.tab();
+      this->visit(ctx->statementBlock());
+      emitter.newLine();
+      emitter.shiftTab();
+      emitter << "}";
+      emitter.newLine();
   }
   // TODO: 支持for循环
   std::any visitForStmt(FegenParser::ForStmtContext *ctx) override {
@@ -1794,7 +1818,7 @@ public:
 };
 
 } // namespace fegen
-void fegen::Manager::emitBuiltinFunction() {
+void fegen::Manager::emitBuiltinFunction(fegen::FegenParser::FegenSpecContext *moduleAST) {
   Emitter emitter(std::cout);
   fegen::StmtVisitor visitor;
 
@@ -1802,7 +1826,7 @@ void fegen::Manager::emitBuiltinFunction() {
     auto functionName = function_pair.first;
     auto function = function_pair.second;
     auto paraList = function->getInputTypeList();
-    emitter << function->getReturnType()->toStringForTypedef() << " "
+    emitter << function->getReturnType()->getTypeName() << " "
             << functionName << "(";
     for (auto para : paraList) {
       emitter << para->getContentStringForTypedef() << " " << para->getName();
@@ -1813,41 +1837,7 @@ void fegen::Manager::emitBuiltinFunction() {
     emitter.newLine();
     emitter.tab();
     // TODO::function body
-    auto blockNum = 0;
-    auto expressionNum = 1;
-    FegenParser::IfBlockContext *ifBlock = nullptr;
-    for (auto stmt : stmtContentMap) {
-      visitor.visit(stmt.first);
-      if (stmt.second.type().name() == "string") {
-        if (std::any_cast<std::string>(stmt.second) == "IF") {
-          ifBlock = std::any_cast<FegenParser::IfBlockContext *>(stmt.first);
-          // blockNum = ifBlock->statement().size();
-          continue;
-        } else if (std::any_cast<std::string>(stmt.second) == "FOR") {
-          // TODO: 支持for循环
-          continue;
-        }
-      }
-      if (blockNum > 0)
-        blockNum--;
-      if (blockNum > 1) {
-        emitter.shiftTab();
-        // emitter << "} else if (" <<
-        // ifStmt->expression(expressionNum)->toString() << "){";
-        emitter.newLine();
-        emitter.tab();
-        expressionNum++;
-      } else if (blockNum == 1) {
-        emitter.shiftTab();
-        emitter << "} else {";
-        emitter.newLine();
-        emitter.tab();
-      } else if (blockNum == 0) {
-        emitter.shiftTab();
-        emitter << "}";
-        expressionNum = 1;
-      }
-    }
+    visitor.visit(moduleAST);
     emitter.shiftTab();
     emitter.newLine();
     emitter << "}";

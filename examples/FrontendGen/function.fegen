@@ -1,13 +1,13 @@
 fegen toy
 
 double stod(string numStr){
-    double res = 0.0;
-    int index = 1;
-    if(c == '0'){
+    float res = 0.0;
+    int c = 1;
+    if(c == 0){
         int charNum = 0;
         int intNum = 1;
         intNum = 1;
-    }else if (c == '1'){
+    }else if (c == 1){
         int charNum = 1;
     }else {
         int charNum = 2;
