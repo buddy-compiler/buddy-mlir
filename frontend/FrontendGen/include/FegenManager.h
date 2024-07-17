@@ -28,15 +28,19 @@
 #define FEGEN_LIST "List"
 #define FEGEN_OPTINAL "Optional"
 #define FEGEN_ANY "Any"
-
+#define FEGEN_DIALECT_NAME "fegen_builtin"
 #define FEGEN_NOT_IMPLEMENTED_ERROR false
 
-namespace fegen {
 
+namespace fegen {
 class Type;
 class Manager;
 class Value;
+class RightValue;
+class Expression;
 
+using TypePtr = std::shared_ptr<Type>;
+using largestInt = long long int;
 // binary operation
 
 enum class FegenOperator {
@@ -66,20 +70,20 @@ private:
   // input object
   std::vector<Value *> inputTypeList;
   // return type
-  Type *returnType;
+  TypePtr returnType;
   explicit Function(std::string name,
                          std::vector<Value *> &&inputTypeList,
-                         Type *returnType);
+                         TypePtr returnType);
 
 public:
   static Function *get(std::string name,
                             std::vector<Value *> inputTypeList,
-                            Type *returnType = nullptr);
+                            TypePtr returnType = nullptr);
   ~Function() = default;
   std::string getName();
   std::vector<Value *> &getInputTypeList();
   Value *getInputTypeList(size_t i);
-  Type *getReturnType();
+  TypePtr getReturnType();
 };
 
 class Value;
@@ -115,7 +119,7 @@ public:
 };
 
 class TypeDefination;
-
+class RightValue;
 class Type {
   friend class Value;
 
@@ -125,89 +129,84 @@ public:
 private:
   TypeKind kind;
   std::string typeName;
-  std::vector<Value *> parameters;
+  // std::vector<Value *> parameters;
   TypeDefination *typeDefine;
   int typeLevel;
+  bool isConstType;
 
 public:
-  Type(TypeKind kind, std::string name,
-            std::vector<Value *> parameters, TypeDefination *tyDef,
-            int typeLevel);
-  Type(TypeKind kind, std::vector<Value *> parameters,
-            TypeDefination *tyDef, int typeLevel);
-  Type(const Type &);
-  Type(Type &&);
+  Type(TypeKind kind, std::string name, TypeDefination *tyDef, int typeLevel, bool isConstType);
+
+  Type(const Type &) = default;
+  Type(Type &&) = default;
   TypeKind getTypeKind();
   void setTypeKind(TypeKind kind);
-  std::vector<Value *> &getParameters();
-  Value *getParameters(size_t i);
-  void setParameters(std::vector<Value *> &params);
   TypeDefination *getTypeDefination();
   void setTypeDefination(TypeDefination *tyDef);
   std::string getTypeName();
   int getTypeLevel();
+  bool isConstant();
   // for generating typedef td file.
-  std::string toStringForTypedef();
+  virtual std::string toStringForTypedef();
   // for generating op def td file.
-  std::string toStringForOpdef();
+  virtual std::string toStringForOpdef();
   // for generating cpp type kind.
-  std::string toStringForCppKind();
+  virtual std::string toStringForCppKind();
   static bool isSameType(Type *type1, Type *type2);
-  ~Type();
+  virtual ~Type() = default;
+
   // placeholder
-  static Type getPlaceHolder();
+  static TypePtr getPlaceHolder();
+
   // Type
-  static Type getMetaType();
+  static TypePtr getMetaType();
 
   // TypeTemplate
-  static Type getMetaTemplateType();
+  static TypePtr getMetaTemplateType();
 
   // int
-  static Type getInt32Type();
+  static TypePtr getInt32Type();
 
   // float
-  static Type getFloatType();
+  static TypePtr getFloatType();
 
   // float
-  static Type getDoubleType();
+  static TypePtr getDoubleType();
 
   // bool
-  static Type getBoolType();
+  static TypePtr getBoolType();
 
   // Integer<size>
-  static Type getIntegerType(Value *size);
+  static TypePtr getIntegerType(RightValue size);
 
   // FloatPoint<size>
-  static Type getFloatPointType(Value *size);
-
-  // char
-  static Type getCharType();
+  static TypePtr getFloatPointType(RightValue size);
 
   // string
-  static Type getStringType();
-
-  // Vector<size, elementType>
-  static Type getVectorType(Value *size, Type elementType);
-
-  // Tensor<shape, elementType>
-  static Type getTensorType(Value *shape, Type elementType);
+  static TypePtr getStringType();
 
   // List<elementType>
-  static Type getListType(Type elementType);
+  static TypePtr getListType(TypePtr elementType);
+  static TypePtr getListType(RightValue elementType);
+
+  // Vector<size, elementType>
+  static TypePtr getVectorType(TypePtr elementType, RightValue size);
+  static TypePtr getVectorType(RightValue elementType, RightValue size);
+
+  // Tensor<shape, elementType>
+  static TypePtr getTensorType(TypePtr elementType, RightValue shape);
+  static TypePtr getTensorType(RightValue elementType, RightValue shape);
 
   // Optional<elementType>
-  static Type getOptionalType(Type elementType);
+  static TypePtr getOptionalType(TypePtr elementType);
+  static TypePtr getOptionalType(RightValue elementType);
 
-  // Any<elementType1, elementType2, ...>
-  static Type getAnyType(std::vector<Type> elementTypes);
+  // Any<[elementType1, elementType2, ...]>
+  static TypePtr getAnyType(RightValue elementTypes);
 
-  static Type getIntegerTemplate();
-  static Type getFloatPointTemplate();
+  static TypePtr getCustomeType(std::vector<RightValue> params, TypeDefination* tydef);
 
-  static Type getInstanceType(TypeDefination *typeDefination,
-                                   std::vector<Value *> parameters);
-
-  static Type getTemplateType(TypeDefination *typeDefination);
+  static TypePtr getTemplateType(TypeDefination *typeDefination);
 };
 
 class TypeDefination {
@@ -245,7 +244,7 @@ public:
 class RightValue {
   friend class Type;
   friend class Value;
-
+  
 public:
   enum class LiteralKind {
     MONOSTATE,
@@ -267,10 +266,9 @@ public:
   struct Expression {
     bool ifTerminal;
     LiteralKind kind;
-    Type exprType;
     bool isLiteral;
     bool ifConstexpr;
-    Expression(bool, LiteralKind, Type &, bool);
+    Expression(bool, LiteralKind, bool);
     virtual ~Expression() = default;
     virtual bool isTerminal();
     virtual std::string toString() = 0;
@@ -278,7 +276,7 @@ public:
     virtual std::string toStringForOpdef() = 0;
     virtual std::string toStringForCppKind() = 0;
     LiteralKind getKind();
-    Type &getType();
+    virtual TypePtr getType() = 0;
     virtual std::any getContent() = 0;
     virtual bool isConstexpr();
 
@@ -299,12 +297,12 @@ public:
     callOperation(std::vector<std::shared_ptr<Expression>>, Operation *);
 
     static std::shared_ptr<ExpressionTerminal> getPlaceHolder();
-    static std::shared_ptr<ExpressionTerminal> getInteger(long long int,
+    static std::shared_ptr<ExpressionTerminal> getInteger(largestInt,
                                                           size_t size = 32);
     static std::shared_ptr<ExpressionTerminal> getFloatPoint(long double,
                                                              size_t size = 32);
     static std::shared_ptr<ExpressionTerminal> getString(std::string);
-    static std::shared_ptr<ExpressionTerminal> getType(Type &);
+    static std::shared_ptr<ExpressionTerminal> getTypeRightValue(TypePtr);
     static std::shared_ptr<ExpressionTerminal>
     getList(std::vector<std::shared_ptr<Expression>> &);
     static std::shared_ptr<ExpressionTerminal>
@@ -312,12 +310,13 @@ public:
   };
 
   struct ExpressionNode : public Expression {
-    ExpressionNode(LiteralKind, Type, bool);
+    ExpressionNode(LiteralKind, bool);
     virtual std::string toString() override;
     virtual std::string toStringForTypedef() override;
     virtual std::string toStringForOpdef() override;
     virtual std::string toStringForCppKind() override;
     virtual std::any getContent() override = 0;
+    virtual TypePtr getType() override;
   };
 
   struct FunctionCall : public ExpressionNode {
@@ -329,6 +328,7 @@ public:
     virtual std::string toStringForOpdef() override;
     virtual std::string toStringForCppKind() override;
     virtual std::any getContent() override;
+    virtual TypePtr getType() override;
   };
 
   struct OperationCall : public ExpressionNode {
@@ -340,6 +340,7 @@ public:
     virtual std::string toStringForOpdef() override;
     virtual std::string toStringForCppKind() override;
     virtual std::any getContent() override;
+    virtual TypePtr getType() override;
   };
 
   struct OperatorCall : public ExpressionNode {
@@ -351,15 +352,17 @@ public:
     virtual std::string toStringForOpdef() override;
     virtual std::string toStringForCppKind() override;
     virtual std::any getContent() override;
+    virtual TypePtr getType() override;
   };
 
   struct ExpressionTerminal : public Expression {
-    ExpressionTerminal(LiteralKind, Type, bool);
+    ExpressionTerminal(LiteralKind, bool);
     virtual std::string toString() override;
     virtual std::string toStringForTypedef() override;
     virtual std::string toStringForOpdef() override;
     virtual std::string toStringForCppKind() override;
     virtual std::any getContent() override = 0;
+    virtual TypePtr getType() override;
   };
 
   struct PlaceHolder : public ExpressionTerminal {
@@ -370,12 +373,11 @@ public:
 
   struct IntegerLiteral : public ExpressionTerminal {
     size_t size;
-    long long int content;
-    // size = 32
-    IntegerLiteral(int content);
-    IntegerLiteral(long long int content, size_t size);
+    largestInt content;
+    IntegerLiteral(largestInt content, size_t size);
     virtual std::any getContent() override;
     virtual std::string toString() override;
+    virtual TypePtr getType() override;
   };
 
   struct FloatPointLiteral : public ExpressionTerminal {
@@ -384,6 +386,7 @@ public:
     FloatPointLiteral(long double content, size_t size);
     virtual std::any getContent() override;
     virtual std::string toString() override;
+    virtual TypePtr getType() override;
   };
 
   struct StringLiteral : public ExpressionTerminal {
@@ -391,16 +394,18 @@ public:
     StringLiteral(std::string content);
     virtual std::any getContent() override;
     virtual std::string toString() override;
+    virtual TypePtr getType() override;
   };
 
   struct TypeLiteral : public ExpressionTerminal {
-    Type content;
-    TypeLiteral(Type &content);
+    TypePtr content;
+    TypeLiteral(TypePtr content);
     virtual std::any getContent() override;
     virtual std::string toString() override;
     virtual std::string toStringForTypedef() override;
     virtual std::string toStringForOpdef() override;
     virtual std::string toStringForCppKind() override;
+    virtual TypePtr getType() override;
   };
 
   struct ListLiteral : public ExpressionTerminal {
@@ -410,6 +415,7 @@ public:
     virtual std::string toString() override;
     virtual std::string toStringForTypedef() override;
     virtual std::string toStringForOpdef() override;
+    virtual TypePtr getType() override;
   };
 
   struct LeftValue : public ExpressionTerminal {
@@ -417,9 +423,11 @@ public:
     LeftValue(Value *content);
     virtual std::any getContent() override;
     virtual std::string toString() override;
+    virtual TypePtr getType() override;
   };
 
 public:
+  using ExprPtr = std::shared_ptr<Expression>;
   RightValue(std::shared_ptr<Expression>);
   RightValue(const RightValue &) = default;
   RightValue(RightValue &&) = default;
@@ -430,14 +438,15 @@ public:
   std::string toStringForOpdef();
   std::string toStringForCppKind();
   std::any getContent();
-  Type &getType();
+  TypePtr getType();
   std::shared_ptr<Expression> getExpr();
+  bool isConstant();
 
   static RightValue getPlaceHolder();
-  static RightValue getInteger(long long int content, size_t size = 32);
+  static RightValue getInteger(largestInt content, size_t size = 32);
   static RightValue getFloatPoint(long double content, size_t size = 32);
   static RightValue getString(std::string content);
-  static RightValue getType(Type &content);
+  static RightValue getTypeRightValue(TypePtr content);
   static RightValue
   getList(std::vector<std::shared_ptr<Expression>> &content);
   static RightValue getLeftValue(fegen::Value *content);
@@ -448,24 +457,129 @@ private:
   std::shared_ptr<Expression> content;
 };
 
+// PlaceHolder
+class PlaceHolderType : public Type {
+  public:
+  PlaceHolderType();
+};
+
+// Type
+class MetaType : public Type {
+  public:
+  MetaType();
+  // for generating typedef td file.
+  virtual std::string toStringForTypedef() override;
+
+};
+// Template
+class MetaTemplate : public Type {
+  public:
+  MetaTemplate();
+};
+// Integer<size>
+class IntegerType : public Type {
+  RightValue size;
+  public:
+  IntegerType(RightValue size, TypeDefination* tyDef);
+  IntegerType(RightValue size);
+  // for generating typedef td file.
+  virtual std::string toStringForTypedef() override;
+  // for generating op def td file.
+  virtual std::string toStringForOpdef() override;
+  // for generating cpp type kind.
+  virtual std::string toStringForCppKind() override;
+};
+// FloatPoint<size>
+class FloatPointType : public Type {
+  RightValue size;
+  public:
+  FloatPointType(RightValue size);
+  // for generating typedef td file.
+  virtual std::string toStringForTypedef() override;
+  // for generating op def td file.
+  virtual std::string toStringForOpdef() override;
+  // for generating cpp type kind.
+  virtual std::string toStringForCppKind() override;
+};
+// String
+class StringType : public Type {
+  public:
+  StringType();
+};
+// List<ty>
+class ListType : public Type {
+  RightValue elementType;
+  public:
+  ListType(RightValue elementType);
+  // for generating typedef td file.
+  virtual std::string toStringForTypedef() override;
+  // for generating op def td file.
+  virtual std::string toStringForOpdef() override;
+  // for generating cpp type kind.
+  virtual std::string toStringForCppKind() override;
+};
+// Vector<ty, size>
+class VectorType : public Type {
+  RightValue elementType;
+  RightValue size;
+  public:
+  VectorType(RightValue elementType, RightValue size);
+};
+// Tensor<ty, shape>
+class TensorType : public Type {
+  RightValue elementType;
+  RightValue shape;
+  public:
+  TensorType(RightValue elementType, RightValue shape);
+};
+// Optional<ty>
+class OptionalType : public Type {
+  RightValue elementType;
+  public:
+  OptionalType(RightValue elementType);
+};
+// Any<[ty1, ty2, ...]>
+class AnyType : public Type {
+  RightValue elementTypes;
+  public:
+  AnyType(RightValue elementTypes);
+};
+// custome type
+class CustomeType : public Type {
+  std::vector<RightValue> params;
+  public:
+  CustomeType(std::vector<RightValue> params, TypeDefination* tydef);
+};
+
+class TemplateType : public Type {
+  public:
+  TemplateType(TypeDefination* tydef);
+  TypePtr instantiate(std::vector<RightValue> params);
+  // for generating typedef td file.
+  virtual std::string toStringForTypedef() override;
+  // for generating op def td file.
+  virtual std::string toStringForOpdef() override;
+};
+
+
 class Value {
   friend class Type;
 
 private:
-  Type type;
+  TypePtr type;
   std::string name;
   RightValue content;
 
 public:
-  Value(Type type, std::string name, RightValue content);
+  Value(TypePtr type, std::string name, RightValue content);
   Value(const Value &rhs);
   Value(Value &&rhs);
 
-  static Value *get(Type type, std::string name,
+  static Value *get(TypePtr type, std::string name,
                          RightValue constant);
 
   std::string getName();
-  Type &getType();
+  TypePtr getType();
   /// @brief return content of right value, get ExprssionNode* if kind is
   /// EXPRESSION.
   template <typename T> T getContent() {
@@ -576,7 +690,7 @@ public:
   void emitBuiltinFunction();
 };
 
-Type
+TypePtr
     inferenceType(std::vector<std::shared_ptr<RightValue::Expression>>,
                   FegenOperator);
 

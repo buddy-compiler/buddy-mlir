@@ -10,3 +10,5 @@ typeDefine:
 rule:
 	@${BUDDY_FRONTEND_GEN} -f ./rule.fegen
 
+clean:
+	rm -f ./toy*

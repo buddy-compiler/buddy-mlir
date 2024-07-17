@@ -20,26 +20,18 @@ public:
 };
 
 class FegenScope {
-  using TypeDefTable = SymbolTable<TypeDefination>;
   using VariableTable = SymbolTable<Value>;
   friend class ScopeStack;
 
 private:
   unsigned int scopeId;
   FegenScope *parentScope;
-  TypeDefTable typeTable;
   VariableTable varTable;
 
 public:
   explicit FegenScope(unsigned int scopeId, FegenScope *parentScope);
   ~FegenScope() = default;
 
-  /// @brief this will not check.
-  TypeDefination *findTypeDef(std::string name);
-  /// @brief this will not check whether tyDef is already existed or not.
-  void addTypeDef(TypeDefination *tyDef);
-  /// @brief return true if exist.
-  bool isExistTypeDef(std::string name);
   /// @brief this will not check.
   Value *findVar(std::string name);
   /// @brief this will not check whether var is already existed or not.
@@ -71,10 +63,6 @@ public:
   bool attemptAddVar(Value *var);
   /// @brief check add find var from current scope, return nullptr if failed.
   Value *attemptFindVar(std::string name);
-  /// @brief check and add tyDef to current scope, return false if failed.
-  bool attemptAddTypeDef(TypeDefination *tyDef);
-  /// @brief check and find tyDef from current scope, return nullptr if failed.
-  TypeDefination *attemptFindTypeDef(std::string name);
 };
 } // namespace fegen
 
