@@ -106,6 +106,7 @@ bool fegen::Type::isSameType(fegen::Type *type1, fegen::Type *type2) {
 }
 
 std::string fegen::Type::toStringForTypedef() {
+  std::cerr << this->getTypeName() <<std::endl;
   assert(FEGEN_NOT_IMPLEMENTED_ERROR);
 }
 
@@ -158,8 +159,8 @@ fegen::TypePtr fegen::Type::getStringType() {
 }
 
 fegen::TypePtr fegen::Type::getListType(fegen::TypePtr elementType) {
-  assert(elementType->typeLevel == 2 || elementType->typeLevel == 3);
-  return std::make_shared<ListType>(
+  assert(elementType->typeLevel == 3);
+      return std::make_shared<ListType>(
       fegen::RightValue::getTypeRightValue(elementType));
 }
 
@@ -195,7 +196,7 @@ fegen::TypePtr fegen::Type::getTensorType(RightValue elementType,
 }
 
 fegen::TypePtr fegen::Type::getOptionalType(fegen::TypePtr elementType) {
-  assert(elementType->typeLevel == 2 || elementType->typeLevel == 3);
+  assert(elementType->typeLevel == 3);
   return std::make_shared<OptionalType>(
       RightValue::getTypeRightValue(elementType));
 }
@@ -215,9 +216,62 @@ fegen::Type::getCustomeType(std::vector<fegen::RightValue> params,
   return std::make_shared<CustomeType>(params, tydef);
 }
 
-fegen::TypePtr
-fegen::Type::getTemplateType(fegen::TypeDefination *typeDefination) {
-  return std::make_shared<TemplateType>(typeDefination);
+// Integer
+fegen::TypePtr fegen::Type::getIntegerTemplate() {
+  return std::make_shared<IntegerTemplateType>();
+}
+
+// FloatPoint
+fegen::TypePtr fegen::Type::getFloatPointTemplate() {
+  return std::make_shared<FloatPointTemplateType>();
+}
+
+// string
+fegen::TypePtr fegen::Type::getStringTemplate() {
+  return std::make_shared<StringTemplateType>();
+}
+
+// List<elementType>
+fegen::TypePtr fegen::Type::getListTemplate(TypePtr elementType) {
+  assert(elementType->typeLevel == 2 || elementType->typeLevel == 1);
+  return std::make_shared<ListTemplateType>(
+      fegen::RightValue::getTypeRightValue(elementType));
+}
+
+fegen::TypePtr fegen::Type::getListTemplate(RightValue elementType) {
+  auto ty = std::any_cast<fegen::TypePtr>(elementType.getContent());
+  return Type::getListTemplate(ty);
+}
+
+// Vector
+fegen::TypePtr fegen::Type::getVectorTemplate() {
+  return std::make_shared<VectorTemplateType>();
+}
+
+// Tensor
+fegen::TypePtr fegen::Type::getTensorTemplate() {
+  return std::make_shared<TensorTemplateType>();
+}
+
+// Optional<elementType>
+fegen::TypePtr fegen::Type::getOptionalTemplate(TypePtr elementType) {
+  assert(elementType->typeLevel == 2);
+  return std::make_shared<OptionalTemplateType>(
+      fegen::RightValue::getTypeRightValue(elementType));
+}
+fegen::TypePtr fegen::Type::getOptionalTemplate(RightValue elementType) {
+  auto ty = std::any_cast<fegen::TypePtr>(elementType.getContent());
+  return Type::getOptionalTemplate(ty);
+}
+
+// Any<[elementType1, elementType2, ...]>
+fegen::TypePtr fegen::Type::getAnyTemplate(RightValue elementTypes) {
+  return std::make_shared<AnyTemplateType>(elementTypes);
+}
+
+fegen::TypePtr fegen::Type::getCustomeTemplate(TypeDefination *tydef) {
+  assert(tydef->isCustome());
+  return std::make_shared<CustomeTemplateType>(tydef);
 }
 
 /// @brief get name of Type Instance by jointsing template name and parameters,
@@ -365,8 +419,7 @@ fegen::StringType::StringType()
 // class ListType
 fegen::ListType::ListType(fegen::RightValue elementType)
     : Type(fegen::Type::TypeKind::CPP, jointTypeName(FEGEN_LIST, {elementType}),
-           fegen::Manager::getManager().getTypeDefination(FEGEN_LIST),
-           std::any_cast<fegen::TypePtr>(elementType.getContent())->getTypeLevel(),
+           fegen::Manager::getManager().getTypeDefination(FEGEN_LIST), 3,
            elementType.isConstant()),
       elementType(elementType) {}
 
@@ -411,23 +464,23 @@ fegen::TensorType::TensorType(RightValue elementType, RightValue shape)
 fegen::OptionalType::OptionalType(RightValue elementType)
     : Type(fegen::Type::TypeKind::CPP,
            jointTypeName(FEGEN_OPTINAL, {elementType}),
-           fegen::Manager::getManager().getTypeDefination(FEGEN_OPTINAL),
-           std::any_cast<fegen::TypePtr>(elementType.getContent())->getTypeLevel(),
+           fegen::Manager::getManager().getTypeDefination(FEGEN_OPTINAL), 3,
            elementType.isConstant()),
       elementType(elementType) {}
 
 // class AnyType
 
-inline int getTypeLevelOfListType(fegen::RightValue& elementTypes) {
-  auto listContent = std::any_cast<std::vector<fegen::RightValue::ExprPtr>>(elementTypes.getContent());
-  fegen::TypePtr ty = std::any_cast<fegen::TypePtr>(listContent[0]->getContent());
+inline int getTypeLevelOfListType(fegen::RightValue &elementTypes) {
+  auto listContent = std::any_cast<std::vector<fegen::RightValue::ExprPtr>>(
+      elementTypes.getContent());
+  fegen::TypePtr ty =
+      std::any_cast<fegen::TypePtr>(listContent[0]->getContent());
   return ty->getTypeLevel();
 }
 
 fegen::AnyType::AnyType(RightValue elementTypes)
     : Type(fegen::Type::TypeKind::CPP, jointTypeName(FEGEN_ANY, {elementTypes}),
-           fegen::Manager::getManager().getTypeDefination(FEGEN_ANY),
-           getTypeLevelOfListType(elementTypes),
+           fegen::Manager::getManager().getTypeDefination(FEGEN_ANY), 3,
            elementTypes.isConstant()),
       elementTypes(elementTypes) {}
 
@@ -451,64 +504,140 @@ fegen::CustomeType::CustomeType(std::vector<RightValue> params,
 fegen::TemplateType::TemplateType(TypeDefination *tydef)
     : Type(fegen::Type::TypeKind::CPP, tydef->getName(), tydef, 2, true) {}
 
+// class IntegerTemplateType
+fegen::IntegerTemplateType::IntegerTemplateType()
+    : TemplateType(
+          fegen::Manager::getManager().getTypeDefination(FEGEN_INTEGER)) {}
+
 fegen::TypePtr
-fegen::TemplateType::instantiate(std::vector<RightValue> params) {
-  auto tydef = this->getTypeDefination();
-  if (tydef->isCustome()) {
-    return Type::getCustomeType(params, tydef);
-  } else if (tydef->getName() == FEGEN_INTEGER) {
-    assert(params.size() == 1);
-    return Type::getIntegerType(params[0]);
-  } else if (tydef->getName() == FEGEN_FLOATPOINT) {
-    assert(params.size() == 1);
-    return Type::getFloatPointType(params[0]);
-  } else if (tydef->getName() == FEGEN_STRING) {
-    assert(params.size() == 0);
-    return Type::getStringType();
-  } else if (tydef->getName() == FEGEN_LIST) {
-    assert(params.size() == 1);
-    return Type::getListType(params[0]);
-  } else if (tydef->getName() == FEGEN_VECTOR) {
-    assert(params.size() == 2);
-    return Type::getVectorType(params[0], params[1]);
-  } else if (tydef->getName() == FEGEN_TENSOR) {
-    assert(params.size() == 2);
-    return Type::getTensorType(params[0], params[1]);
-  } else if (tydef->getName() == FEGEN_OPTINAL) {
-    assert(params.size() == 1);
-    return Type::getOptionalType(params[0]);
-  } else if (tydef->getName() == FEGEN_ANY) {
-    assert(params.size() == 1);
-    return Type::getAnyType(params[0]);
-  } else {
-    assert(false);
-  }
+fegen::IntegerTemplateType::instantiate(std::vector<RightValue> params) {
+  assert(params.size() == 1);
+  return Type::getIntegerType(params[0]);
 }
 
-std::string fegen::TemplateType::toStringForTypedef() {
-  auto tyd = this->getTypeDefination();
-  if (tyd->isCustome()) {
-    return this->getTypeDefination()->getName();
-  } else if (tyd->getName() == FEGEN_INTEGER) {
-    return "Builtin_IntegerAttr";
-  } else if (tyd->getName() == FEGEN_FLOATPOINT) {
-    return "Builtin_FloatAttr";
-  } else {
-    std::cerr << "unsupport type: " << this->getTypeName() << std::endl;
-    assert(false);
-  }
+std::string fegen::IntegerTemplateType::toStringForTypedef() {
+  return "Builtin_IntegerAttr";
 }
 
-std::string fegen::TemplateType::toStringForOpdef() {
-  auto tyd = this->getTypeDefination();
-  if (tyd->isCustome()) {
-    return this->getTypeDefination()->getName();
-  } else if (tyd->getName() == FEGEN_INTEGER) {
-    return "Builtin_Integer";
-  } else {
-    std::cerr << "unsupport type: " << this->getTypeName() << std::endl;
-    assert(false);
-  }
+std::string fegen::IntegerTemplateType::toStringForOpdef() {
+  return "Builtin_Integer";
+}
+
+// class FloatPointTemplateType
+fegen::FloatPointTemplateType::FloatPointTemplateType()
+    : TemplateType(
+          fegen::Manager::getManager().getTypeDefination(FEGEN_FLOATPOINT)) {}
+
+fegen::TypePtr
+fegen::FloatPointTemplateType::instantiate(std::vector<RightValue> params) {
+  assert(params.size() == 1);
+  return Type::getFloatPointType(params[0]);
+}
+
+std::string fegen::FloatPointTemplateType::toStringForTypedef() {
+  return "Builtin_FloatAttr";
+}
+
+// class StringTemplateType
+fegen::StringTemplateType::StringTemplateType()
+    : TemplateType(
+          fegen::Manager::getManager().getTypeDefination(FEGEN_STRING)) {}
+
+fegen::TypePtr
+fegen::StringTemplateType::instantiate(std::vector<RightValue> params) {
+  assert(params.size() == 0);
+  return Type::getStringType();
+}
+
+std::string fegen::StringTemplateType::toStringForTypedef() {
+  return "Builtin_StringAttr";
+}
+
+// class ListTemplateType
+fegen::ListTemplateType::ListTemplateType(fegen::RightValue elementType)
+    : TemplateType(fegen::Manager::getManager().getTypeDefination(FEGEN_LIST)),
+      elementType(elementType) {}
+
+fegen::TypePtr
+fegen::ListTemplateType::instantiate(std::vector<RightValue> params) {
+  assert(params.size() == 1);
+  return Type::getListType(params[0]);
+}
+
+std::string fegen::ListTemplateType::toStringForTypedef() {
+  std::string res = "ArrayRefParameter<";
+  res.append(this->elementType.toStringForTypedef());
+  res.append(">");
+  return res;
+}
+
+std::string fegen::ListTemplateType::toStringForOpdef() {
+  std::string res = "Variadic<";
+  res.append(this->elementType.toStringForOpdef());
+  res.append(">");
+  return res;
+}
+
+// class VectorTemplateType
+fegen::VectorTemplateType::VectorTemplateType()
+    : TemplateType(
+          fegen::Manager::getManager().getTypeDefination(FEGEN_VECTOR)) {}
+
+fegen::TypePtr
+fegen::VectorTemplateType::instantiate(std::vector<RightValue> params) {
+  assert(params.size() == 2);
+  return Type::getVectorType(params[0], params[1]);
+}
+
+// class TensorTemplateType
+fegen::TensorTemplateType::TensorTemplateType()
+    : TemplateType(
+          fegen::Manager::getManager().getTypeDefination(FEGEN_TENSOR)) {}
+
+fegen::TypePtr
+fegen::TensorTemplateType::instantiate(std::vector<RightValue> params) {
+  assert(params.size() == 2);
+  return Type::getTensorType(params[0], params[1]);
+}
+
+// class OptionalTemplateType
+fegen::OptionalTemplateType::OptionalTemplateType(RightValue elementType)
+    : TemplateType(
+          fegen::Manager::getManager().getTypeDefination(FEGEN_OPTINAL)),
+      elementType(elementType) {}
+
+fegen::TypePtr
+fegen::OptionalTemplateType::instantiate(std::vector<RightValue> params) {
+  assert(params.size() == 1);
+  return Type::getOptionalType(params[0]);
+}
+
+// class AnyTemplateType
+fegen::AnyTemplateType::AnyTemplateType(RightValue elementTypes)
+    : TemplateType(fegen::Manager::getManager().getTypeDefination(FEGEN_ANY)),
+      elementTypes(elementTypes) {}
+
+fegen::TypePtr
+fegen::AnyTemplateType::instantiate(std::vector<RightValue> params) {
+  assert(params.size() == 1);
+  return Type::getAnyType(params[0]);
+}
+
+// class CustomeTemplateType
+fegen::CustomeTemplateType::CustomeTemplateType(TypeDefination *tydef)
+    : TemplateType(tydef) {}
+
+fegen::TypePtr
+fegen::CustomeTemplateType::instantiate(std::vector<RightValue> params) {
+  return Type::getCustomeType(params, this->getTypeDefination());
+}
+
+std::string fegen::CustomeTemplateType::toStringForTypedef() {
+  return this->getTypeDefination()->getName();
+}
+
+std::string fegen::CustomeTemplateType::toStringForOpdef() {
+  return this->getTypeDefination()->getName();
 }
 
 // class FegenTypeDefination
@@ -1191,6 +1320,17 @@ std::string getChildrenText(antlr4::tree::ParseTree *ctx) {
   return ruleText;
 }
 
+fegen::Manager::OverloadedType::OverloadedType(TypeDefination *ty)
+    : tys({ty}) {}
+fegen::Manager::OverloadedType::OverloadedType(
+    std::initializer_list<TypeDefination *> &&tys)
+    : tys(tys) {}
+
+fegen::TypeDefination *
+fegen::Manager::OverloadedType::OverloadedType::get(unsigned i) {
+  return this->tys[i];
+}
+
 fegen::Manager::Manager() {}
 
 namespace fegen {
@@ -1340,7 +1480,7 @@ void fegen::Manager::emitTypeDefination() {
   emitter.newLine();
 
   for (auto pair : this->typeDefMap) {
-    auto tyDef = pair.second;
+    auto tyDef = pair.second.get(0);
     if (!tyDef->isCustome()) {
       continue;
     }
@@ -1605,13 +1745,19 @@ void fegen::Manager::initbuiltinTypes() {
            nullptr, false)});
 
   // List (this should be ahead of Tensor and Any Type defination)
-  this->typeDefMap.insert(
-      {FEGEN_LIST,
-       fegen::TypeDefination::get(
+  this->typeDefMap.insert({
+      FEGEN_LIST,
+      {fegen::TypeDefination::get(
            FEGEN_DIALECT_NAME, FEGEN_LIST,
            {fegen::Value::get(fegen::Type::getMetaType(), "elementType",
                               fegen::RightValue::getPlaceHolder())},
-           nullptr, false)});
+           nullptr, false), // element type is type instance
+       fegen::TypeDefination::get(
+           FEGEN_DIALECT_NAME, FEGEN_LIST,
+           {fegen::Value::get(fegen::Type::getMetaTemplateType(), "elementType",
+                              fegen::RightValue::getPlaceHolder())},
+           nullptr, false)} // element type is type template
+  });
 
   // Tensor
   this->typeDefMap.insert(
@@ -1628,26 +1774,55 @@ void fegen::Manager::initbuiltinTypes() {
   // Optional
   this->typeDefMap.insert(
       {FEGEN_OPTINAL,
-       fegen::TypeDefination::get(
-           FEGEN_DIALECT_NAME, FEGEN_OPTINAL,
-           {fegen::Value::get(fegen::Type::getMetaType(), "elementType",
-                              fegen::RightValue::getPlaceHolder())},
-           nullptr, false)});
+       {
+           fegen::TypeDefination::get(
+               FEGEN_DIALECT_NAME, FEGEN_OPTINAL,
+               {fegen::Value::get(fegen::Type::getMetaType(), "elementType",
+                                  fegen::RightValue::getPlaceHolder())},
+               nullptr, false), // element type is type instance
+           fegen::TypeDefination::get(
+               FEGEN_DIALECT_NAME, FEGEN_OPTINAL,
+               {fegen::Value::get(fegen::Type::getMetaTemplateType(),
+                                  "elementType",
+                                  fegen::RightValue::getPlaceHolder())},
+               nullptr, false) // element type is type template
+       }});
 
   // Any
   this->typeDefMap.insert(
-      {FEGEN_ANY, fegen::TypeDefination::get(
-                      FEGEN_DIALECT_NAME, FEGEN_ANY,
-                      {fegen::Value::get(
-                          fegen::Type::getListType(fegen::Type::getMetaType()),
-                          "elementType", fegen::RightValue::getPlaceHolder())},
-                      nullptr, false)});
+      {FEGEN_ANY,
+       {
+           fegen::TypeDefination::get(
+               FEGEN_DIALECT_NAME, FEGEN_ANY,
+               {fegen::Value::get(
+                   fegen::Type::getListTemplate(fegen::Type::getMetaType()),
+                   "elementType", fegen::RightValue::getPlaceHolder())},
+               nullptr, false), // elements are Type, ex: Any<[Integer<32>,
+                                // FloatPoint<32>]>
+           fegen::TypeDefination::get(
+               FEGEN_DIALECT_NAME, FEGEN_ANY,
+               {fegen::Value::get(fegen::Type::getListTemplate(
+                                      fegen::Type::getMetaTemplateType()),
+                                  "elementType",
+                                  fegen::RightValue::getPlaceHolder())},
+               nullptr, false) // elements are TypeTemplate, ex: Any<[Integer,
+                               // FloatPoint]>
+       }});
 }
 
 fegen::TypeDefination *fegen::Manager::getTypeDefination(std::string name) {
   auto it = this->typeDefMap.find(name);
   if (it != this->typeDefMap.end()) {
-    return it->second;
+    return it->second.get(0);
+  }
+  assert(false);
+}
+
+fegen::TypeDefination *
+fegen::Manager::getOverloadedTypeDefination(std::string name) {
+  auto it = this->typeDefMap.find(name);
+  if (it != this->typeDefMap.end()) {
+    return it->second.get(1);
   }
   assert(false);
 }
@@ -1656,8 +1831,16 @@ bool fegen::Manager::addTypeDefination(fegen::TypeDefination *tyDef) {
   if (this->typeDefMap.count(tyDef->name) != 0) {
     return false;
   }
-  this->typeDefMap[tyDef->name] = tyDef;
+  this->typeDefMap.insert({tyDef->name, {tyDef}});
   return true;
+}
+
+bool fegen::Manager::addOverloadedTypeDefination(TypeDefination *tyDef) {
+  auto it = this->typeDefMap.find(tyDef->name);
+  if (it != this->typeDefMap.end()) {
+    it->second.tys[1] = tyDef;
+  }
+  assert(false);
 }
 
 fegen::Operation *fegen::Manager::getOperationDefination(std::string name) {
