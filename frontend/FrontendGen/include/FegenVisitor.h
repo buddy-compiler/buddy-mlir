@@ -610,6 +610,7 @@ public:
   std::any visitFunctionDecl(FegenParser::FunctionDeclContext *ctx) override {
     sstack.pushScope();
     auto returnType = std::any_cast<fegen::Type>(this->visit(ctx->typeSpec()));
+    manager.addStmtContent(ctx, returnType);
     auto functionName =
         std::any_cast<std::string>(this->visit(ctx->funcName()));
     auto hasfunc = manager.functionMap.find(functionName);
@@ -624,13 +625,14 @@ public:
         this->visit(ctx->funcParams()));
     this->visit(ctx->statementBlock());
     auto function = fegen::Function::get(functionName, functionParams, &returnType);
-    manager.functionMap.insert(std::pair{functionName, function});
+    manager.functionMap.insert({functionName, function});
     sstack.popScope();
     return nullptr;
   }
 
   std::any visitFuncName(FegenParser::FuncNameContext *ctx) override {
     auto functionName = ctx->identifier()->getText();
+    manager.addStmtContent(ctx, functionName);
     return functionName;
   }
 
@@ -640,17 +642,20 @@ public:
     for (size_t i = 0; i < ctx->typeSpec().size(); i++) {
       auto paramType =
           std::any_cast<fegen::Type>(this->visit(ctx->typeSpec(i)));
+    //   manager.addStmtContent(ctx, paramType);
       auto paramName = ctx->identifier(i)->getText();
       auto param = fegen::Value::get(paramType, paramName,
                                      fegen::RightValue::getPlaceHolder());
       paramsList.push_back(param);
       sstack.attemptAddVar(param);
     }
+    manager.addStmtContent(ctx, paramsList);
     return paramsList;
   }
 
   std::any visitVarDeclStmt(FegenParser::VarDeclStmtContext *ctx) override {
     auto varType = std::any_cast<fegen::Type>(this->visit(ctx->typeSpec()));
+    manager.addStmtContent(ctx, varType);
     auto varName = ctx->identifier()->getText();
     fegen::Value *var;
     if (ctx->expression()) {
@@ -673,7 +678,7 @@ public:
                               fegen::RightValue::getPlaceHolder());
     }
     sstack.attemptAddVar(var);
-    manager.addStmtContent(ctx, varType);
+    
     return var;
   }
 
@@ -776,6 +781,11 @@ public:
     this->visit(ctx->statementBlock());
     sstack.popScope();
 
+    return nullptr;
+  }
+
+  std::any visitReturnBlock(FegenParser::ReturnBlockContext *ctx) override {
+    this->visit(ctx->expression());
     return nullptr;
   }
 

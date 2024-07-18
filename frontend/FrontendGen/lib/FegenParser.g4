@@ -262,6 +262,7 @@ statement
     | opInvokeStmt Semi
     | ifStmt
     | forStmt
+    | returnBlock Semi
     ;
 
 varDeclStmt
@@ -302,6 +303,10 @@ elseBlock
 
 forStmt
     : FOR LeftParen (assignStmt | varDeclStmt) Semi expression Semi assignStmt RightParen statementBlock
+    ;
+
+returnBlock
+    : RETURN expression
     ;
 
 // expression
