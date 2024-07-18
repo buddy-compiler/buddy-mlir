@@ -1,0 +1,93 @@
+import os
+import torch
+import torch._dynamo as dynamo
+from transformers import LlamaForCausalLM, LlamaTokenizer
+from torch._inductor.decomposition import decompositions as inductor_decomp
+import numpy
+
+from buddy.compiler.frontend import DynamoCompiler
+# ===- import-llama2.py --------------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# This is the test of llama2 model.
+#
+# ===---------------------------------------------------------------------------
+from buddy.compiler.ops import tosa
+from buddy.compiler.graph import GraphDriver
+from buddy.compiler.graph.transform import simply_fuse
+
+def import_model(model, name):
+    # Initialize Dynamo Compiler with specific configurations as an importer.
+    dynamo_compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+    )
+
+    # Import the model into MLIR module and parameters.
+    with torch.no_grad():
+        data = torch.tensor([[i for i in range(40)]], dtype=torch.int64)
+        graphs = dynamo_compiler.importer(model, data)
+        expected_output = model(data)[0].float().cpu().numpy()
+        print(f"{name}: output size:", expected_output.shape)
+        print(f"{name}: expected output:", expected_output[0, :5, :5])
+
+    assert len(graphs) == 1, f'{len(graphs)} graphs imported'
+    graph = graphs[0]
+    params = dynamo_compiler.imported_params[graph]
+    pattern_list = [simply_fuse]
+    graphs[0].fuse_ops(pattern_list)
+    driver = GraphDriver(graphs[0])
+    driver.subgraphs[0].lower_to_top_level_ir()
+    
+    all_param = numpy.concatenate(
+        [param.detach().numpy().reshape([-1]) for param in params]
+    )
+    print(f'{name}: parameter:', all_param[90:100])
+
+    # all_op_names = set()
+    # for op in driver.subgraphs[0]._body:
+    #     all_op_names.add(op.__class__.__name__)
+    # for op_name in sorted(all_op_names):
+    #     print(op_name)
+    
+    return
+    # persist
+    path_prefix = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(path_prefix, f"{name}-subgraph0.mlir"), "w") as module_file:
+        print(driver.subgraphs[0]._imported_module, file=module_file)
+    with open(os.path.join(path_prefix, f"{name}-forward.mlir"), "w") as module_file:
+        print(driver.construct_main_graph(True), file=module_file)
+    all_param.tofile(os.path.join(path_prefix, f"{name}-params.data"))
+
+
+# Retrieve the LLaMA model path from environment variables.
+model_path = os.environ.get("LLAMA_MODEL_PATH")
+if model_path is None:
+    raise EnvironmentError(
+        "The environment variable 'LLAMA_MODEL_PATH' is not set or is invalid."
+    )
+
+# Initialize the tokenizer and model from the specified model path.
+tokenizer = LlamaTokenizer.from_pretrained(model_path)
+model_f32 = LlamaForCausalLM.from_pretrained(model_path, torchscript=True, torch_dtype=torch.float32)
+model_f32.config.use_cache = False
+model_fp16 = LlamaForCausalLM.from_pretrained(model_path, torchscript=True, torch_dtype=torch.float16)
+model_fp16.config.use_cache = False
+# model_bp16 = LlamaForCausalLM.from_pretrained(model_path, torchscript=True, torch_dtype=torch.bfloat16)
+# model_bp16.config.use_cache = False
+
+import_model(model_f32, "f32")
+import_model(model_fp16, "fp16")

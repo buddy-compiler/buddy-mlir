@@ -10,6 +10,7 @@ endif()
 
 if(BUDDY_F16TEST_EXAMPLES)
   add_subdirectory(BuddyF16Test)
+  add_subdirectory(BuddyF16Llama)
 endif()
 
 if (BUDDY_BERT_EXAMPLES)

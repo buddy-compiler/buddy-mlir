@@ -1,0 +1,6 @@
+# model params file
+*.data
+# model mlir files
+*.mlir
+*.log
+core
