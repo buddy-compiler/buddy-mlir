@@ -94,4 +94,24 @@ def DAP_IirOp : DAP_Op<"iir"> {
   }];
 }
 
+def DAP_WhisperPreprocessOp : DAP_Op<"whisper_preprocess"> {
+  let summary = [{Preprocessor for Whisper model, do features extraction for input audio.
+  Input MemRef stores the raw speech data, Output MemRef contains computed features with 
+  shape memref<1x80x3000xf32>.
+
+  ```mlir
+    dap.whisper_preprocess %input, %output : memref<?xf64>, memref<1x80x3000xf32>
+  ```
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefO);
+
+  let assemblyFormat = [{
+    $memrefI `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefO) 
+  }];
+}
+
 #endif // DAP_DAPOPS_TD
