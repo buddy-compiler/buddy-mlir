@@ -24,18 +24,6 @@ fegen::FegenScope::FegenScope(unsigned int scopeId,
                               fegen::FegenScope *parentScope)
     : scopeId(scopeId), parentScope(parentScope) {}
 
-fegen::TypeDefination *fegen::FegenScope::findTypeDef(std::string name) {
-  return this->typeTable.get(name);
-}
-
-void fegen::FegenScope::addTypeDef(TypeDefination *tyDef) {
-  this->typeTable.add(tyDef->getName(), tyDef);
-}
-
-bool fegen::FegenScope::isExistTypeDef(std::string name) {
-  return this->typeTable.exist(name);
-}
-
 fegen::Value *fegen::FegenScope::findVar(std::string name) {
   return this->varTable.get(name);
 }
@@ -90,26 +78,6 @@ fegen::Value *fegen::ScopeStack::attemptFindVar(std::string name) {
   while (p != nullptr) {
     if (p->isExistVar(name)) {
       return p->findVar(name);
-    }
-    p = p->parentScope;
-  }
-  return nullptr;
-}
-
-bool fegen::ScopeStack::attemptAddTypeDef(fegen::TypeDefination *tyDef) {
-  if (this->currentScope->isExistTypeDef(tyDef->getName())) {
-    return false;
-  }
-  this->currentScope->addTypeDef(tyDef);
-  return true;
-}
-
-fegen::TypeDefination *
-fegen::ScopeStack::attemptFindTypeDef(std::string name) {
-  auto p = this->currentScope;
-  while (p != nullptr) {
-    if (p->isExistTypeDef(name)) {
-      return p->findTypeDef(name);
     }
     p = p->parentScope;
   }
