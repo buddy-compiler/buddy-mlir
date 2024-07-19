@@ -10,6 +10,7 @@
 #include <variant>
 #include <vector>
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -21,7 +22,6 @@
 #define FEGEN_TYPETEMPLATE "TypeTemplate"
 #define FEGEN_INTEGER "Integer"
 #define FEGEN_FLOATPOINT "FloatPoint"
-#define FEGEN_CHAR "Char"
 #define FEGEN_STRING "String"
 #define FEGEN_VECTOR "Vector"
 #define FEGEN_TENSOR "Tensor"
@@ -37,7 +37,6 @@ class Type;
 class Manager;
 class Value;
 class RightValue;
-class Expression;
 
 using TypePtr = std::shared_ptr<Type>;
 using largestInt = long long int;
@@ -206,7 +205,33 @@ public:
 
   static TypePtr getCustomeType(std::vector<RightValue> params, TypeDefination* tydef);
 
-  static TypePtr getTemplateType(TypeDefination *typeDefination);
+  // Integer
+  static TypePtr getIntegerTemplate();
+
+  // FloatPoint
+  static TypePtr getFloatPointTemplate();
+
+  // string
+  static TypePtr getStringTemplate();
+
+  // List<elementType> (elementType is template)
+  static TypePtr getListTemplate(TypePtr elementType);
+  static TypePtr getListTemplate(RightValue elementType);
+
+  // Vector
+  static TypePtr getVectorTemplate();
+
+  // Tensor
+  static TypePtr getTensorTemplate();
+
+  // Optional<elementType> (elementType is template)
+  static TypePtr getOptionalTemplate(TypePtr elementType);
+  static TypePtr getOptionalTemplate(RightValue elementType);
+
+  // Any<[elementType1, elementType2, ...]> (elementType* is template)
+  static TypePtr getAnyTemplate(RightValue elementTypes);
+
+  static TypePtr getCustomeTemplate(TypeDefination* tydef);
 };
 
 class TypeDefination {
@@ -554,7 +579,76 @@ class CustomeType : public Type {
 class TemplateType : public Type {
   public:
   TemplateType(TypeDefination* tydef);
-  TypePtr instantiate(std::vector<RightValue> params);
+  virtual TypePtr instantiate(std::vector<RightValue> params) = 0;
+  virtual ~TemplateType() = default;
+};
+
+// Integer
+class IntegerTemplateType : public TemplateType {
+  public:
+  IntegerTemplateType();
+  virtual TypePtr instantiate(std::vector<RightValue> params) override;
+  // for generating typedef td file.
+  virtual std::string toStringForTypedef() override;
+  // for generating op def td file.
+  virtual std::string toStringForOpdef() override;
+};
+// FloatPoint
+class FloatPointTemplateType : public TemplateType {
+  public:
+  FloatPointTemplateType();
+  virtual TypePtr instantiate(std::vector<RightValue> params) override;
+  // for generating typedef td file.
+  virtual std::string toStringForTypedef() override;
+};
+// String
+class StringTemplateType : public TemplateType {
+  public:
+  StringTemplateType();
+  virtual TypePtr instantiate(std::vector<RightValue> params) override;
+  // for generating typedef td file.
+  virtual std::string toStringForTypedef() override;
+};
+// List<ty> (ty is a template)
+class ListTemplateType : public TemplateType {
+  RightValue elementType;
+  public:
+  ListTemplateType(RightValue elementType);
+  virtual TypePtr instantiate(std::vector<RightValue> params) override;
+  virtual std::string toStringForTypedef() override;
+  virtual std::string toStringForOpdef() override;
+};
+// Vector
+class VectorTemplateType : public TemplateType {
+  public:
+  VectorTemplateType();
+  virtual TypePtr instantiate(std::vector<RightValue> params) override;
+};
+// Tensor
+class TensorTemplateType : public TemplateType {
+  public:
+  TensorTemplateType();
+  virtual TypePtr instantiate(std::vector<RightValue> params) override;
+};
+// Optional<ty> (ty is a template)
+class OptionalTemplateType : public TemplateType {
+  RightValue elementType;
+  public:
+  OptionalTemplateType(RightValue elementType);
+  virtual TypePtr instantiate(std::vector<RightValue> params) override;
+};
+// Any<[ty1, ty2, ...]> (ty* is a template)
+class AnyTemplateType : public TemplateType {
+  RightValue elementTypes;
+  public:
+  AnyTemplateType(RightValue elementTypes);
+  virtual TypePtr instantiate(std::vector<RightValue> params) override;
+};
+// custome type
+class CustomeTemplateType : public TemplateType {
+  public:
+  CustomeTemplateType(TypeDefination* tydef);
+  virtual TypePtr instantiate(std::vector<RightValue> params) override;
   // for generating typedef td file.
   virtual std::string toStringForTypedef() override;
   // for generating op def td file.
@@ -649,8 +743,16 @@ class FegenVisitor;
 
 class Manager {
   friend class FegenVisitor;
+private:
+struct OverloadedType {
+  llvm::SmallVector<TypeDefination*, 2> tys;
+  OverloadedType(TypeDefination *);
+  OverloadedType(std::initializer_list<TypeDefination*>&&);
+  TypeDefination* get(unsigned i);
+};
 
 private:
+  std::map<std::string, OverloadedType> typeDefMap;
   Manager();
   Manager(const Manager &) = delete;
   const Manager &operator=(const Manager &) = delete;
@@ -663,7 +765,7 @@ public:
   std::vector<std::string> headFiles;
   std::map<std::string, ParserNode *> nodeMap;
   llvm::StringMap<Type *> typeMap;
-  std::map<std::string, TypeDefination *> typeDefMap;
+
   std::map<std::string, Operation *> operationMap;
   std::map<std::string, Function *> functionMap;
   // stmt contents
@@ -678,7 +780,9 @@ public:
   void setModuleName(std::string name);
 
   TypeDefination *getTypeDefination(std::string name);
+  TypeDefination* getOverloadedTypeDefination(std::string name);
   bool addTypeDefination(TypeDefination *tyDef);
+  bool addOverloadedTypeDefination(TypeDefination *tyDef);
 
   Operation *getOperationDefination(std::string name);
   bool addOperationDefination(Operation *opDef);

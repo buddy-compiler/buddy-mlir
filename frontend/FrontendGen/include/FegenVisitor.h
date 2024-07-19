@@ -3,6 +3,7 @@
 
 #include <any>
 #include <cassert>
+#include <cstddef>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -60,7 +61,7 @@ public:
     tyDef->setName(typeName);
     tyDef->setCtx(ctx);
     // add defination to manager map
-    this->manager.typeDefMap.insert({typeName, tyDef});
+    this->manager.addTypeDefination(tyDef);
     return nullptr;
   }
 
@@ -312,7 +313,7 @@ public:
         return nullptr;
       } else { // type
         auto tyDef = this->manager.getTypeDefination(ctx->prefixedName()->identifier(0)->getText());
-        return fegen::Type::getTemplateType(tyDef);
+        return fegen::Type::getCustomeTemplate(tyDef);
       }
     } else if (ctx->builtinTypeTemplate()) { // builtinTypeTemplate
       return this->visit(ctx->builtinTypeTemplate());
@@ -325,14 +326,14 @@ public:
   std::any visitBuiltinTypeTemplate(
       FegenParser::BuiltinTypeTemplateContext *ctx) override {
     if (ctx->INTEGER()) {
-      return fegen::Type::getTemplateType(this->manager.getTypeDefination(FEGEN_INTEGER));
+      return fegen::Type::getIntegerTemplate();
     } else if (ctx->FLOATPOINT()) {
-      return fegen::Type::getTemplateType(this->manager.getTypeDefination(FEGEN_FLOATPOINT));
+      return fegen::Type::getFloatPointTemplate();
     } else if (ctx->TENSOR()) {
       // return fegen::FegenType::getTensorTemplate();
-      return fegen::Type::getTemplateType(this->manager.getTypeDefination(FEGEN_TENSOR));
+      return fegen::Type::getTensorTemplate();
     } else if (ctx->VECTOR()) {
-      return fegen::Type::getTemplateType(this->manager.getTypeDefination(FEGEN_VECTOR));
+      return fegen::Type::getVectorTemplate();
     } else {
       return nullptr;
     }
@@ -356,16 +357,39 @@ public:
     auto expr =
         std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(
             this->visit(ctx->expression()));
+    
     if (ctx->collectProtoType()->ANY()) {
-      std::vector<fegen::Type> tys;
-      assert(expr->getKind() == fegen::RightValue::LiteralKind::VECTOR);
-      return fegen::Type::getAnyType(fegen::RightValue::getByExpr(expr));
+      // check to get list type.
+      std::vector<fegen::RightValue::ExprPtr> tyexpr = std::any_cast<std::vector<fegen::RightValue::ExprPtr>>(expr);
+      int level = std::any_cast<fegen::TypePtr>(tyexpr[0]->getContent())->getTypeLevel();
+      for(size_t i = 1; i <= tyexpr.size()-1; i++){ 
+        auto expr = tyexpr[i];
+        auto t = std::any_cast<fegen::TypePtr>(expr->getContent());
+        if(level != t->getTypeLevel()){
+          assert(false);
+        }
+      }
+      if(level == 1 || level == 2){ // template -> any template
+        return fegen::Type::getAnyTemplate(fegen::RightValue::getByExpr(expr));
+      }else{ // instance -> any instance
+        return fegen::Type::getAnyType(fegen::RightValue::getByExpr(expr));
+      }
     } else if (ctx->collectProtoType()->LIST()) {
-      assert(expr->getKind() == fegen::RightValue::LiteralKind::TYPE);
-      return fegen::Type::getListType(fegen::RightValue::getByExpr(expr));
+      // the same as any
+      int level = std::any_cast<fegen::TypePtr>(expr->getContent())->getTypeLevel();
+      if(level == 1 || level == 2){
+        return fegen::Type::getListTemplate(fegen::RightValue::getByExpr(expr));
+      }else{
+        return fegen::Type::getListType(fegen::RightValue::getByExpr(expr));
+      }
     } else { // optional
-      assert(expr->getKind() == fegen::RightValue::LiteralKind::TYPE);
-      return fegen::Type::getOptionalType(fegen::RightValue::getByExpr(expr));
+      // the same as any
+      int level = std::any_cast<fegen::TypePtr>(expr->getContent())->getTypeLevel();
+      if(level == 1 || level == 2){
+        return fegen::Type::getOptionalTemplate(fegen::RightValue::getByExpr(expr));
+      }else{
+        return fegen::Type::getOptionalType(fegen::RightValue::getByExpr(expr));
+      }
     }
   }
 
@@ -541,7 +565,7 @@ public:
         // TODO
         auto tyDef = this->manager.getTypeDefination(name);
         if (tyDef) {
-          auto tyVar = fegen::Type::getTemplateType(tyDef);
+          auto tyVar = fegen::Type::getCustomeTemplate(tyDef);
           return (std::shared_ptr<fegen::RightValue::Expression>)
               fegen::RightValue::Expression::getTypeRightValue(tyVar);
         } else {
