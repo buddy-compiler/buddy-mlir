@@ -106,7 +106,7 @@ bool fegen::Type::isSameType(fegen::Type *type1, fegen::Type *type2) {
 }
 
 std::string fegen::Type::toStringForTypedef() {
-  std::cerr << this->getTypeName() <<std::endl;
+  std::cerr << this->getTypeName() << std::endl;
   assert(FEGEN_NOT_IMPLEMENTED_ERROR);
 }
 
@@ -160,7 +160,7 @@ fegen::TypePtr fegen::Type::getStringType() {
 
 fegen::TypePtr fegen::Type::getListType(fegen::TypePtr elementType) {
   assert(elementType->typeLevel == 3);
-      return std::make_shared<ListType>(
+  return std::make_shared<ListType>(
       fegen::RightValue::getTypeRightValue(elementType));
 }
 
@@ -1506,8 +1506,7 @@ void fegen::Manager::emitTypeDefination() {
       auto paramTy = param->getType();
       auto paramName = param->getName();
       auto paramTyStr = paramTy->toStringForTypedef();
-      emitter << paramTyStr << ":"
-              << "$" << paramName;
+      emitter << paramTyStr << ":" << "$" << paramName;
       if (i != tyDef->getParameters().size() - 1) {
         emitter << ", ";
       }
@@ -1888,50 +1887,55 @@ private:
   Emitter &emitter;
 
 public:
-  StmtVisitor(Emitter &emitter) : manager(Manager::getManager()), emitter(emitter) {}
-  std::any visitFunctionDecl(FegenParser::FunctionDeclContext *ctx) override { 
-    auto returnType = std::any_cast<fegen::Type>(manager.stmtContentMap[ctx]);
-    auto functionName = std::any_cast<std::string>(manager.stmtContentMap[ctx->funcName()]);
-    emitter << returnType.getTypeName() << " "
-             << functionName << "(";
-    auto paraList = std::any_cast<std::vector<fegen::Value *>>(manager.stmtContentMap[ctx->funcParams()]);
-     for (auto para : paraList) {
-       emitter << para->getType().getTypeName() << " " << para->getName();
-       if (para != paraList.back())
-         emitter << ", ";
-     }
-     emitter << "){";
-     emitter.tab();
-     emitter.newLine();
-    this->visit(ctx->statementBlock());    
-     emitter.shiftTab();
-     emitter << "}";
-     emitter.newLine();
-    return nullptr; 
+  StmtVisitor(Emitter &emitter)
+      : manager(Manager::getManager()), emitter(emitter) {}
+  std::any visitFunctionDecl(FegenParser::FunctionDeclContext *ctx) override {
+    auto returnType =
+        std::any_cast<fegen::TypePtr>(manager.stmtContentMap[ctx]);
+    auto functionName =
+        std::any_cast<std::string>(manager.stmtContentMap[ctx->funcName()]);
+    emitter << returnType->getTypeName() << " " << functionName << "(";
+    auto paraList = std::any_cast<std::vector<fegen::Value *>>(
+        manager.stmtContentMap[ctx->funcParams()]);
+    for (auto para : paraList) {
+      emitter << para->getType()->getTypeName() << " " << para->getName();
+      if (para != paraList.back())
+        emitter << ", ";
+    }
+    emitter << "){";
+    emitter.tab();
+    emitter.newLine();
+    this->visit(ctx->statementBlock());
+    emitter.shiftTab();
+    emitter << "}";
+    emitter.newLine();
+    return nullptr;
   }
-  std::any visitStatementBlock(FegenParser::StatementBlockContext *ctx) override { 
-    for(size_t i = 0; i < ctx->statement().size(); i++){
-        this->visit(ctx->statement(i));
-        if(!(ctx->statement(i)->ifStmt()||ctx->statement(i)->forStmt()))
-            emitter << ";";
-        emitter.newLine();
+  std::any
+  visitStatementBlock(FegenParser::StatementBlockContext *ctx) override {
+    for (size_t i = 0; i < ctx->statement().size(); i++) {
+      this->visit(ctx->statement(i));
+      if (!(ctx->statement(i)->ifStmt() || ctx->statement(i)->forStmt()))
+        emitter << ";";
+      emitter.newLine();
     }
     return nullptr;
-    }
+  }
   std::any visitVarDeclStmt(FegenParser::VarDeclStmtContext *ctx) override {
-    auto varType =
-        std::any_cast<fegen::Type>(manager.stmtContentMap[ctx]);
+    auto varType = std::any_cast<fegen::TypePtr>(manager.stmtContentMap[ctx]);
     auto varName = ctx->identifier()->getText();
-    emitter << varType.getTypeName() << " " << varName;
-    if(ctx->expression()){
-        auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(manager.stmtContentMap[ctx->expression()]);
-        emitter << " = " << expr->toString();
+    emitter << varType->getTypeName() << " " << varName;
+    if (ctx->expression()) {
+      auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(
+          manager.stmtContentMap[ctx->expression()]);
+      emitter << " = " << expr->toString();
     }
     return nullptr;
   }
   std::any visitAssignStmt(FegenParser::AssignStmtContext *ctx) override {
     auto varName = ctx->identifier()->getText();
-    auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(manager.stmtContentMap[ctx->expression()]);
+    auto expr = this->manager.getStmtContent<fegen::RightValue::ExprPtr>(
+        ctx->expression());
     emitter << varName << " = " << expr->toString();
     return nullptr;
   }
@@ -1951,11 +1955,12 @@ public:
   }
   std::any visitIfStmt(FegenParser::IfStmtContext *ctx) override {
     this->visit(ctx->ifBlock(0));
-    for(size_t i = 1; i < ctx->ifBlock().size(); i++){
-        emitter << " else ";
-        this->visit(ctx->ifBlock(i));
+    for (size_t i = 1; i < ctx->ifBlock().size(); i++) {
+      emitter << " else ";
+      this->visit(ctx->ifBlock(i));
     }
-    if(ctx->elseBlock()) this->visit(ctx->elseBlock());
+    if (ctx->elseBlock())
+      this->visit(ctx->elseBlock());
     return nullptr;
   }
   std::any visitIfBlock(FegenParser::IfBlockContext *ctx) override {
@@ -1971,28 +1976,30 @@ public:
     return nullptr;
   }
   std::any visitElseBlock(FegenParser::ElseBlockContext *ctx) override {
-      emitter << "else {";
-      emitter.tab();
-      emitter.newLine();
-      this->visit(ctx->statementBlock());
-      emitter.shiftTab();
-      emitter << "}";
-      return nullptr;
+    emitter << "else {";
+    emitter.tab();
+    emitter.newLine();
+    this->visit(ctx->statementBlock());
+    emitter.shiftTab();
+    emitter << "}";
+    return nullptr;
   }
   // TODO: 支持for循环
   std::any visitForStmt(FegenParser::ForStmtContext *ctx) override {
     if (ctx->varDeclStmt()) {
-        emitter << "for (";
+      emitter << "for (";
       this->visit(ctx->varDeclStmt());
       emitter << "; ";
-      auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(manager.stmtContentMap[ctx->expression()]);
+      auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(
+          manager.stmtContentMap[ctx->expression()]);
       emitter << expr->toString() << "; ";
       this->visit(ctx->assignStmt(0));
       emitter << ") {";
     } else {
       this->visit(ctx->assignStmt(0));
       emitter << " ";
-      auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(manager.stmtContentMap[ctx->expression()]);
+      auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(
+          manager.stmtContentMap[ctx->expression()]);
       emitter << expr->toString() << "; ";
       this->visit(ctx->assignStmt(1));
       emitter << ") {";
@@ -2005,19 +2012,24 @@ public:
     return nullptr;
   }
   std::any visitReturnBlock(FegenParser::ReturnBlockContext *ctx) override {
-      auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(
+    auto expr = std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(
         manager.stmtContentMap[ctx->expression()]);
-      emitter << "return " << expr->toString();
-      return nullptr;
+    emitter << "return " << expr->toString();
+    return nullptr;
+  }
+
+  std::any visitOpDecl(FegenParser::OpDeclContext *ctx) override {
+    return nullptr;
   }
 };
 
 } // namespace fegen
-void fegen::Manager::emitBuiltinFunction(fegen::FegenParser::FegenSpecContext *moduleAST) {
+void fegen::Manager::emitBuiltinFunction(
+    fegen::FegenParser::FegenSpecContext *moduleAST) {
   std::ofstream fileStream;
   fileStream.open(this->moduleName + "Function.cpp");
   fegen::Emitter emitter(fileStream);
-    //Emitter emitter(std::cout);
+  // Emitter emitter(std::cout);
   StmtVisitor visitor(emitter);
   visitor.visit(moduleAST);
   fileStream.close();
