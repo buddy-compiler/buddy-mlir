@@ -791,7 +791,7 @@ public:
   void emitOpDefination();
   void emitDialectDefination();
   void emitTdFiles();
-  void emitBuiltinFunction();
+  void emitBuiltinFunction(fegen::FegenParser::FegenSpecContext *);
 };
 
 TypePtr

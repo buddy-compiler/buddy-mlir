@@ -118,6 +118,8 @@ IN: 'in';
 
 WHILE: 'while';
 
+RETURN: 'return';
+
 // identifiers
 
 LexerRuleName: UPPERCASE (NONDIGIT | DIGIT)*;
