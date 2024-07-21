@@ -25,7 +25,6 @@ target_link_libraries(buddy-opt
   LowerRVVPass
   MatMulOptimization
   BatchMatMulOptimization
-  BatchMatmulToMatmul
   MatMulParallelVectorization
   TransposeOptimization
   ConvOptimization
