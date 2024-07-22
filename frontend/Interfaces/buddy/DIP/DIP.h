@@ -78,6 +78,11 @@ void _mlir_ciface_resize_2d_bilinear_interpolation(
     Img<float, 2> *input, float horizontalScalingFactor,
     float verticalScalingFactor, MemRef<float, 2> *output);
 
+// Declare the Resize4D C interface.
+void _mlir_ciface_resize_4d_bilinear_interpolation(
+    Img<float, 4> *input, float horizontalScalingFactor,
+    float verticalScalingFactor, MemRef<float, 4> *output);
+
 // Declare the Morphology 2D C interface.
 void _mlir_ciface_erosion_2d_constant_padding(
     Img<float, 2> input, MemRef<float, 2> *kernel, MemRef<float, 2> *output,
@@ -216,6 +221,9 @@ inline MemRef<float, 4> Resize4D_Impl(Img<float, 4> *input,
 
   if (type == INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION) {
     detail::_mlir_ciface_resize_4d_nearest_neighbour_interpolation(
+        input, scalingRatios[0], scalingRatios[1], &output);
+  } else if(type == INTERPOLATION_TYPE::BILINEAR_INTERPOLATION) {
+    detail::_mlir_ciface_resize_4d_bilinear_interpolation(
         input, scalingRatios[0], scalingRatios[1], &output);
   }
   else {

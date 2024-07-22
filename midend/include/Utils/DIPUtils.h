@@ -103,6 +103,15 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
                 Value outputColLastElemF32, Value inputRowLastElemF32,
                 Value inputColLastElemF32, Value c0F32);
 
+
+// Fill appropriate pixel 4D data in its corresponding rotated co-ordinate of
+// output image.
+void fillPixels4D(OpBuilder &builder, Location loc, Value ivs0, Value ivs1, Value resXVec, Value resYVec,
+                Value xVec, Value yVec, Value input, Value output, Value c0,
+                Value strideVal, Value outputRowLastElemF32,
+                Value outputColLastElemF32, Value inputRowLastElemF32,
+                Value inputColLastElemF32, Value c0F32);
+
 // Calculate tan(angle / 2) where angle is a function parameter.
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal);
 
@@ -150,6 +159,15 @@ void fillPixelsBilinearInterpolate(
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
     Value c1F32);
 
+// Fills pixels in 4D of bilinear interpolation fashion.
+void fillPixelsBilinearInterpolate4D(
+    OpBuilder &builder, Location loc, Value ivs0, Value ivs1, Value resXVec, Value resYVec,
+    Value xVec_L, Value yVec_L, Value xVec_H, Value yVec_H, Value input,
+    Value output, Value c0, Value strideVal, Value xVecWeight, Value yVecWeight,
+    Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
+    Value c1F32);
+
 // Helper function for resizing an image using nearest neighbour interpolation
 // mechanism.
 void NearestNeighbourInterpolationResizing(
@@ -168,12 +186,22 @@ void NearestNeighbourInterpolationResizing4D(
     SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
     SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
     Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
-    Value outputRowLastElemF32, Value outputColLastElemF32, Value outputBatchLastElemF32, Value outputColorLastElemF32,
-    Value inputRowLastElemF32, Value inputColLastElemF32, Value inputBatchLastElemF32, Value inputColorLastElemF32, 
+    Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value inputRowLastElemF32, Value inputColLastElemF32,
     VectorType vectorTy32, int64_t stride, Value c0, Value c0F32);
 
 // Helper function for resizing an image using bilinear interpolation mechanism.
 void BilinearInterpolationResizing(
+    OpBuilder &builder, Location loc, MLIRContext *ctx,
+    SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
+    SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
+    Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
+    Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
+    int64_t stride, Value c0, Value c0F32, Value c1F32);
+
+// Helper function for resizing 4D an image using bilinear interpolation mechanism.
+void BilinearInterpolationResizing4D(
     OpBuilder &builder, Location loc, MLIRContext *ctx,
     SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
     SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
