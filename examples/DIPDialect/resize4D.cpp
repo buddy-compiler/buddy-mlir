@@ -37,12 +37,9 @@ void testImplementation(int argc, char *argv[]) {
   intptr_t sizes[4] = {1, input.getSizes()[0], input.getSizes()[1], input.getSizes()[2]};
   Img<float, 4> inputBatch(input.getData(), sizes);
 
-  // // Define memref container for image.
-  // Img<float, 4> input(image);
   
-  // // Note : Both values in output image dimensions and scaling ratios must be
-  // // positive numbers.
-
+  // Note : Both values in output image dimensions and scaling ratios must be
+  // positive numbers.
   MemRef<float, 4> output = dip::Resize4D(
       &inputBatch, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION,
       {1 , 224 , 224 , 3} /*{image_cols, image_rows}*/);
