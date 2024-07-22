@@ -45,7 +45,7 @@ void testImplementation(int argc, char *argv[]) {
       {1 , 224 , 224 , 3} /*{image_cols, image_rows}*/);
   
 
-  // Define Img with the output of Resize2D.
+  // Define Img with the output of Resize4D.
   intptr_t outSizes[3] = {output.getSizes()[1], output.getSizes()[2], output.getSizes()[3]};
 
   Img<float, 3> outputImageResize4D(output.getData(), outSizes);
