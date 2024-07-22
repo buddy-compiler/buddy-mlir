@@ -7,7 +7,7 @@ import numpy
 
 from buddy.compiler.frontend import DynamoCompiler
 
-# ===- import-llama2.py --------------------------------------------------------
+# ===- import-tinyllama.py --------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ from buddy.compiler.frontend import DynamoCompiler
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the test of llama2 model.
+# This is the test of tinyllama model.
 #
 # ===---------------------------------------------------------------------------
 from buddy.compiler.ops import tosa
