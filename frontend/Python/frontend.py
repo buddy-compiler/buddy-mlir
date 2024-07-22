@@ -160,6 +160,11 @@ class DynamoCompiler:
             "reciprocal.default": ReciprocalOp,
             "clamp_min.default": ClampMinOp,
             "clamp_max.default": ClampMaxOp,
+            "ge.Scalar": GeScalarOp,
+            "gt.Tensor": GreaterOp,
+            "cos.default": CosOp,
+            "sin.default": SinOp,
+            "mul.Scalar": MulOp,
         }
 
     @property
@@ -184,6 +189,8 @@ class DynamoCompiler:
                 return TensorDType.Float32
             case "torch.float64":
                 return TensorDType.Float64
+            case "torch.bfloat16":
+                return TensorDType.BFloat16
             case "torch.bool":
                 return TensorDType.Bool
             case _:
