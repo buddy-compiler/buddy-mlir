@@ -99,11 +99,11 @@ int fegen::Type::getTypeLevel() { return this->typeLevel; }
 bool fegen::Type::isConstant() { return this->isConstType; }
 
 bool fegen::Type::isSameType(fegen::TypePtr type1, fegen::TypePtr type2) {
-  if (type1->getTypeName() == type2->getTypeName()){
+  if (type1->getTypeName() == type2->getTypeName()) {
     std::cout << "1" << std::endl;
     return true;
   }
-    
+
   else
     return false;
 }
@@ -419,9 +419,7 @@ fegen::StringType::StringType()
            fegen::Manager::getManager().getTypeDefination(FEGEN_STRING), 3,
            true) {}
 
-std::string fegen::StringType::toStringForCppKind() {
-  return "string";
-}
+std::string fegen::StringType::toStringForCppKind() { return "string"; }
 
 // class ListType
 fegen::ListType::ListType(fegen::RightValue elementType)
@@ -1905,7 +1903,8 @@ public:
     auto paraList = std::any_cast<std::vector<fegen::Value *>>(
         manager.stmtContentMap[ctx->funcParams()]);
     for (auto para : paraList) {
-      emitter << para->getType()->toStringForCppKind() << " " << para->getName();
+      emitter << para->getType()->toStringForCppKind() << " "
+              << para->getName();
       if (para != paraList.back())
         emitter << ", ";
     }

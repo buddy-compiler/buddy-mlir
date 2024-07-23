@@ -709,11 +709,12 @@ public:
         std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(
             this->visit(ctx->expression()));
     auto var = sstack.attemptFindVar(varName);
-    
+
     // TODO: 支持获取expression的type后，可正常使用
     // if (!fegen::Type::isSameType(var->getType(), varcontent->getType())) {
     //   std::cerr << "The variabel \" " << varName << "\" need \""
-    //             << var->getType()->toStringForCppKind() << " \" type rightvalue."
+    //             << var->getType()->toStringForCppKind() << " \" type
+    //             rightvalue."
     //             << std::endl;
     //   exit(0);
     //   return nullptr;
@@ -768,7 +769,7 @@ public:
     manager.stmtContentMap.insert(std::pair{ctx, funcCall});
     return returnType;
   }
-  
+
   // TODO:add op invoke
   std::any visitOpInvokeStmt(FegenParser::OpInvokeStmtContext *ctx) override {
     return nullptr;
