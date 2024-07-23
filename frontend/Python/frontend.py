@@ -178,14 +178,16 @@ class DynamoCompiler:
                 return TensorDType.Int64
             case "torch.int32":
                 return TensorDType.Int32
-            case "torch.float16":
-                return TensorDType.Float16
             case "torch.float32":
                 return TensorDType.Float32
             case "torch.float64":
                 return TensorDType.Float64
             case "torch.bool":
                 return TensorDType.Bool
+            case "torch.float16":
+                return TensorDType.Float16
+            case "torch.bfloat16":
+                return TensorDType.BFloat16
             case _:
                 raise NotImplementedError(f"Unsupported dtype: {dtype}")
 
