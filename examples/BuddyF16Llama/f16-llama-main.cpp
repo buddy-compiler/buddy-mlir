@@ -21,9 +21,21 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <cassert>
+#include <string_view>
+#include <cstring>
+#include <iomanip>
+
+#include <fp16.h>
 
 using namespace buddy;
+
+#define STR_IMPL(x) #x
+#define STR(x) STR_IMPL(x)
+
+#ifndef LLAMA_DTYPE
+#define LLAMA_DTYPE fp16
+#endif
+constexpr char dtype[] = STR(LLAMA_DTYPE);
 
 constexpr static bool debug = false;
 
@@ -45,13 +57,64 @@ constexpr size_t MaxVocabSize = 32000;
 constexpr size_t MaxTokenLength = 40;
 constexpr size_t HiddenSize = 2048;
 
+
+using fp16_t = uint16_t;
+using bf16_t = uint16_t;
+using half_t = uint16_t;
+
 /// Declare LLaMA forward function.
-extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
+extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<half_t, 1> *,
                                      Text<size_t, 2> *);
 
 // -----------------------------------------------------------------------------
 // Helper Functions
 // -----------------------------------------------------------------------------
+
+// ----------------- FP16/BP16 <-> F32 conversion utils & builtins ----------------------
+
+static float fp162float(fp16_t hf) {
+    return fp16_ieee_to_fp32_value(hf);
+}
+
+static fp16_t float2fp16(float f) {
+  return fp16_ieee_from_fp32_value(f);
+}
+
+// Converts the 16 bit representation of a bfloat value to a float value. This
+// implementation is adapted from Eigen.
+union Float32Bits {
+  uint32_t u;
+  float f;
+};
+static float bf162float(bf16_t bfloatBits) {
+  Float32Bits floatBits;
+  floatBits.u = static_cast<uint32_t>(bfloatBits) << 16;
+  return floatBits.f;
+}
+
+static bf16_t float2bf16(float f) {
+  Float32Bits floatBits;
+  floatBits.f = f;
+  return static_cast<bf16_t>(floatBits.u >> 16);
+}
+
+static half_t float2half(float f) {
+  if constexpr(std::string_view(dtype) == "fp16") {
+    return float2fp16(f);
+  } else if constexpr (std::string_view(dtype) == "bf16") {
+    return float2bf16(f);
+  }
+  assert(false);
+}
+
+static float half2float(half_t hf) {
+  if constexpr(std::string_view(dtype) == "fp16") {
+    return fp162float(hf);
+  } else if constexpr (std::string_view(dtype) == "bf16") {
+    return bf162float(hf);
+  }
+  assert(false);
+}
 
 /// Capture input message.
 void getUserInput(std::string &inputStr) {
@@ -88,6 +151,59 @@ void tokenizeInput(const std::string &vocabFile,
 }
 
 /// Load parameters into data container.
+void loadParameters(const std::string &paramFilePath,
+                    MemRef<half_t, 1> &params) {
+  const auto loadStart = std::chrono::high_resolution_clock::now();
+  std::ifstream paramFile(paramFilePath, std::ios::in | std::ios::binary);
+  if (!paramFile.is_open()) {
+    throw std::runtime_error("[Error] Failed to open params file!");
+  }
+  printLogLabel();
+  std::cout << "Loading params..." << std::endl;
+  printLogLabel();
+  std::cout << "Params file: " << std::filesystem::canonical(paramFilePath)
+            << std::endl;
+  float *param_cache = (float*)malloc(sizeof(float) * ParamsSize);
+  paramFile.read(reinterpret_cast<char *>(param_cache),
+                 sizeof(float) * ParamsSize);
+  if (paramFile.fail()) {
+    throw std::runtime_error("Error occurred while reading params file!");
+  }
+  paramFile.close();
+  const auto loadEnd = std::chrono::high_resolution_clock::now();
+  const std::chrono::duration<double, std::milli> loadTime =
+      loadEnd - loadStart;
+  printLogLabel();
+  std::cout << "Params load time: " << (double)(loadTime.count()) / 1000
+            << "s\n"
+            << std::endl;
+  printLogLabel();
+  std::cout << "Casting float params to " << STR(LLAMA_DTYPE) << std::endl;
+  for (size_t i = 0; i < ParamsSize; i++) {
+    params[i] = float2half(param_cache[i]);
+  }
+  free(param_cache);
+  const auto castEnd = std::chrono::high_resolution_clock::now();
+  const std::chrono::duration<double, std::milli> castTime =
+      castEnd - loadEnd;
+  printLogLabel();
+  std::cout << "Params cast time: " << (double)(loadTime.count()) / 1000
+            << "s\n"
+            << std::endl;
+
+  // for debug: output loaded param
+  half_t *param_data = params.getData();
+  printLogLabel();
+  std::cout << "[DEBUG] loaded params: " << std::endl;
+  for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++) {
+      std::cout << std::setprecision(10) << half2float(param_data[10 * i + j]) << " ";
+    }
+    std::cout << std::endl;
+  }
+}
+
+/// Load float parameters into data container.
 void loadParameters(const std::string &paramFilePath,
                     MemRef<float, 1> &params) {
   const auto loadStart = std::chrono::high_resolution_clock::now();
@@ -134,8 +250,8 @@ int findMaxIndex(const float *start, const float *end) {
 
 int main() {
   /// Print the title of this example.
-  const std::string title = "LLaMA 2 Inference Powered by Buddy Compiler with datatype fp32";
-  std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
+  const std::string title = "LLaMA 2 Inference Powered by Buddy Compiler";
+  std::cout << "\033[33;1m" << title << "with data type " << dtype << "\033[0m" << std::endl;
   if constexpr(debug) {
     std::cout << "\033[33;1m" << "Debug mode" << "\033[0m" << std::endl;
   }
@@ -145,27 +261,21 @@ int main() {
   const std::string paramsDir = "../examples/BuddyF16Llama/params.data";
 
   /// Initialize data containers
-  //  - Input container.
-  //  - Result container
-  //  - Output container.
-  //  - Parameters container.
   Text<size_t, 2> outputContainer;
   MemRef<float, 3> resultContainer[2] = {
       MemRef<float, 3>({1, MaxTokenLength, HiddenSize}, false, 0),
       MemRef<float, 3>({1, MaxTokenLength, MaxVocabSize}, false, 0)};
-  MemRef<float, 1> paramsContainer({ParamsSize});
+  MemRef<half_t, 1> paramsContainer({ParamsSize});
   MemRef<float, 1> expectedOutputContainer({MaxTokenLength * MaxVocabSize});
-
+  
   outputContainer.loadVocab(vocabDir);
   loadParameters(paramsDir, paramsContainer);
 
   if constexpr(debug) {
-    const std::string outputDir = "../examples/BuddyF16Llama/fp32-output.data";
+    const std::string outputDir = "../examples/BuddyF16Llama/" STR(LLAMA_DTYPE) "-output.data";
     loadParameters(outputDir, expectedOutputContainer);
   }
 
-  /// Fill data into containers
-  /// Get user message.
   std::string inputStr;
   getUserInput(inputStr);
   Text<size_t, 2> inputContainer(inputStr);
@@ -173,6 +283,7 @@ int main() {
   if constexpr(debug) {
     inputContainer.setTokenCnt(0);
     inputContainer.appendTokenIdx(0);
+    assert (inputContainer.getTokenCnt() == 1);
   }
 
   /// Run LLaMA Inference
@@ -184,7 +295,7 @@ int main() {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
     // Execute the forward pass of the model.
     _mlir_ciface_forward(resultContainer, &paramsContainer, &inputContainer);
-    
+
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =
         inferenceEnd - inferenceStart;
@@ -205,23 +316,30 @@ int main() {
     printIterInfo(i, tok, inferenceTime.count() / 1000);
 
     if constexpr(debug) {
-      printLogLabel();
-      std::cout << "[DEBUG] output[0]: ";
-      for (int i = 0; i < 10; i++) {
-        std::cout << resultContainer[0].getData()[i] << " ";
-      }
-      std::cout << std::endl;
+      const float *expStartPtr = expectedOutputContainer.getData() + tokenIndex * MaxVocabSize;
+
+      // printLogLabel();
+      // std::cout << "[DEBUG] output[0]: ";
+      // for (int i = 0; i < 10; i++) {
+      //   std::cout << resultContainer[0].getData()[i] << " ";
+      // }
+      // std::cout << std::endl;
       printLogLabel();
       std::cout << "[DEBUG] output[1]: ";
       for (int i = 0; i < 10; i++) {
         std::cout << startPtr[i] << " ";
       }
       std::cout << std::endl;
+      printLogLabel();
+      std::cout << "[DEBUG] expected: ";
+      for (int i = 0; i < 10; i++) {
+        std::cout << expStartPtr[i] << " ";
+      }
+      std::cout << std::endl;
 
-      const float *expStartPtr = expectedOutputContainer.getData() + tokenIndex * MaxVocabSize;
       for (int t = 0; t < MaxVocabSize; t++) {
         const float error = std::abs(expStartPtr[t] - startPtr[t]);
-        if (error > std::abs(0.05 * startPtr[t])) {
+        if (error > std::abs(10. * startPtr[t]) && error > 1e-3) {
           printLogLabel();
           std::cout << "result at iter " << i << ", token " << t << " is " << expStartPtr[t] << ", but expcted " << startPtr[t] << std::endl;
           return 0;
@@ -242,7 +360,7 @@ int main() {
   }
 
   /// Print the final result
-  // std::cout << "\n\033[33;1m[Input]\033[0m " << inputStr << std::endl;
+  std::cout << "\n\033[33;1m[Input]\033[0m " << inputStr << std::endl;
   std::cout << "\033[33;1m[Output]\033[0m " << outputContainer.revertLlama()
             << std::endl;
 

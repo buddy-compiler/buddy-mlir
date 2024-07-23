@@ -1,11 +1,11 @@
+function(BuildLlama dtype)
+
 add_custom_command(
-  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/f32-forward.mlir ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/f32-subgraph0.mlir ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/f32-params.data
-  ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/fp16-forward.mlir ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/fp16-subgraph0.mlir ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/fp16-params.data
-  COMMAND ${Python3_EXECUTABLE} ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/import-llama2.py
-  COMMENT "Generating forward.mlir, subgraph0.mlir and params.data for f32 and fp16 models"
+  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/${dtype}-forward.mlir ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/${dtype}-subgraph0.mlir
+  COMMAND ${Python3_EXECUTABLE} ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/import-llama.py --dtype ${dtype}
+  COMMENT "Generating forward.mlir, subgraph0.mlir and params.data for ${dtype} model"
 )
 
-function(BuildLlama dtype)
 add_custom_command(
   OUTPUT ${dtype}-forward.o
   COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/${dtype}-forward.mlir 
@@ -43,9 +43,12 @@ add_custom_command(
           -convert-func-to-llvm
           -reconcile-unrealized-casts |
         ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-        ${LLVM_MLIR_BINARY_DIR}/llvm-as |
-        ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+        tee ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-forward.llvm |
+        ${LLVM_MLIR_BINARY_DIR}/llvm-as -o ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-forward.llvm.bc
+  COMMAND ${LLVM_MLIR_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-forward.llvm.bc -filetype=obj -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
           -o ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-forward.o
+  COMMAND ${LLVM_MLIR_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-forward.llvm.bc -filetype=asm -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
+          -o ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-forward.S
   DEPENDS buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/${dtype}-forward.mlir
   COMMENT "Building ${dtype}-forward.o"
   VERBATIM)
@@ -88,9 +91,12 @@ add_custom_command(
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
           ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llvm-as |
-          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3 -mattr=-sse2
+          tee ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-subgraph.llvm |
+          ${LLVM_MLIR_BINARY_DIR}/llvm-as -o ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-subgraph.llvm.bc
+    COMMAND ${LLVM_MLIR_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-subgraph.llvm.bc -filetype=obj -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
             -o ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-subgraph.o
+    COMMAND COMMAND ${LLVM_MLIR_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-subgraph.llvm.bc -filetype=asm -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
+            -o ${BUDDY_BINARY_DIR}/../examples/BuddyF16Llama/${dtype}-subgraph.S
     DEPENDS buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/${dtype}-subgraph0.mlir
     COMMENT "Building ${dtype}-subgraph.o"
     VERBATIM)
@@ -108,9 +114,13 @@ SET_TARGET_PROPERTIES(
   PROPERTIES
   LINKER_LANGUAGE C)
 
-add_executable(buddy-${dtype}-llama-run ${dtype}-llama-main.cpp fp16_h2f.cpp fp16_f2h.cpp)
+if(dtype STREQUAL fp32)
+add_executable(buddy-${dtype}-llama-run f32-llama-main.cpp)
+else()
+add_executable(buddy-${dtype}-llama-run f16-llama-main.cpp)
+endif()
 target_link_directories(buddy-${dtype}-llama-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})
-target_include_directories(buddy-${dtype}-llama-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR}/../../../)
+target_include_directories(buddy-${dtype}-llama-run PRIVATE ${BUDDY_EXAMPLES_DIR}/BuddyF16Llama/FP16/include)
 
 set(BUDDY_LLAMA_LIBS
   ${dtype}Llama
@@ -122,7 +132,9 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 target_link_libraries(buddy-${dtype}-llama-run ${BUDDY_LLAMA_LIBS})
+target_compile_definitions(buddy-${dtype}-llama-run PRIVATE LLAMA_DTYPE=${dtype})
 endfunction()
 
-BuildLlama(f32)
+BuildLlama(fp32)
 BuildLlama(fp16)
+BuildLlama(bf16)
