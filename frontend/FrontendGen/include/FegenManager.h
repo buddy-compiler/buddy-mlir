@@ -151,7 +151,7 @@ public:
   virtual std::string toStringForOpdef();
   // for generating cpp type kind.
   virtual std::string toStringForCppKind();
-  static bool isSameType(Type *type1, Type *type2);
+  static bool isSameType(TypePtr type1, TypePtr type2);
   virtual ~Type() = default;
 
   // placeholder
@@ -530,6 +530,8 @@ class FloatPointType : public Type {
 class StringType : public Type {
   public:
   StringType();
+  // for generating cpp type kind.
+  virtual std::string toStringForCppKind() override;
 };
 // List<ty>
 class ListType : public Type {

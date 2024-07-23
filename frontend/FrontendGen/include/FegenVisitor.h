@@ -664,7 +664,6 @@ public:
     for (size_t i = 0; i < ctx->typeSpec().size(); i++) {
       auto paramType =
           std::any_cast<fegen::TypePtr>(this->visit(ctx->typeSpec(i)));
-      //   manager.addStmtContent(ctx, paramType);
       auto paramName = ctx->identifier(i)->getText();
       auto param = fegen::Value::get(paramType, paramName,
                                      fegen::RightValue::getPlaceHolder());
@@ -684,8 +683,8 @@ public:
       auto varcontent =
           std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(
               this->visit(ctx->expression()));
-      // TODO: check error
-      // if (!fegen::Type::isSameType(&varType, &varcontent->exprType)) {
+      // TODO: 支持获取expression的type后，可正常使用
+      // if (!fegen::Type::isSameType(var->getType(), varcontent->getType())) {
       //   std::cerr << "The variabel \" " << varName << "\" need \""
       //             << varType.getTypeName()
       //             << " \" type rightvalue. Now the expression is "
@@ -710,14 +709,16 @@ public:
         std::any_cast<std::shared_ptr<fegen::RightValue::Expression>>(
             this->visit(ctx->expression()));
     auto var = sstack.attemptFindVar(varName);
-    // TODO
-    // if (!fegen::Type::isSameType(&var->getType(), &varcontent->exprType)) {
+    
+    // TODO: 支持获取expression的type后，可正常使用
+    // if (!fegen::Type::isSameType(var->getType(), varcontent->getType())) {
     //   std::cerr << "The variabel \" " << varName << "\" need \""
-    //             << var->getType().getTypeName() << " \" type rightvalue."
+    //             << var->getType()->toStringForCppKind() << " \" type rightvalue."
     //             << std::endl;
     //   exit(0);
     //   return nullptr;
     // }
+
     fegen::Value *stmt = fegen::Value::get(
         var->getType(), varName, fegen::RightValue::getByExpr(varcontent));
     manager.stmtContentMap.insert(std::pair{ctx, stmt});
@@ -725,6 +726,7 @@ public:
     return var;
   }
 
+  // TODO:测试并补足函数调用
   std::any visitFunctionCall(FegenParser::FunctionCallContext *ctx) override {
     std::vector<std::shared_ptr<fegen::RightValue::Expression>> parasList = {};
     auto functionName =
@@ -747,9 +749,11 @@ public:
         exit(0);
         return nullptr;
       }
+
+      // TODO: check parameter type
       // for (size_t i = 0; i < len1; i++) {
-      //   if (!fegen::Type::isSameType(&paraList[i]->getType(),
-      //                                     &parasList[i]->exprType)) {
+      //   if (!fegen::Type::isSameType(paraList[i]->getType(),
+      //                                     parasList[i]->exprType)) {
       //     std::cerr << "The function \" " << functionName << "\" parameter"
       //     << i
       //               << " type mismatch." << std::endl;
@@ -764,7 +768,8 @@ public:
     manager.stmtContentMap.insert(std::pair{ctx, funcCall});
     return returnType;
   }
-
+  
+  // TODO:add op invoke
   std::any visitOpInvokeStmt(FegenParser::OpInvokeStmtContext *ctx) override {
     return nullptr;
   }
