@@ -1377,51 +1377,6 @@ public:
     return this->stream;
   }
 };
-
-class StmtGenerator : FegenParserBaseVisitor {
-private:
-  Manager &manager;
-  Emitter &emitter;
-
-public:
-  StmtGenerator(Emitter &emitter)
-      : manager(Manager::getManager()), emitter(emitter) {}
-  std::any visitVarDeclStmt(FegenParser::VarDeclStmtContext *ctx) override {
-    auto var = manager.getStmtContent<Value *>(ctx->identifier());
-    switch (var->getType()->getTypeKind()) {
-    case fegen::Type::TypeKind::CPP: {
-      this->emitter << var->getType()->toStringForCppKind() << " "
-                    << var->getName();
-      if (ctx->expression()) {
-        auto expr = this->manager.getStmtContent<RightValue::Expression *>(
-            ctx->expression());
-        this->emitter << " = " << expr->toStringForCppKind();
-      }
-      this->emitter << ";";
-      this->emitter.newLine();
-      break;
-    }
-    case fegen::Type::TypeKind::ATTRIBUTE: {
-      break;
-    }
-    case fegen::Type::TypeKind::OPERAND: {
-      break;
-    }
-    }
-    return nullptr;
-  }
-
-  std::any visitAssignStmt(FegenParser::AssignStmtContext *ctx) override {}
-
-  std::any visitFunctionCall(FegenParser::FunctionCallContext *ctx) override {}
-
-  std::any visitOpInvokeStmt(FegenParser::OpInvokeStmtContext *ctx) override {}
-
-  std::any visitIfStmt(FegenParser::IfStmtContext *ctx) override {}
-
-  std::any visitForStmt(FegenParser::ForStmtContext *ctx) override {}
-};
-
 } // namespace fegen
 
 void fegen::Manager::emitG4() {
