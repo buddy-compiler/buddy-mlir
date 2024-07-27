@@ -14,6 +14,7 @@ set(BUDDY_TEST_DEPENDS
   buddy-container-test
   buddy-audio-container-test
   buddy-text-container-test
+  mlir-cpu-runner
   )
 
 if(BUDDY_ENABLE_OPENCV)

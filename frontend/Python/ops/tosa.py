@@ -1002,15 +1002,17 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     result_element_type = mlir_element_type_get(dtype)
     out_shape = node.tensor_meta["shape"]
 
+    # Prepare Depthwise Conv2D information
+    is_grouped = (list(weight_shape)[1] == 1) and (groups != 1)
+    is_depthwise = (groups == list(weight_shape)[0]) and is_grouped
+
     # Prepare input channel and output channel.
-    # TODO: confirm and modify this part.
     if is_kernel_transposed:
         in_channels = list(weight_shape)[0]
-        out_channels = list(weight_shape)[1]
+        out_channels = list(weight_shape)[1] * groups
     else:
-        in_channels = list(weight_shape)[1]
+        in_channels = list(weight_shape)[1] * groups
         out_channels = list(weight_shape)[0]
-    is_depthwise = (groups == in_channels) or (groups == out_channels)
 
     # Prepare bias tensor.
     if len(node._parents) == 2:
@@ -1025,20 +1027,19 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     else:
         bias_tensor = symbol_table.get((str(bias), 0))
 
-    # Prepare input padding.
-    if len(input_padding) == 1:
-        input_padding = [input_padding[0]] * 4
-    elif len(input_padding) == 2:
-        input_padding = [input_padding[0]] * 2 + [input_padding[1]] * 2
-
     # Prepare attributes.
-    input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
     dilation_attr = ir._denseI64ArrayAttr(dilation, None)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
 
-    # TODO: Convolution 1D
     # Convolution 2D
     if len(weight_shape) == 4:
+        # Prepare input padding.
+        if len(input_padding) == 1:
+            input_padding = [input_padding[0]] * 4
+        elif len(input_padding) == 2:
+            input_padding = [input_padding[0]] * 2 + [input_padding[1]] * 2
+        # Prepare input_padding attributes.
+        input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
         # If the input layout is NCHW, then convert to NHWC.
         if node._layout.find("NCHW") != -1:
             perm_list = [0, 2, 3, 1]
@@ -1068,9 +1069,9 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             out_shape = perm_shape
         output_type = ir.RankedTensorType.get(out_shape, result_element_type)
 
+        # Depthwise Conv2D Operation.
         if is_depthwise is True:
-            # Depthwise Conv2D Operation.
-            # TODO: the layout may lead misunderstanding
+            # If groups == in_channels,out_channels == in_channels
             if node._layout.find("FCHW") != -1:
                 perm_list = [2, 3, 0, 1]
                 perm_const_op = tosa.ConstOp(
@@ -1166,6 +1167,84 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             op = tosa.TransposeOp(
                 permute_result_type, op.result, perm_const_op.results[0]
             )
+    # Convolution 1D
+    elif len(weight_shape) == 3:
+        # Prepare input with padding.
+        if input_padding[0] != 0:
+            input_shape = list(ir.RankedTensorType(input_val.type).shape)
+            padded_type = ir.RankedTensorType.get(
+                [
+                    input_shape[0],
+                    input_shape[1],
+                    input_shape[2] + 2 * input_padding[0],
+                ],
+                result_element_type,
+            )
+            pad_values_type = ir.RankedTensorType.get(
+                [3, 2], ir.IntegerType.get_signless(32)
+            )
+            pad_values = ir.DenseElementsAttr.get(
+                numpy.array(
+                    [[0, 0], [0, 0], [input_padding[0], input_padding[0]]],
+                    dtype=numpy.int32,
+                ),
+                type=pad_values_type,
+            )
+            pad_constant = arith.ConstantOp(pad_values_type, pad_values).result
+            input_val = tosa.PadOp(padded_type, input_val, pad_constant)
+        output_type = ir.RankedTensorType.get(out_shape, result_element_type)
+        output_conv = tensor.EmptyOp(list(out_shape), result_element_type)
+        assert groups == 1, "only support one group"
+        # Con1D Operation Without Bias
+        conv_op = linalg.conv_1d_ncw_fcw(
+            input_val,
+            weight_val,
+            outs=[output_conv],
+            strides=stride_attr,
+            dilations=dilation_attr,
+        )
+        output = tensor.EmptyOp(list(out_shape), result_element_type)
+        generic_map = ir.AffineMap.get_permutation(
+            [i for i in range(len(list(out_shape)))]
+        )
+        loop_type = [
+            ir.Attribute.parse("#linalg.iterator_type<parallel>")
+        ] * len(list(out_shape))
+        loop_type[1] = ir.Attribute.parse("#linalg.iterator_type<reduction>")
+        # Add Bias To Conv2d.
+        op = linalg.GenericOp(
+            [output_type],
+            [conv_op, bias_tensor],
+            [output],
+            ir.ArrayAttr.get(
+                [
+                    ir.AffineMapAttr.get(
+                        generic_map.get_submap(
+                            [i for i in range(len(list(out_shape)))]
+                        )
+                    ),
+                    ir.AffineMapAttr.get(generic_map.get_submap([1])),
+                    ir.AffineMapAttr.get(
+                        generic_map.get_submap(
+                            [i for i in range(len(list(out_shape)))]
+                        )
+                    ),
+                ]
+            ),
+            ir.ArrayAttr.get(loop_type),
+        )
+        block = ir.Block.create_at_start(
+            op.region,
+            [
+                result_element_type,
+                ir.RankedTensorType(bias_tensor.type).element_type,
+                result_element_type,
+            ],
+        )
+        add_op = arith.AddFOp(block.arguments[1], block.arguments[0])
+        block.append(add_op)
+        block.append(linalg.YieldOp([add_op.result]))
+
     return op
 
 

@@ -22,6 +22,7 @@ project(buddy-mlir LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
+include(ExternalProject)
 
 #-------------------------------------------------------------------------------
 # Options and settings
@@ -186,6 +187,24 @@ if(BUDDY_MLIR_USE_MIMALLOC)
     list(APPEND CMAKE_PREFIX_PATH ${MIMALLOC_BUILD_DIR})
   endif()
   find_package(mimalloc REQUIRED)
+endif()
+
+#-------------------------------------------------------------------------------
+# The RISC-V toolchain
+#-------------------------------------------------------------------------------
+
+if(BUDDY_MLIR_ENABLE_RISCV_GNU_TOOLCHAIN)
+  set(RISCV_GNU_TOOLCHAIN_DIR "${BUDDY_SOURCE_DIR}/thirdparty/riscv-gnu-toolchain")
+  set(RISCV_GNU_TOOLCHAIN_INSTALL_DIR "${CMAKE_BINARY_DIR}/thirdparty/riscv-gnu-toolchain")
+  ExternalProject_Add(
+    riscv-gnu-toolchain
+    SOURCE_DIR        ${RISCV_GNU_TOOLCHAIN_DIR}
+    PREFIX            ${RISCV_GNU_TOOLCHAIN_INSTALL_DIR}
+    CONFIGURE_COMMAND ${RISCV_GNU_TOOLCHAIN_DIR}/configure --prefix=${RISCV_GNU_TOOLCHAIN_INSTALL_DIR}
+    BUILD_COMMAND     make clean && make linux build-qemu -j
+    BUILD_IN_SOURCE   TRUE
+    INSTALL_COMMAND   ""
+  )
 endif()
 
 #-------------------------------------------------------------------------------
