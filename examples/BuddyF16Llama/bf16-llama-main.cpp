@@ -21,9 +21,19 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <cassert>
+#include <string_view>
+#include <cstring>
+#include <iomanip>
 
 using namespace buddy;
+
+#define STR_IMPL(x) #x
+#define STR(x) STR_IMPL(x)
+
+#ifndef LLAMA_DTYPE
+#define LLAMA_DTYPE fp16
+#endif
+constexpr char dtype[] = STR(LLAMA_DTYPE);
 
 constexpr static bool debug = false;
 
@@ -38,13 +48,39 @@ size_t MaxVocabSize;
 size_t MaxTokenLength;
 size_t HiddenSize;
 
+
+using fp16_t = uint16_t;
+using bf16_t = uint16_t;
+using half_t = uint16_t;
+
 /// Declare LLaMA forward function.
-extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
+extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<bf16_t, 1> *,
                                      Text<size_t, 2> *);
 
 // -----------------------------------------------------------------------------
 // Helper Functions
 // -----------------------------------------------------------------------------
+
+// ----------------- FP16/BP16 <-> F32 conversion utils & builtins ----------------------
+
+
+// Converts the 16 bit representation of a bfloat value to a float value. This
+// implementation is adapted from Eigen.
+union Float32Bits {
+  uint32_t u;
+  float f;
+};
+static float bf162float(bf16_t bfloatBits) {
+  Float32Bits floatBits;
+  floatBits.u = static_cast<uint32_t>(bfloatBits) << 16;
+  return floatBits.f;
+}
+
+static bf16_t float2bf16(float f) {
+  Float32Bits floatBits;
+  floatBits.f = f;
+  return static_cast<bf16_t>(floatBits.u >> 16);
+}
 
 
 void setModelParameters(const std::string &modelType) {
@@ -62,6 +98,7 @@ void setModelParameters(const std::string &modelType) {
         throw std::runtime_error("[Error] Invalid model type selected!");
     }
 }
+
 /// Capture input message.
 void getUserInput(std::string &inputStr) {
   std::cout << "\nPlease send a message:" << std::endl;
@@ -97,6 +134,59 @@ void tokenizeInput(const std::string &vocabFile,
 }
 
 /// Load parameters into data container.
+void loadParameters(const std::string &paramFilePath,
+                    MemRef<bf16_t, 1> &params) {
+  const auto loadStart = std::chrono::high_resolution_clock::now();
+  std::ifstream paramFile(paramFilePath, std::ios::in | std::ios::binary);
+  if (!paramFile.is_open()) {
+    throw std::runtime_error("[Error] Failed to open params file!");
+  }
+  printLogLabel();
+  std::cout << "Loading params..." << std::endl;
+  printLogLabel();
+  std::cout << "Params file: " << std::filesystem::canonical(paramFilePath)
+            << std::endl;
+  float *param_cache = (float*)malloc(sizeof(float) * ParamsSize);
+  paramFile.read(reinterpret_cast<char *>(param_cache),
+                 sizeof(float) * ParamsSize);
+  if (paramFile.fail()) {
+    throw std::runtime_error("Error occurred while reading params file!");
+  }
+  paramFile.close();
+  const auto loadEnd = std::chrono::high_resolution_clock::now();
+  const std::chrono::duration<double, std::milli> loadTime =
+      loadEnd - loadStart;
+  printLogLabel();
+  std::cout << "Params load time: " << (double)(loadTime.count()) / 1000
+            << "s\n"
+            << std::endl;
+  printLogLabel();
+  std::cout << "Casting float params to " << STR(LLAMA_DTYPE) << std::endl;
+  for (size_t i = 0; i < ParamsSize; i++) {
+    params[i] = float2bf16(param_cache[i]);
+  }
+  free(param_cache);
+  const auto castEnd = std::chrono::high_resolution_clock::now();
+  const std::chrono::duration<double, std::milli> castTime =
+      castEnd - loadEnd;
+  printLogLabel();
+  std::cout << "Params cast time: " << (double)(loadTime.count()) / 1000
+            << "s\n"
+            << std::endl;
+
+  // for debug: output loaded param
+  bf16_t *param_data = params.getData();
+  printLogLabel();
+  std::cout << "[DEBUG] loaded params: " << std::endl;
+  for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++) {
+      std::cout << std::setprecision(10) << bf162float(param_data[10 * i + j]) << " ";
+    }
+    std::cout << std::endl;
+  }
+}
+
+/// Load float parameters into data container.
 void loadParameters(const std::string &paramFilePath,
                     MemRef<float, 1> &params) {
   const auto loadStart = std::chrono::high_resolution_clock::now();
@@ -149,7 +239,7 @@ int main(int argc, char **argv) {
   }
   setModelParameters(std::string(argv[1]));
   /// Print the title of this example.
-  const std::string title = "LLaMA 2 Inference Powered by Buddy Compiler with datatype fp32";
+  const std::string title = "LLaMA 2 Inference Powered by Buddy Compiler with datatype bf16";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
   if constexpr(debug) {
     std::cout << "\033[33;1m" << "Debug mode" << "\033[0m" << std::endl;
@@ -168,14 +258,14 @@ int main(int argc, char **argv) {
   MemRef<float, 3> resultContainer[2] = {
       MemRef<float, 3>({1, MaxTokenLength, HiddenSize}, false, 0),
       MemRef<float, 3>({1, MaxTokenLength, MaxVocabSize}, false, 0)};
-  MemRef<float, 1> paramsContainer({ParamsSize});
+  MemRef<bf16_t, 1> paramsContainer({ParamsSize});
   MemRef<float, 1> expectedOutputContainer({MaxTokenLength * MaxVocabSize});
 
   outputContainer.loadVocab(vocabDir);
   loadParameters(paramsDir, paramsContainer);
 
   if constexpr(debug) {
-    const std::string outputDir = "../../examples/BuddyF16Llama/"+ std::string(argv[1]) + "-fp32-output.data";
+    const std::string outputDir = "../../examples/BuddyF16Llama/"+ std::string(argv[1]) + "-bf16-output.data";
     loadParameters(outputDir, expectedOutputContainer);
   }
 

@@ -39,23 +39,16 @@ constexpr char dtype[] = STR(LLAMA_DTYPE);
 
 constexpr static bool debug = false;
 
-// llama-2-7b
-// constexpr size_t ParamsSize = 6771970048;
-// constexpr size_t MaxVocabSize = 32000;
-// constexpr size_t MaxTokenLength = 40;
-// constexpr size_t HiddenSize = 4096;
-
 // tiny-random-llama
 // constexpr size_t ParamsSize = 108368;
 // constexpr size_t MaxVocabSize = 3000;
 // constexpr size_t MaxTokenLength = 40;
 // constexpr size_t HiddenSize = 16;
 
-// tiny-llama-1.1b
-constexpr size_t ParamsSize = 1105815552;
-constexpr size_t MaxVocabSize = 32000;
-constexpr size_t MaxTokenLength = 40;
-constexpr size_t HiddenSize = 2048;
+size_t ParamsSize;
+size_t MaxVocabSize;
+size_t MaxTokenLength;
+size_t HiddenSize;
 
 
 using fp16_t = uint16_t;
@@ -114,6 +107,22 @@ static float half2float(half_t hf) {
     return bf162float(hf);
   }
   assert(false);
+}
+
+void setModelParameters(const std::string &modelType) {
+    if (modelType == "1.1b") {
+        ParamsSize = 1105815552;
+        MaxVocabSize = 32000;
+        MaxTokenLength = 40;
+        HiddenSize = 2048;
+    } else if (modelType == "7b") {
+        ParamsSize = 6755192832;
+        MaxVocabSize = 32000;
+        MaxTokenLength = 40;
+        HiddenSize = 4096;
+    } else {
+        throw std::runtime_error("[Error] Invalid model type selected!");
+    }
 }
 
 /// Capture input message.
@@ -248,34 +257,46 @@ int findMaxIndex(const float *start, const float *end) {
 // LLaMA Inference Main Entry
 // -----------------------------------------------------------------------------
 
-int main() {
+int main(int argc, char **argv) {
+  
+  if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " <model_type>" << std::endl;
+        return 1;
+  }
+  setModelParameters(std::string(argv[1]));
   /// Print the title of this example.
-  const std::string title = "LLaMA 2 Inference Powered by Buddy Compiler";
-  std::cout << "\033[33;1m" << title << "with data type " << dtype << "\033[0m" << std::endl;
+  const std::string title = "LLaMA 2 Inference Powered by Buddy Compiler with datatype fp16";
+  std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
   if constexpr(debug) {
     std::cout << "\033[33;1m" << "Debug mode" << "\033[0m" << std::endl;
   }
 
   /// Define directories of vacabulary and parameter file.
-  const std::string vocabDir = "../examples/BuddyF16Llama/vocab.txt";
-  const std::string paramsDir = "../examples/BuddyF16Llama/params.data";
+  const std::string vocabDir = "../../examples/BuddyF16Llama/vocab.txt";
+  const std::string paramsDir = "../../examples/BuddyF16Llama/params.data";
 
   /// Initialize data containers
+  //  - Input container.
+  //  - Result container
+  //  - Output container.
+  //  - Parameters container.
   Text<size_t, 2> outputContainer;
   MemRef<float, 3> resultContainer[2] = {
       MemRef<float, 3>({1, MaxTokenLength, HiddenSize}, false, 0),
       MemRef<float, 3>({1, MaxTokenLength, MaxVocabSize}, false, 0)};
-  MemRef<half_t, 1> paramsContainer({ParamsSize});
+  MemRef<float, 1> paramsContainer({ParamsSize});
   MemRef<float, 1> expectedOutputContainer({MaxTokenLength * MaxVocabSize});
-  
+
   outputContainer.loadVocab(vocabDir);
   loadParameters(paramsDir, paramsContainer);
 
   if constexpr(debug) {
-    const std::string outputDir = "../examples/BuddyF16Llama/" STR(LLAMA_DTYPE) "-output.data";
+    const std::string outputDir = "../../examples/BuddyF16Llama/"+ std::string(argv[1]) + "-fp16-output.data";
     loadParameters(outputDir, expectedOutputContainer);
   }
 
+  /// Fill data into containers
+  /// Get user message.
   std::string inputStr;
   getUserInput(inputStr);
   Text<size_t, 2> inputContainer(inputStr);
@@ -283,7 +304,6 @@ int main() {
   if constexpr(debug) {
     inputContainer.setTokenCnt(0);
     inputContainer.appendTokenIdx(0);
-    assert (inputContainer.getTokenCnt() == 1);
   }
 
   /// Run LLaMA Inference
@@ -295,7 +315,7 @@ int main() {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
     // Execute the forward pass of the model.
     _mlir_ciface_forward(resultContainer, &paramsContainer, &inputContainer);
-
+    
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =
         inferenceEnd - inferenceStart;
@@ -316,30 +336,23 @@ int main() {
     printIterInfo(i, tok, inferenceTime.count() / 1000);
 
     if constexpr(debug) {
-      const float *expStartPtr = expectedOutputContainer.getData() + tokenIndex * MaxVocabSize;
-
-      // printLogLabel();
-      // std::cout << "[DEBUG] output[0]: ";
-      // for (int i = 0; i < 10; i++) {
-      //   std::cout << resultContainer[0].getData()[i] << " ";
-      // }
-      // std::cout << std::endl;
+      printLogLabel();
+      std::cout << "[DEBUG] output[0]: ";
+      for (int i = 0; i < 10; i++) {
+        std::cout << resultContainer[0].getData()[i] << " ";
+      }
+      std::cout << std::endl;
       printLogLabel();
       std::cout << "[DEBUG] output[1]: ";
       for (int i = 0; i < 10; i++) {
         std::cout << startPtr[i] << " ";
       }
       std::cout << std::endl;
-      printLogLabel();
-      std::cout << "[DEBUG] expected: ";
-      for (int i = 0; i < 10; i++) {
-        std::cout << expStartPtr[i] << " ";
-      }
-      std::cout << std::endl;
 
+      const float *expStartPtr = expectedOutputContainer.getData() + tokenIndex * MaxVocabSize;
       for (int t = 0; t < MaxVocabSize; t++) {
         const float error = std::abs(expStartPtr[t] - startPtr[t]);
-        if (error > std::abs(10. * startPtr[t]) && error > 1e-3) {
+        if (error > std::abs(0.05 * startPtr[t])) {
           printLogLabel();
           std::cout << "result at iter " << i << ", token " << t << " is " << expStartPtr[t] << ", but expcted " << startPtr[t] << std::endl;
           return 0;
@@ -360,7 +373,7 @@ int main() {
   }
 
   /// Print the final result
-  std::cout << "\n\033[33;1m[Input]\033[0m " << inputStr << std::endl;
+  // std::cout << "\n\033[33;1m[Input]\033[0m " << inputStr << std::endl;
   std::cout << "\033[33;1m[Output]\033[0m " << outputContainer.revertLlama()
             << std::endl;
 
