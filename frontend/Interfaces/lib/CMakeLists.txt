@@ -27,7 +27,7 @@ add_custom_command(OUTPUT DIP.o
         -mattr=${BUDDY_OPT_ATTR}
         --filetype=obj
         -o ${CMAKE_CURRENT_BINARY_DIR}/DIP.o
-        DEPENDS buddy-opt
+        DEPENDS mlir-translate llc buddy-opt
         )
 
 add_library(BuddyLibDIP STATIC DIP.o)
@@ -56,7 +56,7 @@ add_custom_command(OUTPUT DAP.o
               -mattr=${BUDDY_OPT_ATTR}
               --filetype=obj
               -o ${CMAKE_CURRENT_BINARY_DIR}/DAP.o
-  DEPENDS buddy-opt
+  DEPENDS mlir-translate llc buddy-opt
   )
 
   add_custom_command(OUTPUT DAP-extend.o
@@ -82,7 +82,7 @@ add_custom_command(OUTPUT DAP.o
               -mattr=${BUDDY_OPT_ATTR}
               -filetype=obj -relocation-model=pic
               -o ${CMAKE_CURRENT_BINARY_DIR}/DAP-extend.o
-  DEPENDS buddy-opt
+  DEPENDS mlir-translate llc buddy-opt
   )
 
 add_library(BuddyLibDAP STATIC DAP.o DAP-extend.o)
@@ -115,7 +115,7 @@ SET_TARGET_PROPERTIES(BuddyLibDAP PROPERTIES
               -mattr=${BUDDY_OPT_ATTR}
               -filetype=obj
               -o ${CMAKE_CURRENT_BINARY_DIR}/DAPVectorization.o
-  DEPENDS buddy-opt
+  DEPENDS mlir-translate llc buddy-opt
   )
 
 add_library(BuddyLibDAPVectorization STATIC DAPVectorization.o)
