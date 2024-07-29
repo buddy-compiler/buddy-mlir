@@ -30,7 +30,13 @@ In addition, set an environment variable for the generated LLaMA model.
 $ export LLAMA_MODEL_PATH=/path-to-save-llama-hf-model/
 ```
 
-4. Build and check LLVM/MLIR
+4.Prepare TinyLLaMA model
+```
+$ cd examples/BuddyTinyLlama
+$ python prepare.py 
+```
+
+5. Build and check LLVM/MLIR
 
 ```
 $ cd buddy-mlir
@@ -47,7 +53,7 @@ $ cmake -G Ninja ../llvm \
 $ ninja check-clang check-mlir omp
 ```
 
-5. Build and check buddy-mlir
+6. Build and check buddy-mlir
 
 ```
 $ cd buddy-mlir
@@ -77,14 +83,17 @@ $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
 $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
-6. Build and run LLaMA example
+7. Build and run LLaMA example
 
 ```
 $ cmake -G Ninja .. -DBUDDY_LLAMA_EXAMPLES=ON
-$ ninja buddy-llama-run
+$ ninja buddy-{mtype}-{dtype}-llama-run
 $ cd bin
-$ ./buddy-llama-run
+$ ./buddy-{mtype}-{dtype}-llama-run {mtype}
 ```
+
+{mtype} is the model type, and {dtype} is the data type.
+{mtype} list: 7b, 1.1b     {dtype} list: fp32, fp16, bf16
 This build will spend a few minutes. We recommend you to use better cpu such as server-level cpu to run buddy-llama-run.
 
 If you wish to utilize `mimalloc` as a memory allocator, you need to set `BUDDY_MLIR_USE_MIMALLOC` and `MIMALLOC_BUILD_DIR`.

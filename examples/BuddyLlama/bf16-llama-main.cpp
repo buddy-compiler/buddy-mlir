@@ -246,8 +246,8 @@ int main(int argc, char **argv) {
   }
 
   /// Define directories of vacabulary and parameter file.
-  const std::string vocabDir = "../../examples/BuddyF16Llama/vocab.txt";
-  const std::string paramsDir = "../../examples/BuddyF16Llama/params.data";
+  const std::string vocabDir = "../../examples/BuddyLlama/vocab.txt";
+  const std::string paramsDir = "../../examples/BuddyLlama/params.data";
 
   /// Initialize data containers
   //  - Input container.
@@ -265,7 +265,7 @@ int main(int argc, char **argv) {
   loadParameters(paramsDir, paramsContainer);
 
   if constexpr(debug) {
-    const std::string outputDir = "../../examples/BuddyF16Llama/"+ std::string(argv[1]) + "-bf16-output.data";
+    const std::string outputDir = "../../examples/BuddyLlama/"+ std::string(argv[1]) + "-bf16-output.data";
     loadParameters(outputDir, expectedOutputContainer);
   }
 
