@@ -254,6 +254,8 @@ class Graph:
                     np_type = np.dtype(np.int32)
                 case "i64":
                     np_type = np.dtype(np.int64)
+                case "f16":
+                    np_type = np.dtype(np.float16)
                 case "f32":
                     np_type = np.dtype(np.float32)
                 case _:
@@ -389,6 +391,8 @@ class GraphImporter:
                 return ir.IntegerType.get_signless(32)
             case TensorDType.Int64:
                 return ir.IntegerType.get_signless(64)
+            case TensorDType.Float16:
+                return ir.F16Type.get()
             case TensorDType.Float32:
                 return ir.F32Type.get()
             case TensorDType.Bool:
