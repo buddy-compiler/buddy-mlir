@@ -361,6 +361,7 @@ class GraphImporter:
             ops_registry = {}
         self._symbol_table = {}
         self._body = body
+        self._device = DeviceType.GPU
         self._func_name = func_name
         self._params = params
         self._inputs = inputs
@@ -440,7 +441,7 @@ class GraphImporter:
                 shape_list = list(arg.shape)
                 dtype = arg.dtype
                 mlir_dtype = self._str_to_mlir_dtype(dtype)
-                tensor_arg = ir.RankedTensorType.get(shape_list, mlir_dtype)
+                tensor_arg = ir.MemrefType.get(shape_list, mlir_dtype)
                 arguments.append(tensor_arg)
             extern_func = []
             for node in self._body:
@@ -473,6 +474,9 @@ class GraphImporter:
                         self._import_op(node)
 
                 return self._symbol_table.get(("output", 0))
+        
+        if self._device == DeviceType.GPU:
+            self._module.operation.attributes["gpu.container_module"] = ir.UnitAttr.get()
 
         return self._module
 

@@ -54,3 +54,5 @@ def mlir_element_attr_get(type_name, value):
         case TensorDType.Bool:
             return ir.IntegerAttr.get(ir.IntegerType.get_signless(1), value)
 
+
+def tensor_shape_size()
