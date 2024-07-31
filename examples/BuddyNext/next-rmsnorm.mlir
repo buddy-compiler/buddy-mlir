@@ -1,0 +1,85 @@
+// RUN: buddy-opt %s \
+// RUN:     -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" \
+// RUN: | buddy-opt \
+// RUN:     -arith-expand \
+// RUN:     -eliminate-empty-tensors \
+// RUN:     -empty-tensor-to-alloc-tensor \
+// RUN:     -one-shot-bufferize \
+// RUN:     -convert-linalg-to-affine-loops \
+// RUN:     -affine-loop-fusion \
+// RUN:     -lower-affine \
+// RUN:     -func-bufferize \
+// RUN:     -arith-bufferize \
+// RUN:     -tensor-bufferize \
+// RUN:     -buffer-deallocation \
+// RUN:     -finalizing-bufferize \
+// RUN:     -convert-vector-to-scf \
+// RUN:     -expand-strided-metadata \
+// RUN:     -convert-vector-to-llvm \
+// RUN:     -memref-expand \
+// RUN:     -arith-expand \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -finalize-memref-to-llvm \
+// RUN:     -convert-scf-to-cf \
+// RUN:     -convert-openmp-to-llvm \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -convert-math-to-llvm \
+// RUN:     -convert-math-to-libm  \
+// RUN:     -convert-func-to-llvm \
+// RUN:     -reconcile-unrealized-casts \
+// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
+#map = affine_map<(d0, d1, d2) -> (d1)>
+#map1 = affine_map<(d0, d1, d2) -> (d0, d2)>
+#map2 = affine_map<(d0, d1, d2) -> (d0, d1)>
+#map3 = affine_map<(d0, d1) -> (d0, d1)>
+#map4 = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+#map5 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+#map6 = affine_map<(d0, d1, d2) -> (d0, 0, d1, d2)>
+#map7 = affine_map<(d0, d1) -> (0, d0, d1)>
+
+func.func private @rtclock() -> f64
+
+func.func @kernel_rmsnorm(%arg0: tensor<1x40x4096xf32>) {
+  %t_start = call @rtclock() : () -> f64
+
+  // RMSNorm operations
+  %30 = tensor.empty() : tensor<1x40x4096xf32>
+  %c2_i32 = arith.constant 2 : i32
+  %31 = linalg.generic {indexing_maps = [#map5, #map5], iterator_types = ["parallel", "parallel", "parallel"]} ins(%arg0 : tensor<1x40x4096xf32>) outs(%30 : tensor<1x40x4096xf32>) {
+    ^bb0(%in: f32, %out: f32):
+      %4175 = math.fpowi %in, %c2_i32 : f32, i32
+      linalg.yield %4175 : f32
+  } -> tensor<1x40x4096xf32>
+  %32 = tosa.reduce_sum %31 {axis = 2 : i32} : (tensor<1x40x4096xf32>) -> tensor<1x40x1xf32>
+  %33 = "tosa.const"() <{value = dense<4.096000e+03> : tensor<1x1xf32>}> : () -> tensor<1x1xf32>
+  %34 = tosa.reciprocal %33 : (tensor<1x1xf32>) -> tensor<1x1xf32>
+  %35 = tosa.mul %34, %32 {shift = 0 : i8} : (tensor<1x1xf32>, tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
+  %36 = "tosa.const"() <{value = dense<9.99999974E-6> : tensor<1x40x1xf32>}> : () -> tensor<1x40x1xf32>
+  %37 = tosa.add %35, %36 : (tensor<1x40x1xf32>, tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
+  %38 = tosa.rsqrt %37 : (tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
+  %39 = tosa.mul %arg0, %38 {shift = 0 : i8} : (tensor<1x40x4096xf32>, tensor<1x40x1xf32>) -> tensor<1x40x4096xf32>
+
+  %t_end = call @rtclock() : () -> f64
+  %time = arith.subf %t_end, %t_start : f64
+
+  %tensor_unranked = tensor.cast %39 : tensor<1x40x4096xf32> to tensor<*xf32>
+
+  call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
+  vector.print %time : f64
+
+  return
+}
+
+func.func @main() {
+  %input_tensor_1 = arith.constant dense<3.0> : tensor<1x40x4096xf32>
+
+  call @kernel_rmsnorm(%input_tensor_1) : (tensor<1x40x4096xf32>) -> ()
+
+  return
+}
+
+func.func private @printMemrefF32(%ptr : tensor<*xf32>)
