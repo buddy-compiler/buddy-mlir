@@ -54,6 +54,11 @@ func.func @kernel_softmax(%arg0 : tensor<1x32x40x40xf32>, %arg1 : tensor<1x1x40x
 
   %tensor_unranked = tensor.cast %109 : tensor<1x32x40x40xf32> to tensor<*xf32>
 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 32, 40, 40] strides = [51200, 1600, 40, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [0.025{{(, 0.025)*}}],
+
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
   vector.print %time : f64
 

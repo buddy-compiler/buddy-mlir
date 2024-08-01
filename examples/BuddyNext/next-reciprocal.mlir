@@ -46,6 +46,10 @@ module {
 
     %tensor_unranked = tensor.cast %result : tensor<1x10xf32> to tensor<*xf32>
 
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [1, 10] strides = [10, 1] data = 
+    // CHECK-NEXT: [
+    // CHECK-SAME: [0.5{{(, 0.5)*}}]
+
     call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
     vector.print %time : f64
 
@@ -53,7 +57,7 @@ module {
   }
 
   func.func @main() {
-    %input_tensor = "tosa.const"() {value = dense<[[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]]> : tensor<1x10xf32>} : () -> tensor<1x10xf32>
+    %input_tensor = "tosa.const"() {value = dense<2.0> : tensor<1x10xf32>} : () -> tensor<1x10xf32>
 
     call @kernel_reciprocal(%input_tensor) : (tensor<1x10xf32>) -> ()
 

@@ -45,6 +45,11 @@ func.func @kernel_rsqrt(%arg0 : tensor<1x40x1xf32>) {
 
   %tensor_unranked = tensor.cast %rsqrt_result : tensor<1x40x1xf32> to tensor<*xf32>
 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 1] strides = [40, 1, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [0.57735{{(, 0.57735)*}}],
+
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
   vector.print %time : f64
 

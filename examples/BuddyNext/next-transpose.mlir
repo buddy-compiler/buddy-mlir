@@ -47,6 +47,11 @@ module {
 
     %tensor_unranked = tensor.cast %transposed : tensor<1x32x40x128xf32> to tensor<*xf32>
 
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 32, 40, 128] strides = [163840, 5120, 128, 1] data =
+    // CHECK-NEXT: [
+    // CHECK-SAME: [
+    // CHECK-SAME: [1{{(, 1)*}}],
+
     call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
     vector.print %time : f64
 

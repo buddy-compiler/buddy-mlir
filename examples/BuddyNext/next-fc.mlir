@@ -58,6 +58,11 @@ func.func @kernel_fc_layer(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<4096x40
 
 %tensor_unranked = tensor.cast %51 : tensor<1x40x4096xf32> to tensor<*xf32>
 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 4096] strides = [163840, 4096, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [49152{{(, 49152)*}}],
+
 call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
 vector.print %time : f64
 

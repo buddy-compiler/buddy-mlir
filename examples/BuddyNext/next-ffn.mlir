@@ -77,6 +77,11 @@ func.func @kernel_ffn(%arg0: tensor<1x40x4096xf32>, %arg9: tensor<4096xf32>, %ar
 
   %tensor_unranked = tensor.cast %158 : tensor<1x40x4096xf32> to tensor<*xf32>
 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 4096] strides = [163840, 4096, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [461655{{(, 461655)*}}],
+
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
   vector.print %time : f64
 
@@ -84,12 +89,13 @@ func.func @kernel_ffn(%arg0: tensor<1x40x4096xf32>, %arg9: tensor<4096xf32>, %ar
 }
 
 func.func @main() {
-  %input_tensor = arith.constant dense<3.0> : tensor<1x40x4096xf32>
-  %weight1 = arith.constant dense<1.0> : tensor<4096xf32>
-  %weight2 = arith.constant dense<1.0> : tensor<11008x4096xf32>
-  %weight3 = arith.constant dense<2.0> : tensor<11008x4096xf32>
-  %weight4 = arith.constant dense<1.0> : tensor<4096x11008xf32>
+  %input_tensor = arith.constant dense<0.5> : tensor<1x40x4096xf32>
+  %weight1 = arith.constant dense<0.1> : tensor<4096xf32>
+  %weight2 = arith.constant dense<0.1> : tensor<11008x4096xf32>
+  %weight3 = arith.constant dense<0.1> : tensor<11008x4096xf32>
+  %weight4 = arith.constant dense<0.1> : tensor<4096x11008xf32>
 
+  // Print timings.
   call @kernel_ffn(%input_tensor, %weight1, %weight2, %weight3, %weight4) : (tensor<1x40x4096xf32>, tensor<4096xf32>, tensor<11008x4096xf32>, tensor<11008x4096xf32>, tensor<4096x11008xf32>) -> ()
 
   return

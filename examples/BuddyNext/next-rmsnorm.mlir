@@ -68,6 +68,11 @@ func.func @kernel_rmsnorm(%arg0: tensor<1x40x4096xf32>) {
 
   %tensor_unranked = tensor.cast %39 : tensor<1x40x4096xf32> to tensor<*xf32>
 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 4096] strides = [163840, 4096, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [0.999999{{(, 0.999999)*}}],
+
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
   vector.print %time : f64
 

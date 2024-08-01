@@ -44,6 +44,10 @@ func.func @kernel_matmul(%arg0 : tensor<40x4096xf32>, %arg1 : tensor<4096x4096xf
 
   %tensor_unranked = tensor.cast %matmul_result : tensor<40x4096xf32> to tensor<*xf32>
 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [40, 4096] strides = [4096, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [24576{{(, 24576)*}}]
+
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
   vector.print %time : f64
 

@@ -30,7 +30,7 @@
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
-// RUN: | FileCheck %s
+// RUN: | FileCheck %s  
 
 module {
   func.func private @rtclock() -> f64
@@ -45,6 +45,11 @@ module {
     %time = arith.subf %t_end, %t_start : f64
 
     %tensor_unranked = tensor.cast %negated : tensor<1x32x40x64xf32> to tensor<*xf32>
+
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 32, 40, 64] strides = [81920, 2560, 64, 1] data =
+    // CHECK-NEXT: [
+    // CHECK-SAME: [
+    // CHECK-SAME: [-1{{(, -1)*}}],
 
     call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
     vector.print %time : f64

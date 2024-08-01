@@ -200,6 +200,11 @@ func.func @kernel_self_attention(%arg0 : tensor<1x1x4096xf32>, %arg1 : tensor<1x
 
   %tensor_unranked = tensor.cast %127 : tensor<1x40x4096xf32> to tensor<*xf32>
 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 4096] strides = [163840, 4096, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [83883.8{{(, 83883.8)*}}],
+
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
   vector.print %time : f64
 
@@ -207,15 +212,15 @@ func.func @kernel_self_attention(%arg0 : tensor<1x1x4096xf32>, %arg1 : tensor<1x
 }
 
 func.func @main() {
-  %input_tensor_0 = arith.constant dense<3.0> : tensor<1x1x4096xf32>
-  %input_tensor_1 = arith.constant dense<1.0> : tensor<1x40x4096xf32>
-  %input_tensor_2 = arith.constant dense<2> : tensor<40xi64>
-  %input_tensor_3 = arith.constant dense<1.0> : tensor<4096x4096xf32>
-  %input_tensor_4 = arith.constant dense<1.0> : tensor<4096x4096xf32>
-  %input_tensor_5 = arith.constant dense<1.0> : tensor<4096x4096xf32>
+  %input_tensor_0 = arith.constant dense<1.0> : tensor<1x1x4096xf32>
+  %input_tensor_1 = arith.constant dense<0.1> : tensor<1x40x4096xf32>
+  %input_tensor_2 = arith.constant dense<1> : tensor<40xi64>
+  %input_tensor_3 = arith.constant dense<0.5> : tensor<4096x4096xf32>
+  %input_tensor_4 = arith.constant dense<0.1> : tensor<4096x4096xf32>
+  %input_tensor_5 = arith.constant dense<0.1> : tensor<4096x4096xf32>
   %input_tensor_6 = arith.constant dense<1.0> : tensor<1x1x2048x128xf32>
-  %input_tensor_7 = arith.constant dense<1.0> : tensor<1x1x2048x128xf32>
-  %input_tensor_8 = arith.constant dense<2.0> : tensor<4096x4096xf32>
+  %input_tensor_7 = arith.constant dense<0.1> : tensor<1x1x2048x128xf32>
+  %input_tensor_8 = arith.constant dense<0.5> : tensor<4096x4096xf32>
   %input_tensor_9 = arith.constant dense<0.0> : tensor<1x1x40x40xf32>
 
   call @kernel_self_attention(%input_tensor_0, %input_tensor_1, %input_tensor_2, %input_tensor_3, %input_tensor_4, %input_tensor_5, %input_tensor_6, %input_tensor_7, %input_tensor_8, %input_tensor_9) : (tensor<1x1x4096xf32>, tensor<1x40x4096xf32>, tensor<40xi64>, tensor<4096x4096xf32>, tensor<4096x4096xf32>, tensor<4096x4096xf32>, tensor<1x1x2048x128xf32>, tensor<1x1x2048x128xf32>, tensor<4096x4096xf32>, tensor<1x1x40x40xf32>) -> ()
