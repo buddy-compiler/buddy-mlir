@@ -63,7 +63,7 @@ $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
 $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
-3. Set model environment variable.
+3. Set model environment variable. (Or we can leave path blank so that import-whisper.py will automatically download the model)
 
 ```bash
 $ export WHISPER_MODEL_PATH=/path-to-whisper-model/
