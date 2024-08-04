@@ -1,4 +1,5 @@
-//===- BatchMatMulOptimize.cpp --------------------------------------------===//
+//===- BatchMatMulTileOptimizeRVV.cpp
+//--------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,18 +49,18 @@ using namespace affine;
 
 namespace {
 
-class BatchMatMulOptimizePattern : public ConversionPattern {
+class BatchMatMulTileOptimizeRVVPattern : public ConversionPattern {
 private:
-  int64_t vecSize, kernelM, kernelN;
+  int64_t vmul, kernelM, kernelN;
 
 public:
-  explicit BatchMatMulOptimizePattern(MLIRContext *context,
-                                      int64_t vecSizeParam,
-                                      int64_t kernelMParam,
-                                      int64_t kernelNParam)
+  explicit BatchMatMulTileOptimizeRVVPattern(MLIRContext *context,
+                                             int64_t vmulParam,
+                                             int64_t kernelMParam,
+                                             int64_t kernelNParam)
       : ConversionPattern(linalg::BatchMatmulOp::getOperationName(), 1,
                           context) {
-    vecSize = vecSizeParam;
+    vmul = vmulParam;
     kernelM = kernelMParam;
     kernelN = kernelNParam;
   }
@@ -91,9 +92,8 @@ public:
     const AffineExpr s1 = rewriter.getAffineSymbolExpr(1);
     const AffineExpr s2 = rewriter.getAffineSymbolExpr(2);
 
-    const VectorType vTy = VectorType::get(vecSize, ATy.getElementType());
-    const AffineMap mapBroadcast =
-        AffineMap::get(3, 0, rewriter.getAffineConstantExpr(0));
+    const VectorType vTy =
+        VectorType::get(ShapedType::kDynamic, ATy.getElementType());
     const AffineExpr zeroAffine = rewriter.getAffineConstantExpr(0);
     const Value zeroElementType = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getZeroAttr(elementType));
@@ -104,24 +104,18 @@ public:
     Value K = rewriter.create<memref::DimOp>(loc, B, 1); // bRow
     Value N = rewriter.create<memref::DimOp>(loc, B, 2); // bCol
 
-    // Calculate the length of the tail, which might not fit in a vector.
-    Value tailLength = rewriter.create<affine::AffineApplyOp>(
-        loc, AffineMap::get(1, 0, d0 % vecSize), ValueRange{N});
-
-    // Generate a mask vector based on the tail length.
-    Value maskVector = rewriter.create<vector::CreateMaskOp>(
-        loc, VectorType::get({vecSize}, rewriter.getI1Type()),
-        ValueRange{tailLength});
-
     SmallVector<Value, 4U> reducedValues = llvm::to_vector<4>(
         llvm::map_range(ArrayRef<LoopReduction>{},
                         [](const LoopReduction &red) { return red.value; }));
 
-    // Configs
-    int64_t kNLen = vecSize * kernelN;
+    // Configs of VLE
+    Value vLen = rewriter.create<vector_exp::GetVLOp>(
+        loc, rewriter.getIntegerType(32), vmul);
+    Value NLen = rewriter.create<affine::AffineApplyOp>(
+        loc, affineMap::get(1, 0, d0 * kernelN), ValueRange{vLen});
     // TODO:Apply the column of matrix B.
     Value appliedN = rewriter.create<affine::AffineApplyOp>(
-        loc, AffineMap::get(1, 0, d0.ceilDiv(kNLen)), ValueRange{N});
+        loc, AffineMap::get(2, 0, d0.ceilDiv(d1)), ValueRange{N, NLen});
 
     // Create the primary parallel batch level loop.
     AffineParallelOp parallelBatchLoop =
@@ -155,7 +149,7 @@ public:
 
     // build loop body
     affine::buildAffineLoopNest(
-        rewriter, loc, {c0}, {N}, kNLen,
+        rewriter, loc, {c0}, {N}, NLen,
         [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
           auto ivJ = ivRange.front();
           affine::buildAffineLoopNest(
@@ -207,16 +201,15 @@ public:
                       SmallVector<Value> bs;
                       SmallVector<Value> ds;
                       for (int i = 0; i < kernelM; ++i) {
-                        Value ksubAElement = builder.create<memref::LoadOp>(
-                            loc, aptrs[i], ValueRange{c0, c0, ivK});
-                        as.push_back(
-                            builder.create<SplatOp>(loc, vTy, ksubAElement));
+                        as.push_back(builder.create<memref::LoadOp>(
+                            loc, aptrs[i], ValueRange{c0, c0, ivK}));
                       }
                       for (int i = 0; i < kernelM; ++i) {
                         for (int j = 0; j < kernelN; j++) {
                           Value fixedIV = builder.create<affine::AffineApplyOp>(
-                              loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
-                          ds.push_back(builder.create<LoadOp>(
+                              loc, AffineMap::get(2, 0, d0 + j * d1),
+                              ValueRange{ivJ, vLen});
+                          ds.push_back(builder.create<TransferReadOp>(
                               loc, vTy, cptrs[i], ValueRange{c0, c0, fixedIV}));
                         }
                       }
@@ -225,9 +218,10 @@ public:
                         Value fixedIV = ivJ;
                         if (i != 0) {
                           fixedIV = builder.create<affine::AffineApplyOp>(
-                              loc, AffineMap::get(1, 0, d0 + i * vecSize), ivJ);
+                              loc, AffineMap::get(2, 0, d0 + i * d1),
+                              ValueRange{ivJ, vLen});
                         }
-                        bs.push_back(builder.create<LoadOp>(
+                        bs.push_back(builder.create<TransferReadOp>(
                             loc, vTy, B,
                             ValueRange{loopVarBatchIdx, ivK, fixedIV}));
                       }
@@ -242,7 +236,8 @@ public:
                       for (int i = 0; i < kernelM; ++i) {
                         for (int j = 0; j < kernelN; ++j) {
                           Value fixedIV = builder.create<affine::AffineApplyOp>(
-                              loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
+                              loc, AffineMap::get(2, 0, d0 + j * d1),
+                              ValueRange{ivJ, vLen});
                           builder.create<TransferWriteOp>(
                               loc, ds[i * kernelN + j], cptrs[i],
                               ValueRange{c0, c0, fixedIV});
@@ -265,23 +260,25 @@ public:
 } // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
-// BatchMatMulOptimizePass
+// BatchMatMulTileOptimizeRVVPass
 //===----------------------------------------------------------------------===//
 
 /// This is a partial lowering linalg pooling operations to mixture of
 /// Affine + Vector operations.
 namespace {
-class BatchMatMulOptimizePass
-    : public PassWrapper<BatchMatMulOptimizePass, OperationPass<ModuleOp>> {
+class BatchMatMulTileOptimizeRVVPass
+    : public PassWrapper<BatchMatMulTileOptimizeRVVPass,
+                         OperationPass<ModuleOp>> {
 public:
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(BatchMatMulOptimizePass)
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(BatchMatMulTileOptimizeRVVPass)
   StringRef getArgument() const final { return "batchmatmul-tile-optimize"; }
   StringRef getDescription() const final { return "BatchMatMul Optimization."; }
-  BatchMatMulOptimizePass() = default;
-  BatchMatMulOptimizePass(const BatchMatMulOptimizePass &) {}
-  explicit BatchMatMulOptimizePass(int64_t vecSizeParam, int64_t kernelMParam,
-                                   int64_t kernelNParam) {
-    vecSize = vecSizeParam;
+  BatchMatMulTileOptimizeRVVPass() = default;
+  BatchMatMulTileOptimizeRVVPass(const BatchMatMulTileOptimizeRVVPass &) {}
+  explicit BatchMatMulTileOptimizeRVVPass(int64_t vmulParam,
+                                          int64_t kernelMParam,
+                                          int64_t kernelNParam) {
+    vmul = vmulParam;
     kernelM = kernelMParam;
     kernelN = kernelNParam;
   }
@@ -293,9 +290,8 @@ public:
                     affine::AffineDialect, VectorDialect>();
   }
 
-  Option<int64_t> vecSize{*this, "vec-size",
-                          llvm::cl::desc("Strip mining size."),
-                          llvm::cl::init(16)};
+  Option<int64_t> vmul{*this, "vector-multiplier",
+                       llvm::cl::desc("Strip mining size."), llvm::cl::init(8)};
 
   Option<int64_t> kernelM{*this, "kernel-m",
                           llvm::cl::desc("Strip mining size."),
@@ -303,11 +299,11 @@ public:
 
   Option<int64_t> kernelN{*this, "kernel-n",
                           llvm::cl::desc("Strip mining size."),
-                          llvm::cl::init(2)};
+                          llvm::cl::init(3)};
 };
 } // end anonymous namespace.
 
-void BatchMatMulOptimizePass::runOnOperation() {
+void BatchMatMulTileOptimizeRVVPass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
 
@@ -319,7 +315,8 @@ void BatchMatMulOptimizePass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<BatchMatMulOptimizePattern>(context, vecSize, kernelM, kernelN);
+  patterns.add<BatchMatMulTileOptimizeRVVPattern>(context, vmul, kernelM,
+                                                  kernelN);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
@@ -327,8 +324,8 @@ void BatchMatMulOptimizePass::runOnOperation() {
 // add to buddy-opt.cpp
 namespace mlir {
 namespace buddy {
-void registerBatchMatMulOptimizePass() {
-  PassRegistration<BatchMatMulOptimizePass>();
+void registerBatchMatMulTileOptimizeRVVPass() {
+  PassRegistration<BatchMatMulTileOptimizeRVVPass>();
 }
 } // namespace buddy
 } // namespace mlir

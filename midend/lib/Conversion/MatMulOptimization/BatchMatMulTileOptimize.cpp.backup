@@ -97,6 +97,8 @@ public:
     const AffineExpr zeroAffine = rewriter.getAffineConstantExpr(0);
     const Value zeroElementType = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getZeroAttr(elementType));
+    const Value zeroElementTypeVec = rewriter.create<vector::SplatOp>(
+        loc, VectorType::get({vecSize}, elementType), zeroElementType);
 
     // Get dimensions of input tensors.
     Value batch = rewriter.create<memref::DimOp>(loc, A, 0);
@@ -207,16 +209,15 @@ public:
                       SmallVector<Value> bs;
                       SmallVector<Value> ds;
                       for (int i = 0; i < kernelM; ++i) {
-                        Value ksubAElement = builder.create<memref::LoadOp>(
-                            loc, aptrs[i], ValueRange{c0, c0, ivK});
-                        as.push_back(
-                            builder.create<SplatOp>(loc, vTy, ksubAElement));
+                        as.push_back(builder.create<TransferReadOp>(
+                            loc, vTy, aptrs[i], ValueRange{c0, c0, ivK},
+                            mapBroadcast));
                       }
                       for (int i = 0; i < kernelM; ++i) {
                         for (int j = 0; j < kernelN; j++) {
                           Value fixedIV = builder.create<affine::AffineApplyOp>(
                               loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
-                          ds.push_back(builder.create<LoadOp>(
+                          ds.push_back(builder.create<TransferReadOp>(
                               loc, vTy, cptrs[i], ValueRange{c0, c0, fixedIV}));
                         }
                       }
@@ -227,7 +228,7 @@ public:
                           fixedIV = builder.create<affine::AffineApplyOp>(
                               loc, AffineMap::get(1, 0, d0 + i * vecSize), ivJ);
                         }
-                        bs.push_back(builder.create<LoadOp>(
+                        bs.push_back(builder.create<TransferReadOp>(
                             loc, vTy, B,
                             ValueRange{loopVarBatchIdx, ivK, fixedIV}));
                       }
