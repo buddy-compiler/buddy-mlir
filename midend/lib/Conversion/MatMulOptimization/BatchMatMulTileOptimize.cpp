@@ -177,46 +177,60 @@ public:
                       SmallVector<Value> bs;
 
                       for (int j = 0; j < kernelN; j++) {
-                        Value fixedIV = ivJ;
+                        Value fixedJV = ivJ;
                         if (j != 0) {
-                          fixedIV = builder.create<affine::AffineApplyOp>(
+                          fixedJV = builder.create<affine::AffineApplyOp>(
                               loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
                         }
                         bs.push_back(builder.create<LoadOp>(
                             loc, vTy, B,
-                            ValueRange{loopVarBatchIdx, ivK, fixedIV}));
+                            ValueRange{loopVarBatchIdx, ivK, fixedJV}));
                       }
 
                       for (int i = 0; i < kernelM; ++i) {
                         Value fixedIV = ivI;
                         if (i != 0) {
-                          fixedIV = builder.create<affine::AffineMinOp>(
+                          fixedIV = builder.create<affine::AffineApplyOp>(
                               loc,
-                              AffineMap::get(1, 1, {d0 + i, s0 - 1},
+                              AffineMap::get(1, 0, {d0 + i},
                                              builder.getContext()),
-                              SmallVector<Value>{ivI, M});
+                              SmallVector<Value>{ivI});
                         }
-                        Value ksubAElement = builder.create<memref::LoadOp>(
-                            loc, A, ValueRange{loopVarBatchIdx, fixedIV, ivK});
-                        Value vecA =
-                            builder.create<SplatOp>(loc, vTy, ksubAElement);
+                        affine::AffineIfOp mBranchingOp =
+                            builder.create<affine::AffineIfOp>(
+                                loc,
+                                IntegerSet::get(1, 1, {-d0 + s0 - 1}, {false}),
+                                ValueRange{fixedIV, M}, false);
+                        OpBuilder mTrueBranchBuilder =
+                            mBranchingOp.getThenBodyBuilder();
+                        Value ksubAElement =
+                            mTrueBranchBuilder.create<memref::LoadOp>(
+                                loc, A,
+                                ValueRange{loopVarBatchIdx, fixedIV, ivK});
+                        Value vecA = mTrueBranchBuilder.create<SplatOp>(
+                            loc, vTy, ksubAElement);
 
                         for (int j = 0; j < kernelN; j++) {
-                          Value fixedIV = builder.create<affine::AffineApplyOp>(
-                              loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
-                          Value vecC = builder.create<LoadOp>(
-                              loc, vTy, cptrs[i], ValueRange{c0, c0, fixedIV});
-                          vecC = builder.create<vector::FMAOp>(loc, vTy, vecA,
-                                                               bs[j], vecC);
+                          Value fixedJV = ivJ;
+                          if (j != 0) {
+                            fixedJV =
+                                mTrueBranchBuilder
+                                    .create<affine::AffineApplyOp>(
+                                        loc,
+                                        AffineMap::get(1, 0, d0 + j * vecSize),
+                                        ivJ);
+                          }
+                          Value vecC = mTrueBranchBuilder.create<LoadOp>(
+                              loc, vTy, cptrs[i], ValueRange{c0, c0, fixedJV});
+                          vecC = mTrueBranchBuilder.create<vector::FMAOp>(
+                              loc, vTy, vecA, bs[j], vecC);
                           // store vecC
-                          Value fixedJV = builder.create<affine::AffineApplyOp>(
-                              loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
                           Value tailLength =
-                              builder.create<affine::AffineApplyOp>(
+                              mTrueBranchBuilder.create<affine::AffineApplyOp>(
                                   loc, AffineMap::get(2, 0, -d0 + d1),
                                   ValueRange{fixedJV, N});
                           affine::AffineIfOp nBranchingOp =
-                              builder.create<affine::AffineIfOp>(
+                              mTrueBranchBuilder.create<affine::AffineIfOp>(
                                   loc,
                                   IntegerSet::get(1, 0, {-vecSize + d0},
                                                   {false}),
