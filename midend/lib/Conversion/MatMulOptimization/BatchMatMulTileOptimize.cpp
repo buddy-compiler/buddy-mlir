@@ -161,30 +161,11 @@ public:
               builder, loc, {c0}, {M}, kernelM,
               [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
                 Value ivI = ivRange.front();
-                SmallVector<memref::SubViewOp> aptrs;
                 SmallVector<memref::SubViewOp> cptrs;
 
                 const VectorType vTy =
                     VectorType::get(vecSize, ATy.getElementType());
-                for (int i = 0; i < kernelM; i++) {
-                  Value fixedIV = ivI;
-                  if (i != 0) {
-                    fixedIV = builder.create<affine::AffineMinOp>(
-                        loc,
-                        AffineMap::get(1, 1, {d0 + i, s0 - 1},
-                                       builder.getContext()),
-                        SmallVector<Value>{ivI, M});
-                  }
-                  MemRefType resTy = MemRefType::get(
-                      ATy.getShape(), ATy.getElementType(),
-                      AffineMap::get(3, 3, d1 * s2 + d0 * s1 + s0 + d2));
-                  auto aptr = builder.create<memref::SubViewOp>(
-                      loc, resTy, A,
-                      SmallVector<OpFoldResult>{loopVarBatchIdx, fixedIV, c0},
-                      SmallVector<OpFoldResult>{c1, c1, K},
-                      SmallVector<OpFoldResult>{c1, c1, c1});
-                  aptrs.push_back(aptr);
-                }
+
                 for (int i = 0; i < kernelM; i++) {
                   Value fixedIV = builder.create<affine::AffineMinOp>(
                       loc,
@@ -209,8 +190,16 @@ public:
                       SmallVector<Value> bs;
                       SmallVector<Value> ds;
                       for (int i = 0; i < kernelM; ++i) {
+                        Value fixedIV = ivI;
+                        if (i != 0) {
+                          fixedIV = builder.create<affine::AffineMinOp>(
+                              loc,
+                              AffineMap::get(1, 1, {d0 + i, s0 - 1},
+                                             builder.getContext()),
+                              SmallVector<Value>{ivI, M});
+                        }
                         Value ksubAElement = builder.create<memref::LoadOp>(
-                            loc, aptrs[i], ValueRange{c0, c0, ivK});
+                            loc, A, ValueRange{loopVarBatchIdx, fixedIV, ivK});
                         as.push_back(
                             builder.create<SplatOp>(loc, vTy, ksubAElement));
                       }
