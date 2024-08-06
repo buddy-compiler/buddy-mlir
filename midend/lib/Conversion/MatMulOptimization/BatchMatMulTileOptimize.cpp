@@ -103,24 +103,12 @@ public:
     Value K = rewriter.create<memref::DimOp>(loc, B, 1); // bRow
     Value N = rewriter.create<memref::DimOp>(loc, B, 2); // bCol
 
-    // Calculate the length of the tail, which might not fit in a vector.
-    Value tailLength = rewriter.create<affine::AffineApplyOp>(
-        loc, AffineMap::get(1, 0, d0 % vecSize), ValueRange{N});
-
-    // Generate a mask vector based on the tail length.
-    Value maskVector = rewriter.create<vector::CreateMaskOp>(
-        loc, VectorType::get({vecSize}, rewriter.getI1Type()),
-        ValueRange{tailLength});
-
     SmallVector<Value, 4U> reducedValues = llvm::to_vector<4>(
         llvm::map_range(ArrayRef<LoopReduction>{},
                         [](const LoopReduction &red) { return red.value; }));
 
     // Configs
     int64_t kNLen = vecSize * kernelN;
-    // TODO:Apply the column of matrix B.
-    Value appliedN = rewriter.create<affine::AffineApplyOp>(
-        loc, AffineMap::get(1, 0, d0.ceilDiv(kNLen)), ValueRange{N});
 
     // Create the primary parallel batch level loop.
     AffineParallelOp parallelBatchLoop =
@@ -232,11 +220,37 @@ public:
 
                       for (int i = 0; i < kernelM; ++i) {
                         for (int j = 0; j < kernelN; ++j) {
-                          Value fixedIV = builder.create<affine::AffineApplyOp>(
+                          Value fixedJV = builder.create<affine::AffineApplyOp>(
                               loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
-                          builder.create<TransferWriteOp>(
+                          Value tailLength =
+                              builder.create<affine::AffineApplyOp>(
+                                  loc, AffineMap::get(2, 0, -d0 + d1),
+                                  ValueRange{fixedJV, N});
+                          affine::AffineIfOp nBranchingOp =
+                              builder.create<affine::AffineIfOp>(
+                                  loc,
+                                  IntegerSet::get(1, 0, {-vecSize + d0},
+                                                  {false}),
+                                  ValueRange{tailLength}, true);
+                          // Calculate the length of the tail, which might not
+                          // fit in a vector.
+                          OpBuilder nTrueBranchBuilder =
+                              nBranchingOp.getThenBodyBuilder();
+                          nTrueBranchBuilder.create<StoreOp>(
                               loc, ds[i * kernelN + j], cptrs[i],
-                              ValueRange{c0, c0, fixedIV});
+                              ValueRange{c0, c0, fixedJV});
+                          OpBuilder nFalseBranchBuilder =
+                              nBranchingOp.getElseBodyBuilder();
+                          // Generate a mask vector based on the tail length.
+                          Value maskVector =
+                              nFalseBranchBuilder.create<vector::CreateMaskOp>(
+                                  loc,
+                                  VectorType::get({vecSize},
+                                                  rewriter.getI1Type()),
+                                  ValueRange{tailLength});
+                          nFalseBranchBuilder.create<MaskedStoreOp>(
+                              loc, cptrs[i], ValueRange{c0, c0, fixedJV},
+                              maskVector, ds[i * kernelN + j]);
                         }
                       }
                     });
