@@ -174,9 +174,19 @@ public:
                     builder, loc, {c0}, {K}, 1,
                     [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
                       Value ivK = ivRange.front();
-                      SmallVector<Value> as;
                       SmallVector<Value> bs;
-                      SmallVector<Value> ds;
+
+                      for (int j = 0; j < kernelN; j++) {
+                        Value fixedIV = ivJ;
+                        if (j != 0) {
+                          fixedIV = builder.create<affine::AffineApplyOp>(
+                              loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
+                        }
+                        bs.push_back(builder.create<LoadOp>(
+                            loc, vTy, B,
+                            ValueRange{loopVarBatchIdx, ivK, fixedIV}));
+                      }
+
                       for (int i = 0; i < kernelM; ++i) {
                         Value fixedIV = ivI;
                         if (i != 0) {
@@ -188,38 +198,17 @@ public:
                         }
                         Value ksubAElement = builder.create<memref::LoadOp>(
                             loc, A, ValueRange{loopVarBatchIdx, fixedIV, ivK});
-                        as.push_back(
-                            builder.create<SplatOp>(loc, vTy, ksubAElement));
-                      }
-                      for (int i = 0; i < kernelM; ++i) {
+                        Value vecA =
+                            builder.create<SplatOp>(loc, vTy, ksubAElement);
+
                         for (int j = 0; j < kernelN; j++) {
                           Value fixedIV = builder.create<affine::AffineApplyOp>(
                               loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
-                          ds.push_back(builder.create<LoadOp>(
-                              loc, vTy, cptrs[i], ValueRange{c0, c0, fixedIV}));
-                        }
-                      }
-
-                      for (int i = 0; i < kernelN; i++) {
-                        Value fixedIV = ivJ;
-                        if (i != 0) {
-                          fixedIV = builder.create<affine::AffineApplyOp>(
-                              loc, AffineMap::get(1, 0, d0 + i * vecSize), ivJ);
-                        }
-                        bs.push_back(builder.create<LoadOp>(
-                            loc, vTy, B,
-                            ValueRange{loopVarBatchIdx, ivK, fixedIV}));
-                      }
-
-                      for (int i = 0; i < kernelM; i++) {
-                        for (int j = 0; j < kernelN; j++) {
-                          ds[i * kernelN + j] = builder.create<vector::FMAOp>(
-                              loc, vTy, as[i], bs[j], ds[i * kernelN + j]);
-                        }
-                      }
-
-                      for (int i = 0; i < kernelM; ++i) {
-                        for (int j = 0; j < kernelN; ++j) {
+                          Value vecC = builder.create<LoadOp>(
+                              loc, vTy, cptrs[i], ValueRange{c0, c0, fixedIV});
+                          vecC = builder.create<vector::FMAOp>(loc, vTy, vecA,
+                                                               bs[j], vecC);
+                          // store vecC
                           Value fixedJV = builder.create<affine::AffineApplyOp>(
                               loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
                           Value tailLength =
@@ -237,8 +226,7 @@ public:
                           OpBuilder nTrueBranchBuilder =
                               nBranchingOp.getThenBodyBuilder();
                           nTrueBranchBuilder.create<StoreOp>(
-                              loc, ds[i * kernelN + j], cptrs[i],
-                              ValueRange{c0, c0, fixedJV});
+                              loc, vecC, cptrs[i], ValueRange{c0, c0, fixedJV});
                           OpBuilder nFalseBranchBuilder =
                               nBranchingOp.getElseBodyBuilder();
                           // Generate a mask vector based on the tail length.
@@ -250,7 +238,7 @@ public:
                                   ValueRange{tailLength});
                           nFalseBranchBuilder.create<MaskedStoreOp>(
                               loc, cptrs[i], ValueRange{c0, c0, fixedJV},
-                              maskVector, ds[i * kernelN + j]);
+                              maskVector, vecC);
                         }
                       }
                     });
