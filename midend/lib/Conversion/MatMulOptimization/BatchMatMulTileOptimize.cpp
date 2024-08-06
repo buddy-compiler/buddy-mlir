@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the batchmatmul optimization.
+// This file implements the batchmatmul tile optimization.
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -48,15 +48,15 @@ using namespace affine;
 
 namespace {
 
-class BatchMatMulOptimizePattern : public ConversionPattern {
+class BatchMatMulTileOptimizePattern : public ConversionPattern {
 private:
   int64_t vecSize, kernelM, kernelN;
 
 public:
-  explicit BatchMatMulOptimizePattern(MLIRContext *context,
-                                      int64_t vecSizeParam,
-                                      int64_t kernelMParam,
-                                      int64_t kernelNParam)
+  explicit BatchMatMulTileOptimizePattern(MLIRContext *context,
+                                          int64_t vecSizeParam,
+                                          int64_t kernelMParam,
+                                          int64_t kernelNParam)
       : ConversionPattern(linalg::BatchMatmulOp::getOperationName(), 1,
                           context) {
     vecSize = vecSizeParam;
@@ -270,22 +270,25 @@ public:
 } // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
-// BatchMatMulOptimizePass
+// BatchMatMulTileOptimizePass
 //===----------------------------------------------------------------------===//
 
 /// This is a partial lowering linalg pooling operations to mixture of
 /// Affine + Vector operations.
 namespace {
-class BatchMatMulOptimizePass
-    : public PassWrapper<BatchMatMulOptimizePass, OperationPass<ModuleOp>> {
+class BatchMatMulTileOptimizePass
+    : public PassWrapper<BatchMatMulTileOptimizePass, OperationPass<ModuleOp>> {
 public:
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(BatchMatMulOptimizePass)
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(BatchMatMulTileOptimizePass)
   StringRef getArgument() const final { return "batchmatmul-tile-optimize"; }
-  StringRef getDescription() const final { return "BatchMatMul Optimization."; }
-  BatchMatMulOptimizePass() = default;
-  BatchMatMulOptimizePass(const BatchMatMulOptimizePass &) {}
-  explicit BatchMatMulOptimizePass(int64_t vecSizeParam, int64_t kernelMParam,
-                                   int64_t kernelNParam) {
+  StringRef getDescription() const final {
+    return "BatchMatMul Tile Optimization.";
+  }
+  BatchMatMulTileOptimizePass() = default;
+  BatchMatMulTileOptimizePass(const BatchMatMulTileOptimizePass &) {}
+  explicit BatchMatMulTileOptimizePass(int64_t vecSizeParam,
+                                       int64_t kernelMParam,
+                                       int64_t kernelNParam) {
     vecSize = vecSizeParam;
     kernelM = kernelMParam;
     kernelN = kernelNParam;
@@ -312,7 +315,7 @@ public:
 };
 } // end anonymous namespace.
 
-void BatchMatMulOptimizePass::runOnOperation() {
+void BatchMatMulTileOptimizePass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
 
@@ -324,7 +327,8 @@ void BatchMatMulOptimizePass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<BatchMatMulOptimizePattern>(context, vecSize, kernelM, kernelN);
+  patterns.add<BatchMatMulTileOptimizePattern>(context, vecSize, kernelM,
+                                               kernelN);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
@@ -332,8 +336,8 @@ void BatchMatMulOptimizePass::runOnOperation() {
 // add to buddy-opt.cpp
 namespace mlir {
 namespace buddy {
-void registerBatchMatMulOptimizePass() {
-  PassRegistration<BatchMatMulOptimizePass>();
+void registerBatchMatMulTileOptimizePass() {
+  PassRegistration<BatchMatMulTileOptimizePass>();
 }
 } // namespace buddy
 } // namespace mlir
