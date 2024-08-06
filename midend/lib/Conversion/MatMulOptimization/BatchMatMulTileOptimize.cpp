@@ -96,7 +96,6 @@ public:
     const AffineExpr zeroAffine = rewriter.getAffineConstantExpr(0);
     const Value zeroElementType = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getZeroAttr(elementType));
-    const VectorType vTy = VectorType::get(vecSize, ATy.getElementType());
 
     // Get dimensions of input tensors.
     Value batch = rewriter.create<memref::DimOp>(loc, A, 0);
@@ -162,66 +161,31 @@ public:
               builder, loc, {c0}, {M}, kernelM,
               [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
                 Value ivI = ivRange.front();
+                SmallVector<memref::SubViewOp> aptrs;
+                SmallVector<memref::SubViewOp> cptrs;
 
-                SmallVector<Value> ds;
-                for (int i = 0; i < kernelM; ++i) {
-                  for (int j = 0; j < kernelN; j++) {
-                    Value fixedI = builder.create<affine::AffineApplyOp>(
-                        loc, AffineMap::get(1, 0, d0 + i, builder.getContext()),
-                        ivI);
-                    Value fixedJ = builder.create<affine::AffineApplyOp>(
+                const VectorType vTy =
+                    VectorType::get(vecSize, ATy.getElementType());
+                for (int i = 0; i < kernelM; i++) {
+                  Value fixedIV = ivI;
+                  if (i != 0) {
+                    fixedIV = builder.create<affine::AffineMinOp>(
                         loc,
-                        AffineMap::get(1, 0, d0 + j * vecSize,
+                        AffineMap::get(1, 1, {d0 + i, s0 - 1},
                                        builder.getContext()),
-                        ivJ);
-                    ds.push_back(builder.create<LoadOp>(
-                        loc, vTy, C,
-                        ValueRange{loopVarBatchIdx, fixedI, fixedJ}));
+                        SmallVector<Value>{ivI, M});
                   }
+                  MemRefType resTy = MemRefType::get(
+                      ATy.getShape(), ATy.getElementType(),
+                      AffineMap::get(3, 3, d1 * s2 + d0 * s1 + s0 + d2));
+                  auto aptr = builder.create<memref::SubViewOp>(
+                      loc, resTy, A,
+                      SmallVector<OpFoldResult>{loopVarBatchIdx, fixedIV, c0},
+                      SmallVector<OpFoldResult>{c1, c1, K},
+                      SmallVector<OpFoldResult>{c1, c1, c1});
+                  aptrs.push_back(aptr);
                 }
-                affine::buildAffineLoopNest(
-                    builder, loc, {c0}, {K}, 1,
-                    [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
-                      Value ivK = ivRange.front();
-                      SmallVector<Value> as;
-                      SmallVector<Value> bs;
-                      for (int i = 0; i < kernelM; ++i) {
-                        Value fixedI = ivI;
-                        if (i != 0) {
-                          fixedI = builder.create<affine::AffineApplyOp>(
-                              loc,
-                              AffineMap::get(1, 0, d0 + i,
-                                             builder.getContext()),
-                              ivI);
-                        }
-                        Value ksubAElement = builder.create<memref::LoadOp>(
-                            loc, A, ValueRange{loopVarBatchIdx, fixedI, ivK});
-                        as.push_back(
-                            builder.create<SplatOp>(loc, vTy, ksubAElement));
-                      }
-
-                      for (int i = 0; i < kernelN; i++) {
-                        Value fixedIV = ivJ;
-                        if (i != 0) {
-                          fixedIV = builder.create<affine::AffineApplyOp>(
-                              loc,
-                              AffineMap::get(1, 0, d0 + i * vecSize,
-                                             builder.getContext()),
-                              ivJ);
-                        }
-                        bs.push_back(builder.create<LoadOp>(
-                            loc, vTy, B,
-                            ValueRange{loopVarBatchIdx, ivK, fixedIV}));
-                      }
-
-                      for (int i = 0; i < kernelM; i++) {
-                        for (int j = 0; j < kernelN; j++) {
-                          ds[i * kernelN + j] = builder.create<vector::FMAOp>(
-                              loc, vTy, as[i], bs[j], ds[i * kernelN + j]);
-                        }
-                      }
-                    });
-                for (int i = 0; i < kernelM; ++i) {
+                for (int i = 0; i < kernelM; i++) {
                   Value fixedIV = builder.create<affine::AffineMinOp>(
                       loc,
                       AffineMap::get(1, 1, {d0 + i, s0 - 1},
@@ -235,16 +199,58 @@ public:
                       SmallVector<OpFoldResult>{loopVarBatchIdx, fixedIV, c0},
                       SmallVector<OpFoldResult>{c1, c1, N},
                       SmallVector<OpFoldResult>{c1, c1, c1});
-                  for (int j = 0; j < kernelN; ++j) {
-                    Value fixedJV = builder.create<affine::AffineApplyOp>(
-                        loc,
-                        AffineMap::get(1, 0, d0 + j * vecSize,
-                                       builder.getContext()),
-                        ivJ);
-                    builder.create<StoreOp>(loc, ds[i * kernelN + j], cptr,
-                                            ValueRange{c0, c0, fixedJV});
-                  }
+                  cptrs.push_back(cptr);
                 }
+                affine::buildAffineLoopNest(
+                    builder, loc, {c0}, {K}, 1,
+                    [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
+                      Value ivK = ivRange.front();
+                      SmallVector<Value> as;
+                      SmallVector<Value> bs;
+                      SmallVector<Value> ds;
+                      for (int i = 0; i < kernelM; ++i) {
+                        Value ksubAElement = builder.create<memref::LoadOp>(
+                            loc, aptrs[i], ValueRange{c0, c0, ivK});
+                        as.push_back(
+                            builder.create<SplatOp>(loc, vTy, ksubAElement));
+                      }
+                      for (int i = 0; i < kernelM; ++i) {
+                        for (int j = 0; j < kernelN; j++) {
+                          Value fixedIV = builder.create<affine::AffineApplyOp>(
+                              loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
+                          ds.push_back(builder.create<LoadOp>(
+                              loc, vTy, cptrs[i], ValueRange{c0, c0, fixedIV}));
+                        }
+                      }
+
+                      for (int i = 0; i < kernelN; i++) {
+                        Value fixedIV = ivJ;
+                        if (i != 0) {
+                          fixedIV = builder.create<affine::AffineApplyOp>(
+                              loc, AffineMap::get(1, 0, d0 + i * vecSize), ivJ);
+                        }
+                        bs.push_back(builder.create<LoadOp>(
+                            loc, vTy, B,
+                            ValueRange{loopVarBatchIdx, ivK, fixedIV}));
+                      }
+
+                      for (int i = 0; i < kernelM; i++) {
+                        for (int j = 0; j < kernelN; j++) {
+                          ds[i * kernelN + j] = builder.create<vector::FMAOp>(
+                              loc, vTy, as[i], bs[j], ds[i * kernelN + j]);
+                        }
+                      }
+
+                      for (int i = 0; i < kernelM; ++i) {
+                        for (int j = 0; j < kernelN; ++j) {
+                          Value fixedIV = builder.create<affine::AffineApplyOp>(
+                              loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
+                          builder.create<TransferWriteOp>(
+                              loc, ds[i * kernelN + j], cptrs[i],
+                              ValueRange{c0, c0, fixedIV});
+                        }
+                      }
+                    });
               });
         });
 
