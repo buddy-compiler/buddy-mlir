@@ -145,7 +145,7 @@ This repository have nix flake support. You can follow the [nix installation ins
 nix develop .
 ```
 
-This will setup a bash shell with `clang`, `clangd`, `cmake`, `ninja`, and other necessary dependencies to build buddy-mlir from source.
+This will setup a bash shell with `clang`, `ccls`, `cmake`, `ninja`, and other necessary dependencies to build buddy-mlir from source.
 
 - If you want to use the buddy-mlir bintools
 
