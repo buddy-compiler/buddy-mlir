@@ -145,7 +145,7 @@ int main() {
   //  - Find and append the generated token.
   //  - Continue iterating until the terminal condition is met.
 
-  for (int i = 0; i < MaxTokenLength - 1; i++) {
+  for (size_t i = 0; i < MaxTokenLength - 1; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
     // Execute the forward pass of the model.
     _mlir_ciface_forward(resultContainer, &paramsContainer, &audioInput,
