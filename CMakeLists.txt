@@ -215,6 +215,8 @@ if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
   # Create empty __init__.py files to make these directories Python packages
   file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/__init__.py "")
   file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/__init__.py "")
+
+  install(DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy DESTINATION python_packages)
 endif()
 
 #-------------------------------------------------------------------------------
