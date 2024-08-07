@@ -1,4 +1,4 @@
-set(LLVM_SelectionDAG_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/CodeGen/SelectionDAG)
+set(LLVM_SelectionDAG_DIR ${LLVM_MAIN_SRC_DIR}/lib/CodeGen/SelectionDAG)
 
 add_llvm_component_library(LLVMBuddySelectionDAG
   ${LLVM_SelectionDAG_DIR}/DAGCombiner.cpp

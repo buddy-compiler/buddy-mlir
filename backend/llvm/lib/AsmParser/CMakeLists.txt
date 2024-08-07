@@ -1,6 +1,6 @@
 # AsmParser
 
-set(LLVM_AsmParser_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/AsmParser)
+set(LLVM_AsmParser_DIR ${LLVM_MAIN_SRC_DIR}/lib/AsmParser)
 
 add_llvm_component_library(LLVMBuddyAsmParser
   ${LLVM_AsmParser_DIR}/LLLexer.cpp
