@@ -60,6 +60,8 @@ from ..graph import (
     MeanOp,
     ClampMinOp,
     ClampMaxOp,
+    GeScalarOp,
+    GreaterOp,
 )
 from .utils import *
 
@@ -117,7 +119,7 @@ def _scalar_to_tensor(
     doesn't support operation between scalers and tensors."""
     element = (
         ir.FloatAttr.get(element_type, float(scalar))
-        if str(element_type) == "f32"
+        if str(element_type) in ("f32", "bf16", "f16")
         else ir.IntegerAttr.get(element_type, int(scalar))
     )
     attr = ir.DenseElementsAttr.get_splat(
@@ -262,7 +264,6 @@ def mul_op(node: MulOp, symbol_table):
     Import tensor division operation.
     From buddy graph ir's `DivOp` operator to MLIR TOSA `div` operation.
     """
-
     def _inner_op(result_type, input1, input2):
         return tosa.MulOp(
             result_type,
@@ -273,7 +274,6 @@ def mul_op(node: MulOp, symbol_table):
 
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
-
     return _gen_arith_binary_op(input1, input2, _inner_op)
 
 
@@ -511,6 +511,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
     """
     # maintain a mapping of buddy dtype to mlir types
     types_mapping = {
+        TensorDType.BFloat16: ir.BF16Type.get(),
         TensorDType.Float64: ir.F64Type.get(),
         TensorDType.Float32: ir.F32Type.get(),
         TensorDType.Float16: ir.F16Type.get(),
@@ -797,16 +798,24 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
           the result.
     """
     to_expand_tensor = symbol_table.get((str(node.args[0]), 0))
-    new_size = node.args[1]
+    size = node.args[1]
     result_element_type = ir.RankedTensorType(
         to_expand_tensor.type
     ).element_type
+    new_size = []
+    for i in range(len(size)):
+        if size[i] == -1:
+            new_size.append(to_expand_tensor.type.shape[i])
+        else:
+            new_size.append(size[i])
+
     if result_element_type == ir.IntegerType.get_signless(1):
         element = ir.IntegerAttr.get(result_element_type, 0)
-    elif result_element_type == ir.F32Type.get():
+    elif result_element_type in (ir.F32Type.get(), ir.BF16Type.get(), ir.F16Type.get()):
         element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")
+
     new_size_tensor_type = ir.RankedTensorType.get(
         new_size, result_element_type
     )
@@ -1426,6 +1435,32 @@ def clamp_max_op(node: ClampMaxOp, symbol_table):
     op = tosa.ClampOp(tensor_type, input1, min_int, max_int, min_fp, max_fp)
     return op
 
+def gescalar_op(node: GeScalarOp, symbol_table):
+    """
+    Import the buddy GeScalarOp.
+    From Buddy GeScalarOp to MLIR TOSA 'GreaterEqualOp' operation.
+    args[0]:Tensor input
+    args[1]:Scalar value
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    value = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    tensor_type = ir.RankedTensorType.get(input1.type.shape, ir.IntegerType.get_signless(1))
+    input2 = _scalar_to_tensor(value, input1.type.element_type, input1.type.shape)
+    op = tosa.GreaterEqualOp(tensor_type, input1, input2)
+    return op
+
+def greater_op(node: GreaterOp, symbol_table):
+    """
+    Import the buddy GreaterOp.
+    From Buddy GreaterOp to MLIR TOSA 'GreaterOp' operation.
+    args[0]:Tensor input
+    args[1]:Tensor value
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    value = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    tensor_type = ir.RankedTensorType.get(input1.type.shape, ir.IntegerType.get_signless(1))
+    op = tosa.GreaterOp(tensor_type, input1, value)
+    return op
 
 ops_registry = {
     "AddOp": add_op,
@@ -1461,4 +1496,6 @@ ops_registry = {
     "MeanOp": mean_op,
     "ClampMinOp": clamp_min_op,
     "ClampMaxOp": clamp_max_op,
+    "GeScalarOp": gescalar_op,
+    "GreaterOp": greater_op,
 }
