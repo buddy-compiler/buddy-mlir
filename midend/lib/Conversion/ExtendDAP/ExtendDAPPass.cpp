@@ -892,143 +892,558 @@ inline Value IANG(OpBuilder &builder, Location loc, Value iang, Value l, Value i
 
 }
 
-// void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa, Value csarr, Value ido, Value ip, Value l1) {
+void radfgExtend(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa, Value csarr, Value ido, Value ip, Value l1) {
 
-//     Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
-//     Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
-//     Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-//     Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
-//     Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+    Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+    Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+    Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+    Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+    Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
 
-//     Value ipm1 = opBuilder.create<arith::SubIOp>(loc, ip, c1);
-//     Value ipm2 = opBuilder.create<arith::SubIOp>(loc, ip, c2);
+    Value cdim = opBuilder.create<arith::SubIOp>(loc, ip, c0);
+    Value tmp0 = opBuilder.create<arith::AddIOp>(loc, ip, c1);
+    Value ipph = opBuilder.create<arith::DivSIOp>(loc, tmp0, c2);
+    Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
+    Value idom2 = opBuilder.create<arith::SubIOp>(loc, ido, c2);
+    Value idl1 = opBuilder.create<arith::MulIOp>(loc, ido, l1);
 
-//     Value cdim = opBuilder.create<arith::SubIOp>(loc, ip, c0);
-//     Value tmp = opBuilder.create<arith::AddIOp>(loc, ip, c1);
-//     Value ipph = opBuilder.create<arith::DivSIOp>(loc, tmp, c2);
+    opBuilder.create<scf::ForOp>(
+        loc, c0, idl1, c1, std::nullopt,
+        [&](OpBuilder &builder, Location loc, Value ik, ValueRange ik_args){
+            Value c2ik0 = C2(builder, loc, cc, ik, c0, idl1);
+            CH2w(builder, loc, ch, ik, c0, idl1, c2ik0);
+        }
+    );
 
-//     Value idl1 = opBuilder.create<arith::MulIOp>(loc, ido, l1);
-//     Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
-//     Value idom2 = opBuilder.create<arith::SubIOp>(loc, ido, c2);
-
-//     Value condition = opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, ido, l1);
-
-//     opBuilder.create<scf::IfOp>(
-//         loc, condition, [&](OpBuilder &builder, Location loc) {
-
-//             Value jc_start = builder.create<arith::SubIOp>(loc, ip, c1);
+    opBuilder.create<scf::ForOp>(
+        loc, c1, ipph, c1, std::nullopt,
+        [&](OpBuilder &builder, Location loc, Value j, ValueRange j_args){
             
-//             builder.create<scf::ForOp>(
-//                 loc, c1, ipph, c1, ValueRange{jc_start},
-//                 [&](OpBuilder &b, Location loc, Value j, ValueRange j_args){
-//                     Value jc = j_args[0];
+            builder.create<scf::ForOp>(
+                loc, c0, idl1, c1, std::nullopt,
+                [&](OpBuilder &b, Location loc, Value ik, ValueRange ik_args){
+                    
+                    Value c2ikj = C2(b, loc, cc, ik, j, idl1);
+                    Value ch2ik0 = CH2(b, loc, ch, ik, c0, idl1);
+                    Value ch2ik0_updated = b.create<arith::AddFOp>(loc, ch2ik0, c2ikj);
 
-//                     Value jm1 = b.create<arith::SubIOp>(loc, j, c1);
-//                     Value jcm1 = b.create<arith::SubIOp>(loc, jc, c1);
+                    CH2w(b, loc, ch, ik, c0, idl1, ch2ik0_updated);
 
-//                     Value is = b.create<arith::MulIOp>(loc, jm1, idom1);
-//                     Value is2 = b.create<arith::MulIOp>(loc, jcm1, idom1);
+                }
+            );
 
-//                     b.create<scf::ForOp>(
-//                         loc, c0, l1, c1, std::nullopt,
-//                         [&](OpBuilder &b2, Location loc, Value k, ValueRange k_args){
 
-//                             Value idij_start = b2.create<arith::SubIOp>(loc, is, c0);
-//                             Value idij2_start = b2.create<arith::SubIOp>(loc, is2, c0);
+        }
+    );
 
-//                             b2.create<scf::ForOp>(
-//                                 loc, c1, idom1, c2, ValueRange{idij_start, idij2_start},
-//                                 [&](OpBuilder &b3, Location loc, Value i, ValueRange i_args){
-//                                     Value idij = i_args[0];
-//                                     Value idij2 = i_args[1];
+    opBuilder.create<scf::ForOp>(
+        loc, c0, l1, c1, std::nullopt,
+        [&](OpBuilder &builder, Location loc, Value k, ValueRange k_args){
+            
+            builder.create<scf::ForOp>(
+                loc, c0, ido, c1, std::nullopt,
+                [&](OpBuilder &b, Location loc, Value i, ValueRange i_args){
+                    
+                    Value chik0 = CH_radfg(b, loc, ch, i, k, c0, ido, l1);
 
-//                                     Value ip1 = b3.create<arith::AddIOp>(loc, i, c1);
-//                                     Value idijp1 = b3.create<arith::AddIOp>(loc, idij, c1);
-//                                     Value idij2p1 = b3.create<arith::AddIOp>(loc, idij2, c1);
+                    CCw(b, loc, cc, i, c0, k, ido, cdim, chik0);
 
-//                                     Value t1 = C1(b3, loc, cc, i, k, j, ido, l1);
-//                                     Value t2 = C1(b3, loc, cc, ip1, k, j, ido, l1);
-//                                     Value t3 = C1(b3, loc, cc, i, k, jc, ido, l1);
-//                                     Value t4 = C1(b3, loc, cc, ip1, k, jc, ido, l1);
+                }
+            );
 
-//                                     Value waidij = b3.create<memref::LoadOp>(loc, wa, idij);
-//                                     Value waidijp1 = b3.create<memref::LoadOp>(loc, wa, idijp1);
-//                                     Value waidij2 = b3.create<memref::LoadOp>(loc, wa, idij2);
-//                                     Value waidij2p1 = b3.create<memref::LoadOp>(loc, wa, idij2p1);
 
-//                                     Value tmp1_x1 = b3.create<arith::MulFOp>(loc, waidij, t1);
-//                                     Value tmp2_x1 = b3.create<arith::MulFOp>(loc, waidijp1, t2);
-//                                     Value x1 = b3.create<arith::AddFOp>(loc, tmp1_x1, tmp2_x1);
+        }
+    );
 
-//                                     Value tmp1_x2 = b3.create<arith::MulFOp>(loc, waidij, t2);
-//                                     Value tmp2_x2 = b3.create<arith::MulFOp>(loc, waidijp1, t1);
-//                                     Value x2 = b3.create<arith::SubFOp>(loc, tmp1_x2, tmp2_x2);
+    Value j_start_0 = opBuilder.create<ConstantIndexOp>(loc, 1);
+    Value jc_start_0 = opBuilder.create<arith::SubIOp>(loc, ip, c1);
 
-//                                     Value tmp1_x3 = b3.create<arith::MulFOp>(loc, waidij2, t3);
-//                                     Value tmp2_x3 = b3.create<arith::MulFOp>(loc, waidij2p1, t4);
-//                                     Value x3 = b3.create<arith::AddFOp>(loc, tmp1_x3, tmp2_x3);
 
-//                                     Value tmp1_x4 = b3.create<arith::MulFOp>(loc, waidij2, t4);
-//                                     Value tmp2_x4 = b3.create<arith::MulFOp>(loc, waidij2p1, t3);
-//                                     Value x4 = b3.create<arith::SubFOp>(loc, tmp1_x4, tmp2_x4);
+    opBuilder.create<scf::ForOp>(
+        loc, c1, ipph, c1, ValueRange{j_start_0, jc_start_0},
+        [&](OpBuilder &builder, Location loc, Value j_loop, ValueRange j_loop_args){
+            Value j = j_loop_args[0];
+            Value jc = j_loop_args[1];
 
-//                                     Value tmp3 = b3.create<arith::AddFOp>(loc, x1, x3);
-//                                     Value tmp4 = b3.create<arith::SubFOp>(loc, x2, x4);
-//                                     Value tmp5 = b3.create<arith::AddFOp>(loc, x2, x4);
-//                                     Value tmp6 = b3.create<arith::SubFOp>(loc, x3, x1);
+            Value tmp = builder.create<arith::MulIOp>(loc, j, c2);
+            Value j2 = builder.create<arith::SubIOp>(loc, tmp, c1);
+            Value j2p1 = builder.create<arith::AddIOp>(loc, j2, c1);
 
-//                                     C1w(b3, loc, cc, i, k, j, ido, l1, tmp3);
-//                                     C1w(b3, loc, cc, i, k, jc, ido, l1, tmp4);
-//                                     C1w(b3, loc, cc, ip1, k, j, ido, l1, tmp5);
-//                                     C1w(b3, loc, cc, ip1, k, jc, ido, l1, tmp6);
+            builder.create<scf::ForOp>(
+                loc, c0, l1, c1, std::nullopt,
+                [&](OpBuilder &b, Location loc, Value k, ValueRange k_args){
 
-//                                     Value idij_next = b3.create<arith::AddFOp>(loc, idij, c2);
-//                                     Value idij2_next = b3.create<arith::AddFOp>(loc, idij2, c2);
+                    Value ch0kj = CH_radfg(b, loc, ch, c0, k, j, ido, l1);
+                    CCw(b, loc, cc, idom1, j2, k, ido, cdim, ch0kj);
 
-//                                     b3.create<scf::YieldOp>(loc, std::vector<Value>{idij_next, idij2_next});
+                    Value ch0kjc = CH_radfg(b, loc, ch, c0, k, jc, ido, l1);
+                    CCw(b, loc, cc, c0, j2p1, k, ido, cdim, ch0kjc);
+                }
+            );
+
+
+            Value j_next = builder.create<arith::AddIOp>(loc, j, c1);
+            Value jc_next = builder.create<arith::SubIOp>(loc, jc, c1);
+            builder.create<scf::YieldOp>(loc, std::vector<Value>{j_next, jc_next});
+        }
+    );
+
+    
+    Value condition1 = opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, ido, l1);
+
+    opBuilder.create<scf::IfOp>(
+        loc, condition1, [&](OpBuilder &builder, Location loc) {
+
+            Value j_start_1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+            Value jc_start_1 = opBuilder.create<arith::SubIOp>(loc, ip, c1);
+
+            builder.create<scf::ForOp>(
+                loc, c1, ipph, c1, ValueRange{j_start_1, jc_start_1},
+                [&](OpBuilder &b, Location loc, Value j_loop, ValueRange j_loop_args){
+                    Value j = j_loop_args[0];
+                    Value jc = j_loop_args[1];
+
+                    Value tmp = b.create<arith::MulIOp>(loc, j, c2);
+                    Value j2 = b.create<arith::SubIOp>(loc, tmp, c1);
+                    Value j2p1 = b.create<arith::AddIOp>(loc, j2, c1);
+
+                    b.create<scf::ForOp>(
+                        loc, c0, l1, c1, std::nullopt,
+                        [&](OpBuilder &b2, Location loc, Value k, ValueRange k_args){
+
+                            Value i_start_0 = b2.create<ConstantIndexOp>(loc, 1);
+                            Value ic_start_0 = b2.create<arith::SubIOp>(loc, ido, c3);
+
+
+                            b2.create<scf::ForOp>(
+                                loc, c1, idom1, c2, ValueRange{i_start_0, ic_start_0},
+                                [&](OpBuilder &b3, Location loc, Value i_loop, ValueRange i_loop_args){
+
+                                    Value i = i_loop_args[0];
+                                    Value ic = i_loop_args[1];
+
+                                    Value ip1 = b3.create<arith::AddIOp>(loc, i, c1);
+                                    Value icp1 = b3.create<arith::AddIOp>(loc, ic, c1);
+
+                                    Value chikj = CH_radfg(b3, loc, ch, i, k, j, ido, l1);
+                                    Value chikjc = CH_radfg(b3, loc, ch, i, k, jc, ido, l1);
+                                    Value tmp2 = b3.create<arith::AddFOp>(loc, chikj, chikjc);
+                                    Value tmp3 = b3.create<arith::SubFOp>(loc, chikj, chikjc);
+                                    CCw(b3, loc, cc, i, j2p1, k, ido, cdim, tmp2);
+                                    CCw(b3, loc, cc, ic, j2, k, ido, cdim, tmp3);
+
+                                    Value chip1kj = CH_radfg(b3, loc, ch, ip1, k, j, ido, l1);
+                                    Value chip1kjc = CH_radfg(b3, loc, ch, ip1, k, jc, ido, l1);
+                                    Value tmp4 = b3.create<arith::AddFOp>(loc, chip1kj, chip1kjc);
+                                    Value tmp5 = b3.create<arith::SubFOp>(loc, chip1kjc, chip1kj);
+                                    CCw(b3, loc, cc, ip1, j2p1, k, ido, cdim, tmp4);
+                                    CCw(b3, loc, cc, icp1, j2, k, ido, cdim, tmp5);
+
+
+                                    Value i_next = b3.create<arith::AddIOp>(loc, i, c2);
+                                    Value ic_next = b3.create<arith::SubIOp>(loc, ic, c2);
+                                    b3.create<scf::YieldOp>(loc, std::vector<Value>{i_next, ic_next});
+                                }
+                            );
+                        }
+                    );
+
+
+                    Value j_next = b.create<arith::AddIOp>(loc, j, c1);
+                    Value jc_next = b.create<arith::SubIOp>(loc, jc, c1);
+                    b.create<scf::YieldOp>(loc, std::vector<Value>{j_next, jc_next});
+
+                }
+            );
+
+
+        }
+    );
+
+    return;
+}
+
+
+
+void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa, Value csarr, Value ido, Value ip, Value l1) {
+
+    Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+    Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+    Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+    Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+    Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+
+    Value ipm1 = opBuilder.create<arith::SubIOp>(loc, ip, c1);
+    Value ipm2 = opBuilder.create<arith::SubIOp>(loc, ip, c2);
+
+    Value cdim = opBuilder.create<arith::SubIOp>(loc, ip, c0);
+    Value tmp = opBuilder.create<arith::AddIOp>(loc, ip, c1);
+    Value ipph = opBuilder.create<arith::DivSIOp>(loc, tmp, c2);
+
+    Value idl1 = opBuilder.create<arith::MulIOp>(loc, ido, l1);
+    Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
+    Value idom2 = opBuilder.create<arith::SubIOp>(loc, ido, c2);
+
+    Value condition = opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, ido, l1);
+
+    opBuilder.create<scf::IfOp>(
+        loc, condition, [&](OpBuilder &builder, Location loc) {
+
+            Value jc_start = builder.create<arith::SubIOp>(loc, ip, c1);
+            
+            builder.create<scf::ForOp>(
+                loc, c1, ipph, c1, ValueRange{jc_start},
+                [&](OpBuilder &b, Location loc, Value j, ValueRange j_args){
+                    Value jc = j_args[0];
+
+                    Value jm1 = b.create<arith::SubIOp>(loc, j, c1);
+                    Value jcm1 = b.create<arith::SubIOp>(loc, jc, c1);
+
+                    Value is = b.create<arith::MulIOp>(loc, jm1, idom1);
+                    Value is2 = b.create<arith::MulIOp>(loc, jcm1, idom1);
+
+                    b.create<scf::ForOp>(
+                        loc, c0, l1, c1, std::nullopt,
+                        [&](OpBuilder &b2, Location loc, Value k, ValueRange k_args){
+
+                            Value idij_start = b2.create<arith::SubIOp>(loc, is, c0);
+                            Value idij2_start = b2.create<arith::SubIOp>(loc, is2, c0);
+
+                            b2.create<scf::ForOp>(
+                                loc, c1, idom1, c2, ValueRange{idij_start, idij2_start},
+                                [&](OpBuilder &b3, Location loc, Value i, ValueRange i_args){
+                                    Value idij = i_args[0];
+                                    Value idij2 = i_args[1];
+
+                                    Value ip1 = b3.create<arith::AddIOp>(loc, i, c1);
+                                    Value idijp1 = b3.create<arith::AddIOp>(loc, idij, c1);
+                                    Value idij2p1 = b3.create<arith::AddIOp>(loc, idij2, c1);
+
+                                    Value t1 = C1(b3, loc, cc, i, k, j, ido, l1);
+                                    Value t2 = C1(b3, loc, cc, ip1, k, j, ido, l1);
+                                    Value t3 = C1(b3, loc, cc, i, k, jc, ido, l1);
+                                    Value t4 = C1(b3, loc, cc, ip1, k, jc, ido, l1);
+
+                                    Value waidij = b3.create<memref::LoadOp>(loc, wa, idij);
+                                    Value waidijp1 = b3.create<memref::LoadOp>(loc, wa, idijp1);
+                                    Value waidij2 = b3.create<memref::LoadOp>(loc, wa, idij2);
+                                    Value waidij2p1 = b3.create<memref::LoadOp>(loc, wa, idij2p1);
+
+                                    Value tmp1_x1 = b3.create<arith::MulFOp>(loc, waidij, t1);
+                                    Value tmp2_x1 = b3.create<arith::MulFOp>(loc, waidijp1, t2);
+                                    Value x1 = b3.create<arith::AddFOp>(loc, tmp1_x1, tmp2_x1);
+
+                                    Value tmp1_x2 = b3.create<arith::MulFOp>(loc, waidij, t2);
+                                    Value tmp2_x2 = b3.create<arith::MulFOp>(loc, waidijp1, t1);
+                                    Value x2 = b3.create<arith::SubFOp>(loc, tmp1_x2, tmp2_x2);
+
+                                    Value tmp1_x3 = b3.create<arith::MulFOp>(loc, waidij2, t3);
+                                    Value tmp2_x3 = b3.create<arith::MulFOp>(loc, waidij2p1, t4);
+                                    Value x3 = b3.create<arith::AddFOp>(loc, tmp1_x3, tmp2_x3);
+
+                                    Value tmp1_x4 = b3.create<arith::MulFOp>(loc, waidij2, t4);
+                                    Value tmp2_x4 = b3.create<arith::MulFOp>(loc, waidij2p1, t3);
+                                    Value x4 = b3.create<arith::SubFOp>(loc, tmp1_x4, tmp2_x4);
+
+                                    Value tmp3 = b3.create<arith::AddFOp>(loc, x1, x3);
+                                    Value tmp4 = b3.create<arith::SubFOp>(loc, x2, x4);
+                                    Value tmp5 = b3.create<arith::AddFOp>(loc, x2, x4);
+                                    Value tmp6 = b3.create<arith::SubFOp>(loc, x3, x1);
+
+                                    C1w(b3, loc, cc, i, k, j, ido, l1, tmp3);
+                                    C1w(b3, loc, cc, i, k, jc, ido, l1, tmp4);
+                                    C1w(b3, loc, cc, ip1, k, j, ido, l1, tmp5);
+                                    C1w(b3, loc, cc, ip1, k, jc, ido, l1, tmp6);
+
+                                    Value idij_next = b3.create<arith::AddFOp>(loc, idij, c2);
+                                    Value idij2_next = b3.create<arith::AddFOp>(loc, idij2, c2);
+
+                                    b3.create<scf::YieldOp>(loc, std::vector<Value>{idij_next, idij2_next});
                                     
-//                                 }
-//                             );
-//                         }
+                                }
+                            );
+                        }
 
-//                     );
+                    );
 
-//                     Value jc_next = b.create<arith::SubIOp>(loc, jc, c1);
-//                     b.create<scf::YieldOp>(loc, jc_next);
-//                 }
-//             );
-//         }
-//     );
+                    Value jc_next = b.create<arith::SubIOp>(loc, jc, c1);
+                    b.create<scf::YieldOp>(loc, jc_next);
+                }
+            );
+        }
+    );
 
-//     Value jc_a_start = opBuilder.create<arith::SubIOp>(loc, ip, c1);
+    Value jc_a_start = opBuilder.create<arith::SubIOp>(loc, ip, c1);
 
-//     opBuilder.create<scf::ForOp>(
-//         loc, c1, ipph, c1, ValueRange(jc_a_start),
-//         [&](OpBuilder &builder, Location loc, Value j_a, ValueRange j_a_args){
-//             Value jc_a = j_a_args[0];
+    opBuilder.create<scf::ForOp>(
+        loc, c1, ipph, c1, ValueRange{jc_a_start},
+        [&](OpBuilder &builder, Location loc, Value j_a, ValueRange j_a_args){
+            Value jc_a = j_a_args[0];
 
-//             builder.create<scf::ForOp>(
-//                 loc, c0, l1, c1, std::nullopt,
-//                 [&](OpBuilder &b, Location loc, Value k_a, ValueRange k_a_args){
-//                     Value t1_a = C1(b, loc, cc, c0, k_a, j_a, ido, l1);
-//                     Value t2_a = C1(b, loc, cc, c0, k_a, jc_a, ido, l1);
+            builder.create<scf::ForOp>(
+                loc, c0, l1, c1, std::nullopt,
+                [&](OpBuilder &b, Location loc, Value k_a, ValueRange k_a_args){
+                    Value t1_a = C1(b, loc, cc, c0, k_a, j_a, ido, l1);
+                    Value t2_a = C1(b, loc, cc, c0, k_a, jc_a, ido, l1);
 
-//                     Value tmp_a = b.create<arith::AddFOp>(loc, t1_a, t2_a);
-//                     Value tmp1_a = b.create<arith::SubFOp>(loc, t2_a, t1_a);
+                    Value tmp_a = b.create<arith::AddFOp>(loc, t1_a, t2_a);
+                    Value tmp1_a = b.create<arith::SubFOp>(loc, t2_a, t1_a);
 
-//                     C1w(b, loc, cc, c0, k_a, j_a, ido, l1, tmp_a);
-//                     C1w(b, loc, cc, c0, k_a, jc_a, ido, l1, tmp1_a);
-//                 }
-//             );
+                    C1w(b, loc, cc, c0, k_a, j_a, ido, l1, tmp_a);
+                    C1w(b, loc, cc, c0, k_a, jc_a, ido, l1, tmp1_a);
+                }
+            );
 
 
-//             Value jc_a_next = builder.create<arith::SubIOp>(loc, jc_a, c1);
-//             builder.create<scf::YieldOp>(loc, jc_a_next);
-//         }
-//     );
+            Value jc_a_next = builder.create<arith::SubIOp>(loc, jc_a, c1);
+            builder.create<scf::YieldOp>(loc, jc_a_next);
+        }
+    );
 
-//     Value lc_b_start = opBuilder.create<arith::SubIOp>(loc, jc_a, c1);
-// }
+    Value lc_b_start = opBuilder.create<arith::SubIOp>(loc, ip, c1);
+
+    opBuilder.create<scf::ForOp>(
+        loc, c1, ipph, c1, ValueRange{lc_b_start},
+        [&](OpBuilder &builder, Location loc, Value l_b, ValueRange l_b_args){
+            Value lc_b = l_b_args[0];
+
+            builder.create<scf::ForOp>(
+                loc, c0, idl1, c1, std::nullopt,
+                [&](OpBuilder &b, Location loc, Value ik_b, ValueRange ik_b_args){
+
+                    Value m2l = b.create<arith::MulIOp>(loc, l_b, c2);
+                    Value m4l = b.create<arith::MulIOp>(loc, l_b, c4);
+                    Value m2lp1 = b.create<arith::AddIOp>(loc, m2l, c1);
+                    Value m4lp1 = b.create<arith::AddIOp>(loc, m4l, c1);
+
+                    Value csarr2l = CSARR(b, loc, csarr, m2l);
+                    Value csarr4l = CSARR(b, loc, csarr, m4l);
+                    Value csarr2lp1 = CSARR(b, loc, csarr, m2lp1);
+                    Value csarr4lp1 = CSARR(b, loc, csarr, m4lp1);
+
+                    Value c2ik0 = C2(b, loc, cc, ik_b, c0, idl1);
+                    Value c2ik1 = C2(b, loc, cc, ik_b, c1, idl1);
+                    Value c2ik2 = C2(b, loc, cc, ik_b, c2, idl1);
+
+                    Value c2ikipm1 = C2(b, loc, cc, ik_b, ipm1, idl1);
+                    Value c2ikipm2 = C2(b, loc, cc, ik_b, ipm2, idl1);
+
+                    Value tmp_b = b.create<arith::MulFOp>(loc, csarr2l, c2ik1);
+                    Value tmp1_b = b.create<arith::MulFOp>(loc, csarr4l, c2ik2);
+                    Value tmp2_b = b.create<arith::AddFOp>(loc, tmp_b, tmp1_b);
+                    Value tmp3_b = b.create<arith::AddFOp>(loc, c2ik0, tmp2_b);
+
+                    CH2w(b, loc, ch, ik_b, l_b, idl1, tmp3_b);
+
+                    Value tmp4_b = b.create<arith::MulFOp>(loc, csarr2lp1, c2ikipm1);
+                    Value tmp5_b = b.create<arith::MulFOp>(loc, csarr4lp1, c2ikipm2);
+                    Value tmp6_b = b.create<arith::AddFOp>(loc, tmp4_b, tmp5_b);
+
+                    CH2w(b, loc, ch, ik_b, lc_b, idl1, tmp6_b);
+
+                }
+            );
+
+            Value iang_start_c = builder.create<arith::MulIOp>(loc, c2, l_b);
+            Value j_start_c = builder.create<ConstantIndexOp>(loc, 3);
+            Value jc_start_c = builder.create<arith::SubIOp>(loc, ip, c3);
+            Value ipphm1 = builder.create<arith::SubIOp>(loc, ipph, c1);
+            Value ipphm3 = builder.create<arith::SubIOp>(loc, ipph, c3);
+
+            
+
+            auto loop1 = builder.create<scf::ForOp>(
+                loc, j_start_c, ipphm3, c4, ValueRange{j_start_c, jc_start_c, iang_start_c},
+                [&](OpBuilder &b, Location loc, Value j_loop, ValueRange j_loop_args){
+                    Value j = j_loop_args[0];
+                    Value jc = j_loop_args[1];
+                    Value iang = j_loop_args[2];
+
+                    Value iang_1_c = IANG(b, loc, iang, l_b, ip);
+                    Value ar1 = AR(b, loc, csarr, iang_1_c);
+                    Value ai1 = AI(b, loc, csarr, iang_1_c);
+
+                    Value iang_2_c = IANG(b, loc, iang_1_c, l_b, ip);
+                    Value ar2 = AR(b, loc, csarr, iang_2_c);
+                    Value ai2 = AI(b, loc, csarr, iang_2_c);
+
+                    Value iang_3_c = IANG(b, loc, iang_2_c, l_b, ip);
+                    Value ar3 = AR(b, loc, csarr, iang_3_c);
+                    Value ai3 = AI(b, loc, csarr, iang_3_c);
+
+                    Value iang_4_c = IANG(b, loc, iang_3_c, l_b, ip);
+                    Value ar4 = AR(b, loc, csarr, iang_4_c);
+                    Value ai4 = AI(b, loc, csarr, iang_4_c);
+
+                    b.create<scf::ForOp>(
+                        loc, c0, idl1, c1, std::nullopt,
+                        [&](OpBuilder &b2, Location loc, Value ik_c, ValueRange ik_c_args){
+                            Value jp1 = b2.create<arith::AddIOp>(loc, j, c1);
+                            Value jp2 = b2.create<arith::AddIOp>(loc, j, c2);
+                            Value jp3 = b2.create<arith::AddIOp>(loc, j, c3);
+                            Value jm1 = b2.create<arith::SubIOp>(loc, j, c1);
+                            Value jm2 = b2.create<arith::SubIOp>(loc, j, c2);
+                            Value jm3 = b2.create<arith::SubIOp>(loc, j, c3);
+
+                            Value c2ikj = C2(b2, loc, cc, ik_c, j, idl1);
+                            Value c2ikjp1 = C2(b2, loc, cc, ik_c, jp1, idl1);
+                            Value c2ikjp2 = C2(b2, loc, cc, ik_c, jp2, idl1);
+                            Value c2ikjp3 = C2(b2, loc, cc, ik_c, jp3, idl1);
+
+                            Value tmp_c = b2.create<arith::MulFOp>(loc, ar1, c2ikj);
+                            Value tmp1_c = b2.create<arith::MulFOp>(loc, ar2, c2ikjp1);
+                            Value tmp2_c = b2.create<arith::MulFOp>(loc, ar3, c2ikjp2);
+                            Value tmp3_c = b2.create<arith::MulFOp>(loc, ar4, c2ikjp3);
+
+                            Value tmp4_c = b2.create<arith::AddFOp>(loc, tmp_c, tmp1_c);
+                            Value tmp5_c = b2.create<arith::AddFOp>(loc, tmp4_c, tmp2_c);
+                            Value tmp6_c = b2.create<arith::AddFOp>(loc, tmp5_c, tmp3_c);
+
+                            Value ch2ikl = CH2(b2, loc, ch, ik_c, l_b, idl1);
+                            Value tmp7_c = b2.create<arith::AddFOp>(loc, tmp6_c, ch2ikl);
+                            CH2w(b2, loc, ch, ik_c, l_b, idl1, tmp7_c);
+
+                            Value jcm1 = b2.create<arith::SubIOp>(loc, jc, c1);
+                            Value jcm2 = b2.create<arith::SubIOp>(loc, jc, c2);
+                            Value jcm3 = b2.create<arith::SubIOp>(loc, jc, c3);
+
+                            Value c2ikjc = C2(b2, loc, cc, ik_c, jc, idl1);
+                            Value c2ikjcm1 = C2(b2, loc, cc, ik_c, jcm1, idl1);
+                            Value c2ikjcm2 = C2(b2, loc, cc, ik_c, jcm2, idl1);
+                            Value c2ikjcm3 = C2(b2, loc, cc, ik_c, jcm3, idl1);
+
+                            Value tmp_ai1 = b2.create<arith::MulFOp>(loc, ai1, c2ikjc);
+                            Value tmp_ai2 = b2.create<arith::MulFOp>(loc, ai2, c2ikjcm1);
+                            Value tmp_ai3 = b2.create<arith::MulFOp>(loc, ai3, c2ikjcm2);
+                            Value tmp_ai4 = b2.create<arith::MulFOp>(loc, ai4, c2ikjcm3);
+
+                            Value tmp_ai5 = b2.create<arith::AddFOp>(loc, tmp_ai1, tmp_ai2);
+                            Value tmp_ai6 = b2.create<arith::AddFOp>(loc, tmp_ai5, tmp_ai3);
+                            Value tmp_ai7 = b2.create<arith::AddFOp>(loc, tmp_ai6, tmp_ai4);
+
+                            Value ch2iklc = CH2(b2, loc, ch, ik_c, lc_b, idl1);
+                            Value tmp_ai8 = b2.create<arith::AddFOp>(loc, tmp_ai7, ch2iklc);
+                            CH2w(b2, loc, ch, ik_c, lc_b, idl1, tmp_ai8);
+
+                        }
+                    );
+
+
+                    Value j_next = b.create<arith::AddIOp>(loc, j, c4);
+                    Value jc_next = b.create<arith::SubIOp>(loc, jc, c4);
+                    builder.create<scf::YieldOp>(loc, std::vector<Value>{j_next, jc_next, iang_4_c});
+                }
+            );
+
+            Value j_1_c = loop1.getResults()[0];
+            Value jc_1_c = loop1.getResults()[1];
+            Value iang1_c = loop1.getResults()[2];
+
+            auto loop2 = builder.create<scf::ForOp>(
+                loc, j_1_c, ipphm1, c2, ValueRange{j_1_c, jc_1_c, iang1_c},
+                [&](OpBuilder &b, Location loc, Value j_loop, ValueRange j_loop_args){
+                    Value j = j_loop_args[0];
+                    Value jc = j_loop_args[1];
+                    Value iang = j_loop_args[2];
+
+                    Value iang_1_d = IANG(b, loc, iang, l_b, ip);
+                    Value ar1 = AR(b, loc, csarr, iang_1_d);
+                    Value ai1 = AI(b, loc, csarr, iang_1_d);
+
+                    Value iang_2_d = IANG(b, loc, iang_1_d, l_b, ip);
+                    Value ar2 = AR(b, loc, csarr, iang_2_d);
+                    Value ai2 = AI(b, loc, csarr, iang_2_d);
+
+                    b.create<scf::ForOp>(
+                        loc, c0, idl1, c1, std::nullopt,
+                        [&](OpBuilder &b2, Location loc, Value ik_d, ValueRange ik_d_args){
+                            Value jp1 = b2.create<arith::AddIOp>(loc, j, c1);
+                            Value jm1 = b2.create<arith::SubIOp>(loc, j, c1);
+
+                            Value c2ikj = C2(b2, loc, cc, ik_d, j, idl1);
+                            Value c2ikjp1 = C2(b2, loc, cc, ik_d, jp1, idl1);
+
+                            Value tmp_c = b2.create<arith::MulFOp>(loc, ar1, c2ikj);
+                            Value tmp1_c = b2.create<arith::MulFOp>(loc, ar2, c2ikjp1);
+                            Value tmp2_c = b2.create<arith::AddFOp>(loc, tmp_c, tmp1_c);
+
+                            Value ch2ikl = CH2(b2, loc, ch, ik_d, l_b, idl1);
+                            Value tmp3_c = b2.create<arith::AddFOp>(loc, tmp2_c, ch2ikl);
+                            CH2w(b2, loc, ch, ik_d, l_b, idl1, tmp3_c);
+
+                            Value jcm1 = b2.create<arith::SubIOp>(loc, jc, c1);
+                            Value c2ikjc = C2(b2, loc, cc, ik_d, jc, idl1);
+                            Value c2ikjcm1 = C2(b2, loc, cc, ik_d, jcm1, idl1);
+
+                            Value tmp_ai1 = b2.create<arith::MulFOp>(loc, ai1, c2ikjc);
+                            Value tmp_ai2 = b2.create<arith::MulFOp>(loc, ai2, c2ikjcm1);
+                            Value tmp_ai3 = b2.create<arith::AddFOp>(loc, tmp_ai1, tmp_ai2);
+
+                            Value ch2iklc = CH2(b2, loc, ch, ik_d, lc_b, idl1);
+                            Value tmp_ai4 = b2.create<arith::AddFOp>(loc, tmp_ai3, ch2iklc);
+                            CH2w(b2, loc, ch, ik_d, lc_b, idl1, tmp_ai4);
+                        }
+                    );
+
+                    Value j_next = b.create<arith::AddIOp>(loc, j, c2);
+                    Value jc_next = b.create<arith::SubIOp>(loc, jc, c2);
+                    builder.create<scf::YieldOp>(loc, std::vector<Value>{j_next, jc_next, iang_2_d});
+
+                }
+            );
+
+            Value j_2_c = loop2.getResults()[0];
+            Value jc_2_c = loop2.getResults()[1];
+            Value iang2_c = loop2.getResults()[2];
+
+            auto loop3 = builder.create<scf::ForOp>(
+                loc, j_2_c, ipph, c1, ValueRange{j_2_c, jc_2_c, iang2_c},
+                [&](OpBuilder &b, Location loc, Value j_loop, ValueRange j_loop_args){
+
+                    Value j = j_loop_args[0];
+                    Value jc = j_loop_args[1];
+                    Value iang = j_loop_args[2];
+
+                    Value iang_1_e = IANG(b, loc, iang, l_b, ip);
+                    Value ar = AR(b, loc, csarr, iang_1_e);
+                    Value ai = AI(b, loc, csarr, iang_1_e);
+
+                    b.create<scf::ForOp>(
+                        loc, c0, idl1, c1, std::nullopt,
+                        [&](OpBuilder &b2, Location loc, Value ik_e, ValueRange ik_e_args){
+
+                            Value c2ikj = C2(b2, loc, cc, ik_e, j, idl1);
+                            Value c2ikjc = C2(b2, loc, cc, ik_e, jc, idl1);
+
+                            Value tmp_c = b2.create<arith::MulFOp>(loc, ar, c2ikj);
+                            Value tmp_ai = b2.create<arith::MulFOp>(loc, ai, c2ikjc);
+
+                            Value ch2ikl = CH2(b2, loc, ch, ik_e, l_b, idl1);
+                            Value ch2iklc = CH2(b2, loc, ch, ik_e, lc_b, idl1);
+
+                            Value tmp2_c = b2.create<arith::AddFOp>(loc, tmp_c, ch2ikl);
+                            Value tmp2_ai = b2.create<arith::AddFOp>(loc, tmp_ai, ch2iklc);
+                            CH2w(b2, loc, ch, ik_e, lc_b, idl1, tmp2_c);
+                            CH2w(b2, loc, ch, ik_e, lc_b, idl1, tmp2_ai);
+                        }
+                    );
+
+                    Value j_next = b.create<arith::AddIOp>(loc, j, c2);
+                    Value jc_next = b.create<arith::SubIOp>(loc, jc, c2);
+                    builder.create<scf::YieldOp>(loc, std::vector<Value>{j_next, jc_next, iang_1_e});
+
+                }
+            );
+
+
+            Value lc_b_next = builder.create<arith::SubIOp>(loc, lc_b, c1);
+            builder.create<scf::YieldOp>(loc, lc_b_next);
+        }
+    );
+
+    radfgExtend(opBuilder, loc, cc, ch, wa, csarr, ido, ip, l1 );
+
+}
 
 
 void radf2Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa, Value ido, Value l1, Value cdim) {
@@ -1131,7 +1546,7 @@ void radf2(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa, Val
 
     Value condition1 = opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, flag, c2);
     opBuilder.create<scf::IfOp>(
-        loc, condition1, [&](OpBuilder & builder, Location loc) {
+        loc, condition1, [&](OpBuilder &builder, Location loc) {
             radf2Extend(builder, loc, cc, ch, wa, ido, l1, cdim);
         }
     );
