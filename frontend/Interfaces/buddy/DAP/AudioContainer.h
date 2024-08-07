@@ -14,6 +14,13 @@
 //
 //===----------------------------------------------------------------------===//
 //
+// The audio decoding process in this file references the `AudioFile` library,
+// which is hereby acknowledged.
+// For the license of the `AudioFile` library,
+// please see: https://github.com/adamstark/AudioFile/blob/master/LICENSE
+//
+//===----------------------------------------------------------------------===//
+//
 // Audio container descriptor.
 //
 //===----------------------------------------------------------------------===//
@@ -21,77 +28,324 @@
 #ifndef FRONTEND_INTERFACES_BUDDY_DAP_AUDIOCONTAINER
 #define FRONTEND_INTERFACES_BUDDY_DAP_AUDIOCONTAINER
 
-#include "AudioFile.h"
 #include "buddy/Core/Container.h"
+#include <cstring>
+#include <fstream>
+#include <memory>
 
 namespace dap {
-
-// Audio container.
-// - T represents the type of the elements.
-// - N represents the number of audio channels (Normally would be 1 or 2).
-// If N is smaller than channels from the file, only previous N channels will be
-// manipulated.
-template <typename T, size_t N> class Audio {
+template <typename T, size_t N> class Audio : public MemRef<T, N> {
 public:
-  Audio() : audioFile(), data(nullptr) {}
-  explicit Audio(std::string filename) : audioFile(filename), data(nullptr) {}
-  void fetchMetadata(const AudioFile<T> &aud);
-  bool save(std::string filename);
-  AudioFile<T> &getAudioFile() {
-    moveToAudioFile();
-    return audioFile;
-  }
-  MemRef<T, N> &getMemRef() {
-    moveToMemRef();
-    return *data;
-  }
+  // Constructor to initialize the Audio MemRef object with a file name.
+  Audio(std::string filename);
 
-protected:
-  void moveToMemRef();
-  void moveToAudioFile();
-  AudioFile<T> audioFile;
-  MemRef<T, N> *data;
+  // Retrieve the name of the audio format.
+  std::string getFormatName() const {
+    switch (this->audioFormat) {
+    case AudioFormat::WAV:
+      return "WAV";
+    default:
+      return "Unsupported format";
+    }
+  }
+  // Returns the number of bits per sample.
+  int getBitDepth() const { return static_cast<int>(this->bitsPerSample); }
+  // Returns the number of samples per channel.
+  size_t getSamplesNum() const { return this->numSamples; }
+  // Returns the number of audio channels.
+  int getChannelsNum() const { return static_cast<int>(this->numChannels); }
+  // Returns the sampling rate in samples per second.
+  int getSampleRate() const { return static_cast<int>(this->sampleRate); }
+
+private:
+  // Sample bit depth.
+  uint16_t bitsPerSample;
+  // Number of samples per channel.
+  size_t numSamples;
+  // Number of audio channels.
+  uint16_t numChannels;
+  // Samples per second (Hz).
+  uint32_t sampleRate;
+  // Enum to represent supported audio formats.
+  enum class AudioFormat {
+    ERROR, // Represents an error or unsupported format.
+    WAV,   // WAV format.
+  } audioFormat;
+  // Enum to represent byte order of data.
+  enum class Endianness { LittleEndian, BigEndian };
+
+  // Decoders for multiple audio file formats.
+  // Decode a WAV file into MemRef format.
+  bool decodeWaveFile(const std::vector<uint8_t> &fileData);
+
+  // Helper functions for decoding and data manipulation
+  // Find the index of a specified chunk in the audio file.
+  size_t getIndexOfChunk(const std::vector<uint8_t> &fileData,
+                         const std::string &chunkHeaderID, size_t startIndex,
+                         Endianness endianness = Endianness::LittleEndian);
+  // Convert four bytes to a 32-bit integer according to byte order of data.
+  int32_t fourBytesToI32(const std::vector<uint8_t> &fileData,
+                         size_t startIndex,
+                         Endianness endianness = Endianness::LittleEndian);
+  // Convert four bytes to a 16-bit integer according to byte order of data.
+  int16_t twoBytesToI16(const std::vector<uint8_t> &fileData, size_t startIndex,
+                        Endianness endianness = Endianness::LittleEndian);
+  // Normalize 8-bit unsigned integer sample to a range of -1.0 to 1.0.
+  T oneByteToSample(uint8_t data) {
+    return static_cast<T>(data - 128) / static_cast<T>(128.);
+  }
+  // Normalize 16-bit signed integer sample to a range of -1.0 to 1.0.
+  T twoBytesToSample(int16_t data) {
+    return static_cast<T>(data) / static_cast<T>(32768.);
+  }
 };
 
-template <typename T, size_t N> bool Audio<T, N>::save(std::string filename) {
-  if (!this->audioFile.samples) {
-    auto temp = this->data->release();
-    if constexpr (std::is_same_v<T, float>) {
-      for (int i = 0; i < audioFile.numSamples; i++) {
-        if (temp[i] != temp[i]) { // To handle NaN values
-          temp[i] = 0.9999999;
-        } else { // Clamp the values between -1.0 to 1.0
-          temp[i] = std::clamp(temp[i], float(-1.0), float(0.9999999));
-        }
-      }
-    }
-    this->audioFile.samples.reset(temp);
+// Audio Container Constructor.
+// Constructs an audio container object from the audio file path.
+template <typename T, std::size_t N> Audio<T, N>::Audio(std::string filePath) {
+  // ---------------------------------------------------------------------------
+  // 1. Read the audio file into a std::vector.
+  // ---------------------------------------------------------------------------
+  // Open the file in binary mode and position the file pointer at the end of
+  // the file.
+  std::ifstream file(filePath, std::ios::binary | std::ios::ate);
+  // Check if the file was successfully opened.
+  if (!file) {
+    throw std::runtime_error("Error: Unable to open file at " + filePath);
   }
-  return this->audioFile.save(filename);
+  // Get the size of the file.
+  size_t dataLength = file.tellg();
+  // Move file pointer to the beginning of the file.
+  file.seekg(0, std::ios::beg);
+  // Create a vector to store the data.
+  std::vector<uint8_t> fileData(dataLength);
+  // Read the data.
+  if (!file.read(reinterpret_cast<char *>(fileData.data()), dataLength)) {
+    throw std::runtime_error("Error: Unable to read data from " + filePath);
+  }
+  // ---------------------------------------------------------------------------
+  // 2. Determine the audio format and decode the audio data into MemRef.
+  // ---------------------------------------------------------------------------
+  std::string header(fileData.begin(), fileData.begin() + 4);
+  // Check the file header to determine the format.
+  if (header == "RIFF") {
+    this->audioFormat = AudioFormat::WAV;
+    bool success = decodeWaveFile(fileData);
+    if (!success) {
+      this->audioFormat = AudioFormat::ERROR;
+      throw std::runtime_error("Failed to decode WAV file from " + filePath);
+    };
+  } else {
+    this->audioFormat = AudioFormat::ERROR;
+    throw std::runtime_error("Unsupported audio format detected in file " +
+                             filePath);
+  }
 }
 
-template <typename T, size_t N>
-void Audio<T, N>::fetchMetadata(const AudioFile<T> &aud) {
-  this->audioFile.setBitDepth(aud.getBitDepth());
-  this->audioFile.setSampleRate(aud.getSampleRate());
-  this->audioFile.numSamples = aud.numSamples;
-  this->audioFile.numChannels = aud.numChannels;
-  this->audioFile.setAudioBuffer(nullptr);
-}
-template <typename T, size_t N> void Audio<T, N>::moveToMemRef() {
-  if (data)
-    delete data;
-  intptr_t sizes[N];
-  for (size_t i = 0; i < N; ++i) {
-    sizes[i] = audioFile.numSamples;
+// WAV Audio File Decoder
+template <typename T, std::size_t N>
+bool Audio<T, N>::decodeWaveFile(const std::vector<uint8_t> &fileData) {
+  // This container class only cares about the data and key information in the
+  // audio file, so only the format and data chunk are decoded here.
+  // Find the starting indices of critical chunks within the WAV file.
+  size_t indexOfFormatChunk = getIndexOfChunk(fileData, "fmt ", 12);
+  size_t indexOfDataChunk = getIndexOfChunk(fileData, "data", 12);
+
+  // Decode the 'format' chunk to obtain format specifications.
+  // Format sub-chunk:
+  //   sub-chunk ID: char[4] | 4 bytes | "fmt "
+  //   sub-chunk size: uint32_t | 4 bytes
+  //   audio format: uint16_t | 2 bytes | 1 for PCM
+  //   number of channels: uint16_t | 2 bytes
+  //   sample rate: uint32_t | 4 bytes
+  //   byte rate: uint32_t | 4 bytes
+  //   block align: uint16_t | 2 bytes
+  //   bits per sample: uint16_t | 2 bytes
+  std::string formatChunkID(fileData.begin() + indexOfFormatChunk,
+                            fileData.begin() + indexOfFormatChunk + 4);
+  // uint32_t fmtChunkSize = fourBytesToI32(fileData, indexOfFormatChunk + 4);
+  // uint16_t audioFormat = twoBytesToI16(fileData, indexOfFormatChunk + 8);
+  this->numChannels = twoBytesToI16(fileData, indexOfFormatChunk + 10);
+  this->sampleRate = fourBytesToI32(fileData, indexOfFormatChunk + 12);
+  // byteRate = sampleRate * numChannels * bitsPerSample / 8
+  // uint32_t byteRate = fourBytesToI32(fileData, indexOfFormatChunk + 16);
+  // blockAlign = numChannels * bitsPerSample / 8
+  uint16_t blockAlign = twoBytesToI16(fileData, indexOfFormatChunk + 20);
+  this->bitsPerSample = twoBytesToI16(fileData, indexOfFormatChunk + 22);
+  uint16_t numBytesPerSample = static_cast<uint16_t>(this->bitsPerSample) / 8;
+
+  // Decode `data` chunk.
+  // Data sub-chunk:
+  //   sub-chunk ID: char[4] | 4 bytes | "data"
+  //   sub-chunk size: uint32_t | 4 bytes
+  //   data | remains
+  std::string dataChunkID(fileData.begin() + indexOfDataChunk,
+                          fileData.begin() + indexOfDataChunk + 4);
+  int32_t dataChunkSize = fourBytesToI32(fileData, indexOfDataChunk + 4);
+  this->numSamples = dataChunkSize / blockAlign;
+  // size_t numSamplesPerChannels = this->numSamples / this->numChannels;
+  size_t samplesStartIndex = indexOfDataChunk + 8;
+
+  // Audio MemRef layout defaults to 1 dimension.
+  // Sample values from multiple channels are stored together.
+  if (N == 1) {
+    this->sizes[0] = this->numSamples;
+  } else if (N == this->numChannels) {
+    // TODO: add conversion from 1 dimension to multi-dimension
+    std::cerr << "Unsupported: The MemRef layout of multi-dimensional channels "
+                 "is not yet supported."
+              << std::endl;
+    return false;
+  } else {
+    std::cerr << "Error: dimension mismatch (audio file channel: "
+              << this->numChannels << " MemRef layout channel: " << N << ")"
+              << std::endl;
+    return false;
   }
-  data = new MemRef<T, N>(audioFile.samples, sizes);
-}
-template <typename T, size_t N> void Audio<T, N>::moveToAudioFile() {
-  if (data) {
-    auto temp = data->release();
-    audioFile.setAudioBuffer(temp);
+
+  // Allocate memory for MemRef.
+  this->setStrides();
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
+  this->aligned = this->allocated;
+
+  // Sample data type: 8 bit
+  if (this->bitsPerSample == 8) {
+    size_t memrefIndex = 0;
+    for (size_t i = 0; i < this->numSamples; i++) {
+      for (size_t channel = 0; channel < this->numChannels; channel++) {
+        size_t sampleIndex =
+            samplesStartIndex + (blockAlign * i) + channel * numBytesPerSample;
+        this->aligned[memrefIndex] = oneByteToSample(fileData[sampleIndex]);
+        memrefIndex++;
+      }
+    }
   }
+  // Sample data type: 16 bit
+  else if (this->bitsPerSample == 16) {
+    size_t memrefIndex = 0;
+    for (size_t i = 0; i < this->numSamples; i++) {
+      for (size_t channel = 0; channel < this->numChannels; channel++) {
+        size_t sampleIndex =
+            samplesStartIndex + (blockAlign * i) + channel * numBytesPerSample;
+        int16_t dataTwoBytes = twoBytesToI16(fileData, sampleIndex);
+        this->aligned[memrefIndex] = twoBytesToSample(dataTwoBytes);
+        memrefIndex++;
+      }
+    }
+  }
+  // Other data types are not currently supported.
+  else {
+    std::cerr << "Unsupported audio data type." << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
+// Locates the start index of a specific chunk in a WAV file data buffer.
+// Params:
+//   fileData: Vector containing the raw binary data of the WAV file.
+//   chunkHeaderID: The 4-byte identifier for the chunk (e.g., "fmt ", "data").
+//   startIndex: Index to start the search from within the fileData.
+//   endianness: Byte order used to interpret multi-byte values in the chunk
+//   size.
+// Returns:
+//   The index of the start of the chunk or 0 if not found.
+template <typename T, std::size_t N>
+size_t Audio<T, N>::getIndexOfChunk(const std::vector<uint8_t> &fileData,
+                                    const std::string &chunkHeaderID,
+                                    size_t startIndex, Endianness endianness) {
+  constexpr int dataLen = 4;
+  if (chunkHeaderID.size() != dataLen) {
+    assert(false && "Chunk header ID must be exactly 4 characters long");
+    return -1;
+  }
+  size_t i = startIndex;
+  while (i < fileData.size() - dataLen) {
+    // Check if the current bytes match the chunk header ID
+    if (memcmp(&fileData[i], chunkHeaderID.data(), dataLen) == 0) {
+      return i;
+    }
+    // Skip to the next chunk: advance by the size of the current chunk
+    // Move index to the size part of the chunk
+    i += dataLen;
+    // Prevent reading beyond vector size
+    if (i + dataLen > fileData.size())
+      break;
+    // Get the size of the chunk.
+    auto chunkSize = fourBytesToI32(fileData, i, endianness);
+    if (chunkSize < 0) {
+      assert(false && "Invalid chunk size encountered");
+      return -1;
+    }
+    // Move to the next chunk header
+    i += (dataLen + chunkSize);
+  }
+  // Return 0 if the chunk is not found
+  return 0;
+}
+
+// Converts four bytes from the file data array to a 32-bit integer based on
+// endianness. Params:
+//   fileData: Vector containing the raw binary data.
+//   startIndex: Index in fileData where the 4-byte sequence starts.
+//   endianness: Specifies the byte order (LittleEndian or BigEndian).
+// Returns:
+//   The 32-bit integer converted from the byte sequence.
+template <typename T, std::size_t N>
+int32_t Audio<T, N>::fourBytesToI32(const std::vector<uint8_t> &fileData,
+                                    size_t startIndex, Endianness endianness) {
+  // Ensure the index is within the bounds to prevent out-of-range access.
+  if (startIndex + 3 >= fileData.size()) {
+    throw std::out_of_range("Index out of range for fourBytesToI32");
+  }
+  // Use uint32_t to prevent sign extension and maintain accurate binary
+  // representation during bit operations.
+  uint32_t result;
+  if (endianness == Endianness::LittleEndian) {
+    result = (static_cast<uint32_t>(fileData[startIndex + 3]) << 24) |
+             (static_cast<uint32_t>(fileData[startIndex + 2]) << 16) |
+             (static_cast<uint32_t>(fileData[startIndex + 1]) << 8) |
+             static_cast<uint32_t>(fileData[startIndex]);
+  } else {
+    result = (static_cast<uint32_t>(fileData[startIndex]) << 24) |
+             (static_cast<uint32_t>(fileData[startIndex + 1]) << 16) |
+             (static_cast<uint32_t>(fileData[startIndex + 2]) << 8) |
+             static_cast<uint32_t>(fileData[startIndex + 3]);
+  }
+  // Convert the unsigned result to signed int32_t to match the function's
+  // return type.
+  return static_cast<int32_t>(result);
+}
+
+// Converts two bytes from the file data array to a 16-bit integer based on
+// endianness. Params:
+//   fileData: Vector containing the raw binary data.
+//   startIndex: Index in fileData where the 2-byte sequence starts.
+//   endianness: Specifies the byte order (LittleEndian or BigEndian).
+// Returns:
+//   The 16-bit integer converted from the byte sequence.
+template <typename T, std::size_t N>
+int16_t Audio<T, N>::twoBytesToI16(const std::vector<uint8_t> &fileData,
+                                   size_t startIndex, Endianness endianness) {
+  // Ensure the index is within the bounds to prevent out-of-range access.
+  if (startIndex + 1 >= fileData.size()) {
+    throw std::out_of_range("Index out of range for twoBytesToI16");
+  }
+  // Use uint16_t to prevent sign extension and maintain accurate binary
+  // representation during bit operations.
+  uint16_t result;
+  if (endianness == Endianness::LittleEndian) {
+    result = (static_cast<uint16_t>(fileData[startIndex + 1]) << 8) |
+             static_cast<uint16_t>(fileData[startIndex]);
+  } else {
+    result = (static_cast<uint16_t>(fileData[startIndex]) << 8) |
+             static_cast<uint16_t>(fileData[startIndex + 1]);
+  }
+  // Convert the unsigned result to signed int16_t to match the function's
+  // return type.
+  return static_cast<int16_t>(result);
 }
 
 } // namespace dap
