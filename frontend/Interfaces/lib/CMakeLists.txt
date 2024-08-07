@@ -21,8 +21,8 @@ add_custom_command(OUTPUT DIP.o
         -finalize-memref-to-llvm
         -convert-func-to-llvm
         -reconcile-unrealized-casts |
-        ${LLVM_MLIR_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
-        ${LLVM_MLIR_BINARY_DIR}/llc
+        ${LLVM_TOOLS_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
+        ${LLVM_TOOLS_BINARY_DIR}/llc
         -mtriple=${BUDDY_TARGET_TRIPLE}
         -mattr=${BUDDY_OPT_ATTR}
         --filetype=obj
@@ -50,8 +50,8 @@ add_custom_command(OUTPUT DAP.o
               -llvm-request-c-wrappers
               -convert-func-to-llvm
               -reconcile-unrealized-casts | 
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llc 
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llc 
               -mtriple=${BUDDY_TARGET_TRIPLE}
               -mattr=${BUDDY_OPT_ATTR}
               --filetype=obj
@@ -76,8 +76,8 @@ add_custom_command(OUTPUT DAP.o
               -llvm-request-c-wrappers
               -convert-func-to-llvm
               -reconcile-unrealized-casts | 
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llc 
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llc 
               -mtriple=${BUDDY_TARGET_TRIPLE}
               -mattr=${BUDDY_OPT_ATTR}
               -filetype=obj -relocation-model=pic
@@ -109,8 +109,8 @@ SET_TARGET_PROPERTIES(BuddyLibDAP PROPERTIES
               -llvm-request-c-wrappers
               -convert-func-to-llvm
               -reconcile-unrealized-casts | 
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llc 
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llc 
               -mtriple=${BUDDY_TARGET_TRIPLE}
               -mattr=${BUDDY_OPT_ATTR}
               -filetype=obj

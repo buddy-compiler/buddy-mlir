@@ -1,4 +1,4 @@
-set(LLVM_Scalar_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Transforms/Scalar)
+set(LLVM_Scalar_DIR ${LLVM_MAIN_SRC_DIR}/lib/Transforms/Scalar)
 
 add_llvm_component_library(LLVMBuddyScalarOpts
   ${LLVM_Scalar_DIR}/ADCE.cpp
