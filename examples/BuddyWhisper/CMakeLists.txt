@@ -76,7 +76,6 @@ SET_TARGET_PROPERTIES(
   LINKER_LANGUAGE C)
 
 set(BUDDY_WHISPER_FILES
-  whisper-main.h
   whisper-main.cpp
 )
 
