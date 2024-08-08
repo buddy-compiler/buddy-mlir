@@ -18,7 +18,28 @@
 //
 // ------------------------------------------------------------------------===//
 
-#include "whisper-main.h"
+#include <buddy/Core/Container.h>
+#include <buddy/DAP/DAP.h>
+#include <buddy/LLM/TextContainer.h>
+#include <chrono>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+
+using namespace std;
+using namespace buddy;
+using namespace dap;
+
+constexpr size_t ParamsSize = 99148800;
+constexpr size_t MaxVocabSize = 51865;
+constexpr size_t MaxTokenLength = 448;
+
+/// Declare Whisper forward function.
+extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
+                                     MemRef<float, 3> *, MemRef<size_t, 2> *);
 
 // -----------------------------------------------------------------------------
 // Helper Functions
@@ -62,16 +83,13 @@ void loadParameters(const std::string &paramFilePath,
             << std::endl;
 }
 
-/// Calculate audioInput from rawAudioData.
-void runPreprocess(MemRef<double, 1> &rawAudioData,
+/// Conduct audio data preprocess.
+void runPreprocess(dap::Audio<double, 1> &rawAudioContainer,
                    MemRef<float, 3> &audioFeatures) {
-  // Move data into container.                   
-  intptr_t dataShape[1] = {AudioDataLength};
-  rawAudioData = std::move(MemRef<double, 1>(rawSpeech, dataShape));
   printLogLabel();
   std::cout << "Preprocessing audio..." << std::endl;
   const auto loadStart = std::chrono::high_resolution_clock::now();
-  dap::whisperPreprocess(&rawAudioData, &audioFeatures);
+  dap::whisperPreprocess(&rawAudioContainer, &audioFeatures);
   const auto loadEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> loadTime =
       loadEnd - loadStart;
@@ -105,7 +123,7 @@ int main() {
   //  - Output container.
   //  - Parameters container.
   Text<size_t, 2> outputContainer;
-  MemRef<double, 1> rawAudioContainer({AudioDataLength});
+  Audio<double, 1> rawAudioContainer("../../examples/BuddyWhisper/audio.wav");
   MemRef<float, 3> audioInput({1, 80, 3000});
   MemRef<float, 3> resultContainer[2] = {
       MemRef<float, 3>({1, 1500, 512}, false, 0),
@@ -127,7 +145,7 @@ int main() {
   //  - Find and append the generated token.
   //  - Continue iterating until the terminal condition is met.
 
-  for (int i = 0; i < MaxTokenLength - 1; i++) {
+  for (size_t i = 0; i < MaxTokenLength - 1; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
     // Execute the forward pass of the model.
     _mlir_ciface_forward(resultContainer, &paramsContainer, &audioInput,

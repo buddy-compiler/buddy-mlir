@@ -21,7 +21,6 @@
 #ifndef FRONTEND_INTERFACES_BUDDY_DAP_DAP
 #define FRONTEND_INTERFACES_BUDDY_DAP_DAP
 
-#include "AudioFile.h"
 #include "buddy/DAP/AudioContainer.h"
 #include "buddy/DAP/DSP/Biquad.h"
 #include "buddy/DAP/DSP/FIR.h"

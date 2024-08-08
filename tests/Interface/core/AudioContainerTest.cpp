@@ -26,16 +26,19 @@
 using namespace std;
 
 int main() {
-  dap::Audio<float, 1> aud("../../../../tests/Interface/core/NASA_Mars.wav");
-  auto &audioFile = aud.getAudioFile();
+  dap::Audio<float, 1> aud("../../../../tests/Interface/core/TestAudio.wav");
+  // CHECK: WAV
+  fprintf(stderr, "%s\n", aud.getFormatName().c_str());
+  // CHECK: 16
+  fprintf(stderr, "%d\n", aud.getBitDepth());
+  // CHECK: 77040
+  fprintf(stderr, "%lu\n", aud.getSamplesNum());
   // CHECK: 1
-  fprintf(stderr, "%u\n", audioFile.getNumChannels());
-  // CHECK: 24
-  fprintf(stderr, "%u\n", audioFile.getBitDepth());
-  // CHECK: 2000000
-  fprintf(stderr, "%u\n", audioFile.getNumSamplesPerChannel());
-  // CHECK: 100000
-  fprintf(stderr, "%u\n", audioFile.getSampleRate());
+  fprintf(stderr, "%d\n", aud.getChannelsNum());
+  // CHECK: 16000
+  fprintf(stderr, "%d\n", aud.getSampleRate());
+  // CHECK: -0.000153
+  fprintf(stderr, "%f\n", aud.getData()[3]);
 
   return 0;
 }
