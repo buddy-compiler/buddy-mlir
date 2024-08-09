@@ -12,7 +12,7 @@ $ pip install -r requirements.txt
 
 2. Build and check LLVM/MLIR
 
-```
+```bash
 $ cd buddy-mlir
 $ mkdir llvm/build
 $ cd llvm/build
@@ -29,32 +29,42 @@ $ ninja check-clang check-mlir omp
 
 3. Build and check buddy-mlir
 
-```
+```bash
 $ cd buddy-mlir
-$ mkdir build
-$ cd build
+$ mkdir build && cd build
 $ cmake -G Ninja .. \
     -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
     -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-    -DPython3_EXECUTABLE=$(which python3)
+    -DPython3_EXECUTABLE=$(which python3) \
+    -DBUDDY_ENABLE_OPENCV=ON \
+    -DOpenCV_DIR=</PATH/TO/OPENCV/BUILD/>
 $ ninja
 $ ninja check-buddy
 ```
+4. Set the `PYTHONPATH` environment variable.
 
-Set the `PYTHONPATH` environment variable. Make sure that the `PYTHONPATH` variable includes the directory of LLVM/MLIR python bindings and the directory of Buddy MLIR python packages.
+Make sure you are in the build directory.
 
-```
-$ export PYTHONPATH=/path-to-buddy-mlir/llvm/build/tools/mlir/python_packages/mlir_core:/path-to-buddy-mlir/build/python_packages:${PYTHONPATH}
-
-// For example:
-// Navigate to your buddy-mlir/build directory
-$ cd buddy-mlir/build
+```bash
 $ export BUDDY_MLIR_BUILD_DIR=$PWD
 $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
 $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
-<!-- TODO: Build and run ResNet example -->
+5. Set the `RESNET18_EXAMPLE_PATH` environment variable.
+
+```bash
+$ export RESNET18_EXAMPLE_PATH=${BUDDY_MLIR_BUILD_DIR}/../examples/BuddyResNet18/
+```
+
+6. Build and run the RESNET18 example
+
+```bash
+$ cmake -G Ninja .. -DBUDDY_RESNET18_EXAMPLES=ON
+$ ninja resnet18-run
+$ cd bin
+$ ./resnet18-run
+```
