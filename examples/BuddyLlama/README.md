@@ -1,6 +1,6 @@
 # Buddy Compiler LLaMA Example
 
-1. Download LLaMA2 model
+1. Download LLaMA model
 
 You should download llama model. You can get model from [meta ai](https://ai.meta.com/llama/).
 
@@ -14,13 +14,13 @@ $ cd buddy-mlir
 $ pip install -r requirements.txt
 ```
 
-3. LLaMA2 model convert to HuggingFace format
+3. LLaMA model convert to HuggingFace format
 
-You should convert LLaMA2 model which download from meta ai to HuggingFace format. Because we use HuggingFace api to get LLaMA2 model.
+You should convert LLaMA model which download from meta ai to HuggingFace format. Because we use HuggingFace api to get LLaMA model.
 
 ```
 $ cd examples/BuddyLlama
-$ python llama2-to-hf.py --input_dir path-to-llama2-model --model_size 7B --output_dir path-to-save-llama-hf-model
+$ python llama-to-hf.py --input_dir path-to-llama-model --model_size 7B/8B --output_dir path-to-save-llama-hf-model
 ```
 
 Such as you have a 7B LLaMA2 model, in your input_dir path-to-llama-model, you should have a tokenizer.model and a directory named "7B". You should put your 7B LLaMA2 model inside the "7B" directory.
