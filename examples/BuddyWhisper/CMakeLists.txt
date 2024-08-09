@@ -9,7 +9,7 @@ add_custom_command(
   COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyWhisper/forward.mlir 
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg, arith-bufferize, func.func(linalg-bufferize, tensor-bufferize), func-bufferize)" |
           ${BUDDY_BINARY_DIR}/buddy-opt
-            -pass-pipeline "builtin.module( func.func(buffer-deallocation-simplification, convert-linalg-to-loops),matmul-paralell-vectorization-optimize, batchmatmul-optimize, eliminate-empty-tensors,func-bufferize-dynamic-offset, func.func(llvm-request-c-wrappers),convert-scf-to-openmp, convert-openmp-to-llvm, convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
+            -pass-pipeline "builtin.module( func.func(buffer-deallocation-simplification, convert-linalg-to-loops),matmul-parallel-vectorization-optimize, batchmatmul-optimize, eliminate-empty-tensors,func-bufferize-dynamic-offset, func.func(llvm-request-c-wrappers),convert-scf-to-openmp, convert-openmp-to-llvm, convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyWhisper/forward.o
@@ -29,7 +29,7 @@ add_custom_command(
               -convert-elementwise-to-linalg
               -empty-tensor-to-alloc-tensor
               -one-shot-bufferize
-              -matmul-paralell-vectorization-optimize
+              -matmul-parallel-vectorization-optimize
               -batchmatmul-optimize
               -convert-linalg-to-affine-loops
               -affine-loop-fusion
