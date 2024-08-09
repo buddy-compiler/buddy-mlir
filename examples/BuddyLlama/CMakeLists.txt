@@ -13,7 +13,7 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize
-            -matmul-paralell-vectorization-optimize
+            -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
@@ -57,7 +57,7 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize
-            -matmul-paralell-vectorization-optimize
+            -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
