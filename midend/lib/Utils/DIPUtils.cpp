@@ -38,6 +38,7 @@
 #include "DIP/DIPOps.h"
 #include "Utils/AffineTransformUtils.h"
 #include "Utils/DIPUtils.h"
+#include "Utils/PerspectiveTransformUtils.h"
 #include "Utils/Utils.h"
 
 using namespace mlir;
@@ -424,6 +425,138 @@ SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
   Value m5 = builder.create<arith::AddFOp>(loc, m50, m51);
 
   return SmallVector<Value, 6>{m0, m1, m2, m3, m4, m5};
+}
+
+void perspectiveTransformController(
+    OpBuilder &builder, Location loc, MLIRContext *ctx, Value input,
+    Value output, SmallVector<SmallVector<Value, 3>, 3> homographyMatrix) {
+  Value c0Index = builder.create<arith::ConstantIndexOp>(loc, 0);
+  Value c1Index = builder.create<arith::ConstantIndexOp>(loc, 1);
+
+  Value outputHeight = builder.create<memref::DimOp>(loc, output, c0Index);
+  Value outputWidth = builder.create<memref::DimOp>(loc, output, c1Index);
+
+#define BLOCK_SZ 32
+  Value stride = builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ / 2);
+  Value blockHeight0 = builder.create<arith::MinUIOp>(
+      loc, outputHeight,
+      builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ / 2));
+  Value blockWidth0 = builder.create<arith::MinUIOp>(
+      loc, outputWidth,
+      builder.create<arith::DivUIOp>(
+          loc, builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ * BLOCK_SZ),
+          blockHeight0));
+  blockHeight0 = builder.create<arith::MinUIOp>(
+      loc, outputHeight,
+      builder.create<arith::DivUIOp>(
+          loc, builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ * BLOCK_SZ),
+          blockWidth0));
+#undef BLOCK_SZ
+
+  Value yStart = c0Index;
+  Value yEnd = outputHeight;
+  // outer of block y loop start
+  builder.create<scf::ForOp>(
+      loc, yStart, yEnd, blockHeight0, std::nullopt,
+      [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
+        // outer of block x loop start
+        yBuilder.create<scf::ForOp>(
+            yLoc, c0Index, outputWidth, blockWidth0, std::nullopt,
+            [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
+              Value blockWidth = xBuilder.create<arith::MinSIOp>(
+                  xLoc, blockWidth0,
+                  builder.create<arith::SubIOp>(xLoc, outputWidth, xiv));
+              Value blockHeight = xBuilder.create<arith::MinSIOp>(
+                  xLoc, blockHeight0,
+                  builder.create<arith::SubIOp>(xLoc, yEnd, yiv));
+
+              Value XY = xBuilder.create<memref::AllocOp>(
+                  loc,
+                  MemRefType::get(
+                      {2, ShapedType::kDynamic, ShapedType::kDynamic},
+                      xBuilder.getI32Type()),
+                  ValueRange{blockHeight, blockWidth});
+              // block y loop start
+              perspectiveTransformTail(xBuilder, xLoc, XY, yiv, blockHeight,
+                                       xiv, blockWidth, stride,
+                                       homographyMatrix);
+
+              remapNearest(builder, loc, input, output, XY, yiv, xiv,
+                           blockHeight, blockWidth);
+              xBuilder.create<scf::YieldOp>(xLoc);
+            });
+        yBuilder.create<scf::YieldOp>(yLoc);
+      });
+}
+
+void perspectiveTransform3dController(
+    OpBuilder &builder, Location loc, MLIRContext *ctx, Value input,
+    Value output, SmallVector<SmallVector<Value, 4>, 4> &mvp) {
+  Value c0Index = builder.create<arith::ConstantIndexOp>(loc, 0);
+  Value c1Index = builder.create<arith::ConstantIndexOp>(loc, 1);
+
+  Value outputHeight = builder.create<memref::DimOp>(loc, output, c0Index);
+  Value outputWidth = builder.create<memref::DimOp>(loc, output, c1Index);
+
+#define BLOCK_SZ 32
+  Value stride = builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ / 2);
+  Value blockHeight0 = builder.create<arith::MinUIOp>(
+      loc, outputHeight,
+      builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ / 2));
+  Value blockWidth0 = builder.create<arith::MinUIOp>(
+      loc, outputWidth,
+      builder.create<arith::DivUIOp>(
+          loc, builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ * BLOCK_SZ),
+          blockHeight0));
+  blockHeight0 = builder.create<arith::MinUIOp>(
+      loc, outputHeight,
+      builder.create<arith::DivUIOp>(
+          loc, builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ * BLOCK_SZ),
+          blockWidth0));
+#undef BLOCK_SZ
+
+  // set z = -width
+  Value Z =
+      builder.create<arith::NegFOp>(loc, indexToF64(builder, loc, outputWidth));
+  Value Z0 = builder.create<arith::MulFOp>(loc, mvp[0][2], Z);
+  Value Z1 = builder.create<arith::MulFOp>(loc, mvp[1][2], Z);
+  Value Z3 = builder.create<arith::MulFOp>(loc, mvp[3][2], Z);
+
+  Value yStart = c0Index;
+  Value yEnd = outputHeight;
+  // The y-axis represents height, while the x-axis represents width
+  // outer of block y loop start
+  builder.create<scf::ForOp>(
+      loc, yStart, yEnd, blockHeight0, std::nullopt,
+      [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
+        // outer of block x loop start
+        yBuilder.create<scf::ForOp>(
+            yLoc, c0Index, outputWidth, blockWidth0, std::nullopt,
+            [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
+              Value blockWidth = xBuilder.create<arith::MinSIOp>(
+                  xLoc, blockWidth0,
+                  builder.create<arith::SubIOp>(xLoc, outputWidth, xiv));
+              Value blockHeight = xBuilder.create<arith::MinSIOp>(
+                  xLoc, blockHeight0,
+                  builder.create<arith::SubIOp>(xLoc, yEnd, yiv));
+
+              Value XY = xBuilder.create<memref::AllocOp>(
+                  loc,
+                  MemRefType::get(
+                      {2, ShapedType::kDynamic, ShapedType::kDynamic},
+                      xBuilder.getI32Type()),
+                  ValueRange{blockHeight, blockWidth});
+
+              perspectiveTransform3dTail(xBuilder, xLoc, XY, yiv, blockHeight,
+                                         xiv, blockWidth, stride, Z0, Z1, Z3,
+                                         mvp);
+
+              forwardRemap(builder, loc, input, output, XY, yiv, blockHeight,
+                           xiv, blockWidth);
+              xBuilder.create<scf::YieldOp>(xLoc);
+            });
+        yBuilder.create<scf::YieldOp>(yLoc);
+      });
 }
 
 // Compute the inverse of the affine matrix
