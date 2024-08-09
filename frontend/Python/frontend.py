@@ -277,6 +277,7 @@ class DynamoCompiler:
                 fake_params,
                 self._ops_registry,
                 self._func_name,
+                self._verbose
             )
             for gm_node in _gm.graph.nodes:
                 node_users = []
