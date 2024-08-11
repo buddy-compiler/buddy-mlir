@@ -87,7 +87,7 @@ private:
   int32_t fourBytesToI32(const std::vector<uint8_t> &fileData,
                          size_t startIndex,
                          Endianness endianness = Endianness::LittleEndian);
-  // Convert four bytes to a 16-bit integer according to byte order of data.
+  // Convert two bytes to a 16-bit integer according to byte order of data.
   int16_t twoBytesToI16(const std::vector<uint8_t> &fileData, size_t startIndex,
                         Endianness endianness = Endianness::LittleEndian);
   // Normalize 8-bit unsigned integer sample to a range of -1.0 to 1.0.
