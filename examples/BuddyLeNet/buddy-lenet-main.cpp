@@ -15,41 +15,24 @@
 //===----------------------------------------------------------------------===//
 
 #include <buddy/Core/Container.h>
-#include <buddy/DIP/ImageContainer.h>
+#include <buddy/DIP/ImgContainer.h>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <limits>
-#include <opencv2/opencv.hpp>
 #include <string>
 #include <utility>
 #include <vector>
 
 constexpr size_t ParamsSize = 44426;
-const std::string ImgName = "3.png";
+const std::string ImgName = "8.bmp";
 
 /// Declare LeNet forward function.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
                                      MemRef<float, 1> *arg0,
-                                     Img<float, 4> *input);
-
-/// Function for preprocessing the image to match model input requirements.
-const cv::Mat imagePreprocessing() {
-  // Get the directory of the LeNet example and construct the image path.
-  std::string lenetDir = getenv("LENET_EXAMPLE_PATH");
-  std::string imgPath = lenetDir + "/images/" + ImgName;
-  // Read the image in grayscale mode.
-  cv::Mat inputImage = cv::imread(imgPath, cv::IMREAD_GRAYSCALE);
-  assert(!inputImage.empty() && "Could not read the image.");
-  cv::Mat resizedImage;
-  int imageWidth = 28;
-  int imageHeight = 28;
-  // Resize the image to 28x28 pixels.
-  cv::resize(inputImage, resizedImage, cv::Size(imageWidth, imageHeight),
-             cv::INTER_LINEAR);
-  return resizedImage;
-}
+                                     dip::Image<float, 4> *input);
 
 /// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
@@ -112,19 +95,16 @@ int main() {
   const std::string title = "LeNet Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
-  // Preprocess the image to match the input requirements of the model.
-  cv::Mat image = imagePreprocessing();
-
-  // Define the sizes of the input and output tensors.
-  intptr_t sizesInput[4] = {1, 1, 28, 28};
+  // Define the sizes of the output tensors.
   intptr_t sizesOutput[2] = {1, 10};
 
   // Create input and output containers for the image and model output.
-  Img<float, 4> input(image, sizesInput, true);
+  std::string lenetDir = getenv("LENET_EXAMPLE_PATH");
+  std::string imgPath = lenetDir + "/images/" + ImgName;
+  dip::Image<float, 4> input(imgPath, dip::DIP_GRAYSCALE, true /* norm */);
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
-  std::string lenetDir = getenv("LENET_EXAMPLE_PATH");
   std::string paramsDir = lenetDir + "/arg0.data";
   MemRef<float, 1> paramsContainer({ParamsSize});
   loadParameters(paramsDir, paramsContainer);
