@@ -260,9 +260,11 @@ public:
   TimingPass() = default;
   TimingPass(const TimingPass &) {}
 
-  Option<std::string> OpNameOption{*this, "timing",
-                                   llvm::cl::desc("Timing an op name"),
-                                   llvm::cl::init("linalg.generic")};
+  Option<std::string> OpNameOption{
+      *this, "timing", llvm::cl::desc("Timing an op name"),
+      llvm::cl::init(
+          "tosa.transpose")}; // linalg.conv_2d  linalg.generic tosa.mul
+                              // linalg.matmul tosa.transpose
 
   StringRef getArgument() const final { return "timing"; }
   StringRef getDescription() const final { return "Timing Dialect."; }
@@ -319,18 +321,31 @@ void TimingPass::runOnOperation() {
       builder.create<mlir::func::FuncOp>(module.getLoc(), "rtclock", funcType);
   rtclockFunc.setPrivate();
 
-  // func.func private @printMemrefF32(memref<*xf32>)
+  // func.func private @printMemrefF64(memref<*xf64>)
   mlir::Type memrefType1 =
       mlir::UnrankedMemRefType::get(builder.getF64Type(), /*memorySpace=*/0);
-  auto printFuncType = builder.getFunctionType({memrefType1}, {});
+  auto printmemrefFuncType = builder.getFunctionType({memrefType1}, {});
   auto printMemrefFunc = builder.create<mlir::func::FuncOp>(
-      module.getLoc(), "printMemrefF64", printFuncType);
+      module.getLoc(), "printMemrefF64", printmemrefFuncType);
   printMemrefFunc.setPrivate();
+
+  // func.func private @printF64(f64)
+  auto printF64FuncType = builder.getFunctionType({builder.getF64Type()}, {});
+  auto printF64Func = builder.create<mlir::func::FuncOp>(
+      module.getLoc(), "printF64", printF64FuncType);
+  printF64Func.setPrivate();
+
+  // printNewline ()
+  auto printNewlineType = builder.getFunctionType({}, {});
+  auto printNewlineFunc = builder.create<mlir::func::FuncOp>(
+      module.getLoc(), "printNewline", printNewlineType);
+  printNewlineFunc.setPrivate();
 
   // 遍历
   module.walk([&](mlir::func::FuncOp funcOp) {
     // llvm::outs() << "Function name: " << funcOp.getName() << "\n";
-    if (funcOp == rtclockFunc || funcOp == printMemrefFunc) {
+    if (funcOp == rtclockFunc || funcOp == printMemrefFunc ||
+        funcOp == printF64Func || funcOp == printNewlineFunc) {
       // llvm::outs() << "return\n";
       return;
     }
@@ -355,9 +370,10 @@ void TimingPass::runOnOperation() {
       return;
     }
 
+    // 将插入点插入到函数的开头
     builder.setInsertionPointToStart(&funcOp.getBody().front());
 
-    // memref.alloc
+    // 插入memref.alloc
     auto memrefType = MemRefType::get({opNum}, builder.getF64Type());
     Value memrefAlloc =
         builder.create<mlir::memref::AllocOp>(module.getLoc(), memrefType);
@@ -366,21 +382,24 @@ void TimingPass::runOnOperation() {
     Value idx =
         builder.create<mlir::arith::ConstantIndexOp>(module.getLoc(), 0);
     Value c1 = builder.create<mlir::arith::ConstantIndexOp>(module.getLoc(), 1);
+    Value all_duration = builder.create<arith::ConstantOp>(
+        module.getLoc(), builder.getF64Type(), builder.getF64FloatAttr(0.0));
 
     // 遍历所有对应的Op
     for (auto op : ops) {
       // 在op的前面添加startOp
       builder.setInsertionPoint(op);
-      auto startOp = builder.create<timing::StartOp>(op->getLoc());
+      Value startOp = builder.create<timing::StartOp>(op->getLoc());
 
       // 在op的后面添加endOp，subop，storeOp
       builder.setInsertionPointAfter(op);
-      auto endOp = builder.create<timing::EndOp>(op->getLoc());
-      auto SubOp =
+      Value endOp = builder.create<timing::EndOp>(op->getLoc());
+      Value SubOp =
           builder.create<mlir::arith::SubFOp>(op->getLoc(), endOp, startOp);
-      builder.create<mlir::memref::StoreOp>(op->getLoc(), SubOp.getResult(),
-                                            memrefAlloc, ValueRange(idx));
-
+      builder.create<mlir::memref::StoreOp>(op->getLoc(), SubOp, memrefAlloc,
+                                            ValueRange(idx));
+      all_duration = builder.create<mlir::arith::AddFOp>(op->getLoc(),
+                                                         all_duration, SubOp);
       idx = builder.create<mlir::arith::AddIOp>(op->getLoc(), idx, c1);
     }
 
@@ -392,6 +411,10 @@ void TimingPass::runOnOperation() {
     // 在代码的最后添加打印时间的op
     builder.create<mlir::func::CallOp>(ops.back()->getLoc(), printMemrefFunc,
                                        ValueRange{result});
+    builder.create<mlir::func::CallOp>(ops.back()->getLoc(), printF64Func,
+                                       ValueRange{all_duration});
+    builder.create<mlir::func::CallOp>(ops.back()->getLoc(), printNewlineFunc,
+                                       ValueRange{});
   });
 }
 

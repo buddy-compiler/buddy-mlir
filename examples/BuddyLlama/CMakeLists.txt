@@ -112,6 +112,7 @@ target_link_directories(buddy-llama-run PRIVATE ${LLVM_LIBRARY_DIR})
 set(BUDDY_LLAMA_LIBS
   LLAMA
   mlir_c_runner_utils
+  mlir_runner_utils
   omp
 )
 if(BUDDY_MLIR_USE_MIMALLOC)
