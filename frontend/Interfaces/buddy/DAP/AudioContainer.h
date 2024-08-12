@@ -109,9 +109,8 @@ private:
 
   // Helper functions for encoding and data manipulation.
   // Converts each character in the string to a byte.
-  void stringToBytes(std::vector<uint8_t> &fileData,
-                     const std::string &str) {
-    for (size_t i = 0; i < str.size(); i++) 
+  void stringToBytes(std::vector<uint8_t> &fileData, const std::string &str) {
+    for (size_t i = 0; i < str.size(); i++)
       fileData.push_back(static_cast<uint8_t>(str[i]));
   }
   // Converts a 32-bit integer to four bytes according to byte order of data.
@@ -170,7 +169,7 @@ template <typename T, std::size_t N> Audio<T, N>::Audio(std::string filePath) {
 
 // Create Audio File.
 // Save Audio MemRef to the specified file path using the desired format.
-template <typename T, std::size_t N> 
+template <typename T, std::size_t N>
 bool Audio<T, N>::saveToFile(std::string filePath, std::string format) {
   // ---------------------------------------------------------------------------
   // 1. Determine the audio format and encode the MemRef into file data.
@@ -188,9 +187,8 @@ bool Audio<T, N>::saveToFile(std::string filePath, std::string format) {
       throw std::runtime_error("Failed to encode WAV file from ");
     };
   } else {
-    std::cerr << "Unsupported: The encoding method for " << format 
-              << " format is not yet supported."
-              << std::endl;
+    std::cerr << "Unsupported: The encoding method for " << format
+              << " format is not yet supported." << std::endl;
     return false;
   }
   // ---------------------------------------------------------------------------
@@ -326,10 +324,11 @@ bool Audio<T, N>::EncodeWaveFile(std::vector<uint8_t> &fileData) {
   // Size for 'format' sub-chunk, doesn't include metadata length.
   int32_t formatChunkSize = audioFormat == 1 ? 16 : 18;
   // Size for 'data' sub-chunk, doesn't include metadata length.
-  int32_t dataChunkSize = this->numSamples * this->numChannels * this->bitsPerSample / 8;
-  // The file size in bytes include header chunk size(4, not counting RIFF and WAVE), 
-  // the format chunk size(formatChunkSize and 8 bytes for metadata),
-  // the data chunk size(dataChunkSize and 8 bytes for metadata).
+  int32_t dataChunkSize =
+      this->numSamples * this->numChannels * this->bitsPerSample / 8;
+  // The file size in bytes include header chunk size(4, not counting RIFF and
+  // WAVE), the format chunk size(formatChunkSize and 8 bytes for metadata), the
+  // data chunk size(dataChunkSize and 8 bytes for metadata).
   int32_t fileSizeInBytes = 4 + formatChunkSize + 8 + dataChunkSize + 8;
   i32ToFourBytes(fileData, fileSizeInBytes);
   stringToBytes(fileData, "WAVE");
@@ -349,8 +348,10 @@ bool Audio<T, N>::EncodeWaveFile(std::vector<uint8_t> &fileData) {
   i16ToTwoBytes(fileData, audioFormat);
   i16ToTwoBytes(fileData, static_cast<int16_t>(this->numChannels));
   i32ToFourBytes(fileData, static_cast<int32_t>(this->sampleRate));
-  int16_t numBytesPerBlock = static_cast<int16_t>(dataChunkSize / this->numSamples);
-  int32_t numBytesPerSecond = static_cast<int32_t>(this->sampleRate * numBytesPerBlock);
+  int16_t numBytesPerBlock =
+      static_cast<int16_t>(dataChunkSize / this->numSamples);
+  int32_t numBytesPerSecond =
+      static_cast<int32_t>(this->sampleRate * numBytesPerBlock);
   i32ToFourBytes(fileData, numBytesPerSecond);
   i16ToTwoBytes(fileData, numBytesPerBlock);
   i16ToTwoBytes(fileData, static_cast<int16_t>(this->bitsPerSample));
@@ -387,7 +388,7 @@ bool Audio<T, N>::EncodeWaveFile(std::vector<uint8_t> &fileData) {
   }
   // Other data length are not yet supported.
   else {
-    std::cerr << "Unsupported audio data length: " << this->bitsPerSample 
+    std::cerr << "Unsupported audio data length: " << this->bitsPerSample
               << " bit" << std::endl;
     return false;
   }
@@ -555,8 +556,7 @@ void Audio<T, N>::i16ToTwoBytes(std::vector<uint8_t> &fileData, int16_t num,
 //   sample: A floating-point value representing the audio sample.
 // Returns:
 //   An 8-bit unsigned integer representing the sample as one byte.
-template <typename T, size_t N>
-uint8_t Audio<T, N>::sampleToOneByte(T sample) {
+template <typename T, size_t N> uint8_t Audio<T, N>::sampleToOneByte(T sample) {
   // Restricts sample value in range [-1.0, 1.0].
   sample = std::min(sample, 1.);
   sample = std::max(sample, -1.);
@@ -570,12 +570,12 @@ uint8_t Audio<T, N>::sampleToOneByte(T sample) {
 //   sample: A floating-point value representing the audio sample.
 // Returns:
 //   A 16-bit unsigned integer representing the sample as two bytes.
-template <typename T, size_t N>
-int16_t Audio<T, N>::sampleToI16(T sample) {
+template <typename T, size_t N> int16_t Audio<T, N>::sampleToI16(T sample) {
   // Restricts sample value in range [-1.0, 1.0].
   sample = std::min(sample, 1.);
   sample = std::max(sample, -1.);
-  // Converts a normalized floating-point audio sample to the [-32767, 32767] range.
+  // Converts a normalized floating-point audio sample to the [-32767, 32767]
+  // range.
   return static_cast<int16_t>(sample * 32767.);
 }
 } // namespace dap
