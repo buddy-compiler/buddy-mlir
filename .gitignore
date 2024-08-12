@@ -12,3 +12,6 @@
 
 # Clangd cache
 .cache
+
+# environment bash
+env.sh
