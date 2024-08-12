@@ -108,18 +108,22 @@ private:
   }
 
   // Helper functions for encoding and data manipulation.
-  // Convert each character in the string to a byte.
+  // Converts each character in the string to a byte.
   void stringToBytes(std::vector<uint8_t> &fileData,
                      const std::string &str) {
     for (size_t i = 0; i < str.size(); i++) 
       fileData.push_back(static_cast<uint8_t>(str[i]));
   }
-  // Convert a 32-bit integer to four bytes according to byte order of data.
+  // Converts a 32-bit integer to four bytes according to byte order of data.
   void i32ToFourBytes(std::vector<uint8_t> &fileData, int32_t num,
                       Endianness endianness);
-  // Convert a 16-bit integer to two bytes according to byte order of data.
+  // Converts a 16-bit integer to two bytes according to byte order of data.
   void i16ToTwoBytes(std::vector<uint8_t> &fileData, int16_t num,
                      Endianness endianness);
+  // Converts an audio sample to a 8-bit PCM format (one byte).
+  uint8_t sampleToOneByte(T sample);
+  // Converts an audio sample to a 16-bit PCM format (two bytes).
+  int16_t sampleToI16(T sample);
 };
 
 // Audio Container Constructor.
@@ -405,7 +409,7 @@ int16_t Audio<T, N>::twoBytesToI16(const std::vector<uint8_t> &fileData,
   return static_cast<int16_t>(result);
 }
 
-// Converts 32-bit integer to four bytes based on endianness.
+// Converts a 32-bit integer to four bytes based on endianness.
 // Params:
 //   fileData: Vector containing the raw binary data.
 //   num: A 32-bit integer prepared for convertion.
@@ -432,7 +436,7 @@ void Audio<T, N>::i32ToFourBytes(std::vector<uint8_t> &fileData, int32_t num,
     fileData.push_back(bytes[i]);
 }
 
-// Converts 16-bit integer to two bytes based on endianness.
+// Converts a 16-bit integer to two bytes based on endianness.
 // Params:
 //   fileData: Vector containing the raw binary data.
 //   num: A 16-bit integer prepared for convertion.
@@ -453,6 +457,35 @@ void Audio<T, N>::i16ToTwoBytes(std::vector<uint8_t> &fileData, int16_t num,
   // Append the converted bytes to the fileData vector.
   fileData.push_back(bytes[0]);
   fileData.push_back(bytes[1]);
+}
+
+// Converts an audio sample to a 8-bit PCM format (one byte).
+// Params:
+//   sample: A floating-point value representing the audio sample.
+// Returns:
+//   An 8-bit unsigned integer representing the sample as one byte.
+template <typename T, size_t N>
+uint8_t Audio<T, N>::sampleToOneByte(T sample) {
+  // Restricts sample value in range [-1.0, 1.0].
+  sample = std::min(sample, 1.);
+  sample = std::max(sample, -1.);
+  // Converts a normalized floating-point audio sample to the [0, 255] range.
+  sample = (sample + 1.) / 2.;
+  return static_cast<uint8_t>(sample * 255.);
+}
+
+// Converts an audio sample to a 16-bit PCM format (two bytes).
+// Params:
+//   sample: A floating-point value representing the audio sample.
+// Returns:
+//   A 16-bit unsigned integer representing the sample as two bytes.
+template <typename T, size_t N>
+int16_t Audio<T, N>::sampleToI16(T sample) {
+  // Restricts sample value in range [-1.0, 1.0].
+  sample = std::min(sample, 1.);
+  sample = std::max(sample, -1.);
+  // Converts a normalized floating-point audio sample to the [-32767, 32767] range.
+  return static_cast<int16_t>(sample * 32767.);
 }
 } // namespace dap
 
