@@ -84,7 +84,7 @@ private:
 
   // Encoders for multiple audio file formats.
   // Encode a MemRef into WAV format.
-  bool EncodeWaveFile(const std::string &filePath);
+  bool EncodeWaveFile(std::vector<uint8_t> &fileData);
 
   // Helper functions for decoding and data manipulation
   // Find the index of a specified chunk in the audio file.
@@ -116,10 +116,10 @@ private:
   }
   // Converts a 32-bit integer to four bytes according to byte order of data.
   void i32ToFourBytes(std::vector<uint8_t> &fileData, int32_t num,
-                      Endianness endianness);
+                      Endianness endianness = Endianness::LittleEndian);
   // Converts a 16-bit integer to two bytes according to byte order of data.
   void i16ToTwoBytes(std::vector<uint8_t> &fileData, int16_t num,
-                     Endianness endianness);
+                     Endianness endianness = Endianness::LittleEndian);
   // Converts an audio sample to a 8-bit PCM format (one byte).
   uint8_t sampleToOneByte(T sample);
   // Converts an audio sample to a 16-bit PCM format (two bytes).
@@ -178,9 +178,15 @@ bool Audio<T, N>::saveToFile(std::string filePath, std::string format) {
   // Convert the string to lowercase before comparison, ensuring that case
   // variations are handled without repeating conditions.
   std::transform(format.begin(), format.end(), format.begin(), ::tolower);
+  // Vector for storing bytes in a specific format.
+  std::vector<uint8_t> fileData;
   // Select encoder.
   if (format == "wav" || format == "wave") {
-    EncodeWaveFile(filePath);
+    bool success = EncodeWaveFile(fileData);
+    if (!success) {
+      this->audioFormat = AudioFormat::ERROR;
+      throw std::runtime_error("Failed to encode WAV file from ");
+    };
   } else {
     std::cerr << "Unsupported: The encoding method for " << format 
               << " format is not yet supported."
@@ -190,7 +196,20 @@ bool Audio<T, N>::saveToFile(std::string filePath, std::string format) {
   // ---------------------------------------------------------------------------
   // 2. Write std::vector into audio file.
   // ---------------------------------------------------------------------------
-  return true;
+  std::ofstream outputFile(filePath, std::ios::binary);
+
+  if (outputFile.is_open()) {
+    for (size_t i = 0; i < fileData.size(); i++) {
+      char value = static_cast<char>(fileData[i]);
+      outputFile.write(&value, sizeof(char));
+    }
+
+    outputFile.close();
+
+    return true;
+  }
+
+  return false;
 }
 
 // WAV Audio File Decoder
@@ -296,10 +315,82 @@ bool Audio<T, N>::decodeWaveFile(const std::vector<uint8_t> &fileData) {
 
 // WAV Audio File Encoder
 template <typename T, std::size_t N>
-bool Audio<T, N>::EncodeWaveFile(const std::string &filePath) {
-  std::vector<uint8_t> fileData;
+bool Audio<T, N>::EncodeWaveFile(std::vector<uint8_t> &fileData) {
+  // Encode the 'header' chunk.
+  // RIFF chunk descriptor
+  //   chunk ID: char[4] | 4 bytes | "RIFF"
+  //   chunk size: uint32_t | 4bytes
+  //   format: char[4] | 4 bytes | "WAVE"
+  stringToBytes(fileData, "RIFF");
+  int16_t audioFormat = this->bitsPerSample == 32 ? 0 : 1;
+  // Size for 'format' sub-chunk, doesn't include metadata length.
+  int32_t formatChunkSize = audioFormat == 1 ? 16 : 18;
+  // Size for 'data' sub-chunk, doesn't include metadata length.
+  int32_t dataChunkSize = this->numSamples * this->numChannels * this->bitsPerSample / 8;
+  // The file size in bytes include header chunk size(4, not counting RIFF and WAVE), 
+  // the format chunk size(formatChunkSize and 8 bytes for metadata),
+  // the data chunk size(dataChunkSize and 8 bytes for metadata).
+  int32_t fileSizeInBytes = 4 + formatChunkSize + 8 + dataChunkSize + 8;
+  i32ToFourBytes(fileData, fileSizeInBytes);
+  stringToBytes(fileData, "WAVE");
 
+  // Encode the 'format' chunk.
+  // Format sub-chunk:
+  //   sub-chunk ID: char[4] | 4 bytes | "fmt "
+  //   sub-chunk size: uint32_t | 4 bytes
+  //   audio format: uint16_t | 2 bytes | 1 for PCM
+  //   number of channels: uint16_t | 2 bytes
+  //   sample rate: uint32_t | 4 bytes
+  //   byte rate: uint32_t | 4 bytes
+  //   block align: uint16_t | 2 bytes
+  //   bits per sample: uint16_t | 2 bytes
+  stringToBytes(fileData, "fmt ");
+  i32ToFourBytes(fileData, formatChunkSize);
+  i16ToTwoBytes(fileData, audioFormat);
+  i16ToTwoBytes(fileData, static_cast<int16_t>(this->numChannels));
+  i32ToFourBytes(fileData, static_cast<int32_t>(this->sampleRate));
+  int16_t numBytesPerBlock = static_cast<int16_t>(dataChunkSize / this->numSamples);
+  int32_t numBytesPerSecond = static_cast<int32_t>(this->sampleRate * numBytesPerBlock);
+  i32ToFourBytes(fileData, numBytesPerSecond);
+  i16ToTwoBytes(fileData, numBytesPerBlock);
+  i16ToTwoBytes(fileData, static_cast<int16_t>(this->bitsPerSample));
 
+  // Encode the 'data' chunk.
+  // Data sub-chunk:
+  //   sub-chunk ID: char[4] | 4 bytes | "data"
+  //   sub-chunk size: uint32_t | 4 bytes
+  //   data | remains
+  stringToBytes(fileData, "data");
+  I32ToFourBytes(fileData, dataChunkSize);
+
+  // Sample data length: 8 bit
+  if (this->bitsPerSample == 8) {
+    size_t memrefIndex = 0;
+    for (size_t i = 0; i < this->numSamples; i++) {
+      for (size_t channel = 0; channel < this->numChannels; channel++) {
+        uint8_t byte = sampleToOneByte(this->aligned[memrefIndex]);
+        fileData.push_back(byte);
+        memrefIndex++;
+      }
+    }
+  }
+  // Sample data length: 16 bit
+  else if (this->bitsPerSample == 16) {
+    size_t memrefIndex = 0;
+    for (size_t i = 0; i < this->numSamples; i++) {
+      for (size_t channel = 0; channel < this->numChannels; channel++) {
+        int16_t sampleAsInt = sampleToI16(this->aligned[memrefIndex]);
+        i16ToTwoBytes(fileData, sampleAsInt);
+        memrefIndex++;
+      }
+    }
+  }
+  // Other data length are not yet supported.
+  else {
+    std::cerr << "Unsupported audio data length: " << this->bitsPerSample 
+              << " bit" << std::endl;
+    return false;
+  }
 
   return true;
 }
