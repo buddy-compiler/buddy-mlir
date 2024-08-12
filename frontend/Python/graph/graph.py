@@ -244,7 +244,7 @@ class Graph:
         output_ranks = []
         output_dtypes = []
         for out_node in outputs:
-            out_type = ir.RankedTensorType(out_node.type)
+            out_type = ir.MemRefType(out_node.type)
             shape = list(out_type.shape)
             dtype = out_type.element_type
             match str(dtype):
@@ -441,7 +441,7 @@ class GraphImporter:
                 shape_list = list(arg.shape)
                 dtype = arg.dtype
                 mlir_dtype = self._str_to_mlir_dtype(dtype)
-                tensor_arg = ir.MemrefType.get(shape_list, mlir_dtype)
+                tensor_arg = ir.MemRefType.get(shape_list, mlir_dtype)
                 arguments.append(tensor_arg)
             extern_func = []
             for node in self._body:
@@ -588,6 +588,7 @@ class GraphImporter:
             node (Op): The buddy node representing the operation.
 
         """
+        
         op_name = node.__class__.__name__
         op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)

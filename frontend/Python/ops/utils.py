@@ -55,4 +55,45 @@ def mlir_element_attr_get(type_name, value):
             return ir.IntegerAttr.get(ir.IntegerType.get_signless(1), value)
 
 
-def tensor_shape_size()
+def tensor_shape_size(shape):
+    """
+    Calculate the product of all dimensions in the given shape list, 
+    which represents the size of the tensor.
+    Args:
+        shape: A list containing the sizes of each dimension of the tensor.
+    """
+    size = 1
+    for dim in shape:
+        size *= dim
+    return size
+
+def generate_strides(shape):
+    """
+    Generate strides based on the input matrix shape.
+    
+    Args:
+        shape (list[int]): The shape of the input matrix, e.g., [2, 3, 4].
+
+    Returns:
+        list[int]: The corresponding strides, e.g., [12, 4, 1].
+    """
+    strides = []
+    stride = 1
+    for dim in reversed(shape):
+        strides.insert(0, stride)
+        stride *= dim
+    return strides
+
+def transpose_strides(strides, permutation):
+    """
+    Reorder strides based on the input permutation.
+    
+    Args:
+        strides (list[int]): The original strides list, e.g., [12, 4, 1].
+        permutation (list[int]): The permutation order, e.g., [1, 2, 0].
+
+    Returns:
+        list[int]: The reordered strides list, e.g., [4, 1, 12].
+    """
+    transposed_strides = [strides[i] for i in permutation]
+    return transposed_strides
