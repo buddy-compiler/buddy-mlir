@@ -57,7 +57,6 @@ void registerLowerBudPass();
 void registerLowerDIPPass();
 void registerBatchMatMulOptimizePass();
 void registerBatchMatMulTileOptimizePass();
-void registerBatchMatMulTileOptimizeRVVPass();
 void registerLowerDAPPass();
 void registerDAPVectorizePass();
 void registerLowerRVVPass();
@@ -97,7 +96,6 @@ int main(int argc, char **argv) {
   mlir::buddy::registerMatMulOptimizePass();
   mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerBatchMatMulTileOptimizePass();
-  mlir::buddy::registerBatchMatMulTileOptimizeRVVPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
   mlir::buddy::registerTransposeOptimizationPass();

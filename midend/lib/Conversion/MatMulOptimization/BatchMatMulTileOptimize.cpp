@@ -91,11 +91,7 @@ public:
     const AffineExpr s1 = rewriter.getAffineSymbolExpr(1);
     const AffineExpr s2 = rewriter.getAffineSymbolExpr(2);
 
-    const AffineMap mapBroadcast =
-        AffineMap::get(3, 0, rewriter.getAffineConstantExpr(0));
     const AffineExpr zeroAffine = rewriter.getAffineConstantExpr(0);
-    const Value zeroElementType = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getZeroAttr(elementType));
 
     // Get dimensions of input tensors.
     Value batch = rewriter.create<memref::DimOp>(loc, A, 0);
