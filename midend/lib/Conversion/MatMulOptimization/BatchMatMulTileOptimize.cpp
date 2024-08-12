@@ -203,8 +203,6 @@ public:
                             mTrueBranchBuilder.create<memref::LoadOp>(
                                 loc, A,
                                 ValueRange{loopVarBatchIdx, fixedIV, ivK});
-                        Value vecA = mTrueBranchBuilder.create<SplatOp>(
-                            loc, vTy, ksubAElement);
 
                         for (int j = 0; j < kernelN; j++) {
                           Value fixedJV = ivJ;
@@ -218,8 +216,22 @@ public:
                           }
                           Value vecC = mTrueBranchBuilder.create<LoadOp>(
                               loc, vTy, cptrs[i], ValueRange{c0, c0, fixedJV});
-                          vecC = mTrueBranchBuilder.create<vector::FMAOp>(
-                              loc, vTy, vecA, bs[j], vecC);
+                          if (elementType.isIntOrFloat()) {
+                            Value vecA =
+                                mTrueBranchBuilder.create<vector::BroadcastOp>(
+                                    loc, vTy, ksubAElement);
+                            Value vecMul =
+                                mTrueBranchBuilder.create<arith::MulIOp>(
+                                    loc, vTy, vecA, bs[j]);
+                            vecC = mTrueBranchBuilder.create<arith::AddIOp>(
+                                loc, vTy, vecMul, vecC);
+                          } else {
+                            Value vecA =
+                                mTrueBranchBuilder.create<vector::SplatOp>(
+                                    loc, vTy, ksubAElement);
+                            vecC = mTrueBranchBuilder.create<vector::FMAOp>(
+                                loc, vTy, vecA, bs[j], vecC);
+                          }
                           // store vecC
                           Value tailLength =
                               mTrueBranchBuilder.create<affine::AffineApplyOp>(
