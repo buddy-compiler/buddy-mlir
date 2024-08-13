@@ -47,3 +47,14 @@ add_dependencies(buddy-iir-vectorization buddy-opt)
 target_link_libraries(buddy-iir-vectorization
   BuddyLibDAPVectorization
 )
+
+#-------------------------------------------------------------------------------
+# Buddy DAP Dialect WhisperPreprocess Operation
+#-------------------------------------------------------------------------------
+
+add_executable(buddy-whisper-preprocess WhisperPreprocess.cpp)
+add_dependencies(buddy-whisper-preprocess buddy-opt)
+target_link_libraries(buddy-whisper-preprocess
+  BuddyLibDAP
+  mlir_c_runner_utils
+)

@@ -13,7 +13,9 @@ set(BUDDY_TEST_DEPENDS
   buddy-translate
   buddy-container-test
   buddy-audio-container-test
+  buddy-new-image-container-test
   buddy-text-container-test
+  mlir-cpu-runner
   )
 
 if(BUDDY_ENABLE_OPENCV)
