@@ -177,14 +177,14 @@ bool Audio<T, N>::saveToFile(std::string filePath, std::string format) {
   // Convert the string to lowercase before comparison, ensuring that case
   // variations are handled without repeating conditions.
   std::transform(format.begin(), format.end(), format.begin(), ::tolower);
-  // Vector for storing bytes in a specific format.
+  // Vector for storing bytes in a specific audio format.
   std::vector<uint8_t> fileData;
   // Select encoder.
   if (format == "wav" || format == "wave") {
     bool success = EncodeWaveFile(fileData);
     if (!success) {
       this->audioFormat = AudioFormat::ERROR;
-      throw std::runtime_error("Failed to encode WAV file from ");
+      throw std::runtime_error("Failed to encode WAVE file.");
     };
   } else {
     std::cerr << "Unsupported: The encoding method for " << format
@@ -362,7 +362,7 @@ bool Audio<T, N>::EncodeWaveFile(std::vector<uint8_t> &fileData) {
   //   sub-chunk size: uint32_t | 4 bytes
   //   data | remains
   stringToBytes(fileData, "data");
-  I32ToFourBytes(fileData, dataChunkSize);
+  i32ToFourBytes(fileData, dataChunkSize);
 
   // Sample data length: 8 bit
   if (this->bitsPerSample == 8) {
@@ -513,14 +513,14 @@ void Audio<T, N>::i32ToFourBytes(std::vector<uint8_t> &fileData, int32_t num,
   // representation during bit operations.
   uint8_t bytes[4];
   if (endianness == Endianness::LittleEndian) {
-    bytes[3] = (static_cast<uint8_t>(num) >> 24) & 0xFF;
-    bytes[2] = (static_cast<uint8_t>(num) >> 16) & 0xFF;
-    bytes[1] = (static_cast<uint8_t>(num) >> 8) & 0xFF;
+    bytes[3] = static_cast<uint8_t>(num >> 24) & 0xFF;
+    bytes[2] = static_cast<uint8_t>(num >> 16) & 0xFF;
+    bytes[1] = static_cast<uint8_t>(num >> 8) & 0xFF;
     bytes[0] = static_cast<uint8_t>(num) & 0xFF;
   } else {
-    bytes[0] = (static_cast<uint8_t>(num) >> 24) & 0xFF;
-    bytes[1] = (static_cast<uint8_t>(num) >> 16) & 0xFF;
-    bytes[2] = (static_cast<uint8_t>(num) >> 8) & 0xFF;
+    bytes[0] = static_cast<uint8_t>(num >> 24) & 0xFF;
+    bytes[1] = static_cast<uint8_t>(num >> 16) & 0xFF;
+    bytes[2] = static_cast<uint8_t>(num >> 8) & 0xFF;
     bytes[3] = static_cast<uint8_t>(num) & 0xFF;
   }
   // Append the converted bytes to the fileData vector.
@@ -540,10 +540,10 @@ void Audio<T, N>::i16ToTwoBytes(std::vector<uint8_t> &fileData, int16_t num,
   // representation during bit operations.
   uint8_t bytes[2];
   if (endianness == Endianness::LittleEndian) {
-    bytes[1] = (static_cast<uint8_t>(num) >> 8) & 0xFF;
+    bytes[1] = static_cast<uint8_t>(num >> 8) & 0xFF;
     bytes[0] = static_cast<uint8_t>(num) & 0xFF;
   } else {
-    bytes[0] = (static_cast<uint8_t>(num) >> 8) & 0xFF;
+    bytes[0] = static_cast<uint8_t>(num >> 8) & 0xFF;
     bytes[1] = static_cast<uint8_t>(num) & 0xFF;
   }
   // Append the converted bytes to the fileData vector.
@@ -558,10 +558,10 @@ void Audio<T, N>::i16ToTwoBytes(std::vector<uint8_t> &fileData, int16_t num,
 //   An 8-bit unsigned integer representing the sample as one byte.
 template <typename T, size_t N> uint8_t Audio<T, N>::sampleToOneByte(T sample) {
   // Restricts sample value in range [-1.0, 1.0].
-  sample = std::min(sample, 1.);
-  sample = std::max(sample, -1.);
+  sample = std::min(sample, static_cast<T>(1.));
+  sample = std::max(sample, static_cast<T>(-1.));
   // Converts a normalized floating-point audio sample to the [0, 255] range.
-  sample = (sample + 1.) / 2.;
+  sample = (sample + static_cast<T>(1.)) / static_cast<T>(2.);
   return static_cast<uint8_t>(sample * 255.);
 }
 
@@ -569,11 +569,11 @@ template <typename T, size_t N> uint8_t Audio<T, N>::sampleToOneByte(T sample) {
 // Params:
 //   sample: A floating-point value representing the audio sample.
 // Returns:
-//   A 16-bit unsigned integer representing the sample as two bytes.
+//   A 16-bit signed integer representing the sample as two bytes.
 template <typename T, size_t N> int16_t Audio<T, N>::sampleToI16(T sample) {
   // Restricts sample value in range [-1.0, 1.0].
-  sample = std::min(sample, 1.);
-  sample = std::max(sample, -1.);
+  sample = std::min(sample, static_cast<T>(1.));
+  sample = std::max(sample, static_cast<T>(-1.));
   // Converts a normalized floating-point audio sample to the [-32767, 32767]
   // range.
   return static_cast<int16_t>(sample * 32767.);
