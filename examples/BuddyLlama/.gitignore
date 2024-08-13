@@ -1,6 +1,7 @@
 # model params file
-arg0.data
+*.data
+config.txt
 
 # model mlir file
-forward.mlir
-subgraph0.mlir
+*.mlir
+*.mlir
