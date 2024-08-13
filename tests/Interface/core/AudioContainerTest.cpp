@@ -30,10 +30,10 @@ int main() {
   // ---------------------------------------------------------------------------
   // 1. Print Decoded Reuslts using Buddy Audio Container
   // ---------------------------------------------------------------------------
-  
-  // Read and decode audio file with Buddy Audio Contaier. 
+
+  // Read and decode audio file with Buddy Audio Contaier.
   dap::Audio<float, 1> aud("../../../../tests/Interface/core/TestAudio.wav");
-  
+
   // CHECK: WAV
   fprintf(stderr, "%s\n", aud.getFormatName().c_str());
   // CHECK: 16
@@ -48,11 +48,11 @@ int main() {
   fprintf(stderr, "%f\n", aud.getData()[3]);
   // CHECK: -0.000275
   fprintf(stderr, "%f\n", aud.getData()[4]);
-  
+
   // ---------------------------------------------------------------------------
   // 2. Compare Encoded results using Buddy Audio Container and AudioFile.h
   // ---------------------------------------------------------------------------
-  
+
   // Encode the audio data and save it to a file using the Buddy Audio Container
   string filePath = "./buddyEncodeResult.wav";
   aud.saveToFile(filePath, "WAVE");
@@ -71,7 +71,6 @@ int main() {
   fprintf(stderr, "%f\n", audContainer.getData()[3]);
   // CHECK: -0.000244
   fprintf(stderr, "%f\n", audContainer.getData()[4]);
-
 
   // Print metadata and sample values using the third-party (AudioFile.h).
   AudioFile<float> audFile(filePath);
