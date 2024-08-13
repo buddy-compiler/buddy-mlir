@@ -105,7 +105,7 @@ public:
 
     // Apply the column of matrix B.
     Value appliedColOfB = rewriter.create<affine::AffineApplyOp>(
-        loc, AffineMap::get(1, 0, d0.ceilDiv(affineVectorSize)),
+        loc, AffineMap::get(1, 0, d0.floorDiv(affineVectorSize)),
         ValueRange{bCol});
 
     // Create the primary parallel batch level loop.
