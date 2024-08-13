@@ -56,9 +56,9 @@ int main(int argc, char **argv) {
   }
 
   /// Define directories of vacabulary and parameter file.
-  const std::string vocabDir = "../examples/BuddyLlama/vocab.txt";
-  const std::string paramsDir = "../examples/BuddyLlama/params.data";
-  const std::string configDir = "../examples/BuddyLlama/config.txt";
+  const std::string vocabDir = "../../examples/BuddyLlama/vocab.txt";
+  const std::string paramsDir = "../../examples/BuddyLlama/params.data";
+  const std::string configDir = "../../examples/BuddyLlama/config.txt";
   
   ModelConfig config;
   loadModelConfig(configDir, config);

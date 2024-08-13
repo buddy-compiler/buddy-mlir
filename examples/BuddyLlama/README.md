@@ -30,10 +30,10 @@ In addition, set an environment variable for the generated LLaMA model.
 $ export LLAMA_MODEL_PATH=/path-to-save-llama-hf-model/
 ```
 
-4.Prepare LLaMA model
+4.Prepare TinyLLaMA model
 ```
 $ cd examples/BuddyLlama
-$ python prepare.py 
+$ python prepare-tinyllama.py 
 ```
 
 5. Build and check LLVM/MLIR
@@ -89,7 +89,7 @@ $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:
 $ cmake -G Ninja .. -DBUDDY_LLAMA_EXAMPLES=ON
 $ ninja buddy-{dtype}-llama-run
 $ cd bin
-$ ./buddy-{dtype}-llama-run {mtype}
+$ ./buddy-{dtype}-llama-run
 ```
 
 {dtype} is the data type, currently supporting fp32, fp16 and bf16.
