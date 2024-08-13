@@ -8,7 +8,7 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT ${dtype}-forward.o
-  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/${dtype}-forward.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/${dtype}-forward.mlir 
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt 
           -arith-expand
@@ -42,12 +42,12 @@ add_custom_command(
           -convert-math-to-libm 
           -convert-func-to-llvm
           -reconcile-unrealized-casts |
-        ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+        ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         tee ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-forward.llvm |
-        ${LLVM_MLIR_BINARY_DIR}/llvm-as -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-forward.llvm.bc
-  COMMAND ${LLVM_MLIR_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-forward.llvm.bc -filetype=obj -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
+        ${LLVM_TOOLS_BINARY_DIR}/llvm-as -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-forward.llvm.bc
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-forward.llvm.bc -filetype=obj -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
           -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-forward.o
-  COMMAND ${LLVM_MLIR_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-forward.llvm.bc -filetype=asm -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-forward.llvm.bc -filetype=asm -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
           -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-forward.S
   DEPENDS buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/${dtype}-forward.mlir
   COMMENT "Building ${dtype}-forward.o"
@@ -55,7 +55,7 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT ${dtype}-subgraph.o
-    COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/${dtype}-subgraph0.mlir 
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/${dtype}-subgraph0.mlir 
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -arith-expand
@@ -90,12 +90,12 @@ add_custom_command(
             -convert-math-to-libm 
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           tee ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-subgraph.llvm |
-          ${LLVM_MLIR_BINARY_DIR}/llvm-as -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-subgraph.llvm.bc
-    COMMAND ${LLVM_MLIR_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-subgraph.llvm.bc -filetype=obj -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-subgraph.llvm.bc
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-subgraph.llvm.bc -filetype=obj -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
             -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-subgraph.o
-    COMMAND ${LLVM_MLIR_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-subgraph.llvm.bc -filetype=asm -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/llc ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-subgraph.llvm.bc -filetype=asm -relocation-model=pic -O3 -mattr=+f16c,+avx512bf16
             -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/${dtype}-subgraph.S
     DEPENDS buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/${dtype}-subgraph0.mlir
     COMMENT "Building ${dtype}-subgraph.o"
