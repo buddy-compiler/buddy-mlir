@@ -31,7 +31,7 @@ int main() {
   // 1. Print Decoded Reuslts using Buddy Audio Container
   // ---------------------------------------------------------------------------
 
-  // Read and decode audio file with Buddy Audio Contaier.
+  // Read and decode audio file with Buddy Audio Container.
   dap::Audio<float, 1> aud("../../../../tests/Interface/core/TestAudio.wav");
 
   // CHECK: WAV

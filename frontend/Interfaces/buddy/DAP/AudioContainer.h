@@ -183,9 +183,9 @@ bool Audio<T, N>::saveToFile(std::string filePath, std::string format) {
   if (format == "wav" || format == "wave") {
     bool success = EncodeWaveFile(fileData);
     if (!success) {
-      this->audioFormat = AudioFormat::ERROR;
-      throw std::runtime_error("Failed to encode WAVE file.");
-    };
+      std::cerr << "Failed to encode WAVE file." << std::endl;
+      return false;
+    }
   } else {
     std::cerr << "Unsupported: The encoding method for " << format
               << " format is not yet supported." << std::endl;
