@@ -17,7 +17,7 @@ MTRIPLE := x86_64-apple-darwin
 endif
 
 batch-matmul-1-lower:
-	@${MLIR_OPT} ./linalg-batch-matmul-f32.mlir \
+	@${MLIR_OPT} ./linalg-batch-matmul-f32-1.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-arith, tosa-to-linalg, tosa-to-tensor))" | \
 	${BUDDY_OPT} \
 		-convert-elementwise-to-linalg \
@@ -45,7 +45,7 @@ batch-matmul-1-lower:
 
 
 batch-matmul-1-translate:
-	@${MLIR_OPT} ./linalg-batch-matmul-f32.mlir \
+	@${MLIR_OPT} ./linalg-batch-matmul-f32-1.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-arith, tosa-to-linalg, tosa-to-tensor))" | \
 	${BUDDY_OPT} \
 		-convert-elementwise-to-linalg \
@@ -72,7 +72,7 @@ batch-matmul-1-translate:
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 batch-matmul-1-run:
-	@${MLIR_OPT} ./linalg-batch-matmul-f32.mlir \
+	@${MLIR_OPT} ./linalg-batch-matmul-f32-1.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-arith, tosa-to-linalg, tosa-to-tensor))" | \
 	${BUDDY_OPT} \
 		-convert-elementwise-to-linalg \
