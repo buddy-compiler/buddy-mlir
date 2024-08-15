@@ -29,6 +29,7 @@
 #define FRONTEND_INTERFACES_BUDDY_DAP_AUDIOCONTAINER
 
 #include "buddy/Core/Container.h"
+#include <cctype>
 #include <cstring>
 #include <fstream>
 #include <memory>
@@ -57,6 +58,9 @@ public:
   // Returns the sampling rate in samples per second.
   int getSampleRate() const { return static_cast<int>(this->sampleRate); }
 
+  // Create an Audio File with file name and format.
+  bool saveToFile(std::string filename, std::string format);
+
 private:
   // Sample bit depth.
   uint16_t bitsPerSample;
@@ -78,6 +82,10 @@ private:
   // Decode a WAV file into MemRef format.
   bool decodeWaveFile(const std::vector<uint8_t> &fileData);
 
+  // Encoders for multiple audio file formats.
+  // Encode a MemRef into WAV format.
+  bool EncodeWaveFile(std::vector<uint8_t> &fileData);
+
   // Helper functions for decoding and data manipulation
   // Find the index of a specified chunk in the audio file.
   size_t getIndexOfChunk(const std::vector<uint8_t> &fileData,
@@ -87,7 +95,7 @@ private:
   int32_t fourBytesToI32(const std::vector<uint8_t> &fileData,
                          size_t startIndex,
                          Endianness endianness = Endianness::LittleEndian);
-  // Convert four bytes to a 16-bit integer according to byte order of data.
+  // Convert two bytes to a 16-bit integer according to byte order of data.
   int16_t twoBytesToI16(const std::vector<uint8_t> &fileData, size_t startIndex,
                         Endianness endianness = Endianness::LittleEndian);
   // Normalize 8-bit unsigned integer sample to a range of -1.0 to 1.0.
@@ -98,6 +106,23 @@ private:
   T twoBytesToSample(int16_t data) {
     return static_cast<T>(data) / static_cast<T>(32768.);
   }
+
+  // Helper functions for encoding and data manipulation.
+  // Converts each character in the string to a byte.
+  void stringToBytes(std::vector<uint8_t> &fileData, const std::string &str) {
+    for (size_t i = 0; i < str.size(); i++)
+      fileData.push_back(static_cast<uint8_t>(str[i]));
+  }
+  // Converts a 32-bit integer to four bytes according to byte order of data.
+  void i32ToFourBytes(std::vector<uint8_t> &fileData, int32_t num,
+                      Endianness endianness = Endianness::LittleEndian);
+  // Converts a 16-bit integer to two bytes according to byte order of data.
+  void i16ToTwoBytes(std::vector<uint8_t> &fileData, int16_t num,
+                     Endianness endianness = Endianness::LittleEndian);
+  // Converts an audio sample to a 8-bit PCM format (one byte).
+  uint8_t sampleToOneByte(T sample);
+  // Converts an audio sample to a 16-bit PCM format (two bytes).
+  int16_t sampleToI16(T sample);
 };
 
 // Audio Container Constructor.
@@ -140,6 +165,49 @@ template <typename T, std::size_t N> Audio<T, N>::Audio(std::string filePath) {
     throw std::runtime_error("Unsupported audio format detected in file " +
                              filePath);
   }
+}
+
+// Create Audio File.
+// Save Audio MemRef to the specified file path using the desired format.
+template <typename T, std::size_t N>
+bool Audio<T, N>::saveToFile(std::string filePath, std::string format) {
+  // ---------------------------------------------------------------------------
+  // 1. Determine the audio format and encode the MemRef into file data.
+  // ---------------------------------------------------------------------------
+  // Convert the string to lowercase before comparison, ensuring that case
+  // variations are handled without repeating conditions.
+  std::transform(format.begin(), format.end(), format.begin(), ::tolower);
+  // Vector for storing bytes in a specific audio format.
+  std::vector<uint8_t> fileData;
+  // Select encoder.
+  if (format == "wav" || format == "wave") {
+    bool success = EncodeWaveFile(fileData);
+    if (!success) {
+      std::cerr << "Failed to encode WAVE file." << std::endl;
+      return false;
+    }
+  } else {
+    std::cerr << "Unsupported: The encoding method for " << format
+              << " format is not yet supported." << std::endl;
+    return false;
+  }
+  // ---------------------------------------------------------------------------
+  // 2. Write std::vector into audio file.
+  // ---------------------------------------------------------------------------
+  std::ofstream outputFile(filePath, std::ios::binary);
+
+  if (outputFile.is_open()) {
+    for (size_t i = 0; i < fileData.size(); i++) {
+      char value = static_cast<char>(fileData[i]);
+      outputFile.write(&value, sizeof(char));
+    }
+
+    outputFile.close();
+
+    return true;
+  }
+
+  return false;
 }
 
 // WAV Audio File Decoder
@@ -237,6 +305,91 @@ bool Audio<T, N>::decodeWaveFile(const std::vector<uint8_t> &fileData) {
   // Other data types are not currently supported.
   else {
     std::cerr << "Unsupported audio data type." << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
+// WAV Audio File Encoder
+template <typename T, std::size_t N>
+bool Audio<T, N>::EncodeWaveFile(std::vector<uint8_t> &fileData) {
+  // Encode the 'header' chunk.
+  // RIFF chunk descriptor
+  //   chunk ID: char[4] | 4 bytes | "RIFF"
+  //   chunk size: uint32_t | 4bytes
+  //   format: char[4] | 4 bytes | "WAVE"
+  stringToBytes(fileData, "RIFF");
+  int16_t audioFormat = this->bitsPerSample == 32 ? 0 : 1;
+  // Size for 'format' sub-chunk, doesn't include metadata length.
+  int32_t formatChunkSize = audioFormat == 1 ? 16 : 18;
+  // Size for 'data' sub-chunk, doesn't include metadata length.
+  int32_t dataChunkSize =
+      this->numSamples * this->numChannels * this->bitsPerSample / 8;
+  // The file size in bytes include header chunk size(4, not counting RIFF and
+  // WAVE), the format chunk size(formatChunkSize and 8 bytes for metadata), the
+  // data chunk size(dataChunkSize and 8 bytes for metadata).
+  int32_t fileSizeInBytes = 4 + formatChunkSize + 8 + dataChunkSize + 8;
+  i32ToFourBytes(fileData, fileSizeInBytes);
+  stringToBytes(fileData, "WAVE");
+
+  // Encode the 'format' chunk.
+  // Format sub-chunk:
+  //   sub-chunk ID: char[4] | 4 bytes | "fmt "
+  //   sub-chunk size: uint32_t | 4 bytes
+  //   audio format: uint16_t | 2 bytes | 1 for PCM
+  //   number of channels: uint16_t | 2 bytes
+  //   sample rate: uint32_t | 4 bytes
+  //   byte rate: uint32_t | 4 bytes
+  //   block align: uint16_t | 2 bytes
+  //   bits per sample: uint16_t | 2 bytes
+  stringToBytes(fileData, "fmt ");
+  i32ToFourBytes(fileData, formatChunkSize);
+  i16ToTwoBytes(fileData, audioFormat);
+  i16ToTwoBytes(fileData, static_cast<int16_t>(this->numChannels));
+  i32ToFourBytes(fileData, static_cast<int32_t>(this->sampleRate));
+  int16_t numBytesPerBlock =
+      static_cast<int16_t>(dataChunkSize / this->numSamples);
+  int32_t numBytesPerSecond =
+      static_cast<int32_t>(this->sampleRate * numBytesPerBlock);
+  i32ToFourBytes(fileData, numBytesPerSecond);
+  i16ToTwoBytes(fileData, numBytesPerBlock);
+  i16ToTwoBytes(fileData, static_cast<int16_t>(this->bitsPerSample));
+
+  // Encode the 'data' chunk.
+  // Data sub-chunk:
+  //   sub-chunk ID: char[4] | 4 bytes | "data"
+  //   sub-chunk size: uint32_t | 4 bytes
+  //   data | remains
+  stringToBytes(fileData, "data");
+  i32ToFourBytes(fileData, dataChunkSize);
+
+  // Sample data length: 8 bit
+  if (this->bitsPerSample == 8) {
+    size_t memrefIndex = 0;
+    for (size_t i = 0; i < this->numSamples; i++) {
+      for (size_t channel = 0; channel < this->numChannels; channel++) {
+        uint8_t byte = sampleToOneByte(this->aligned[memrefIndex]);
+        fileData.push_back(byte);
+        memrefIndex++;
+      }
+    }
+  }
+  // Sample data length: 16 bit
+  else if (this->bitsPerSample == 16) {
+    size_t memrefIndex = 0;
+    for (size_t i = 0; i < this->numSamples; i++) {
+      for (size_t channel = 0; channel < this->numChannels; channel++) {
+        int16_t sampleAsInt = sampleToI16(this->aligned[memrefIndex]);
+        i16ToTwoBytes(fileData, sampleAsInt);
+        memrefIndex++;
+      }
+    }
+  }
+  // Other data length are not yet supported.
+  else {
+    std::cerr << "Unsupported audio data length: " << this->bitsPerSample
+              << " bit" << std::endl;
     return false;
   }
 
@@ -348,6 +501,83 @@ int16_t Audio<T, N>::twoBytesToI16(const std::vector<uint8_t> &fileData,
   return static_cast<int16_t>(result);
 }
 
+// Converts a 32-bit integer to four bytes based on endianness.
+// Params:
+//   fileData: Vector containing the raw binary data.
+//   num: A 32-bit integer prepared for convertion.
+//   endianness: Specifies the byte order (LittleEndian or BigEndian).
+template <typename T, size_t N>
+void Audio<T, N>::i32ToFourBytes(std::vector<uint8_t> &fileData, int32_t num,
+                                 Endianness endianness) {
+  // Use uint8_t to prevent sign extension and maintain accurate binary
+  // representation during bit operations.
+  uint8_t bytes[4];
+  if (endianness == Endianness::LittleEndian) {
+    bytes[3] = static_cast<uint8_t>(num >> 24) & 0xFF;
+    bytes[2] = static_cast<uint8_t>(num >> 16) & 0xFF;
+    bytes[1] = static_cast<uint8_t>(num >> 8) & 0xFF;
+    bytes[0] = static_cast<uint8_t>(num) & 0xFF;
+  } else {
+    bytes[0] = static_cast<uint8_t>(num >> 24) & 0xFF;
+    bytes[1] = static_cast<uint8_t>(num >> 16) & 0xFF;
+    bytes[2] = static_cast<uint8_t>(num >> 8) & 0xFF;
+    bytes[3] = static_cast<uint8_t>(num) & 0xFF;
+  }
+  // Append the converted bytes to the fileData vector.
+  for (size_t i = 0; i < 4; i++)
+    fileData.push_back(bytes[i]);
+}
+
+// Converts a 16-bit integer to two bytes based on endianness.
+// Params:
+//   fileData: Vector containing the raw binary data.
+//   num: A 16-bit integer prepared for convertion.
+//   endianness: Specifies the byte order (LittleEndian or BigEndian).
+template <typename T, size_t N>
+void Audio<T, N>::i16ToTwoBytes(std::vector<uint8_t> &fileData, int16_t num,
+                                Endianness endianness) {
+  // Use uint8_t to prevent sign extension and maintain accurate binary
+  // representation during bit operations.
+  uint8_t bytes[2];
+  if (endianness == Endianness::LittleEndian) {
+    bytes[1] = static_cast<uint8_t>(num >> 8) & 0xFF;
+    bytes[0] = static_cast<uint8_t>(num) & 0xFF;
+  } else {
+    bytes[0] = static_cast<uint8_t>(num >> 8) & 0xFF;
+    bytes[1] = static_cast<uint8_t>(num) & 0xFF;
+  }
+  // Append the converted bytes to the fileData vector.
+  fileData.push_back(bytes[0]);
+  fileData.push_back(bytes[1]);
+}
+
+// Converts an audio sample to a 8-bit PCM format (one byte).
+// Params:
+//   sample: A floating-point value representing the audio sample.
+// Returns:
+//   An 8-bit unsigned integer representing the sample as one byte.
+template <typename T, size_t N> uint8_t Audio<T, N>::sampleToOneByte(T sample) {
+  // Restricts sample value in range [-1.0, 1.0].
+  sample = std::min(sample, static_cast<T>(1.));
+  sample = std::max(sample, static_cast<T>(-1.));
+  // Converts a normalized floating-point audio sample to the [0, 255] range.
+  sample = (sample + static_cast<T>(1.)) / static_cast<T>(2.);
+  return static_cast<uint8_t>(sample * 255.);
+}
+
+// Converts an audio sample to a 16-bit PCM format (two bytes).
+// Params:
+//   sample: A floating-point value representing the audio sample.
+// Returns:
+//   A 16-bit signed integer representing the sample as two bytes.
+template <typename T, size_t N> int16_t Audio<T, N>::sampleToI16(T sample) {
+  // Restricts sample value in range [-1.0, 1.0].
+  sample = std::min(sample, static_cast<T>(1.));
+  sample = std::max(sample, static_cast<T>(-1.));
+  // Converts a normalized floating-point audio sample to the [-32767, 32767]
+  // range.
+  return static_cast<int16_t>(sample * 32767.);
+}
 } // namespace dap
 
 #endif // FRONTEND_INTERFACES_BUDDY_DAP_AUDIOCONTAINER
