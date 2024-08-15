@@ -55,10 +55,23 @@ def DIP_InterpolationType : I32EnumAttr<"InterpolationType",
   let cppNamespace = "::buddy::dip";
 }
 
+def DIP_ImageFormat : I32EnumAttr<"ImageFormat",
+    "Specifies the format of image.",
+    [
+      I32EnumAttrCase<"NHWC", 0, "NHWC">,
+      I32EnumAttrCase<"NCHW", 1, "NCHW">,
+      I32EnumAttrCase<"HW", 2, "HW">,
+    ]>{
+  let genSpecializedAttr = 0;
+  let cppNamespace = "::buddy::dip";
+}
+
 def DIP_BoundaryOptionAttr : EnumAttr<DIP_Dialect, DIP_BoundaryOption, "boundary_option"> {
   let assemblyFormat = "`<` $value `>`";
 }
 def DIP_InterpolationAttr : EnumAttr<DIP_Dialect, DIP_InterpolationType, "interpolation_type">;
+
+def DIP_ImageFormatAttr : EnumAttr<DIP_Dialect, DIP_ImageFormat, "image_format">;
 
 def DIP_Corr2DOp : DIP_Op<"corr_2d"> {
   let summary = [{This operation is used for performing 2D correlation on an image.
@@ -166,6 +179,39 @@ def DIP_Rotate2DOp : DIP_Op<"rotate_2d"> {
 
   let assemblyFormat = [{
     $memrefI `,` $angle `,` $memrefO attr-dict `:` type($memrefI) `,` type($angle) `,` type($memrefO)
+  }];
+}
+
+def DIP_Rotate4DOp : DIP_Op<"rotate_4d"> {
+  let summary = [{This operation intends to provide utility for rotating 4D images via the DIP dialect.
+    Image rotation has many applications such as data augmentation, alignment adjustment, etc. and
+    can thus be used in native MLIR pipelines involving above mentioned uses.
+
+    Standard affine rotation matrix [cosθ   sinθ] is used whenever |tan(θ/2)| > 8.1 for the user defined θ.
+                                    [-sinθ  cosθ]
+    In all other cases, the 3 shear method is used to simplify calculations and minimize generated
+    artifacts. The equivalent 3 shear matrix combination is as follows :
+    [1  -tan(θ/2)]   *   [ 1       0]   *   [1    -tan(θ/2)]
+    [0      1    ]       [sinθ     1]       [0        1    ]
+
+    For example:
+
+    ```mlir
+    dip.rotate_4d IMAGE_FORMAT %inputImage, %angle, %outputImage : memref<?x?x?x?xf32>, f32, memref<?x?x?x?xf32>
+    ```
+
+    where ```IMAGE_FORMAT``` can be ```NHWC``` or ```NCHW```.
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       F32 : $angle,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefO,
+                       DIP_ImageFormatAttr:$image_format);
+
+  let assemblyFormat = [{
+    $image_format $memrefI `,` $angle `,` $memrefO attr-dict `:` type($memrefI) `,` type($angle) `,` type($memrefO)
   }];
 }
 
