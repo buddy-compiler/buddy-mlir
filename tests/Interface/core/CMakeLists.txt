@@ -17,6 +17,10 @@ if(BUDDY_MLIR_ENABLE_DIP_LIB OR BUDDY_ENABLE_OPENCV)
   )
 endif()
 
+_add_test_executable(buddy-new-image-container-test
+  NewImageContainerTest.cpp
+)
+
 _add_test_executable(buddy-audio-container-test
   AudioContainerTest.cpp
 )

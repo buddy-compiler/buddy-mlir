@@ -21,13 +21,13 @@ add_custom_command(OUTPUT DIP.o
         -finalize-memref-to-llvm
         -convert-func-to-llvm
         -reconcile-unrealized-casts |
-        ${LLVM_MLIR_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
-        ${LLVM_MLIR_BINARY_DIR}/llc
+        ${LLVM_TOOLS_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
+        ${LLVM_TOOLS_BINARY_DIR}/llc
         -mtriple=${BUDDY_TARGET_TRIPLE}
         -mattr=${BUDDY_OPT_ATTR}
         --filetype=obj
         -o ${CMAKE_CURRENT_BINARY_DIR}/DIP.o
-        DEPENDS buddy-opt
+        DEPENDS mlir-translate llc buddy-opt
         )
 
 add_library(BuddyLibDIP STATIC DIP.o)
@@ -50,13 +50,13 @@ add_custom_command(OUTPUT DAP.o
               -llvm-request-c-wrappers
               -convert-func-to-llvm
               -reconcile-unrealized-casts | 
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llc 
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llc 
               -mtriple=${BUDDY_TARGET_TRIPLE}
               -mattr=${BUDDY_OPT_ATTR}
               --filetype=obj
               -o ${CMAKE_CURRENT_BINARY_DIR}/DAP.o
-  DEPENDS buddy-opt
+  DEPENDS mlir-translate llc buddy-opt
   )
 
   add_custom_command(OUTPUT DAP-extend.o
@@ -76,13 +76,13 @@ add_custom_command(OUTPUT DAP.o
               -llvm-request-c-wrappers
               -convert-func-to-llvm
               -reconcile-unrealized-casts | 
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llc 
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llc 
               -mtriple=${BUDDY_TARGET_TRIPLE}
               -mattr=${BUDDY_OPT_ATTR}
               -filetype=obj -relocation-model=pic
               -o ${CMAKE_CURRENT_BINARY_DIR}/DAP-extend.o
-  DEPENDS buddy-opt
+  DEPENDS mlir-translate llc buddy-opt
   )
 
 add_library(BuddyLibDAP STATIC DAP.o DAP-extend.o)
@@ -109,13 +109,13 @@ SET_TARGET_PROPERTIES(BuddyLibDAP PROPERTIES
               -llvm-request-c-wrappers
               -convert-func-to-llvm
               -reconcile-unrealized-casts | 
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llc 
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llc 
               -mtriple=${BUDDY_TARGET_TRIPLE}
               -mattr=${BUDDY_OPT_ATTR}
               -filetype=obj
               -o ${CMAKE_CURRENT_BINARY_DIR}/DAPVectorization.o
-  DEPENDS buddy-opt
+  DEPENDS mlir-translate llc buddy-opt
   )
 
 add_library(BuddyLibDAPVectorization STATIC DAPVectorization.o)

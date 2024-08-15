@@ -1,4 +1,4 @@
-// RUN: buddy-opt -matmul-paralell-vectorization-optimize -verify-diagnostics -expand-strided-metadata -lower-affine \
+// RUN: buddy-opt -matmul-parallel-vectorization-optimize -verify-diagnostics -expand-strided-metadata -lower-affine \
 // RUN:   -convert-linalg-to-loops -convert-vector-to-scf -convert-scf-to-cf -convert-vector-to-llvm -finalize-memref-to-llvm \
 // RUN:   -llvm-request-c-wrappers -convert-func-to-llvm -reconcile-unrealized-casts %s \
 // RUN: | mlir-cpu-runner -O0 -e buddy_matmul_f32 -entry-point-result=void \

@@ -67,6 +67,7 @@ tools = [
     "buddy-translate",
     "buddy-container-test",
     "buddy-audio-container-test",
+    "buddy-new-image-container-test",
     "buddy-text-container-test",
     "mlir-cpu-runner",
 ]

@@ -248,7 +248,7 @@ linalg-batch-matmul-i8-optimize-translate:
 
 linalg-matmul-parallized-vectorized-optmize-run:
 	@${BUDDY_OPT} linalg-matmul-opt-f32.mlir ${MLIR_OPT_OPTIONS} \
-		-matmul-paralell-vectorization-optimize="vector-size=128" \
+		-matmul-parallel-vectorization-optimize="vector-size=128" \
 		-convert-linalg-to-loops \
 		-expand-strided-metadata \
 		-lower-affine \
@@ -263,12 +263,12 @@ linalg-matmul-parallized-vectorized-optmize-run:
 
 linalg-matmul-parallized-vectorized-optmize-lower:
 	@${BUDDY_OPT} linalg-matmul-opt-f32.mlir ${MLIR_OPT_OPTIONS} \
-		-matmul-paralell-vectorization-optimize="vector-size=128" \
+		-matmul-parallel-vectorization-optimize="vector-size=128" \
 		-o ./log.mlir
 
 linalg-matmul-parallized-vectorized-optmize-translate:
 	@${BUDDY_OPT} linalg-matmul-opt-f32.mlir ${MLIR_OPT_OPTIONS} \
-		-matmul-paralell-vectorization-optimize="vector-size=128" \
+		-matmul-parallel-vectorization-optimize="vector-size=128" \
 		-convert-linalg-to-loops \
 		-expand-strided-metadata \
 		-lower-affine \
@@ -282,7 +282,7 @@ linalg-matmul-parallized-vectorized-optmize-translate:
 
 linalg-matmul-i8-parallized-vectorized-optmize-run:
 	@${BUDDY_OPT} linalg-matmul-opt-i8.mlir ${MLIR_OPT_OPTIONS} \
-		-matmul-paralell-vectorization-optimize="vector-size=128" \
+		-matmul-parallel-vectorization-optimize="vector-size=128" \
 		-convert-linalg-to-loops \
 		-expand-strided-metadata \
 		-lower-affine \
@@ -297,12 +297,12 @@ linalg-matmul-i8-parallized-vectorized-optmize-run:
 
 linalg-matmul-i8-parallized-vectorized-optmize-lower:
 	@${BUDDY_OPT} linalg-matmul-opt-i8.mlir ${MLIR_OPT_OPTIONS} \
-		-matmul-paralell-vectorization-optimize="vector-size=128" \
+		-matmul-parallel-vectorization-optimize="vector-size=128" \
 		-o ./log.mlir
 
 linalg-matmul-i8-parallized-vectorized-optmize-translate:
 	@${BUDDY_OPT} linalg-matmul-opt-i8.mlir ${MLIR_OPT_OPTIONS} \
-		-matmul-paralell-vectorization-optimize="vector-size=128" \
+		-matmul-parallel-vectorization-optimize="vector-size=128" \
 		-convert-linalg-to-loops \
 		-expand-strided-metadata \
 		-lower-affine \
