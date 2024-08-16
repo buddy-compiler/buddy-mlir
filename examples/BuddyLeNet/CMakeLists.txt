@@ -24,8 +24,8 @@ add_custom_command(
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -convert-tensor-to-linalg
-            -batchmatmul-optimize
             -linalg-bufferize
+            -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -lower-affine
             -func-bufferize-dynamic-offset
