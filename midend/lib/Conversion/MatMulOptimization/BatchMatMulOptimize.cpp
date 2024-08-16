@@ -155,7 +155,7 @@ public:
                 IntegerSet::get(
                     1, 1, {d0 * -affineVectorSize + s0 - affineVectorSize},
                     {false}),
-                ValueRange{loopVarBatchIdx, bCol}, true);
+                ValueRange{loopVarColOfB, bCol}, true);
 
             // Branch handling full vector operations.
             OpBuilder trueBranchBuilder = branchingOp.getThenBodyBuilder();
