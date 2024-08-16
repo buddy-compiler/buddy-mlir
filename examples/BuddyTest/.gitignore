@@ -1,2 +1,3 @@
 __pycache__
-forward.mlir
+*.mlir
+log.ll

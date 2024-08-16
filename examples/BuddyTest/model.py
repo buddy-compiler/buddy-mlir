@@ -26,5 +26,5 @@ class TestModule(nn.Module):
         super(TestModule, self).__init__()
 
     def forward(self, x):
-        x = torch.relu(x.view(2, 14, 28))
-        return x.permute([1, 2, 0])
+        x = torch.relu(x.view(28, 28))
+        return x.permute([1,0])

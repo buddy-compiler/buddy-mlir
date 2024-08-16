@@ -47,9 +47,8 @@ with torch.no_grad():
 
 assert len(graphs) == 1
 graph = graphs[0]
-print(graph._body)
 graph.lower_to_top_level_ir()
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
     print(graph._imported_module, file=module_file)
-    
+      
