@@ -14,90 +14,28 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <buddy/Core/Container.h>
-#include <buddy/LLM/TextContainer.h>
-#include <chrono>
-#include <cstddef>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
+#include "llama_utils.h"
 
 using namespace buddy;
 
-constexpr size_t ParamsSize = 6755192832;
-constexpr size_t MaxVocabSize = 32000;
-constexpr size_t MaxTokenLength = 40;
-constexpr size_t HiddenSize = 4096;
+constexpr static bool debug = false;
+
+#if defined(LLAMA_FP32_TYPE)
+#define LLAMA_DTYPE fp32
+using param_t = float;
+#elif defined(LLAMA_FP16_TYPE)
+#define LLAMA_DTYPE fp16
+using param_t = fp16_t;
+#elif defined(LLAMA_BF16_TYPE)
+#define LLAMA_DTYPE bf16
+using param_t = bf16_t;
+#else
+static_assert(false);
+#endif
 
 /// Declare LLaMA forward function.
-extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
+extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<param_t, 1> *,
                                      Text<size_t, 2> *);
-
-// -----------------------------------------------------------------------------
-// Helper Functions
-// -----------------------------------------------------------------------------
-
-/// Capture input message.
-void getUserInput(std::string &inputStr) {
-  std::cout << "\nPlease send a message:" << std::endl;
-  std::cout << ">>> ";
-  getline(std::cin, inputStr);
-  std::cout << std::endl;
-}
-
-/// Print [Log] label in bold blue format.
-void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
-
-/// Print information for each iteration.
-void printIterInfo(size_t iterIdx, std::string str, double time) {
-  std::cout << "\033[32;1m[Iteration " << iterIdx << "] \033[0m";
-  std::cout << "Token: " << str << " | "
-            << "Time: " << time << "s" << std::endl;
-}
-
-/// Tokenize input data in the container.
-void tokenizeInput(const std::string &vocabFile,
-                   Text<size_t, 2> &inputContainer) {
-  printLogLabel();
-  std::cout << "Vocab file: " << std::filesystem::canonical(vocabFile)
-            << std::endl;
-  const auto buddyTokenizeStart = std::chrono::high_resolution_clock::now();
-  inputContainer.tokenizeLlama(vocabFile, MaxTokenLength);
-  const auto buddyTokenizeEnd = std::chrono::high_resolution_clock::now();
-  const std::chrono::duration<double, std::milli> buddyTokenizeTime =
-      buddyTokenizeEnd - buddyTokenizeStart;
-  printLogLabel();
-  std::cout << "Tokenize time: " << buddyTokenizeTime.count() << "ms"
-            << std::endl;
-}
-
-/// Load parameters into data container.
-void loadParameters(const std::string &paramFilePath,
-                    MemRef<float, 1> &params) {
-  const auto loadStart = std::chrono::high_resolution_clock::now();
-  std::ifstream paramFile(paramFilePath, std::ios::in | std::ios::binary);
-  if (!paramFile.is_open()) {
-    throw std::runtime_error("[Error] Failed to open params file!");
-  }
-  printLogLabel();
-  std::cout << "Loading params..." << std::endl;
-  printLogLabel();
-  std::cout << "Params file: " << std::filesystem::canonical(paramFilePath)
-            << std::endl;
-  paramFile.read(reinterpret_cast<char *>(params.getData()),
-                 sizeof(float) * (params.getSize()));
-  if (paramFile.fail()) {
-    throw std::runtime_error("Error occurred while reading params file!");
-  }
-  paramFile.close();
-  const auto loadEnd = std::chrono::high_resolution_clock::now();
-  const std::chrono::duration<double, std::milli> loadTime =
-      loadEnd - loadStart;
-  printLogLabel();
-  std::cout << "Params load time: " << (double)(loadTime.count()) / 1000
-            << "s\n"
-            << std::endl;
-}
 
 /// Find the index of the max value.
 int findMaxIndex(const float *start, const float *end) {
@@ -108,18 +46,22 @@ int findMaxIndex(const float *start, const float *end) {
 // LLaMA Inference Main Entry
 // -----------------------------------------------------------------------------
 
-int main() {
+int main(int argc, char **argv) {
+
   /// Print the title of this example.
-  const std::string title = "LLaMA 2 Inference Powered by Buddy Compiler";
+  const std::string title = "LLaMA 2 Inference Powered by Buddy Compiler with datatype " STR(LLAMA_DTYPE);
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
+  if constexpr(debug) {
+    std::cout << "\033[33;1m" << "Debug mode" << "\033[0m" << std::endl;
+  }
 
   /// Define directories of vacabulary and parameter file.
   const std::string vocabDir = "../../examples/BuddyLlama/vocab.txt";
-  const std::string paramsDir = "../../examples/BuddyLlama/arg0.data";
-
-  /// Get user message.
-  std::string inputStr;
-  getUserInput(inputStr);
+  const std::string paramsDir = "../../examples/BuddyLlama/params.data";
+  const std::string configDir = "../../examples/BuddyLlama/config.txt";
+  
+  ModelConfig config;
+  loadModelConfig(configDir, config);
 
   /// Initialize data containers
   //  - Input container.
@@ -128,46 +70,82 @@ int main() {
   //  - Parameters container.
   Text<size_t, 2> outputContainer;
   MemRef<float, 3> resultContainer[2] = {
-      MemRef<float, 3>({1, MaxTokenLength, HiddenSize}, false, 0),
-      MemRef<float, 3>({1, MaxTokenLength, MaxVocabSize}, false, 0)};
-  Text<size_t, 2> inputContainer(inputStr);
-  MemRef<float, 1> paramsContainer({ParamsSize});
+      MemRef<float, 3>({1, config.maxTokenLength, config.hiddenSize}, false, 0),
+      MemRef<float, 3>({1, config.maxTokenLength, config.maxVocabSize}, false, 0)};
+  MemRef<param_t, 1> paramsContainer({config.paramSize});
+  MemRef<float, 1> expectedOutputContainer({config.maxTokenLength * config.maxVocabSize});
+
+  outputContainer.loadVocab(vocabDir);
+  loadParameters<param_t>(paramsDir, paramsContainer, config.paramSize);
 
   /// Fill data into containers
-  //  - Input: register vocabulary and tokenize the input string.
-  //  - Output: register vocabulary.
-  //  - Parameters: load parameters from the `arg0` file into the container.
-  tokenizeInput(vocabDir, inputContainer);
-  outputContainer.loadVocab(vocabDir);
-  loadParameters(paramsDir, paramsContainer);
+  /// Get user message.
+  std::string inputStr;
+  getUserInput(inputStr);
+  Text<size_t, 2> inputContainer(inputStr);
+  tokenizeInput(vocabDir, inputContainer, config.maxTokenLength);
+  if constexpr(debug) {
+    inputContainer.setTokenCnt(0);
+    inputContainer.appendTokenIdx(0);
+  }
 
   /// Run LLaMA Inference
   //  - Perform the forward function.
   //  - Find and append the generated token.
   //  - Continue iterating until the terminal condition is met.
-  int generateLen = MaxTokenLength - inputContainer.getTokenCnt();
+  int generateLen = config.maxTokenLength - inputContainer.getTokenCnt();
   for (int i = 0; i < generateLen; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
     // Execute the forward pass of the model.
     _mlir_ciface_forward(resultContainer, &paramsContainer, &inputContainer);
-
+    
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =
         inferenceEnd - inferenceStart;
-
     // Determine the generated token.
     int tokenIndex = inputContainer.getTokenCnt() - 1;
     const float *startPtr =
-        resultContainer[1].getData() + tokenIndex * MaxVocabSize;
-    const float *endPtr = startPtr + MaxVocabSize;
-    int maxIndex = findMaxIndex(startPtr, endPtr);
+        resultContainer[1].getData() + tokenIndex * config.maxVocabSize;
+    const float *endPtr = startPtr + config.maxVocabSize;
+    int maxIndex;
+    if constexpr(debug) {
+      maxIndex = i + 1;
+    }
+    else { 
+      maxIndex = findMaxIndex(startPtr, endPtr);
+    }
     std::string tok = inputContainer.getStr(maxIndex);
     // Print the generated token and inference time.
     printIterInfo(i, tok, inferenceTime.count() / 1000);
 
+    if constexpr(debug) {
+      printLogLabel();
+      std::cout << "[DEBUG] output[0]: ";
+      for (int i = 0; i < 10; i++) {
+        std::cout << resultContainer[0].getData()[i] << " ";
+      }
+      std::cout << std::endl;
+      printLogLabel();
+      std::cout << "[DEBUG] output[1]: ";
+      for (int i = 0; i < 10; i++) {
+        std::cout << startPtr[i] << " ";
+      }
+      std::cout << std::endl;
+
+      const float *expStartPtr = expectedOutputContainer.getData() + tokenIndex * config.maxVocabSize;
+      for (int t = 0; t < config.maxVocabSize; t++) {
+        const float error = std::abs(expStartPtr[t] - startPtr[t]);
+        if (error > std::abs(0.05 * startPtr[t])) {
+          printLogLabel();
+          std::cout << "result at iter " << i << ", token " << t << " is " << expStartPtr[t] << ", but expcted " << startPtr[t] << std::endl;
+          return 0;
+        }
+      }
+    }
+
     // Stop if a separator token (2, </s>) or line break token (13 <0x0A>) is
     // generated.
-    if (maxIndex == 2) {
+    if (!debug && maxIndex == 2) {
       break;
     }
     // Append the generated token into the input and output container.
@@ -178,7 +156,7 @@ int main() {
   }
 
   /// Print the final result
-  std::cout << "\n\033[33;1m[Input]\033[0m " << inputStr << std::endl;
+  // std::cout << "\n\033[33;1m[Input]\033[0m " << inputStr << std::endl;
   std::cout << "\033[33;1m[Output]\033[0m " << outputContainer.revertLlama()
             << std::endl;
 

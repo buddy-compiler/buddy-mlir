@@ -1,0 +1,4 @@
+paramSize 1105815552
+hiddenSize 2048
+maxVocabSize 32000
+maxTokenLength 40
