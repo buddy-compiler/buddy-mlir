@@ -12,3 +12,45 @@
 
 # Clangd cache
 .cache
+*.pth.tar
+data/
+*.pth
+
+
+*/build/
+# 子目录中所有的build文件夹以及更深层目录的build文件夹
+*/build/
+*/*/build
+
+*.o
+*.ll
+# CMake cache
+CMakeCache.txt
+CMakeFiles/
+
+# CMake intermediate files
+cmake_install.cmake
+cmake_uninstall.cmake
+Makefile
+
+# CMake generated files
+CMakeFiles/
+
+# Compiled code
+bin/
+
+# Compiled dynamic libraries
+lib/
+
+# Compiled static libraries
+lib/
+
+# Cache files
+*.cmake
+*.jam
+
+# Cache files
+*.d
+
+# Cache files
+*.d
