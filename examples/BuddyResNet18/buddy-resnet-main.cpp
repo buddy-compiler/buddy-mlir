@@ -1,4 +1,4 @@
-//===- buddy-mobilenetv3-main.cpp ---------------------------------------------===//
+//===- buddy-resnet-main.cpp ---------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@
 #include <utility>
 #include <vector>
 
-constexpr size_t ParamsSize = 2554968;
+constexpr size_t ParamsSize = 11699112;
 const std::string ImgName = "dog.png";
 
 // Declare the mobilenet C interface.
@@ -37,8 +37,8 @@ extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
 
 const cv::Mat imagePreprocessing() {
   // Get the directory of the LeNet example and construct the image path.
-  std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
-  std::string imgPath = mobilenetDir + "/images/" + ImgName; 
+  std::string resnetDir = getenv("RESNET_EXAMPLE_PATH");
+  std::string imgPath = resnetDir + "/images/" + ImgName; 
   // Read the image in grayscale mode.
   cv::Mat inputImage = cv::imread(imgPath, cv::IMREAD_GRAYSCALE);
   assert(!inputImage.empty() && "Could not read the image.");
@@ -109,9 +109,9 @@ void softmax(float *input, size_t size) {
 }
 
 std::string getLabel(int idx) {
-  std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
+  std::string resnetDir = getenv("RESNET_EXAMPLE_PATH");
   std::ifstream in(
-      mobilenetDir + "Labels.txt");
+      resnetDir + "Labels.txt");
   assert(in.is_open() && "Could not read the label file.");
   std::string label;
   for (int i = 0; i < idx; ++i)
@@ -123,7 +123,7 @@ std::string getLabel(int idx) {
 
 int main() {
   // Print the title of this example.
-  const std::string title = "MobileNetV3 Inference Powered by Buddy Compiler";
+  const std::string title = "ResNet18 Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
   // Preprocess the image to match the input requirements of the model.
@@ -138,11 +138,11 @@ int main() {
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
-  std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
-  std::string paramsDir = mobilenetDir + "/arg0.data";
-  std::string intDir = mobilenetDir + "/arg1.data";
+  std::string resnetDir = getenv("RESNET_EXAMPLE_PATH");
+  std::string paramsDir = resnetDir + "/arg0.data";
+  std::string intDir = resnetDir + "/arg1.data";
   MemRef<float, 1> paramsContainerf32({ParamsSize});
-  MemRef<long long, 1> ParamsContainerInt64({34});
+  MemRef<long long, 1> ParamsContainerInt64({20});
   loadParameters(paramsDir, intDir, paramsContainerf32, ParamsContainerInt64);
   // Call the forward function of the model.
   _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64, &input);
