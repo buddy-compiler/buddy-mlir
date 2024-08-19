@@ -20,6 +20,7 @@ add_executable(buddy-fir FIRLowpass.cpp)
 add_dependencies(buddy-fir buddy-opt)
 target_link_libraries(buddy-fir
   BuddyLibDAP
+  mlir_c_runner_utils
 )
 
 #-------------------------------------------------------------------------------
