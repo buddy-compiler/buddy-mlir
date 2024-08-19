@@ -149,7 +149,7 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
   size_t pixelDataOffset = *reinterpret_cast<const uint32_t *>(&fileData[10]);
 
   // Currently, only the BI_RGB (value 0) compression method is supported.
-  if (compression != 0) {
+  if (compression != 0 && compression != 3) {
     std::cerr << "Unsupported BMP file compression method." << std::endl;
     return false;
   }
@@ -192,6 +192,73 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
             memrefIndex++;
           }
         }
+      } else if (this->bitDepth == 24) {
+        // BMP file is upside-down storage.
+        for (size_t i = this->height; i > 0; i--) {
+          for (size_t j = 0; j < this->width; j++) {
+            // Locate the current pixel.
+            size_t pixelIndex =
+                pixelDataOffset + (((i - 1) * this->width) + j) * 3;
+            // Extract the blue, green, and red value from the current pixel.
+            int bluePixel =
+                *reinterpret_cast<const uint8_t *>(&fileData[pixelIndex]);
+            int greenPixel =
+                *reinterpret_cast<const uint8_t *>(&fileData[pixelIndex + 1]);
+            int redPixel =
+                *reinterpret_cast<const uint8_t *>(&fileData[pixelIndex + 2]);
+            // Calculate the gray scale value.
+            int grayScaleValue = static_cast<int>(
+                0.299 * redPixel + 0.587 * greenPixel + 0.114 * bluePixel);
+            // Store the gray scale value into memref container.
+            this->aligned[memrefIndex] =
+                this->isNorm ? static_cast<T>(grayScaleValue) / 255
+                             : static_cast<T>(grayScaleValue);
+            memrefIndex++;
+          }
+        }        
+      } else if (this->bitDepth == 16) {
+        // BMP file is upside-down storage.
+        for (size_t i = this->height; i > 0; i--) {
+          for (size_t j = 0; j < this->width; j++) {
+            // Locate the current pixel.
+            size_t pixelIndex =
+                pixelDataOffset + (((i - 1) * this->width) + j) * 2;
+            // Extract the 16-bit pixel value
+            uint16_t pixelValue =
+                *reinterpret_cast<const uint16_t *>(&fileData[pixelIndex]);
+            
+            int redPixel, greenPixel, bluePixel;
+            if (compression == 3) {
+              // Extract individual color components (assuming RGB565 format)
+              redPixel = (pixelValue >> 11) & 0x1F;
+              greenPixel = (pixelValue >> 5) & 0x3F;
+              bluePixel = pixelValue & 0x1F;
+
+              // Expand to 8-bit per channel
+              redPixel = (redPixel << 3) | (redPixel >> 2);
+              greenPixel = (greenPixel << 2) | (greenPixel >> 4);
+              bluePixel = (bluePixel << 3) | (bluePixel >> 2);
+            } else {
+              // Extract individual color components for 5-5-5 format
+              redPixel = (pixelValue >> 10) & 0x1F;
+              greenPixel = (pixelValue >> 5) & 0x1F;
+              bluePixel = pixelValue & 0x1F;
+
+              // Expand to 8-bit per channel
+              redPixel = (redPixel << 3) | (redPixel >> 2);
+              greenPixel = (greenPixel << 3) | (greenPixel >> 2);
+              bluePixel = (bluePixel << 3) | (bluePixel >> 2);
+            }
+            // Calculate the gray scale value.
+            int grayScaleValue = static_cast<int>(
+                0.299 * redPixel + 0.587 * greenPixel + 0.114 * bluePixel);
+            // Store the gray scale value into memref container.
+            this->aligned[memrefIndex] =
+                this->isNorm ? static_cast<T>(grayScaleValue) / 255
+                            : static_cast<T>(grayScaleValue);
+            memrefIndex++;
+          }
+        }         
       } else {
         std::cerr << "Unsupported: " << this->bitDepth << "bit depth."
                   << std::endl;
@@ -236,6 +303,78 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
             memrefIndex++;
           }
         }
+      } else if (this->bitDepth == 24) {
+        // BMP file is upside-down storage.
+        for (size_t i = height; i > 0; i--) {
+          for (size_t j = 0; j < width; j++) {
+            // Locate the current pixel.
+            size_t pixelIndex = pixelDataOffset + (((i - 1) * width) + j) * 3;
+            // Extract the blue, green, and red value from the current pixel.
+            int bluePixel =
+                *reinterpret_cast<const uint8_t *>(&fileData[pixelIndex]);
+            int greenPixel =
+                *reinterpret_cast<const uint8_t *>(&fileData[pixelIndex + 1]);
+            int redPixel =
+                *reinterpret_cast<const uint8_t *>(&fileData[pixelIndex + 2]);
+            // Store the values into memref container as RGB order. (BGR -> RGB)
+            this->aligned[memrefIndex] = this->isNorm
+                                             ? static_cast<T>(redPixel) / 255
+                                             : static_cast<T>(redPixel);
+            this->aligned[memrefIndex + colorStride] =
+                this->isNorm ? static_cast<T>(greenPixel) / 255
+                             : static_cast<T>(greenPixel);
+            this->aligned[memrefIndex + 2 * colorStride] =
+                this->isNorm ? static_cast<T>(bluePixel) / 255
+                             : static_cast<T>(bluePixel);
+            memrefIndex++;
+          }
+        }        
+      } else if (this->bitDepth == 16) {
+        // BMP file is upside-down storage.
+        for (size_t i = height; i > 0; i--) {
+          for (size_t j = 0; j < width; j++) {
+            // Locate the current pixel.
+            size_t pixelIndex = pixelDataOffset + (((i - 1) * width) + j) * 2;
+            // Extract the 16-bit pixel value
+            uint16_t pixelValue =
+                *reinterpret_cast<const uint16_t *>(&fileData[pixelIndex]);
+
+            int redPixel, greenPixel, bluePixel;
+            if (compression == 3) {
+              // Extract individual color components (assuming RGB565 format)
+              redPixel = (pixelValue >> 11) & 0x1F;
+              greenPixel = (pixelValue >> 5) & 0x3F;
+              bluePixel = pixelValue & 0x1F;
+
+              // Expand to 8-bit per channel
+              redPixel = (redPixel << 3) | (redPixel >> 2);
+              greenPixel = (greenPixel << 2) | (greenPixel >> 4);
+              bluePixel = (bluePixel << 3) | (bluePixel >> 2);
+            } else {
+              // Extract individual color components for 5-5-5 format
+              redPixel = (pixelValue >> 10) & 0x1F;
+              greenPixel = (pixelValue >> 5) & 0x1F;
+              bluePixel = pixelValue & 0x1F;
+
+              // Expand to 8-bit per channel
+              redPixel = (redPixel << 3) | (redPixel >> 2);
+              greenPixel = (greenPixel << 3) | (greenPixel >> 2);
+              bluePixel = (bluePixel << 3) | (bluePixel >> 2);
+            }
+
+            // Store the values into memref container as RGB order. (BGR -> RGB)
+            this->aligned[memrefIndex] = this->isNorm
+                                             ? static_cast<T>(redPixel) / 255
+                                             : static_cast<T>(redPixel);
+            this->aligned[memrefIndex + colorStride] =
+                this->isNorm ? static_cast<T>(greenPixel) / 255
+                             : static_cast<T>(greenPixel);
+            this->aligned[memrefIndex + 2 * colorStride] =
+                this->isNorm ? static_cast<T>(bluePixel) / 255
+                             : static_cast<T>(bluePixel);
+            memrefIndex++;
+          }
+        }         
       } else {
         std::cerr << "Unsupported: " << this->bitDepth << "bit depth."
                   << std::endl;
