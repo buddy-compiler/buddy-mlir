@@ -30,6 +30,7 @@ add_executable(buddy-biquad biquad.cpp)
 add_dependencies(buddy-biquad buddy-opt)
 target_link_libraries(buddy-biquad
   BuddyLibDAP
+  mlir_c_runner_utils
 )
 
 #-------------------------------------------------------------------------------
