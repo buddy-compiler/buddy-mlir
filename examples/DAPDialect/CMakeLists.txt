@@ -48,7 +48,8 @@ target_link_libraries(buddy-iir-scalar
 add_executable(buddy-iir-vectorization IIRVectorization.cpp)
 add_dependencies(buddy-iir-vectorization buddy-opt)
 target_link_libraries(buddy-iir-vectorization
-  BuddyLibDAPVectorization
+  BuddyLibDAP
+  mlir_c_runner_utils
 )
 
 #-------------------------------------------------------------------------------
