@@ -80,7 +80,8 @@ module{
       call @pooling_nhwc_max(%a, %b, %c) : (memref<?x?x?x?xf32>, memref<?x?xf32>, memref<?x?x?x?xf32>) -> ()
       // Print output.
       // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 3, 3, 1] strides = [9, 3, 1, 1] data =
-      // CHECK-NEXT: [[[[4],
+      // CHECK-NEXT: [
+      // CHECK-NEXT:  [[[4],
       // CHECK-SAME:    [5], 
       // CHECK-SAME:    [8]],
       // CHECK-NEXT:   [[5],
@@ -88,7 +89,8 @@ module{
       // CHECK-NEXT:    [8]],
       // CHECK-NEXT:   [[9],
       // CHECK-NEXT:    [8],
-      // CHECK-NEXT:    [8]]]]
+      // CHECK-NEXT:    [8]]]
+      // CHECK-NEXT: ]
       %print_c = memref.cast %c : memref<?x?x?x?xf32> to memref<*xf32>
       call @printMemrefF32(%print_c) : (memref<*xf32>) -> ()
 
