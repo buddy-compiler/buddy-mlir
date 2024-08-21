@@ -36,7 +36,7 @@ module{
 
       call @pooling_nhwc_max(%a, %b, %c) : (memref<?x?x?x?xf32>, memref<?x?xf32>, memref<?x?x?x?xf32>) -> ()
       // Print output.
-      // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data =
+      // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 3, 3, 1] strides = [9, 3, 1, 1] data =
       // CHECK-NEXT: [[
       // CHECK-SAME:  [[4], [5], [8]],
       // CHECK-NEXT:  [[5], [5], [8]],
