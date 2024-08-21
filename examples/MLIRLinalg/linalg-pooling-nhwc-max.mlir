@@ -9,10 +9,10 @@
 
 module{
     memref.global "private" @input : memref<1x4x4x1xf32> = 
-        dense<[[[[1.], [2.], [3.], [4.]], 
-                [[4.], [3.], [5.], [8.]],
-                [[4.], [5.], [3.], [8.]], 
-                [[9.], [8.], [5.], [1.]]]]>
+        dense<[[[[1.], [1.], [1.], [1.]], 
+                [[1.], [1.], [1.], [1.]],
+                [[1.], [1.], [1.], [1.]], 
+                [[1.], [1.], [1.], [1.]]]]>
     memref.global "private" @kernel : memref<2x2xf32> = dense<0.0>
     memref.global "private" @output : memref<1x3x3x1xf32> = dense<0.0>
 
