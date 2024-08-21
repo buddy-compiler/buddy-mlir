@@ -58,15 +58,16 @@ int main() {
   // Params:
   //    Input container: Stores the raw audio data.
   // Returns:
-  //    Output container: Provides a MemRef and saves data to a file.
+  //    Output memory reference: Provides a MemRef for saving the output.
   Audio<float, 1> inputContainer("../../tests/Interface/core/TestAudio.wav");
-  Audio<float, 1> outputContainer("../../tests/Interface/core/TestAudio.wav");
+  intptr_t samplesNum = static_cast<intptr_t>(inputContainer.getSamplesNum());
+  MemRef<float, 1> outputMemRef(&samplesNum);
 
   // Apply vectorized IIR operation to the audio data.
   printLogLabel();
   std::cout << "Running vectorized IIR operation..." << std::endl;
   const auto loadStart = std::chrono::high_resolution_clock::now();
-  dap::IIR(&inputContainer, &kernel, &outputContainer,
+  dap::IIR(&inputContainer, &kernel, &outputMemRef,
            /*isVectorization=*/true);
   const auto loadEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> loadTime =
@@ -75,6 +76,13 @@ int main() {
   std::cout << "Audio processing time: " << (double)(loadTime.count()) / 1000
             << "s\n"
             << std::endl;
+  
+  // Convert a MemRef object to an Audio object and set the metadata.
+  Audio<float, 1> outputContainer(std::move(outputMemRef));
+  outputContainer.setBitDepth(inputContainer.getBitDepth());
+  outputContainer.setSamplesNum(inputContainer.getSamplesNum());
+  outputContainer.setChannelsNum(inputContainer.getChannelsNum());
+  outputContainer.setSampleRate(inputContainer.getSampleRate());
 
   // Save the processed data to an audio file.
   std::string saveFileName = "VectorizedIIRTestAudio.wav";
