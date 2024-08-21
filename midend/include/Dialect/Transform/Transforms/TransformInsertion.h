@@ -12,7 +12,7 @@ struct TransformInsertionConfig {
     std::string matchPrefix;
     std::function<bool(Operation *)> opFilter;
     std::function<void(ImplicitLocOpBuilder &, Operation *, Value)> transformBuilder;
-}
+};
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createGenericTransformInsertionPass(const TransformInsertionConfig &config);

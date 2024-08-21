@@ -1,5 +1,3 @@
-#include "Transform/Transforms/TransformInsertion.h"
-
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/PDL/IR/PDLOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -17,6 +15,7 @@
 #include "mlir/IR/Operation.h"
 
 #include "PassDetail.h"
+#include "Transform/Transforms/TransformInsertion.h"
 
 #include <optional>
 #include <vector>
@@ -91,6 +90,6 @@ protected:
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::createGenericTransformInsertionPass(const TransformInsertionConfig &config) {
+createGenericTransformInsertionPass(const mlir::TransformInsertionConfig &config) {
     return std::make_unique<GenericTransformInsertionPass>(config);
 }

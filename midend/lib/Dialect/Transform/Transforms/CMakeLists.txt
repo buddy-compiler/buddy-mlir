@@ -4,13 +4,10 @@ add_mlir_dialect_library(BuddyTransformPasses
 
   DEPENDS
   BuddyTransformPassIncGen
-#   MLIRLinalgExtTransformOps
-#   MLIRTransformExtOpsIncGen
 
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
   MLIRPDLDialect
   MLIRTransformDialect
-#   MLIRLinalgExtTransformOps
 )

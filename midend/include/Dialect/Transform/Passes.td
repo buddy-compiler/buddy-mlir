@@ -1,7 +1,7 @@
 include "mlir/Pass/PassBase.td"
 
 // TransformDialectInterpreter
-def TransformDialectInterpreter : Pass<"transform-dialect-interpreter", "mlir::ModuleOp"> {
+def TransformDialectInterpreter : Pass<"transform-dialect-interpreter", "ModuleOp"> {
     let summary = "Apply transform dialect operations one by one";
     let constructor = "mlir::createTransformDialectInterpreter()";
     let options = [
