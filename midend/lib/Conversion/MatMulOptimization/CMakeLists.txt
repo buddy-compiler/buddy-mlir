@@ -14,5 +14,3 @@ add_mlir_library(BatchMatMulOptimization
 add_mlir_library(MatMulParallelVectorization
   MatMulParallelVectorization.cpp
 )
-
-add_subdirectory(GPU)

@@ -1,15 +1,17 @@
-#define GEN_PASS_DEF_TRANSFORMDIALECTINTERPRETER
-#include "mlir/Dialect/Transform/Interfaces/TransformInterfaces.h"
-#include "Transform/Passes.h"
+#include "Transform/Transforms/TransformDialectInterpreter.h"
+
+#include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
 #include "mlir/IR/BuiltinOps.h"
+
+#include "PassDetail.h"
 
 using namespace mlir;
 
 namespace {
 
 struct TransformDialectInterpreterPass
-    : public impl::TransformDialectInterpreterBase<TransformDialectInterpreterPass> {
-
+    : public TransformDialectInterpreterBase<TransformDialectInterpreterPass> {
+    
     explicit TransformDialectInterpreterPass(bool erase)
         : TransformDialectInterpreterBase() {
         eraseAfter = erase;
@@ -40,6 +42,6 @@ struct TransformDialectInterpreterPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-createTransformDialectInterpreter(bool eraseAfter = false) {
+mlir::createTransformDialectInterpreter(bool eraseAfter) {
     return std::make_unique<TransformDialectInterpreterPass>(eraseAfter);
 }

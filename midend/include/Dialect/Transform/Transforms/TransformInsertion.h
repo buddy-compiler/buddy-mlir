@@ -3,6 +3,7 @@
 #include <string>
 
 namespace mlir {
+
 class ModuleOp;
 class ImplicitLocOpBuilder;
 

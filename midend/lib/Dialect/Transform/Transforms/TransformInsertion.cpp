@@ -1,7 +1,7 @@
-#include "Transform/Passes.h"
+#include "Transform/Transforms/TransformInsertion.h"
 
-#include "mlir/Dialect/Transform/Interfaces/TransformInterfaces.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/PDL/IR/PDLOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/TransformOps/DialectExtension.h"
 #include "mlir/Dialect/Linalg/TransformOps/LinalgTransformOps.h"
@@ -16,6 +16,8 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 
+#include "PassDetail.h"
+
 #include <optional>
 #include <vector>
 
@@ -23,6 +25,12 @@ using namespace mlir;
 using namespace llvm;
 
 namespace {
+
+inline std::string getAnnotationUniqueIdentifier(const std::string matchPrefix)
+{
+    static size_t cnt = 0;
+    return matchPrefix + "_" + std::to_string(cnt++);
+}
 
 void insertTransformIR(func::FuncOp funcOp, OpBuilder &builder, 
                         const TransformInsertionConfig &config) {
@@ -42,8 +50,8 @@ void insertTransformIR(func::FuncOp funcOp, OpBuilder &builder,
                         ctx, b.getNamedAttr(annotation, UnitAttr::get(ctx)));
                     auto match = b.create<transform::MatchOp>(
                         loc, blockArg.getType(), blockArg, ArrayAttr(),
-                        transform::MatchInterfaceEnumAttr(), annotationAttr, TypeAttr(),
-                        ArrayAttr());
+                        transform::MatchInterfaceEnumAttr(), annotationAttr, TypeAttr()
+                        /*ArrayAttr()*/);
                     ImplicitLocOpBuilder ib(loc, b);
                     config.transformBuilder(ib, op, match);
                     b.create<transform::YieldOp>(loc);
