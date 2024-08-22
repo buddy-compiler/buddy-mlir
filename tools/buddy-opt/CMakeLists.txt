@@ -44,4 +44,5 @@ target_link_libraries(buddy-opt
   MLIRTestTransformDialect
   MLIRTransforms
   MLIRTransformUtils
+  MatMulTransposeBVec
   )
