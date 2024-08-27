@@ -31,25 +31,25 @@
 using namespace std;
 
 void testImplementation(int argc, char *argv[]) {
-  // Read as grayscale image.
+  // Read as colar image.
   Img<float, 3> input = dip::imread<float, 3>(argv[1], dip::IMGRD_COLOR);
 
-  intptr_t sizes[4] = {1, input.getSizes()[0], input.getSizes()[1], input.getSizes()[2]};
+  intptr_t sizes[4] = {1, input.getSizes()[0], input.getSizes()[1],
+                       input.getSizes()[2]};
   Img<float, 4> inputBatch(input.getData(), sizes);
 
-  
   // Note : Both values in output image dimensions and scaling ratios must be
   // positive numbers.
   MemRef<float, 4> output = dip::Resize4D(
       &inputBatch, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION,
-      {1 , 224 , 224 , 3} /*{image_cols, image_rows}*/);
-  
+      {1, 224, 224, 3} /*{image_cols, image_rows}*/);
 
   // Define Img with the output of Resize4D.
-  intptr_t outSizes[3] = {output.getSizes()[1], output.getSizes()[2], output.getSizes()[3]};
+  intptr_t outSizes[3] = {output.getSizes()[1], output.getSizes()[2],
+                          output.getSizes()[3]};
 
   Img<float, 3> outputImageResize4D(output.getData(), outSizes);
-  
+
   dip::imwrite(argv[2], outputImageResize4D);
 
   return;

@@ -389,12 +389,12 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
 
 // Fill appropriate pixel data in its corresponding co-ordinate of the output
 // image.
-void fillPixels4D(OpBuilder &builder, Location loc, Value ivs0, Value ivs1, Value resXVec, Value resYVec,
-                Value xVec, Value yVec, Value input, Value output, Value c0,
-                Value strideVal, 
-                Value outputRowLastElemF32, Value outputColLastElemF32, 
-                Value inputRowLastElemF32, Value inputColLastElemF32, 
-                Value c0F32) {
+void fillPixels4D(OpBuilder &builder, Location loc, Value ivs0, Value ivs1,
+                  Value resXVec, Value resYVec, Value xVec, Value yVec,
+                  Value input, Value output, Value c0, Value strideVal,
+                  Value outputRowLastElemF32, Value outputColLastElemF32,
+                  Value inputRowLastElemF32, Value inputColLastElemF32,
+                  Value c0F32) {
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
@@ -411,7 +411,8 @@ void fillPixels4D(OpBuilder &builder, Location loc, Value ivs0, Value ivs1, Valu
             loc, builder.getF32Type(), input,
             ValueRange{ivs0, origIndices[1], origIndices[0], ivs1});
         builder.create<memref::StoreOp>(
-            loc, pixelVal, output, ValueRange{ivs0, resIndices[1], resIndices[0], ivs1});
+            loc, pixelVal, output,
+            ValueRange{ivs0, resIndices[1], resIndices[0], ivs1});
 
         builder.create<affine::AffineYieldOp>(loc);
       });
@@ -553,7 +554,8 @@ void affineTransformController(OpBuilder &builder, Location loc,
   Value xMm3 =
       builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
 
-  // RSV_BITS = reserved bits, how many bits should be reserved for fraction part
+  // RSV_BITS = reserved bits, how many bits should be reserved for fraction
+  // part
   // TODO: make reserved bits configurable
   const int RSV_BITS = 5;
   Value c_rsv = builder.create<arith::ConstantOp>(
@@ -773,10 +775,10 @@ void fillPixelsBilinearInterpolate(
 
 // Fills pixels in bilinear interpolation fashion.
 void fillPixelsBilinearInterpolate4D(
-    OpBuilder &builder, Location loc, Value ivs0, Value ivs1, Value resXVec, Value resYVec,
-    Value xVec_L, Value yVec_L, Value xVec_H, Value yVec_H, Value input,
-    Value output, Value c0, Value strideVal, Value xVecWeight, Value yVecWeight,
-    Value outputRowLastElemF32, Value outputColLastElemF32,
+    OpBuilder &builder, Location loc, Value ivs0, Value ivs1, Value resXVec,
+    Value resYVec, Value xVec_L, Value yVec_L, Value xVec_H, Value yVec_H,
+    Value input, Value output, Value c0, Value strideVal, Value xVecWeight,
+    Value yVecWeight, Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
     Value c1F32) {
   builder.create<affine::AffineForOp>(
@@ -852,7 +854,8 @@ void fillPixelsBilinearInterpolate4D(
         Value pixelVal = roundOff(builder, loc, pixel_interm3);
 
         builder.create<memref::StoreOp>(
-            loc, pixelVal, output, ValueRange{ivs0, resIndices[1], resIndices[0], ivs1});
+            loc, pixelVal, output,
+            ValueRange{ivs0, resIndices[1], resIndices[0], ivs1});
 
         builder.create<affine::AffineYieldOp>(loc);
       });
@@ -890,16 +893,16 @@ void NearestNeighbourInterpolationResizing(
       });
 }
 
-// Helper function for resizing 4D an image using nearest neighbour interpolation
-// mechanism.
+// Helper function for resizing 4D an image using nearest neighbour
+// interpolation mechanism.
 void NearestNeighbourInterpolationResizing4D(
     OpBuilder &builder, Location loc, MLIRContext *ctx,
     SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
     SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
     Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
     Value outputRowLastElemF32, Value outputColLastElemF32,
-    Value inputRowLastElemF32, Value inputColLastElemF32, 
-    VectorType vectorTy32, int64_t stride, Value c0, Value c0F32) {
+    Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
+    int64_t stride, Value c0, Value c0F32) {
   affine::buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
@@ -916,9 +919,10 @@ void NearestNeighbourInterpolationResizing4D(
         Value resXVec = roundOff(builder, loc, resXVecInterm);
         Value resYVec = roundOff(builder, loc, resYVecInterm);
 
-        fillPixels4D(builder, loc, ivs[0], ivs[1], xVec, yVec, resXVec, resYVec, input, output,
-                   c0, strideVal, outputRowLastElemF32, outputColLastElemF32,
-                   inputRowLastElemF32, inputColLastElemF32, c0F32);
+        fillPixels4D(builder, loc, ivs[0], ivs[1], xVec, yVec, resXVec, resYVec,
+                     input, output, c0, strideVal, outputRowLastElemF32,
+                     outputColLastElemF32, inputRowLastElemF32,
+                     inputColLastElemF32, c0F32);
       });
 }
 
@@ -963,7 +967,8 @@ void BilinearInterpolationResizing(
       });
 }
 
-// Helper function for resizing 4D an image using bilinear interpolation mechanism.
+// Helper function for resizing 4D an image using bilinear interpolation
+// mechanism.
 void BilinearInterpolationResizing4D(
     OpBuilder &builder, Location loc, MLIRContext *ctx,
     SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
@@ -997,10 +1002,11 @@ void BilinearInterpolationResizing4D(
             builder.create<arith::SubFOp>(loc, yVecInterm, yVecInterm_L);
 
         fillPixelsBilinearInterpolate4D(
-            builder, loc, ivs[0], ivs[1], xVec, yVec, xVecInterm_L, yVecInterm_L, xVecInterm_H,
-            yVecInterm_H, input, output, c0, strideVal, xVecWeight, yVecWeight,
-            outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
-            inputColLastElemF32, c0F32, c1F32);
+            builder, loc, ivs[0], ivs[1], xVec, yVec, xVecInterm_L,
+            yVecInterm_L, xVecInterm_H, yVecInterm_H, input, output, c0,
+            strideVal, xVecWeight, yVecWeight, outputRowLastElemF32,
+            outputColLastElemF32, inputRowLastElemF32, inputColLastElemF32,
+            c0F32, c1F32);
       });
 }
 

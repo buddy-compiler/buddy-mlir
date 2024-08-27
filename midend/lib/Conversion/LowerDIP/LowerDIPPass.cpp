@@ -389,8 +389,7 @@ public:
     if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
       return op->emitOpError()
              << "input, and output must have the same element type";
-    } 
-    else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
       return op->emitOpError() << "supports only f32, f64 and integer types. "
                                << inElemTy << "is passed";
     }
@@ -420,18 +419,20 @@ public:
         rewriter.create<arith::MulIOp>(loc, strideVal, outputColStrideRatio);
 
     SmallVector<Value, 8> lowerBounds1{c0, c0, c0, c0};
-    SmallVector<Value, 8> upperBounds1{outputBatch, outputColor, outputRow, outputColMultiple};
+    SmallVector<Value, 8> upperBounds1{outputBatch, outputColor, outputRow,
+                                       outputColMultiple};
 
     SmallVector<int64_t, 8> steps{1, 1, 1, stride};
     Value strideTailVal =
         rewriter.create<arith::SubIOp>(loc, outputCol, outputColMultiple);
 
     SmallVector<Value, 8> lowerBounds2{c0, c0, c0, outputColMultiple};
-    SmallVector<Value, 8> upperBounds2{outputBatch, outputColor, outputRow, outputCol};
+    SmallVector<Value, 8> upperBounds2{outputBatch, outputColor, outputRow,
+                                       outputCol};
 
     FloatType f32 = FloatType::getF32(ctx);
     VectorType vectorTy32 = VectorType::get({stride}, f32);
-    
+
     // tsworld: line 157
     Value horizontalScalingFactorVec = rewriter.create<vector::SplatOp>(
         loc, vectorTy32, horizontalScalingFactor);
@@ -460,14 +461,14 @@ public:
       dip::NearestNeighbourInterpolationResizing4D(
           rewriter, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
           input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
-          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32, inputColLastElemF32,
-          vectorTy32, stride, c0, c0F32);
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32);
 
       dip::NearestNeighbourInterpolationResizing4D(
           rewriter, loc, ctx, lowerBounds2, upperBounds2, steps, strideTailVal,
           input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
-          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32, inputColLastElemF32,
-          vectorTy32, stride, c0, c0F32);
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32);
     } else if (interpolationAttr ==
                dip::InterpolationType::BilinearInterpolation) {
       Value c1F32 = indexToF32(rewriter, loc, c1);

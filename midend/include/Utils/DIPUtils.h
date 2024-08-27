@@ -103,14 +103,14 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
                 Value outputColLastElemF32, Value inputRowLastElemF32,
                 Value inputColLastElemF32, Value c0F32);
 
-
 // Fill appropriate pixel 4D data in its corresponding rotated co-ordinate of
 // output image.
-void fillPixels4D(OpBuilder &builder, Location loc, Value ivs0, Value ivs1, Value resXVec, Value resYVec,
-                Value xVec, Value yVec, Value input, Value output, Value c0,
-                Value strideVal, Value outputRowLastElemF32,
-                Value outputColLastElemF32, Value inputRowLastElemF32,
-                Value inputColLastElemF32, Value c0F32);
+void fillPixels4D(OpBuilder &builder, Location loc, Value ivs0, Value ivs1,
+                  Value resXVec, Value resYVec, Value xVec, Value yVec,
+                  Value input, Value output, Value c0, Value strideVal,
+                  Value outputRowLastElemF32, Value outputColLastElemF32,
+                  Value inputRowLastElemF32, Value inputColLastElemF32,
+                  Value c0F32);
 
 // Calculate tan(angle / 2) where angle is a function parameter.
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal);
@@ -161,10 +161,10 @@ void fillPixelsBilinearInterpolate(
 
 // Fills pixels in 4D of bilinear interpolation fashion.
 void fillPixelsBilinearInterpolate4D(
-    OpBuilder &builder, Location loc, Value ivs0, Value ivs1, Value resXVec, Value resYVec,
-    Value xVec_L, Value yVec_L, Value xVec_H, Value yVec_H, Value input,
-    Value output, Value c0, Value strideVal, Value xVecWeight, Value yVecWeight,
-    Value outputRowLastElemF32, Value outputColLastElemF32,
+    OpBuilder &builder, Location loc, Value ivs0, Value ivs1, Value resXVec,
+    Value resYVec, Value xVec_L, Value yVec_L, Value xVec_H, Value yVec_H,
+    Value input, Value output, Value c0, Value strideVal, Value xVecWeight,
+    Value yVecWeight, Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
     Value c1F32);
 
@@ -179,16 +179,16 @@ void NearestNeighbourInterpolationResizing(
     Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
     int64_t stride, Value c0, Value c0F32);
 
-// Helper function for resizing 4D an image using nearest neighbour interpolation
-// mechanism.
+// Helper function for resizing 4D an image using nearest neighbour
+// interpolation mechanism.
 void NearestNeighbourInterpolationResizing4D(
     OpBuilder &builder, Location loc, MLIRContext *ctx,
     SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
     SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
     Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
     Value outputRowLastElemF32, Value outputColLastElemF32,
-    Value inputRowLastElemF32, Value inputColLastElemF32,
-    VectorType vectorTy32, int64_t stride, Value c0, Value c0F32);
+    Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
+    int64_t stride, Value c0, Value c0F32);
 
 // Helper function for resizing an image using bilinear interpolation mechanism.
 void BilinearInterpolationResizing(
@@ -200,7 +200,8 @@ void BilinearInterpolationResizing(
     Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
     int64_t stride, Value c0, Value c0F32, Value c1F32);
 
-// Helper function for resizing 4D an image using bilinear interpolation mechanism.
+// Helper function for resizing 4D an image using bilinear interpolation
+// mechanism.
 void BilinearInterpolationResizing4D(
     OpBuilder &builder, Location loc, MLIRContext *ctx,
     SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
@@ -230,9 +231,10 @@ void calcAndStorewTailProcessingMorph(
     Value zeroPadding, Value inputCol, VectorType vectorMaskTy, Type elemTy,
     Value kernelValue, Value zeroPaddingElem, DIP_OP op);
 
-// Utility function for traversing an image with support for boundary extrapolation,
-// variable anchor point positioning, and tail processing. It is used to compose more
-// complicated operations on top of it, like 2D Correlation and morphological operations.
+// Utility function for traversing an image with support for boundary
+// extrapolation, variable anchor point positioning, and tail processing. It is
+// used to compose more complicated operations on top of it, like 2D Correlation
+// and morphological operations.
 void traverseImagewBoundaryExtrapolation(
     OpBuilder &rewriter, Location loc, MLIRContext *ctx, Value input,
     Value kernel, Value output, Value centerX, Value centerY,
