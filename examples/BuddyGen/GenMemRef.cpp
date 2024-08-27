@@ -22,7 +22,7 @@
        -L$LLVM_BUILD_DIR/lib -lMLIRIR -lMLIRParser -lMLIRSupport -lLLVMCore \
        -lLLVMSupport -lncurses -ltinfo -lstdc++ -lLLVMDemangle \
        -o a.out
-// $ a.out
+// $ ./a.out
 
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BuiltinTypes.h"
