@@ -73,13 +73,8 @@ public:
     auto loc = op->getLoc();
     auto ctx = op->getContext();
 
-    // Get f32 as the element type.
-    FloatType f32 = mlir::FloatType::getF32(ctx);
     // Get i1 as the element type for mask vector.
     IntegerType i1 = IntegerType::get(ctx, 1);
-
-    // Define `*Type`.
-    VectorType vectorTy32 = mlir::VectorType::get({strip}, f32);
     VectorType vectorMaskTy = mlir::VectorType::get({strip}, i1);
 
     // Get input, kernel and output.
@@ -87,19 +82,21 @@ public:
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
 
+    // Get ElementType of input.
+    Type elementTy = input.getType().cast<ShapedType>().getElementType();
+    VectorType vectorTy = mlir::VectorType::get({strip}, elementTy);
+
     // Get Constants.
     const Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     const Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     const Value c2 = rewriter.create<arith::ConstantIndexOp>(loc, 2);
     const Value c3 = rewriter.create<arith::ConstantIndexOp>(loc, 3);
     const Value c32 = rewriter.create<arith::ConstantIndexOp>(loc, strip);
-    Value f0 = rewriter.create<arith::ConstantFloatOp>(
-        loc, APFloat::getZero(f32.getFloatSemantics()), f32);
+    const Value zero =
+        buddy::insertZeroConstantOp(ctx, rewriter, loc, elementTy);
 
     // Create pass through vector.
-    Value passThroughVec = rewriter.create<SplatOp>(loc, vectorTy32, f0);
-
-    // TODO: add to get Strides and Dilations.
+    Value passThroughVec = rewriter.create<SplatOp>(loc, vectorTy, zero);
 
     // Get Dimensions of Kernel.
     Value kernelHeight = rewriter.create<memref::DimOp>(loc, kernel, c0);
@@ -115,10 +112,9 @@ public:
     AffineExpr d0;
     bindDims(ctx, d0);
     AffineMap stripMap = AffineMap::get(1, 0, {d0.ceilDiv(strip)}, ctx);
-    SmallVector<Value, 8> lowerBounds(5, c0);
-    SmallVector<Value, 8> uperBounds{batch, channels, height, kernelHeight,
-                                     kernelWidth};
-    SmallVector<int64_t, 8> steps(5, /*Value=*/1);
+    SmallVector<Value, 8> lowerBounds(3, c0);
+    SmallVector<Value, 8> uperBounds{batch, channels, height};
+    SmallVector<int64_t, 8> steps(3, /*Value=*/1);
     affine::buildAffineLoopNest(
         rewriter, loc, lowerBounds, uperBounds, steps,
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
@@ -139,10 +135,9 @@ public:
                     ctx);
 
                 // Calculate the tail.
-                Value currWidth =
-                    nestedBuilder.create<arith::MulIOp>(loc, iv, c32);
+                Value currWidth = builder.create<arith::MulIOp>(loc, iv, c32);
                 Value tail =
-                    nestedBuilder.create<arith::SubIOp>(loc, width, currWidth);
+                    builder.create<arith::SubIOp>(loc, width, currWidth);
                 Value tailCond = rewriter.create<arith::CmpIOp>(
                     loc, arith::CmpIPredicate::sge, tail, c32);
 
@@ -150,11 +145,6 @@ public:
                 builder.create<scf::IfOp>(
                     loc, tailCond,
                     [&](OpBuilder &builder, Location loc) {
-                      Value inputVector =
-                          nestedBuilder.create<affine::AffineVectorLoadOp>(
-                              loc, vectorTy32, input, inputVectorMap,
-                              ValueRange{ivs[0], ivs[1], ivs[2], ivs[3], ivs[4],
-                                         iv});
                       // Define AffineMap.
                       // The `outputVector` and `resultVector` share the
                       // same AffineMap.
@@ -165,14 +155,52 @@ public:
                           {output0, output2, output3 * strip, output1}, ctx);
                       Value outputVector =
                           nestedBuilder.create<affine::AffineVectorLoadOp>(
-                              loc, vectorTy32, output, outputVectorMap,
+                              loc, vectorTy, output, outputVectorMap,
                               ValueRange{ivs[0], ivs[1], ivs[2], iv});
-                      // FMA = Fused Multiply + Add
-                      Value resultVector =
-                          nestedBuilder.create<arith::MaximumFOp>(
-                              loc, inputVector, outputVector);
-                      nestedBuilder.create<affine::AffineVectorStoreOp>(
-                          loc, resultVector, output, outputVectorMap,
+
+                      auto tmp0 = nestedBuilder.create<affine::AffineForOp>(
+                          loc, ValueRange{c0}, builder.getDimIdentityMap(),
+                          ValueRange{kernelHeight}, builder.getDimIdentityMap(),
+                          /*Step=*/1, ValueRange{outputVector},
+                          [&](OpBuilder &builder, Location loc, Value iv0,
+                              ValueRange itrArgs0) {
+                            auto tmp1 = nestedBuilder.create<
+                                affine::AffineForOp>(
+                                loc, ValueRange{c0},
+                                builder.getDimIdentityMap(),
+                                ValueRange{kernelWidth},
+                                builder.getDimIdentityMap(), /*Step=*/1,
+                                ValueRange{itrArgs0[0]},
+                                [&](OpBuilder &builder, Location loc, Value iv1,
+                                    ValueRange itrArgs1) {
+                                  Value inputVector =
+                                      nestedBuilder
+                                          .create<affine::AffineVectorLoadOp>(
+                                              loc, vectorTy, input,
+                                              inputVectorMap,
+                                              ValueRange{ivs[0], ivs[1], ivs[2],
+                                                         iv0, iv1, iv});
+                                  // Max
+                                  if (auto ty = llvm::dyn_cast<IntegerType>(
+                                          elementTy)) {
+                                    Value resultVector =
+                                        nestedBuilder.create<arith::MaxSIOp>(
+                                            loc, inputVector, itrArgs1[0]);
+                                    nestedBuilder.create<affine::AffineYieldOp>(
+                                        loc, resultVector);
+                                  } else {
+                                    Value resultVector =
+                                        nestedBuilder.create<arith::MaximumFOp>(
+                                            loc, inputVector, itrArgs1[0]);
+                                    nestedBuilder.create<affine::AffineYieldOp>(
+                                        loc, resultVector);
+                                  }
+                                });
+                            nestedBuilder.create<affine::AffineYieldOp>(
+                                loc, tmp1.getResult(0));
+                          });
+                      builder.create<affine::AffineVectorStoreOp>(
+                          loc, tmp0.getResult(0), output, outputVectorMap,
                           ValueRange{ivs[0], ivs[1], ivs[2], iv});
                       builder.create<scf::YieldOp>(loc);
                     },
@@ -180,32 +208,68 @@ public:
                     // tail).
                     [&](OpBuilder &builder, Location loc) {
                       // Create mask according to the tail.
-                      Value tailMask =
-                          builder.create<CreateMaskOp>(loc, vectorMaskTy, tail);
-                      // Calculate the index of the input and output.
-                      Value inputHeight = nestedBuilder.create<arith::AddIOp>(
-                          loc, ivs[2], ivs[3]);
-                      Value outputWidth =
-                          nestedBuilder.create<arith::MulIOp>(loc, iv, c32);
-                      Value inputWidth = nestedBuilder.create<arith::AddIOp>(
-                          loc, ivs[4], outputWidth);
-                      // Masked load input and output.
-                      Value maskedInputVec = builder.create<MaskedLoadOp>(
-                          loc, vectorTy32, input,
-                          ValueRange{ivs[0], inputHeight, inputWidth, ivs[1]},
-                          tailMask, passThroughVec);
-                      Value maskedOutputVec = builder.create<MaskedLoadOp>(
-                          loc, vectorTy32, output,
-                          ValueRange{ivs[0], ivs[2], outputWidth, ivs[1]},
-                          tailMask, passThroughVec);
-                      // FMA.
-                      Value resultVec = builder.create<arith::MaximumFOp>(
-                          loc, maskedInputVec, maskedOutputVec);
+                      Value tailMask = nestedBuilder.create<CreateMaskOp>(
+                          loc, vectorMaskTy, tail);
+                      // Masked load output.
+                      Value maskedOutputVec =
+                          nestedBuilder.create<MaskedLoadOp>(
+                              loc, vectorTy, output,
+                              ValueRange{ivs[0], ivs[2], currWidth, ivs[1]},
+                              tailMask, passThroughVec);
+                      auto tmp0 = nestedBuilder.create<affine::AffineForOp>(
+                          loc, ValueRange{c0}, builder.getDimIdentityMap(),
+                          ValueRange{kernelHeight}, builder.getDimIdentityMap(),
+                          /*Step=*/1, ValueRange{maskedOutputVec},
+                          [&](OpBuilder &builder, Location loc, Value iv0,
+                              ValueRange itrArgs0) {
+                            auto tmp1 = nestedBuilder.create<
+                                affine::AffineForOp>(
+                                loc, ValueRange{c0},
+                                builder.getDimIdentityMap(),
+                                ValueRange{kernelWidth},
+                                builder.getDimIdentityMap(), /*Step=*/1,
+                                ValueRange{itrArgs0[0]},
+                                [&](OpBuilder &builder, Location loc, Value iv1,
+                                    ValueRange itrArgs1) {
+                                  // Calculate the index of the input and
+                                  // output.
+                                  Value inputHeight =
+                                      nestedBuilder.create<arith::AddIOp>(
+                                          loc, ivs[2], iv0);
+                                  Value inputWidth =
+                                      nestedBuilder.create<arith::AddIOp>(
+                                          loc, iv1, currWidth);
+                                  // Masked load input and output.
+                                  Value maskedInputVec =
+                                      nestedBuilder.create<MaskedLoadOp>(
+                                          loc, vectorTy, input,
+                                          ValueRange{ivs[0], inputHeight,
+                                                     inputWidth, ivs[1]},
+                                          tailMask, passThroughVec);
+                                  // Max
+                                  if (auto ty = llvm::dyn_cast<IntegerType>(
+                                          elementTy)) {
+                                    Value resultVec =
+                                        nestedBuilder.create<arith::MaxSIOp>(
+                                            loc, maskedInputVec, itrArgs1[0]);
+                                    nestedBuilder.create<affine::AffineYieldOp>(
+                                        loc, resultVec);
+                                  } else {
+                                    Value resultVec =
+                                        nestedBuilder.create<arith::MaximumFOp>(
+                                            loc, maskedInputVec, itrArgs1[0]);
+                                    nestedBuilder.create<affine::AffineYieldOp>(
+                                        loc, resultVec);
+                                  }
+                                });
+                            nestedBuilder.create<affine::AffineYieldOp>(
+                                loc, tmp1.getResult(0));
+                          });
                       // Masked store the result to output.
                       builder.create<MaskedStoreOp>(
                           loc, output,
-                          ValueRange{ivs[0], ivs[2], outputWidth, ivs[1]},
-                          tailMask, resultVec);
+                          ValueRange{ivs[0], ivs[2], currWidth, ivs[1]},
+                          tailMask, tmp0.getResult(0));
                       builder.create<scf::YieldOp>(loc);
                     });
                 nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);

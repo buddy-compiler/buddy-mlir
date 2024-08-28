@@ -418,14 +418,21 @@ linalg-matmul-vectorization-lower:
 		-matmul-vectorization \
 		-o log.mlir
 		
-linalg-pooling-nhwc-max-lower:
-	@${BUDDY_OPT} linalg-pooling-nhwc-max.mlir ${MLIR_OPT_OPTIONS} \
+linalg-pooling-nhwc-max-vectorization-lower:
+	@${BUDDY_OPT} linalg-pooling-nhwc-max.mlir \
 		-pooling-nhwc-max-vectorization \
 		-o log.mlir
 
 linalg-pooling-nhwc-max-run:
-	@${MLIR_OPT} linalg-pooling-nhwc-max.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
-		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
-		-convert-func-to-llvm -reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+	@${MLIR_OPT} linalg-pooling-nhwc-max.mlir \
+		-convert-linalg-to-loops \
+		-lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main \
+		-entry-point-result=void \
+	 -shared-libs=${MLIR_RUNNER_UTILS} \
+	 -shared-libs=${MLIR_C_RUNNER_UTILS}
