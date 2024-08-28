@@ -30,6 +30,7 @@
 
 #include "buddy/Core/Container.h"
 #include <cctype>
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <memory>
@@ -582,9 +583,14 @@ void Audio<T, N>::i16ToTwoBytes(std::vector<uint8_t> &fileData, int16_t num,
 // Returns:
 //   An 8-bit unsigned integer representing the sample as one byte.
 template <typename T, size_t N> uint8_t Audio<T, N>::sampleToOneByte(T sample) {
-  // Restricts sample value in range [-1.0, 1.0].
-  sample = std::min(sample, static_cast<T>(1.));
-  sample = std::max(sample, static_cast<T>(-1.));
+  if (std::isnan(sample)) {
+    // Handle corner case for NaN (Not a Number). Reset NaN to 1.
+    sample = static_cast<T>(1.);
+  } else {
+    // Restricts sample value in range [-1.0, 1.0].
+    sample = std::min(sample, static_cast<T>(1.));
+    sample = std::max(sample, static_cast<T>(-1.));
+  }
   // Converts a normalized floating-point audio sample to the [0, 255] range.
   sample = (sample + static_cast<T>(1.)) / static_cast<T>(2.);
   return static_cast<uint8_t>(sample * 255.);
@@ -596,9 +602,14 @@ template <typename T, size_t N> uint8_t Audio<T, N>::sampleToOneByte(T sample) {
 // Returns:
 //   A 16-bit signed integer representing the sample as two bytes.
 template <typename T, size_t N> int16_t Audio<T, N>::sampleToI16(T sample) {
-  // Restricts sample value in range [-1.0, 1.0].
-  sample = std::min(sample, static_cast<T>(1.));
-  sample = std::max(sample, static_cast<T>(-1.));
+  if (std::isnan(sample)) {
+    // Handle corner case for NaN (Not a Number). Reset NaN to 1.
+    sample = static_cast<T>(1.);
+  } else {
+    // Restricts sample value in range [-1.0, 1.0].
+    sample = std::min(sample, static_cast<T>(1.));
+    sample = std::max(sample, static_cast<T>(-1.));
+  }
   // Converts a normalized floating-point audio sample to the [-32767, 32767]
   // range.
   return static_cast<int16_t>(sample * 32767.);
