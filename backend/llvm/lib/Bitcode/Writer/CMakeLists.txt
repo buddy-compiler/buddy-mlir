@@ -1,4 +1,4 @@
-set(LLVM_Writer_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Bitcode/Writer)
+set(LLVM_Writer_DIR ${LLVM_MAIN_SRC_DIR}/lib/Bitcode/Writer)
 
 
 add_llvm_component_library(LLVMBuddyBitWriter

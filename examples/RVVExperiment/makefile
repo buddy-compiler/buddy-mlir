@@ -110,19 +110,16 @@ rvv-insert-extract-intrinsics-asm:
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=256 \
 		--filetype=asm -o log.s
 
-# TODO: Fix me.
 rvv-c-setvl-translate:
 	@${LOCAL_CLANG} -march=rv64gcv --target=riscv64-unknown-linux-gnu \
 		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		./rvv-c-setvl.c -fPIC -S -emit-llvm -o log.ll
 
-# TODO: Fix me.
 rvv-c-setvl-asm:
 	@${LOCAL_CLANG} -march=rv64gcv --target=riscv64-unknown-linux-gnu \
 		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		./rvv-c-setvl.c -fPIC -S -o log.s
 
-# TODO: Fix me.
 run-targets += rvv-c-setvl-run
 rvv-c-setvl-run:
 	@${LOCAL_CLANG} -march=rv64gcv --target=riscv64-unknown-linux-gnu \

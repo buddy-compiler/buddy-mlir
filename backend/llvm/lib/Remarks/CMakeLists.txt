@@ -1,4 +1,4 @@
-set(LLVM_Remarks_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Remarks)
+set(LLVM_Remarks_DIR ${LLVM_MAIN_SRC_DIR}/lib/Remarks)
 
 add_llvm_component_library(LLVMBuddyRemarks
   ${LLVM_Remarks_DIR}/BitstreamRemarkParser.cpp

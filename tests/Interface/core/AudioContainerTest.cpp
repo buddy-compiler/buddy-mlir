@@ -20,22 +20,72 @@
 
 // RUN: buddy-audio-container-test 2>&1 | FileCheck %s
 
+#include "AudioFile.h"
 #include <buddy/DAP/AudioContainer.h>
 #include <iostream>
 
 using namespace std;
 
 int main() {
-  dap::Audio<float, 1> aud("../../../../tests/Interface/core/NASA_Mars.wav");
-  auto &audioFile = aud.getAudioFile();
+  // ---------------------------------------------------------------------------
+  // 1. Print Decoded Reuslts using Buddy Audio Container
+  // ---------------------------------------------------------------------------
+
+  // Read and decode audio file with Buddy Audio Container.
+  dap::Audio<float, 1> aud("../../../../tests/Interface/core/TestAudio.wav");
+
+  // CHECK: WAV
+  fprintf(stderr, "%s\n", aud.getFormatName().c_str());
+  // CHECK: 16
+  fprintf(stderr, "%d\n", aud.getBitDepth());
+  // CHECK: 77040
+  fprintf(stderr, "%lu\n", aud.getSamplesNum());
   // CHECK: 1
-  fprintf(stderr, "%u\n", audioFile.getNumChannels());
-  // CHECK: 24
-  fprintf(stderr, "%u\n", audioFile.getBitDepth());
-  // CHECK: 2000000
-  fprintf(stderr, "%u\n", audioFile.getNumSamplesPerChannel());
-  // CHECK: 100000
-  fprintf(stderr, "%u\n", audioFile.getSampleRate());
+  fprintf(stderr, "%d\n", aud.getChannelsNum());
+  // CHECK: 16000
+  fprintf(stderr, "%d\n", aud.getSampleRate());
+  // CHECK: -0.000153
+  fprintf(stderr, "%f\n", aud.getData()[3]);
+  // CHECK: -0.000275
+  fprintf(stderr, "%f\n", aud.getData()[4]);
+
+  // ---------------------------------------------------------------------------
+  // 2. Compare Encoded results using Buddy Audio Container and AudioFile.h
+  // ---------------------------------------------------------------------------
+
+  // Encode the audio data and save it to a file using the Buddy Audio Container
+  string filePath = "./buddyEncodeResult.wav";
+  aud.saveToFile(filePath, "WAVE");
+
+  // Print metadata and sample values using the Buddy Audio Container.
+  dap::Audio<float, 1> audContainer(filePath);
+  // CHECK: 16
+  fprintf(stderr, "%d\n", audContainer.getBitDepth());
+  // CHECK: 77040
+  fprintf(stderr, "%lu\n", audContainer.getSamplesNum());
+  // CHECK: 1
+  fprintf(stderr, "%d\n", audContainer.getChannelsNum());
+  // CHECK: 16000
+  fprintf(stderr, "%d\n", audContainer.getSampleRate());
+  // CHECK: -0.000122
+  fprintf(stderr, "%f\n", audContainer.getData()[3]);
+  // CHECK: -0.000244
+  fprintf(stderr, "%f\n", audContainer.getData()[4]);
+
+  // Print metadata and sample values using the third-party (AudioFile.h).
+  AudioFile<float> audFile(filePath);
+  // CHECK: 16
+  fprintf(stderr, "%d\n", audFile.getBitDepth());
+  // CHECK: 77040
+  fprintf(stderr, "%d\n", audFile.getNumSamplesPerChannel());
+  // CHECK: 1
+  fprintf(stderr, "%d\n", audFile.getNumChannels());
+  // CHECK: 16000
+  fprintf(stderr, "%d\n", audFile.getSampleRate());
+  // CHECK: -0.000122
+  fprintf(stderr, "%f\n", audFile.getSample(0, 3));
+  // CHECK: -0.000244
+  fprintf(stderr, "%f\n", audFile.getSample(0, 4));
 
   return 0;
 }

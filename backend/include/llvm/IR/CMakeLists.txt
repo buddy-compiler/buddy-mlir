@@ -1,4 +1,4 @@
-include_directories(${LLVM_PROJECT_SOURCE_DIR}/llvm/include/llvm/IR/)
+include_directories(${LLVM_MAIN_SRC_DIR}/include/llvm/IR/)
 
 set(LLVM_TARGET_DEFINITIONS IntrinsicsBuddyExt.td)
 tablegen(LLVM IntrinsicImpl.inc -gen-intrinsic-impl)

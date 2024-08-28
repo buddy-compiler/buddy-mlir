@@ -104,6 +104,17 @@ If you want to add domain-specific framework support, please add the following c
 | -------------- | ------------- | ------------- |
 | OpenCV  | `-DBUDDY_ENABLE_OPENCV=ON`  | Add `-DOpenCV_DIR=</PATH/TO/OPENCV/BUILD/>` or install OpenCV release version on your local device. |
 
+To build buddy-mlir with custom LLVM sources:
+
+```
+$ cmake -G Ninja .. \
+    -DMLIR_DIR=PATH/TO/LLVM/lib/cmake/mlir \
+    -DLLVM_DIR=PATH/TO/LLVM/lib/cmake/llvm \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DLLVM_MAIN_SRC_DIR=PATH/TO/LLVM_SOURCE
+```
+
 <h3 id="one-step">One-step building strategy</h3>
 
 If you only want to use our tools and integrate them more easily into your projects, you can choose to use the one-step build strategy.
@@ -134,7 +145,7 @@ This repository have nix flake support. You can follow the [nix installation ins
 nix develop .
 ```
 
-This will setup a bash shell with `clang`, `clangd`, `cmake`, `ninja`, and other necessary dependencies to build buddy-mlir from source.
+This will setup a bash shell with `clang`, `ccls`, `cmake`, `ninja`, and other necessary dependencies to build buddy-mlir from source.
 
 - If you want to use the buddy-mlir bintools
 

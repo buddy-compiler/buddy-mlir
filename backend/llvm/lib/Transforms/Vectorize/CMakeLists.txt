@@ -1,4 +1,4 @@
-set(LLVM_Vectorize_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Transforms/Vectorize)
+set(LLVM_Vectorize_DIR ${LLVM_MAIN_SRC_DIR}/lib/Transforms/Vectorize)
 
 add_llvm_component_library(LLVMBuddyVectorize
   ${LLVM_Vectorize_DIR}/LoadStoreVectorizer.cpp

@@ -1,4 +1,4 @@
-set(LLVM_IPO_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Transforms/IPO)
+set(LLVM_IPO_DIR ${LLVM_MAIN_SRC_DIR}/lib/Transforms/IPO)
 
 add_llvm_component_library(LLVMBuddyIPO
   ${LLVM_IPO_DIR}/AlwaysInliner.cpp

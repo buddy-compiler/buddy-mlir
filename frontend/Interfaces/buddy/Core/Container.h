@@ -132,7 +132,7 @@ MemRef<T, N>::MemRef(intptr_t sizes[N], T init) : MemRef(sizes) {
 
 template <typename T, std::size_t N>
 MemRef<T, N>::MemRef(intptr_t sizes[N], bool needMalloc, intptr_t offset)
-    : offset(offset), aligned(nullptr), allocated(nullptr) {
+    : allocated(nullptr), aligned(nullptr), offset(offset) {
   for (size_t i = 0; i < N; i++) {
     this->sizes[i] = sizes[i];
   }
@@ -152,7 +152,7 @@ MemRef<T, N>::MemRef(std::vector<size_t> sizes, T init) : MemRef(sizes) {
 template <typename T, std::size_t N>
 MemRef<T, N>::MemRef(std::vector<size_t> sizes, bool needMalloc,
                      intptr_t offset)
-    : offset(offset), aligned(nullptr), allocated(nullptr) {
+    : allocated(nullptr), aligned(nullptr), offset(offset) {
   if (sizes.size() != N) {
     throw std::runtime_error("Invalid number of dimensions.");
   }

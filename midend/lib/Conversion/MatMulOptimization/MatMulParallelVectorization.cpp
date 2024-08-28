@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the matmul-paralell-vectorization optimization.
+// This file implements the matmul-parallel-vectorization optimization.
 //
 //===----------------------------------------------------------------------===//
 
@@ -318,7 +318,7 @@ class MatMulParallelVectorizationPass
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MatMulParallelVectorizationPass)
   StringRef getArgument() const final {
-    return "matmul-paralell-vectorization-optimize";
+    return "matmul-parallel-vectorization-optimize";
   }
   StringRef getDescription() const final {
     return "MatMulParallelVectorization Optimization.";

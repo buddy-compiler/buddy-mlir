@@ -1,4 +1,4 @@
-set(LLVM_Object_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Object)
+set(LLVM_Object_DIR ${LLVM_MAIN_SRC_DIR}/lib/Object)
 
 add_llvm_component_library(LLVMBuddyObject
   ${LLVM_Object_DIR}/Archive.cpp

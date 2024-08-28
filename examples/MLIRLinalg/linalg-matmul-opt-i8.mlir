@@ -1,4 +1,4 @@
-// RUN: buddy-opt -matmul-paralell-vectorization-optimize -verify-diagnostics -expand-strided-metadata \
+// RUN: buddy-opt -matmul-parallel-vectorization-optimize -verify-diagnostics -expand-strided-metadata \
 // RUN:    -lower-affine -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf \
 // RUN:    -convert-linalg-to-loops -convert-scf-to-cf -llvm-request-c-wrappers -convert-func-to-llvm \
 // RUN:    -reconcile-unrealized-casts %s \

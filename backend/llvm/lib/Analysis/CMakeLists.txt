@@ -1,4 +1,4 @@
-set(LLVM_Analysis_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Analysis)
+set(LLVM_Analysis_DIR ${LLVM_MAIN_SRC_DIR}/lib/Analysis)
 
 add_llvm_component_library(LLVMBuddyAnalysis
 
