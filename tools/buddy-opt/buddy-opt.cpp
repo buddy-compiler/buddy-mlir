@@ -81,6 +81,7 @@ void registerFuncBufferizeDynamicOffsetPass();
 void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMul_TransposeB_VecPass();
+void registerMatMulTransposeBVecPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -118,7 +119,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerDeviceSchedulePass();
   mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
-  mlir::buddy::registerMatMul_TransposeB_VecPass();
+  mlir::buddy::registerMatMulTransposeBVecPass();
 
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();

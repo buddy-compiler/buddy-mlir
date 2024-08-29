@@ -28,10 +28,10 @@
 #include <mlir/Pass/Pass.h>
 
 #include "Utils/Utils.h"
-#include <iostream>
+
 using namespace mlir;
 using namespace vector;
-using namespace std;
+
 //===----------------------------------------------------------------------===//
 // Rewrite Pattern
 //===----------------------------------------------------------------------===//
@@ -39,9 +39,9 @@ using namespace std;
 namespace {
 class MatMul_TransposeB_VecPattern : public ConversionPattern{
 public:
-    explicit MatMul_TransposeB_VecPattern(MLIRContext *context,int64_t vecsizeparam)
+    explicit MatMul_TransposeB_VecPattern(MLIRContext *context,int64_t veSizeparam)
         : ConversionPattern(linalg::MatmulTransposeBOp::getOperationName(),1,context){
-            vecsize = vecsizeparam;
+            veSize = veSizeparam;
         }
     
     LogicalResult
@@ -55,14 +55,14 @@ public:
         Value C = op->getOperand(2);
         ShapedType ATy = A.getType().cast<ShapedType>();
         Type eleTy = ATy.getElementType();
-        VectorType vectorTy = mlir::VectorType::get({vecsize}, eleTy);
+        VectorType vectorTy = mlir::VectorType::get({veSize}, eleTy);
 
         const Value c0=
             rewriter.create<arith::ConstantOp>(loc,rewriter.getIndexAttr(0));
         const Value c1=
             rewriter.create<arith::ConstantOp>(loc,rewriter.getIndexAttr(1));
         const Value step = 
-            rewriter.create<arith::ConstantIndexOp>(loc,vecsize);
+            rewriter.create<arith::ConstantIndexOp>(loc,veSize);
         
         const Value aRow = rewriter.create<memref::DimOp>(loc,A,c0);
         const Value bRow = rewriter.create<memref::DimOp>(loc,B,c0);
@@ -71,20 +71,17 @@ public:
         SmallVector<Value,8> lowerBounds(2,c0);
         SmallVector<Value,8> uperBounds {aRow,bRow/*bCol*/};
         SmallVector<int64_t,8> steps{1,1};
-        //TODO
-        //generating affine code
+        
         affine::buildAffineLoopNest(
             rewriter,loc,lowerBounds,uperBounds,steps,
             [&](OpBuilder &builder,Location loc,ValueRange ivs){
-                //Value sum_0 = builder.create<mlir::arith::ConstantOp>(
-                //    loc, builder.getF32Type(), builder.getF32FloatAttr(0.0f));
                 Value sum_0 = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
                 // Create loop based on vector size.
                 auto lbMap = mlir::AffineMap::get(0, 0, ctx);
                 auto ubMap = mlir::AffineMap::get(0, 0, ctx);
                 auto sum= builder.create<affine::AffineForOp>(
                 loc,ValueRange{c0}, builder.getDimIdentityMap(),ValueRange{bCol}, builder.getDimIdentityMap()
-                    ,vecsize,ValueRange{sum_0},
+                    ,veSize,ValueRange{sum_0},
                     [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
                     ValueRange itrArgs) {
                         Value aVec = builder.create<mlir::vector::TransferReadOp>(
@@ -109,7 +106,7 @@ public:
         return success();   
     }
 private:
-    int64_t vecsize;
+    int64_t veSize;
 };
 } // end anonymous namespace
 
@@ -118,27 +115,27 @@ private:
 //===----------------------------------------------------------------------===//
 
 namespace{
-    class MatMul_TransposeB_VecPass
-        :public PassWrapper<MatMul_TransposeB_VecPass,OperationPass<ModuleOp>>{
+    class MatMulTransposeBVecPass
+        :public PassWrapper<MatMulTransposeBVecPass,OperationPass<ModuleOp>>{
 public:
-    MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MatMul_TransposeB_VecPass)
-    StringRef getArgument() const final{ return "matul-vectorization2"; }
+    MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MatMulTransposeBVecPass)
+    StringRef getArgument() const final{ return "transpose_matmul_bvectorization"; }
     StringRef getDescription() const final { return "MatMul Vectorization second version.MatMul receive tensortype oprands."; }
-    MatMul_TransposeB_VecPass() = default;
-    MatMul_TransposeB_VecPass(const MatMul_TransposeB_VecPass &) {}
+    MatMulTransposeBVecPass() = default;
+    MatMulTransposeBVecPass(const MatMulTransposeBVecPass &) {}
     void runOnOperation()   override;
     void getDependentDialects(DialectRegistry &registry) const override{
         registry.insert<linalg::LinalgDialect,scf::SCFDialect,
             affine::AffineDialect,VectorDialect>();
     }
-    Option<int64_t> vecsize{*this,"vec-size",
+    Option<int64_t> veSize{*this,"vec-size",
                             llvm::cl::desc("The size of vectorization"),
                             llvm::cl::init(32)};
                             
 };
 }
 
-void MatMul_TransposeB_VecPass::runOnOperation(){
+void MatMulTransposeBVecPass::runOnOperation(){
     MLIRContext *context = &getContext();
     ModuleOp module = getOperation();
 
@@ -149,7 +146,7 @@ void MatMul_TransposeB_VecPass::runOnOperation(){
     target.addLegalOp<linalg::FillOp>();
 
     RewritePatternSet patterns(context);
-    patterns.add<MatMul_TransposeB_VecPattern>(context,vecsize);
+    patterns.add<MatMul_TransposeB_VecPattern>(context,veSize);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
@@ -157,8 +154,8 @@ void MatMul_TransposeB_VecPass::runOnOperation(){
 
 namespace mlir {
 namespace buddy {
-void registerMatMul_TransposeB_VecPass() {
-  PassRegistration<MatMul_TransposeB_VecPass>();
+void registerMatMulTransposeBVecPass() {
+  PassRegistration<MatMulTransposeBVecPass>();
 }
 } // namespace buddy
 } // namespace mlir
