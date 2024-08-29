@@ -47,6 +47,7 @@
 #include "Gemmini/GemminiOps.h"
 #include "Sche/ScheDialect.h"
 #include "Sche/ScheOps.h"
+#include "Pipelines/LinalgTensorOpt.h"
 
 namespace mlir {
 namespace buddy {
@@ -71,6 +72,7 @@ void registerLowerLinalgToGemminiPass();
 void registerDeviceSchedulePass();
 void registerLowerSchePass();
 void registerFuncBufferizeDynamicOffsetPass();
+void registerLinalgTensorOptPassPipeline();
 } // namespace buddy
 } // namespace mlir
 
@@ -103,6 +105,9 @@ int main(int argc, char **argv) {
   mlir::buddy::registerDeviceSchedulePass();
   mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
+
+  // Register Pipeline Passes
+  mlir::buddy::registerLinalgTensorOptPassPipeline();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.

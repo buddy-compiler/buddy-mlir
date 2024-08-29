@@ -1,3 +1,6 @@
+#ifndef TRANSFORM_TRANSFORMS_TRANSFORMINSERTION_H
+#define TRANSFORM_TRANSFORMS_TRANSFORMINSERTION_H
+
 #include "mlir/Pass/Pass.h"
 #include <memory>
 #include <string>
@@ -17,4 +20,6 @@ struct TransformInsertionConfig {
 std::unique_ptr<OperationPass<ModuleOp>>
 createGenericTransformInsertionPass(const TransformInsertionConfig &config);
 
-}
+} //namespace mlir
+
+#endif

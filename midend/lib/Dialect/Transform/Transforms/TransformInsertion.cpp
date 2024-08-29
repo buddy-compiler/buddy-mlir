@@ -28,13 +28,14 @@ namespace {
 inline std::string getAnnotationUniqueIdentifier(const std::string matchPrefix)
 {
     static size_t cnt = 0;
-    return matchPrefix + "_" + std::to_string(cnt++);
+    return matchPrefix + std::to_string(cnt++);
 }
 
 void insertTransformIR(func::FuncOp funcOp, OpBuilder &builder, 
                         const TransformInsertionConfig &config) {
-    funcOp->walk([&](Operation *op) { 
+    funcOp->walk([&](Operation *op) {
         if (config.opFilter(op)) {
+            op->print(llvm::errs());
             ImplicitLocOpBuilder b(op->getLoc(), builder);
             MLIRContext *ctx = b.getContext();
 
@@ -51,10 +52,14 @@ void insertTransformIR(func::FuncOp funcOp, OpBuilder &builder,
                         loc, blockArg.getType(), blockArg, ArrayAttr(),
                         transform::MatchInterfaceEnumAttr(), annotationAttr, TypeAttr()
                         /*ArrayAttr()*/);
+                    // debug
+                    match->print(llvm::errs());
+                    llvm::errs() << "\n";
                     ImplicitLocOpBuilder ib(loc, b);
                     config.transformBuilder(ib, op, match);
                     b.create<transform::YieldOp>(loc);
                 });
+            funcOp->print(llvm::errs());
         }
     });
 }
@@ -90,6 +95,6 @@ protected:
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-createGenericTransformInsertionPass(const mlir::TransformInsertionConfig &config) {
+mlir::createGenericTransformInsertionPass(const mlir::TransformInsertionConfig &config) {
     return std::make_unique<GenericTransformInsertionPass>(config);
 }
