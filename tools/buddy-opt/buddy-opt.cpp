@@ -52,6 +52,7 @@ namespace mlir {
 namespace buddy {
 void registerConvVectorizationPass();
 void registerPointwiseConvToGemmPass();
+// void registerPointwiseConvToGemmForNhwcFhwcPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
@@ -65,6 +66,7 @@ void registerMatMulVectorizationPass();
 void registerMatMulParallelVectorizationPass();
 void registerTransposeOptimizationPass();
 void registerConvOptimizePass();
+void registerConvNhwcFhwcOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
@@ -78,6 +80,7 @@ int main(int argc, char **argv) {
   // Register all MLIR passes.
   mlir::registerAllPasses();
   mlir::buddy::registerPointwiseConvToGemmPass();
+  // mlir::buddy::registerPointwiseConvToGemmForNhwcFhwcPass();
   // Register Vectorization of Convolution.
   mlir::buddy::registerConvVectorizationPass();
   // Register Vectorization of Pooling.
@@ -100,6 +103,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerMatMulParallelVectorizationPass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerConvOptimizePass();
+  mlir::buddy::registerConvNhwcFhwcOptimizePass();
   mlir::buddy::registerDeviceSchedulePass();
   mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
