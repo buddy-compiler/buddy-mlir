@@ -1283,7 +1283,7 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
   RankedTensorType tensorTy0 = RankedTensorType::get({400}, f64Ty);
   MemRefType mTp = MemRefType::get({400}, f64Ty);
 
-  // mulf_trait for linalg generic operation
+  // #mulf_trait for 'linalg.generic' operation.
   AffineMap mulFIdMap =
       AffineMap::getMultiDimIdentityMap(1, rewriter.getContext());
   SmallVector<AffineMap> mulFIndexingMaps = {mulFIdMap, mulFIdMap, mulFIdMap};
@@ -1299,7 +1299,7 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
         Value buffer =
             rewriter.create<tensor::CastOp>(loc, tensorTy0, buffer400);
 
-        // linalg.generic operation use mulf_trait
+        // 'linalg.generic' operation use #mulf_trait.
         auto mulfOp = rewriter.create<linalg::GenericOp>(
             loc, /*resultTensorTypes=*/tensorTy0,
             /*inputs=*/ValueRange{buffer, window},
@@ -1316,7 +1316,7 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
         // Calculate rfft, result stores in bufferMem
         rfft400(builder, loc, bufferMem, f0, c0, c1, c2, c3, c4, c5);
 
-        // Result store in one line of spectorgram, line specified by iv
+        // Store the result in a single line specified by `iv`.
         absPower(builder, loc, bufferMem, spectrogram, iv, c0, c1, c2);
 
         Value timestepNext =
@@ -1357,7 +1357,7 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
       /*outputs=*/ValueRange{init2});
   Value matMulResult = matmulOp.getResultTensors()[0];
 
-  // Initialize a tensor with constant 1e-10
+  // Initialize a tensor with constant `1e-10`.
   RankedTensorType tensorTy1 = RankedTensorType::get({80, 3001}, f64Ty);
   Value cMelFloor = rewriter.create<ConstantFloatOp>(
       loc, APFloat(double(0.0000000001)), f64Ty);
@@ -1368,14 +1368,14 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
       /*outputs=*/ValueRange{melFloor});
   Value spectrogramMax = linalgMaxOp.getResultTensors()[0];
 
-  // log10_trait for linalg generic operation
+  // #log10_trait for 'linalg.generic' operation.
   AffineMap log10IdMap =
       AffineMap::getMultiDimIdentityMap(2, rewriter.getContext());
   SmallVector<AffineMap> log10IndexingMaps = {log10IdMap, log10IdMap};
   SmallVector<utils::IteratorType> log10IteratorTypes = {
       utils::IteratorType::parallel, utils::IteratorType::parallel};
 
-  // linalg.generic operation use log10_trait
+  // 'linalg.generic' operation use #log10_trait.
   auto log10Op = rewriter.create<linalg::GenericOp>(
       loc, /*resultTensorTypes=*/tensorTy1,
       /*inputs=*/ValueRange{spectrogramMax},
@@ -1402,9 +1402,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     auto ctx = op->getContext();
-
     Value input = op->getOperand(0);
-    Value output = op->getOperand(1);
 
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
@@ -1498,14 +1496,14 @@ public:
     Value InputFeaturesF32 =
         rewriter.create<tensor::SplatOp>(loc, resultTy, f0F32);
 
-    // tail_processing_trait for linalg generic operation
+    // #tail_processing_trait for 'linalg.generic' operation.
     AffineMap IdMap =
         AffineMap::getMultiDimIdentityMap(2, rewriter.getContext());
     SmallVector<AffineMap> IndexingMaps = {IdMap, IdMap};
     SmallVector<utils::IteratorType> IteratorTypes = {
         utils::IteratorType::parallel, utils::IteratorType::parallel};
 
-    // linalg.generic operation use tail_processing_trait
+    // 'linalg.generic' operation use #tail_processing_trait.
     auto tailProcessOp = rewriter.create<linalg::GenericOp>(
         loc, /*resultTensorTypes=*/resultTy,
         /*inputs=*/ValueRange{logSpecMax},
@@ -1538,9 +1536,9 @@ public:
     Value resultMemRef = rewriter.create<bufferization::ToMemrefOp>(
         loc, resultMemTp, resultExpand);
 
-    rewriter.create<memref::CopyOp>(loc, resultMemRef, output);
-
-    rewriter.eraseOp(op);
+    // Replace 'dap.whisper_preprocess' operation with the generated result. The
+    // replaced op is erased.
+    rewriter.replaceOp(op, resultMemRef);
     return success();
   }
 };
@@ -1570,8 +1568,8 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<arith::ArithDialect>();
     registry.insert<affine::AffineDialect>();
+    registry.insert<arith::ArithDialect>();
     registry.insert<bufferization::BufferizationDialect>();
     registry.insert<func::FuncDialect>();
     registry.insert<linalg::LinalgDialect>();
@@ -1590,11 +1588,17 @@ void ExtendDAPPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<affine::AffineDialect, scf::SCFDialect,
-                         func::FuncDialect, math::MathDialect,
-                         memref::MemRefDialect, arith::ArithDialect,
-                         linalg::LinalgDialect, tensor::TensorDialect,
-                         bufferization::BufferizationDialect>();
+  // Add legal dialects.
+  target.addLegalDialect<affine::AffineDialect>();
+  target.addLegalDialect<arith::ArithDialect>();
+  target.addLegalDialect<bufferization::BufferizationDialect>();
+  target.addLegalDialect<func::FuncDialect>();
+  target.addLegalDialect<linalg::LinalgDialect>();
+  target.addLegalDialect<math::MathDialect>();
+  target.addLegalDialect<memref::MemRefDialect>();
+  target.addLegalDialect<scf::SCFDialect>();
+  target.addLegalDialect<tensor::TensorDialect>();
+  // Add legal operations.
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);
