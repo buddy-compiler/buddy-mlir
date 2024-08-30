@@ -93,6 +93,28 @@ def DAP_IirOp : DAP_Op<"iir"> {
   }];
 }
 
+def DAP_RFFT400Op : DAP_Op<"rfft400"> {
+  let summary = "RFFT operation for length 400.";
+  let description = [{
+    The RFFT algorithm is designed to handle real-valued input signals. Real 
+    signals exhibit conjugate symmetry in the frequency domain, meaning that 
+    the positive and negative frequency components are complex conjugates of 
+    each other. This symmetry property allows the RFFT algorithm to compute 
+    only half of the frequency spectrum, reducing computational costs.
+
+    Example:
+
+    ```mlir
+    dap.rfft400 %data : memref<400xf64> 
+    ```
+  }];
+
+  let arguments = (ins AnyRankedOrUnrankedMemRef:$memref);
+  let assemblyFormat = [{
+    $memref attr-dict `:` type($memref)
+  }];
+}
+
 def DAP_WhisperPreprocessOp : DAP_Op<"whisper_preprocess"> {
   let summary = "preprocessor for Whisper model";
   let description = [{

@@ -1116,118 +1116,6 @@ void radf5(OpBuilder &builder, Location loc, Value cc, Value ch, Value wa,
   return;
 }
 
-// in-place computaion for bufferMem, represent both the input and the
-// output
-void rfft400(OpBuilder &builder, Location loc, Value bufferMem, Value f0,
-             Value c0, Value c1, Value c2, Value c3, Value c4, Value c5) {
-  FloatType f64Ty = builder.getF64Type();
-  int64_t inputLength = 400;
-
-  // Generate ch MemRef
-  RankedTensorType tensorTy = RankedTensorType::get({inputLength}, f64Ty);
-  MemRefType m25Ty = MemRefType::get({inputLength}, f64Ty);
-  Value chTensor = builder.create<tensor::SplatOp>(loc, tensorTy, f0);
-  Value ch = builder.create<bufferization::ToMemrefOp>(loc, m25Ty, chTensor);
-
-  // Generate wa MemRefs
-  std::vector<double> tw0Vec{
-      0.999877,  0.015707, 0.999507,  0.031411, 0.998890,  0.047106,
-      0.998027,  0.062791, 0.996917,  0.078459, 0.995562,  0.094108,
-      0.993961,  0.109734, 0.992115,  0.125333, 0.990024,  0.140901,
-      0.987688,  0.156434, 0.985109,  0.171929, 0.982287,  0.187381,
-      0.979223,  0.202787, 0.975917,  0.218143, 0.972370,  0.233445,
-      0.968583,  0.248690, 0.964557,  0.263873, 0.960294,  0.278991,
-      0.955793,  0.294040, 0.951057,  0.309017, 0.946085,  0.323917,
-      0.940881,  0.338738, 0.935444,  0.353475, 0.929776,  0.368125,
-      0.923880,  0.382683, 0.917755,  0.397148, 0.911403,  0.411514,
-      0.904827,  0.425779, 0.898028,  0.439939, 0.891007,  0.453990,
-      0.883766,  0.467930, 0.876307,  0.481754, 0.868632,  0.495459,
-      0.860742,  0.509041, 0.852640,  0.522499, 0.844328,  0.535827,
-      0.835807,  0.549023, 0.827081,  0.562083, 0.818150,  0.575005,
-      0.809017,  0.587785, 0.799685,  0.600420, 0.790155,  0.612907,
-      0.780430,  0.625243, 0.770513,  0.637424, 0.760406,  0.649448,
-      0.750111,  0.661312, 0.739631,  0.673013, 0.728969,  0.684547,
-      0.718126,  0.695913, 0.000000,  0.999507, 0.031411,  0.998027,
-      0.062791,  0.995562, 0.094108,  0.992115, 0.125333,  0.987688,
-      0.156434,  0.982287, 0.187381,  0.975917, 0.218143,  0.968583,
-      0.248690,  0.960294, 0.278991,  0.951057, 0.309017,  0.940881,
-      0.338738,  0.929776, 0.368125,  0.917755, 0.397148,  0.904827,
-      0.425779,  0.891007, 0.453990,  0.876307, 0.481754,  0.860742,
-      0.509041,  0.844328, 0.535827,  0.827081, 0.562083,  0.809017,
-      0.587785,  0.790155, 0.612907,  0.770513, 0.637424,  0.750111,
-      0.661312,  0.728969, 0.684547,  0.707107, 0.707107,  0.684547,
-      0.728969,  0.661312, 0.750111,  0.637424, 0.770513,  0.612907,
-      0.790155,  0.587785, 0.809017,  0.562083, 0.827081,  0.535827,
-      0.844328,  0.509041, 0.860742,  0.481754, 0.876307,  0.453990,
-      0.891007,  0.425779, 0.904827,  0.397148, 0.917755,  0.368125,
-      0.929776,  0.338738, 0.940881,  0.309017, 0.951057,  0.278991,
-      0.960294,  0.248690, 0.968583,  0.218143, 0.975917,  0.187381,
-      0.982287,  0.156434, 0.987688,  0.125333, 0.992115,  0.094108,
-      0.995562,  0.062791, 0.998027,  0.031411, 0.999507,  0.000000,
-      0.998890,  0.047106, 0.995562,  0.094108, 0.990024,  0.140901,
-      0.982287,  0.187381, 0.972370,  0.233445, 0.960294,  0.278991,
-      0.946085,  0.323917, 0.929776,  0.368125, 0.911403,  0.411514,
-      0.891007,  0.453990, 0.868632,  0.495459, 0.844328,  0.535827,
-      0.818150,  0.575005, 0.790155,  0.612907, 0.760406,  0.649448,
-      0.728969,  0.684547, 0.695913,  0.718126, 0.661312,  0.750111,
-      0.625243,  0.780430, 0.587785,  0.809017, 0.549023,  0.835807,
-      0.509041,  0.860742, 0.467930,  0.883766, 0.425779,  0.904827,
-      0.382683,  0.923880, 0.338738,  0.940881, 0.294040,  0.955793,
-      0.248690,  0.968583, 0.202787,  0.979223, 0.156434,  0.987688,
-      0.109734,  0.993961, 0.062791,  0.998027, 0.015707,  0.999877,
-      -0.031411, 0.999507, -0.078459, 0.996917, -0.125333, 0.992115,
-      -0.171929, 0.985109, -0.218143, 0.975917, -0.263873, 0.964557,
-      -0.309017, 0.951057, -0.353475, 0.935444, -0.397148, 0.917755,
-      -0.439939, 0.898028, -0.481754, 0.876307, -0.522499, 0.852640,
-      -0.562083, 0.827081, -0.600420, 0.799685, -0.637424, 0.770513,
-      -0.673013, 0.739631, 0.000000};
-  Value wa0Tensor = builder.create<arith::ConstantOp>(
-      loc, DenseFPElementsAttr::get(RankedTensorType::get({297}, f64Ty),
-                                    ArrayRef<double>(tw0Vec)));
-  Value wa0 = builder.create<bufferization::ToMemrefOp>(
-      loc, MemRefType::get({297}, f64Ty), wa0Tensor);
-
-  std::vector<double> tw1Vec{
-      0.998027,  0.062791,  0.992115, 0.125333,  0.982287, 0.187381,  0.968583,
-      0.248690,  0.951057,  0.309017, 0.929776,  0.368125, 0.904827,  0.425779,
-      0.876307,  0.481754,  0.844328, 0.535827,  0.809017, 0.587785,  0.770513,
-      0.637424,  0.728969,  0.684547, 0.992115,  0.125333, 0.968583,  0.248690,
-      0.929776,  0.368125,  0.876307, 0.481754,  0.809017, 0.587785,  0.728969,
-      0.684547,  0.637424,  0.770513, 0.535827,  0.844328, 0.425779,  0.904827,
-      0.309017,  0.951057,  0.187381, 0.982287,  0.062791, 0.998027,  0.982287,
-      0.187381,  0.929776,  0.368125, 0.844328,  0.535827, 0.728969,  0.684547,
-      0.587785,  0.809017,  0.425779, 0.904827,  0.248690, 0.968583,  0.062791,
-      0.998027,  -0.125333, 0.992115, -0.309017, 0.951057, -0.481754, 0.876307,
-      -0.637424, 0.770513};
-  Value wa1Tensor = builder.create<arith::ConstantOp>(
-      loc, DenseFPElementsAttr::get(RankedTensorType::get({72}, f64Ty),
-                                    ArrayRef<double>(tw1Vec)));
-  Value wa1 = builder.create<bufferization::ToMemrefOp>(
-      loc, MemRefType::get({72}, f64Ty), wa1Tensor);
-
-  std::vector<double> tw2Vec{0.968583, 0.248690, 0.876307,  0.481754,
-                             0.876307, 0.481754, 0.535827,  0.844328,
-                             0.728969, 0.684547, 0.062791,  0.998027,
-                             0.535827, 0.844328, -0.425779, 0.904827};
-  Value wa2Tensor = builder.create<arith::ConstantOp>(
-      loc, DenseFPElementsAttr::get(RankedTensorType::get({16}, f64Ty),
-                                    ArrayRef<double>(tw2Vec)));
-  Value wa2 = builder.create<bufferization::ToMemrefOp>(
-      loc, MemRefType::get({16}, f64Ty), wa2Tensor);
-
-  Value c16 = builder.create<ConstantIndexOp>(loc, 16);
-  Value c25 = builder.create<ConstantIndexOp>(loc, 25);
-  Value c80 = builder.create<ConstantIndexOp>(loc, 80);
-  Value c100 = builder.create<ConstantIndexOp>(loc, 100);
-
-  radf5(builder, loc, bufferMem, ch, wa2, c1, c80, c0, c1, c2, c3, c4);
-  radf5(builder, loc, ch, bufferMem, wa2, c5, c16, c0, c1, c2, c3, c4);
-  radf4(builder, loc, bufferMem, ch, wa1, c25, c4, c0, c1, c2, c3);
-  radf4(builder, loc, ch, bufferMem, wa0, c100, c1, c0, c1, c2, c3);
-
-  return;
-}
-
 // Calculate abspower of bufferMem and store result to a specific line in the
 // resultMem
 void absPower(OpBuilder &builder, Location loc, Value bufferMem,
@@ -1313,8 +1201,8 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
         Value bufferMem =
             builder.create<bufferization::ToMemrefOp>(loc, mTp, multiplied);
 
-        // Calculate rfft, result stores in bufferMem
-        rfft400(builder, loc, bufferMem, f0, c0, c1, c2, c3, c4, c5);
+        // Compute 'dap.rfft400' operation, result stores in `bufferMem`.
+        builder.create<dap::RFFT400Op>(loc, bufferMem);
 
         // Store the result in a single line specified by `iv`.
         absPower(builder, loc, bufferMem, spectrogram, iv, c0, c1, c2);
@@ -1390,6 +1278,139 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
 }
 
 namespace {
+class DAPRFFT400Lowering : public OpRewritePattern<dap::RFFT400Op> {
+public:
+  using OpRewritePattern<dap::RFFT400Op>::OpRewritePattern;
+
+  explicit DAPRFFT400Lowering(MLIRContext *context)
+      : OpRewritePattern(context) {}
+
+  LogicalResult matchAndRewrite(dap::RFFT400Op op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto ctx = op->getContext();
+    Value bufferMem = op->getOperand(0);
+
+    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
+    Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
+    Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
+    Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
+
+    FloatType f64Ty = rewriter.getF64Type();
+    Value f0 =
+        rewriter.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+    int64_t inputLength = 400;
+
+    // Generate ch MemRef
+    RankedTensorType tensorTy = RankedTensorType::get({inputLength}, f64Ty);
+    MemRefType m25Ty = MemRefType::get({inputLength}, f64Ty);
+    Value chTensor = rewriter.create<tensor::SplatOp>(loc, tensorTy, f0);
+    Value ch = rewriter.create<bufferization::ToMemrefOp>(loc, m25Ty, chTensor);
+
+    // Generate wa MemRefs
+    std::vector<double> tw0Vec{
+        0.999877,  0.015707, 0.999507,  0.031411, 0.998890,  0.047106,
+        0.998027,  0.062791, 0.996917,  0.078459, 0.995562,  0.094108,
+        0.993961,  0.109734, 0.992115,  0.125333, 0.990024,  0.140901,
+        0.987688,  0.156434, 0.985109,  0.171929, 0.982287,  0.187381,
+        0.979223,  0.202787, 0.975917,  0.218143, 0.972370,  0.233445,
+        0.968583,  0.248690, 0.964557,  0.263873, 0.960294,  0.278991,
+        0.955793,  0.294040, 0.951057,  0.309017, 0.946085,  0.323917,
+        0.940881,  0.338738, 0.935444,  0.353475, 0.929776,  0.368125,
+        0.923880,  0.382683, 0.917755,  0.397148, 0.911403,  0.411514,
+        0.904827,  0.425779, 0.898028,  0.439939, 0.891007,  0.453990,
+        0.883766,  0.467930, 0.876307,  0.481754, 0.868632,  0.495459,
+        0.860742,  0.509041, 0.852640,  0.522499, 0.844328,  0.535827,
+        0.835807,  0.549023, 0.827081,  0.562083, 0.818150,  0.575005,
+        0.809017,  0.587785, 0.799685,  0.600420, 0.790155,  0.612907,
+        0.780430,  0.625243, 0.770513,  0.637424, 0.760406,  0.649448,
+        0.750111,  0.661312, 0.739631,  0.673013, 0.728969,  0.684547,
+        0.718126,  0.695913, 0.000000,  0.999507, 0.031411,  0.998027,
+        0.062791,  0.995562, 0.094108,  0.992115, 0.125333,  0.987688,
+        0.156434,  0.982287, 0.187381,  0.975917, 0.218143,  0.968583,
+        0.248690,  0.960294, 0.278991,  0.951057, 0.309017,  0.940881,
+        0.338738,  0.929776, 0.368125,  0.917755, 0.397148,  0.904827,
+        0.425779,  0.891007, 0.453990,  0.876307, 0.481754,  0.860742,
+        0.509041,  0.844328, 0.535827,  0.827081, 0.562083,  0.809017,
+        0.587785,  0.790155, 0.612907,  0.770513, 0.637424,  0.750111,
+        0.661312,  0.728969, 0.684547,  0.707107, 0.707107,  0.684547,
+        0.728969,  0.661312, 0.750111,  0.637424, 0.770513,  0.612907,
+        0.790155,  0.587785, 0.809017,  0.562083, 0.827081,  0.535827,
+        0.844328,  0.509041, 0.860742,  0.481754, 0.876307,  0.453990,
+        0.891007,  0.425779, 0.904827,  0.397148, 0.917755,  0.368125,
+        0.929776,  0.338738, 0.940881,  0.309017, 0.951057,  0.278991,
+        0.960294,  0.248690, 0.968583,  0.218143, 0.975917,  0.187381,
+        0.982287,  0.156434, 0.987688,  0.125333, 0.992115,  0.094108,
+        0.995562,  0.062791, 0.998027,  0.031411, 0.999507,  0.000000,
+        0.998890,  0.047106, 0.995562,  0.094108, 0.990024,  0.140901,
+        0.982287,  0.187381, 0.972370,  0.233445, 0.960294,  0.278991,
+        0.946085,  0.323917, 0.929776,  0.368125, 0.911403,  0.411514,
+        0.891007,  0.453990, 0.868632,  0.495459, 0.844328,  0.535827,
+        0.818150,  0.575005, 0.790155,  0.612907, 0.760406,  0.649448,
+        0.728969,  0.684547, 0.695913,  0.718126, 0.661312,  0.750111,
+        0.625243,  0.780430, 0.587785,  0.809017, 0.549023,  0.835807,
+        0.509041,  0.860742, 0.467930,  0.883766, 0.425779,  0.904827,
+        0.382683,  0.923880, 0.338738,  0.940881, 0.294040,  0.955793,
+        0.248690,  0.968583, 0.202787,  0.979223, 0.156434,  0.987688,
+        0.109734,  0.993961, 0.062791,  0.998027, 0.015707,  0.999877,
+        -0.031411, 0.999507, -0.078459, 0.996917, -0.125333, 0.992115,
+        -0.171929, 0.985109, -0.218143, 0.975917, -0.263873, 0.964557,
+        -0.309017, 0.951057, -0.353475, 0.935444, -0.397148, 0.917755,
+        -0.439939, 0.898028, -0.481754, 0.876307, -0.522499, 0.852640,
+        -0.562083, 0.827081, -0.600420, 0.799685, -0.637424, 0.770513,
+        -0.673013, 0.739631, 0.000000};
+    Value wa0Tensor = rewriter.create<ConstantOp>(
+        loc, DenseFPElementsAttr::get(RankedTensorType::get({297}, f64Ty),
+                                      ArrayRef<double>(tw0Vec)));
+    Value wa0 = rewriter.create<bufferization::ToMemrefOp>(
+        loc, MemRefType::get({297}, f64Ty), wa0Tensor);
+
+    std::vector<double> tw1Vec{
+        0.998027,  0.062791, 0.992115,  0.125333, 0.982287,  0.187381,
+        0.968583,  0.248690, 0.951057,  0.309017, 0.929776,  0.368125,
+        0.904827,  0.425779, 0.876307,  0.481754, 0.844328,  0.535827,
+        0.809017,  0.587785, 0.770513,  0.637424, 0.728969,  0.684547,
+        0.992115,  0.125333, 0.968583,  0.248690, 0.929776,  0.368125,
+        0.876307,  0.481754, 0.809017,  0.587785, 0.728969,  0.684547,
+        0.637424,  0.770513, 0.535827,  0.844328, 0.425779,  0.904827,
+        0.309017,  0.951057, 0.187381,  0.982287, 0.062791,  0.998027,
+        0.982287,  0.187381, 0.929776,  0.368125, 0.844328,  0.535827,
+        0.728969,  0.684547, 0.587785,  0.809017, 0.425779,  0.904827,
+        0.248690,  0.968583, 0.062791,  0.998027, -0.125333, 0.992115,
+        -0.309017, 0.951057, -0.481754, 0.876307, -0.637424, 0.770513};
+    Value wa1Tensor = rewriter.create<ConstantOp>(
+        loc, DenseFPElementsAttr::get(RankedTensorType::get({72}, f64Ty),
+                                      ArrayRef<double>(tw1Vec)));
+    Value wa1 = rewriter.create<bufferization::ToMemrefOp>(
+        loc, MemRefType::get({72}, f64Ty), wa1Tensor);
+
+    std::vector<double> tw2Vec{0.968583, 0.248690, 0.876307,  0.481754,
+                               0.876307, 0.481754, 0.535827,  0.844328,
+                               0.728969, 0.684547, 0.062791,  0.998027,
+                               0.535827, 0.844328, -0.425779, 0.904827};
+    Value wa2Tensor = rewriter.create<arith::ConstantOp>(
+        loc, DenseFPElementsAttr::get(RankedTensorType::get({16}, f64Ty),
+                                      ArrayRef<double>(tw2Vec)));
+    Value wa2 = rewriter.create<bufferization::ToMemrefOp>(
+        loc, MemRefType::get({16}, f64Ty), wa2Tensor);
+
+    Value c16 = rewriter.create<ConstantIndexOp>(loc, 16);
+    Value c25 = rewriter.create<ConstantIndexOp>(loc, 25);
+    Value c80 = rewriter.create<ConstantIndexOp>(loc, 80);
+    Value c100 = rewriter.create<ConstantIndexOp>(loc, 100);
+
+    radf5(rewriter, loc, bufferMem, ch, wa2, c1, c80, c0, c1, c2, c3, c4);
+    radf5(rewriter, loc, ch, bufferMem, wa2, c5, c16, c0, c1, c2, c3, c4);
+    radf4(rewriter, loc, bufferMem, ch, wa1, c25, c4, c0, c1, c2, c3);
+    radf4(rewriter, loc, ch, bufferMem, wa0, c100, c1, c0, c1, c2, c3);
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 class DAPWhisperPreprocessLowering
     : public OpRewritePattern<dap::WhisperPreprocessOp> {
 public:
@@ -1547,6 +1568,7 @@ public:
 
 void populateExtendDAPConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<DAPWhisperPreprocessLowering>(patterns.getContext());
+  patterns.add<DAPRFFT400Lowering>(patterns.getContext());
   // TODO : extract operators
 }
 
