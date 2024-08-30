@@ -36,14 +36,10 @@ namespace {
 class ConvNhwcFhwcOptimizePattern : public ConversionPattern {
 public:
   explicit ConvNhwcFhwcOptimizePattern(MLIRContext *context,
-                                       int64_t vecSizeParam,
-                                       int64_t tilingOHParam,
-                                       int64_t tilingOWParam)
+                                       int64_t vecSizeParam)
       : ConversionPattern(linalg::Conv2DNhwcFhwcOp::getOperationName(), 1,
                           context) {
     vecSize = vecSizeParam;
-    tilingOH = tilingOHParam;
-    tilingOW = tilingOWParam;
   }
 
   LogicalResult
@@ -258,8 +254,6 @@ public:
 
 private:
   int64_t vecSize;
-  int64_t tilingOH;
-  int64_t tilingOW;
 };
 } // end anonymous namespace
 
@@ -291,12 +285,6 @@ public:
 
   Option<int64_t> vecSize{*this, "vec-size", llvm::cl::desc("Vector size."),
                           llvm::cl::init(16)};
-  Option<int64_t> tilingOH{*this, "tiling-height",
-                           llvm::cl::desc("tiling the output height."),
-                           llvm::cl::init(0)};
-  Option<int64_t> tilingOW{*this, "tiling-width",
-                           llvm::cl::desc("tiling the output width."),
-                           llvm::cl::init(0)};
 };
 } // end anonymous namespace.
 
@@ -312,8 +300,7 @@ void ConvNhwcFhwcOptimizePass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<ConvNhwcFhwcOptimizePattern>(context, vecSize, tilingOH,
-                                            tilingOW);
+  patterns.add<ConvNhwcFhwcOptimizePattern>(context, vecSize);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();

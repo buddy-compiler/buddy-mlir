@@ -67,6 +67,7 @@ void registerMatMulParallelVectorizationPass();
 void registerTransposeOptimizationPass();
 void registerConvOptimizePass();
 void registerConvNhwcFhwcOptimizePass();
+void registerConvNhwcFhwcTileOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
@@ -104,6 +105,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerConvOptimizePass();
   mlir::buddy::registerConvNhwcFhwcOptimizePass();
+  mlir::buddy::registerConvNhwcFhwcTileOptimizePass();
   mlir::buddy::registerDeviceSchedulePass();
   mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
