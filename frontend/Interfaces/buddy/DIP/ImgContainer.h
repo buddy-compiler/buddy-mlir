@@ -286,9 +286,6 @@ bool Image<T, N>::decodePNG(const std::vector<uint8_t> &fileData) {
     return false;
   }
 
-  // Currently, only the NCHW format with 4 dimensions is supported.
-  if (N == 4) {
-  }
 }
 
 } // namespace dip
