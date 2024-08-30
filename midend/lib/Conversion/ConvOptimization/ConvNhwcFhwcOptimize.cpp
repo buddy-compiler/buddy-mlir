@@ -91,30 +91,28 @@ public:
     // clang format off
     //  Step 1: Create outer most loops.
     //  N
-    affine::buildAffineLoopNest(
-        rewriter, loc, c0, N, 1,
-        [&](OpBuilder &, Location loc, ValueRange ivRange) {
-          Value ivN = ivRange.front();
+    rewriter.create<scf::ForOp>(
+        loc, c0, N, c1, ValueRange{std::nullopt},
+        [&](OpBuilder &builder, Location loc, Value ivN, ValueRange iargs) {
           // OH
-
-          affine::buildAffineLoopNest(
-              rewriter, loc, c0, OH, 1,
-              [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
-                Value ivOH = ivRange.front();
+          builder.create<scf::ForOp>(
+              loc, c0, OH, c1, ValueRange{std::nullopt},
+              [&](OpBuilder &builder, Location loc, Value ivOH,
+                  ValueRange iargs) {
                 // OW
-                affine::buildAffineLoopNest(
-                    rewriter, loc, c0, OW, 1,
-                    [&](OpBuilder &, Location loc, ValueRange ivRange) {
-                      Value ivOW = ivRange.front();
+                builder.create<scf::ForOp>(
+                    loc, c0, OW, c1, ValueRange{std::nullopt},
+                    [&](OpBuilder &builder, Location loc, Value ivOW,
+                        ValueRange iargs) {
                       // OC
-                      affine::buildAffineLoopNest(
-                          rewriter, loc, c0, OC, 1,
-                          [&](OpBuilder &, Location loc, ValueRange ivRange) {
-                            Value ivOC = ivRange.front();
+                      builder.create<scf::ForOp>(
+                          loc, c0, OC, c1, ValueRange{std::nullopt},
+                          [&](OpBuilder &builder, Location loc, Value ivOC,
+                              ValueRange iargs) {
                             Value addRes = builder.create<memref::LoadOp>(
                                 loc, output, ValueRange{ivN, ivOH, ivOW, ivOC});
                             // IC
-                            builder.create<scf::ForOp>(
+                            auto forOp = builder.create<scf::ForOp>(
                                 loc, c0, fixedIC, vecSizeValue,
                                 ValueRange{addRes},
                                 [&](OpBuilder &builder, Location loc,
@@ -135,7 +133,7 @@ public:
                                           ValueRange{remainLen});
 
                                   // FH
-                                  builder.create<scf::ForOp>(
+                                  auto forOp = builder.create<scf::ForOp>(
                                       loc, c0, FH, c1, ValueRange{tVec},
                                       [&](OpBuilder &builder, Location loc,
                                           Value ivFH, ValueRange iargs) {
@@ -148,7 +146,7 @@ public:
                                                     ValueRange{ivOH, ivFH});
                                         Value rowFilter = ivFH;
                                         // FW
-                                        builder.create<scf::ForOp>(
+                                        auto forOp = builder.create<scf::ForOp>(
                                             loc, c0, FW, c1,
                                             ValueRange{iargs[0]},
                                             [&](OpBuilder &builder,
@@ -183,38 +181,43 @@ public:
                                                               ivN, rowFilter,
                                                               columnFilter,
                                                               ivIC});
-                                              Value tVec =
+                                              Value tVecNext =
                                                   builder.create<vector::FMAOp>(
                                                       loc, vecTy, iVec, fVec,
                                                       iargs[0]);
                                               builder.create<scf::YieldOp>(
-                                                  loc, ValueRange{tVec});
+                                                  loc, ValueRange{tVecNext});
                                             });
                                         builder.create<scf::YieldOp>(
-                                            loc, ValueRange{tVec});
+                                            loc,
+                                            ValueRange{forOp.getResult(0)});
                                       });
                                   auto reduceVecOp =
                                       builder.create<vector::ReductionOp>(
                                           loc, vector::CombiningKind::ADD,
-                                          tVec);
+                                          forOp.getResult(0));
                                   auto maskedOp = cast<vector::MaskOp>(
                                       mlir::vector::maskOperation(
                                           builder, reduceVecOp, remainMask));
                                   Value reduceVec = maskedOp->getResult(0);
-                                  iargs[0] = builder.create<arith::AddFOp>(
+                                  Value addNext = builder.create<arith::AddFOp>(
                                       loc, iargs[0], reduceVec);
                                   builder.create<scf::YieldOp>(
-                                      loc, ValueRange{iargs[0]});
+                                      loc, ValueRange{addNext});
                                   //   builder.create<vector::StoreOp>(
                                   //   loc, tVec, vecBuffer, ivIC);
                                 });
 
                             builder.create<memref::StoreOp>(
-                                loc, addRes, output,
+                                loc, forOp.getResult(0), output,
                                 ValueRange{ivN, ivOC, ivOH, ivOW});
+                            builder.create<scf::YieldOp>(loc, std::nullopt);
                           });
+                      builder.create<scf::YieldOp>(loc, std::nullopt);
                     });
+                builder.create<scf::YieldOp>(loc, std::nullopt);
               });
+          builder.create<scf::YieldOp>(loc, std::nullopt);
         });
     // clang format on
 
