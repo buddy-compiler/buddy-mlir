@@ -22,6 +22,7 @@
 #define FRONTEND_INTERFACES_BUDDY_DIP_IMGCONTAINER
 
 #include "buddy/Core/Container.h"
+#include <png.h>
 #include <cstring>
 #include <fstream>
 #include <memory>
@@ -46,6 +47,8 @@ public:
     switch (this->imageFormat) {
     case ImageFormat::BMP:
       return "BMP";
+    case ImageFormat::PNG:
+      return "PNG";
     default:
       return "Unsupported format";
     }
@@ -62,6 +65,7 @@ private:
   enum class ImageFormat {
     ERROR, // Represents an error or unsupported format.
     BMP,   // BMP file format.
+    PNG,   // PNG file format.
   } imageFormat;
   // Mode of the image (e.g., DIP_GRAYSCALE, DIP_RGB).
   ImageModes imageMode;
@@ -77,6 +81,8 @@ private:
   void determineFormat(const std::vector<uint8_t> &fileData);
   // Decodes a BMP image from raw file data.
   bool decodeBMP(const std::vector<uint8_t> &fileData);
+  // Decodes a PNG image from raw file data.
+  bool decodePNG(const std::vector<uint8_t> &fileData);
 };
 
 // Image Container Constructor
@@ -117,6 +123,12 @@ Image<T, N>::Image(std::string filePath, ImageModes mode, bool norm)
       this->imageFormat = ImageFormat::ERROR;
       throw std::runtime_error("Failed to decode BMP file from " + filePath);
     };
+  else if (this->imageFormat == ImageFormat::PNG) {
+    bool success = decodePNG(fileData);
+    if (!success) {
+      this->imageFormat = ImageFormat::ERROR;
+      throw std::runtime_error("Failed to decode PNG file from " + filePath);
+    };    
   } else {
     throw std::runtime_error("Unsupported image file format.");
   }
@@ -127,6 +139,8 @@ template <typename T, std::size_t N>
 void Image<T, N>::determineFormat(const std::vector<uint8_t> &fileData) {
   if (fileData.size() > 2 && fileData[0] == 'B' && fileData[1] == 'M') {
     this->imageFormat = ImageFormat::BMP;
+  } else if(fileData.size() > 7 && std::memcmp(fileData.data(), {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, 8) == 0) {
+    this_>imageFormat = ImageFormat::PNG;
   } else {
     this->imageFormat = ImageFormat::ERROR;
   }
@@ -247,6 +261,34 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
     return false;
   }
   return true;
+}
+
+// PNG Image File Decoder
+template <typename T, std::size_t N>
+bool Image<T, N>::decodePNG(const std::vector<uint8_t> &fileData) {
+  // Check if the provided data is large enough to contain a minimal PNG header
+  // (33 bytes).
+  if (fileData.size() < 33) {
+    throw std::runtime_error("Invalid PNG File: too small to contain header");
+  }
+
+  // Extract image information from PNG header
+  this->width = *reinterpret_cast<const int32_t *>(&fileData[16]);
+  this->height = *reinterpret_cast<const int32_t *>(&fileData[20]);
+  this->bitDepth = *reinterpret_cast<const uint8_t *>(&fileData[24]);
+  uint8_t colarType = *reinterpret_cast<const uint8_t *>(&fileData[25]);
+  uint8_t compression = *reinterpret_cast<const uint8_t *>(&fileData[26]);
+  uint8_t interlace = *reinterpret_cast<const uint8_t *>(&fileData[28]);
+
+  // Currently, only the BI_RGB (value 0) compression method is supported.
+  if (compression != 0) {
+    std::cerr << "Unsupported BMP file compression method." << std::endl;
+    return false;
+  }
+
+  // Currently, only the NCHW format with 4 dimensions is supported.
+  if (N == 4) {
+  }
 }
 
 } // namespace dip
