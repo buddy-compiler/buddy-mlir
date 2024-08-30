@@ -24,7 +24,8 @@ import torch.nn as nn
 class TestModule(nn.Module):
     def __init__(self):
         super(TestModule, self).__init__()
+        self.conv1 = nn.Conv2d(6, 1, 5)
 
     def forward(self, x):
-        x = torch.relu(x.view(28, 28))
-        return x.permute([1,0])
+        x = self.conv1(x)
+        return x

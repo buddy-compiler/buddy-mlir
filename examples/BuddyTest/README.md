@@ -10,7 +10,7 @@ $ mkdir llvm/build
 $ cd llvm/build
 $ cmake -G Ninja ../llvm \
     -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
-    -DLLVM_TARGETS_TO_BUILD="host;RISCV;NVPTX" \
+    -DLLVM_TARGETS_TO_BUILD="host;NVPTX" \
     -DMLIR_ENABLE_CUDA_RUNNER=ON \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
