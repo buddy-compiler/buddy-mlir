@@ -36,15 +36,20 @@ namespace {
 class ConvNhwcFhwcOptimizePattern : public ConversionPattern {
 public:
   explicit ConvNhwcFhwcOptimizePattern(MLIRContext *context,
-                                       int64_t vecSizeParam)
+                                       int64_t vecSizeParam,
+                                       int64_t tilingOHParam,
+                                       int64_t tilingOWParam)
       : ConversionPattern(linalg::Conv2DNhwcFhwcOp::getOperationName(), 1,
                           context) {
     vecSize = vecSizeParam;
+    tilingOH = tilingOHParam;
+    tilingOW = tilingOWParam;
   }
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
+    auto convOp = dyn_cast_or_null<mlir::linalg::Conv2DNhwcFhwcOp>(op);
     auto loc = op->getLoc();
 
     // Some constant we need.
@@ -65,21 +70,26 @@ public:
     Value input = op->getOperand(0);
     Value filter = op->getOperand(1);
     Value output = op->getOperand(2);
-    // // Strides.
-    // auto strides = op->getAttrOfType<mlir::DenseIntElementsAttr>("strides")
-    //                    .getValues<int64_t>();
-    // Value strHeight = rewriter.create<arith::ConstantIndexOp>(loc,
-    // strides[0]); Value strWidth =
-    // rewriter.create<arith::ConstantIndexOp>(loc, strides[1]);
-    // // Dilations.
-    // auto dilations =
-    // op->getAttrOfType<mlir::DenseIntElementsAttr>("dilations")
-    //                      .getValues<int64_t>();
-    // bool dilated = dilations[0] != 1 || dilations[1] != 1;
-    // Value dilHeight =
-    //     rewriter.create<arith::ConstantIndexOp>(loc, dilations[0]);
-    // Value dilWidth = rewriter.create<arith::ConstantIndexOp>(loc,
-    // dilations[1]);
+
+    int strHeight, strWidth, dilHeight, dilWidth;
+
+    // Strides.
+    if (!convOp.getStrides()) {
+      strHeight = 1;
+      strWidth = 1;
+    } else {
+      strHeight = convOp.getStrides().getValues<int64_t>()[0];
+      strWidth = convOp.getStrides().getValues<int64_t>()[1];
+    }
+
+    // Dilations.
+    if (!convOp.getDilations()) {
+      dilHeight = 1;
+      dilWidth = 1;
+    } else {
+      dilHeight = convOp.getDilations().getValues<int64_t>()[0];
+      dilWidth = convOp.getDilations().getValues<int64_t>()[1];
+    }
 
     ShapedType inputTy = input.getType().cast<ShapedType>();
 
@@ -156,8 +166,10 @@ public:
                                             builder
                                                 .create<affine::AffineApplyOp>(
                                                     loc,
-                                                    AffineMap::get(2, 0,
-                                                                   d0 + d1),
+                                                    AffineMap::get(
+                                                        2, 0,
+                                                        d0 * strHeight +
+                                                            d1 * dilHeight),
                                                     ValueRange{ivOH, ivFH});
                                         Value rowFilter = ivFH;
                                         // FW
@@ -171,8 +183,10 @@ public:
                                                   builder.create<
                                                       affine::AffineApplyOp>(
                                                       loc,
-                                                      AffineMap::get(2, 0,
-                                                                     d0 + d1),
+                                                      AffineMap::get(
+                                                          2, 0,
+                                                          d0 * strWidth +
+                                                              d1 * dilWidth),
                                                       ValueRange{ivOW, ivFW});
                                               Value columnFilter =
                                                   builder.create<
@@ -244,6 +258,8 @@ public:
 
 private:
   int64_t vecSize;
+  int64_t tilingOH;
+  int64_t tilingOW;
 };
 } // end anonymous namespace
 
@@ -273,9 +289,14 @@ public:
                     affine::AffineDialect, VectorDialect>();
   }
 
-  Option<int64_t> vecSize{*this, "vec-size",
-                          llvm::cl::desc("Vector size using in kernel."),
+  Option<int64_t> vecSize{*this, "vec-size", llvm::cl::desc("Vector size."),
                           llvm::cl::init(16)};
+  Option<int64_t> tilingOH{*this, "tiling-height",
+                           llvm::cl::desc("tiling the output height."),
+                           llvm::cl::init(0)};
+  Option<int64_t> tilingOW{*this, "tiling-width",
+                           llvm::cl::desc("tiling the output width."),
+                           llvm::cl::init(0)};
 };
 } // end anonymous namespace.
 
@@ -291,7 +312,8 @@ void ConvNhwcFhwcOptimizePass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<ConvNhwcFhwcOptimizePattern>(context, vecSize);
+  patterns.add<ConvNhwcFhwcOptimizePattern>(context, vecSize, tilingOH,
+                                            tilingOW);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
