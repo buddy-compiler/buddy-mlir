@@ -148,7 +148,8 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
   uint32_t compression = *reinterpret_cast<const uint32_t *>(&fileData[30]);
   size_t pixelDataOffset = *reinterpret_cast<const uint32_t *>(&fileData[10]);
 
-  // Currently, only the BI_RGB (value 0) compression method is supported.
+  // Currently, only the BI_RGB (value 0) or BI_BITFIELDS (value 3) compression
+  // method is supported.
   if (compression != 0 && compression != 3) {
     std::cerr << "Unsupported BMP file compression method." << std::endl;
     return false;
@@ -215,7 +216,7 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
                              : static_cast<T>(grayScaleValue);
             memrefIndex++;
           }
-        }        
+        }
       } else if (this->bitDepth == 16) {
         // BMP file is upside-down storage.
         for (size_t i = this->height; i > 0; i--) {
@@ -226,7 +227,7 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
             // Extract the 16-bit pixel value
             uint16_t pixelValue =
                 *reinterpret_cast<const uint16_t *>(&fileData[pixelIndex]);
-            
+
             int redPixel, greenPixel, bluePixel;
             if (compression == 3) {
               // Extract individual color components (assuming RGB565 format)
@@ -255,10 +256,10 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
             // Store the gray scale value into memref container.
             this->aligned[memrefIndex] =
                 this->isNorm ? static_cast<T>(grayScaleValue) / 255
-                            : static_cast<T>(grayScaleValue);
+                             : static_cast<T>(grayScaleValue);
             memrefIndex++;
           }
-        }         
+        }
       } else {
         std::cerr << "Unsupported: " << this->bitDepth << "bit depth."
                   << std::endl;
@@ -328,7 +329,7 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
                              : static_cast<T>(bluePixel);
             memrefIndex++;
           }
-        }        
+        }
       } else if (this->bitDepth == 16) {
         // BMP file is upside-down storage.
         for (size_t i = height; i > 0; i--) {
@@ -374,7 +375,7 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
                              : static_cast<T>(bluePixel);
             memrefIndex++;
           }
-        }         
+        }
       } else {
         std::cerr << "Unsupported: " << this->bitDepth << "bit depth."
                   << std::endl;
