@@ -65,6 +65,21 @@ public:
     Value input = op->getOperand(0);
     Value filter = op->getOperand(1);
     Value output = op->getOperand(2);
+    // // Strides.
+    // auto strides = op->getAttrOfType<mlir::DenseIntElementsAttr>("strides")
+    //                    .getValues<int64_t>();
+    // Value strHeight = rewriter.create<arith::ConstantIndexOp>(loc,
+    // strides[0]); Value strWidth =
+    // rewriter.create<arith::ConstantIndexOp>(loc, strides[1]);
+    // // Dilations.
+    // auto dilations =
+    // op->getAttrOfType<mlir::DenseIntElementsAttr>("dilations")
+    //                      .getValues<int64_t>();
+    // bool dilated = dilations[0] != 1 || dilations[1] != 1;
+    // Value dilHeight =
+    //     rewriter.create<arith::ConstantIndexOp>(loc, dilations[0]);
+    // Value dilWidth = rewriter.create<arith::ConstantIndexOp>(loc,
+    // dilations[1]);
 
     ShapedType inputTy = input.getType().cast<ShapedType>();
 
@@ -178,7 +193,7 @@ public:
                                                       .create<vector::LoadOp>(
                                                           loc, vecTy, filter,
                                                           ValueRange{
-                                                              ivN, rowFilter,
+                                                              ivOC, rowFilter,
                                                               columnFilter,
                                                               ivIC});
                                               Value tVecNext =
@@ -210,7 +225,7 @@ public:
 
                             builder.create<memref::StoreOp>(
                                 loc, forOp.getResult(0), output,
-                                ValueRange{ivN, ivOC, ivOH, ivOW});
+                                ValueRange{ivN, ivOH, ivOW, ivOC});
                             builder.create<scf::YieldOp>(loc, std::nullopt);
                           });
                       builder.create<scf::YieldOp>(loc, std::nullopt);
