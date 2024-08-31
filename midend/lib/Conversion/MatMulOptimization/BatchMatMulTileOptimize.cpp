@@ -216,7 +216,7 @@ public:
                           }
                           Value vecC = mTrueBranchBuilder.create<LoadOp>(
                               loc, vTy, cptrs[i], ValueRange{c0, c0, fixedJV});
-                          if (elementType.isIntOrFloat()) {
+                          if (isa<IntegerType>(elementType)) {
                             Value vecA =
                                 mTrueBranchBuilder.create<vector::BroadcastOp>(
                                     loc, vTy, ksubAElement);

@@ -83,7 +83,7 @@ public:
         loc, rewriter.getZeroAttr(elementType));
 
     const Value zeroElementTypeVec =
-        elementType.isIntOrFloat()
+        isa<IntegerType>(elementType)
             ? rewriter
                   .create<vector::BroadcastOp>(
                       loc, VectorType::get({affineVectorSize}, elementType),
@@ -207,7 +207,7 @@ public:
                         // Compute the result vector either through
                         // integer multiplication and addition or fused
                         // multiply-add based on the element type.
-                        if (elementType.isIntOrFloat()) {
+                        if (isa<IntegerType>(elementType)) {
                           Value mulVec =
                               builder.create<arith::MulIOp>(loc, aVec, bVec);
                           computedVec =

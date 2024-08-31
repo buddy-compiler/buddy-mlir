@@ -53,12 +53,9 @@ public:
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
     const Value c1 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-    const Value cf0 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getF32FloatAttr(0.));
 
     const Value vecSizeValue =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(vecSize));
-
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
     const AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
@@ -88,9 +85,11 @@ public:
     }
 
     ShapedType inputTy = input.getType().cast<ShapedType>();
-
     Type elemTy = inputTy.getElementType();
     VectorType vecTy = VectorType::get(vecSize, elemTy);
+
+    const Value zeroElementType =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(elemTy));
 
     // Dims
     Value N = rewriter.create<memref::DimOp>(loc, output, 0);  // N
@@ -102,12 +101,12 @@ public:
     Value FW = rewriter.create<memref::DimOp>(loc, filter, 2); // FW
 
     // memref<1xIC>
-    Value fixedIC = rewriter.create<affine::AffineApplyOp>(
-        loc, AffineMap::get(1, 0, d0.ceilDiv(vecSize) * vecSize),
-        ValueRange{IC});
-    MemRefType bufferTy = MemRefType::get(ShapedType::kDynamic, elemTy);
-    Value vecBuffer =
-        rewriter.create<memref::AllocOp>(loc, bufferTy, ValueRange{fixedIC});
+    // Value fixedIC = rewriter.create<affine::AffineApplyOp>(
+    //     loc, AffineMap::get(1, 0, d0.ceilDiv(vecSize) * vecSize),
+    //     ValueRange{IC});
+    // MemRefType bufferTy = MemRefType::get(ShapedType::kDynamic, elemTy);
+    // Value vecBuffer =
+    //     rewriter.create<memref::AllocOp>(loc, bufferTy, ValueRange{fixedIC});
 
     // clang format off
     //  Step 1: Create outer most loops.
@@ -134,12 +133,18 @@ public:
                                 loc, output, ValueRange{ivN, ivOH, ivOW, ivOC});
                             // IC
                             auto forOp = builder.create<scf::ForOp>(
-                                loc, c0, fixedIC, vecSizeValue,
-                                ValueRange{addRes},
+                                loc, c0, IC, vecSizeValue, ValueRange{addRes},
                                 [&](OpBuilder &builder, Location loc,
                                     Value ivIC, ValueRange iargs) {
-                                  Value tVec =
-                                      builder.create<SplatOp>(loc, vecTy, cf0);
+                                  Value tVec;
+                                  if (inputTy.isIntOrFloat()) {
+                                    tVec = builder.create<vector::BroadcastOp>(
+                                        loc, vecTy, zeroElementType);
+                                  } else {
+                                    tVec = builder.create<vector::SplatOp>(
+                                        loc, vecTy, zeroElementType);
+                                  }
+
                                   Value remainLen =
                                       builder.create<affine::AffineMinOp>(
                                           loc,
@@ -206,10 +211,25 @@ public:
                                                               ivOC, rowFilter,
                                                               columnFilter,
                                                               ivIC});
-                                              Value tVecNext =
-                                                  builder.create<vector::FMAOp>(
-                                                      loc, vecTy, iVec, fVec,
-                                                      iargs[0]);
+                                              Value tVecNext;
+                                              if (inputTy.isIntOrFloat()) {
+                                                Value mulVec =
+                                                    builder
+                                                        .create<arith::MulIOp>(
+                                                            loc, iVec, fVec);
+                                                tVecNext =
+                                                    builder
+                                                        .create<arith::AddIOp>(
+                                                            loc, mulVec,
+                                                            iargs[0]);
+                                              } else {
+                                                tVecNext =
+                                                    builder
+                                                        .create<vector::FMAOp>(
+                                                            loc, vecTy, iVec,
+                                                            fVec, iargs[0]);
+                                              }
+
                                               builder.create<scf::YieldOp>(
                                                   loc, ValueRange{tVecNext});
                                             });
@@ -225,8 +245,14 @@ public:
                                       mlir::vector::maskOperation(
                                           builder, reduceVecOp, remainMask));
                                   Value reduceVec = maskedOp->getResult(0);
-                                  Value addNext = builder.create<arith::AddFOp>(
-                                      loc, iargs[0], reduceVec);
+                                  Value addNext;
+                                  if (inputTy.isIntOrFloat()) {
+                                    addNext = builder.create<arith::AddIOp>(
+                                        loc, iargs[0], reduceVec);
+                                  } else {
+                                    addNext = builder.create<arith::AddFOp>(
+                                        loc, iargs[0], reduceVec);
+                                  }
                                   builder.create<scf::YieldOp>(
                                       loc, ValueRange{addNext});
                                   //   builder.create<vector::StoreOp>(
@@ -246,7 +272,7 @@ public:
         });
     // clang format on
 
-    rewriter.create<memref::DeallocOp>(loc, vecBuffer);
+    // rewriter.create<memref::DeallocOp>(loc, vecBuffer);
 
     rewriter.eraseOp(op);
     return success();
