@@ -102,8 +102,6 @@ public:
 
     // clang format off
     //  Step 1: Create outer most loops.
-    //  N
-
     // Create the scf::ForallOp operation For N,OH,OW,OC
     auto outputForAllOp = rewriter.create<scf::ForallOp>(
         loc, SmallVector<OpFoldResult, 4>({N, OH, OW, OC}), ValueRange{},
