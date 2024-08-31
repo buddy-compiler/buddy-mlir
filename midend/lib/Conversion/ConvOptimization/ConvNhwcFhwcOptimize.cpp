@@ -100,179 +100,116 @@ public:
     Value FH = rewriter.create<memref::DimOp>(loc, filter, 1); // FH
     Value FW = rewriter.create<memref::DimOp>(loc, filter, 2); // FW
 
-    // memref<1xIC>
-    // Value fixedIC = rewriter.create<affine::AffineApplyOp>(
-    //     loc, AffineMap::get(1, 0, d0.ceilDiv(vecSize) * vecSize),
-    //     ValueRange{IC});
-    // MemRefType bufferTy = MemRefType::get(ShapedType::kDynamic, elemTy);
-    // Value vecBuffer =
-    //     rewriter.create<memref::AllocOp>(loc, bufferTy, ValueRange{fixedIC});
-
     // clang format off
     //  Step 1: Create outer most loops.
     //  N
-    rewriter.create<scf::ForOp>(
-        loc, c0, N, c1, ValueRange{std::nullopt},
-        [&](OpBuilder &builder, Location loc, Value ivN, ValueRange iargs) {
-          // OH
-          builder.create<scf::ForOp>(
-              loc, c0, OH, c1, ValueRange{std::nullopt},
-              [&](OpBuilder &builder, Location loc, Value ivOH,
+
+    // Create the scf::ForallOp operation For N,OH,OW,OC
+    auto outputForAllOp = rewriter.create<scf::ForallOp>(
+        loc, SmallVector<OpFoldResult, 4>({N, OH, OW, OC}), ValueRange{},
+        std::nullopt, // No mapping specified in this example
+        [&](OpBuilder &nestedBuilder, Location nestedLoc,
+            ValueRange loopIndices) {
+          Value ivN = loopIndices[0];  // Index for the first dimension N
+          Value ivOH = loopIndices[1]; // Index for the second dimension OH
+          Value ivOW = loopIndices[2]; // Index for the third dimension OW
+          Value ivOC = loopIndices[3]; // Index for the third dimension OC
+
+          Value addRes = nestedBuilder.create<memref::LoadOp>(
+              loc, output, ValueRange{ivN, ivOH, ivOW, ivOC});
+          // IC
+          auto forOp = nestedBuilder.create<scf::ForOp>(
+              nestedLoc, c0, IC, vecSizeValue, ValueRange{addRes},
+              [&](OpBuilder &builder, Location loc, Value ivIC,
                   ValueRange iargs) {
-                // OW
-                builder.create<scf::ForOp>(
-                    loc, c0, OW, c1, ValueRange{std::nullopt},
-                    [&](OpBuilder &builder, Location loc, Value ivOW,
+                Value tVec;
+                if (inputTy.isIntOrFloat()) {
+                  tVec = builder.create<vector::BroadcastOp>(loc, vecTy,
+                                                             zeroElementType);
+                } else {
+                  tVec = builder.create<vector::SplatOp>(loc, vecTy,
+                                                         zeroElementType);
+                }
+
+                Value remainLen = builder.create<affine::AffineMinOp>(
+                    loc,
+                    AffineMap::get(2, 1, {-d0 + s0, d1}, builder.getContext()),
+                    ValueRange{ivIC, vecSizeValue, IC});
+                Value remainMask = builder.create<vector::CreateMaskOp>(
+                    loc, VectorType::get({vecSize}, rewriter.getI1Type()),
+                    ValueRange{remainLen});
+
+                // FH
+                auto forOp = builder.create<scf::ForOp>(
+                    loc, c0, FH, c1, ValueRange{tVec},
+                    [&](OpBuilder &builder, Location loc, Value ivFH,
                         ValueRange iargs) {
-                      // OC
-                      builder.create<scf::ForOp>(
-                          loc, c0, OC, c1, ValueRange{std::nullopt},
-                          [&](OpBuilder &builder, Location loc, Value ivOC,
+                      Value rowInput = builder.create<affine::AffineApplyOp>(
+                          loc,
+                          AffineMap::get(2, 0, d0 * strHeight + d1 * dilHeight),
+                          ValueRange{ivOH, ivFH});
+                      Value rowFilter = ivFH;
+                      // FW
+                      auto forOp = builder.create<scf::ForOp>(
+                          loc, c0, FW, c1, ValueRange{iargs[0]},
+                          [&](OpBuilder &builder, Location loc, Value ivFW,
                               ValueRange iargs) {
-                            Value addRes = builder.create<memref::LoadOp>(
-                                loc, output, ValueRange{ivN, ivOH, ivOW, ivOC});
-                            // IC
-                            auto forOp = builder.create<scf::ForOp>(
-                                loc, c0, IC, vecSizeValue, ValueRange{addRes},
-                                [&](OpBuilder &builder, Location loc,
-                                    Value ivIC, ValueRange iargs) {
-                                  Value tVec;
-                                  if (inputTy.isIntOrFloat()) {
-                                    tVec = builder.create<vector::BroadcastOp>(
-                                        loc, vecTy, zeroElementType);
-                                  } else {
-                                    tVec = builder.create<vector::SplatOp>(
-                                        loc, vecTy, zeroElementType);
-                                  }
+                            Value columnInput =
+                                builder.create<affine::AffineApplyOp>(
+                                    loc,
+                                    AffineMap::get(
+                                        2, 0, d0 * strWidth + d1 * dilWidth),
+                                    ValueRange{ivOW, ivFW});
+                            Value columnFilter =
+                                builder.create<affine::AffineApplyOp>(
+                                    loc, AffineMap::get(1, 0, d0), ivFW);
+                            Value iVec = builder.create<vector::LoadOp>(
+                                loc, vecTy, input,
+                                ValueRange{ivN, rowInput, columnInput, ivIC});
+                            Value fVec = builder.create<vector::LoadOp>(
+                                loc, vecTy, filter,
+                                ValueRange{ivOC, rowFilter, columnFilter,
+                                           ivIC});
+                            Value tVecNext;
+                            if (inputTy.isIntOrFloat()) {
+                              Value mulVec = builder.create<arith::MulIOp>(
+                                  loc, iVec, fVec);
+                              tVecNext = builder.create<arith::AddIOp>(
+                                  loc, mulVec, iargs[0]);
+                            } else {
+                              tVecNext = builder.create<vector::FMAOp>(
+                                  loc, vecTy, iVec, fVec, iargs[0]);
+                            }
 
-                                  Value remainLen =
-                                      builder.create<affine::AffineMinOp>(
-                                          loc,
-                                          AffineMap::get(2, 1, {-d0 + s0, d1},
-                                                         builder.getContext()),
-                                          ValueRange{ivIC, vecSizeValue, IC});
-                                  Value remainMask =
-                                      builder.create<vector::CreateMaskOp>(
-                                          loc,
-                                          VectorType::get({vecSize},
-                                                          rewriter.getI1Type()),
-                                          ValueRange{remainLen});
-
-                                  // FH
-                                  auto forOp = builder.create<scf::ForOp>(
-                                      loc, c0, FH, c1, ValueRange{tVec},
-                                      [&](OpBuilder &builder, Location loc,
-                                          Value ivFH, ValueRange iargs) {
-                                        Value rowInput =
-                                            builder
-                                                .create<affine::AffineApplyOp>(
-                                                    loc,
-                                                    AffineMap::get(
-                                                        2, 0,
-                                                        d0 * strHeight +
-                                                            d1 * dilHeight),
-                                                    ValueRange{ivOH, ivFH});
-                                        Value rowFilter = ivFH;
-                                        // FW
-                                        auto forOp = builder.create<scf::ForOp>(
-                                            loc, c0, FW, c1,
-                                            ValueRange{iargs[0]},
-                                            [&](OpBuilder &builder,
-                                                Location loc, Value ivFW,
-                                                ValueRange iargs) {
-                                              Value columnInput =
-                                                  builder.create<
-                                                      affine::AffineApplyOp>(
-                                                      loc,
-                                                      AffineMap::get(
-                                                          2, 0,
-                                                          d0 * strWidth +
-                                                              d1 * dilWidth),
-                                                      ValueRange{ivOW, ivFW});
-                                              Value columnFilter =
-                                                  builder.create<
-                                                      affine::AffineApplyOp>(
-                                                      loc,
-                                                      AffineMap::get(1, 0, d0),
-                                                      ivFW);
-                                              Value iVec =
-                                                  builder
-                                                      .create<vector::LoadOp>(
-                                                          loc, vecTy, input,
-                                                          ValueRange{
-                                                              ivN, rowInput,
-                                                              columnInput,
-                                                              ivIC});
-                                              Value fVec =
-                                                  builder
-                                                      .create<vector::LoadOp>(
-                                                          loc, vecTy, filter,
-                                                          ValueRange{
-                                                              ivOC, rowFilter,
-                                                              columnFilter,
-                                                              ivIC});
-                                              Value tVecNext;
-                                              if (inputTy.isIntOrFloat()) {
-                                                Value mulVec =
-                                                    builder
-                                                        .create<arith::MulIOp>(
-                                                            loc, iVec, fVec);
-                                                tVecNext =
-                                                    builder
-                                                        .create<arith::AddIOp>(
-                                                            loc, mulVec,
-                                                            iargs[0]);
-                                              } else {
-                                                tVecNext =
-                                                    builder
-                                                        .create<vector::FMAOp>(
-                                                            loc, vecTy, iVec,
-                                                            fVec, iargs[0]);
-                                              }
-
-                                              builder.create<scf::YieldOp>(
-                                                  loc, ValueRange{tVecNext});
-                                            });
-                                        builder.create<scf::YieldOp>(
-                                            loc,
-                                            ValueRange{forOp.getResult(0)});
-                                      });
-                                  auto reduceVecOp =
-                                      builder.create<vector::ReductionOp>(
-                                          loc, vector::CombiningKind::ADD,
-                                          forOp.getResult(0));
-                                  auto maskedOp = cast<vector::MaskOp>(
-                                      mlir::vector::maskOperation(
-                                          builder, reduceVecOp, remainMask));
-                                  Value reduceVec = maskedOp->getResult(0);
-                                  Value addNext;
-                                  if (inputTy.isIntOrFloat()) {
-                                    addNext = builder.create<arith::AddIOp>(
-                                        loc, iargs[0], reduceVec);
-                                  } else {
-                                    addNext = builder.create<arith::AddFOp>(
-                                        loc, iargs[0], reduceVec);
-                                  }
-                                  builder.create<scf::YieldOp>(
-                                      loc, ValueRange{addNext});
-                                  //   builder.create<vector::StoreOp>(
-                                  //   loc, tVec, vecBuffer, ivIC);
-                                });
-
-                            builder.create<memref::StoreOp>(
-                                loc, forOp.getResult(0), output,
-                                ValueRange{ivN, ivOH, ivOW, ivOC});
-                            builder.create<scf::YieldOp>(loc, std::nullopt);
+                            builder.create<scf::YieldOp>(loc,
+                                                         ValueRange{tVecNext});
                           });
-                      builder.create<scf::YieldOp>(loc, std::nullopt);
+                      builder.create<scf::YieldOp>(
+                          loc, ValueRange{forOp.getResult(0)});
                     });
-                builder.create<scf::YieldOp>(loc, std::nullopt);
+                auto reduceVecOp = builder.create<vector::ReductionOp>(
+                    loc, vector::CombiningKind::ADD, forOp.getResult(0));
+                auto maskedOp =
+                    cast<vector::MaskOp>(mlir::vector::maskOperation(
+                        builder, reduceVecOp, remainMask));
+                Value reduceVec = maskedOp->getResult(0);
+                Value addNext;
+                if (inputTy.isIntOrFloat()) {
+                  addNext =
+                      builder.create<arith::AddIOp>(loc, iargs[0], reduceVec);
+                } else {
+                  addNext =
+                      builder.create<arith::AddFOp>(loc, iargs[0], reduceVec);
+                }
+                builder.create<scf::YieldOp>(loc, ValueRange{addNext});
               });
-          builder.create<scf::YieldOp>(loc, std::nullopt);
+
+          nestedBuilder.create<memref::StoreOp>(
+              loc, forOp.getResult(0), output,
+              ValueRange{ivN, ivOH, ivOW, ivOC});
+          nestedBuilder.create<scf::InParallelOp>(nestedLoc);
         });
     // clang format on
-
-    // rewriter.create<memref::DeallocOp>(loc, vecBuffer);
 
     rewriter.eraseOp(op);
     return success();
