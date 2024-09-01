@@ -30,6 +30,7 @@
 
 #include "buddy/Core/Container.h"
 #include <cctype>
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <memory>
@@ -39,6 +40,9 @@ template <typename T, size_t N> class Audio : public MemRef<T, N> {
 public:
   // Constructor to initialize the Audio MemRef object with a file name.
   Audio(std::string filename);
+  // Constructor to convert MemRef object to Audio MemRef object. Member 
+  // variables are initialized with default values.
+  Audio(MemRef<T, N> &&memref) noexcept;
 
   // Retrieve the name of the audio format.
   std::string getFormatName() const {
@@ -57,6 +61,21 @@ public:
   int getChannelsNum() const { return static_cast<int>(this->numChannels); }
   // Returns the sampling rate in samples per second.
   int getSampleRate() const { return static_cast<int>(this->sampleRate); }
+
+  // Sets the number of bits per sample.
+  void setBitDepth(int bitDepth) {
+    this->bitsPerSample = static_cast<uint16_t>(bitDepth);
+  }
+  // Sets the number of samples per channel.
+  void setSamplesNum(size_t samplesNum) { this->numSamples = samplesNum; }
+  // Sets the number of audio channels.
+  void setChannelsNum(int channelsNum) {
+    this->numChannels = static_cast<uint16_t>(channelsNum);
+  }
+  // Sets the sampling rate in samples per second.
+  void setSampleRate(int sampleRate) {
+    this->sampleRate = static_cast<uint32_t>(sampleRate);
+  }
 
   // Create an Audio File with file name and format.
   bool saveToFile(std::string filename, std::string format);
@@ -166,6 +185,13 @@ template <typename T, std::size_t N> Audio<T, N>::Audio(std::string filePath) {
                              filePath);
   }
 }
+
+// Constructs an audio container object from a MemRef object. Initializes 
+// metadata with default values.
+template <typename T, std::size_t N>
+Audio<T, N>::Audio(MemRef<T, N> &&memref) noexcept
+    : MemRef<T, N>(std::move(memref)), bitsPerSample(0), numSamples(0),
+      numChannels(0), sampleRate(0) {}
 
 // Create Audio File.
 // Save Audio MemRef to the specified file path using the desired format.
@@ -557,9 +583,14 @@ void Audio<T, N>::i16ToTwoBytes(std::vector<uint8_t> &fileData, int16_t num,
 // Returns:
 //   An 8-bit unsigned integer representing the sample as one byte.
 template <typename T, size_t N> uint8_t Audio<T, N>::sampleToOneByte(T sample) {
-  // Restricts sample value in range [-1.0, 1.0].
-  sample = std::min(sample, static_cast<T>(1.));
-  sample = std::max(sample, static_cast<T>(-1.));
+  if (std::isnan(sample)) {
+    // Handle corner case for NaN (Not a Number). Reset NaN to 1.
+    sample = static_cast<T>(1.);
+  } else {
+    // Restricts sample value in range [-1.0, 1.0].
+    sample = std::min(sample, static_cast<T>(1.));
+    sample = std::max(sample, static_cast<T>(-1.));
+  }
   // Converts a normalized floating-point audio sample to the [0, 255] range.
   sample = (sample + static_cast<T>(1.)) / static_cast<T>(2.);
   return static_cast<uint8_t>(sample * 255.);
@@ -571,9 +602,14 @@ template <typename T, size_t N> uint8_t Audio<T, N>::sampleToOneByte(T sample) {
 // Returns:
 //   A 16-bit signed integer representing the sample as two bytes.
 template <typename T, size_t N> int16_t Audio<T, N>::sampleToI16(T sample) {
-  // Restricts sample value in range [-1.0, 1.0].
-  sample = std::min(sample, static_cast<T>(1.));
-  sample = std::max(sample, static_cast<T>(-1.));
+  if (std::isnan(sample)) {
+    // Handle corner case for NaN (Not a Number). Reset NaN to 1.
+    sample = static_cast<T>(1.);
+  } else {
+    // Restricts sample value in range [-1.0, 1.0].
+    sample = std::min(sample, static_cast<T>(1.));
+    sample = std::max(sample, static_cast<T>(-1.));
+  }
   // Converts a normalized floating-point audio sample to the [-32767, 32767]
   // range.
   return static_cast<int16_t>(sample * 32767.);
