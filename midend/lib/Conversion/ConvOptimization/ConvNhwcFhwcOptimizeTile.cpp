@@ -79,7 +79,8 @@ public:
       strWidth = 1;
     } else {
       strHeight = convOp.getStrides().getValues<int64_t>()[0];
-      strWidth = convOp.getStrides().getValues<int64_t>()[1];
+      strWidth = convOp.getStrides().getValues<int64_t>()
+                     [convOp.getStrides().getValues<int64_t>().size() - 1];
     }
 
     // Dilations.
@@ -88,8 +89,10 @@ public:
       dilWidth = 1;
     } else {
       dilHeight = convOp.getDilations().getValues<int64_t>()[0];
-      dilWidth = convOp.getDilations().getValues<int64_t>()[1];
+      dilWidth = convOp.getDilations().getValues<int64_t>()
+                     [convOp.getDilations().getValues<int64_t>().size() - 1];
     }
+
 
     ShapedType inputTy = input.getType().cast<ShapedType>();
     Type elemTy = inputTy.getElementType();
