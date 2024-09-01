@@ -121,7 +121,7 @@ public:
               [&](OpBuilder &builder, Location loc, Value ivIC,
                   ValueRange iargs) {
                 Value tVec;
-                if (inputTy.isIntOrFloat()) {
+                if (isa<IntegerType>(elemTy)) {
                   tVec = builder.create<vector::BroadcastOp>(loc, vecTy,
                                                              zeroElementType);
                 } else {
@@ -169,7 +169,7 @@ public:
                                 ValueRange{ivOC, rowFilter, columnFilter,
                                            ivIC});
                             Value tVecNext;
-                            if (inputTy.isIntOrFloat()) {
+                            if (isa<IntegerType>(elemTy)) {
                               Value mulVec = builder.create<arith::MulIOp>(
                                   loc, iVec, fVec);
                               tVecNext = builder.create<arith::AddIOp>(
@@ -192,7 +192,7 @@ public:
                         builder, reduceVecOp, remainMask));
                 Value reduceVec = maskedOp->getResult(0);
                 Value addNext;
-                if (inputTy.isIntOrFloat()) {
+                if (isa<IntegerType>(elemTy)) {
                   addNext =
                       builder.create<arith::AddIOp>(loc, iargs[0], reduceVec);
                 } else {
