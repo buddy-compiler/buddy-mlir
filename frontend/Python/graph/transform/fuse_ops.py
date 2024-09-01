@@ -326,6 +326,8 @@ class GraphPartioner:
         if child == parent:
             return
         parent.num_nodes += child.num_nodes
+        self._graph.op_groups[parent.name][:0] = self._graph.op_groups[child.name]
+        del self._graph.op_groups[child.name]
         child.parent = parent
         if child.master_ref is not None:
             assert parent.master_ref is None
@@ -385,6 +387,14 @@ class GraphPartioner:
                         "[groups] {0} {1} {2}".format(
                             node.name, node.num_nodes, node.master_ref.name
                         )
+                    )
+                    if node.master_ref.name not in self._graph.op_groups:
+                        self._graph.op_groups[node.master_ref.name] = []
+                        self._graph.group_map_device = {
+                            node.master_ref.name: DeviceType.UNKNOW
+                        }
+                    self._graph.op_groups[node.master_ref.name].append(
+                        self._graph.node_table[node.name]
                     )
 
 

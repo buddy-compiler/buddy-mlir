@@ -173,7 +173,8 @@ class Graph:
             if isinstance(op, PlaceholderOp):
                 continue
             group = [op]
-            subgraph_name = "subgraph{}".format(i)
+            # subgraph_name = "subgraph{}".format(i)
+            subgraph_name = op.name
             self.group_map_device[subgraph_name] = DeviceType.UNKNOW
             self.op_groups[subgraph_name] = group
 
