@@ -69,6 +69,7 @@ void registerTransposeOptimizationPass();
 void registerConvOptimizePass();
 void registerConvNhwcFhwcOptimizePass();
 void registerConvNhwcFhwcTileOptimizePass();
+void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
@@ -108,6 +109,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerConvOptimizePass();
   mlir::buddy::registerConvNhwcFhwcOptimizePass();
   mlir::buddy::registerConvNhwcFhwcTileOptimizePass();
+  mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
   mlir::buddy::registerDeviceSchedulePass();
   mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();

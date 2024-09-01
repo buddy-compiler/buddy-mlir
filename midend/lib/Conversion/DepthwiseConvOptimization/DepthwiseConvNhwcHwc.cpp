@@ -1,4 +1,4 @@
-//====- ConvNhwcFhwcOptimize.cpp
+//====- DepthwiseConvNhwcHwc.cpp
 //--------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the Conv2DNhwcFhwcOp optimize.
+// This file implements the DepthwiseConvNhwcHwc optimize.
 //
 //===----------------------------------------------------------------------===//
 
@@ -34,19 +34,19 @@ using namespace vector;
 
 namespace {
 
-class ConvNhwcFhwcOptimizePattern : public ConversionPattern {
+class DepthwiseConv2DNhwcHwcOptimizePattern : public ConversionPattern {
 public:
-  explicit ConvNhwcFhwcOptimizePattern(MLIRContext *context,
-                                       int64_t vecSizeParam)
-      : ConversionPattern(linalg::Conv2DNhwcFhwcOp::getOperationName(), 1,
-                          context) {
+  explicit DepthwiseConv2DNhwcHwcOptimizePattern(MLIRContext *context,
+                                                 int64_t vecSizeParam)
+      : ConversionPattern(linalg::DepthwiseConv2DNhwcHwcOp::getOperationName(),
+                          1, context) {
     vecSize = vecSizeParam;
   }
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
-    auto convOp = dyn_cast_or_null<mlir::linalg::Conv2DNhwcFhwcOp>(op);
+    auto convOp = dyn_cast_or_null<mlir::linalg::DepthwiseConv2DNhwcHwcOp>(op);
     auto loc = op->getLoc();
 
     // Some constant we need.
@@ -92,51 +92,49 @@ public:
     const Value zeroElementType =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(elemTy));
 
+    Value zeroElementTypeVec;
+    if (isa<IntegerType>(elemTy)) {
+      zeroElementTypeVec =
+          rewriter.create<vector::BroadcastOp>(loc, vecTy, zeroElementType);
+    } else {
+      zeroElementTypeVec =
+          rewriter.create<vector::SplatOp>(loc, vecTy, zeroElementType);
+    }
     // Dims
     Value N = rewriter.create<memref::DimOp>(loc, output, 0);  // N
     Value OH = rewriter.create<memref::DimOp>(loc, output, 1); // OH
     Value OW = rewriter.create<memref::DimOp>(loc, output, 2); // OW
-    Value OC = rewriter.create<memref::DimOp>(loc, output, 3); // OC
-    Value IC = rewriter.create<memref::DimOp>(loc, input, 3);  // IC
+    Value OC = rewriter.create<memref::DimOp>(loc, output, 3); // OC/FC/IC
+
+    Value applyOC = rewriter.create<affine::AffineApplyOp>(
+        loc, AffineMap::get(1, 0, d0.floorDiv(vecSize) * vecSize), OC);
+    Value tailLength = rewriter.create<affine::AffineApplyOp>(
+        loc, AffineMap::get(1, 0, d0 % vecSize), ValueRange{OC});
+    Value maskVector = rewriter.create<vector::CreateMaskOp>(
+        loc, VectorType::get({vecSize}, rewriter.getI1Type()),
+        ValueRange{tailLength});
+
     Value FH = rewriter.create<memref::DimOp>(loc, filter, 1); // FH
     Value FW = rewriter.create<memref::DimOp>(loc, filter, 2); // FW
 
     // clang format off
     //  Step 1: Create outer most loops.
-    // Create the scf::ForallOp operation For N,OH,OW,OC
+    // Create the scf::ForallOp operation For N,OH,OW
     auto outputForAllOp = rewriter.create<scf::ForallOp>(
-        loc, SmallVector<OpFoldResult, 4>({N, OH, OW, OC}), ValueRange{},
+        loc, SmallVector<OpFoldResult, 3>({N, OH, OW}), ValueRange{},
         std::nullopt, // No mapping specified in this example
         [&](OpBuilder &nestedBuilder, Location nestedLoc,
             ValueRange loopIndices) {
           Value ivN = loopIndices[0];  // Index for the first dimension N
           Value ivOH = loopIndices[1]; // Index for the second dimension OH
           Value ivOW = loopIndices[2]; // Index for the third dimension OW
-          Value ivOC = loopIndices[3]; // Index for the third dimension OC
-
-          Value addRes = nestedBuilder.create<memref::LoadOp>(
-              loc, output, ValueRange{ivN, ivOH, ivOW, ivOC});
-          // IC
-          auto forOp = nestedBuilder.create<scf::ForOp>(
-              nestedLoc, c0, IC, vecSizeValue, ValueRange{addRes},
-              [&](OpBuilder &builder, Location loc, Value ivIC,
+          // OC
+          nestedBuilder.create<scf::ForOp>(
+              nestedLoc, c0, applyOC, vecSizeValue, ValueRange{std::nullopt},
+              [&](OpBuilder &builder, Location loc, Value ivOC,
                   ValueRange iargs) {
-                Value tVec;
-                if (isa<IntegerType>(elemTy)) {
-                  tVec = builder.create<vector::BroadcastOp>(loc, vecTy,
-                                                             zeroElementType);
-                } else {
-                  tVec = builder.create<vector::SplatOp>(loc, vecTy,
-                                                         zeroElementType);
-                }
-
-                Value remainLen = builder.create<affine::AffineMinOp>(
-                    loc,
-                    AffineMap::get(2, 1, {-d0 + s0, d1}, builder.getContext()),
-                    ValueRange{ivIC, vecSizeValue, IC});
-                Value remainMask = builder.create<vector::CreateMaskOp>(
-                    loc, VectorType::get({vecSize}, rewriter.getI1Type()),
-                    ValueRange{remainLen});
+                Value tVec = builder.create<vector::LoadOp>(
+                    loc, vecTy, output, ValueRange{ivN, ivOH, ivOW, ivOC});
 
                 // FH
                 auto forOp = builder.create<scf::ForOp>(
@@ -164,11 +162,10 @@ public:
                                     loc, AffineMap::get(1, 0, d0), ivFW);
                             Value iVec = builder.create<vector::LoadOp>(
                                 loc, vecTy, input,
-                                ValueRange{ivN, rowInput, columnInput, ivIC});
+                                ValueRange{ivN, rowInput, columnInput, ivOC});
                             Value fVec = builder.create<vector::LoadOp>(
                                 loc, vecTy, filter,
-                                ValueRange{ivOC, rowFilter, columnFilter,
-                                           ivIC});
+                                ValueRange{rowFilter, columnFilter, ivOC});
                             Value tVecNext;
                             if (isa<IntegerType>(elemTy)) {
                               Value mulVec = builder.create<arith::MulIOp>(
@@ -186,26 +183,76 @@ public:
                       builder.create<scf::YieldOp>(
                           loc, ValueRange{forOp.getResult(0)});
                     });
-                auto reduceVecOp = builder.create<vector::ReductionOp>(
-                    loc, vector::CombiningKind::ADD, forOp.getResult(0));
-                auto maskedOp =
-                    cast<vector::MaskOp>(mlir::vector::maskOperation(
-                        builder, reduceVecOp, remainMask));
-                Value reduceVec = maskedOp->getResult(0);
-                Value addNext;
-                if (isa<IntegerType>(elemTy)) {
-                  addNext =
-                      builder.create<arith::AddIOp>(loc, iargs[0], reduceVec);
-                } else {
-                  addNext =
-                      builder.create<arith::AddFOp>(loc, iargs[0], reduceVec);
-                }
-                builder.create<scf::YieldOp>(loc, ValueRange{addNext});
+                builder.create<vector::StoreOp>(
+                    loc, forOp.getResult(0), output,
+                    ValueRange{ivN, ivOH, ivOW, ivOC});
+
+                builder.create<scf::YieldOp>(loc, ValueRange{std::nullopt});
               });
 
-          nestedBuilder.create<memref::StoreOp>(
-              loc, forOp.getResult(0), output,
-              ValueRange{ivN, ivOH, ivOW, ivOC});
+          // applyOC
+          Value condition = nestedBuilder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sgt, tailLength, c0);
+          nestedBuilder.create<scf::IfOp>(
+              loc, condition, [&](OpBuilder &builder, Location loc) {
+                Value tVec = builder.create<vector::MaskedLoadOp>(
+                    loc, vecTy, output, ValueRange{ivN, ivOH, ivOW, applyOC},
+                    maskVector, zeroElementTypeVec);
+                // FH
+                auto forOp = builder.create<scf::ForOp>(
+                    loc, c0, FH, c1, ValueRange{tVec},
+                    [&](OpBuilder &builder, Location loc, Value ivFH,
+                        ValueRange iargs) {
+                      Value rowInput = builder.create<affine::AffineApplyOp>(
+                          loc,
+                          AffineMap::get(2, 0, d0 * strHeight + d1 * dilHeight),
+                          ValueRange{ivOH, ivFH});
+                      Value rowFilter = ivFH;
+                      // FW
+                      auto forOp = builder.create<scf::ForOp>(
+                          loc, c0, FW, c1, ValueRange{iargs[0]},
+                          [&](OpBuilder &builder, Location loc, Value ivFW,
+                              ValueRange iargs) {
+                            Value columnInput =
+                                builder.create<affine::AffineApplyOp>(
+                                    loc,
+                                    AffineMap::get(
+                                        2, 0, d0 * strWidth + d1 * dilWidth),
+                                    ValueRange{ivOW, ivFW});
+                            Value columnFilter =
+                                builder.create<affine::AffineApplyOp>(
+                                    loc, AffineMap::get(1, 0, d0), ivFW);
+                            Value iVec = builder.create<vector::MaskedLoadOp>(
+                                loc, vecTy, input,
+                                ValueRange{ivN, rowInput, columnInput, applyOC},
+                                maskVector, zeroElementTypeVec);
+                            Value fVec = builder.create<vector::MaskedLoadOp>(
+                                loc, vecTy, filter,
+                                ValueRange{rowFilter, columnFilter, applyOC},
+                                maskVector, zeroElementTypeVec);
+                            Value tVecNext;
+                            if (isa<IntegerType>(elemTy)) {
+                              Value mulVec = builder.create<arith::MulIOp>(
+                                  loc, iVec, fVec);
+                              tVecNext = builder.create<arith::AddIOp>(
+                                  loc, mulVec, iargs[0]);
+                            } else {
+                              tVecNext = builder.create<vector::FMAOp>(
+                                  loc, vecTy, iVec, fVec, iargs[0]);
+                            }
+
+                            builder.create<scf::YieldOp>(loc,
+                                                         ValueRange{tVecNext});
+                          });
+                      builder.create<scf::YieldOp>(
+                          loc, ValueRange{forOp.getResult(0)});
+                    });
+                builder.create<vector::MaskedStoreOp>(
+                    loc, output, ValueRange{ivN, ivOH, ivOW, applyOC},
+                    maskVector, forOp.getResult(0));
+                builder.create<scf::YieldOp>(loc, ValueRange{std::nullopt});
+              });
+
           nestedBuilder.create<scf::InParallelOp>(nestedLoc);
         });
     // clang format on
@@ -220,21 +267,26 @@ private:
 } // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
-// ConvNhwcFhwcOptimizePass
+// DepthwiseConv2DNhwcHwcOptimizePass
 //===----------------------------------------------------------------------===//
 
 namespace {
-class ConvNhwcFhwcOptimizePass
-    : public PassWrapper<ConvNhwcFhwcOptimizePass, OperationPass<ModuleOp>> {
+class DepthwiseConv2DNhwcHwcOptimizePass
+    : public PassWrapper<DepthwiseConv2DNhwcHwcOptimizePass,
+                         OperationPass<ModuleOp>> {
 public:
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ConvNhwcFhwcOptimizePass)
-  StringRef getArgument() const final { return "conv-nhwc-fhwc-optimize"; }
-  StringRef getDescription() const final {
-    return "Conv2d NHWC FHWC optimize.";
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
+      DepthwiseConv2DNhwcHwcOptimizePass)
+  StringRef getArgument() const final {
+    return "depthwise-conv-nhwc-hwc-optimize";
   }
-  ConvNhwcFhwcOptimizePass() = default;
-  ConvNhwcFhwcOptimizePass(const ConvNhwcFhwcOptimizePass &) {}
-  explicit ConvNhwcFhwcOptimizePass(int64_t vecSizeParam) {
+  StringRef getDescription() const final {
+    return "Depthwise Conv2d NHWC HWC optimize.";
+  }
+  DepthwiseConv2DNhwcHwcOptimizePass() = default;
+  DepthwiseConv2DNhwcHwcOptimizePass(
+      const DepthwiseConv2DNhwcHwcOptimizePass &) {}
+  explicit DepthwiseConv2DNhwcHwcOptimizePass(int64_t vecSizeParam) {
     vecSize = vecSizeParam;
   }
 
@@ -250,7 +302,7 @@ public:
 };
 } // end anonymous namespace.
 
-void ConvNhwcFhwcOptimizePass::runOnOperation() {
+void DepthwiseConv2DNhwcHwcOptimizePass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
 
@@ -262,7 +314,7 @@ void ConvNhwcFhwcOptimizePass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<ConvNhwcFhwcOptimizePattern>(context, vecSize);
+  patterns.add<DepthwiseConv2DNhwcHwcOptimizePattern>(context, vecSize);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
@@ -270,8 +322,8 @@ void ConvNhwcFhwcOptimizePass::runOnOperation() {
 
 namespace mlir {
 namespace buddy {
-void registerConvNhwcFhwcOptimizePass() {
-  PassRegistration<ConvNhwcFhwcOptimizePass>();
+void registerDepthwiseConv2DNhwcHwcOptimizePass() {
+  PassRegistration<DepthwiseConv2DNhwcHwcOptimizePass>();
 }
 } // namespace buddy
 } // namespace mlir

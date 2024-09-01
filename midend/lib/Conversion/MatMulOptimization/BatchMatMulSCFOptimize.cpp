@@ -113,6 +113,9 @@ public:
         loc, VectorType::get({vecSize}, rewriter.getI1Type()),
         ValueRange{tailLength});
 
+    Value ApplyBCol = rewriter.create<affine::AffineApplyOp>(
+        loc, AffineMap::get(1, 0, d0.floorDiv(vecSize) * vecSize), bCol);
+
     rewriter.create<scf::ForallOp>(
         loc, SmallVector<OpFoldResult, 1>({c0}),
         SmallVector<OpFoldResult, 1>({batch}),
@@ -135,7 +138,8 @@ public:
                       Value aVec = builder.create<vector::BroadcastOp>(
                           loc, vecTy, aElement);
                       builder.create<scf::ForOp>(
-                          loc, c0, bCol, cVecSize, ValueRange{std::nullopt},
+                          loc, c0, ApplyBCol, cVecSize,
+                          ValueRange{std::nullopt},
                           [&](OpBuilder &builder, Location loc,
                               Value loopVarColOfB, ValueRange iargs) {
                             Value bVec = builder.create<vector::LoadOp>(
@@ -170,22 +174,16 @@ public:
                       builder.create<scf::IfOp>(
                           loc, condition,
                           [&](OpBuilder &builder, Location loc) {
-                            Value loopVarColOfB =
-                                builder.create<affine::AffineApplyOp>(
-                                    loc,
-                                    AffineMap::get(
-                                        1, 0, d0.floorDiv(vecSize) * vecSize),
-                                    bCol);
                             Value bVec = builder.create<vector::MaskedLoadOp>(
                                 loc, vecTy, B,
                                 ValueRange{loopVarBatchIdx, loopVarRowOfB,
-                                           loopVarColOfB},
+                                           ApplyBCol},
                                 maskVector, zeroElementTypeVec);
 
                             Value cVec = builder.create<vector::MaskedLoadOp>(
                                 loc, vecTy, C,
                                 ValueRange{loopVarBatchIdx, loopVarRowOfA,
-                                           loopVarColOfB},
+                                           ApplyBCol},
                                 maskVector, zeroElementTypeVec);
 
                             Value computedVec;
@@ -203,7 +201,7 @@ public:
                             builder.create<vector::MaskedStoreOp>(
                                 loc, C,
                                 ValueRange{loopVarBatchIdx, loopVarRowOfA,
-                                           loopVarColOfB},
+                                           ApplyBCol},
                                 maskVector, computedVec);
                             builder.create<scf::YieldOp>(loc);
                           });

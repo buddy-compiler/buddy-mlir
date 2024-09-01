@@ -29,6 +29,7 @@ target_link_libraries(buddy-opt
   MatMulParallelVectorization
   TransposeOptimization
   ConvOptimization
+  DepthwiseConvOptimization
   VectorExp
   LowerVectorExpPass
   BuddyGemmini
