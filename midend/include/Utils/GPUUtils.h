@@ -1,4 +1,4 @@
-//====- GPUUtils.h -------------------------------------------------------===//
+//===- GPUUtils.h ---------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//
+// The process in this file references the IREE project,
+// which is hereby acknowledged.
+// For the license of the IREE project
+// please see: https://github.com/iree-org/iree/blob/main/LICENSE
+//
+//===----------------------------------------------------------------------===//
 //
 // This file implements GPU dialect specific utility functions for the buddy
 // compiler ecosystem.
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #ifndef INCLUDE_UTILS_GPUUTILS_H
 #define INCLUDE_UTILS_GPUUTILS_H
@@ -37,7 +44,7 @@
 #include "llvm/TargetParser/Triple.h"
 
 namespace mlir{
-namespace buddy::buddygpu{
+namespace buddy::gpu{
 static constexpr int32_t kNumGPUDims = 3;
 static constexpr int32_t kWarpSize = 32;
 
@@ -91,7 +98,7 @@ template <typename AllocLikeOpType>
 void hoistStaticallyBoundAllocationsInFunc(RewriterBase &rewriter,
                                            func::FuncOp funcOp);
 
-} // namespace buddy::buddygpu
+} // namespace buddy::gpu
 } // namespace mlir
 
 #endif // INCLUDE_UTILS_GPUUTILS_H

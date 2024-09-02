@@ -1,3 +1,23 @@
+# ===- run-module-gpu.py --------------------------------------------------===//
+# 
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+# 
+# ===----------------------------------------------------------------------===//
+# 
+#  This file is a script to test whether the specified MLIR module on the GPU
+#  calculates the same result as NumPy.
+# 
+# ===----------------------------------------------------------------------===//
 import mlir.ir as ir
 import mlir.dialects.func as func
 import mlir.dialects.memref as memref
@@ -31,6 +51,7 @@ def to_numpy(element_type: str) -> np.dtype:
             return np.dtype("bfloat16")
         case _:
             raise ValueError(f"Unsupported type: {element_type}")
+
 
 def new_ranked_memref_descriptor(nparray: np.ndarray):
     if nparray.dtype == "bfloat16":

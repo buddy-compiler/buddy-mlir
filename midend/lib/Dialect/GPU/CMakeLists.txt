@@ -1,8 +1,8 @@
 add_mlir_library(BuddyGPUTransformOPs
-  BuddyGPUTransformOps.cpp
+  TransformOps.cpp
 
   DEPENDS
-  BuddyGPUTransformOpsIncGen
+  TransformOpsIncGen
 
   LINK_LIBS PUBLIC
   LLVMSupport

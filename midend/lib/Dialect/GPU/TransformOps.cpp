@@ -1,5 +1,4 @@
-//===- BuddyGPUTransformOps.cpp ------------------------------------------===//
-//------------------------------------------------------------------------===//
+//===- TransformOps.cpp ---------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,13 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
-// This file implements ops for transforming gpu operations.
+// The process in this file references the IREE project,
+// which is hereby acknowledged.
+// For the license of the IREE project
+// please see: https://github.com/iree-org/iree/blob/main/LICENSE
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//
+// This file implements transform ops for GPU targets.
+//
+//===----------------------------------------------------------------------===//
 
-#include "BuddyGPU/BuddyGPUTransformOps.h"
+#include "GPU/TransformOps.h"
 
 #include "mlir/Conversion/VectorToGPU/VectorToGPU.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -54,10 +60,9 @@
 #include <optional>
 
 #include "Utils/GPUUtils.h"
-#include "BuddyGPU/Passes.h"
 
 using namespace mlir;
-using namespace mlir::buddy::buddygpu;
+using namespace mlir::buddy;
 
 using llvm::dbgs;
 
@@ -70,38 +75,37 @@ using llvm::dbgs;
 #define DBGS_ALIAS() (dbgs() << '[' << DEBUG_TYPE_ALIAS << "] ")
 #define DBGS_VECTOR_TO_MMA() (dbgs() << '[' << DEBUG_VECTOR_TO_MMA << "] ")
 
-transform_dialect::BuddyGPUTransformExtensions::BuddyGPUTransformExtensions() {
+buddy::gpu::TransformExtensions::TransformExtensions() {
   // CreateAsyncGroupsOp depends on the following two dialects.
   declareGeneratedDialect<mlir::gpu::GPUDialect>();
   declareGeneratedDialect<mlir::nvgpu::NVGPUDialect>();
 
   registerTransformOps<
 #define GET_OP_LIST
-#include "BuddyGPU/BuddyGPUTransformOps.cpp.inc"
+#include "GPU/TransformOps.cpp.inc"
       >();
 }
 
-void buddy::registerBuddyTransformOps(DialectRegistry &registry) {
-  registry.addExtensions<transform_dialect::BuddyGPUTransformExtensions>();
+void buddy::registerBuddyGPUTransformOps(DialectRegistry &registry) {
+  registry.addExtensions<buddy::gpu::TransformExtensions>();
 }
 
 //===----------------------------------------------------------------------===//
 // HoistStaticAllocOp
 //===----------------------------------------------------------------------===//
 
-DiagnosedSilenceableFailure transform_dialect::HoistStaticAllocOp::applyToOne(
-    transform::TransformRewriter &rewriter, func::FuncOp target,
-    transform::ApplyToEachResultList &results,
-    transform::TransformState &state) {
-  hoistStaticallyBoundAllocationsInFunc<memref::AllocOp>(
-      rewriter, target);
+DiagnosedSilenceableFailure buddy::gpu::HoistStaticAllocOp::applyToOne(
+    mlir::transform::TransformRewriter &rewriter, func::FuncOp target,
+    mlir::transform::ApplyToEachResultList &results,
+    mlir::transform::TransformState &state) {
+  hoistStaticallyBoundAllocationsInFunc<memref::AllocOp>(rewriter, target);
   return DiagnosedSilenceableFailure::success();
 }
 
-void transform_dialect::HoistStaticAllocOp::getEffects(
+void buddy::gpu::HoistStaticAllocOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
-  transform::onlyReadsHandle(getTarget(), effects);
-  transform::modifiesPayload(effects);
+  mlir::transform::onlyReadsHandle(getTarget(), effects);
+  mlir::transform::modifiesPayload(effects);
 }
 
 //===---------------------------------------------------------------------===//
@@ -110,11 +114,11 @@ void transform_dialect::HoistStaticAllocOp::getEffects(
 
 static std::optional<SmallVector<int64_t>>
 getGPUTensorCoreNativeMmaSyncVectorSize(Operation *op) {
-  return getMmaNativeVectorSize(op);
+  return buddy::gpu::getMmaNativeVectorSize(op);
 }
 
-void transform_dialect::ApplyUnrollVectorsGpuMmaSyncPatternsOp::
-    populatePatterns(RewritePatternSet &patterns) {
+void buddy::gpu::ApplyUnrollVectorsGpuMmaSyncPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
   auto unrollOrder = [](Operation *op) -> std::optional<SmallVector<int64_t>> {
     auto contract = dyn_cast<vector::ContractionOp>(op);
     if (!contract)
@@ -127,29 +131,27 @@ void transform_dialect::ApplyUnrollVectorsGpuMmaSyncPatternsOp::
                     .setUnrollTraversalOrderFn(unrollOrder));
 }
 
-
 //===---------------------------------------------------------------------===//
 // VectorToMMAConversionOp
 //===---------------------------------------------------------------------===//
 
-void transform_dialect::VectorToMMAConversionOp::getEffects(
+void buddy::gpu::VectorToMMAConversionOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
-  transform::onlyReadsHandle(getTarget(), effects);
-  transform::modifiesPayload(effects);
+  mlir::transform::onlyReadsHandle(getTarget(), effects);
+  mlir::transform::modifiesPayload(effects);
 }
 
 DiagnosedSilenceableFailure
-transform_dialect::VectorToMMAConversionOp::applyToOne(
-    transform::TransformRewriter &rewriter, Operation *target,
-    transform::ApplyToEachResultList &results,
-    transform::TransformState &state) {
+buddy::gpu::VectorToMMAConversionOp::applyToOne(
+    mlir::transform::TransformRewriter &rewriter, Operation *target,
+    mlir::transform::ApplyToEachResultList &results,
+    mlir::transform::TransformState &state) {
   if (!target->hasTrait<OpTrait::IsIsolatedFromAbove>()) {
     // target->emitOpError(
     //     "applies only to isolated-from-above targets because it "
     //     "needs to apply "
     //     "patterns greedily");
     // return emitDefaultDefiniteFailure(target);
-    
   }
 
   auto funcOp = dyn_cast<func::FuncOp>(target);
@@ -165,7 +167,7 @@ transform_dialect::VectorToMMAConversionOp::applyToOne(
   }
 
   MLIRContext *ctx = target->getContext();
-  transform::ErrorCheckingTrackingListener listener(state, *this);
+  mlir::transform::ErrorCheckingTrackingListener listener(state, *this);
   GreedyRewriteConfig config;
   config.listener = &listener;
 
@@ -206,4 +208,4 @@ transform_dialect::VectorToMMAConversionOp::applyToOne(
 }
 
 #define GET_OP_CLASSES
-#include "BuddyGPU/BuddyGPUTransformOps.cpp.inc"
+#include "GPU/TransformOps.cpp.inc"

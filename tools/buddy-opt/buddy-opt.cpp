@@ -47,7 +47,7 @@
 #include "Gemmini/GemminiOps.h"
 #include "Sche/ScheDialect.h"
 #include "Sche/ScheOps.h"
-#include "BuddyGPU/BuddyGPUTransformOps.h"
+#include "GPU/TransformOps.h"
 
 namespace mlir {
 namespace buddy {
@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
                   buddy::sche::ScheDialect>();
   // clang-format on
 
-  mlir::buddy::registerBuddyTransformOps(registry);
+  mlir::buddy::registerBuddyGPUTransformOps(registry);
 
   return mlir::failed(mlir::MlirOptMain(
       argc, argv, "buddy-mlir optimizer driver", registry));

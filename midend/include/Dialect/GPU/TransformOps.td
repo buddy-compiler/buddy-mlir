@@ -1,5 +1,4 @@
-//===- BuddyGPUTransformOps.td ------------------------------------------===//
-//------------------------------------------------------------------------===//
+//===- TransformOps.td ----------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,14 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
-// This file defines the operations of the BuddyGPU transform dialect.
+// The process in this file references the IREE project,
+// which is hereby acknowledged.
+// For the license of the IREE project
+// please see: https://github.com/iree-org/iree/blob/main/LICENSE
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//
+// This file defines the transform operations of the gpu dialect.
+//
+//===----------------------------------------------------------------------===//
 
-#ifndef BUDDYGPU_TRANSFORM_OPS_TD
-#define BUDDYGPU_TRANSFORM_OPS_TD
+#ifndef TRANSFORM_OPS_TD
+#define TRANSFORM_OPS_TD
 
 include "mlir/Dialect/Transform/IR/TransformDialect.td"
 include "mlir/Dialect/Transform/IR/TransformInterfaces.td"
@@ -56,7 +62,7 @@ def HoistStaticAllocOp :  Op<Transform_Dialect, "buddy.hoist_static_alloc",
   let results = (outs);
 
   let assemblyFormat = "$target attr-dict `:` functional-type(operands, results)";
-  let cppNamespace = "mlir::buddy::buddygpu::transform_dialect";
+  let cppNamespace = "mlir::buddy::gpu";
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
@@ -75,7 +81,7 @@ def ApplyUnrollVectorsGpuMmaSyncPatternsOp : Op<Transform_Dialect,
     Populate patterns that unroll vectors. TODO: better documentation.
   }];
 
-  let cppNamespace = "mlir::buddy::buddygpu::transform_dialect";
+  let cppNamespace = "mlir::buddy::gpu";
   let assemblyFormat = "attr-dict";
 }
 
@@ -107,7 +113,7 @@ def VectorToMMAConversionOp : Op<Transform_Dialect, "buddy.vector.vector_to_mma_
     attr-dict
     `:` functional-type($target, results)
   }];
-  let cppNamespace = "mlir::buddy::buddygpu::transform_dialect";
+  let cppNamespace = "mlir::buddy::gpu";
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
@@ -118,4 +124,4 @@ def VectorToMMAConversionOp : Op<Transform_Dialect, "buddy.vector.vector_to_mma_
   }];
 }
 
-#endif // BUDDYGPU_TRANSFORM_OPS_TD
+#endif // TRANSFORM_OPS_TD

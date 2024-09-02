@@ -58,7 +58,7 @@ using namespace mlir;
 static constexpr unsigned kShuffleBitWidth = 32;
 
 namespace mlir::buddy {
-namespace buddygpu {
+namespace gpu {
 
 /// Pick an unrolling order that will allow tensorcore operation to reuse LHS
 /// register. This is needed to get good performance on sm_80 target.
@@ -347,12 +347,11 @@ std::optional<SmallVector<int64_t>> getMmaNativeVectorSize(Operation *op) {
 }
 
 bool hasSharedMemoryAddressSpace(MemRefType memrefType) {
-  auto addrSpace = llvm::dyn_cast_if_present<gpu::AddressSpaceAttr>(
+  auto addrSpace = llvm::dyn_cast_if_present<mlir::gpu::AddressSpaceAttr>(
       memrefType.getMemorySpace());
   return addrSpace &&
-         addrSpace.getValue() == gpu::GPUDialect::getWorkgroupAddressSpace();
+         addrSpace.getValue() == mlir::gpu::GPUDialect::getWorkgroupAddressSpace();
 }
-
 
 template <typename AllocLikeOpType>
 std::optional<Value>
@@ -525,8 +524,6 @@ template void
 hoistStaticallyBoundAllocationsInFunc<memref::AllocaOp>(RewriterBase &rewriter,
                                                         func::FuncOp funcOp);
 
-
-
-} // namespace buddygpu
+} // namespace gpu
 } // namespace mlir::buddy
 #endif // UTILS_GPUUTILS_DEF

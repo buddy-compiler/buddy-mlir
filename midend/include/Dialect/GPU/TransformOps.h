@@ -1,4 +1,4 @@
-//====- BuddyGPUTransformOps.h -------------------------------------------===//
+//===- TransformOps.h -----------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//
+// The process in this file references the IREE project,
+// which is hereby acknowledged.
+// For the license of the IREE project
+// please see: https://github.com/iree-org/iree/blob/main/LICENSE
+//
+//===----------------------------------------------------------------------===//
 //
 // This file defines GPU transform ops for code generation.
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
-#ifndef BUDDYGPU_TRANSFORM_OPS_H
-#define BUDDYGPU_TRANSFORM_OPS_H
+#ifndef TRANSFORM_OPS_H
+#define TRANSFORM_OPS_H
 
 #include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
-
 
 namespace mlir {
 class DialectRegistry;
@@ -44,25 +50,25 @@ class VectorDialect;
 class WarpExecuteOnLane0Op;
 } // namespace vector
 
-}
+} // namespace mlir
 
-namespace mlir{
-namespace buddy{
-void registerBuddyTransformOps(mlir::DialectRegistry &registry);
+namespace mlir {
+namespace buddy {
+void registerBuddyGPUTransformOps(mlir::DialectRegistry &registry);
 
-namespace buddygpu::transform_dialect {
+namespace gpu {
 
-class BuddyGPUTransformExtensions
+class TransformExtensions
     : public mlir::transform::TransformDialectExtension<
-          BuddyGPUTransformExtensions> {
+          TransformExtensions> {
 public:
-  BuddyGPUTransformExtensions();
+  TransformExtensions();
 };
-} // namespace buddygpu::transform_dialect
+} // namespace gpu
 } // namespace buddy
 } // namespace mlir
 
 #define GET_OP_CLASSES
-#include "BuddyGPU/BuddyGPUTransformOps.h.inc"
+#include "GPU/TransformOps.h.inc"
 
-#endif // BUDDYGPU_TRANSFORM_OPS_H
+#endif // TRANSFORM_OPS_H
