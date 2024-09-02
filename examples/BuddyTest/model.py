@@ -24,8 +24,10 @@ import torch.nn as nn
 class TestModule(nn.Module):
     def __init__(self):
         super(TestModule, self).__init__()
-        self.conv1 = nn.Conv2d(6, 1, 5)
+        self.conv1 = nn.Conv2d(1, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
 
     def forward(self, x):
         x = self.conv1(x)
+        x = self.pool(x)
         return x

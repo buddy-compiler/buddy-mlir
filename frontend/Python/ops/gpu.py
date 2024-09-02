@@ -387,9 +387,159 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     return output_val
 
 
+# TODO: Consider the cases where the maxpool2d operation needs padding.
+def maxpool2d_op(node: MaxPool2dOp, symbol_table):
+    """
+    Import the maxpool2d operation.
+    From Buddy MaxPool2dOp to MLIR GPU `max_pool2d` kernel.
+    """
+    if len(node.args) == 5:
+        raise NotImplementedError
+    input1 = node.args[0]
+    kernel = node.args[1]
+    stride = node.args[2]
+
+    # Prepare padding data
+    if len(node.args) > 3:
+        pad = node.args[3]
+    else:
+        pad = [0 for _ in kernel]
+
+    dtype = node.tensor_meta["dtype"]
+    element_type = mlir_element_type_get(dtype)
+    output_shape = node.tensor_meta["shape"]
+
+    batch_size = output_shape[0]
+    in_channels = output_shape[1]
+    H_out = output_shape[2]
+    W_out = output_shape[3]
+
+    input_val = symbol_table.get((str(input1), 0))
+    output_val = memref.AllocOp(ir.MemRefType.get(output_shape, element_type), [], [])
+    unranked_memref_type = ir.UnrankedMemRefType.get(element_type, ir.IntegerAttr.get(ir.IndexType.get(), 0))
+    input_cast = memref.CastOp(unranked_memref_type, input_val)
+    output_cast = memref.CastOp(unranked_memref_type, output_val)
+
+    gpu.HostRegisterOp(input_cast)
+    gpu.HostRegisterOp(output_cast)
+
+    # Tile the input_val into Grids
+    block_z = ((H_out + TILE_WIDTH - 1) // TILE_WIDTH) * ((W_out + TILE_WIDTH - 1) // TILE_WIDTH)
+    batch_size_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), batch_size))
+    in_channels_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), in_channels))
+    block_z_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), block_z))
+    tile_width_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), TILE_WIDTH))
+    c0 = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), 0))
+    c1 = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), 1))
+    
+    # threadsPerBlock(TILE_WIDTH, TILE_WIDTH, 1)        numBlocks(N, K, block_z)
+    
+    gpu_kernel = gpu.LaunchOp(
+        asyncToken=None,
+        asyncDependencies=[],
+        gridSizeX=batch_size_val.result,
+        gridSizeY=in_channels_val.result,
+        gridSizeZ=block_z_val.result,
+        blockSizeX=tile_width_val.result,
+        blockSizeY=tile_width_val.result,
+        blockSizeZ=c1.result,
+    )
+
+    gpu_kernel_block = ir.Block.create_at_start(
+        gpu_kernel.body,
+        [
+            ir.IndexType.get(),     # block_id x
+            ir.IndexType.get(),     # block_id y 
+            ir.IndexType.get(),     # block_id z 
+            ir.IndexType.get(),     # thread_id x
+            ir.IndexType.get(),     # thread_id y  
+            ir.IndexType.get(),     # thread_id z
+            ir.IndexType.get(),     # grid_size x
+            ir.IndexType.get(),     # grid_size y
+            ir.IndexType.get(),     # grid_size z
+            ir.IndexType.get(),     # block_size x
+            ir.IndexType.get(),     # block_size y
+            ir.IndexType.get(),     # block_size z
+        ]
+    )
+
+    with ir.InsertionPoint(gpu_kernel_block):
+        batch_id = gpu_kernel_block.arguments[0]    
+        in_channel_id = gpu_kernel_block.arguments[1]    
+        tile_id = gpu_kernel_block.arguments[2] 
+        thread_local_idx = gpu_kernel_block.arguments[3]  
+        thread_local_idy = gpu_kernel_block.arguments[4]
+
+        # Calculate the convolution element at (h, w) for this thread
+        tile_num = (W_out + TILE_WIDTH - 1) // TILE_WIDTH
+        tile_num_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), tile_num))
+        
+        t0 = arith.divui(tile_id, tile_num_val)
+        t1 = arith.muli(t0, tile_width_val)
+        thread_global_idx = arith.addi(t1, thread_local_idx)
+
+        t2 = arith.remui(tile_id, tile_num_val)
+        t3 = arith.muli(t2, tile_width_val)
+        thread_global_idy = arith.addi(t3, thread_local_idy)
+
+        kernel_h = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), kernel[0]))
+        kernel_w = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), kernel[1]))
+        stride_h = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), stride[0]))
+        stride_w = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), stride[1]))
+        t4 = arith.muli(thread_global_idx, stride_h)
+        t5 = arith.muli(thread_global_idy, stride_w)
+        
+        first_ele = memref.LoadOp(input_val, [batch_id, in_channel_id, t4, t5])
+
+        # Check if the (h, w) is out of the output bounds
+        ult = 6
+        H_out_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), H_out))
+        W_out_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), W_out))
+        isHInBounds = arith.cmpi(ult, thread_global_idx, H_out_val)
+        isWInBounds = arith.cmpi(ult, thread_global_idy, W_out_val)
+        isInBounds = arith.andi(isHInBounds, isWInBounds)
+        
+        branch0 = scf.IfOp(isInBounds)
+        with ir.InsertionPoint(branch0.then_block):
+            loop0 = scf.ForOp(
+                lower_bound=c0.result,
+                upper_bound=kernel_h.result,
+                step=c1.result,
+                iter_args=[first_ele.result]
+            )
+            with ir.InsertionPoint(loop0.body):
+                loop1 = scf.ForOp(
+                    lower_bound=c0.result,
+                    upper_bound=kernel_w.result,
+                    step=c1.result,
+                    iter_args=[first_ele.result]
+                )
+                with ir.InsertionPoint(loop1.body):
+                    # TODO : loop body
+                    kernel_ele_idx = loop0.body.arguments[0]
+                    kernel_ele_idy = loop1.body.arguments[0]
+                    input_ele_idx = arith.addi(t4, kernel_ele_idx)
+                    input_ele_idy = arith.addi(t5, kernel_ele_idy)
+                    input_ele = memref.LoadOp(input_val, [batch_id, in_channel_id, input_ele_idx, input_ele_idy])
+                    iter_arg1 = loop1.body.arguments[1]
+                    iter_res1 = arith.maxnumf(iter_arg1, input_ele)
+                    scf.YieldOp([iter_res1])
+
+                iter_arg0 = loop0.body.arguments[1]
+                iter_res0 = arith.maxnumf(loop1, iter_arg0)
+                scf.YieldOp([iter_res0])
+
+            memref.StoreOp(loop0, output_val, [batch_id, in_channel_id, thread_global_idx, thread_global_idy])
+            scf.YieldOp([])
+                
+        gpu.TerminatorOp()
+
+    return output_val
+
 ops_registry = {
     "ReluOp": relu_op,
     "ViewOp": reshape_op,
     "PermuteOp": permute_op,
     "Conv2dOp": convolution2d_op,
+    "MaxPool2dOp": maxpool2d_op
 }
