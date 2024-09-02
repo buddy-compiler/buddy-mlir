@@ -40,9 +40,8 @@ int main() {
   // CHECK: 7
   fprintf(stderr, "%f\n", bmpGrayDefault.getData()[0]);
   // Gray Scale + Normalization
-  dip::Image<float, 4> bmpGrayNorm(
-      "../../tests/Interface/core/TestImage.bmp", dip::DIP_GRAYSCALE,
-      true /* norm */);
+  dip::Image<float, 4> bmpGrayNorm("../../tests/Interface/core/TestImage.bmp",
+                                   dip::DIP_GRAYSCALE, true /* norm */);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmpGrayNorm.getFormatName().c_str());
   // CHECK: 28
@@ -66,7 +65,7 @@ int main() {
   // CHECK: 8
   fprintf(stderr, "%d\n", pngGrayDefault.getBitDepth());
   // CHECK: 15
-  fprintf(stderr, "%f\n", pngGrayDefault.getData()[0]); 
+  fprintf(stderr, "%f\n", pngGrayDefault.getData()[0]);
   // Gray Scale + Normalization
   dip::Image<float, 4> pngGrayNorm(
       "../../tests/Interface/core/TestGrayImage.png", dip::DIP_GRAYSCALE,
@@ -80,6 +79,6 @@ int main() {
   // CHECK: 8
   fprintf(stderr, "%d\n", pngGrayNorm.getBitDepth());
   // CHECK: 0.058824
-  fprintf(stderr, "%f\n", pngGrayNorm.getData()[0]);  
+  fprintf(stderr, "%f\n", pngGrayNorm.getData()[0]);
   return 0;
 }

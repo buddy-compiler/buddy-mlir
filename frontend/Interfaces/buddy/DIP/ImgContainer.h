@@ -22,10 +22,10 @@
 #define FRONTEND_INTERFACES_BUDDY_DIP_IMGCONTAINER
 
 #include "buddy/Core/Container.h"
-#include <png.h>
 #include <cstring>
 #include <fstream>
 #include <memory>
+#include <png.h>
 
 namespace dip {
 enum ImageModes {
@@ -134,7 +134,7 @@ Image<T, N>::Image(std::string filePath, ImageModes mode, bool norm)
     if (!success) {
       this->imageFormat = ImageFormat::ERROR;
       throw std::runtime_error("Failed to decode PNG file from " + filePath);
-    };    
+    };
   } else {
     throw std::runtime_error("Unsupported image file format.");
   }
@@ -143,10 +143,12 @@ Image<T, N>::Image(std::string filePath, ImageModes mode, bool norm)
 // Determines the image format by inspecting the header of the file data.
 template <typename T, std::size_t N>
 void Image<T, N>::determineFormat(const std::vector<uint8_t> &fileData) {
-  std::array<unsigned char, 8> pngHeader = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+  std::array<unsigned char, 8> pngHeader = {0x89, 0x50, 0x4E, 0x47,
+                                            0x0D, 0x0A, 0x1A, 0x0A};
   if (fileData.size() > 2 && fileData[0] == 'B' && fileData[1] == 'M') {
     this->imageFormat = ImageFormat::BMP;
-  } else if(fileData.size() > 7 && std::memcmp(fileData.data(), pngHeader.data(), 8) == 0) {
+  } else if (fileData.size() > 7 &&
+             std::memcmp(fileData.data(), pngHeader.data(), 8) == 0) {
     this->imageFormat = ImageFormat::PNG;
   } else {
     this->imageFormat = ImageFormat::ERROR;
@@ -279,17 +281,21 @@ bool Image<T, N>::decodePNG(const std::vector<uint8_t> &fileData) {
     throw std::runtime_error("Invalid PNG File: too small to contain header");
   }
 
-  // Extract image information from PNG header. Convert Big-Endian to Little-Endian.
-  this->width = (fileData[16] << 24) | (fileData[17] << 16) | (fileData[18] << 8) | fileData[19];
-  this->height = (fileData[20] << 24) | (fileData[21] << 16) | (fileData[22] << 8) | fileData[23];
+  // Extract image information from PNG header. Convert Big-Endian to
+  // Little-Endian.
+  this->width = (fileData[16] << 24) | (fileData[17] << 16) |
+                (fileData[18] << 8) | fileData[19];
+  this->height = (fileData[20] << 24) | (fileData[21] << 16) |
+                 (fileData[22] << 8) | fileData[23];
   this->bitDepth = *reinterpret_cast<const uint8_t *>(&fileData[24]);
   int colorType = *reinterpret_cast<const uint8_t *>(&fileData[25]);
   uint8_t interlace = *reinterpret_cast<const uint8_t *>(&fileData[28]);
 
   // Currently, only the NCHW format with 4 dimensions is supported.
   if (N == 4) {
-    //use libpng to read png image. Initialize libpng parameters
-    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
+    // use libpng to read png image. Initialize libpng parameters
+    png_structp png_ptr =
+        png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
     if (!png_ptr) {
       std::cerr << "png_ptr creation failed" << std::endl;
       return false;
@@ -304,52 +310,57 @@ bool Image<T, N>::decodePNG(const std::vector<uint8_t> &fileData) {
     // Set jump point for error handling
     if (setjmp(png_jmpbuf(png_ptr))) {
       std::cerr << "error during PNG reading" << std::endl;
-      //close PNG reading and free memory
-      png_destroy_read_struct(&png_ptr, &info_ptr, NULL);      
+      // close PNG reading and free memory
+      png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
       return false;
     }
 
     // copy filedata. Read image data from memory.
     std::vector<uint8_t> dataCopy = fileData;
-    png_set_read_fn(png_ptr, &dataCopy, [](png_structp png_ptr, png_bytep data, png_size_t length) {
-      std::vector<uint8_t> *fileData = static_cast<std::vector<uint8_t>*>(png_get_io_ptr(png_ptr));
-      if (fileData->size() < length) {
-          png_error(png_ptr, "Read error from memory");
-      }
-      std::copy(fileData->begin(), fileData->begin() + length, data);
-      fileData->erase(fileData->begin(), fileData->begin() + length);
-    });
+    png_set_read_fn(
+        png_ptr, &dataCopy,
+        [](png_structp png_ptr, png_bytep data, png_size_t length) {
+          std::vector<uint8_t> *fileData =
+              static_cast<std::vector<uint8_t> *>(png_get_io_ptr(png_ptr));
+          if (fileData->size() < length) {
+            png_error(png_ptr, "Read error from memory");
+          }
+          std::copy(fileData->begin(), fileData->begin() + length, data);
+          fileData->erase(fileData->begin(), fileData->begin() + length);
+        });
 
     png_read_info(png_ptr, info_ptr);
 
     // Convert big or little Endian and convert 16 bits to 8 bits
     if (this->bitDepth == 16)
       png_set_strip_16(png_ptr);
-    else if (!isBigEndian()) 
+    else if (!isBigEndian())
       png_set_swap(png_ptr);
 
     // Remove alpha channel
-    if (colorType & PNG_COLOR_MASK_ALPHA) 
+    if (colorType & PNG_COLOR_MASK_ALPHA)
       png_set_strip_alpha(png_ptr);
 
     // Convert palette to rgb
-    if (colorType == PNG_COLOR_TYPE_PALETTE) 
+    if (colorType == PNG_COLOR_TYPE_PALETTE)
       png_set_palette_to_rgb(png_ptr);
 
     // Convert low depth grayscale to 8-bit grayscale
     if ((colorType & PNG_COLOR_MASK_COLOR) == 0 && this->bitDepth < 8)
 #if (PNG_LIBPNG_VER_MAJOR * 10000 + PNG_LIBPNG_VER_MINOR * 100 +               \
-PNG_LIBPNG_VER_RELEASE >= 10209) || (PNG_LIBPNG_VER_MAJOR == 1 && PNG_LIBPNG_VER_MINOR == 0 &&    \
-  PNG_LIBPNG_VER_RELEASE >= 18)
+         PNG_LIBPNG_VER_RELEASE >=                                             \
+     10209) ||                                                                 \
+    (PNG_LIBPNG_VER_MAJOR == 1 && PNG_LIBPNG_VER_MINOR == 0 &&                 \
+     PNG_LIBPNG_VER_RELEASE >= 18)
       png_set_expand_gray_1_2_4_to_8(png_ptr);
 #else
       png_set_gray_1_2_4_to_8(png_ptr);
 #endif
 
     // Processing interleaved PNG images
-    if (interlace) 
+    if (interlace)
       png_set_interlace_handling(png_ptr);
-    
+
     if (this->imageMode == ImageModes::DIP_GRAYSCALE) {
       // TODO: Add batch setting.
       this->sizes[0] = 1;
@@ -359,20 +370,21 @@ PNG_LIBPNG_VER_RELEASE >= 10209) || (PNG_LIBPNG_VER_MAJOR == 1 && PNG_LIBPNG_VER
       this->setStrides();
       size_t size = this->product(this->sizes);
       this->allocated = (T *)malloc(sizeof(T) * size);
-      this->aligned = this->allocated;    
+      this->aligned = this->allocated;
 
       // RGB->Gray
-      if ((colorType & PNG_COLOR_MASK_COLOR) || (colorType == PNG_COLOR_TYPE_PALETTE))
-        png_set_rgb_to_gray(png_ptr, 1, 0.299, 0.587); 
+      if ((colorType & PNG_COLOR_MASK_COLOR) ||
+          (colorType == PNG_COLOR_TYPE_PALETTE))
+        png_set_rgb_to_gray(png_ptr, 1, 0.299, 0.587);
 
       // Update reading setting
       png_read_update_info(png_ptr, info_ptr);
 
-      // Allocate memory for libpng to read images   
+      // Allocate memory for libpng to read images
       std::vector<uint8_t> imgData(this->height * this->width);
-      std::vector<uint8_t*> row_pointers(this->height);
+      std::vector<uint8_t *> row_pointers(this->height);
       for (size_t y = 0; y < this->height; ++y) {
-          row_pointers[y] = imgData.data() + y * this->width;
+        row_pointers[y] = imgData.data() + y * this->width;
       }
 
       // Reading image
@@ -382,9 +394,10 @@ PNG_LIBPNG_VER_RELEASE >= 10209) || (PNG_LIBPNG_VER_MAJOR == 1 && PNG_LIBPNG_VER
       for (size_t i = 0; i < this->height; i++)
         for (size_t j = 0; j < this->width; j++) {
           size_t memrefIndex = i * this->width + j;
-          this->aligned[memrefIndex] = this->isNorm
-                                            ? static_cast<T>(imgData[memrefIndex]) / 255
-                                            : static_cast<T>(imgData[memrefIndex]);;
+          this->aligned[memrefIndex] =
+              this->isNorm ? static_cast<T>(imgData[memrefIndex]) / 255
+                           : static_cast<T>(imgData[memrefIndex]);
+          ;
         }
     } else if (this->imageMode == ImageModes::DIP_RGB) {
       // TODO: Add batch setting.
@@ -394,23 +407,23 @@ PNG_LIBPNG_VER_RELEASE >= 10209) || (PNG_LIBPNG_VER_MAJOR == 1 && PNG_LIBPNG_VER
       this->sizes[3] = this->width;
       this->setStrides();
       size_t size = this->product(this->sizes);
-      std::cout<<"size"<<size<<std::endl;
+      std::cout << "size" << size << std::endl;
       this->allocated = (T *)malloc(sizeof(T) * size);
       this->aligned = this->allocated;
-      size_t colorStride = this->height * this->width;   
+      size_t colorStride = this->height * this->width;
 
       // Gray->RGB
       if (colorType & PNG_COLOR_TYPE_GRAY)
-        png_set_gray_to_rgb(png_ptr); 
+        png_set_gray_to_rgb(png_ptr);
 
-      // Update reading setting      
+      // Update reading setting
       png_read_update_info(png_ptr, info_ptr);
 
-      // Allocate memory for libpng to read images      
+      // Allocate memory for libpng to read images
       std::vector<uint8_t> imgData(this->height * this->width * 3);
-      std::vector<uint8_t*> row_pointers(this->height);
+      std::vector<uint8_t *> row_pointers(this->height);
       for (size_t y = 0; y < this->height; ++y) {
-          row_pointers[y] = imgData.data() + y * this->width * 3;
+        row_pointers[y] = imgData.data() + y * this->width * 3;
       }
 
       // Reading image
@@ -429,21 +442,21 @@ PNG_LIBPNG_VER_RELEASE >= 10209) || (PNG_LIBPNG_VER_MAJOR == 1 && PNG_LIBPNG_VER
               *reinterpret_cast<const uint8_t *>(&imgData[pixelIndex + 1]);
           int bluePixel =
               *reinterpret_cast<const uint8_t *>(&imgData[pixelIndex + 2]);
-          // Store the values into memref container as RGB order. 
+          // Store the values into memref container as RGB order.
           this->aligned[memrefIndex] = this->isNorm
-                                            ? static_cast<T>(redPixel) / 255
-                                            : static_cast<T>(redPixel);
+                                           ? static_cast<T>(redPixel) / 255
+                                           : static_cast<T>(redPixel);
           this->aligned[memrefIndex + colorStride] =
               this->isNorm ? static_cast<T>(greenPixel) / 255
-                            : static_cast<T>(greenPixel);
+                           : static_cast<T>(greenPixel);
           this->aligned[memrefIndex + 2 * colorStride] =
               this->isNorm ? static_cast<T>(bluePixel) / 255
-                            : static_cast<T>(bluePixel);
+                           : static_cast<T>(bluePixel);
           memrefIndex++;
         }
     }
 
-    //close PNG reading and free memory
+    // close PNG reading and free memory
     png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
   } else {
     std::cerr << "Unsupported: " << N << " dimension layout." << std::endl;
