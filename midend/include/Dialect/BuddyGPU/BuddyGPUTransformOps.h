@@ -14,15 +14,9 @@
 //
 //===---------------------------------------------------------------------===//
 //
-// This file defines transform ops for code generation.
+// This file defines GPU transform ops for code generation.
 //
 //===---------------------------------------------------------------------===//
-
-// Copyright 2022 The IREE Authors
-//
-// Licensed under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef BUDDYGPU_TRANSFORM_OPS_H
 #define BUDDYGPU_TRANSFORM_OPS_H
