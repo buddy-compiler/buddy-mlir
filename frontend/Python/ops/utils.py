@@ -66,34 +66,3 @@ def tensor_shape_size(shape):
     for dim in shape:
         size *= dim
     return size
-
-def generate_strides(shape):
-    """
-    Generate strides based on the input matrix shape.
-    
-    Args:
-        shape (list[int]): The shape of the input matrix, e.g., [2, 3, 4].
-
-    Returns:
-        list[int]: The corresponding strides, e.g., [12, 4, 1].
-    """
-    strides = []
-    stride = 1
-    for dim in reversed(shape):
-        strides.insert(0, stride)
-        stride *= dim
-    return strides
-
-def transpose_strides(strides, permutation):
-    """
-    Reorder strides based on the input permutation.
-    
-    Args:
-        strides (list[int]): The original strides list, e.g., [12, 4, 1].
-        permutation (list[int]): The permutation order, e.g., [1, 2, 0].
-
-    Returns:
-        list[int]: The reordered strides list, e.g., [4, 1, 12].
-    """
-    transposed_strides = [strides[i] for i in permutation]
-    return transposed_strides

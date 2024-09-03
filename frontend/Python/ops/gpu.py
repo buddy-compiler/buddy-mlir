@@ -176,9 +176,15 @@ def permute_op(node: PermuteOp, symbol_table):
     for i, p in enumerate(perm):
         input_shape[p] = output_shape[i]
 
+    # Prepare input_stride and output_stride data
+    input_stride = []
+    stride = 1
+    for dim in reversed(input_shape):
+        input_stride.insert(0, stride)
+        stride *= dim
+    output_stride = [input_stride[i] for i in perm]
+
     offset = 0
-    input_stride = generate_strides(input_shape)
-    output_stride = transpose_strides(input_stride, perm)
     result_type = ir.MemRefType.get(
         shape=output_shape,
         element_type=element_type,
@@ -188,8 +194,10 @@ def permute_op(node: PermuteOp, symbol_table):
         result=result_type,
         in_=input1,
         permutation=perm_attr
-    )
-    return permute_op
+    )    
+    output = memref.AllocOp(ir.MemRefType.get(output_shape, element_type), [], [])
+    memref.CopyOp(permute_op, output)
+    return output
 
 
 # TODO: Consider the cases where the arguments take different values.
@@ -239,10 +247,10 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     batch_size = input_shape[0]
     in_channels = input_shape[1]
     out_channels = output_shape[0]
-    H_in = input_shape[2]
-    W_in = input_shape[3]
-    H_out = output_shape[2]
-    W_out = output_shape[3]
+    in_size_h = input_shape[2]
+    in_size_w = input_shape[3]
+    out_size_h = output_shape[2]
+    out_size_w = output_shape[3]
     H_filter = filter_shape[2]
     W_filter = filter_shape[3]
 
@@ -257,7 +265,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     gpu.HostRegisterOp(output_cast)
 
     # Tile the input_val into Grids
-    block_z = ((H_out + TILE_WIDTH - 1) // TILE_WIDTH) * ((W_out + TILE_WIDTH - 1) // TILE_WIDTH)
+    block_z = ((out_size_h + TILE_WIDTH - 1) // TILE_WIDTH) * ((out_size_w + TILE_WIDTH - 1) // TILE_WIDTH)
     batch_size_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), batch_size))
     in_channels_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), in_channels))
     out_channels_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), out_channels))
@@ -307,7 +315,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
         thread_local_idy = gpu_kernel_block.arguments[4]
 
         # Calculate the convolution element at (h, w) for this thread
-        tile_num = (W_out + TILE_WIDTH - 1) // TILE_WIDTH
+        tile_num = (out_size_w + TILE_WIDTH - 1) // TILE_WIDTH
         tile_num_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), tile_num))
         
         t0 = arith.divui(tile_id, tile_num_val)
@@ -325,10 +333,10 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
 
         # Check if the (h, w) is out of the output bounds
         ult = 6
-        H_out_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), H_out))
-        W_out_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), W_out))
-        isHInBounds = arith.cmpi(ult, thread_global_idx, H_out_val)
-        isWInBounds = arith.cmpi(ult, thread_global_idy, W_out_val)
+        out_size_h_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), out_size_h))
+        out_size_w_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), out_size_w))
+        isHInBounds = arith.cmpi(ult, thread_global_idx, out_size_h_val)
+        isWInBounds = arith.cmpi(ult, thread_global_idy, out_size_w_val)
         isInBounds = arith.andi(isHInBounds, isWInBounds)
         
         cst_0 = arith.ConstantOp(element_type, mlir_element_attr_get(dtype, 0.0))
@@ -411,8 +419,8 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
 
     batch_size = output_shape[0]
     in_channels = output_shape[1]
-    H_out = output_shape[2]
-    W_out = output_shape[3]
+    out_size_h = output_shape[2]
+    out_size_w = output_shape[3]
 
     input_val = symbol_table.get((str(input1), 0))
     output_val = memref.AllocOp(ir.MemRefType.get(output_shape, element_type), [], [])
@@ -424,7 +432,7 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
     gpu.HostRegisterOp(output_cast)
 
     # Tile the input_val into Grids
-    block_z = ((H_out + TILE_WIDTH - 1) // TILE_WIDTH) * ((W_out + TILE_WIDTH - 1) // TILE_WIDTH)
+    block_z = ((out_size_h + TILE_WIDTH - 1) // TILE_WIDTH) * ((out_size_w + TILE_WIDTH - 1) // TILE_WIDTH)
     batch_size_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), batch_size))
     in_channels_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), in_channels))
     block_z_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), block_z))
@@ -471,7 +479,7 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
         thread_local_idy = gpu_kernel_block.arguments[4]
 
         # Calculate the convolution element at (h, w) for this thread
-        tile_num = (W_out + TILE_WIDTH - 1) // TILE_WIDTH
+        tile_num = (out_size_w + TILE_WIDTH - 1) // TILE_WIDTH
         tile_num_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), tile_num))
         
         t0 = arith.divui(tile_id, tile_num_val)
@@ -482,35 +490,34 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
         t3 = arith.muli(t2, tile_width_val)
         thread_global_idy = arith.addi(t3, thread_local_idy)
 
-        kernel_h = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), kernel[0]))
-        kernel_w = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), kernel[1]))
+        kernel_size_h = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), kernel[0]))
+        kernel_size_w = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), kernel[1]))
         stride_h = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), stride[0]))
         stride_w = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), stride[1]))
-        t4 = arith.muli(thread_global_idx, stride_h)
-        t5 = arith.muli(thread_global_idy, stride_w)
-        
-        first_ele = memref.LoadOp(input_val, [batch_id, in_channel_id, t4, t5])
+        init_ele_idx = arith.muli(thread_global_idx, stride_h)
+        init_ele_idy = arith.muli(thread_global_idy, stride_w)
 
         # Check if the (h, w) is out of the output bounds
         ult = 6
-        H_out_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), H_out))
-        W_out_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), W_out))
-        isHInBounds = arith.cmpi(ult, thread_global_idx, H_out_val)
-        isWInBounds = arith.cmpi(ult, thread_global_idy, W_out_val)
+        out_size_h_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), out_size_h))
+        out_size_w_val = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), out_size_w))
+        isHInBounds = arith.cmpi(ult, thread_global_idx, out_size_h_val)
+        isWInBounds = arith.cmpi(ult, thread_global_idy, out_size_w_val)
         isInBounds = arith.andi(isHInBounds, isWInBounds)
         
         branch0 = scf.IfOp(isInBounds)
         with ir.InsertionPoint(branch0.then_block):
+            first_ele = memref.LoadOp(input_val, [batch_id, in_channel_id, init_ele_idx, init_ele_idy])
             loop0 = scf.ForOp(
                 lower_bound=c0.result,
-                upper_bound=kernel_h.result,
+                upper_bound=kernel_size_h.result,
                 step=c1.result,
                 iter_args=[first_ele.result]
             )
             with ir.InsertionPoint(loop0.body):
                 loop1 = scf.ForOp(
                     lower_bound=c0.result,
-                    upper_bound=kernel_w.result,
+                    upper_bound=kernel_size_w.result,
                     step=c1.result,
                     iter_args=[first_ele.result]
                 )
@@ -518,8 +525,8 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
                     # TODO : loop body
                     kernel_ele_idx = loop0.body.arguments[0]
                     kernel_ele_idy = loop1.body.arguments[0]
-                    input_ele_idx = arith.addi(t4, kernel_ele_idx)
-                    input_ele_idy = arith.addi(t5, kernel_ele_idy)
+                    input_ele_idx = arith.addi(init_ele_idx, kernel_ele_idx)
+                    input_ele_idy = arith.addi(init_ele_idy, kernel_ele_idy)
                     input_ele = memref.LoadOp(input_val, [batch_id, in_channel_id, input_ele_idx, input_ele_idy])
                     iter_arg1 = loop1.body.arguments[1]
                     iter_res1 = arith.maxnumf(iter_arg1, input_ele)
@@ -535,6 +542,7 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
         gpu.TerminatorOp()
 
     return output_val
+
 
 ops_registry = {
     "ReluOp": relu_op,

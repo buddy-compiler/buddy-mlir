@@ -40,13 +40,14 @@ dynamo_compiler = DynamoCompiler(
     aot_autograd_decomposition=inductor_decomp,
 )
 
-data = torch.randn([1, 1, 32, 32])
+data = torch.randn([1, 1, 12, 10])
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
     graphs = dynamo_compiler.importer(model, data)
 
 assert len(graphs) == 1
 graph = graphs[0]
+print(graph.body)
 graph.lower_to_top_level_ir()
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
