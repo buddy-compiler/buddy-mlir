@@ -55,6 +55,7 @@
 
 #include <optional>
 
+#define DEBUG_TYPE "buddy-codegen-gpu-utils"
 #define DBGS() (llvm::dbgs() << "[" DEBUG_TYPE "]: ")
 #define DBGSNL() (llvm::dbgs() << "\n")
 #define LDBG(X) LLVM_DEBUG(DBGS() << X << "\n")
@@ -278,7 +279,7 @@ std::optional<SmallVector<int64_t>> getMmaNativeVectorSize(Operation *op) {
         // - LDSMx1 loads a 1 tile  of 8x8.
         // - LDSMx2 loads a 2 tiles of 8x8.
         // - LDSMx4 loads a 4 tiles of 8x8. (in use)
-        // Here uses the largest tiled load, i.e., LDSMx4.
+        // here uses the largest tiled load, i.e., LDSMx4.
 
         // MmaSyncOp source operand: matrixC.
         // matrixC is also read/written in tiled block of 16x16. In the pass
