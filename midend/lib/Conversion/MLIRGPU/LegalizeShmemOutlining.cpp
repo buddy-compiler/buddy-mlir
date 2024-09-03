@@ -16,7 +16,7 @@
 //
 // This file implements the pass that legalizes shared memory operations.
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "mlir/AsmParser/AsmParser.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -65,9 +65,9 @@
 using namespace mlir;
 using namespace vector;
 
-//===----------------------------------------------------------------------===//
+//===---------------------------------------------------------------------===//
 // From mlir/lib/Dialect/GPU/Transforms/KernelOutlining.cpp
-//===----------------------------------------------------------------------===//
+//===---------------------------------------------------------------------===//
 
 namespace mlir {
 #define GEN_PASS_DEF_GPULAUNCHSINKINDEXCOMPUTATIONS
@@ -76,8 +76,6 @@ namespace mlir {
 } // namespace mlir
 
 using namespace mlir;
-
-
 
 template <typename OpTy>
 static void createForAllDimensions(OpBuilder &builder, Location loc,
@@ -247,7 +245,7 @@ class LegalizeShmemOutliningPass
     : public PassWrapper<LegalizeShmemOutliningPass, OperationPass<ModuleOp>> {
 public:
   std::vector<Operation *> shmemAllocations;
-  std::map<Operation*, Operation*> shmemGlobalPairs;
+  std::map<Operation *, Operation *> shmemGlobalPairs;
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LegalizeShmemOutliningPass)
   StringRef getArgument() const final { return "legalize-shmem-outlining"; }
   StringRef getDescription() const final {
@@ -256,14 +254,14 @@ public:
 
   void runOnOperation() override {
     SymbolTable symbolTable(getOperation());
-    
+
     bool modified = false;
     for (auto func : getOperation().getOps<func::FuncOp>()) {
       // Insert just after the function.
       Block::iterator insertPt(func->getNextNode());
-      
+
       // Collects all allocations for shared memory outside the kernel.
-      // The collection must happen before the kernel outlining. 
+      // The collection must happen before the kernel outlining.
       // It moves back all shared allocations back into their GPU body
       // Allowing the functions to create kernels without shared memory
       // as parameters.
@@ -271,7 +269,8 @@ public:
         auto result = allocOp->getResult(0);
         auto memrefType = dyn_cast<MemRefType>(result.getType());
         auto memorySpace = memrefType.getMemorySpace();
-        if (!memorySpace) return WalkResult::advance();
+        if (!memorySpace)
+          return WalkResult::advance();
         else {
           if (auto intMemorySpace = llvm::dyn_cast<IntegerAttr>(memorySpace)) {
             if (intMemorySpace.getInt() != 3) {
@@ -286,16 +285,18 @@ public:
             return WalkResult::advance();
         }
         auto users = allocOp->getUsers();
-        for (auto user: users) {
-          if (isa<memref::DeallocOp>(user)){
+        for (auto user : users) {
+          if (isa<memref::DeallocOp>(user)) {
             user->erase();
             continue;
           }
           // Locates the gpu kernel wrapper
-          auto launchOp=user->getParentOfType<gpu::LaunchOp>();
+          auto launchOp = user->getParentOfType<gpu::LaunchOp>();
           OpBuilder builder(launchOp);
-          builder.setInsertionPointToStart(&launchOp.getBody().getBlocks().front());
-          auto newAllocOp = builder.create<memref::AllocOp>(launchOp.getLoc(), memrefType);
+          builder.setInsertionPointToStart(
+              &launchOp.getBody().getBlocks().front());
+          auto newAllocOp =
+              builder.create<memref::AllocOp>(launchOp.getLoc(), memrefType);
           allocOp->replaceAllUsesWith(newAllocOp);
           allocOp->erase();
           break;
@@ -354,7 +355,7 @@ public:
               /*initial_value=*/ElementsAttr(),
               /*constant=*/false,
               /*alignment=*/builder.getI64IntegerAttr(64));
-          //symbolTable.insert(globalOp);
+          // symbolTable.insert(globalOp);
           builder.setInsertionPointAfter(allocOp);
           Value getGlobalOp = builder.create<memref::GetGlobalOp>(
               allocOp->getLoc(), globalOp.getType(), name);
@@ -370,7 +371,6 @@ public:
       });
       if (funcWalkResult.wasInterrupted())
         return signalPassFailure();
-
     }
 
     // If any new module was inserted in this module, annotate this module as

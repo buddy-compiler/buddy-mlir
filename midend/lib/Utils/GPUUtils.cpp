@@ -1,4 +1,4 @@
-//====- GPUUtils.cpp -----------------------------------------------------===//
+//====- GPUUtils.cpp ------------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//
+// The process in this file references the IREE project,
+// which is hereby acknowledged.
+// For the license of the IREE project
+// please see: https://github.com/iree-org/iree/blob/main/LICENSE
+//
+//===----------------------------------------------------------------------===//
 //
 // This file implements GPU dialect specific utility functions for the buddy
 // compiler ecosystem.
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #ifndef UTILS_GPUUTILS_DEF
 #define UTILS_GPUUTILS_DEF
@@ -48,7 +55,6 @@
 
 #include <optional>
 
-#define DEBUG_TYPE "iree-codegen-gpu-utils"
 #define DBGS() (llvm::dbgs() << "[" DEBUG_TYPE "]: ")
 #define DBGSNL() (llvm::dbgs() << "\n")
 #define LDBG(X) LLVM_DEBUG(DBGS() << X << "\n")
@@ -272,7 +278,7 @@ std::optional<SmallVector<int64_t>> getMmaNativeVectorSize(Operation *op) {
         // - LDSMx1 loads a 1 tile  of 8x8.
         // - LDSMx2 loads a 2 tiles of 8x8.
         // - LDSMx4 loads a 4 tiles of 8x8. (in use)
-        // IREE uses the largest tiled load, i.e., LDSMx4.
+        // Here uses the largest tiled load, i.e., LDSMx4.
 
         // MmaSyncOp source operand: matrixC.
         // matrixC is also read/written in tiled block of 16x16. In the pass
@@ -349,8 +355,8 @@ std::optional<SmallVector<int64_t>> getMmaNativeVectorSize(Operation *op) {
 bool hasSharedMemoryAddressSpace(MemRefType memrefType) {
   auto addrSpace = llvm::dyn_cast_if_present<mlir::gpu::AddressSpaceAttr>(
       memrefType.getMemorySpace());
-  return addrSpace &&
-         addrSpace.getValue() == mlir::gpu::GPUDialect::getWorkgroupAddressSpace();
+  return addrSpace && addrSpace.getValue() ==
+                          mlir::gpu::GPUDialect::getWorkgroupAddressSpace();
 }
 
 template <typename AllocLikeOpType>

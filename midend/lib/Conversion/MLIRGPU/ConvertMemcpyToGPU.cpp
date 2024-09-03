@@ -1,4 +1,4 @@
-//===- ConvertMemcpyToGPU.cpp -----------------------------------------------===//
+//===- ConvertMemcpyToGPU.cpp ---------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -138,13 +138,13 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
           if (intMemorySpace.getInt() != 0) {
             return WalkResult::advance();
           }
-        }
-        else if (auto gpuMemorySpace = llvm::dyn_cast<gpu::AddressSpaceAttr>(memorySpace)){
-          if (gpuMemorySpace.getValue()!=gpu::AddressSpace::Global) {
+        } else if (auto gpuMemorySpace =
+                       llvm::dyn_cast<gpu::AddressSpaceAttr>(memorySpace)) {
+          if (gpuMemorySpace.getValue() != gpu::AddressSpace::Global) {
             return WalkResult::advance();
           }
-        }
-        else return WalkResult::advance();
+        } else
+          return WalkResult::advance();
       }
 
       auto gpuAllocOp = builder.create<gpu::AllocOp>(
