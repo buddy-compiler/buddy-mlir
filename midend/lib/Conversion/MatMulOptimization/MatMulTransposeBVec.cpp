@@ -84,10 +84,10 @@ public:
                     ,veSize,ValueRange{sum_0},
                     [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
                     ValueRange itrArgs) {
-                        Value aVec = builder.create<mlir::vector::TransferReadOp>(
+                        Value aVec = builder.create<mlir::vector::LoadOp>(
                             loc,vectorTy,A,ValueRange{ivs[0],iv}
                         );
-                        Value bVec = builder.create<mlir::vector::TransferReadOp>(
+                        Value bVec = builder.create<mlir::vector::LoadOp>(
                             loc,vectorTy,B,ValueRange{ivs[1],iv}
                         );
                         Value resvec = builder.create<arith::MulFOp>(loc,aVec,bVec);
