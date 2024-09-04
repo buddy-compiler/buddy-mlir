@@ -15,41 +15,25 @@
 //===----------------------------------------------------------------------===//
 
 #include <buddy/Core/Container.h>
-#include <buddy/DIP/ImageContainer.h>
+#include <buddy/DIP/ImgContainer.h>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <limits>
-#include <opencv2/opencv.hpp>
 #include <string>
 #include <utility>
 #include <vector>
 
 constexpr size_t ParamsSize = 2554968;
-const std::string ImgName = "dog.png";
+const std::string ImgName = "traffic-light-32bit.bmp";
 
 // Declare the mobilenet C interface.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
                           MemRef<float, 1> *arg0,
                           MemRef<long long, 1> *arg1,
-                          Img<float, 4> *input);
-
-const cv::Mat imagePreprocessing() {
-  // Get the directory of the LeNet example and construct the image path.
-  std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
-  std::string imgPath = mobilenetDir + "/images/" + ImgName; 
-  // Read the image in grayscale mode.
-  cv::Mat inputImage = cv::imread(imgPath, cv::IMREAD_GRAYSCALE);
-  assert(!inputImage.empty() && "Could not read the image.");
-  cv::Mat resizedImage;
-  int imageWidth = 224;
-  int imageHeight = 224;
-  // Resize the image to 224x224 pixels.
-  cv::resize(inputImage, resizedImage, cv::Size(imageWidth, imageHeight),
-             cv::INTER_LINEAR);
-  return resizedImage;
-}
+                          dip::Image<float, 4> *input);
 
 /// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
@@ -126,19 +110,19 @@ int main() {
   const std::string title = "MobileNetV3 Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
-  // Preprocess the image to match the input requirements of the model.
-  cv::Mat image = imagePreprocessing();
-
   // Define the sizes of the input and output tensors.
   intptr_t sizesInput[4] = {1, 3, 224, 224};
   intptr_t sizesOutput[2] = {1, 1000};
 
   // Create input and output containers for the image and model output.
-  Img<float, 4> input(image, sizesInput, true);
+  std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
+  std::string imgPath = mobilenetDir + "/images/" + ImgName; 
+
+  dip::Image<float, 4> input(imgPath, dip::DIP_RGB, true /* norm */);
+
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
-  std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
   std::string paramsDir = mobilenetDir + "/arg0.data";
   std::string intDir = mobilenetDir + "/arg1.data";
   MemRef<float, 1> paramsContainerf32({ParamsSize});
@@ -159,7 +143,7 @@ int main() {
     }
   }
   std::cout << "Classification Index: " << maxIdx << std::endl;
-  std::cout << "Classification: " << getLabel(maxIdx) << std::endl;
+  std::cout << "Classification: " << getLabel(maxIdx+1) << std::endl;
   std::cout << "Probability: " << maxVal << std::endl;
 
   return 0;
