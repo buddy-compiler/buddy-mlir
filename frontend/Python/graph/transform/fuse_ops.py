@@ -111,7 +111,7 @@ class BuddyTopoGraph:
             current = self.edge_node_dict[node.name]
         else:
             current = GraphNode()
-        if node.__class__.__name__ in self._graph._ops_registry:
+        if node.name in self._graph.node_table:
             if parent is not None:
                 link = LinkNode()
                 if parent.name not in self.edge_node_dict.keys():
