@@ -23,8 +23,9 @@ add_custom_command(
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
-            -convert-tensor-to-linalg 
+            -convert-tensor-to-linalg
             -linalg-bufferize
+            -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -lower-affine
             -func-bufferize-dynamic-offset
