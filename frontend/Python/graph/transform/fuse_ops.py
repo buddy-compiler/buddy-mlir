@@ -388,14 +388,14 @@ class GraphPartioner:
                             node.name, node.num_nodes, node.master_ref.name
                         )
                     )
-                    if node.master_ref.name not in self._graph.op_groups:
-                        self._graph.op_groups[node.master_ref.name] = []
-                        self._graph.group_map_device = {
-                            node.master_ref.name: DeviceType.UNKNOW
-                        }
-                    self._graph.op_groups[node.master_ref.name].append(
-                        self._graph.node_table[node.name]
-                    )
+                    # if node.master_ref.name not in self._graph.op_groups:
+                    #     self._graph.op_groups[node.master_ref.name] = []
+                    #     self._graph.group_map_device = {
+                    #         node.master_ref.name: DeviceType.UNKNOW
+                    #     }
+                    # self._graph.op_groups[node.master_ref.name].append(
+                    #     self._graph.node_table[node.name]
+                    # )
 
 
 def my_fuse_ops_test(graph: Graph):
