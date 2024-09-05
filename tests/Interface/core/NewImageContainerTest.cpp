@@ -28,7 +28,7 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Default Gray Scale
   dip::Image<float, 4> bmp32bitGrayDefault(
-      "../../tests/Interface/core/TestImage.bmp", dip::DIP_GRAYSCALE);
+      "../../../../tests/Interface/core/TestImage.bmp", dip::DIP_GRAYSCALE);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp32bitGrayDefault.getFormatName().c_str());
   // CHECK: 28
@@ -41,7 +41,7 @@ int main() {
   fprintf(stderr, "%f\n", bmp32bitGrayDefault.getData()[0]);
   // Gray Scale + Normalization
   dip::Image<float, 4> bmp32bitGrayNorm(
-      "../../tests/Interface/core/TestImage.bmp", dip::DIP_GRAYSCALE,
+      "../../../../tests/Interface/core/TestImage.bmp", dip::DIP_GRAYSCALE,
       true /* norm */);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp32bitGrayNorm.getFormatName().c_str());
@@ -56,7 +56,8 @@ int main() {
 
   // BMP 24bit Default Gray Scale
   dip::Image<float, 4> bmp24bitGrayDefault(
-      "../../tests/Interface/core/TestImage-24bit.bmp", dip::DIP_GRAYSCALE);
+      "../../../../tests/Interface/core/TestImage-24bit.bmp",
+      dip::DIP_GRAYSCALE);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp24bitGrayDefault.getFormatName().c_str());
   // CHECK: 28
@@ -69,8 +70,8 @@ int main() {
   fprintf(stderr, "%f\n", bmp24bitGrayDefault.getData()[0]);
   // BMP 24bit Gray Scale + Normalization
   dip::Image<float, 4> bmp24bitGrayNorm(
-      "../../tests/Interface/core/TestImage-24bit.bmp", dip::DIP_GRAYSCALE,
-      true /* norm */);
+      "../../../../tests/Interface/core/TestImage-24bit.bmp",
+      dip::DIP_GRAYSCALE, true /* norm */);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp24bitGrayNorm.getFormatName().c_str());
   // CHECK: 28
@@ -84,7 +85,7 @@ int main() {
 
   // BMP 16bit Default Gray Scale
   dip::Image<float, 4> bmp16bitGrayDefault(
-      "../../tests/Interface/core/TestImage-16bit-rgb565.bmp",
+      "../../../../tests/Interface/core/TestImage-16bit-rgb565.bmp",
       dip::DIP_GRAYSCALE);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp16bitGrayDefault.getFormatName().c_str());
@@ -98,7 +99,7 @@ int main() {
   fprintf(stderr, "%f\n", bmp16bitGrayDefault.getData()[0]);
   // BMP 16bit Gray Scale + Normalization
   dip::Image<float, 4> bmp16bitGrayNorm(
-      "../../tests/Interface/core/TestImage-16bit-rgb565.bmp",
+      "../../../../tests/Interface/core/TestImage-16bit-rgb565.bmp",
       dip::DIP_GRAYSCALE, true /* norm */);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp16bitGrayNorm.getFormatName().c_str());
