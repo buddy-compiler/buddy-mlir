@@ -28,7 +28,7 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Default Gray Scale
   dip::Image<float, 4> bmpGrayDefault(
-      "../../tests/Interface/core/TestImage.bmp", dip::DIP_GRAYSCALE);
+      "../../../../tests/Interface/core/TestImage.bmp", dip::DIP_GRAYSCALE);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmpGrayDefault.getFormatName().c_str());
   // CHECK: 28
@@ -40,8 +40,9 @@ int main() {
   // CHECK: 7
   fprintf(stderr, "%f\n", bmpGrayDefault.getData()[0]);
   // Gray Scale + Normalization
-  dip::Image<float, 4> bmpGrayNorm("../../tests/Interface/core/TestImage.bmp",
-                                   dip::DIP_GRAYSCALE, true /* norm */);
+  dip::Image<float, 4> bmpGrayNorm(
+      "../../../../tests/Interface/core/TestImage.bmp", dip::DIP_GRAYSCALE,
+      true /* norm */);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmpGrayNorm.getFormatName().c_str());
   // CHECK: 28
@@ -55,7 +56,7 @@ int main() {
 
   // Default Gray Scale
   dip::Image<float, 4> pngGrayDefault(
-      "../../tests/Interface/core/TestGrayImage.png", dip::DIP_GRAYSCALE);
+      "../../../../tests/Interface/core/TestGrayImage.png", dip::DIP_GRAYSCALE);
   // CHECK: PNG
   fprintf(stderr, "%s\n", pngGrayDefault.getFormatName().c_str());
   // CHECK: 4
@@ -68,7 +69,7 @@ int main() {
   fprintf(stderr, "%f\n", pngGrayDefault.getData()[0]);
   // Gray Scale + Normalization
   dip::Image<float, 4> pngGrayNorm(
-      "../../tests/Interface/core/TestGrayImage.png", dip::DIP_GRAYSCALE,
+      "../../../../tests/Interface/core/TestGrayImage.png", dip::DIP_GRAYSCALE,
       true /* norm */);
   // CHECK: PNG
   fprintf(stderr, "%s\n", pngGrayNorm.getFormatName().c_str());
