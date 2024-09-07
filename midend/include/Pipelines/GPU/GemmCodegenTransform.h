@@ -28,7 +28,24 @@ struct GPUGemmCodegenConfigOptions : public PassPipelineOptions<GPUGemmCodegenCo
         llvm::cl::desc("An optional stages config for matmul op")};
 };
 
-void createGPUGemmTileConfigInsertTransform(OpPassManager &pm, const GPUGemmCodegenConfigOptions &options);
+struct GPUGemmGeneralOptions
+    : public PassPipelineOptions<GPUGemmGeneralOptions> {
+  Option<std::string> funcAnchor{
+      *this, "func-anchor",
+      llvm::cl::desc(
+          "An optional Unit attribute anchoring on target functions."),
+      llvm::cl::init("")};
+  Option<std::string> annotatePrefix {
+        *this, "annotate-prefix",
+        llvm::cl::desc("An optional annotate prefix attribute on target ops."),
+        llvm::cl::init("__buddy_gpu_gemm__")};
+};
+
+
+void createGemmTileConfigInsertTransform(OpPassManager &pm, const GPUGemmCodegenConfigOptions &options);
+
+void createGemmTileTransform(OpPassManager &pm,
+                             const GPUGemmGeneralOptions &options);
 
 } // namespace mlir::buddy
 } // namespace mlir

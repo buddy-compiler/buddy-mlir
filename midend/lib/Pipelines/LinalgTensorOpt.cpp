@@ -13,14 +13,20 @@ namespace {
 
 void addGPULinalgOptPasses(OpPassManager &pm) {
     { // Gemm Codegen Linalg Tensor Opt
+        // TileSizeConfig of Dim (M) & Dim(N) & Dim(K) -> BM & BN & BK
         SmallVector<int64_t> tileConfig = {32, 32, 16};
+        // blockIdx.x y z
         SmallVector<int64_t> workGroup = {32, 2, 1};
         int64_t stages = 3;
-        mlir::buddy::GPUGemmCodegenConfigOptions configOption;
-        configOption.tileConfig = tileConfig;
-        configOption.workGroup = workGroup;
-        configOption.stages = stages;
-        createGPUGemmTileConfigInsertTransform(pm, configOption);
+        mlir::buddy::GPUGemmCodegenConfigOptions configOptions;
+        configOptions.tileConfig = tileConfig;
+        configOptions.workGroup = workGroup;
+        configOptions.stages = stages;
+        createGemmTileConfigInsertTransform(pm, configOptions);
+        pm.addPass(createTransformDialectInterpreter(true));
+
+        mlir::buddy::GPUGemmGeneralOptions generalOptions;
+        createGemmTileTransform(pm, generalOptions);
         pm.addPass(createTransformDialectInterpreter(true));
     }
 }

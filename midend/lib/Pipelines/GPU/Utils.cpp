@@ -3,8 +3,11 @@
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 
 #include "Pipelines/GPU/Utils.h"
+
+#include <optional>
 
 using namespace mlir;
 using namespace llvm;
@@ -46,6 +49,60 @@ bool isLinalgMatmul(Operation *op) {
         }
         return true;
     }
+}
+
+
+std::optional<SmallVector<int64_t, 3>> getGemmTileSize(func::FuncOp funcOp) {
+    if (funcOp->hasAttr(getGemmTileMConfigAttrName()) &&
+        funcOp->hasAttr(getGemmTileNConfigAttrName()) &&
+        funcOp->hasAttr(getGemmTileKConfigAttrName())) {
+        auto tileConfigM = funcOp->getAttrOfType<IntegerAttr>(
+                            getGemmTileMConfigAttrName()).getInt();
+        auto tileConfigN = funcOp->getAttrOfType<IntegerAttr>(
+                            getGemmTileNConfigAttrName()).getInt();
+        auto tileConfigK = funcOp->getAttrOfType<IntegerAttr>(
+                            getGemmTileKConfigAttrName()).getInt();
+
+        llvm::SmallVector<int64_t, 3> configVec = {tileConfigM, tileConfigN, tileConfigK};
+
+        return configVec;
+    }
+    return std::nullopt;
+}
+
+std::optional<SmallVector<int64_t, 3>> getGemmBlockSize(func::FuncOp funcOp) {
+    if (funcOp->hasAttr(getGemmBlockXSizeAttrName()) &&
+        funcOp->hasAttr(getGemmBlockYSizeAttrName()) &&
+        funcOp->hasAttr(getGemmBlockZSizeAttrName())) {
+        auto blockSizeX = funcOp->getAttrOfType<IntegerAttr>(
+                            getGemmBlockXSizeAttrName()).getInt();
+        auto blockSizeY = funcOp->getAttrOfType<IntegerAttr>(
+                            getGemmBlockYSizeAttrName()).getInt();
+        auto blockSizeZ = funcOp->getAttrOfType<IntegerAttr>(
+                            getGemmBlockZSizeAttrName()).getInt();
+
+        llvm::SmallVector<int64_t, 3> blockSizeVec = {blockSizeX, blockSizeY, blockSizeZ};
+
+        return blockSizeVec;
+    }
+    return std::nullopt;
+}
+
+std::optional<int64_t> getGemmPipelineStages(func::FuncOp funcOp) {
+    if (funcOp->hasAttr(getGemmPipelineStageAttrName())) {
+        auto stages = funcOp->getAttrOfType<IntegerAttr>(
+                        getGemmPipelineStageAttrName()).getInt();
+        return stages;
+    }
+    return std::nullopt;
+}
+
+void setMarker(Operation *op, StringRef marker) {
+  op->setAttr(marker, UnitAttr::get(op->getContext()));
+}
+
+bool hasMarker(Operation *op, StringRef marker) {
+  return op->hasAttrOfType<UnitAttr>(marker);
 }
 
 } // namespace mlir::buddy

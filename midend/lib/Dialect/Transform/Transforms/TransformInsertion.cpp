@@ -35,7 +35,6 @@ void insertTransformIR(func::FuncOp funcOp, OpBuilder &builder,
                         const TransformInsertionConfig &config) {
     funcOp->walk([&](Operation *op) {
         if (config.opFilter(op)) {
-            op->print(llvm::errs());
             ImplicitLocOpBuilder b(op->getLoc(), builder);
             MLIRContext *ctx = b.getContext();
 
@@ -52,14 +51,11 @@ void insertTransformIR(func::FuncOp funcOp, OpBuilder &builder,
                         loc, blockArg.getType(), blockArg, ArrayAttr(),
                         transform::MatchInterfaceEnumAttr(), annotationAttr, TypeAttr()
                         /*ArrayAttr()*/);
-                    // debug
-                    match->print(llvm::errs());
-                    llvm::errs() << "\n";
                     ImplicitLocOpBuilder ib(loc, b);
+                    // pass op's handle to transform
                     config.transformBuilder(ib, op, match);
                     b.create<transform::YieldOp>(loc);
                 });
-            funcOp->print(llvm::errs());
         }
     });
 }
