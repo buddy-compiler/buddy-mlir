@@ -368,6 +368,32 @@ class GraphPartioner:
                 graph_node = graph.post_dfs_order[i]
                 dom_node = tree.tree_nodes[i]
                 group_node = tree.groups[i]
+
+
+                # if group_node.pattern == OpType.Unfusable:
+                #     continue
+                # if dom_node.parent == None:
+                #     continue
+                # dom_parent_gindex = dom_node.parent_gnode.index
+                # if phase == 2:
+                #     if group_node.pattern > OpType.ElementwiseType:
+                #         continue
+                #     dom_parent_group = tree.groups[dom_parent_gindex]
+                #     dom_root_group = dom_parent_group.FindRoot()
+                #     if dom_root_group.pattern == OpType.GetItemType:
+                #         continue
+                #     if dom_parent_group.pattern == OpType.GetItemType and dom_root_group.pattern == OpType.ElementwiseType:
+                #         def fcond1(kind, is_sink):
+                #             return kind.value <= OpType.ElementwiseType.value
+                #         if self.CheckPath(graph_node, dom_node.parent_gnode, fcond=fcond1, tree=tree):
+                #             self.CommitFuse(graph_node, dom_node.parent_gnode, tree)
+                #     continue
+                # if tree.groups[dom_parent_gindex] != None and group_node.FindRoot() == tree.groups[dom_parent_gindex].FindRoot():
+                #     continue
+                # if tree.groups[dom_parent_gindex].pattern == OpType.GetItemType:
+                #     continue
+
+
                 if dom_node != None and group_node.pattern == OpType.ReduceType:
                     if phase != 0:
                         continue
@@ -381,6 +407,25 @@ class GraphPartioner:
                             self.CommitFuse(
                                 graph_node, dom_node.parent_gnode, tree
                             )
+                # elif group_node.pattern.value <= OpType.BroadcastType.value:
+                #     if dom_node.parent != None and (dom_node.pattern.value <= OpType.ElementwiseType.value or dom_node.pattern == OpType.ReduceType):
+                #         def fcond2(kind, is_sink):
+                #             if is_sink is False:
+                #                 return kind.value <= OpType.ElementwiseType.value
+                #             else:
+                #                 return (kind.value <= OpType.BroadcastType.value or kind == OpType.ReduceType or kind == OpType.ElementwiseType or kind == OpType.ReduceType)
+                #         if self.CheckPath(graph_node, dom_node.parent_gnode, fcond2, tree):
+                #             self.CommitFuse(graph_node, dom_node.parent_gnode, tree)
+                # elif group_node.pattern == OpType.ElementwiseType or group_node.pattern == OpType.GetItemType:
+                #     if phase != 1:
+                #         continue
+                #     def fcond3(kind, is_sink):
+                #         return kind.value <= OpType.ElementwiseType.value
+                #     if self.CheckPath(graph_node, dom_node.parent_gnode, fcond3, tree):
+                #         self.CommitFuse(graph_node, dom_node.parent_gnode, tree)
+                # else:
+                #     pass
+                
             for node in tree.groups:
                 if node.master_ref is not None:
                     logger.info(
