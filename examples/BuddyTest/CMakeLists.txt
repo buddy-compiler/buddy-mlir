@@ -7,9 +7,9 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT forward.o
-  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyTest/forward.mlir -gpu-kernel-outlining -llvm-request-c-wrappers |
+  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyTest/forward.mlir -gpu-kernel-outlining -llvm-request-c-wrappers -convert-vector-to-scf -convert-vector-to-llvm |
           ${LLVM_MLIR_BINARY_DIR}/mlir-opt 
-            -pass-pipeline "builtin.module(nvvm-attach-target{chip=sm_75 O=3},  gpu.module(convert-scf-to-cf, convert-gpu-to-nvvm, convert-arith-to-llvm), convert-scf-to-cf, gpu-to-llvm, gpu-module-to-binary)" |
+            -pass-pipeline "builtin.module(nvvm-attach-target{chip=sm_75 O=3},  gpu.module(convert-scf-to-cf, convert-gpu-to-nvvm, convert-arith-to-llvm), convert-scf-to-cf, gpu-to-llvm, reconcile-unrealized-casts, gpu-module-to-binary)" |
           ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_MLIR_BINARY_DIR}/llvm-as |
           ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O3 -o ${BUDDY_BINARY_DIR}/../examples/BuddyTest/forward.o

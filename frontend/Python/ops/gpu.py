@@ -21,7 +21,7 @@
 
 from typing import Tuple
 import mlir.ir as ir
-from mlir.dialects import gpu, memref, arith, scf
+from mlir.dialects import gpu, memref, arith, scf, vector
 
 from ..graph import TensorDType
 from ..graph import (
@@ -167,37 +167,38 @@ def permute_op(node: PermuteOp, symbol_table):
     operation.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    perm = node.args[1]
-    perm_attr = ir.AffineMapAttr.get(ir.AffineMap.get_permutation(perm))
+    perm_map = node.args[1]
+    perm_map_attr = ir.AffineMapAttr.get(ir.AffineMap.get_permutation(perm_map))
 
     output_shape = list(node.tensor_meta["shape"])
-    element_type = mlir_element_type_get(node.tensor_meta["dtype"])
-    input_shape = [0] * len(output_shape)
-    for i, p in enumerate(perm):
-        input_shape[p] = output_shape[i]
+    dtype = node.tensor_meta["dtype"]
+    
+    element_type = mlir_element_type_get(dtype)
+    element_attr = mlir_element_attr_get(dtype, 0.0)
+    
+    c0 = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), 0))
+    f0 = arith.ConstantOp(element_type, element_attr)
 
-    # Prepare input_stride and output_stride data
-    input_stride = []
-    stride = 1
-    for dim in reversed(input_shape):
-        input_stride.insert(0, stride)
-        stride *= dim
-    output_stride = [input_stride[i] for i in perm]
-
-    offset = 0
-    result_type = ir.MemRefType.get(
-        shape=output_shape,
-        element_type=element_type,
-        layout=ir.StridedLayoutAttr.get(offset, output_stride)
+    v0 = vector.transfer_read(
+        vector=ir.VectorType.get(output_shape, element_type),
+        source=input1,
+        indices=[c0]*len(output_shape),
+        permutation_map=perm_map_attr,
+        padding=f0
     )
-    permute_op = memref.TransposeOp(
-        result=result_type,
-        in_=input1,
-        permutation=perm_attr
-    )    
-    output = memref.AllocOp(ir.MemRefType.get(output_shape, element_type), [], [])
-    memref.CopyOp(permute_op, output)
-    return output
+    
+    transpose = memref.AllocOp(ir.MemRefType.get(output_shape, element_type), [], [])
+
+    vector.transfer_write(
+        result=None,
+        vector=v0,
+        source=transpose,
+        indices=[c0]*len(output_shape),
+        permutation_map=ir.AffineMapAttr.get(
+            ir.AffineMap.get_permutation([i for i in range(len(output_shape))])
+        )
+    )
+    return transpose
 
 
 # TODO: Consider the cases where the arguments take different values.
@@ -246,7 +247,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
 
     batch_size = input_shape[0]
     in_channels = input_shape[1]
-    out_channels = output_shape[0]
+    out_channels = output_shape[1]
     in_size_h = input_shape[2]
     in_size_w = input_shape[3]
     out_size_h = output_shape[2]
