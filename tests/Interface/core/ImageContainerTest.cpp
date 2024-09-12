@@ -199,7 +199,7 @@ int main() {
   fprintf(stderr, "%d \n", testbmp1);
 
   //===--------------------------------------------------------------------===//
-  // Test Opencv blob Image without norm (NCHW)
+  // Test Opencv blob Image (batched images) without norm (NCHW)
   //===--------------------------------------------------------------------===//
   std::vector<cv::Mat> testbmpvec = {testImgcvbmp, testImgcvbmp};
   cv::Mat testcvbmpblob = cv::dnn::blobFromImages(
@@ -213,7 +213,7 @@ int main() {
   fprintf(stderr, "%d \n", testbmpN4);
 
   //===--------------------------------------------------------------------===//
-  // Test Opencv blob Image with norm (NCHW)
+  // Test Opencv blob Image (batched images) with norm (NCHW)
   //===--------------------------------------------------------------------===//
   cv::Mat testcvbmpblob2 = cv::dnn::blobFromImages(
       testbmpvec, 1.0f / 255.0, cv::Size(testImgcvbmp.rows, testImgcvbmp.cols));
@@ -342,7 +342,7 @@ int main() {
   fprintf(stderr, "%d \n", testjpg1);
 
   //===--------------------------------------------------------------------===//
-  // Test Opencv blob Image without norm (NCHW)
+  // Test Opencv blob Image (batched images) without norm (NCHW)
   //===--------------------------------------------------------------------===//
   std::vector<cv::Mat> testjpgvec = {testImgcvjpg, testImgcvjpg};
   cv::Mat testcvjpgblob = cv::dnn::blobFromImages(
@@ -356,7 +356,7 @@ int main() {
   fprintf(stderr, "%d \n", testjpgN4);
 
   //===--------------------------------------------------------------------===//
-  // Test Opencv blob Image with norm (NCHW)
+  // Test Opencv blob Image (batched images) with norm (NCHW)
   //===--------------------------------------------------------------------===//
   cv::Mat testcvjpgblob2 = cv::dnn::blobFromImages(
       testjpgvec, 1.0f / 255.0, cv::Size(testImgcvjpg.rows, testImgcvjpg.cols));
@@ -485,7 +485,7 @@ int main() {
   fprintf(stderr, "%d \n", testpng1);
 
   ///===--------------------------------------------------------------------===//
-  // Test Opencv blob Image without norm (NCHW)
+  // Test Opencv blob Image (batched images) without norm (NCHW)
   //===--------------------------------------------------------------------===//
   std::vector<cv::Mat> testpngvec = {testImgcvpng, testImgcvpng};
   cv::Mat testcvpngblob = cv::dnn::blobFromImages(
@@ -499,7 +499,7 @@ int main() {
   fprintf(stderr, "%d \n", testpngN4);
 
   //===--------------------------------------------------------------------===//
-  // Test Opencv blob Image with norm (NCHW)
+  // Test Opencv blob Image (batched images) with norm (NCHW)
   //===--------------------------------------------------------------------===//
   cv::Mat testcvpngblob2 = cv::dnn::blobFromImages(
       testpngvec, 1.0f / 255.0, cv::Size(testImgcvpng.rows, testImgcvpng.cols));
