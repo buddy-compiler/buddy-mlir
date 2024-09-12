@@ -68,12 +68,11 @@ def maxpool2d_simplify(graph: Graph):
 def varmean_simpplify(graph: Graph):
     """
     Fuse the varmean op and getitem op to simpllify graph.
-
     Args:
         graph (Graph): The Graph to be simplified.
     """
     keys_to_remove = []
-    
+
     for i, key in enumerate(list(graph.op_groups.keys())):
         if key.startswith("var_mean"):
             # getitem_key1 = f"getitem_{int(key.split('var_mean')[1].split('_')[-1]) * 2}" if '_' in key.split('var_mean')[1] else "getitem"
@@ -82,10 +81,12 @@ def varmean_simpplify(graph: Graph):
             getitem_key2 = list(graph.op_groups.keys())[i + 2]
 
             if getitem_key1 in graph.op_groups and getitem_key2 in graph.op_groups:
-                graph.op_groups[key].extend(graph.op_groups[getitem_key1])
-                graph.op_groups[key].extend(graph.op_groups[getitem_key2])
-                
-                keys_to_remove.extend([getitem_key1, getitem_key2])
+                # graph.op_groups[key].extend(graph.op_groups[getitem_key1])
+                # graph.op_groups[key].extend(graph.op_groups[getitem_key2])
+                graph.op_groups[getitem_key1][:0] = graph.op_groups[key]
+                graph.op_groups[getitem_key2][:0] = graph.op_groups[key]
+
+                keys_to_remove.extend([key])
 
     for key in keys_to_remove:
         del graph.op_groups[key]
