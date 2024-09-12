@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the batchmatmul tile optimization.
+// This file implements the batchmatmul scf vectorization optimization.
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/Arith/IR/Arith.h"
