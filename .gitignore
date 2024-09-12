@@ -12,5 +12,3 @@
 
 # Clangd cache
 .cache
-thirdparty/riscv64-glibc-ubuntu-20.04-gcc-nightly-2024.08.06-nightly.tar.gz
-thirdparty/mimalloc
