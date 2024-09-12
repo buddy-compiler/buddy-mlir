@@ -40,31 +40,37 @@
 #include "DAP/DAPOps.h"
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
-#include "RVV/RVVDialect.h"
-#include "VectorExp/VectorExpDialect.h"
-#include "VectorExp/VectorExpOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
+#include "RVV/RVVDialect.h"
 #include "Sche/ScheDialect.h"
 #include "Sche/ScheOps.h"
+#include "VectorExp/VectorExpDialect.h"
+#include "VectorExp/VectorExpOps.h"
 
 namespace mlir {
 namespace buddy {
 void registerConvVectorizationPass();
 void registerPointwiseConvToGemmPass();
+// void registerPointwiseConvToGemmForNhwcFhwcPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
+void registerBatchMatMulOptimizePass();
+void registerBatchMatMulTileOptimizePass();
+void registerBatchMatMuSCFOptimize();
 void registerLowerDAPPass();
 void registerExtendDAPPass();
 void registerDAPVectorizePass();
 void registerLowerRVVPass();
-void registerBatchMatMulOptimizePass();
 void registerMatMulOptimizePass();
 void registerMatMulVectorizationPass();
 void registerMatMulParallelVectorizationPass();
 void registerTransposeOptimizationPass();
 void registerConvOptimizePass();
+void registerConvNhwcFhwcOptimizePass();
+void registerConvNhwcFhwcTileOptimizePass();
+void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
@@ -78,6 +84,7 @@ int main(int argc, char **argv) {
   // Register all MLIR passes.
   mlir::registerAllPasses();
   mlir::buddy::registerPointwiseConvToGemmPass();
+  // mlir::buddy::registerPointwiseConvToGemmForNhwcFhwcPass();
   // Register Vectorization of Convolution.
   mlir::buddy::registerConvVectorizationPass();
   // Register Vectorization of Pooling.
@@ -95,11 +102,16 @@ int main(int argc, char **argv) {
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulOptimizePass();
+  mlir::buddy::registerBatchMatMulOptimizePass();
+  mlir::buddy::registerBatchMatMulTileOptimizePass();
+  mlir::buddy::registerBatchMatMuSCFOptimize();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
-  mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerConvOptimizePass();
+  mlir::buddy::registerConvNhwcFhwcOptimizePass();
+  mlir::buddy::registerConvNhwcFhwcTileOptimizePass();
+  mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
   mlir::buddy::registerDeviceSchedulePass();
   mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();

@@ -81,8 +81,19 @@ public:
 
     const Value zeroElementType = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getZeroAttr(elementType));
-    const Value zeroElementTypeVec = rewriter.create<vector::SplatOp>(
-        loc, VectorType::get({affineVectorSize}, elementType), zeroElementType);
+
+    const Value zeroElementTypeVec =
+        isa<IntegerType>(elementType)
+            ? rewriter
+                  .create<vector::BroadcastOp>(
+                      loc, VectorType::get({affineVectorSize}, elementType),
+                      zeroElementType)
+                  .getResult()
+            : rewriter
+                  .create<vector::SplatOp>(
+                      loc, VectorType::get({affineVectorSize}, elementType),
+                      zeroElementType)
+                  .getResult();
 
     // Get dimensions of input tensors.
     Value batch = rewriter.create<memref::DimOp>(loc, A, 0);
@@ -90,7 +101,8 @@ public:
     Value bCol = rewriter.create<memref::DimOp>(loc, B, 2);
     Value bRow = rewriter.create<memref::DimOp>(loc, B, 1);
 
-    // Calculate the length of the tail, which might not fit in a vector.
+    // Calculate the length of the tail, which might not fit in a
+    // vector.
     Value tailLength = rewriter.create<affine::AffineApplyOp>(
         loc, AffineMap::get(1, 0, d0 % affineVectorSize), ValueRange{bCol});
 
@@ -148,8 +160,8 @@ public:
               C.getType().cast<MemRefType>().getDimSize(2) % affineVectorSize !=
                   0) {
 
-            // Depending on the position, use either full vectors or tail
-            // vectors.
+            // Depending on the position, use either full vectors or
+            // tail vectors.
             affine::AffineIfOp branchingOp = builder.create<affine::AffineIfOp>(
                 loc,
                 IntegerSet::get(
@@ -192,9 +204,9 @@ public:
                                        loopVarColOfB});
                         Value computedVec;
 
-                        // Compute the result vector either through integer
-                        // multiplication and addition or fused multiply-add
-                        // based on the element type.
+                        // Compute the result vector either through
+                        // integer multiplication and addition or fused
+                        // multiply-add based on the element type.
                         if (isa<IntegerType>(elementType)) {
                           Value mulVec =
                               builder.create<arith::MulIOp>(loc, aVec, bVec);
@@ -248,9 +260,9 @@ public:
                             maskVector, zeroElementTypeVec);
                         Value computedVec;
 
-                        // Compute the result vector either through integer
-                        // multiplication and addition or fused multiply-add
-                        // based on the element type.
+                        // Compute the result vector either through
+                        // integer multiplication and addition or fused
+                        // multiply-add based on the element type.
                         if (isa<IntegerType>(elementType)) {
                           Value mulVec =
                               builder.create<arith::MulIOp>(loc, aVec, bVec);
@@ -301,9 +313,9 @@ public:
                                        loopVarColOfB});
                         Value computedVec;
 
-                        // Compute the result vector either through integer
-                        // multiplication and addition or fused multiply-add
-                        // based on the element type.
+                        // Compute the result vector either through
+                        // integer multiplication and addition or fused
+                        // multiply-add based on the element type.
                         if (isa<IntegerType>(elementType)) {
                           Value mulVec =
                               builder.create<arith::MulIOp>(loc, aVec, bVec);
