@@ -24,12 +24,11 @@
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImageContainer.h>
 
-bool compare_flt(float a, float b) {
-  return (std::abs(a - b)< FLT_EPSILON);
-}
+bool compare_flt(float a, float b) { return (std::abs(a - b) < FLT_EPSILON); }
 
 template <typename T, size_t N>
-bool testImgcvnorm(cv::Mat testImgcv, Img<T, N> testImg, bool norm = false,intptr_t sizes[N]=nullptr) {
+bool testImgcvnorm(cv::Mat testImgcv, Img<T, N> testImg, bool norm = false,
+                   intptr_t sizes[N] = nullptr) {
   int cvn = testImgcv.dims;
   if (cvn != N)
     return false;
@@ -124,12 +123,10 @@ int main() {
   fprintf(stderr, "%ld\n", testCopyConstructor2.getSize());
   // CHECK: 60.0
   fprintf(stderr, "%f\n", testCopyConstructor2[3]);
-  Img<float, 2> testCopyConstructor3 =
-      Img<float, 2>(grayimage_bmp);
+  Img<float, 2> testCopyConstructor3 = Img<float, 2>(grayimage_bmp);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor3[0]);
-  Img<float, 2> *testCopyConstructor4 =
-      new Img<float, 2>(grayimage_bmp);
+  Img<float, 2> *testCopyConstructor4 = new Img<float, 2>(grayimage_bmp);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor4->getData()[0]);
   delete testCopyConstructor4;
@@ -208,21 +205,21 @@ int main() {
   cv::Mat testcvbmpblob = cv::dnn::blobFromImages(
       testbmpvec, 1.0, cv::Size(testImgcvbmp.rows, testImgcvbmp.cols));
   intptr_t sizesbmp[4] = {testcvbmpblob.size[0], testcvbmpblob.size[1],
-                       testcvbmpblob.size[2], testcvbmpblob.size[3]};
+                          testcvbmpblob.size[2], testcvbmpblob.size[3]};
   Img<float, 4> testImgbmpblob(testcvbmpblob, sizesbmp, false);
   bool testbmpN4 =
       testImgcvnorm<float, 4>(testcvbmpblob, testImgbmpblob, false, sizesbmp);
   // CHECK: 1
   fprintf(stderr, "%d \n", testbmpN4);
- 
+
   //===--------------------------------------------------------------------===//
   // Test Opencv blob Image with norm (NCHW)
   //===--------------------------------------------------------------------===//
   cv::Mat testcvbmpblob2 = cv::dnn::blobFromImages(
       testbmpvec, 1.0f / 255.0, cv::Size(testImgcvbmp.rows, testImgcvbmp.cols));
   Img<float, 4> testImgbmpblobnorm(testcvbmpblob, sizesbmp, true);
-  bool testbmpN4norm =
-      testImgcvnorm<float, 4>(testcvbmpblob2, testImgbmpblobnorm, true, sizesbmp);
+  bool testbmpN4norm = testImgcvnorm<float, 4>(
+      testcvbmpblob2, testImgbmpblobnorm, true, sizesbmp);
   // CHECK: 1
   fprintf(stderr, "%d \n", testbmpN4norm);
 
@@ -267,12 +264,10 @@ int main() {
   fprintf(stderr, "%ld\n", testCopyConstructor6.getSize());
   // CHECK: 60.0
   fprintf(stderr, "%f\n", testCopyConstructor6[3]);
-  Img<float, 2> testCopyConstructor7 =
-      Img<float, 2>(grayimage_jpg);
+  Img<float, 2> testCopyConstructor7 = Img<float, 2>(grayimage_jpg);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor7[0]);
-  Img<float, 2> *testCopyConstructor8 =
-      new Img<float, 2>(grayimage_jpg);
+  Img<float, 2> *testCopyConstructor8 = new Img<float, 2>(grayimage_jpg);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor8->getData()[0]);
   delete testCopyConstructor8;
@@ -412,12 +407,10 @@ int main() {
   fprintf(stderr, "%ld\n", testCopyConstructor10.getSize());
   // CHECK: 60.0
   fprintf(stderr, "%f\n", testCopyConstructor10[3]);
-  Img<float, 2> testCopyConstructor11 =
-      Img<float, 2>(grayimage_png);
+  Img<float, 2> testCopyConstructor11 = Img<float, 2>(grayimage_png);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor11[0]);
-  Img<float, 2> *testCopyConstructor12 =
-      new Img<float, 2>(grayimage_png);
+  Img<float, 2> *testCopyConstructor12 = new Img<float, 2>(grayimage_png);
   // CHECK: 15.0
   fprintf(stderr, "%f\n", testCopyConstructor12->getData()[0]);
   delete testCopyConstructor12;
@@ -504,7 +497,7 @@ int main() {
       testImgcvnorm<float, 4>(testcvpngblob, testImgpngblob, false, sizespng);
   // CHECK: 1
   fprintf(stderr, "%d \n", testpngN4);
- 
+
   //===--------------------------------------------------------------------===//
   // Test Opencv blob Image with norm (NCHW)
   //===--------------------------------------------------------------------===//
