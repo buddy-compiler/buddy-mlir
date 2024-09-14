@@ -40,4 +40,5 @@ target_link_libraries(buddy-opt
   BuddyPipelines
   BuddyGPUPipelines
   BuddyTransformPasses
+  BuddyLinalgPasses
   )

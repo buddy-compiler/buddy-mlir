@@ -2,10 +2,17 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 
-#include "Pipelines/GPU/Utils.h"
+#include "Utils/GemmCodegenUtils.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/MLIRContext.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <optional>
 
@@ -14,6 +21,14 @@ using namespace llvm;
 
 namespace mlir {
 namespace buddy {
+
+void setMarker(Operation *op, StringRef marker) {
+  op->setAttr(marker, UnitAttr::get(op->getContext()));
+}
+
+bool hasMarker(Operation *op, StringRef marker) {
+  return op->hasAttrOfType<UnitAttr>(marker);
+}
 
 bool isLinalgMatmul(Operation *op) {
     if (!llvm::isa<linalg::LinalgOp>(op)) {
@@ -97,12 +112,50 @@ std::optional<int64_t> getGemmPipelineStages(func::FuncOp funcOp) {
     return std::nullopt;
 }
 
-void setMarker(Operation *op, StringRef marker) {
-  op->setAttr(marker, UnitAttr::get(op->getContext()));
+bool funcHasGemm(func::FuncOp funcOp) {
+    // TODO
+    return true;
 }
 
-bool hasMarker(Operation *op, StringRef marker) {
-  return op->hasAttrOfType<UnitAttr>(marker);
+bool isMappedToGPUBlock(scf::ForallOp forallOp) {
+
+    SmallVector<int64_t> mappingIdx{2, 1, 0}; 
+    MLIRContext ctx;
+    ctx.loadDialect<gpu::GPUDialect>();
+    auto mapping = llvm::to_vector(llvm::map_range(
+            mappingIdx, 
+            [](int64_t i){return static_cast<gpu::MappingId>(i);}));
+    auto mappingAttrs = llvm::to_vector(llvm::map_range(
+            mapping,
+            [&](gpu::MappingId dim) -> Attribute {
+                return gpu::GPUBlockMappingAttr::get(&ctx, dim);}));
+    ArrayAttr getMappingAttrs = forallOp->getAttrOfType<ArrayAttr>("mapping");
+
+    if (!getMappingAttrs) {
+        return false;
+    } else {
+        for (auto mappingAttr : getMappingAttrs) {
+            if (mappingAttr.isa<gpu::GPUBlockMappingAttr>()) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+std::optional<scf::ForallOp> getForallOpMappedToBlock(func::FuncOp funcOp) {
+    SmallVector<scf::ForallOp> forallOps;
+    funcOp->walk([&](scf::ForallOp forallOp){
+        if (isMappedToGPUBlock(forallOp)) {
+            forallOps.push_back(forallOp);
+        }
+    });
+    // one func one kernel -> one func only have one forallOp mapped to block
+    if (forallOps.size() != 1) {
+        llvm::errs() << "this funcOp has no ForallOp MappedToBlock\n";
+        return std::nullopt; 
+    }
+    return forallOps[0];
 }
 
 } // namespace mlir::buddy

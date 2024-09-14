@@ -1,6 +1,7 @@
 #include "Transform/Transforms/TransformInsertion.h"
 #include "Pipelines/GPU/GemmCodegenTransform.h"
-#include "Pipelines/GPU/Utils.h"
+#include "Utils/GemmCodegenUtils.h"
+#include "Utils/PipelineUtils.h"
 
 #include "mlir/Dialect/Transform/IR/TransformOps.h"
 #include "mlir/Dialect/PDL/IR/PDLOps.h"

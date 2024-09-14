@@ -1,6 +1,5 @@
 add_mlir_library(BuddyGPUPipelines
   GemmCodegenTransform.cpp
-  Utils.cpp
 
   LINK_LIBS PUBLIC
   MLIRIR
@@ -8,4 +7,5 @@ add_mlir_library(BuddyGPUPipelines
   MLIRTransformDialect
   MLIRTransforms
   BuddyTransformPasses
+  BuddyGemmCodegenUtils
 )

@@ -1,8 +1,12 @@
 #ifndef PIPELINES_GPU_UTILS_H
 #define PIPELINES_GPU_UTILS_H
 
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
+#include "llvm/ADT/StringRef.h"
+#include <mlir/Dialect/SCF/IR/SCF.h>
+#include <optional>
 
 namespace mlir {
 class ModuleOp;
@@ -13,25 +17,15 @@ class FuncOp;
 
 namespace buddy {
 
-template <typename OpClass = ModuleOp, typename Builder, typename... Args>
-void invokeOpPassPipelineBuilder(Builder builder, OpPassManager &pm,
-                                 Args &&...args) {
-  if (pm.getOpAnchorName() != OpPassManager::getAnyOpAnchorName() &&
-      pm.getOpAnchorName() != OpClass::getOperationName()) {
-    if (pm.getNesting() == OpPassManager::Nesting::Implicit) {
-      builder(pm.nest<OpClass>(), std::forward<Args>(args)...);
-      return;
-    }
-    llvm::report_fatal_error(
-        llvm::Twine("Can't build pass pipeline on expected op type ") +
-        OpClass::getOperationName() + " but got " + pm.getOpAnchorName());
-  } else {
-    builder(pm, std::forward<Args>(args)...);
-  }
-}
-
 bool isLinalgMatmul(Operation *op);
 
+void setMarker(mlir::Operation *op, llvm::StringRef marker);
+
+bool hasMarker(Operation *op, StringRef marker);
+
+static constexpr StringRef getGemmMarkerAttrName() {
+    return "__buddy_gemm__";
+}
 
 static constexpr StringRef getGemmTileMConfigAttrName() {
     return "__buddy_gemm_tile_config__M";
@@ -65,12 +59,37 @@ static constexpr StringRef getMatmulKMainLoopMarker() {
     return "__buddy_gemm_main_loopk__";
 }
 
-constexpr StringRef getLinalgMMALevelAttrName() {
-  return "__buddy_mma_level__";
+static constexpr StringRef getLinalgMMALevelAttrName() {
+    return "__buddy_mma_level__";
 }
 
-constexpr StringRef getMMAPatternAttrName() { return "__buddy_mma__"; }
+static constexpr StringRef getMMAPatternAttrName() { 
+    return "__buddy_mma__"; 
+}
 
+static constexpr StringRef getAllocSharedMemoryAMarker() {
+    return "__buddy_smem_matrix_a__";
+};
+
+static constexpr StringRef getAllocSharedMemoryBMarker() {
+    return "__buddy_smem_matrix_b__";
+};
+
+static constexpr StringRef getAllocSharedMemoryAccMarker() {
+    return "__buddy_smem_accumulator__";
+};
+
+static constexpr StringRef getCopyToSharedMemoryAMarker() {
+    return "__buddy_load_matrix_a__";
+};
+
+static constexpr StringRef getCopyToSharedMemoryBMarker() {
+    return "__buddy_load_matrix_b__";
+};
+
+static constexpr StringRef getCopyFromSharedMemoryAccMarker() {
+    return "__buddy_store_matrix_c__";
+};
 
 std::optional<SmallVector<int64_t, 3>> getGemmTileSize(func::FuncOp funcOp);
 
@@ -78,12 +97,13 @@ std::optional<SmallVector<int64_t, 3>> getGemmBlockSize(func::FuncOp funcOp);
 
 std::optional<int64_t> getGemmPipelineStages(func::FuncOp funcOp);
 
-void setMarker(mlir::Operation *op, llvm::StringRef marker);
+bool funcHasGemm(func::FuncOp funcOp);
 
-bool hasMarker(Operation *op, StringRef marker);
+bool isMappedToGPUBlock(scf::ForallOp forallOp);
 
+std::optional<scf::ForallOp> getForallOpMappedToBlock(func::FuncOp funcOp);
 
-} // namespace buddy::pipelines
-} // namespace buddy
+} // namespace mlir::buddy
+} // namespace mlir
 
 #endif

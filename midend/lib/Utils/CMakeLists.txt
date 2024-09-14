@@ -3,6 +3,8 @@ add_mlir_library(BuddyUtils
   DIPUtils.cpp
   DAPUtils.cpp
   AffineTransformUtils.cpp
+  GemmCodegenUtils.cpp
+  PipelineUtils.cpp
   )
 
 add_mlir_library(BuddyDIPUtils
@@ -18,3 +20,17 @@ add_mlir_library(BuddyDAPUtils
   LINK_LIBS PUBLIC
   BuddyUtils
   )
+
+add_mlir_library(BuddyGemmCodegenUtils
+  GemmCodegenUtils.cpp
+  
+  LINK_LIBS PUBLIC
+  BuddyUtils
+)
+
+add_mlir_library(BuddyPipelineUtils
+  PipelineUtils.cpp
+  
+  LINK_LIBS PUBLIC
+  BuddyUtils
+)
