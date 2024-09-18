@@ -28,7 +28,7 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
-from buddy.compiler.ops import tosa
+from buddy.compiler.ops import tosa, gpu
 from model import LeNet
 
 # Retrieve the LeNet model path from environment variables.
@@ -44,7 +44,7 @@ model = model.eval()
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
+    primary_registry=gpu.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
 )
 

@@ -26,6 +26,7 @@ import numpy as np
 
 import mlir.ir as ir
 import mlir.dialects.func as func
+import mlir.dialects.bufferization as buffer
 from mlir.passmanager import *
 from mlir.execution_engine import *
 from mlir import runtime as rt
@@ -105,6 +106,7 @@ class Graph:
         fake_params: List[TensorMeta],
         ops_registry: dict,
         func_name: str,
+        device: DeviceType = DeviceType.GPU
     ) -> None:
         """
         Initializes the Graph.
@@ -123,7 +125,7 @@ class Graph:
         self._inputs = inputs
         self.node_table: Dict[str, Op] = {}
         self._fake_params = fake_params
-        self.device = "cpu"
+        self.device = device
         self._imported_module = None
         self._ops_registry = ops_registry
         self._func_name = func_name
@@ -174,7 +176,7 @@ class Graph:
                 continue
             group = [op]
             subgraph_name = "subgraph{}".format(i)
-            self.group_map_device[subgraph_name] = DeviceType.UNKNOW
+            self.group_map_device[subgraph_name] = DeviceType.GPU
             self.op_groups[subgraph_name] = group
 
     def fuse_ops(self, pattern_list: List[FunctionType]):
@@ -237,6 +239,8 @@ class Graph:
                 self._inputs,
                 self._func_name,
                 self._ops_registry,
+                False,
+                self.device
             )
             self._imported_module = fx_importer.import_graph()
             outputs = fx_importer.get_output_nodes()
@@ -347,6 +351,7 @@ class GraphImporter:
         func_name: str,
         ops_registry: dict,
         do_param_pack: bool = False,
+        device: DeviceType = DeviceType.CPU,
     ):
         """
         Initializes the buddy Graph importer.
@@ -361,7 +366,7 @@ class GraphImporter:
             ops_registry = {}
         self._symbol_table = {}
         self._body = body
-        self._device = DeviceType.GPU
+        self._device = device
         self._func_name = func_name
         self._params = params
         self._inputs = inputs
@@ -441,7 +446,7 @@ class GraphImporter:
                 shape_list = list(arg.shape)
                 dtype = arg.dtype
                 mlir_dtype = self._str_to_mlir_dtype(dtype)
-                tensor_arg = ir.MemRefType.get(shape_list, mlir_dtype)
+                tensor_arg = ir.RankedTensorType.get(shape_list, mlir_dtype)
                 arguments.append(tensor_arg)
             extern_func = []
             for node in self._body:
@@ -461,6 +466,11 @@ class GraphImporter:
                             self._symbol_table.get((str(output_arg), 0))
                             for output_arg in output_node_args
                         ]
+                        # if self._device == DeviceType.GPU:
+                        #     returns = [
+                        #         buffer.to_tensor(ret)
+                        #         for ret in returns
+                        #     ]
                         self._symbol_table[("output", 0)] = returns
                     elif isinstance(node, PlaceholderOp):
                         self._import_placeholder(node, args_list)
@@ -576,6 +586,16 @@ class GraphImporter:
                 placeholder_name = args_list[self._num_input_visited]
         else:
             placeholder_name = args_list[self._num_input_visited]
+
+        # TODO : Consider converting arg type from RankedTensorType to MemRefType
+        if self._device == DeviceType.GPU:
+            placeholder_name = buffer.to_memref(
+                ir.MemRefType.get(
+                    list(node.tensor_meta.shape), 
+                    self._str_to_mlir_dtype(node.tensor_meta.dtype)
+                ),
+                placeholder_name
+            )
 
         self._symbol_table[(str(node.name), 0)] = placeholder_name
         self._num_input_visited += 1

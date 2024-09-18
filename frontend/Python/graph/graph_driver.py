@@ -112,6 +112,7 @@ class GraphDriver:
         for subgraph_name in self._graph.op_groups.keys():
             subgraph_input = []
             subgraph_body = []
+            subgraph_device = self._graph.group_map_device[subgraph_name]
 
             # Construct input placeholder nodes
             for inp in subgraphs_inputs[subgraph_name]:
@@ -142,7 +143,11 @@ class GraphDriver:
 
             # Create subgraph and add it to the dictionary
             subgraph = Graph(
-                subgraph_input, [], self._graph._ops_registry, subgraph_name
+                subgraph_input,
+                [], 
+                self._graph._ops_registry, 
+                subgraph_name,
+                subgraph_device
             )
             subgraph.body = subgraph_body
             for op in subgraph_body:

@@ -39,7 +39,7 @@ def simply_fuse(graph: Graph):
     - None: Modifies the input graph in place.
     """
     new_op_group = []
-    device = DeviceType.UNKNOW
+    device = DeviceType.GPU
     for op in graph.body:
         if isinstance(op, PlaceholderOp):
             continue
