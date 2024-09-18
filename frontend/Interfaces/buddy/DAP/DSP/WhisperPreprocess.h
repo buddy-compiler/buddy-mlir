@@ -29,15 +29,24 @@ namespace dap {
 namespace detail {
 // Declare the whisper preprocess C interface.
 extern "C" {
-void _mlir_ciface_buddy_whisperPreprocess(MemRef<double, 1> *inputRawSpeech,
-                                          MemRef<float, 3> *outputFeatures);
+// The original MLIR function:
+//    ```mlir
+//    func.func @buddy_whisperPreprocess(%in : memref<?xf64>) ->
+//        memref<1x80x3000xf32>
+//    ```
+//
+// After applying the '-llvm-request-c-wrappers' pass:
+//    The result of the function (memref<1x80x3000xf32>) is modified to be the
+//    first operand.
+void _mlir_ciface_buddy_whisperPreprocess(MemRef<float, 3> *outputFeatures,
+                                          MemRef<double, 1> *inputRawSpeech);
 }
 } // namespace detail
 
 // Function for Whisper preprocess
 void whisperPreprocess(MemRef<double, 1> *inputRawSpeech,
                        MemRef<float, 3> *outputFeatures) {
-  detail::_mlir_ciface_buddy_whisperPreprocess(inputRawSpeech, outputFeatures);
+  detail::_mlir_ciface_buddy_whisperPreprocess(outputFeatures, inputRawSpeech);
 }
 
 } // namespace dap
