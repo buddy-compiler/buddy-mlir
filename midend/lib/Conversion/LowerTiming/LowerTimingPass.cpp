@@ -262,8 +262,9 @@ public:
 
   Option<std::string> OpNameOption{
       *this, "timing", llvm::cl::desc("Timing an op name"),
-      llvm::cl::init("linalg.conv2d")}; // linalg.conv_2d  linalg.generic
-                                        // tosa.mul linalg.matmul tosa.transpose
+      llvm::cl::init(
+          "linalg.conv_2d")}; // linalg.conv_2d  linalg.generic
+                              // tosa.mul linalg.matmul tosa.transpose
 
   StringRef getArgument() const final { return "timing"; }
   StringRef getDescription() const final { return "Timing Dialect."; }

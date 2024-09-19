@@ -87,7 +87,7 @@ timing-llama-run:
 timing-conv2d-lower:
 	@${BUDDY_OPT} ./timing-conv2d.mlir \
 		--timing --lower-timing | \
-    @${MLIR_OPT} \
+    ${MLIR_OPT} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts \
@@ -96,7 +96,7 @@ timing-conv2d-lower:
 timing-conv2d-translate:
 	@${BUDDY_OPT} ./timing-conv2d.mlir \
 		--timing --lower-timing | \
-	@${MLIR_OPT} \
+	${MLIR_OPT} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
@@ -105,7 +105,7 @@ timing-conv2d-translate:
 timing-conv2d-run:
 	@${BUDDY_OPT} ./timing-conv2d.mlir \
 		--timing --lower-timing | \
-	@${MLIR_OPT} ${MLIR_OPT_OPTIONS} \
+	${MLIR_OPT} ${MLIR_OPT_OPTIONS} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
