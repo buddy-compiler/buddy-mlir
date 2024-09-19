@@ -1,5 +1,4 @@
-//====- ConvNhwcFhwcOptimize.cpp
-//--------------------------------------------------===//
+//====- ConvNhwcFhwcOptimize.cpp----------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -86,7 +85,6 @@ public:
       dilWidth = convOp.getDilations().getValues<int64_t>()
                      [convOp.getDilations().getValues<int64_t>().size() - 1];
     }
-
 
     ShapedType inputTy = input.getType().cast<ShapedType>();
     Type elemTy = inputTy.getElementType();

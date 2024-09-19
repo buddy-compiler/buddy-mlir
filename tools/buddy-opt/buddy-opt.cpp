@@ -52,7 +52,7 @@ namespace mlir {
 namespace buddy {
 void registerConvVectorizationPass();
 void registerPointwiseConvToGemmPass();
-// void registerPointwiseConvToGemmForNhwcFhwcPass();
+void registerPointwiseConvToGemmForNhwcFhwcPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
