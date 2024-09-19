@@ -48,6 +48,10 @@
 #include "Sche/ScheOps.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
+#include "Trace/TraceDialect.h"
+#include "Trace/TraceOps.h"
+#include "VectorExp/VectorExpDialect.h"
+#include "VectorExp/VectorExpOps.h"
 
 namespace mlir {
 namespace buddy {
@@ -56,6 +60,8 @@ void registerPointwiseConvToGemmPass();
 void registerPointwiseConvToGemmForNhwcFhwcPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
+void registerLowerTracePass();
+void registerTracePass();
 void registerLowerDIPPass();
 void registerBatchMatMulOptimizePass();
 void registerBatchMatMulTileOptimizePass();
@@ -92,6 +98,8 @@ int main(int argc, char **argv) {
   // Register Vectorization of Pooling.
   mlir::buddy::registerPoolingVectorizationPass();
   mlir::buddy::registerLowerBudPass();
+  mlir::buddy::registerLowerTracePass();
+  mlir::buddy::registerTracePass();
   mlir::buddy::registerLowerDIPPass();
   mlir::buddy::registerLowerDAPPass();
   mlir::buddy::registerExtendDAPPass();
@@ -129,6 +137,7 @@ int main(int argc, char **argv) {
   // Register dialects in buddy-mlir project.
   // clang-format off
   registry.insert<buddy::bud::BudDialect,
+                  buddy::trace::TraceDialect,
                   buddy::dip::DIPDialect,
                   buddy::dap::DAPDialect,
                   buddy::rvv::RVVDialect,
