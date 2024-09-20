@@ -1,3 +1,5 @@
+// RUN: buddy-opt %s --lower-trace | FileCheck %s 
+
 #map = affine_map<(d0, d1) -> (d0 + d1 - 1)>
 
 module {
@@ -28,9 +30,11 @@ module {
     %input = call @alloc_2d_filled_f32(%c10, %c10, %cst_one) : (index, index, f32) -> memref<?x?xf32>
     %output = call @alloc_2d_filled_f32(%c8, %c8, %cst_zero) : (index, index, f32) -> memref<?x?xf32>
     // start timing 
+    // CHECK: call @rtclock() : () -> f64
     %start_time = trace.time_start : -> f64 
     linalg.conv_2d ins(%input, %filter : memref<?x?xf32>, memref<?x?xf32>) outs(%output : memref<?x?xf32>)
     // end timing
+    // CHECK: call @rtclock() : () -> f64
     %end_time = trace.time_end : -> f64
     %elapsed_time = arith.subf %end_time, %start_time : f64
     call @printF64(%elapsed_time) : (f64) -> ()
