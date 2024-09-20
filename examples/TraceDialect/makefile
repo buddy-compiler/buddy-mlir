@@ -20,7 +20,7 @@ endif
 
 trace-conv2d-lower:
 	@${BUDDY_OPT} ./trace-conv2d.mlir \
-		--trace --lower-trace | \
+		 --lower-trace | \
     ${MLIR_OPT} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
@@ -29,7 +29,7 @@ trace-conv2d-lower:
 
 trace-conv2d-translate:
 	@${BUDDY_OPT} ./trace-conv2d.mlir \
-		--trace --lower-trace | \
+		 --lower-trace | \
 	${MLIR_OPT} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
