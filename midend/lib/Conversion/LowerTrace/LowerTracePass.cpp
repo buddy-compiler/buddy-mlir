@@ -49,12 +49,12 @@ public:
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
 
-    // 确保rtclock函数的符号存在
+    // Ensure that the symbol for the rtclock function exists
     auto module = op->getParentOfType<mlir::ModuleOp>();
     mlir::FlatSymbolRefAttr funcSymbol;
     auto rtclockFunc = module.lookupSymbol<mlir::func::FuncOp>("rtclock");
     if (!rtclockFunc) {
-      // 如果函数不存在，则声明它
+      // If the function does not exist, it is declared
       auto funcType = rewriter.getFunctionType({}, rewriter.getF64Type());
       rtclockFunc = rewriter.create<mlir::func::FuncOp>(module.getLoc(),
                                                         "rtclock", funcType);
@@ -83,12 +83,12 @@ public:
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
 
-    // 确保rtclock函数的符号存在
+    // make sure rtclock exist
     auto module = op->getParentOfType<mlir::ModuleOp>();
     mlir::FlatSymbolRefAttr funcSymbol;
     auto rtclockFunc = module.lookupSymbol<mlir::func::FuncOp>("rtclock");
     if (!rtclockFunc) {
-      // 如果函数不存在，则声明它
+      // if rtclock not exist , than create it
       auto funcType = rewriter.getFunctionType({}, rewriter.getF64Type());
       rtclockFunc = rewriter.create<mlir::func::FuncOp>(module.getLoc(),
                                                         "rtclock", funcType);
@@ -99,11 +99,11 @@ public:
           mlir::SymbolRefAttr::get(op.getContext(), rtclockFunc.getName());
     }
 
-    // 创建一个调用rtclock的操作
+    // Create an operation that calls rtclock
     auto callOp = rewriter.create<mlir::func::CallOp>(
         loc, rewriter.getF64Type(), funcSymbol, ValueRange());
 
-    // 用新的call操作替换原有的StartOp
+    // Replace EndOp with new call operation
     rewriter.replaceOp(op, callOp.getResults());
 
     return success();
@@ -149,34 +149,6 @@ public:
   }
 };
 
-class TracePass : public PassWrapper<TracePass, OperationPass<ModuleOp>> {
-public:
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TracePass)
-  TracePass() = default;
-  TracePass(const TracePass &) {}
-
-  Option<std::string> OpNameOption{
-      *this, "trace", llvm::cl::desc("Trace an op name"),
-      llvm::cl::init(
-          "linalg.conv_2d")}; // linalg.conv_2d  linalg.generic
-                              // tosa.mul linalg.matmul tosa.transpose
-
-  StringRef getArgument() const final { return "trace"; }
-  StringRef getDescription() const final { return "Trace Dialect."; }
-
-  void runOnOperation() override;
-
-  void getDependentDialects(DialectRegistry &registry) const override {
-    // clang-format off
-    registry.insert<
-        trace::TraceDialect,
-        func::FuncDialect,
-        vector::VectorDialect,
-        memref::MemRefDialect,
-        LLVM::LLVMDialect>();
-    // clang-format on
-  }
-};
 
 } // end anonymous namespace.
 
@@ -202,120 +174,9 @@ void LowerTracePass::runOnOperation() {
     signalPassFailure();
 }
 
-// void TracePass::runOnOperation() {
-//   MLIRContext *context = &getContext();
-//   ModuleOp module = getOperation();
-//   OpBuilder builder(context);
-
-//   // 在module的开头插入rtclock函数声明，memref 计时器的内存。
-//   builder.setInsertionPointToStart(module.getBody());
-
-//   // func.func @rtclock
-//   auto funcType = builder.getFunctionType({}, builder.getF64Type());
-//   auto rtclockFunc =
-//       builder.create<mlir::func::FuncOp>(module.getLoc(), "rtclock", funcType);
-//   rtclockFunc.setPrivate();
-
-//   // func.func private @printMemrefF64(memref<*xf64>)
-//   mlir::Type memrefType1 =
-//       mlir::UnrankedMemRefType::get(builder.getF64Type(), /*memorySpace=*/0);
-//   auto printmemrefFuncType = builder.getFunctionType({memrefType1}, {});
-//   auto printMemrefFunc = builder.create<mlir::func::FuncOp>(
-//       module.getLoc(), "printMemrefF64", printmemrefFuncType);
-//   printMemrefFunc.setPrivate();
-
-//   // func.func private @printF64(f64)
-//   auto printF64FuncType = builder.getFunctionType({builder.getF64Type()}, {});
-//   auto printF64Func = builder.create<mlir::func::FuncOp>(
-//       module.getLoc(), "printF64", printF64FuncType);
-//   printF64Func.setPrivate();
-
-//   // printNewline ()
-//   auto printNewlineType = builder.getFunctionType({}, {});
-//   auto printNewlineFunc = builder.create<mlir::func::FuncOp>(
-//       module.getLoc(), "printNewline", printNewlineType);
-//   printNewlineFunc.setPrivate();
-
-//   // 遍历
-//   module.walk([&](mlir::func::FuncOp funcOp) {
-//     // llvm::outs() << "Function name: " << funcOp.getName() << "\n";
-//     if (funcOp == rtclockFunc || funcOp == printMemrefFunc ||
-//         funcOp == printF64Func || funcOp == printNewlineFunc) {
-//       // llvm::outs() << "return\n";
-//       return;
-//     }
-
-//     // 先遍历一遍，记录op的数量
-//     int opNum = 0;
-//     std::vector<Operation *> ops;
-//     Operation *returnOp;
-//     funcOp.walk([&](Operation *op) {
-//       // llvm::outs << op->getName().getStringRef() << "\n";
-//       // 检查操作是否是我们感兴趣的特定类型
-//       if (op->getName().getStringRef() == OpNameOption) {
-//         opNum++;
-//         ops.push_back(op);
-//       } else if (op->getName().getStringRef() == "return") {
-//         returnOp = op;
-//       }
-//     });
-
-//     if (ops.empty()) {
-//       // llvm::outs() << "No " << OpNameOption << '\n';
-//       return;
-//     }
-
-//     // 将插入点插入到函数的开头
-//     builder.setInsertionPointToStart(&funcOp.getBody().front());
-
-//     // 插入memref.alloc
-//     auto memrefType = MemRefType::get({opNum}, builder.getF64Type());
-//     Value memrefAlloc =
-//         builder.create<mlir::memref::AllocOp>(module.getLoc(), memrefType);
-
-//     // 常数
-//     Value idx =
-//         builder.create<mlir::arith::ConstantIndexOp>(module.getLoc(), 0);
-//     Value c1 = builder.create<mlir::arith::ConstantIndexOp>(module.getLoc(), 1);
-//     Value all_duration = builder.create<arith::ConstantOp>(
-//         module.getLoc(), builder.getF64Type(), builder.getF64FloatAttr(0.0));
-
-
-//     for (auto op : ops) {
-   
-//       builder.setInsertionPoint(op);
-//       Value startOp = builder.create<trace::StartOp>(op->getLoc());
-
-//       builder.setInsertionPointAfter(op);
-//       Value endOp = builder.create<trace::EndOp>(op->getLoc());
-//       Value SubOp =
-//           builder.create<mlir::arith::SubFOp>(op->getLoc(), endOp, startOp);
-//       builder.create<mlir::memref::StoreOp>(op->getLoc(), SubOp, memrefAlloc,
-//                                             ValueRange(idx));
-//       all_duration = builder.create<mlir::arith::AddFOp>(op->getLoc(),
-//                                                          all_duration, SubOp);
-//       idx = builder.create<mlir::arith::AddIOp>(op->getLoc(), idx, c1);
-//     }
-
-//     // builder.setInsertionPoint(returnOp);
-//     // cast memref<opNumxf64> -> memref<*xf64>
-//     Value result = builder.create<memref::CastOp>(ops.back()->getLoc(),
-//                                                   memrefType1, memrefAlloc);
-
-//     // 在代码的最后添加打印时间的op
-//     builder.create<mlir::func::CallOp>(ops.back()->getLoc(), printMemrefFunc,
-//                                        ValueRange{result});
-//     builder.create<mlir::func::CallOp>(ops.back()->getLoc(), printF64Func,
-//                                        ValueRange{all_duration});
-//     builder.create<mlir::func::CallOp>(ops.back()->getLoc(), printNewlineFunc,
-//                                        ValueRange{});
-//   });
-// }
-
 namespace mlir {
 namespace buddy {
 void registerLowerTracePass() { PassRegistration<LowerTracePass>(); }
 
-// void registerTracePass() { PassRegistration<TracePass>(); }
 } // namespace buddy
 } // namespace mlir
