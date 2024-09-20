@@ -61,7 +61,6 @@ void registerPointwiseConvToGemmForNhwcFhwcPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
 void registerLowerTracePass();
-void registerTracePass();
 void registerLowerDIPPass();
 void registerBatchMatMulOptimizePass();
 void registerBatchMatMulTileOptimizePass();
@@ -99,7 +98,6 @@ int main(int argc, char **argv) {
   mlir::buddy::registerPoolingVectorizationPass();
   mlir::buddy::registerLowerBudPass();
   mlir::buddy::registerLowerTracePass();
-  mlir::buddy::registerTracePass();
   mlir::buddy::registerLowerDIPPass();
   mlir::buddy::registerLowerDAPPass();
   mlir::buddy::registerExtendDAPPass();
