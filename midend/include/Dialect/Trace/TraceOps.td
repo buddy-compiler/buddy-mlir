@@ -29,7 +29,7 @@ include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinTypes.td"
 
 //===----------------------------------------------------------------------===//
-// Start counting operation.
+// Start timing operation.
 //===----------------------------------------------------------------------===//
 def Trace_TimeStartOp : Trace_Op<"time_start", []> {
   let summary = "Start trace an operation";
@@ -41,7 +41,7 @@ def Trace_TimeStartOp : Trace_Op<"time_start", []> {
 }
 
 //===----------------------------------------------------------------------===//
-// End counting operation.
+// End timing operation.
 //===----------------------------------------------------------------------===//
 def Trace_TimeEndOp : Trace_Op<"time_end", []> {
   let summary = "End trace an operation";
