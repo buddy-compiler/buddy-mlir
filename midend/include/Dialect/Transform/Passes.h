@@ -1,3 +1,6 @@
+#ifndef DIALECT_TRANSFORM_PASSES_H
+#define DIALECT_TRANSFORM_PASSES_H
+
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 
@@ -15,3 +18,5 @@ class ModuleOp;
 #include "Transform/Passes.h.inc"
 
 }
+
+#endif

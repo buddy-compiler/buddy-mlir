@@ -193,11 +193,14 @@ public:
         }
 
         promotionImpl<MatmulOperand_C>(b, linalgContractOp);
+        b.setInsertionPoint(linalgContractOp);
+        b.create<gpu::BarrierOp>(linalgContractOp->getLoc());
+        b.setInsertionPointAfter(linalgContractOp);
+        b.create<gpu::BarrierOp>(linalgContractOp->getLoc());
         
-
     }
 };
-} // namespace mlir
+} // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createLinalgPromotionPass() {

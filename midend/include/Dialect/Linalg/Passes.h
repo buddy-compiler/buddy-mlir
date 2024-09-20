@@ -13,3 +13,5 @@ namespace mlir {
 #include "Linalg/Passes.h.inc"
 
 } // namespace mlir
+
+#endif

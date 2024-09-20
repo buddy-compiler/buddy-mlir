@@ -9,6 +9,7 @@ add_mlir_library(BuddyPipelines
     MLIRIR
     BuddyGPUPipelines
     BuddyTransformPasses
+    BuddyGPUPasses
     BuddyGemmCodegenUtils
     BuddyPipelineUtils
 )
