@@ -171,13 +171,26 @@ class Graph:
         Returns:
         - None
         """
+        # for i, op in enumerate(self._body):
+        #     if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp):
+        #         continue
+        #     group = [op]
+        #     subgraph_name = "subgraph{}".format(i)
+        #     self.group_map_device[subgraph_name] = DeviceType.GPU
+        #     self.op_groups[subgraph_name] = group
+        group = []
         for i, op in enumerate(self._body):
-            if isinstance(op, PlaceholderOp):
+            if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp) or i==18 or i==21 or i==24:
                 continue
-            group = [op]
-            subgraph_name = "subgraph{}".format(i)
-            self.group_map_device[subgraph_name] = DeviceType.GPU
-            self.op_groups[subgraph_name] = group
+            group.append(op)
+        subgraph_name = "subgraph0"
+        self.group_map_device[subgraph_name] = DeviceType.GPU
+        self.op_groups[subgraph_name] = group
+        
+        new_group = [self._body[18], self._body[21], self._body[24]]
+        subgraph_name = "subgraph1"
+        self.group_map_device[subgraph_name] = DeviceType.GPU
+        self.op_groups[subgraph_name] = new_group
 
     def fuse_ops(self, pattern_list: List[FunctionType]):
         """
@@ -197,9 +210,9 @@ class Graph:
         # Initialize operation groups
         self.init_op_group()
 
-        # Apply fusion patterns
-        for pattern_func in pattern_list:
-            pattern_func(self)
+        # # Apply fusion patterns
+        # for pattern_func in pattern_list:
+        #     pattern_func(self)
 
     def perform(self, func_list: List[FunctionType]):
         """
@@ -541,7 +554,7 @@ class GraphImporter:
                         ]
                     else:
                         self._import_op(node)
-
+                print(self._symbol_table)
                 return self._symbol_table.get(("output", 0))
 
         return self._module

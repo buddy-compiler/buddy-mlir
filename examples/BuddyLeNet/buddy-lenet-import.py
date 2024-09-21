@@ -59,10 +59,14 @@ params = dynamo_compiler.imported_params[graph]
 pattern_list = [simply_fuse]
 graphs[0].fuse_ops(pattern_list)
 driver = GraphDriver(graphs[0])
+print(len(driver.subgraphs))
 driver.subgraphs[0].lower_to_top_level_ir()
+driver.subgraphs[1].lower_to_top_level_ir()
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
     print(driver.subgraphs[0]._imported_module, file=module_file)
+with open(os.path.join(path_prefix, "subgraph1.mlir"), "w") as module_file:
+    print(driver.subgraphs[1]._imported_module, file=module_file)
 with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 

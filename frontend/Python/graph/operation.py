@@ -81,13 +81,14 @@ class Op:
         """
         self._name = None
         self._arguments = []
+        self._args_index = []
         self._keyword_arguments = {}
         self._tensor_meta: Dict = {}
         self._op_type: OpType = None
         self._children: List[str] = []
         self._parents: List[str] = []
 
-    def add_argument(self, arg):
+    def add_argument(self, arg, arg_index=0):
         """
         Add an input argument to the operation node.
 
@@ -96,6 +97,7 @@ class Op:
             The input argument to be added.
         """
         self._arguments.append(arg)
+        self._args_index.append(arg_index)
 
     def add_parent(self, parent: str):
         """
