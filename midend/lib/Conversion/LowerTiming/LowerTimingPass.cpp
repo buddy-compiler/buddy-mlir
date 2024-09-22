@@ -19,18 +19,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Timing/TimingDialect.h"
+#include "Timing/TimingOps.h"
+#include "json.hpp"
+#include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/Support/CommandLine.h"
+#include <fstream>
+#include <string>
 #include <vector>
-
-#include "Timing/TimingDialect.h"
-#include "Timing/TimingOps.h"
 
 using namespace mlir;
 using namespace buddy;
@@ -315,37 +317,22 @@ void TimingPass::runOnOperation() {
   // 在module的开头插入rtclock函数声明，memref 计时器的内存。
   builder.setInsertionPointToStart(module.getBody());
 
-  // func.func @rtclock
-  auto funcType = builder.getFunctionType({}, builder.getF64Type());
-  auto rtclockFunc =
-      builder.create<mlir::func::FuncOp>(module.getLoc(), "rtclock", funcType);
-  rtclockFunc.setPrivate();
+  auto rtFuncType = builder.getFunctionType({}, {});
 
-  // func.func private @printMemrefF64(memref<*xf64>)
-  mlir::Type memrefType1 =
-      mlir::UnrankedMemRefType::get(builder.getF64Type(), /*memorySpace=*/0);
-  auto printmemrefFuncType = builder.getFunctionType({memrefType1}, {});
-  auto printMemrefFunc = builder.create<mlir::func::FuncOp>(
-      module.getLoc(), "printMemrefF64", printmemrefFuncType);
-  printMemrefFunc.setPrivate();
+  // 声明 func.func private @timingStart()
+  auto timingStartFunc = builder.create<mlir::func::FuncOp>(
+      module.getLoc(), "timingStart", rtFuncType);
+  timingStartFunc.setPrivate();
 
-  // func.func private @printF64(f64)
-  auto printF64FuncType = builder.getFunctionType({builder.getF64Type()}, {});
-  auto printF64Func = builder.create<mlir::func::FuncOp>(
-      module.getLoc(), "printF64", printF64FuncType);
-  printF64Func.setPrivate();
-
-  // printNewline ()
-  auto printNewlineType = builder.getFunctionType({}, {});
-  auto printNewlineFunc = builder.create<mlir::func::FuncOp>(
-      module.getLoc(), "printNewline", printNewlineType);
-  printNewlineFunc.setPrivate();
+  // 声明 func.func private @timingEnd()
+  auto timingEndFunc = builder.create<mlir::func::FuncOp>(
+      module.getLoc(), "timingEnd", rtFuncType);
+  timingEndFunc.setPrivate();
 
   // 遍历
   module.walk([&](mlir::func::FuncOp funcOp) {
     // llvm::outs() << "Function name: " << funcOp.getName() << "\n";
-    if (funcOp == rtclockFunc || funcOp == printMemrefFunc ||
-        funcOp == printF64Func || funcOp == printNewlineFunc) {
+    if (funcOp == timingStartFunc || funcOp == timingEndFunc) {
       // llvm::outs() << "return\n";
       return;
     }
@@ -354,10 +341,15 @@ void TimingPass::runOnOperation() {
     int opNum = 0;
     std::vector<Operation *> ops;
     Operation *returnOp;
+
+    // 匹配所有tosa级别的op
     funcOp.walk([&](Operation *op) {
       // llvm::outs << op->getName().getStringRef() << "\n";
+      // 获取操作的方言名称
+      StringRef dialect = op->getName().getDialectNamespace();
+
       // 检查操作是否是我们感兴趣的特定类型
-      if (op->getName().getStringRef() == OpNameOption) {
+      if (dialect == "tosa") {
         opNum++;
         ops.push_back(op);
       } else if (op->getName().getStringRef() == "return") {
@@ -370,51 +362,43 @@ void TimingPass::runOnOperation() {
       return;
     }
 
+    using json = nlohmann::json;
+
+    // 输出符号表json
+    json jsonObject;
+
+    // 将向量中的元素和下标添加到 JSON 对象中
+    for (size_t i = 0; i < ops.size(); ++i) {
+      jsonObject[std::to_string(i)] = ops[i]->getName().getStringRef();
+    }
+
+    // 将 JSON 对象保存到文件
+    std::ofstream file("output.json");
+    if (file.is_open()) {
+      // 使用 dump(4) 以格式化的方式输出，4 个空格缩进
+      file << jsonObject.dump(4);
+      file.close();
+      // std::cout << "数据已保存到 output.json 文件中。" << std::endl;
+    } else {
+      // std::cerr << "无法打开文件进行写入。" << std::endl;
+    }
+
     // 将插入点插入到函数的开头
-    builder.setInsertionPointToStart(&funcOp.getBody().front());
-
-    // 插入memref.alloc
-    auto memrefType = MemRefType::get({opNum}, builder.getF64Type());
-    Value memrefAlloc =
-        builder.create<mlir::memref::AllocOp>(module.getLoc(), memrefType);
-
-    // 常数
-    Value idx =
-        builder.create<mlir::arith::ConstantIndexOp>(module.getLoc(), 0);
-    Value c1 = builder.create<mlir::arith::ConstantIndexOp>(module.getLoc(), 1);
-    Value all_duration = builder.create<arith::ConstantOp>(
-        module.getLoc(), builder.getF64Type(), builder.getF64FloatAttr(0.0));
+    // builder.setInsertionPointToStart(&funcOp.getBody().front());
 
     // 遍历所有对应的Op
     for (auto op : ops) {
-      // 在op的前面添加startOp
+
+      // 在op的前面添加call start函数
       builder.setInsertionPoint(op);
-      Value startOp = builder.create<timing::StartOp>(op->getLoc());
+      builder.create<mlir::func::CallOp>(ops.back()->getLoc(), timingStartFunc,
+                                         ValueRange{});
 
-      // 在op的后面添加endOp，subop，storeOp
+      // 在op的后面添加call end 函数
       builder.setInsertionPointAfter(op);
-      Value endOp = builder.create<timing::EndOp>(op->getLoc());
-      Value SubOp =
-          builder.create<mlir::arith::SubFOp>(op->getLoc(), endOp, startOp);
-      builder.create<mlir::memref::StoreOp>(op->getLoc(), SubOp, memrefAlloc,
-                                            ValueRange(idx));
-      all_duration = builder.create<mlir::arith::AddFOp>(op->getLoc(),
-                                                         all_duration, SubOp);
-      idx = builder.create<mlir::arith::AddIOp>(op->getLoc(), idx, c1);
+      builder.create<mlir::func::CallOp>(ops.back()->getLoc(), timingEndFunc,
+                                         ValueRange{});
     }
-
-    // builder.setInsertionPoint(returnOp);
-    // cast memref<opNumxf64> -> memref<*xf64>
-    Value result = builder.create<memref::CastOp>(ops.back()->getLoc(),
-                                                  memrefType1, memrefAlloc);
-
-    // 在代码的最后添加打印时间的op
-    builder.create<mlir::func::CallOp>(ops.back()->getLoc(), printMemrefFunc,
-                                       ValueRange{result});
-    builder.create<mlir::func::CallOp>(ops.back()->getLoc(), printF64Func,
-                                       ValueRange{all_duration});
-    builder.create<mlir::func::CallOp>(ops.back()->getLoc(), printNewlineFunc,
-                                       ValueRange{});
   });
 }
 

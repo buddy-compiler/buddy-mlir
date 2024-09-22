@@ -6,14 +6,14 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT forward.o
-  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/TimingDialect/forward.mlir 
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/TimingDialect/forward.mlir 
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize
-            -matmul-paralell-vectorization-optimize
+            --matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
@@ -40,9 +40,9 @@ add_custom_command(
             -convert-math-to-libm 
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
-        ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-        ${LLVM_MLIR_BINARY_DIR}/llvm-as |
-        ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+        ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
           -o ${BUDDY_BINARY_DIR}/../examples/TimingDialect/forward.o
   DEPENDS buddy-opt ${BUDDY_EXAMPLES_DIR}/TimingDialect/forward.mlir
   COMMENT "Building forward.o "
@@ -50,15 +50,15 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT subgraph.o
-    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/TimingDialect/subgraph0.mlir --timing --lower-timing |
-            ${LLVM_MLIR_BINARY_DIR}/mlir-opt  
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/TimingDialect/subgraph0.mlir --timing |
+            ${BUDDY_BINARY_DIR}/buddy-opt  
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize
-            -matmul-paralell-vectorization-optimize
+            --matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
@@ -86,9 +86,9 @@ add_custom_command(
             -convert-math-to-libm 
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llvm-as |
-          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
             -o ${BUDDY_BINARY_DIR}/../examples/TimingDialect/subgraph.o
     DEPENDS buddy-opt ${BUDDY_EXAMPLES_DIR}/TimingDialect/subgraph0.mlir
     COMMENT "Building subgraph.o "
@@ -96,7 +96,7 @@ add_custom_command(
 
 add_library(LLAMA_T STATIC forward.o subgraph.o)
 
-add_library(TIMING_UTILS STATIC utils.cpp)  
+add_library(TIMING_UTILS STATIC utils.cpp runtime.cpp)  
 
 SET_SOURCE_FILES_PROPERTIES(
   template.o
