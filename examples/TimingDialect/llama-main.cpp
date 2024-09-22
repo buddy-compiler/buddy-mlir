@@ -14,6 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "runtime.cpp"
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
@@ -141,41 +142,56 @@ int main() {
   outputContainer.loadVocab(vocabDir);
   loadParameters(paramsDir, paramsContainer);
 
+  TimingManager::instance();
+
   /// Run LLaMA Inference
   //  - Perform the forward function.
   //  - Find and append the generated token.
   //  - Continue iterating until the terminal condition is met.
   int generateLen = MaxTokenLength - inputContainer.getTokenCnt();
-  for (int i = 0; i < generateLen; i++) {
-    const auto inferenceStart = std::chrono::high_resolution_clock::now();
-    // Execute the forward pass of the model.
-    _mlir_ciface_forward(resultContainer, &paramsContainer, &inputContainer);
 
-    const auto inferenceEnd = std::chrono::high_resolution_clock::now();
-    const std::chrono::duration<double, std::milli> inferenceTime =
-        inferenceEnd - inferenceStart;
+  const auto inferenceStart = std::chrono::high_resolution_clock::now();
+  // Execute the forward pass of the model.
+  _mlir_ciface_forward(resultContainer, &paramsContainer, &inputContainer);
 
-    // Determine the generated token.
-    int tokenIndex = inputContainer.getTokenCnt() - 1;
-    const float *startPtr =
-        resultContainer[1].getData() + tokenIndex * MaxVocabSize;
-    const float *endPtr = startPtr + MaxVocabSize;
-    int maxIndex = findMaxIndex(startPtr, endPtr);
-    std::string tok = inputContainer.getStr(maxIndex);
-    // Print the generated token and inference time.
-    printIterInfo(i, tok, inferenceTime.count() / 1000);
+  const auto inferenceEnd = std::chrono::high_resolution_clock::now();
 
-    // Stop if a separator token (2, </s>) or line break token (13 <0x0A>) is
-    // generated.
-    if (maxIndex == 2) {
-      break;
-    }
-    // Append the generated token into the input and output container.
-    inputContainer.appendTokenIdx(maxIndex);
-    outputContainer.appendTokenIdx(maxIndex);
-    free(resultContainer[0].release());
-    free(resultContainer[1].release());
-  }
+  TimingManager::instance().processTimingData();
+
+  const std::chrono::duration<double, std::milli> inferenceTime =
+      inferenceEnd - inferenceStart;
+  std::cout << "total inference time: " << inferenceTime.count() / 1000
+            << std::endl;
+  // for (int i = 0; i < generateLen; i++) {
+  //   const auto inferenceStart = std::chrono::high_resolution_clock::now();
+  //   // Execute the forward pass of the model.
+  //   _mlir_ciface_forward(resultContainer, &paramsContainer, &inputContainer);
+
+  //   const auto inferenceEnd = std::chrono::high_resolution_clock::now();
+  //   const std::chrono::duration<double, std::milli> inferenceTime =
+  //       inferenceEnd - inferenceStart;
+
+  //   // Determine the generated token.
+  //   int tokenIndex = inputContainer.getTokenCnt() - 1;
+  //   const float *startPtr =
+  //       resultContainer[1].getData() + tokenIndex * MaxVocabSize;
+  //   const float *endPtr = startPtr + MaxVocabSize;
+  //   int maxIndex = findMaxIndex(startPtr, endPtr);
+  //   std::string tok = inputContainer.getStr(maxIndex);
+  //   // Print the generated token and inference time.
+  //   printIterInfo(i, tok, inferenceTime.count() / 1000);
+
+  //   // Stop if a separator token (2, </s>) or line break token (13 <0x0A>) is
+  //   // generated.
+  //   if (maxIndex == 2) {
+  //     break;
+  //   }
+  //   // Append the generated token into the input and output container.
+  //   inputContainer.appendTokenIdx(maxIndex);
+  //   outputContainer.appendTokenIdx(maxIndex);
+  //   free(resultContainer[0].release());
+  //   free(resultContainer[1].release());
+  // }
 
   /// Print the final result
   std::cout << "\n\033[33;1m[Input]\033[0m " << inputStr << std::endl;

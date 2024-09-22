@@ -373,7 +373,8 @@ void TimingPass::runOnOperation() {
     }
 
     // 将 JSON 对象保存到文件
-    std::ofstream file("output.json");
+    std::ofstream file("/home/gaoshihao/project/buddy-mlir/examples/"
+                       "TimingDialect/output.json");
     if (file.is_open()) {
       // 使用 dump(4) 以格式化的方式输出，4 个空格缩进
       file << jsonObject.dump(4);
