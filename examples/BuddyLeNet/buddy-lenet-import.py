@@ -44,7 +44,7 @@ model = model.eval()
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
-    primary_registry=gpu.ops_registry,
+    primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
 )
 
@@ -60,6 +60,8 @@ pattern_list = [simply_fuse]
 graphs[0].fuse_ops(pattern_list)
 driver = GraphDriver(graphs[0])
 print(len(driver.subgraphs))
+print(driver.subgraphs[0].device)
+print(driver.subgraphs[1].device)
 driver.subgraphs[0].lower_to_top_level_ir()
 driver.subgraphs[1].lower_to_top_level_ir()
 path_prefix = os.path.dirname(os.path.abspath(__file__))
