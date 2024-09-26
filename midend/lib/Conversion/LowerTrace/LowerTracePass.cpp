@@ -43,7 +43,7 @@ namespace {
 class TraceStartLowering : public OpRewritePattern<trace::TimeStartOp> {
 public:
   using OpRewritePattern<trace::TimeStartOp>::OpRewritePattern;
-
+  // TODO: will use our own runtime functions.
   LogicalResult matchAndRewrite(trace::TimeStartOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
@@ -77,7 +77,7 @@ public:
 class TraceEndLowering : public OpRewritePattern<trace::TimeEndOp> {
 public:
   using OpRewritePattern<trace::TimeEndOp>::OpRewritePattern;
-
+  // TODO: will use our own runtime functions.
   LogicalResult matchAndRewrite(trace::TimeEndOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
