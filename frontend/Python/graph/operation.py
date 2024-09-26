@@ -126,10 +126,19 @@ class Op:
     @property
     def kwargs(self):
         return self._keyword_arguments
+    
+    @property
+    def parents(self):
+        return self._parents
+
+    @property
+    def children(self):
+        return self._children
 
     @property
     def name(self):
         return self._name
+    
     @name.setter
     def name(self, new_name):
         self._name = new_name
