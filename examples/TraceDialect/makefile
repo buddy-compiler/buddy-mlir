@@ -1,20 +1,20 @@
 #!/bin/bash
-BUDDY_OPT := ../../build/bin/buddy-opt
-MLIR_OPT := ../../llvm/build/bin/mlir-opt
-MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
-LLC := ../../llvm/build/bin/llc
+BUDDY_BUILD_DIR := ../../build/
+LLVM_BUILD_DIR := ../../llvm/build/
+BUDDY_OPT := ${BUDDY_BUILD_DIR}/bin/buddy-opt
+MLIR_OPT := ${LLVM_BUILD_DIR}/bin/mlir-opt
+MLIR_TRANSLATE := ${LLVM_BUILD_DIR}/bin/mlir-translate
+MLIR_CPU_RUNNER := ${LLVM_BUILD_DIR}/bin/mlir-cpu-runner
+LLC := ${LLVM_BUILD_DIR}/bin/llc
 OPT_FLAG := -O0
 
 ifeq ($(shell uname),Linux)
-MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
-MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.so
-MLIR_ASYNC_RUNTIME := ../../llvm/build/lib/libmlir_async_runtime.so
+MLIR_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_runner_utils.so
+MLIR_C_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_c_runner_utils.so
 MTRIPLE := x86_64-unknown-linux-gnu
 else ifeq ($(shell uname),Darwin)
-MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.dylib
-MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
-MLIR_ASYNC_RUNTIME := ./../llvm/build/lib/libmlir_async_runtime.dylib
+MLIR_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_runner_utils.dylib
+MLIR_C_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_c_runner_utils.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
 

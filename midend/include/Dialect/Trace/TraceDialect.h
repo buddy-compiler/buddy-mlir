@@ -1,4 +1,4 @@
-//===- TraceDialect.h - Trace Dialect Definition --------------------*- C++ -*-===//
+//===- TraceDialect.h - Trace Dialect Definition ----------------*- C++ -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This is the header file for the bud dialect.
+// This is the header file for the trace dialect.
 //
 //===----------------------------------------------------------------------===//
 
