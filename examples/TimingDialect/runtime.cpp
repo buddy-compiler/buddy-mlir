@@ -26,7 +26,6 @@ public:
 
 class TimingManager {
 public:
-  // 禁用拷贝构造和赋值
   TimingManager(const TimingManager &) = delete;
   TimingManager &operator=(const TimingManager &) = delete;
 
