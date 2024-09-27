@@ -41,6 +41,9 @@ Value createInvertedMask(OpBuilder &builder, Location loc, Value strideVal,
 // Cast a value from index type to f32 type.
 Value indexToF32(OpBuilder &builder, Location loc, Value val);
 
+// Cast a value from index type to f64 type.
+Value indexToF64(OpBuilder &builder, Location loc, Value val);
+
 // Cast a value from f32 type to index type.
 Value F32ToIndex(OpBuilder &builder, Location loc, Value val);
 
@@ -61,6 +64,9 @@ Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
 
 // Generate vector [0, 1, ..., length - 1] with f32 type
 Value iotaVec0F32(OpBuilder &builder, Location loc, int64_t length);
+
+// Generate vector [0, 1, ..., length - 1] with f64 type
+Value iotaVec0F64(OpBuilder &builder, Location loc, int64_t length);
 
 // Cast index type value to f32 type and then expand it in a vector.
 Value castAndExpand(OpBuilder &builder, Location loc, Value val,

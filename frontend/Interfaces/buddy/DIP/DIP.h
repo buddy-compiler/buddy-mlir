@@ -21,6 +21,7 @@
 #ifndef FRONTEND_INTERFACES_BUDDY_DIP_DIP
 #define FRONTEND_INTERFACES_BUDDY_DIP_DIP
 
+#include "SimpleLapack.h"
 #include "buddy/Core/Container.h"
 #include "buddy/DIP/ImageContainer.h"
 #include <math.h>
@@ -159,6 +160,14 @@ void _mlir_ciface_morphgrad_2d_replicate_padding(
     MemRef<float, 2> *input1, MemRef<float, 2> *copymemref,
     MemRef<float, 2> *copymemref1, unsigned int centerX, unsigned int centerY,
     unsigned int iterations, float constantValue);
+
+void _mlir_ciface_perspective_transform(Img<float, 2> *input,
+                                        MemRef<float, 2> *output,
+                                        MemRef<double, 2> *matrix);
+
+void _mlir_ciface_perspective_transform_3d(Img<float, 2> *input,
+                                           MemRef<float, 2> *output,
+                                           MemRef<double, 2> *matrix);
 }
 
 // Pad kernel as per the requirements for using FFT in convolution.
@@ -319,6 +328,68 @@ inline MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
   MemRef<float, 2> output(sizesOutput);
 
   detail::_mlir_ciface_rotate_2d(input, angleRad, &output);
+
+  return output;
+}
+
+// User interface for 3D Rotation.
+inline MemRef<float, 2> Rotate3D(Img<float, 2> *input, double x, double y,
+                                 double z, double fov, ANGLE_TYPE angleType) {
+
+  if (angleType == ANGLE_TYPE::DEGREE) {
+    x = M_PI * x / 180;
+    y = M_PI * y / 180;
+    z = M_PI * z / 180;
+    fov = M_PI * fov / 180;
+  };
+
+  auto inputSizes = input->getSizes();
+  double height = inputSizes[0], width = inputSizes[1];
+
+  auto modelMatrix =
+      buddy::dip::getModelMatrix(x, y, z, height / 2, width / 2, -height);
+  auto viewportMatrix = buddy::dip::getViewportMatrix(height, width);
+  auto cameraMatrix = buddy::dip::getCameraMatrix<double>(0, 0, 0);
+  auto projectionMatrix =
+      buddy::dip::getProjectionMatrix(fov, height / width, 1.0, height);
+  using namespace buddy::dip;
+  auto mvp = viewportMatrix * projectionMatrix * cameraMatrix * modelMatrix;
+
+  MemRef<float, 2> output(const_cast<intptr_t *>(input->getSizes()), 0);
+  MemRef<double, 2> matrix({4, 4});
+
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 4; ++j) {
+      matrix[i * 4 + j] = mvp[i][j];
+    }
+  }
+
+  detail::_mlir_ciface_perspective_transform_3d(input, &output, &matrix);
+
+  return output;
+}
+
+// User interface for Perspective Transform.
+inline MemRef<float, 2>
+PerspectiveTransform(Img<float, 2> *input,
+                     std::vector<std::pair<intptr_t, intptr_t>> src,
+                     std::vector<std::pair<intptr_t, intptr_t>> dst) {
+
+  MemRef<float, 2> output(const_cast<intptr_t *>(input->getSizes()), 0);
+  MemRef<double, 2> matrix({3, 3});
+
+  auto h = buddy::dip::getPerspectiveTransform<double>(src, dst);
+  auto [successful, hInvert] = buddy::dip::invert(h);
+  if (!successful) {
+    throw std::invalid_argument("Can't calculate inverse matrix.\n");
+  }
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; ++j) {
+      matrix[i * 3 + j] = hInvert[i][j];
+    }
+  }
+
+  detail::_mlir_ciface_perspective_transform(input, &output, &matrix);
 
   return output;
 }

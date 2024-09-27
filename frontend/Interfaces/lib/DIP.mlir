@@ -137,3 +137,15 @@ func.func @morphgrad_2d_replicate_padding(%inputImage : memref<?x?xf32>, %kernel
   dip.morphgrad_2d <REPLICATE_PADDING> %inputImage, %kernel, %outputImage, %outputImage1,%outputImage2, %inputImage1, %copymemref, %copymemref1, %centerX, %centerY, %iterations, %constantValue : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index, f32
   return
 }
+
+func.func @perspective_transform(%inputImage : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %matrix : memref<?x?xf64>) attributes{llvm.emit_c_interface}
+{
+  dip.perspective_transform %inputImage, %outputImage, %matrix : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf64>
+  return
+}
+
+func.func @perspective_transform_3d(%inputImage : memref<?x?xf32>, %outputImage : memref<?x?xf32>, %matrix : memref<?x?xf64>) attributes{llvm.emit_c_interface}
+{
+  dip.perspective_transform_3d %inputImage, %outputImage, %matrix : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf64>
+  return
+}
