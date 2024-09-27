@@ -31,14 +31,16 @@ module {
     %output = call @alloc_2d_filled_f32(%c8, %c8, %cst_zero) : (index, index, f32) -> memref<?x?xf32>
     // start timing 
     // CHECK: call @rtclock() : () -> f64
-    %start_time = trace.time_start : -> f64 
+    trace.time_start
     linalg.conv_2d ins(%input, %filter : memref<?x?xf32>, memref<?x?xf32>) outs(%output : memref<?x?xf32>)
     // end timing
     // CHECK: call @rtclock() : () -> f64
-    %end_time = trace.time_end : -> f64
-    %elapsed_time = arith.subf %end_time, %start_time : f64
-    call @printF64(%elapsed_time) : (f64) -> ()
-    call @printNewline() : () -> ()
+    trace.time_end
+
+    // %conv2d = trace.scope -> (memref<?x?xf32>) {
+    //   linalg.conv_2d ins(%input, %filter : memref<?x?xf32>, memref<?x?xf32>) outs(%output : memref<?x?xf32>)
+    //   trace.yield %output : memref<?x?xf32>
+    // }
     return
   }
 }

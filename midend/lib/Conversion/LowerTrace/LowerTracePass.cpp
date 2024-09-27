@@ -43,32 +43,30 @@ namespace {
 class TraceStartLowering : public OpRewritePattern<trace::TimeStartOp> {
 public:
   using OpRewritePattern<trace::TimeStartOp>::OpRewritePattern;
-  // TODO: will use our own runtime functions.
+
   LogicalResult matchAndRewrite(trace::TimeStartOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
 
     // Ensure that the symbol for the rtclock function exists
     auto module = op->getParentOfType<mlir::ModuleOp>();
-    mlir::FlatSymbolRefAttr funcSymbol;
-    auto rtclockFunc = module.lookupSymbol<mlir::func::FuncOp>("rtclock");
-    if (!rtclockFunc) {
-      // If the function does not exist, it is declared
-      auto funcType = rewriter.getFunctionType({}, rewriter.getF64Type());
-      rtclockFunc = rewriter.create<mlir::func::FuncOp>(module.getLoc(),
-                                                        "rtclock", funcType);
-      rtclockFunc.setPrivate();
-      funcSymbol = mlir::SymbolRefAttr::get(op.getContext(), "rtclock");
-    } else {
-      funcSymbol =
-          mlir::SymbolRefAttr::get(op.getContext(), rtclockFunc.getName());
+
+    auto timingStartFunc =
+        module.lookupSymbol<mlir::func::FuncOp>("timingStart");
+
+    // If the function does not exist
+    if (!timingStartFunc) {
+      op.emitError("Don't have timingStart declaration.");
     }
 
-    // create a rtclock op
-    auto callOp = rewriter.create<mlir::func::CallOp>(
-        loc, rewriter.getF64Type(), funcSymbol, ValueRange());
+    mlir::FlatSymbolRefAttr funcSymbol =
+        mlir::SymbolRefAttr::get(op.getContext(), timingStartFunc.getName());
 
-    rewriter.replaceOp(op, callOp.getResults());
+    // create a call op
+    auto timingStart =
+        rewriter.create<mlir::func::CallOp>(loc, funcSymbol, ValueRange{});
+
+    rewriter.replaceOp(op, timingStart.getResults());
 
     return success();
   }
@@ -77,33 +75,29 @@ public:
 class TraceEndLowering : public OpRewritePattern<trace::TimeEndOp> {
 public:
   using OpRewritePattern<trace::TimeEndOp>::OpRewritePattern;
-  // TODO: will use our own runtime functions.
+
   LogicalResult matchAndRewrite(trace::TimeEndOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
 
-    // make sure rtclock exist
+    // Ensure that the symbol for the rtclock function exists
     auto module = op->getParentOfType<mlir::ModuleOp>();
-    mlir::FlatSymbolRefAttr funcSymbol;
-    auto rtclockFunc = module.lookupSymbol<mlir::func::FuncOp>("rtclock");
-    if (!rtclockFunc) {
-      // if rtclock not exist , than create it
-      auto funcType = rewriter.getFunctionType({}, rewriter.getF64Type());
-      rtclockFunc = rewriter.create<mlir::func::FuncOp>(module.getLoc(),
-                                                        "rtclock", funcType);
-      rtclockFunc.setPrivate();
-      funcSymbol = mlir::SymbolRefAttr::get(op.getContext(), "rtclock");
-    } else {
-      funcSymbol =
-          mlir::SymbolRefAttr::get(op.getContext(), rtclockFunc.getName());
+    auto timingEndFunc = module.lookupSymbol<mlir::func::FuncOp>("timingEnd");
+
+    // If the function does not exist
+    if (!timingEndFunc) {
+      op.emitError("Don't have timingEnd declaration.");
     }
 
-    // Create an operation that calls rtclock
-    auto callOp = rewriter.create<mlir::func::CallOp>(
-        loc, rewriter.getF64Type(), funcSymbol, ValueRange());
+    // Now retrieve the symbol reference attribute
+    mlir::FlatSymbolRefAttr funcSymbol =
+        mlir::SymbolRefAttr::get(op.getContext(), timingEndFunc.getName());
 
-    // Replace EndOp with new call operation
-    rewriter.replaceOp(op, callOp.getResults());
+    // create a rtclock op
+    auto timingEnd =
+        rewriter.create<mlir::func::CallOp>(loc, funcSymbol, ValueRange{});
+
+    rewriter.replaceOp(op, timingEnd.getResults());
 
     return success();
   }
@@ -139,7 +133,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     // clang-format off
     registry.insert<
-        buddy::trace::TraceDialect,
+        trace::TraceDialect,
         func::FuncDialect,
         vector::VectorDialect,
         memref::MemRefDialect,
@@ -148,12 +142,12 @@ public:
   }
 };
 
-
 } // end anonymous namespace.
 
 void LowerTracePass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
+  OpBuilder builder(context);
 
   ConversionTarget target(*context);
   // clang-format off
@@ -165,6 +159,20 @@ void LowerTracePass::runOnOperation() {
       LLVM::LLVMDialect>();
   // clang-format on
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
+
+  builder.setInsertionPointToStart(module.getBody());
+
+  auto FuncType = builder.getFunctionType({}, {});
+
+  // declare func.func private @timingStart()
+  auto timingStartFunc = builder.create<mlir::func::FuncOp>(
+      module.getLoc(), "timingStart", FuncType);
+  timingStartFunc.setPrivate();
+
+  // declare func.func private @timingEnd()
+  auto timingEndFunc = builder.create<mlir::func::FuncOp>(
+      module.getLoc(), "timingEnd", FuncType);
+  timingEndFunc.setPrivate();
 
   RewritePatternSet patterns(context);
   populateLowerTraceConversionPatterns(patterns);

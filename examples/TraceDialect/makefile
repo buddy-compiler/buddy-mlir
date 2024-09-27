@@ -21,16 +21,18 @@ endif
 trace-conv2d-lower:
 	@${BUDDY_OPT} ./trace-conv2d.mlir \
 		 --lower-trace | \
-    ${MLIR_OPT} \
+    ${BUDDY_OPT} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts \
 		-o ./log.mlir
 
+		
+
 trace-conv2d-translate:
 	@${BUDDY_OPT} ./trace-conv2d.mlir \
 		 --lower-trace | \
-	${MLIR_OPT} \
+	${BUDDY_OPT} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
@@ -39,7 +41,7 @@ trace-conv2d-translate:
 trace-conv2d-run:
 	@${BUDDY_OPT} ./trace-conv2d.mlir \
 		--lower-trace | \
-	${MLIR_OPT} ${MLIR_OPT_OPTIONS} \
+	${BUDDY_OPT} ${MLIR_OPT_OPTIONS} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
