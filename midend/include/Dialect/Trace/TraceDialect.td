@@ -34,7 +34,6 @@ def Trace_Dialect : Dialect {
     The `trace` dialect is for trace.
   }];
   let cppNamespace = "::buddy::trace";
-  // let useDefaultAttributePrinterParser = 1;
 }
 
 //===----------------------------------------------------------------------===//
