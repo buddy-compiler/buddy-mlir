@@ -26,16 +26,22 @@ using namespace mlir;
 namespace buddy {
 // Given x*m0+m2(and x*m3+m5) and m1(and m4), compute new x and y, then remap
 // origin pixels to new pixels
-void affineTransformCore(OpBuilder &builder, Location loc, Value input,
-                         Value output, Value yStart, Value yEnd, Value xStart,
-                         Value xEnd, Value m1, Value m4, Value xAddr1,
-                         Value xAddr2, int64_t stride, const int &RSV_BITS,
-                         int interp_type);
+void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
+                         Value input, Value output, Value yStart, Value yEnd,
+                         Value xStart, Value xEnd, Value m1, Value m4,
+                         Value xAddr1, Value xAddr2, int64_t stride,
+                         const int &RSV_BITS, int interp_type,
+                         dip::ImageFormat format);
 
 // remap using nearest neighbor interpolation
-void remapNearest(OpBuilder &builder, Location loc, Value input, Value output,
-                  Value mapInt, Value yStart, Value xStart, Value rows,
-                  Value cols);
+void remapNearest2D(OpBuilder &builder, Location loc, MLIRContext *ctx,
+                    Value input, Value output, Value mapInt, Value yStart,
+                    Value xStart, Value rows, Value cols);
+
+void remapNearest3D(OpBuilder &builder, Location loc, MLIRContext *ctx,
+                    Value input, Value output, Value mapInt, Value yStart,
+                    Value xStart, Value rows, Value cols,
+                    dip::ImageFormat format, Value niv);
 
 // remap using bilinear interpolation
 void remapBilinear(OpBuilder &builder, Location loc, Value input, Value output,

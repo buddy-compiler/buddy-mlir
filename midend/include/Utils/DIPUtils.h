@@ -106,6 +106,14 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
 // Calculate tan(angle / 2) where angle is a function parameter.
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal);
 
+// Calculate the real affine matrix for rotation by
+// getting the rotation matrix and modfiying it to
+// preserve the full original image .
+SmallVector<Value, 6> calculateRotationMatrix(OpBuilder &builder, Location loc,
+                                              Value inputCol, Value inputRow,
+                                              Value outputCol, Value outputRow,
+                                              Value angleVal);
+
 // Get affine matrix used in rotation.
 SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
                                         Value centerX, Value centerY,
@@ -115,7 +123,7 @@ SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
 void affineTransformController(OpBuilder &builder, Location loc,
                                MLIRContext *ctx, Value input, Value output,
                                SmallVector<Value, 6> affineMatrix,
-                               int64_t stride);
+                               int64_t stride, dip::ImageFormat format);
 
 // Controls shear transform application.
 void shearTransformController(
@@ -191,9 +199,10 @@ void calcAndStorewTailProcessingMorph(
     Value zeroPadding, Value inputCol, VectorType vectorMaskTy, Type elemTy,
     Value kernelValue, Value zeroPaddingElem, DIP_OP op);
 
-// Utility function for traversing an image with support for boundary extrapolation,
-// variable anchor point positioning, and tail processing. It is used to compose more
-// complicated operations on top of it, like 2D Correlation and morphological operations.
+// Utility function for traversing an image with support for boundary
+// extrapolation, variable anchor point positioning, and tail processing. It is
+// used to compose more complicated operations on top of it, like 2D Correlation
+// and morphological operations.
 void traverseImagewBoundaryExtrapolation(
     OpBuilder &rewriter, Location loc, MLIRContext *ctx, Value input,
     Value kernel, Value output, Value centerX, Value centerY,
