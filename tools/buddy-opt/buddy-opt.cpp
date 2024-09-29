@@ -71,6 +71,8 @@ void registerLowerLinalgToGemminiPass();
 void registerDeviceSchedulePass();
 void registerLowerSchePass();
 void registerFuncBufferizeDynamicOffsetPass();
+void registerSimplifyTosaAddAndReshapePass();
+void registerEliminateReciprocalPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -103,6 +105,9 @@ int main(int argc, char **argv) {
   mlir::buddy::registerDeviceSchedulePass();
   mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
+
+  mlir::buddy::registerSimplifyTosaAddAndReshapePass();
+  mlir::buddy::registerEliminateReciprocalPass();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
