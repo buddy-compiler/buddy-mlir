@@ -63,6 +63,8 @@ driver.subgraphs[0].lower_to_top_level_ir()
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
     print(driver.subgraphs[0]._imported_module, file=module_file)
+with open(os.path.join(path_prefix, "subgraph1.mlir"), "w") as module_file:
+    print(driver.subgraphs[0]._imported_module, file=module_file)
 with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
