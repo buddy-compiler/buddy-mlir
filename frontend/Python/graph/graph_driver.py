@@ -64,14 +64,10 @@ class GraphDriver:
 
     def build_subgraph_by_group(self):
         """
-        Builds subgraphs from a given graph based on groups.
-
-        Args:
-        - graph (Graph): The graph from which subgraphs are constructed.
+        Builds subgraphs from a given graph based on groups, and assigns a hardware type to each subgraph.
 
         Returns:
-        - tuple: A tuple containing dictionaries of subgraphs, subgraph inputs,
-        and subgraph outputs.
+        - tuple: A tuple containing dictionaries of subgraphs, subgraph inputs, and subgraph outputs.
         """
 
         subgraphs_inputs = {}
@@ -86,6 +82,7 @@ class GraphDriver:
                         not in self._graph.op_groups[subgraph_name]
                     ):
                         subgraphs_inputs[subgraph_name].append(parent)
+        
         subgraphs_outputs = {}
         output_node = []
 
@@ -106,6 +103,7 @@ class GraphDriver:
                     op.name not in subgraphs_outputs[subgraph_name]
                 ):
                     subgraphs_outputs[subgraph_name].append(op.name)
+        
         subgraphs = {}
 
         # Construct each subgraph
@@ -140,101 +138,38 @@ class GraphDriver:
                 output_node.add_parent(output)
             subgraph_body.append(output_node)
 
-            # Create subgraph and add it to the dictionary
+            # Assign hardware type to each subgraph (you can customize this logic)
+            hardware_type = self.assign_hardware_type(subgraph_name)
+
+            # Create subgraph and add it to the dictionary, with hardware type
             subgraph = Graph(
                 subgraph_input, [], self._graph._ops_registry, subgraph_name
             )
             subgraph.body = subgraph_body
             for op in subgraph_body:
                 subgraph.node_table[op.name] = op
+            
+            subgraph.device = hardware_type
+
             subgraphs[subgraph_name] = subgraph
 
         return subgraphs, subgraphs_inputs, subgraphs_outputs
 
-    def construct_main_graph(self, do_param_pack=False):
+    def assign_hardware_type(self, subgraph_name):
         """
-        Constructs the main computational graph by incorporating subgraphs' call
-        and placeholder operations.
+        Assign a hardware type to the subgraph based on its name or operations.
 
         Args:
-        - do_param_pack (bool): Flag indicating whether parameter packing should
-        be performed. Defaults to False.
+        - subgraph_name (str): The name of the subgraph.
 
         Returns:
-        - Graph: The main computational graph constructed.
-
-        Note: The actual call sequence and topology analysis are pending
-        implementation.
-
+        - str: The hardware type assigned to the subgraph (e.g., 'CPU', 'GPU', 'TPU').
         """
-        main_graph = Graph(
-            self._graph._inputs,
-            self._graph._fake_params,
-            self._graph._ops_registry,
-            self._graph._func_name,
-        )
+        # Example logic for assigning hardware type (this can be customized)
+        if "GPU" in subgraph_name:
+            return "GPU"
+        elif "TPU" in subgraph_name:
+            return "TPU"
+        else:
+            return "CPU"
 
-        # Adding FuncOp nodes for each subgraph
-        for subgraph_name in self._subgraphs.keys():
-            func_node = FuncOp()
-            func_node.name = subgraph_name
-            func_node.tensor_meta = {"shape": [], "dtype": []}
-            for inp in self._subgraphs[subgraph_name]._inputs:
-                func_node.add_argument(inp)
-            for output in self._subgraphs_outputs[subgraph_name]:
-                func_node.tensor_meta["shape"].append(
-                    self._graph.node_table[output].tensor_meta["shape"]
-                )
-                func_node.tensor_meta["dtype"].append(
-                    self._graph.node_table[output].tensor_meta["dtype"]
-                )
-            main_graph.body.append(func_node)
-        
-        # Adding placeholder operations from the original graph
-        for op in self._graph.body:
-            if isinstance(op, PlaceholderOp):
-                main_graph.body.append(op)
-        
-        # TODO: analysis topology order to sort subgraph call.
-        if len(self._subgraphs) == 1:
-            # Adding CallOp to invoke the single subgraph
-            call_node = CallOp()
-            call_node.name = "call0"
-            call_node.call_func_name = list(self._subgraphs.keys())[0]
-            call_node.tensor_meta = {"shape": [], "dtype": []}
-            for inp in list(self._subgraphs_inputs.values())[0]:
-                call_node.add_argument(inp)
-            for output in list(self._subgraphs_outputs.values())[0]:
-                call_node.tensor_meta["shape"].append(
-                    self._graph.node_table[output].tensor_meta["shape"]
-                )
-                call_node.tensor_meta["dtype"].append(
-                    self._graph.node_table[output].tensor_meta["dtype"]
-                )
-            main_graph.body.append(call_node)
-
-            # Adding GetItemOps to retrieve individual output tensors
-            output_node = OutputOp()
-            for i, output in enumerate(list(self._subgraphs_outputs.values())[0]):
-                getitem_node = GetItemOp()
-                getitem_node.add_argument(call_node.name)
-                getitem_node.add_argument(i)
-                getitem_node.name = "getitem{}".format(i)
-                output_node.add_argument(getitem_node.name)
-                main_graph.body.append(getitem_node)
-            
-            # Marking the final output of the main graph
-            output_node.name = "output"
-            main_graph.body.append(output_node)
-
-            # Importing the main graph
-            with ir.Location.unknown(ir.Context()):
-                main_importer = GraphImporter(
-                    main_graph.body,
-                    main_graph._fake_params,
-                    main_graph._inputs,
-                    main_graph._func_name,
-                    main_graph._ops_registry,
-                    do_param_pack,
-                )
-                return main_importer.import_main_graph()
