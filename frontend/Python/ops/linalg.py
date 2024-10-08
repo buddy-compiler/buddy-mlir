@@ -22,7 +22,7 @@ from typing import Dict, Tuple, List
 
 import mlir.ir as ir
 from mlir.dialects import tosa, linalg, arith, tensor, math
-import copy
+import copy, array, sys
 import numpy
 import functools
 
@@ -137,7 +137,7 @@ def unsqueeze_op(
         numpy.array(input_shape, dtype=numpy.int64), None
     )
     op = tosa.ReshapeOp(input_node, tensor_type)
-
+    print(op)
     return op
 
 
@@ -1210,6 +1210,8 @@ def index_op(
         return
     input1_shape = ir.RankedTensorType(input1.type).shape
     input2 = node.args[1]
+    print("node.args[1]:")
+    print(node.args[1])
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
@@ -1842,6 +1844,255 @@ def scalar_tensor_op(node: ScalarTensorOp, symbol_table):
 
     return op
 
+
+def unsafe_index_op(
+    node: UnsafeIndexOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    """
+    assert len(node.args) == 2
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    if input1 is None:
+        raise ValueError(f"Input1 not found in symbol table for node: {node.args[0]}")
+
+    input1_shape = ir.RankedTensorType(input1.type).shape
+    input2 = node.args[1]
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    output = tensor.EmptyOp(output_shape, mlir_dtype)
+
+    loops = []
+    for i, value in enumerate(input2):
+        if value is None:
+            # 处理 None 值，使用 input1 的维度
+            loops.append(input1_shape[i])
+        else:
+            symbol_entry = symbol_table.get((str(value), 0))
+            if symbol_entry is None:
+                raise ValueError(f"Symbol for input2[{i}] ({value}) not found in symbol table.")
+            loops.append(ir.RankedTensorType(symbol_entry.type).shape)
+
+    generic_map = ir.AffineMap.get_permutation(
+        [i for i in range(len(output_shape))]
+    )
+
+    input_map = [
+        ir.AffineMapAttr.get(
+            generic_map.get_submap(
+                [j for j in range(len(loops[i]))]
+            ) if input2[i] is not None else generic_map
+        )
+        for i in range(len(input2))
+    ] + [
+        ir.AffineMapAttr.get(
+            generic_map.get_submap([j for j in range(len(output_shape))])
+        )
+    ]
+
+    operands = [
+        symbol_table.get((str(i), 0)) if i is not None else input1
+        for i in input2
+    ]
+
+    op = linalg.GenericOp(
+        [tensor_type],
+        operands,
+        [output],
+        ir.ArrayAttr.get(input_map),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(output_shape)
+        ),
+    )
+
+    arguments = [
+        ir.RankedTensorType(i.type).element_type if isinstance(i.type, ir.RankedTensorType) else i.type
+        for i in operands
+    ] + [ir.RankedTensorType(output.result.type).element_type]
+
+    block = ir.Block.create_at_start(op.region, arguments)
+
+    index = []
+    for i in block.arguments[:-1]:
+        # 先检查类型是否为 RankedTensorType，然后再进行元素类型判断
+        if isinstance(i.type, ir.RankedTensorType) and ir.RankedTensorType(i.type).element_type.is_f32:
+            # f32 转 i32 然后转 index 类型
+            int_cast_op = arith.FPToSIOp(ir.IntegerType.get_signless(32), i)
+            block.append(int_cast_op)
+            indexcast_op = arith.IndexCastOp(ir.IndexType.get(), int_cast_op.result)
+        elif i.type.is_f32:
+            # 直接处理 f32 类型
+            int_cast_op = arith.FPToSIOp(ir.IntegerType.get_signless(32), i)
+            block.append(int_cast_op)
+            indexcast_op = arith.IndexCastOp(ir.IndexType.get(), int_cast_op.result)
+        else:
+            # 非 f32 类型直接进行索引转换
+            indexcast_op = arith.IndexCastOp(ir.IndexType.get(), i)
+
+        block.append(indexcast_op)
+        index.append(indexcast_op.result)
+
+    # 处理剩余的维度索引
+    for i in range(len(loops), len(output_shape)):
+        index_op = linalg.IndexOp(ir._i64Attr(i, None))
+        block.append(index_op)
+        index.append(index_op.result)
+
+    # 提取 tensor 值
+    value = tensor.ExtractOp(input1, index)
+    block.append(value)
+    block.append(linalg.YieldOp([value.result]))
+    
+    return op
+
+def copy_op(node: CopyOp, symbol_table):
+    """
+    Copy data from one tensor to another.
+
+    Args:
+        node (CopyOp): The copy operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+
+    Returns:
+        op: The copy operation result.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    input2 = symbol_table.get((str(node.args[1]), 0))
+    result_shape = list(node.tensor_meta["shape"])
+    result_type = ir.RankedTensorType(input2.type).element_type
+    result = ir.RankedTensorType.get(result_shape, result_type)
+    op = linalg.CopyOp([result], [input1], [input2])
+    return op
+
+def split_op(node: SplitOp, symbol_table):
+    """
+    Split the input tensor into smaller tensors along the specified dimension.
+
+    Args:
+        node (SplitOp): The split operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+
+    Returns:
+        List[Tensor]: List of split tensors.
+    """
+    # Get the input tensor and parameters
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    split_size = node.args[1]  # Size of each split tensor
+    dim = node.args[2]  # Dimension to split along
+
+    # Get the shape of the input tensor
+    input_shape = input_tensor.type.shape
+    dtype = node.tensor_meta["dtype"][0]
+
+     # Ensure the split size is valid
+    if split_size <= 0 or input_shape[dim] % split_size != 0:
+        raise ValueError("split_size must be positive and divisible by the size of the dimension to split.")
+
+    # Calculate the shape of each split tensor
+    split_count = input_shape[dim] // split_size
+    split_shape = input_shape.copy()
+    split_shape[dim] = split_size
+
+    splits = []
+
+    for i in range(split_count):
+        # Calculate the start and end positions for each split tensor
+        start = [0] * len(input_shape)
+        end = start.copy()
+        start[dim] = i * split_size
+        end[dim] = start[dim] + split_size
+
+        # Create the slice operation
+        slice_sizes = input_shape.copy()
+        slice_sizes[dim] = split_size
+
+        start_attr = ir._denseI64ArrayAttr(start, None)
+        end_attr = ir._denseI64ArrayAttr(end, None)
+
+        output_type = ir.RankedTensorType.get(slice_sizes, mlir_element_type_get(dtype))
+        slice_op = tosa.SliceOp(output_type, input_tensor, start_attr, end_attr)
+
+        # Add to the result list
+        splits.append(slice_op.result)
+
+    return splits
+    
+def max_op(node: MaxOp, symbol_table):
+    """
+    """
+    print(node.args)
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    dtype = node.tensor_meta["dtype"]
+    dtype = mlir_element_type_get(dtype)
+    print(dtype)
+    print(ir.RankedTensorType(input1.type).element_type)
+    output_shape = list(node.tensor_meta["shape"])
+    tensor_type = ir.RankedTensorType.get(output_shape, dtype)
+    output = tensor.EmptyOp(output_shape, dtype)
+    print(output_shape)
+    input_shape = ir.RankedTensorType(input1.type).shape
+    total_size = 1
+    for x in input_shape:
+        total_size *= x
+    reshape_op = tosa.ReshapeOp(
+        input1, memoryview(array.array("i", [total_size]))
+    )
+    print(-sys.maxsize)
+    print(mlir_element_attr_get(dtype, 0))
+    if (str(ir.RankedTensorType(input1.type).element_type).find("i") != -1):
+        maxv = arith.ConstantOp(dtype, ir.IntegerAttr.get(ir.IntegerType.get_signless(64), -sys.maxsize))
+        tmp = arith.ConstantOp(dtype, ir.IntegerAttr.get(ir.IntegerType.get_signless(64), -sys.maxsize))
+    else:
+        maxv = arith.ConstantOp(dtype, ir.FloatAttr.get(ir.F32Type.get(), -float("inf")))
+        tmp = arith.ConstantOp(dtype, ir.FloatAttr.get(ir.F32Type.get(), -float("inf")))
+    generic_map = ir.AffineMap.get_permutation(
+        [i for i in range(1)]
+    )
+    op = linalg.GenericOp(
+        [tensor_type],
+        [input1],
+        [output],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(
+                    generic_map.get_submap(
+                        [i for i in range(1)]
+                    )
+                ),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+        ),
+    )
+    block = ir.Block.create_at_start(
+        op.region,
+        [
+            ir.RankedTensorType(input1.type).element_type,
+            ir.RankedTensorType(output.result.type).element_type,
+        ],
+    )
+    if (str(ir.RankedTensorType(input1.type).element_type).find("i") != -1):
+        tmp = arith.MaxSIOp(maxv.result, block.arguments[0])
+        maxv = tmp
+    else:
+        tmp = arith.MaxMumFOp(maxv.result, block.arguments[0])
+        maxv = tmp
+    block.append(maxv)
+    block.append(linalg.YieldOp([maxv.result]))
+    return op
+
+def gt_op(node: GtOp, symbol_table):
+    """
+    """
+    
+
+    return 0
+
 ops_registry = {
     "MatmulOp": matmul_op,
     "ArangeOp": arange_op,
@@ -1874,4 +2125,9 @@ ops_registry = {
     "AddOp": add_op,
     "WhereOp": where_op,
     "ScalarTensorOp": scalar_tensor_op,
+    "UnsafeIndexOp":unsafe_index_op,
+    "CopyOp":copy_op,
+    "SplitOp":split_op,
+    "MaxOp":max_op,
+    "GtOp":gt_op,
 }

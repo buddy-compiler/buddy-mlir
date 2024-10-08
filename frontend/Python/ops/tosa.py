@@ -60,6 +60,10 @@ from ..graph import (
     MeanOp,
     ClampMinOp,
     ClampMaxOp,
+    RandIntLowOp,
+    GatherOp,
+    ArgMaxOp,
+    ScaledDotProductEfficientAttentionOp,
 )
 from .utils import *
 
@@ -514,6 +518,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
         TensorDType.Float64: ir.F64Type.get(),
         TensorDType.Float32: ir.F32Type.get(),
         TensorDType.Float16: ir.F16Type.get(),
+        TensorDType.Int64: ir.IntegerType.get_signless(64),
         TensorDType.Int32: ir.IntegerType.get_signless(32),
         TensorDType.Bool: ir.IntegerType.get_signless(1),
     }
@@ -801,7 +806,7 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
     result_element_type = ir.RankedTensorType(
         to_expand_tensor.type
     ).element_type
-    if result_element_type == ir.IntegerType.get_signless(1):
+    if result_element_type in (ir.IntegerType.get_signless(1), ir.IntegerType.get_signless(64)):
         element = ir.IntegerAttr.get(result_element_type, 0)
     elif result_element_type == ir.F32Type.get():
         element = ir.FloatAttr.get(result_element_type, 0.0)
@@ -1426,6 +1431,183 @@ def clamp_max_op(node: ClampMaxOp, symbol_table):
     op = tosa.ClampOp(tensor_type, input1, min_int, max_int, min_fp, max_fp)
     return op
 
+def randint_low_op(node: RandIntLowOp, symbol_table):
+    """
+    Generates a tensor of random integers within a specified range.
+
+    Parameters:
+    - node (RandIntLowOp): Node containing the range and shape.
+    - symbol_table (dict): Maps identifiers to values.
+
+    Returns:
+    - tosa.ConstOp: Tensor with random integers.
+    """
+    min_value = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    max_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    shape = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    output = ir.DenseElementsAttr.get(numpy.random.randint(min_value, max_value, size=shape))
+    op = tosa.ConstOp(output)
+    return op
+
+
+def gather_op(node: GatherOp, symbol_table):
+    """
+    Gather elements from the input tensor at specified indices.
+
+    Args:
+        node (GatherOp): The Gather operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+
+    Returns:
+        op: The constructed Gather operation.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    gather_dim = (symbol_table.get((str(node.args[1]), 0), node.args[1]))
+    if not isinstance(gather_dim, list):
+        gather_dim = [gather_dim]
+    index_tensor = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    op = tensor.GatherOp(tensor_type, input_tensor, index_tensor, gather_dim)
+    return op
+
+def argmax_op(node: ArgMaxOp, symbol_table):
+    """
+    Compute the indices of the maximum values along the specified axis.
+
+    Args:
+        node (ArgMaxOp): The ArgMax operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+
+    Returns:
+        op: The constructed ArgMax operation.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    axis = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+    
+    if axis < 0:
+        axis += len(input_shape)
+    
+    result_shape = input_shape[:axis] + input_shape[axis + 1:]
+    result_type = ir.IntegerType.get_signless(32)
+    result = ir.RankedTensorType.get(result_shape, result_type)
+    op = tosa.ArgMaxOp(result, input_tensor, axis)
+    return op
+
+def scaled_dot_product_efficient_attention_op(node: ScaledDotProductEfficientAttentionOp, symbol_table):
+    """
+    Perform scaled dot-product attention computation.
+
+    Args:
+        node (ScaledDotProductEfficientAttentionOp): The scaled dot-product attention operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+
+    Returns:
+        result_reshape_op: Reshaped result tensor of the attention operation.
+        log_sumexp_op: Log-sum-exp constant operation.
+        philox_seed_op: Seed constant operation for random number generation.
+        philox_offset_op: Offset constant operation for random number generation.
+    """
+    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    key = (symbol_table.get((str(node.args[1]), 0), node.args[1]))
+    value = (symbol_table.get((str(node.args[2]), 0), node.args[2]))
+    bias = (symbol_table.get((str(node.args[3]), 0), node.args[3]))
+    query_shape = query.type.shape
+    key_shape = key.type.shape
+    value_shape = value.type.shape
+    L, S = query_shape[-2], key_shape[-2]
+    scale_factor = 1 / numpy.sqrt(query.type.shape[-1])
+
+    # Initialize attention bias
+    dtype = node.tensor_meta["dtype"][0]
+    attn_bias_shape = [L, S]
+    mlir_dtype = mlir_element_type_get(dtype)
+    attn_bias_type = ir.RankedTensorType.get(attn_bias_shape, mlir_dtype)
+    element = mlir_element_attr_get(dtype, 0)
+    attr = ir.DenseElementsAttr.get_splat(attn_bias_type, element)
+    attn_bias = arith.ConstantOp(attn_bias_type, attr).result
+    # Transpose key tensor
+    key_shape = list(key.type.shape)
+    perm_list = list(range(len(key_shape)))
+    perm_list[-1], perm_list[-2] = perm_list[-2], perm_list[-1]
+    perm_const_op = tosa.ConstOp(
+        ir.DenseElementsAttr.get(
+            memoryview(array.array("i", perm_list))
+        )
+    )
+    perm_shape = []
+    perm_shape.append(key_shape[0])
+    perm_shape.append(key_shape[1])
+    perm_shape.append(key_shape[3])
+    perm_shape.append(key_shape[2])
+    permute_result_type = ir.RankedTensorType.get(
+        perm_shape, mlir_dtype
+    )
+    key = tosa.TransposeOp(
+        permute_result_type, key, perm_const_op.results[0]
+    ).result
+
+    # Matrix multiplication of query and key
+    query_reshape_op = tosa.ReshapeOp(
+        query, memoryview(array.array("i", [query_shape[0] * query_shape[1], query_shape[2], query_shape[3]]))
+    )
+    key_reshape_op = tosa.ReshapeOp(
+        key, memoryview(array.array("i", [key_shape[0] * key_shape[1], key_shape[3], key_shape[2]]))
+    )
+    matmul_result_shp = matmul_result_shp = [key_shape[0] * key_shape[1], query_shape[2], key_shape[2]]
+    matmul_result_type = ir.RankedTensorType.get(
+        matmul_result_shp, mlir_dtype
+    )
+    matmul_op = tosa.MatMulOp(
+        matmul_result_type, query_reshape_op.result, key_reshape_op.result
+    )
+    # Multiply result by scale factor
+    element = mlir_element_attr_get(dtype, scale_factor)
+    attr = ir.DenseElementsAttr.get_splat(matmul_result_type, element)
+    scale_factor = arith.ConstantOp(matmul_result_type, attr).result
+    mul_op =tosa.MulOp(
+            matmul_result_type,
+            matmul_op.result,
+            scale_factor,
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        )
+    
+    # Add attention bias to the result
+    add_op = tosa.AddOp(matmul_result_type, mul_op.result, attn_bias)
+    # Apply softmax to the result
+    softmax_output_type = ir.RankedTensorType.get(add_op.result.type.shape, mlir_dtype)
+    element = mlir_element_attr_get(dtype, 0)
+    attr = ir.DenseElementsAttr.get_splat(softmax_output_type, element)
+    softmax_output = arith.ConstantOp(softmax_output_type, attr)
+    softmax_result = linalg.softmax([softmax_output_type], add_op.result, softmax_output, 2)
+    # This step includes dropout during training.
+    # Multiply the result by the value tensor.
+    value_reshape_op = tosa.ReshapeOp(
+        value, memoryview(array.array("i", [key_shape[0] * key_shape[1], value_shape[2], value_shape[3]]))
+    )
+    matmul_result_shp = matmul_result_shp = [key_shape[0] * key_shape[1], query_shape[2], value_shape[3]]
+    matmul_result_type = ir.RankedTensorType.get(
+        matmul_result_shp, mlir_dtype
+    )
+    matmul_op = tosa.MatMulOp(
+        matmul_result_type, softmax_result, value_reshape_op.result
+    )
+
+    result_reshape_op = tosa.ReshapeOp(
+        matmul_op.result, memoryview(array.array("i", [key_shape[0], key_shape[1], query_shape[2], value_shape[3]]))
+    )
+
+    log_sumexp = ir.DenseElementsAttr.get(memoryview(array.array("i", [])))
+    log_sumexp_op = tosa.ConstOp(log_sumexp)
+    philox_seed = ir.DenseElementsAttr.get(memoryview(array.array("i", [])))
+    philox_seed_op = tosa.ConstOp(philox_seed)
+    philox_offset = ir.DenseElementsAttr.get(memoryview(array.array("i", [])))
+    philox_offset_op = tosa.ConstOp(philox_offset)
+
+    return result_reshape_op, log_sumexp_op, philox_seed_op, philox_offset_op
 
 ops_registry = {
     "AddOp": add_op,
@@ -1461,4 +1643,8 @@ ops_registry = {
     "MeanOp": mean_op,
     "ClampMinOp": clamp_min_op,
     "ClampMaxOp": clamp_max_op,
+    "RandIntLowOp": randint_low_op,
+    "GatherOp": gather_op,
+    "ArgMaxOp": argmax_op,
+    "ScaledDotProductEfficientAttentionOp": scaled_dot_product_efficient_attention_op,
 }
