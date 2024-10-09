@@ -124,6 +124,7 @@ class DynamoCompiler:
             "mean.dim": MeanOp,
             "rsqrt.default": RsqrtOp,
             "mul.Tensor": MulOp,
+            "mul.Scalar": MulOp,
             "t.default": TOp,
             "mm.default": MatmulOp,
             "transpose.int": TransposeOp,

@@ -40,6 +40,7 @@ class GraphDriver:
     - _subgraphs_outputs (dict): A dictionary mapping subgraph names to their
     output op's result.
     """
+
     def __init__(self, graph: Graph) -> None:
         """
         Initialize the GraphDriver object with a given computational graph.
@@ -94,7 +95,7 @@ class GraphDriver:
             if isinstance(node, OutputOp):
                 for arg in node.args:
                     output_node.append(arg)
-        
+
         # Identify outputs for each subgraph
         for subgraph_name in self._graph.op_groups.keys():
             subgraphs_outputs[subgraph_name] = []
@@ -127,11 +128,11 @@ class GraphDriver:
                     if inp in node._parents:
                         placeholder_node.add_children(op.name)
                 subgraph_body.append(placeholder_node)
-            
+
             # Add operations to subgraph body
             for op in self._graph.op_groups[subgraph_name]:
                 subgraph_body.append(op)
-            
+
             # Construct output node
             output_node = OutputOp()
             output_node.name = "output"
@@ -189,12 +190,12 @@ class GraphDriver:
                     self._graph.node_table[output].tensor_meta["dtype"]
                 )
             main_graph.body.append(func_node)
-        
+
         # Adding placeholder operations from the original graph
         for op in self._graph.body:
             if isinstance(op, PlaceholderOp):
                 main_graph.body.append(op)
-        
+
         # TODO: analysis topology order to sort subgraph call.
         if len(self._subgraphs) == 1:
             # Adding CallOp to invoke the single subgraph
@@ -215,17 +216,62 @@ class GraphDriver:
 
             # Adding GetItemOps to retrieve individual output tensors
             output_node = OutputOp()
-            for i, output in enumerate(list(self._subgraphs_outputs.values())[0]):
+            for i, output in enumerate(
+                list(self._subgraphs_outputs.values())[0]
+            ):
                 getitem_node = GetItemOp()
                 getitem_node.add_argument(call_node.name)
                 getitem_node.add_argument(i)
                 getitem_node.name = "getitem{}".format(i)
                 output_node.add_argument(getitem_node.name)
                 main_graph.body.append(getitem_node)
-            
+
             # Marking the final output of the main graph
             output_node.name = "output"
             main_graph.body.append(output_node)
+
+            # Importing the main graph
+            with ir.Location.unknown(ir.Context()):
+                main_importer = GraphImporter(
+                    main_graph.body,
+                    main_graph._fake_params,
+                    main_graph._inputs,
+                    main_graph._func_name,
+                    main_graph._ops_registry,
+                    do_param_pack,
+                )
+                return main_importer.import_main_graph()
+        else:
+            for i in range(len(self._subgraphs) - 1):
+                # Adding CallOp to invoke the single subgraph
+                call_node = CallOp()
+                call_node.call_func_name = list(self._subgraphs.keys())[i]
+                call_node.name = call_node.call_func_name
+                call_node.tensor_meta = {"shape": [], "dtype": []}
+                for inp in list(self._subgraphs_inputs.values())[i]:
+                    call_node.add_argument(inp)
+                for output in list(self._subgraphs_outputs.values())[i]:
+                    call_node.tensor_meta["shape"].append(
+                        self._graph.node_table[output].tensor_meta["shape"]
+                    )
+                    call_node.tensor_meta["dtype"].append(
+                        self._graph.node_table[output].tensor_meta["dtype"]
+                    )
+                main_graph.body.append(call_node)
+
+                # Adding GetItemOps to retrieve individual output tensors
+                output_node = OutputOp()
+                for i, output in enumerate(list(self._subgraphs_outputs.values())[0]):
+                    getitem_node = GetItemOp()
+                    getitem_node.add_argument(call_node.name)
+                    getitem_node.add_argument(i)
+                    getitem_node.name = "getitem{}".format(i)
+                    output_node.add_argument(getitem_node.name)
+                    main_graph.body.append(getitem_node)
+                
+                # Marking the final output of the main graph
+                output_node.name = "output"
+                main_graph.body.append(output_node)
 
             # Importing the main graph
             with ir.Location.unknown(ir.Context()):

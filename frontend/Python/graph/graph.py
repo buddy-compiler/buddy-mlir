@@ -173,7 +173,8 @@ class Graph:
             if isinstance(op, PlaceholderOp):
                 continue
             group = [op]
-            subgraph_name = "subgraph{}".format(i)
+            # subgraph_name = "subgraph{}".format(i)
+            subgraph_name = op.name
             self.group_map_device[subgraph_name] = DeviceType.UNKNOW
             self.op_groups[subgraph_name] = group
 
@@ -455,7 +456,7 @@ class GraphImporter:
                     if node in extern_func:
                         continue
                     if isinstance(node, OutputOp):
-                        output_node_args = node.args
+                        output_node_args = set(node.args)
                         returns = [
                             self._symbol_table.get((str(output_arg), 0))
                             for output_arg in output_node_args
