@@ -278,8 +278,7 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
       // Fullfill data to memref container.
       size_t memrefIndex = 0;
       size_t colorStride = this->height * this->width;
-      std::cout<<"bitdepth = "<< this->bitDepth <<std::endl;
-
+      
       if (this->bitDepth == 32) {
         // BMP file is upside-down storage.
         for (size_t i = height; i > 0; i--) {
