@@ -164,7 +164,6 @@ class DynamoCompiler:
             "cos.default": CosOp,
             "sin.default": SinOp,
             "argmax.default": ArgMaxOp,
-            "copy.default":CopyOp,
             "split.Tensor":SplitOp,
             "max.default":MaxOp,
             "gt.Scalar":GtOp,
