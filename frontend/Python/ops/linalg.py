@@ -137,7 +137,7 @@ def unsqueeze_op(
         numpy.array(input_shape, dtype=numpy.int64), None
     )
     op = tosa.ReshapeOp(input_node, tensor_type)
-    print(op)
+
     return op
 
 
@@ -1211,8 +1211,6 @@ def index_op(
         return
     input1_shape = ir.RankedTensorType(input1.type).shape
     input2 = node.args[1]
-    print("node.args[1]:")
-    print(node.args[1])
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
