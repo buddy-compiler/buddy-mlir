@@ -17,6 +17,7 @@
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImgContainer.h>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -24,18 +25,17 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <cmath>
 
 constexpr size_t ParamsSize = 2554968;
-const std::string ImgName = "dog.png"; 
+const std::string ImgName = "dog.png";
 
 // Declare the mobilenet C interface.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
-                          MemRef<float, 1> *arg0,
-                          MemRef<long long, 1> *arg1,
-                          dip::Image<float, 4> *input);
+                                     MemRef<float, 1> *arg0,
+                                     MemRef<long long, 1> *arg1,
+                                     dip::Image<float, 4> *input);
 
-/// Print [Log] label in bold blue format. 
+/// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
 void loadParameters(const std::string &floatParamPath,
@@ -54,7 +54,6 @@ void loadParameters(const std::string &floatParamPath,
     throw std::runtime_error("Failed to read float param file");
   }
   floatParamFile.close();
-
 
   std::ifstream int64ParamFile(int64ParamPath, std::ios::in | std::ios::binary);
   if (!int64ParamFile.is_open()) {
@@ -94,8 +93,7 @@ void softmax(float *input, size_t size) {
 
 std::string getLabel(int idx) {
   std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
-  std::ifstream in(
-      mobilenetDir + "Labels.txt");
+  std::ifstream in(mobilenetDir + "Labels.txt");
   assert(in.is_open() && "Could not read the label file.");
   std::string label;
   for (int i = 0; i < idx; ++i)
@@ -110,13 +108,12 @@ int main() {
   const std::string title = "MobileNetV3 Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
-
   // Define the sizes of the input and output tensors.
   intptr_t sizesOutput[2] = {1, 1000};
 
   // Create input and output containers for the image and model output.
   std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
-  std::string imgPath = mobilenetDir + "/images/" + ImgName; 
+  std::string imgPath = mobilenetDir + "/images/" + ImgName;
 
   dip::Image<float, 4> input(imgPath, dip::DIP_RGB, true /* norm */);
   MemRef<float, 2> output(sizesOutput);
@@ -128,8 +125,9 @@ int main() {
   MemRef<long long, 1> ParamsContainerInt64({34});
   loadParameters(paramsDir, intDir, paramsContainerf32, ParamsContainerInt64);
   // Call the forward function of the model.
-  _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64, &input);
- 
+  _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64,
+                       &input);
+
   auto out = output.getData();
   softmax(out, 1000);
   // Find the classification and print the result.
