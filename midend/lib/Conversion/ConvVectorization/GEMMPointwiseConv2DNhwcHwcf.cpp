@@ -122,8 +122,7 @@ public:
 
 namespace {
 class PointwiseConvToGemmPass
-    : public PassWrapper<PointwiseConvToGemmPass,
-                         OperationPass<ModuleOp>> {
+    : public PassWrapper<PointwiseConvToGemmPass, OperationPass<ModuleOp>> {
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(PointwiseConvToGemmPass)
   StringRef getArgument() const final { return "pointwise-conv-to-gemm"; }
@@ -144,14 +143,20 @@ public:
 
 void PointwiseConvToGemmPass::runOnOperation() {
   MLIRContext *context = &getContext();
+  ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<arith::ArithDialect, scf::SCFDialect,
-                         func::FuncDialect, memref::MemRefDialect,
-                         tensor::TensorDialect>();
+  target
+      .addLegalDialect<arith::ArithDialect, scf::SCFDialect, func::FuncDialect,
+                       memref::MemRefDialect, tensor::TensorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp, tensor::CollapseShapeOp, linalg::MatmulOp,
                     tensor::ExpandShapeOp>();
+
+  RewritePatternSet patterns(context);
+  patterns.add<GEMMPointwiseConvPattern>(context);
+  if (failed(applyPartialConversion(module, target, std::move(patterns))))
+    signalPassFailure();
 }
 
 namespace mlir {
