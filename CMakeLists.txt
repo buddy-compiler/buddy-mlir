@@ -103,7 +103,6 @@ set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
 if(BUDDY_MLIR_ENABLE_DIP_LIB)
   add_definitions(-DBUDDY_MLIR_ENABLE_DIP_LIB)
-  find_package(JPEG REQUIRED)
   find_package(PNG REQUIRED)
 endif()
 
