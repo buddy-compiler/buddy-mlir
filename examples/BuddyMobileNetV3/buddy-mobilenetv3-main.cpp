@@ -1,4 +1,4 @@
-//===- MobileNetBenchmark.cpp ---------------------------------------------===//
+//===- buddy-mobilenetv3-main.cpp -----------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 #include <vector>
 
 constexpr size_t ParamsSize = 2554968;
-const std::string ImgName = "dog.png";
+const std::string ImgName = "traffic-light-32bit.bmp";
 
 // Declare the mobilenet C interface.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
@@ -114,8 +114,8 @@ int main() {
   // Create input and output containers for the image and model output.
   std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
   std::string imgPath = mobilenetDir + "/images/" + ImgName;
-
   dip::Image<float, 4> input(imgPath, dip::DIP_RGB, true /* norm */);
+  
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
