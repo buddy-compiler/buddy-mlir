@@ -37,4 +37,8 @@ target_link_libraries(buddy-opt
   SchedulingOnDevices
   LowerSche
   FuncBufferizeDynamicOffset
+  BuddyPipelines
+  BuddyGPUPipelines
+  BuddyTransformPasses
+  BuddyLinalgPasses
   )
