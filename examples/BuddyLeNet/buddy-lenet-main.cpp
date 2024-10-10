@@ -27,7 +27,7 @@
 #include <vector>
 
 constexpr size_t ParamsSize = 44426;
-const std::string ImgName = "8-16bit-565.bmp";
+const std::string ImgName = "0_1.png";
 
 /// Declare LeNet forward function.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,

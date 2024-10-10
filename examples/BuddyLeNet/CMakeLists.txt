@@ -57,5 +57,5 @@ SET_TARGET_PROPERTIES(LENET PROPERTIES LINKER_LANGUAGE C)
 add_executable(buddy-lenet-run buddy-lenet-main.cpp)
 target_link_directories(buddy-lenet-run PRIVATE ${LLVM_LIBRARY_DIR})
 
-set(BUDDY_LENET_LIBS LENET mlir_c_runner_utils ${OpenCV_LIBS})
+set(BUDDY_LENET_LIBS LENET mlir_c_runner_utils ${OpenCV_LIBS} ${PNG_LIBRARY})
 target_link_libraries(buddy-lenet-run ${BUDDY_LENET_LIBS})

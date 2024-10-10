@@ -31,9 +31,9 @@ const std::string ImgName = "traffic-light-32bit.bmp";
 
 // Declare the mobilenet C interface.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
-                          MemRef<float, 1> *arg0,
-                          MemRef<long long, 1> *arg1,
-                          dip::Image<float, 4> *input);
+                                     MemRef<float, 1> *arg0,
+                                     MemRef<long long, 1> *arg1,
+                                     dip::Image<float, 4> *input);
 
 /// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
@@ -54,7 +54,6 @@ void loadParameters(const std::string &floatParamPath,
     throw std::runtime_error("Failed to read float param file");
   }
   floatParamFile.close();
-
 
   std::ifstream int64ParamFile(int64ParamPath, std::ios::in | std::ios::binary);
   if (!int64ParamFile.is_open()) {
@@ -94,8 +93,7 @@ void softmax(float *input, size_t size) {
 
 std::string getLabel(int idx) {
   std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
-  std::ifstream in(
-      mobilenetDir + "Labels.txt");
+  std::ifstream in(mobilenetDir + "Labels.txt");
   assert(in.is_open() && "Could not read the label file.");
   std::string label;
   for (int i = 0; i < idx; ++i)
@@ -111,15 +109,13 @@ int main() {
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
   // Define the sizes of the input and output tensors.
-  intptr_t sizesInput[4] = {1, 3, 224, 224};
   intptr_t sizesOutput[2] = {1, 1000};
 
   // Create input and output containers for the image and model output.
   std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
-  std::string imgPath = mobilenetDir + "/images/" + ImgName; 
-
+  std::string imgPath = mobilenetDir + "/images/" + ImgName;
   dip::Image<float, 4> input(imgPath, dip::DIP_RGB, true /* norm */);
-
+  
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
@@ -129,8 +125,9 @@ int main() {
   MemRef<long long, 1> ParamsContainerInt64({34});
   loadParameters(paramsDir, intDir, paramsContainerf32, ParamsContainerInt64);
   // Call the forward function of the model.
-  _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64, &input);
- 
+  _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64,
+                       &input);
+
   auto out = output.getData();
   softmax(out, 1000);
   // Find the classification and print the result.
@@ -143,7 +140,7 @@ int main() {
     }
   }
   std::cout << "Classification Index: " << maxIdx << std::endl;
-  std::cout << "Classification: " << getLabel(maxIdx+1) << std::endl;
+  std::cout << "Classification: " << getLabel(maxIdx + 1) << std::endl;
   std::cout << "Probability: " << maxVal << std::endl;
 
   return 0;
