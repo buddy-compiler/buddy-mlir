@@ -140,7 +140,7 @@ int main() {
     }
   }
   std::cout << "Classification Index: " << maxIdx << std::endl;
-  std::cout << "Classification: " << getLabel(maxIdx + 1) << std::endl;
+  std::cout << "Classification: " << getLabel(maxIdx) << std::endl;
   std::cout << "Probability: " << maxVal << std::endl;
 
   return 0;

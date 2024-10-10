@@ -301,7 +301,7 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
       // Fullfill data to memref container.
       size_t memrefIndex = 0;
       size_t colorStride = this->height * this->width;
-      
+
       if (this->bitDepth == 32) {
         // BMP file is upside-down storage.
         for (size_t i = height; i > 0; i--) {
@@ -548,7 +548,6 @@ bool Image<T, N>::decodePNG(const std::vector<uint8_t> &fileData) {
       this->sizes[3] = this->width;
       this->setStrides();
       size_t size = this->product(this->sizes);
-      std::cout << "size" << size << std::endl;
       this->allocated = (T *)malloc(sizeof(T) * size);
       this->aligned = this->allocated;
       size_t colorStride = this->height * this->width;
