@@ -14,7 +14,7 @@ if(BUDDY_MLIR_ENABLE_DIP_LIB OR BUDDY_ENABLE_OPENCV)
     LINK_LIBS
       ${OpenCV_LIBS}
       ${DIP_LIBS}
-   )
+  )
 endif()
 
 if (BUDDY_MLIR_ENABLE_DIP_LIB)
