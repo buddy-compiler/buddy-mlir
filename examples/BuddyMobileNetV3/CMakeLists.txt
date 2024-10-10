@@ -71,5 +71,5 @@ SET_TARGET_PROPERTIES(MOBILENETV3 PROPERTIES LINKER_LANGUAGE C)
 add_executable(buddy-mobilenetv3-run buddy-mobilenetv3-main.cpp)
 target_link_directories(buddy-mobilenetv3-run PRIVATE ${LLVM_LIBRARY_DIR})
 
-set(BUDDY_MOBILENETV3_LIBS MOBILENETV3 mlir_c_runner_utils ${PNG_LIBRARY})
+set(BUDDY_MOBILENETV3_LIBS MOBILENETV3 mlir_c_runner_utils ${PNG_LIBRARIES})
 target_link_libraries(buddy-mobilenetv3-run ${BUDDY_MOBILENETV3_LIBS})

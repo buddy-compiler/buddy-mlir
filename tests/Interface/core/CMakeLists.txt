@@ -18,7 +18,7 @@ if(BUDDY_MLIR_ENABLE_DIP_LIB OR BUDDY_ENABLE_OPENCV)
 endif()
 
 if (BUDDY_MLIR_ENABLE_DIP_LIB)
-  set(NEW_DIP_LIBS ${PNG_LIBRARY})
+  set(NEW_DIP_LIBS ${PNG_LIBRARIES})
   _add_test_executable(buddy-new-image-container-test
     NewImageContainerTest.cpp
     LINK_LIBS
