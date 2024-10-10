@@ -303,14 +303,14 @@ public:
   Option<int64_t> vecSize{*this, "vec-size", llvm::cl::desc("Vector size."),
                           llvm::cl::init(16)};
   Option<int64_t> tilingOH{*this, "tiling-height",
-                           llvm::cl::desc("tiling the output height."),
+                           llvm::cl::desc("number of the output height tiles."),
                            llvm::cl::init(1)};
   Option<int64_t> tilingOW{*this, "tiling-width",
-                           llvm::cl::desc("tiling the output width."),
+                           llvm::cl::desc("number of the output width tiles."),
                            llvm::cl::init(1)};
-  Option<int64_t> tilingOC{*this, "tiling-channel",
-                           llvm::cl::desc("tiling the output channel."),
-                           llvm::cl::init(1)};
+  Option<int64_t> tilingOC{
+      *this, "tiling-channel",
+      llvm::cl::desc("number of the output channel tiles."), llvm::cl::init(1)};
 };
 } // end anonymous namespace.
 
