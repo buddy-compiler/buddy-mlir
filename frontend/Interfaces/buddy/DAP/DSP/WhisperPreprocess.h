@@ -40,6 +40,9 @@ extern "C" {
 //    first operand.
 void _mlir_ciface_buddy_whisperPreprocess(MemRef<float, 3> *outputFeatures,
                                           MemRef<double, 1> *inputRawSpeech);
+
+void _mlir_ciface_buddy_whisperPreprocessRFFT(MemRef<double, 1> *inputRawSpeech);
+
 }
 } // namespace detail
 
@@ -48,6 +51,12 @@ void whisperPreprocess(MemRef<double, 1> *inputRawSpeech,
                        MemRef<float, 3> *outputFeatures) {
   detail::_mlir_ciface_buddy_whisperPreprocess(outputFeatures, inputRawSpeech);
 }
+
+
+void whisperPreprocessRFFT(MemRef<double, 1> *inputRawSpeech) {
+  detail::_mlir_ciface_buddy_whisperPreprocessRFFT(inputRawSpeech);
+}
+
 
 } // namespace dap
 
