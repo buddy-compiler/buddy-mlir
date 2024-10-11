@@ -20,6 +20,7 @@ add_executable(buddy-fir FIRLowpass.cpp)
 add_dependencies(buddy-fir buddy-opt)
 target_link_libraries(buddy-fir
   BuddyLibDAP
+  mlir_c_runner_utils
 )
 
 #-------------------------------------------------------------------------------
@@ -30,6 +31,7 @@ add_executable(buddy-biquad biquad.cpp)
 add_dependencies(buddy-biquad buddy-opt)
 target_link_libraries(buddy-biquad
   BuddyLibDAP
+  mlir_c_runner_utils
 )
 
 #-------------------------------------------------------------------------------
@@ -40,12 +42,14 @@ add_executable(buddy-iir-scalar IIRLowpass.cpp)
 add_dependencies(buddy-iir-scalar buddy-opt)
 target_link_libraries(buddy-iir-scalar 
   BuddyLibDAP
+  mlir_c_runner_utils
 )
 
 add_executable(buddy-iir-vectorization IIRVectorization.cpp)
 add_dependencies(buddy-iir-vectorization buddy-opt)
 target_link_libraries(buddy-iir-vectorization
-  BuddyLibDAPVectorization
+  BuddyLibDAP
+  mlir_c_runner_utils
 )
 
 #-------------------------------------------------------------------------------

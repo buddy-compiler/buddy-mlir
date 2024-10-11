@@ -13,13 +13,16 @@ set(BUDDY_TEST_DEPENDS
   buddy-translate
   buddy-container-test
   buddy-audio-container-test
-  buddy-new-image-container-test
   buddy-text-container-test
   mlir-cpu-runner
   )
 
 if(BUDDY_ENABLE_OPENCV)
   list(APPEND BUDDY_TEST_DEPENDS buddy-image-container-test)
+endif()
+
+if(BUDDY_MLIR_ENABLE_DIP_LIB)
+  list(APPEND BUDDY_TEST_DEPENDS buddy-new-image-container-test)
 endif()
 
 add_lit_testsuite(check-tests "Running the buddy regression tests..."
