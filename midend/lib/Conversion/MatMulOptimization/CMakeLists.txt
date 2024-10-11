@@ -11,13 +11,7 @@ add_mlir_library(MatMulOptimization
 
 add_mlir_library(BatchMatMulOptimization
   BatchMatMulOptimize.cpp
-)
-
-add_mlir_library(BatchMatMulTileOptimization
   BatchMatMulTileOptimize.cpp
-)
-
-add_mlir_library(BatchMatMulSCFOptimization
   BatchMatMulSCFOptimize.cpp
 )
 

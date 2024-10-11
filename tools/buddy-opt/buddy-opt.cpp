@@ -84,7 +84,6 @@ int main(int argc, char **argv) {
   // Register all MLIR passes.
   mlir::registerAllPasses();
   mlir::buddy::registerPointwiseConvToGemmPass();
-  // mlir::buddy::registerPointwiseConvToGemmForNhwcFhwcPass();
   // Register Vectorization of Convolution.
   mlir::buddy::registerConvVectorizationPass();
   // Register Vectorization of Pooling.

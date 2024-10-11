@@ -64,11 +64,6 @@ linalg-conv2d_nhwc_fhwc-optimize-lower:
 	@${BUDDY_OPT} linalg-conv2d_nhwc_fhwc.mlir \
 		-conv-nhwc-fhwc-optimize="vec-size=16" \
 	  -o ./log.mlir
-		
-linalg-conv2d_nhwc_fhwc-tile-optimize-lower:
-	@${BUDDY_OPT} linalg-conv2d_nhwc_fhwc.mlir \
-		-conv-nhwc-fhwc-tile-optimize="vec-size=16 tiling-height=2 tiling-width=3" \
-	  -o ./log.mlir
 
 linalg-conv2d_nhwc_fhwc-optimize-run:
 	@${BUDDY_OPT} linalg-conv2d_nhwc_fhwc.mlir ${MLIR_OPT_OPTIONS} \
@@ -77,6 +72,12 @@ linalg-conv2d_nhwc_fhwc-optimize-run:
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+		
+linalg-conv2d_nhwc_fhwc-tile-optimize-lower:
+	@${BUDDY_OPT} linalg-conv2d_nhwc_fhwc.mlir \
+		-conv-nhwc-fhwc-tile-optimize="vec-size=16 tiling-height=2 tiling-width=3" \
+	  -o ./log.mlir
 
 linalg-conv2d_nhwc_fhwc-tile-optimize-run:
 	@${BUDDY_OPT} linalg-conv2d_nhwc_fhwc.mlir ${MLIR_OPT_OPTIONS} \
@@ -221,10 +222,40 @@ linalg-batch-matmul-tile-optimize-lower:
 		-batchmatmul-tile-optimize="vec-size=64 kernel-m=4 kernel-n=2" \
 		-o ./log.mlir
 
+linalg-batch-matmul-tile-optimize-run:
+	@${BUDDY_OPT} linalg-batch-matmul-dync.mlir ${MLIR_OPT_OPTIONS} \
+		-batchmatmul-tile-optimize="vec-size=64 kernel-m=4 kernel-n=2" \
+		-convert-linalg-to-loops \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
 linalg-batch-matmul-scf-optimize-lower:
 	@${BUDDY_OPT} linalg-batch-matmul-dync.mlir ${MLIR_OPT_OPTIONS} \
 		-batchmatmul-scf-optimize="vector-size=64" \
 		-o ./log.mlir
+
+linalg-batch-matmul-scf-optimize-run:
+	@${BUDDY_OPT} linalg-batch-matmul-dync.mlir ${MLIR_OPT_OPTIONS} \
+		-batchmatmul-scf-optimize="vector-size=64" \
+		-convert-linalg-to-loops \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 linalg-batch-matmul-optimize-translate:
 	@${BUDDY_OPT} linalg-batch-matmul-f32.mlir ${MLIR_OPT_OPTIONS} \
