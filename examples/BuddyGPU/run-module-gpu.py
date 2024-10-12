@@ -18,16 +18,14 @@
 #  calculates the same result as NumPy.
 #
 # ===----------------------------------------------------------------------===//
-import mlir.ir as ir
+
 import mlir.dialects.func as func
-import mlir.dialects.memref as memref
 from mlir.passmanager import *
 from mlir.execution_engine import *
 from mlir import runtime as rt
 from mlir.ir import *
 import numpy as np
 import ctypes
-import ml_dtypes
 import argparse as ap
 
 
@@ -115,7 +113,7 @@ def test(source, target, llvm_dir):
         engine = ExecutionEngine(
             newModule,
             shared_libs=[
-                "/usr/lib/libomp.so",
+                llvm_dir + "/build/lib/libomp.so",
                 llvm_dir + "/build/lib/libmlir_c_runner_utils.so",
                 llvm_dir + "/build/lib/libmlir_async_runtime.so",
                 llvm_dir + "/build/lib/libmlir_runner_utils.so",
