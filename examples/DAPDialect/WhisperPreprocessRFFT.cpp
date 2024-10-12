@@ -50,14 +50,12 @@ int main() {
   const std::string title = "Whisper Preprocess Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
-
   double *inputAlign = new double[testLength];
   for (int i = 0; i < testLength; ++i) {
     inputAlign[i] = static_cast<double>(i);
   }
   intptr_t inputSizes[1] = {testLength};
   MemRef<double, 1> inputMemRef(inputAlign, inputSizes);
-
 
   printLogLabel();
   std::cout << "Preprocessing RFFT" << std::endl;
