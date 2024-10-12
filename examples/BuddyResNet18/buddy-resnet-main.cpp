@@ -1,4 +1,4 @@
-//===- buddy-resnet-main.cpp ---------------------------------------------===//
+//===- buddy-resnet-main.cpp ----------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,41 +15,25 @@
 //===----------------------------------------------------------------------===//
 
 #include <buddy/Core/Container.h>
-#include <buddy/DIP/ImageContainer.h>
+#include <buddy/DIP/ImgContainer.h>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <limits>
-#include <opencv2/opencv.hpp>
 #include <string>
 #include <utility>
 #include <vector>
 
 constexpr size_t ParamsSize = 11699112;
-const std::string ImgName = "dog.png";
+const std::string ImgName = "dog-224*224.png";
 
-// Declare the mobilenet C interface.
+// Declare the resnet C interface.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
-                          MemRef<float, 1> *arg0,
-                          MemRef<long long, 1> *arg1,
-                          Img<float, 4> *input);
-
-const cv::Mat imagePreprocessing() {
-  // Get the directory of the LeNet example and construct the image path.
-  std::string resnetDir = getenv("RESNET_EXAMPLE_PATH");
-  std::string imgPath = resnetDir + "/images/" + ImgName; 
-  // Read the image in grayscale mode.
-  cv::Mat inputImage = cv::imread(imgPath, cv::IMREAD_GRAYSCALE);
-  assert(!inputImage.empty() && "Could not read the image.");
-  cv::Mat resizedImage;
-  int imageWidth = 224;
-  int imageHeight = 224;
-  // Resize the image to 224x224 pixels.
-  cv::resize(inputImage, resizedImage, cv::Size(imageWidth, imageHeight),
-             cv::INTER_LINEAR);
-  return resizedImage;
-}
+                                     MemRef<float, 1> *arg0,
+                                     MemRef<long long, 1> *arg1,
+                                     dip::Image<float, 4> *input);
 
 /// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
@@ -70,7 +54,6 @@ void loadParameters(const std::string &floatParamPath,
     throw std::runtime_error("Failed to read float param file");
   }
   floatParamFile.close();
-
 
   std::ifstream int64ParamFile(int64ParamPath, std::ios::in | std::ios::binary);
   if (!int64ParamFile.is_open()) {
@@ -110,8 +93,7 @@ void softmax(float *input, size_t size) {
 
 std::string getLabel(int idx) {
   std::string resnetDir = getenv("RESNET_EXAMPLE_PATH");
-  std::ifstream in(
-      resnetDir + "Labels.txt");
+  std::ifstream in(resnetDir + "Labels.txt");
   assert(in.is_open() && "Could not read the label file.");
   std::string label;
   for (int i = 0; i < idx; ++i)
@@ -123,30 +105,29 @@ std::string getLabel(int idx) {
 
 int main() {
   // Print the title of this example.
-  const std::string title = "ResNet18 Inference Powered by Buddy Compiler";
+  const std::string title = "ResNet Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
-  // Preprocess the image to match the input requirements of the model.
-  cv::Mat image = imagePreprocessing();
-
   // Define the sizes of the input and output tensors.
-  intptr_t sizesInput[4] = {1, 3, 224, 224};
   intptr_t sizesOutput[2] = {1, 1000};
 
   // Create input and output containers for the image and model output.
-  Img<float, 4> input(image, sizesInput, true);
+  std::string resnetDir = getenv("RESNET_EXAMPLE_PATH");
+  std::string imgPath = resnetDir + "/images/" + ImgName;
+  dip::Image<float, 4> input(imgPath, dip::DIP_RGB, true /* norm */);
+  
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
-  std::string resnetDir = getenv("RESNET_EXAMPLE_PATH");
   std::string paramsDir = resnetDir + "/arg0.data";
   std::string intDir = resnetDir + "/arg1.data";
   MemRef<float, 1> paramsContainerf32({ParamsSize});
   MemRef<long long, 1> ParamsContainerInt64({20});
   loadParameters(paramsDir, intDir, paramsContainerf32, ParamsContainerInt64);
   // Call the forward function of the model.
-  _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64, &input);
- 
+  _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64,
+                       &input);
+
   auto out = output.getData();
   softmax(out, 1000);
   // Find the classification and print the result.

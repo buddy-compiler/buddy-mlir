@@ -71,5 +71,5 @@ SET_TARGET_PROPERTIES(RESNET PROPERTIES LINKER_LANGUAGE C)
 add_executable(buddy-resnet-run buddy-resnet-main.cpp)
 target_link_directories(buddy-resnet-run PRIVATE ${LLVM_LIBRARY_DIR})
 
-set(BUDDY_RESNET_LIBS RESNET mlir_c_runner_utils ${OpenCV_LIBS})
+set(BUDDY_RESNET_LIBS RESNET mlir_c_runner_utils ${PNG_LIBRARIES})
 target_link_libraries(buddy-resnet-run ${BUDDY_RESNET_LIBS})

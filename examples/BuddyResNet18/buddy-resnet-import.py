@@ -1,4 +1,4 @@
-# ===- buddy-resnet-import.py ---------------------------------------------
+# ===- buddy-resnet-import.py --------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
 
 params = dynamo_compiler.imported_params[graph]
 current_path = os.path.dirname(os.path.abspath(__file__))
+
 
 float32_param = np.concatenate(
     [
