@@ -40,13 +40,15 @@
 #include "DAP/DAPOps.h"
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
-#include "RVV/RVVDialect.h"
-#include "VectorExp/VectorExpDialect.h"
-#include "VectorExp/VectorExpOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
+#include "RVV/RVVDialect.h"
 #include "Sche/ScheDialect.h"
 #include "Sche/ScheOps.h"
+#include "Timing/TimingDialect.h"
+#include "Timing/TimingOps.h"
+#include "VectorExp/VectorExpDialect.h"
+#include "VectorExp/VectorExpOps.h"
 
 namespace mlir {
 namespace buddy {
@@ -54,6 +56,8 @@ void registerConvVectorizationPass();
 void registerPointwiseConvToGemmPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
+void registerLowerTimingPass();
+void registerTimingPass();
 void registerLowerDIPPass();
 void registerLowerDAPPass();
 void registerExtendDAPPass();
@@ -83,6 +87,8 @@ int main(int argc, char **argv) {
   // Register Vectorization of Pooling.
   mlir::buddy::registerPoolingVectorizationPass();
   mlir::buddy::registerLowerBudPass();
+  mlir::buddy::registerLowerTimingPass();
+  mlir::buddy::registerTimingPass();
   mlir::buddy::registerLowerDIPPass();
   mlir::buddy::registerLowerDAPPass();
   mlir::buddy::registerExtendDAPPass();
@@ -111,6 +117,7 @@ int main(int argc, char **argv) {
   // Register dialects in buddy-mlir project.
   // clang-format off
   registry.insert<buddy::bud::BudDialect,
+                  buddy::timing::TimingDialect,
                   buddy::dip::DIPDialect,
                   buddy::dap::DAPDialect,
                   buddy::rvv::RVVDialect,
