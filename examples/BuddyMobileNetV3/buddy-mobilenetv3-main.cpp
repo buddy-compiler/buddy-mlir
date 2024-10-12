@@ -27,7 +27,7 @@
 #include <vector>
 
 constexpr size_t ParamsSize = 2554968;
-const std::string ImgName = "ice-cream-224*224.png";
+const std::string ImgName = "dog-224*224.png";
 
 // Declare the mobilenet C interface.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
