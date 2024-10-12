@@ -37,4 +37,6 @@ target_link_libraries(buddy-opt
   SchedulingOnDevices
   LowerSche
   FuncBufferizeDynamicOffset
+  BuddyMemrefExp
+  FinalizeMemrefExpToLLVMPass
   )
