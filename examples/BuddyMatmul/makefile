@@ -36,9 +36,9 @@ linalg-batchmatmul-f32-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-linalg-transposematmulb-f32-run:
+linalg-matmul-transpose-b-f32-run:
 	@${BUDDY_OPT} ./linalg-transposematmulb-f32.mlir\
-		-transpose_matmul_bvectorization \
+		-matmul_transpose_b_vectorization \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
 		-convert-vector-to-scf \
@@ -53,4 +53,3 @@ linalg-transposematmulb-f32-run:
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
-

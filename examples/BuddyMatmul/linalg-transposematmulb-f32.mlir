@@ -1,3 +1,21 @@
+// RUN: buddy-opt %s \
+// RUN:     -matmul_transpose_b_vectorization \
+// RUN:     -convert-linalg-to-affine-loops \
+// RUN:     -lower-affine \
+// RUN:     -convert-vector-to-scf \
+// RUN:     -convert-scf-to-cf \
+// RUN:     -convert-vector-to-llvm \
+// RUN:     -convert-math-to-llvm \
+// RUN:     -convert-math-to-libm \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -convert-func-to-llvm \
+// RUN:     -expand-strided-metadata \
+// RUN:     -finalize-memref-to-llvm \
+// RUN:     -reconcile-unrealized-casts \
+// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN: | FileCheck %s
+
 func.func private @printMemrefF32(memref<*xf32>)
 
 func.func @test(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
@@ -23,6 +41,7 @@ func.func @alloc_f32(%arg0: index, %arg1: index, %arg4: f32) -> memref<?x?xf32> 
 func.func @main(){
   %c32 = arith.constant 32 : index
   %c1024 = arith.constant 1024 : index
+  %c3 = arith.constant 3 : index
   %f0 = arith.constant 0.0 : f32
   %f1 = arith.constant 1.0 : f32
 
@@ -34,7 +53,27 @@ func.func @main(){
 
   %printed_m2 = memref.cast %m2 : memref<?x?xf32> to memref<*xf32>
 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [32, 32] strides = [32,1] data = 
+  // CHECK-NEXT: [
+  // CHECK: [
+  // CHECK: [1024{(, 1024)*}]
   call @printMemrefF32(%printed_m2) : (memref<*xf32>) -> ()
+
+  %m3 = call @alloc_f32(%c3,%c3, %f1) : (index, index, f32) -> memref<?x?xf32>
+  %m4 = call @alloc_f32(%c3,%c3, %f1) : (index, index, f32) -> memref<?x?xf32>
+  %m5 = call @alloc_f32(%c3,%c3, %f0) : (index, index, f32) -> memref<?x?xf32>
+
+  call @test(%m3, %m4, %m5) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
+
+  %printed_m5 = memref.cast %m5 : memref<?x?xf32> to memref<*xf32>
+
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [3, 3] strides = [3, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME:  [3, 3, 3],
+  // CHECK-NEXT:  [3, 3, 3],
+  // CHECK-NEXT:  [3, 3, 3]
+  // CHECK-SAME: ]
+  call @printMemrefF32(%printed_m5) : (memref<*xf32>) -> ()
 
   return
 }
