@@ -26,5 +26,8 @@ target_link_libraries(rotation2D ${DIP_LIBS})
 add_executable(resize2D resize2D.cpp)
 target_link_libraries(resize2D ${DIP_LIBS})
 
-add_executable(resize4D resize4D.cpp)
-target_link_libraries(resize4D ${DIP_LIBS})
+add_executable(resize4D_nhwc resize4D_nhwc.cpp)
+target_link_libraries(resize4D_nhwc ${DIP_LIBS})
+
+add_executable(resize4D_nchw resize4D_nchw.cpp)
+target_link_libraries(resize4D_nchw ${DIP_LIBS})
