@@ -61,7 +61,7 @@ int main() {
   std::cout << "Preprocessing RFFT" << std::endl;
   const auto loadStart = std::chrono::high_resolution_clock::now();
 
-  dap::whisperPreprocessRFFT(&inputMemRef);
+  dap::RFFT(&inputMemRef);
 
   const auto loadEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> loadTime =
