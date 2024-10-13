@@ -155,7 +155,7 @@ class GraphDriver:
                 self._graph._ops_registry, 
                 self._graph._ops_gpu_registry,
                 subgraph_name,
-                subgraph_device
+                subgraph_device, verbose=self._graph._verbose
             )
             subgraph.body = subgraph_body
             for op in subgraph_body:
@@ -218,6 +218,7 @@ class GraphDriver:
             self._graph._ops_registry,
             self._graph._ops_gpu_registry,
             self._graph._func_name,
+            self._graph._verbose
         )
 
         # Adding FuncOp nodes for each subgraph

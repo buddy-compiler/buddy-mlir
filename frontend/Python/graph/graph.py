@@ -110,6 +110,7 @@ class Graph:
         ops_gpu_registry: dict,
         func_name: str,
         device: DeviceType = DeviceType.CPU
+        verbose=False
     ) -> None:
         """
         Initializes the Graph.
@@ -130,6 +131,7 @@ class Graph:
         self._fake_params = fake_params
         self.device = device
         self._imported_module = None
+        self._verbose = verbose
         self._ops_registry = ops_registry
         self._ops_gpu_registry = ops_gpu_registry
         self._func_name = func_name
@@ -256,9 +258,6 @@ class Graph:
                 self._inputs,
                 self._func_name,
                 self._ops_registry,
-                self._ops_gpu_registry,
-                False,
-                self.device
             )
             self._imported_module = fx_importer.import_graph()
             outputs = fx_importer.get_output_nodes()
@@ -454,7 +453,6 @@ class GraphImporter:
         ops_registry: dict,
         ops_gpu_registry: dict,
         do_param_pack: bool = False,
-        device: DeviceType = DeviceType.CPU,
     ):
         """
         Initializes the buddy Graph importer.
@@ -473,6 +471,7 @@ class GraphImporter:
         self._func_name = func_name
         self._params = params
         self._inputs = inputs
+        self._verbose = verbose
         self._do_param_pack = do_param_pack
         self._param_packs = []
         self._num_input_visited = 0
@@ -561,9 +560,11 @@ class GraphImporter:
             @func.FuncOp.from_py_func(*arguments, name=self._func_name)
             def generated_func(*args):
                 args_list = list(args)
+                func_op = self._module.body.operations[0]
                 for node in self._body:
                     if node in extern_func:
                         continue
+                    old_ops = [op for op in func_op.body.blocks[0].operations]
                     if isinstance(node, OutputOp):
                         output_node_args = node.args
                         returns = [
@@ -586,7 +587,20 @@ class GraphImporter:
                         ]
                     else:
                         self._import_op(node)
-
+                    new_ops = [op for op in func_op.body.blocks[0].operations]
+                    if self._verbose:
+                        print('='*20 + "Graph Node" + "="*20)
+                        print("Node: " + node.name)
+                        print("Type: " + str(node._op_type))
+                        print("Arguments: " + str(node.args))
+                        print("Parents: " + str(node._parents))
+                        print("Children: " + str(node._children))
+                        print('-'*20 + "MLIR OPS" + '-'*20)
+                        for op in new_ops:
+                            if op not in old_ops:
+                                print(op)
+                        print("")
+                        
                 return self._symbol_table.get(("output", 0))
         
         if self._device == DeviceType.GPU:
