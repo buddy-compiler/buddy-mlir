@@ -47,8 +47,8 @@ class OpType(Enum):
     Note: The underlying values are integers for these operation types.
     """
 
-    BroadcastType = 0
-    ElementwiseType = 1
+    ElementwiseType = 0
+    BroadcastType = 1
     ReshapeType = 2
     SliceLikeType = 3
     ReduceType = 4
@@ -140,6 +140,14 @@ class Op:
     @tensor_meta.setter
     def tensor_meta(self, new_tensor_meta):
         self._tensor_meta = new_tensor_meta
+
+    @property
+    def parents(self):
+        return self._parents
+
+    @property
+    def op_type(self):
+        return self._op_type
 
 
 class PlaceholderOp(Op):
