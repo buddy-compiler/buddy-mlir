@@ -54,3 +54,15 @@ def mlir_element_attr_get(type_name, value):
         case TensorDType.Bool:
             return ir.IntegerAttr.get(ir.IntegerType.get_signless(1), value)
 
+
+def tensor_shape_size(shape):
+    """
+    Calculate the product of all dimensions in the given shape list, 
+    which represents the size of the tensor.
+    Args:
+        shape: A list containing the sizes of each dimension of the tensor.
+    """
+    size = 1
+    for dim in shape:
+        size *= dim
+    return size
