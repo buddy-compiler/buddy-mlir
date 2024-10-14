@@ -96,13 +96,12 @@ $ cmake -G Ninja .. \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
     -DPython3_EXECUTABLE=$(which python3)
+$ ninja
+$ ninja check-buddy
+$ export BUDDY_MLIR_BUILD_DIR=$PWD
+$ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
+$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
-
-If you want to add domain-specific framework support, please add the following cmake options:
-
-| Framework  | Enable Option | Other Options |
-| -------------- | ------------- | ------------- |
-| OpenCV  | `-DBUDDY_ENABLE_OPENCV=ON`  | Add `-DOpenCV_DIR=</PATH/TO/OPENCV/BUILD/>` or install OpenCV release version on your local device. |
 
 To build buddy-mlir with custom LLVM sources:
 

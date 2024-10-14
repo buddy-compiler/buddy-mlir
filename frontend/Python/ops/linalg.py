@@ -22,7 +22,7 @@ from typing import Dict, Tuple, List
 
 import mlir.ir as ir
 from mlir.dialects import tosa, linalg, arith, tensor, math
-import copy
+import copy, array, sys
 import numpy
 import functools
 
@@ -267,6 +267,7 @@ def ones_op(
     op = arith.ConstantOp(tensor_type, attr)
 
     return op
+
 
 def full_op(
     node: FullOp,
@@ -1756,6 +1757,7 @@ def silu_op(
 
     return op
 
+
 def where_op(
     node: WhereOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
@@ -1830,6 +1832,7 @@ def where_op(
 
     return op
 
+
 def scalar_tensor_op(node: ScalarTensorOp, symbol_table):
     """
     Import the tensor Scalar_Tensor operation.
@@ -1841,6 +1844,127 @@ def scalar_tensor_op(node: ScalarTensorOp, symbol_table):
     op = arith.ConstantOp(dtype, attr)
 
     return op
+
+
+def split_op(node: SplitOp, symbol_table):
+    """
+    Split the input tensor into smaller tensors along the specified dimension.
+
+    Args:
+        node (SplitOp): The split operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+
+    Returns:
+        List[Tensor]: List of split tensors.
+    """
+    # Get the input tensor and parameters
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    split_size = node.args[1]  # Size of each split tensor
+    input_shape = input_tensor.type.shape
+    dim = node.args[2]  # Dimension to split along
+    if dim < 0:
+        dim += len(input_shape)
+
+    split_count = (input_shape[dim] + split_size - 1) // split_size  # Round up
+    tensor_rank = len(input_shape)
+    default_sizes = list(input_shape)
+    default_strides = [1] * tensor_rank
+    splits = []
+
+    for i in range(split_count):
+        # Calculate the offset along the specified dimension
+        offsets = [0] * tensor_rank
+        offsets[dim] = i * split_size
+        offsets_attr = ir._denseI64ArrayAttr(offsets, None)
+
+        # Set the size along the split dimension; the last slice may be smaller than split_size
+        sizes = list(default_sizes)
+        sizes[dim] = min(split_size, input_shape[dim] - i * split_size)
+        sizes_attr = ir._denseI64ArrayAttr(sizes, None)
+
+        # The stride for each dimension is set to 1 by default
+        strides = list(default_strides)
+        strides_attr = ir._denseI64ArrayAttr(strides, None)
+
+        output_shape = list(node.tensor_meta["shape"][i])
+        dtype = node.tensor_meta["dtype"][i]
+        mlir_dtype = mlir_element_type_get(dtype)
+        tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+
+        slice_op = tensor.ExtractSliceOp(
+            tensor_type,
+            input_tensor,
+            [],
+            [],
+            [],
+            offsets_attr,
+            sizes_attr,
+            strides_attr,
+        )
+        splits.append(slice_op.result)
+
+    return splits
+
+
+def max_op(node: MaxOp, symbol_table):
+    """
+    Computes the maximum value from the input tensor and returns it as a tensor.
+
+    Args:
+        node: The operation node containing input tensor information.
+        symbol_table: A table mapping identifiers to tensor values.
+
+    Returns:
+        A tensor containing the maximum value extracted from the input tensor.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    output_shape = node.tensor_meta["shape"]
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    input_shape = ir.RankedTensorType(input1.type).shape
+
+    total_size = 1
+    for x in input_shape:
+        total_size *= x
+    reshape_op = tosa.ReshapeOp(
+        input1, memoryview(array.array("i", [total_size]))
+    )
+
+    argmax_result = ir.RankedTensorType.get([], ir.IntegerType.get_signless(64))
+    argmax_op = tosa.ArgMaxOp(argmax_result, reshape_op.result, 0)
+    index_value = tensor.ExtractOp(argmax_op, [])
+    index = arith.IndexCastOp(ir.IndexType.get(), index_value)
+    max_value = tensor.ExtractOp(reshape_op, index)
+    output = tensor.FromElementsOp(tensor_type, max_value)
+
+    return output
+
+
+def gt_op(node: GtOp, symbol_table):
+    """
+    Compares an input tensor with a scalar value to determine element-wise greater than.
+
+    Parameters:
+    - node: The operation node containing arguments and metadata.
+    - symbol_table: A mapping of tensor names to their corresponding MLIR objects.
+
+    Returns:
+    - cmp_op: A comparison operation result indicating where the input tensor's elements are greater than the scalar.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    input_shape = ir.RankedTensorType(input_tensor.type).shape
+    tensor_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    scalar = arith.ConstantOp(input_dtype, node.args[1])
+    rhs = tensor.SplatOp(tensor_type, scalar)
+    if str(input_dtype).find("i") != -1:
+        cmp_op = arith.CmpIOp(4, input_tensor, rhs)
+    else:
+        cmp_op = arith.CmpFOp(2, input_tensor, rhs)
+
+    return cmp_op
+
 
 ops_registry = {
     "MatmulOp": matmul_op,
@@ -1874,4 +1998,7 @@ ops_registry = {
     "AddOp": add_op,
     "WhereOp": where_op,
     "ScalarTensorOp": scalar_tensor_op,
+    "SplitOp": split_op,
+    "MaxOp": max_op,
+    "GtOp": gt_op,
 }
