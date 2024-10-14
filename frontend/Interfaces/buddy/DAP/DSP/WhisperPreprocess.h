@@ -56,8 +56,6 @@ void whisperPreprocess(MemRef<double, 1> *inputRawSpeech,
 void RFFT(MemRef<double, 1> *inputRawSpeech) {
   detail::_mlir_ciface_buddy_RFFT(inputRawSpeech);
 }
-
-
 } // namespace dap
 
 #endif // FRONTEND_INTERFACES_BUDDY_DAP_DSP_WHISPERPREPROCESS

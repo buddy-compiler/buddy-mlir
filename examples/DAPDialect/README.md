@@ -6,15 +6,6 @@ This example demonstrates using the RFFT operator in Buddy Compiler to compute t
 
 ## How to run
 
-0. Enter Python virtual environment.
-
-We recommend you to use anaconda3 to create python virtual environment. You should install python packages as buddy-mlir/requirements.
-
-```
-$ conda activate <your virtual environment name>
-$ cd buddy-mlir
-$ pip install -r requirements.txt
-```
 
 1. Build and check LLVM/MLIR
 
@@ -51,24 +42,12 @@ $ ninja
 $ ninja check-buddy
 ```
 
-Set the `PYTHONPATH` environment variable. Make sure that the `PYTHONPATH` variable includes the directory of LLVM/MLIR python bindings and the directory of Buddy MLIR python packages.
-
-```bash
-$ export PYTHONPATH=/path-to-buddy-mlir/llvm/build/tools/mlir/python_packages/mlir_core:/path-to-buddy-mlir/build/python_packages:${PYTHONPATH}
-
-// For example:
-// Navigate to your buddy-mlir/build directory
-$ cd buddy-mlir/build
-$ export BUDDY_MLIR_BUILD_DIR=$PWD
-$ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
-$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
-```
 
 3. Run the RFFT example
 ```bash
 $ cd bin
-$ ./buddy-whisper-preprocess-rfft
+$ ./buddy-rfft
 ```
-The result will be saved in the ``whisperPreprocessResultRFFT.txt`` and you can edit the input data in ``buddy-mlir/examples/DAPDialect/WhisperPreprocessRFFT.cpp``
+The result will be saved in the ``whisperPreprocessResultRFFT.txt`` and you can edit the input data in ``buddy-mlir/examples/DAPDialect/RFFT.cpp``
 
 4. Enjoy it!

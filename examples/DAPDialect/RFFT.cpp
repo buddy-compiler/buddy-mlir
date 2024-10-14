@@ -60,9 +60,7 @@ int main() {
   printLogLabel();
   std::cout << "Preprocessing RFFT" << std::endl;
   const auto loadStart = std::chrono::high_resolution_clock::now();
-
   dap::RFFT(&inputMemRef);
-
   const auto loadEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> loadTime =
       loadEnd - loadStart;
