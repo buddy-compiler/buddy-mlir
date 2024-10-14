@@ -105,12 +105,12 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
 
 // Fill appropriate pixel 4D data in its corresponding rotated co-ordinate of
 // output image.
-void fillPixels4D(OpBuilder &builder, Location loc, Value ivs0, Value ivs1,
-                  Value resXVec, Value resYVec, Value xVec, Value yVec,
-                  Value input, Value output, Value c0, Value strideVal,
-                  Value outputRowLastElemF32, Value outputColLastElemF32,
-                  Value inputRowLastElemF32, Value inputColLastElemF32,
-                  Value c0F32);
+void fillPixelsNearestNeighbour4D(
+    OpBuilder &builder, Location loc, Value ivs0, Value ivs1, Value resXVec,
+    Value resYVec, Value xVec, Value yVec, Value input, Value output, Value c0,
+    Value strideVal, Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
+    Value dataCondition);
 
 // Calculate tan(angle / 2) where angle is a function parameter.
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal);
@@ -166,7 +166,7 @@ void fillPixelsBilinearInterpolate4D(
     Value input, Value output, Value c0, Value strideVal, Value xVecWeight,
     Value yVecWeight, Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
-    Value c1F32);
+    Value c1F32, Value dataCondition);
 
 // Helper function for resizing an image using nearest neighbour interpolation
 // mechanism.
@@ -188,7 +188,7 @@ void NearestNeighbourInterpolationResizing4D(
     Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
     Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
-    int64_t stride, Value c0, Value c0F32);
+    int64_t stride, Value c0, Value c0F32, Value dataCondition);
 
 // Helper function for resizing an image using bilinear interpolation mechanism.
 void BilinearInterpolationResizing(
@@ -209,7 +209,7 @@ void BilinearInterpolationResizing4D(
     Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
     Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
-    int64_t stride, Value c0, Value c0F32, Value c1F32);
+    int64_t stride, Value c0, Value c0F32, Value c1F32, Value dataCondition);
 
 // Util function for morphological transformations ; compares two vectors and
 // returns a mask

@@ -55,8 +55,12 @@ checkDIPCommonTypes<dip::Resize2DOp>(dip::Resize2DOp,
                                      const std::vector<Value> &args);
 
 template DIP_ERROR
-checkDIPCommonTypes<dip::Resize4DOp>(dip::Resize4DOp,
-                                     const std::vector<Value> &args);
+checkDIPCommonTypes<dip::Resize4D_NHWCOp>(dip::Resize4D_NHWCOp,
+                                          const std::vector<Value> &args);
+
+template DIP_ERROR
+checkDIPCommonTypes<dip::Resize4D_NCHWOp>(dip::Resize4D_NCHWOp,
+                                          const std::vector<Value> &args);
 
 template DIP_ERROR
 checkDIPCommonTypes<dip::Erosion2DOp>(dip::Erosion2DOp,
@@ -113,7 +117,8 @@ DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args) {
     }
   } else if (op->getName().stripDialect() == "rotate_2d" ||
              op->getName().stripDialect() == "resize_2d" ||
-             op->getName().stripDialect() == "resize_4d") {
+             op->getName().stripDialect() == "resize_4d_nhwc" ||
+             op->getName().stripDialect() == "resize_4d_nchw") {
     auto inElemTy = getElementType(0);
     auto outElemTy = getElementType(1);
 
@@ -389,12 +394,12 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
 
 // Fill appropriate pixel data in its corresponding co-ordinate of the output
 // image.
-void fillPixels4D(OpBuilder &builder, Location loc, Value ivs0, Value ivs1,
-                  Value resXVec, Value resYVec, Value xVec, Value yVec,
-                  Value input, Value output, Value c0, Value strideVal,
-                  Value outputRowLastElemF32, Value outputColLastElemF32,
-                  Value inputRowLastElemF32, Value inputColLastElemF32,
-                  Value c0F32) {
+void fillPixelsNearestNeighbour4D(
+    OpBuilder &builder, Location loc, Value ivs0, Value ivs1, Value resXVec,
+    Value resYVec, Value xVec, Value yVec, Value input, Value output, Value c0,
+    Value strideVal, Value outputRowLastElemF32, Value outputColLastElemF32,
+    Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
+    Value dataCondition) {
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
@@ -407,12 +412,36 @@ void fillPixels4D(OpBuilder &builder, Location loc, Value ivs0, Value ivs1,
             extractIndices(builder, loc, resXVec, resYVec, ivs[0],
                            outputColLastElemF32, outputRowLastElemF32, c0F32);
 
-        Value pixelVal = builder.create<memref::LoadOp>(
-            loc, builder.getF32Type(), input,
-            ValueRange{ivs0, origIndices[1], origIndices[0], ivs1});
-        builder.create<memref::StoreOp>(
-            loc, pixelVal, output,
-            ValueRange{ivs0, resIndices[1], resIndices[0], ivs1});
+        auto ifop = builder.create<scf::IfOp>(
+            loc, dataCondition,
+            [&](OpBuilder &builder, Location loc) {
+              Value pixelVal = builder.create<memref::LoadOp>(
+                  loc, builder.getF32Type(), input,
+                  ValueRange{ivs0, origIndices[1], origIndices[0], ivs1});
+              builder.create<scf::YieldOp>(loc, pixelVal);
+            },
+            [&](OpBuilder &builder, Location loc) {
+              Value pixelVal = builder.create<memref::LoadOp>(
+                  loc, builder.getF32Type(), input,
+                  ValueRange{ivs0, ivs1, origIndices[1], origIndices[0]});
+              builder.create<scf::YieldOp>(loc, pixelVal);
+            });
+        Value pixelVal = ifop.getResult(0);
+
+        builder.create<scf::IfOp>(
+            loc, dataCondition,
+            [&](OpBuilder &builder, Location loc) {
+              builder.create<memref::StoreOp>(
+                  loc, pixelVal, output,
+                  ValueRange{ivs0, resIndices[1], resIndices[0], ivs1});
+              builder.create<scf::YieldOp>(loc);
+            },
+            [&](OpBuilder &builder, Location loc) {
+              builder.create<memref::StoreOp>(
+                  loc, pixelVal, output,
+                  ValueRange{ivs0, ivs1, resIndices[1], resIndices[0]});
+              builder.create<scf::YieldOp>(loc);
+            });
 
         builder.create<affine::AffineYieldOp>(loc);
       });
@@ -780,7 +809,7 @@ void fillPixelsBilinearInterpolate4D(
     Value input, Value output, Value c0, Value strideVal, Value xVecWeight,
     Value yVecWeight, Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
-    Value c1F32) {
+    Value c1F32, Value dataCondition) {
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
@@ -812,18 +841,46 @@ void fillPixelsBilinearInterpolate4D(
             builder.create<arith::SubFOp>(loc, c1F32, indexWeights[0]),
             builder.create<arith::SubFOp>(loc, c1F32, indexWeights[1])};
 
-        Value pixelVal_a = builder.create<memref::LoadOp>(
-            loc, builder.getF32Type(), input,
-            ValueRange{ivs0, inputIndices_L[1], inputIndices_L[0], ivs1});
-        Value pixelVal_b = builder.create<memref::LoadOp>(
-            loc, builder.getF32Type(), input,
-            ValueRange{ivs0, inputIndices_H[1], inputIndices_L[0], ivs1});
-        Value pixelVal_c = builder.create<memref::LoadOp>(
-            loc, builder.getF32Type(), input,
-            ValueRange{ivs0, inputIndices_L[1], inputIndices_H[0], ivs1});
-        Value pixelVal_d = builder.create<memref::LoadOp>(
-            loc, builder.getF32Type(), input,
-            ValueRange{ivs0, inputIndices_H[1], inputIndices_H[0], ivs1});
+        auto ifop = builder.create<scf::IfOp>(
+            loc, dataCondition,
+            [&](OpBuilder &builder, Location loc) {
+              Value pixelVal_a = builder.create<memref::LoadOp>(
+                  loc, builder.getF32Type(), input,
+                  ValueRange{ivs0, inputIndices_L[1], inputIndices_L[0], ivs1});
+              Value pixelVal_b = builder.create<memref::LoadOp>(
+                  loc, builder.getF32Type(), input,
+                  ValueRange{ivs0, inputIndices_H[1], inputIndices_L[0], ivs1});
+              Value pixelVal_c = builder.create<memref::LoadOp>(
+                  loc, builder.getF32Type(), input,
+                  ValueRange{ivs0, inputIndices_L[1], inputIndices_H[0], ivs1});
+              Value pixelVal_d = builder.create<memref::LoadOp>(
+                  loc, builder.getF32Type(), input,
+                  ValueRange{ivs0, inputIndices_H[1], inputIndices_H[0], ivs1});
+              builder.create<scf::YieldOp>(
+                  loc,
+                  ValueRange{pixelVal_a, pixelVal_b, pixelVal_c, pixelVal_d});
+            },
+            [&](OpBuilder &builder, Location loc) {
+              Value pixelVal_a = builder.create<memref::LoadOp>(
+                  loc, builder.getF32Type(), input,
+                  ValueRange{ivs0, ivs1, inputIndices_L[1], inputIndices_L[0]});
+              Value pixelVal_b = builder.create<memref::LoadOp>(
+                  loc, builder.getF32Type(), input,
+                  ValueRange{ivs0, ivs1, inputIndices_H[1], inputIndices_L[0]});
+              Value pixelVal_c = builder.create<memref::LoadOp>(
+                  loc, builder.getF32Type(), input,
+                  ValueRange{ivs0, ivs1, inputIndices_L[1], inputIndices_H[0]});
+              Value pixelVal_d = builder.create<memref::LoadOp>(
+                  loc, builder.getF32Type(), input,
+                  ValueRange{ivs0, ivs1, inputIndices_H[1], inputIndices_H[0]});
+              builder.create<scf::YieldOp>(
+                  loc,
+                  ValueRange{pixelVal_a, pixelVal_b, pixelVal_c, pixelVal_d});
+            });
+        Value pixelVal_a = ifop.getResult(0);
+        Value pixelVal_b = ifop.getResult(1);
+        Value pixelVal_c = ifop.getResult(2);
+        Value pixelVal_d = ifop.getResult(3);
 
         Value weightVal1 =
             builder.create<arith::MulFOp>(loc, indexWeights_UnitComplements[0],
@@ -848,14 +905,25 @@ void fillPixelsBilinearInterpolate4D(
             builder.create<arith::AddFOp>(loc, interm1, interm2);
         Value pixel_interm2 =
             builder.create<arith::AddFOp>(loc, interm3, interm4);
-        Value pixel_interm3 =
+        Value pixelVal =
             builder.create<arith::AddFOp>(loc, pixel_interm1, pixel_interm2);
 
-        Value pixelVal = roundOff(builder, loc, pixel_interm3);
+        // Value pixelVal = roundOff(builder, loc, pixel_interm3);
 
-        builder.create<memref::StoreOp>(
-            loc, pixelVal, output,
-            ValueRange{ivs0, resIndices[1], resIndices[0], ivs1});
+        builder.create<scf::IfOp>(
+            loc, dataCondition,
+            [&](OpBuilder &builder, Location loc) {
+              builder.create<memref::StoreOp>(
+                  loc, pixelVal, output,
+                  ValueRange{ivs0, resIndices[1], resIndices[0], ivs1});
+              builder.create<scf::YieldOp>(loc);
+            },
+            [&](OpBuilder &builder, Location loc) {
+              builder.create<memref::StoreOp>(
+                  loc, pixelVal, output,
+                  ValueRange{ivs0, ivs1, resIndices[1], resIndices[0]});
+              builder.create<scf::YieldOp>(loc);
+            });
 
         builder.create<affine::AffineYieldOp>(loc);
       });
@@ -902,7 +970,7 @@ void NearestNeighbourInterpolationResizing4D(
     Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
     Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
-    int64_t stride, Value c0, Value c0F32) {
+    int64_t stride, Value c0, Value c0F32, Value dataCondition) {
   affine::buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
@@ -911,18 +979,18 @@ void NearestNeighbourInterpolationResizing4D(
         Value xVec = iotaVec(builder, loc, ctx, ivs[3], strideVal, vectorTy32,
                              c0, stride);
 
-        Value resXVecInterm = builder.create<arith::MulFOp>(
-            loc, xVec, horizontalScalingFactorVec);
-        Value resYVecInterm =
-            builder.create<arith::MulFOp>(loc, yVec, verticalScalingFactorVec);
+        Value resXVecInterm =
+            builder.create<arith::MulFOp>(loc, xVec, verticalScalingFactorVec);
+        Value resYVecInterm = builder.create<arith::MulFOp>(
+            loc, yVec, horizontalScalingFactorVec);
 
         Value resXVec = roundOff(builder, loc, resXVecInterm);
         Value resYVec = roundOff(builder, loc, resYVecInterm);
 
-        fillPixels4D(builder, loc, ivs[0], ivs[1], xVec, yVec, resXVec, resYVec,
-                     input, output, c0, strideVal, outputRowLastElemF32,
-                     outputColLastElemF32, inputRowLastElemF32,
-                     inputColLastElemF32, c0F32);
+        fillPixelsNearestNeighbour4D(
+            builder, loc, ivs[0], ivs[1], xVec, yVec, resXVec, resYVec, input,
+            output, c0, strideVal, outputRowLastElemF32, outputColLastElemF32,
+            inputRowLastElemF32, inputColLastElemF32, c0F32, dataCondition);
       });
 }
 
@@ -976,7 +1044,7 @@ void BilinearInterpolationResizing4D(
     Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
     Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
-    int64_t stride, Value c0, Value c0F32, Value c1F32) {
+    int64_t stride, Value c0, Value c0F32, Value c1F32, Value dataCondition) {
   affine::buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
@@ -985,10 +1053,10 @@ void BilinearInterpolationResizing4D(
         Value xVec = iotaVec(builder, loc, ctx, ivs[3], strideVal, vectorTy32,
                              c0, stride);
 
-        Value xVecInterm = builder.create<arith::MulFOp>(
-            loc, xVec, horizontalScalingFactorVec);
-        Value yVecInterm =
-            builder.create<arith::MulFOp>(loc, yVec, verticalScalingFactorVec);
+        Value xVecInterm =
+            builder.create<arith::MulFOp>(loc, xVec, verticalScalingFactorVec);
+        Value yVecInterm = builder.create<arith::MulFOp>(
+            loc, yVec, horizontalScalingFactorVec);
 
         Value xVecInterm_L = builder.create<math::FloorOp>(loc, xVecInterm);
         Value xVecInterm_H = builder.create<math::CeilOp>(loc, xVecInterm);
@@ -1006,7 +1074,7 @@ void BilinearInterpolationResizing4D(
             yVecInterm_L, xVecInterm_H, yVecInterm_H, input, output, c0,
             strideVal, xVecWeight, yVecWeight, outputRowLastElemF32,
             outputColLastElemF32, inputRowLastElemF32, inputColLastElemF32,
-            c0F32, c1F32);
+            c0F32, c1F32, dataCondition);
       });
 }
 
