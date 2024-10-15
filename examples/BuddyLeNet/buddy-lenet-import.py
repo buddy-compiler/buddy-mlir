@@ -76,20 +76,18 @@ driver.subgraphs[1].lower_to_top_level_ir()
 with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
     print(driver.subgraphs[0]._imported_module, file=module_file)
 with open(os.path.join(path_prefix, "subgraph1.mlir"), "w") as module_file:
-    print(driver.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(path_prefix, "subgraph1.mlir"), "w") as module_file:
     print(driver.subgraphs[1]._imported_module, file=module_file)
 with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
-# params = dynamo_compiler.imported_params[graph]
-# current_path = os.path.dirname(os.path.abspath(__file__))
+params = dynamo_compiler.imported_params[graph]
+current_path = os.path.dirname(os.path.abspath(__file__))
 
-# float32_param = np.concatenate(
-#     [param.detach().numpy().reshape([-1]) for param in params]
-# )
+float32_param = np.concatenate(
+    [param.detach().numpy().reshape([-1]) for param in params]
+)
 
-# float32_param.tofile(Path(current_path) / "arg0.data")
+float32_param.tofile(Path(current_path) / "arg0.data")
 
 # # Convert the lenet graph to JSON string
 # json_str = graph.to_json()
