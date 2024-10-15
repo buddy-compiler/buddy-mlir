@@ -121,7 +121,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/lib)
 include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/frontend/Interfaces)
-include_directories(${BUDDY_RUNTIME_DIR}/include)
+include_directories(${BUDDY_RUNTIME_DIR}/profiler/include)
 
 # Add MLIR and LLVM headers to the include path
 include_directories(${LLVM_INCLUDE_DIRS})
