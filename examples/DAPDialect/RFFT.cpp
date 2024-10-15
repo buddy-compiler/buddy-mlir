@@ -1,4 +1,4 @@
-//===- WhisperPreprocessor.cpp --------------------------------------------===//
+//===- RFFT.cpp --------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ void printResult(MemRef<double, 1> &outputMemRef) {
   ofstream fout("whisperPreprocessResultRFFT.txt");
   // Print title.
   fout << "-----------------------------------------" << std::endl;
-  fout << "[ Whisper Preprocess RFFT Result ]" << std::endl;
+  fout << "[ Buddy RFFT Result ]" << std::endl;
   fout << "-----------------------------------------" << std::endl;
   // Print reuslt data.
   for (int i = 0; i < testLength; ++i) {
@@ -47,7 +47,7 @@ void printResult(MemRef<double, 1> &outputMemRef) {
 
 int main() {
   // Print the title of this example.
-  const std::string title = "Whisper Preprocess Powered by Buddy Compiler";
+  const std::string title = "RFFT Operation Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
   double *inputAlign = new double[testLength];
@@ -58,7 +58,7 @@ int main() {
   MemRef<double, 1> inputMemRef(inputAlign, inputSizes);
 
   printLogLabel();
-  std::cout << "Preprocessing RFFT" << std::endl;
+  std::cout << "Running RFFT operation" << std::endl;
   const auto loadStart = std::chrono::high_resolution_clock::now();
   dap::RFFT(&inputMemRef);
   const auto loadEnd = std::chrono::high_resolution_clock::now();
