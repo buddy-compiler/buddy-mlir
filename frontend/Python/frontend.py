@@ -42,6 +42,7 @@ from .ops.linalg import ops_registry as linalg_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.math import ops_registry as math_ops_registry
 from .ops.func import ops_registry as func_ops_registry
+from .ops.gpu import ops_registry as gpu_ops_registry
 from .graph import Graph, TensorDType, TensorMeta
 from .graph.operation import *
 from .graph.transform import maxpool2d_simplify
@@ -98,12 +99,14 @@ class DynamoCompiler:
         self._verbose = verbose
         self._imported_graphs = []
         self._ops_registry = {}
+        self._ops_gpu_registry = {}
         self._imported_params = {}
         self._ops_registry.update(math_ops_registry)
         self._ops_registry.update(linalg_ops_registry)
         self._ops_registry.update(tosa_ops_registry)
         self._ops_registry.update(func_ops_registry)
         self._ops_registry.update(primary_registry)
+        self._ops_gpu_registry.update(gpu_ops_registry)
         self._ops_map = {
             "output": OutputOp,
             "placeholder": PlaceholderOp,
@@ -283,6 +286,7 @@ class DynamoCompiler:
                 func_inputs,
                 fake_params,
                 self._ops_registry,
+                self._ops_gpu_registry,
                 self._func_name,
                 self._verbose
             )
