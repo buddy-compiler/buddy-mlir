@@ -24,19 +24,19 @@ module {
     %cst_0 = arith.constant 0.000000e+00 : f32
     %cf1 = arith.constant 1.0 : f32
 
-    %image_n = arith.constant 2 : index
-    %image_h = arith.constant 8 : index
-    %image_w = arith.constant 8 : index
-    %image_c = arith.constant 18 : index
+    %image_n = arith.constant 1 : index
+    %image_h = arith.constant 4 : index
+    %image_w = arith.constant 4 : index
+    %image_c = arith.constant 2 : index
 
-    %filter_h = arith.constant 4 : index
-    %filter_w = arith.constant 4 : index
-    %filter_c = arith.constant 18 : index
+    %filter_h = arith.constant 1 : index
+    %filter_w = arith.constant 2 : index
+    %filter_c = arith.constant 2 : index
 
-    %output_n = arith.constant 2 : index
-    %output_h = arith.constant 5 : index
-    %output_w = arith.constant 5 : index
-    %output_c = arith.constant 18 : index
+    %output_n = arith.constant 1 : index
+    %output_h = arith.constant 3 : index
+    %output_w = arith.constant 3 : index
+    %output_c = arith.constant 2 : index
 
     %image = memref.alloc(%image_n,%image_h,%image_w,%image_c) : memref<?x?x?x?xf32>
     %filter = memref.alloc(%filter_h,%filter_w,%filter_c) : memref<?x?x?xf32>
@@ -61,6 +61,16 @@ module {
 
     // Print the output.
     call @printMemrefF32(%output_cast) : (memref<*xf32>) -> ()
+    // CHECK: {{ Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 4 offset = 0 sizes = \[1, 3, 3, 2\] strides = \[18, 6, 2, 1\] data = }}
+    // CHECK{{LITERAL}}: [[[[3,     3],
+    // CHECK{{LITERAL}}:        [3,     3],
+    // CHECK{{LITERAL}}:        [3,     3]],
+    // CHECK{{LITERAL}}:       [[3,     3],
+    // CHECK{{LITERAL}}:        [3,     3],
+    // CHECK{{LITERAL}}:        [3,     3]],
+    // CHECK{{LITERAL}}:       [[3,     3],
+    // CHECK{{LITERAL}}:        [3,     3],
+    // CHECK{{LITERAL}}:        [3,     3]]]]
 
     // Deallocate memory.
     memref.dealloc %output : memref<?x?x?x?xf32>

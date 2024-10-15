@@ -35,17 +35,17 @@ module {
     %cst = arith.constant 0.500000e+00 : f32
     %cst_0 = arith.constant 0.000000e+00 : f32
 
-    %current_image_n = arith.constant 2 : index
-    %current_image_c = arith.constant 18 : index
+    %current_image_n = arith.constant 1 : index
+    %current_image_c = arith.constant 2 : index
     %current_image_h = arith.constant 8 : index
     %current_image_w = arith.constant 8 : index
 
-    %current_filter_f = arith.constant 2 : index
-    %current_filter_c = arith.constant 18 : index
+    %current_filter_f = arith.constant 1 : index
+    %current_filter_c = arith.constant 2 : index
     %current_filter_h = arith.constant 4 : index
     %current_filter_w = arith.constant 4 : index
 
-    %current_output_n = arith.constant 2 : index
+    %current_output_n = arith.constant 1 : index
     %current_output_c = arith.constant 2 : index
     %current_output_h = arith.constant 5 : index
     %current_output_w = arith.constant 5 : index
@@ -60,32 +60,33 @@ module {
     call @conv_2d_nhwc_fhwc(%image, %filter, %output) : (memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>) -> ()
 
     %3 = memref.cast %output : memref<?x?x?x?xf32> to memref<*xf32>
-
-    // Print output.
-    // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [2, 2, 4, 4] strides = [32, 16, 4, 1] data =
-    // CHECK-NEXT:  [
-    // CHECK-SAME:    [
-    // CHECK-SAME:      [
-    // CHECK-COUNT-3:     [32, 32, 32, 32],
-    // CHECK-NEXT:        [32, 32, 32, 32]
-    // CHECK-SAME:      ],
-    // CHECK-NEXT:      [
-    // CHECK-COUNT-3:     [32, 32, 32, 32],
-    // CHECK-NEXT:        [32, 32, 32, 32]
-    // CHECK-SAME:      ]
-    // CHECK-SAME:    ],
-    // CHECK-NEXT:    [
-    // CHECK-SAME:      [
-    // CHECK-COUNT-3:     [32, 32, 32, 32],
-    // CHECK-NEXT:        [32, 32, 32, 32]
-    // CHECK-SAME:      ],
-    // CHECK-NEXT:      [
-    // CHECK-COUNT-3:     [32, 32, 32, 32],
-    // CHECK-NEXT:        [32, 32, 32, 32]
-    // CHECK-SAME:      ]
-    // CHECK-SAME:    ]
-    // CHECK-SAME:  ]
     call @printMemrefF32(%3) : (memref<*xf32>) -> ()
+    // CHECK: {{ Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 4 offset = 0 sizes = \[1, 5, 5, 2\] strides = \[50, 10, 2, 1\] data = }}
+    // CHECK{LITERAL}: [[[[16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1]],
+    // CHECK{LITERAL}:       [[16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1]],
+    // CHECK{LITERAL}:       [[16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1]],
+    // CHECK{LITERAL}:       [[16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1]],
+    // CHECK{LITERAL}:       [[16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1],
+    // CHECK{LITERAL}:        [16,     1]]]]
 
     memref.dealloc %output : memref<?x?x?x?xf32>
     memref.dealloc %image : memref<?x?x?x?xf32>

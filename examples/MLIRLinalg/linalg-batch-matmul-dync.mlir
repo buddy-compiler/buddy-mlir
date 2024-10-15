@@ -48,14 +48,28 @@ module {
 
       call @buddy_batchmatmul_f32(%A, %B, %C) : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
 
-      // Print output.
-      // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data =
-      // CHECK-NEXT: [
-      // CHECK-SAME:  [5, 5, 5, 5],
-      // CHECK-NEXT:  [5, 5, 5, 5],
-      // CHECK-NEXT:  [5, 5, 5, 5],
-      // CHECK-NEXT:  [5, 5, 5, 5]
-      // CHECK-SAME: ]
+      // CHECK: {{ Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 3 offset = 0 sizes = \[10, 2, 5\] strides = \[10, 5, 1\] data = }}
+      // CHECK{LITERAL}: [[[8,    8,    8,    8,    8], 
+      // CHECK{LITERAL}:   [8,    8,    8,    8,    8]], 
+      // CHECK{LITERAL}:  [[8,    8,    8,    8,    8], 
+      // CHECK{LITERAL}:   [8,    8,    8,    8,    8]], 
+      // CHECK{LITERAL}:  [[8,    8,    8,    8,    8], 
+      // CHECK{LITERAL}:   [8,    8,    8,    8,    8]], 
+      // CHECK{LITERAL}:  [[8,    8,    8,    8,    8], 
+      // CHECK{LITERAL}:   [8,    8,    8,    8,    8]], 
+      // CHECK{LITERAL}:  [[8,    8,    8,    8,    8], 
+      // CHECK{LITERAL}:   [8,    8,    8,    8,    8]], 
+      // CHECK{LITERAL}:  [[8,    8,    8,    8,    8], 
+      // CHECK{LITERAL}:   [8,    8,    8,    8,    8]], 
+      // CHECK{LITERAL}:  [[8,    8,    8,    8,    8], 
+      // CHECK{LITERAL}:   [8,    8,    8,    8,    8]], 
+      // CHECK{LITERAL}:  [[8,    8,    8,    8,    8], 
+      // CHECK{LITERAL}:   [8,    8,    8,    8,    8]], 
+      // CHECK{LITERAL}:  [[8,    8,    8,    8,    8], 
+      // CHECK{LITERAL}:   [8,    8,    8,    8,    8]], 
+      // CHECK{LITERAL}:  [[8,    8,    8,    8,    8], 
+      // CHECK{LITERAL}:   [8,    8,    8,    8,    8]]]
+
       %print_C = memref.cast %C : memref<?x?x?xf32> to memref<*xf32>
       call @printMemrefF32(%print_C) : (memref<*xf32>) -> ()
 
