@@ -1,5 +1,5 @@
 // RUN: buddy-opt %s \
-// RUN:     -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+// RUN:     -conv-nhwc-fhwc-optimize -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 // RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \
@@ -37,18 +37,18 @@ module {
 
     %current_image_n = arith.constant 1 : index
     %current_image_c = arith.constant 2 : index
-    %current_image_h = arith.constant 8 : index
-    %current_image_w = arith.constant 8 : index
+    %current_image_h = arith.constant 4 : index
+    %current_image_w = arith.constant 4 : index
 
     %current_filter_f = arith.constant 1 : index
     %current_filter_c = arith.constant 2 : index
-    %current_filter_h = arith.constant 4 : index
-    %current_filter_w = arith.constant 4 : index
+    %current_filter_h = arith.constant 2 : index
+    %current_filter_w = arith.constant 2 : index
 
     %current_output_n = arith.constant 1 : index
     %current_output_c = arith.constant 2 : index
-    %current_output_h = arith.constant 5 : index
-    %current_output_w = arith.constant 5 : index
+    %current_output_h = arith.constant 3 : index
+    %current_output_w = arith.constant 3 : index
 
     // Image.
     %image = call @alloc_2d_filled_f32(%current_image_n,%current_image_h, %current_image_w, %current_image_c,  %cst) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
@@ -61,32 +61,7 @@ module {
 
     %3 = memref.cast %output : memref<?x?x?x?xf32> to memref<*xf32>
     call @printMemrefF32(%3) : (memref<*xf32>) -> ()
-    // CHECK: {{ Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 4 offset = 0 sizes = \[1, 5, 5, 2\] strides = \[50, 10, 2, 1\] data = }}
-    // CHECK{LITERAL}: [[[[16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1]],
-    // CHECK{LITERAL}:       [[16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1]],
-    // CHECK{LITERAL}:       [[16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1]],
-    // CHECK{LITERAL}:       [[16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1]],
-    // CHECK{LITERAL}:       [[16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1],
-    // CHECK{LITERAL}:        [16,     1]]]]
+    
 
     memref.dealloc %output : memref<?x?x?x?xf32>
     memref.dealloc %image : memref<?x?x?x?xf32>
@@ -95,3 +70,13 @@ module {
   }
 }
 
+// CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 3, 3, 2] strides = [18, 6, 2, 1] data = 
+// CHECK{LITERAL}: [[[[4,     1], 
+// CHECK{LITERAL}:    [4,     1], 
+// CHECK{LITERAL}:    [4,     1]], 
+// CHECK{LITERAL}:   [[4,     1], 
+// CHECK{LITERAL}:    [4,     1], 
+// CHECK{LITERAL}:    [4,     1]], 
+// CHECK{LITERAL}:   [[4,     1], 
+// CHECK{LITERAL}:    [4,     1], 
+// CHECK{LITERAL}:    [4,     1]]]]

@@ -1,5 +1,5 @@
 // RUN: buddy-opt %s \
-// RUN:     -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+// RUN:     -depthwise-conv-nhwc-hwc-optimize -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 // RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \
@@ -61,16 +61,6 @@ module {
 
     // Print the output.
     call @printMemrefF32(%output_cast) : (memref<*xf32>) -> ()
-    // CHECK: {{ Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 4 offset = 0 sizes = \[1, 3, 3, 2\] strides = \[18, 6, 2, 1\] data = }}
-    // CHECK{{LITERAL}}: [[[[3,     3],
-    // CHECK{{LITERAL}}:        [3,     3],
-    // CHECK{{LITERAL}}:        [3,     3]],
-    // CHECK{{LITERAL}}:       [[3,     3],
-    // CHECK{{LITERAL}}:        [3,     3],
-    // CHECK{{LITERAL}}:        [3,     3]],
-    // CHECK{{LITERAL}}:       [[3,     3],
-    // CHECK{{LITERAL}}:        [3,     3],
-    // CHECK{{LITERAL}}:        [3,     3]]]]
 
     // Deallocate memory.
     memref.dealloc %output : memref<?x?x?x?xf32>
@@ -79,3 +69,14 @@ module {
     return
   }
 }
+
+// CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 3, 3, 2] strides = [18, 6, 2, 1] data = 
+// CHECK{LITERAL}: [[[[3,     3], 
+// CHECK{LITERAL}:        [3,     3], 
+// CHECK{LITERAL}:        [3,     3]], 
+// CHECK{LITERAL}:       [[3,     3], 
+// CHECK{LITERAL}:        [3,     3], 
+// CHECK{LITERAL}:        [3,     3]], 
+// CHECK{LITERAL}:       [[3,     3], 
+// CHECK{LITERAL}:        [3,     3], 
+// CHECK{LITERAL}:        [3,     3]]]]
