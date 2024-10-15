@@ -167,6 +167,7 @@ int main() {
   // CHECK: 0.45490
   fprintf(stderr, "%f\n", bmp24bitRGBNorm.getData()[0]);
 
+#ifdef BUDDY_ENABLE_PNG
   // Default Gray Scale
   dip::Image<float, 4> pngGrayDefault(
       "../../../../tests/Interface/core/TestGrayImage.png", dip::DIP_GRAYSCALE);
@@ -221,6 +222,6 @@ int main() {
   fprintf(stderr, "%d\n", pngRGBNorm.getBitDepth());
   // CHECK: 0.5647
   fprintf(stderr, "%f\n", pngRGBNorm.getData()[0]);
-
+#endif
   return 0;
 }
