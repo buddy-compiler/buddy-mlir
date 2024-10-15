@@ -3633,11 +3633,11 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
 }
 
 namespace {
-class DAPRFFT400Lowering : public OpRewritePattern<dap::RFFTOp> {
+class DAPRFFTLowering : public OpRewritePattern<dap::RFFTOp> {
 public:
   using OpRewritePattern<dap::RFFTOp>::OpRewritePattern;
 
-  explicit DAPRFFT400Lowering(MLIRContext *context)
+  explicit DAPRFFTLowering(MLIRContext *context)
       : OpRewritePattern(context) {}
 
   LogicalResult matchAndRewrite(dap::RFFTOp op,
@@ -3844,7 +3844,7 @@ public:
 
 void populateExtendDAPConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<DAPWhisperPreprocessLowering>(patterns.getContext());
-  patterns.add<DAPRFFT400Lowering>(patterns.getContext());
+  patterns.add<DAPRFFTLowering>(patterns.getContext());
   // TODO : extract operators
 }
 
