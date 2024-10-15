@@ -106,6 +106,11 @@ if(BUDDY_MLIR_ENABLE_DIP_LIB)
   find_package(PNG REQUIRED)
 endif()
 
+if(BUDDY_ENABLE_PNG)
+  add_definitions(-DBUDDY_ENABLE_PNG)
+  find_package(PNG REQUIRED)
+endif()
+
 # Generate libraries into `lib` of build directory.
 set(LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
