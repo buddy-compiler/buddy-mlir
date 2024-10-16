@@ -1,11 +1,14 @@
-#include "TimeEvent.h"
-#include "json.hpp"
 
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
+#include "TimeEvent.h"
+
+#include <json.hpp>
 
 // class Label {
 // public:
@@ -26,21 +29,19 @@ public:
     return _;
   }
 
-  static void timingStart() {
-    int idx = getCounter();
-    auto te = events[idx];
-    te.setStartTimestamp();
-  }
+  static void timingStart(TimeEvent *e) { (*e).setStartTimestamp(); }
 
-  static void timingEnd() {
-    int idx = getCounter();
-    auto te = events[idx];
-    te.setEndTimestamp();
-    counterPlus1();
+  static void timingEnd(TimeEvent *e) {
+    (*e).setEndTimestamp();
+    (*e).updateDuration();
   }
 
   // 添加计时事件
-  void addEvent(const TimeEvent &event) { events.push_back(event); }
+  template <typename T> static void addEvent(T &&event) {
+    events.push_back(std::forward<T>(event));
+  }
+
+  static TimeEvent *eventsBack() { return &events.back(); }
 
   // 处理并输出计时数据
   void processTimingData();

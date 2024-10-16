@@ -1,16 +1,20 @@
 #include "TimeManager.h"
 
-using namespace buddy::runtime;
+namespace buddy {
+namespace runtime {
 
+std::vector<TimeEvent> TimeManager::events;
+
+// TODO
 void TimeManager::processTimingData() {
   int size = events.size();
   std::map<int, int> times;
-  for (int i = 0; i < size; i++) {
-    int during = events[i].getDuration();
-    std::cout << "idx: " << events[i].getLabel() << " during: " << during
-              << std::endl;
-    times[events[i].getLabel()] = during;
-  }
+  // for (int i = 0; i < size; i++) {
+  //   int during = events[i].getDuration();
+  //   std::cout << "idx: " << events[i].getOpPtr() << " during: " << during
+  //             << std::endl;
+  //   times[events[i].getLabel()] = during;
+  // }
 
   using json = nlohmann::json;
 
@@ -33,3 +37,5 @@ void TimeManager::processTimingData() {
     std::cerr << "无法打开文件进行写入。" << std::endl;
   }
 }
+} // namespace runtime
+} // namespace buddy

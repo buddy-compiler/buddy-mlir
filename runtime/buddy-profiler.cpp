@@ -32,6 +32,7 @@
 #include "VectorExp/VectorExpOps.h"
 
 #include "TimeManager.h"
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -136,6 +137,9 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // 初始化runtime::profiler
+  buddy::runtime::TimeManager::instance();
+
   // pass
 
   mlir::OpBuilder builder(&context);
@@ -143,7 +147,8 @@ int main(int argc, char **argv) {
   // 在module的开头插入rtclock函数声明
   builder.setInsertionPointToStart(moduleOp.getBody());
 
-  auto rtFuncType = builder.getFunctionType({}, {});
+  auto i64Type = builder.getIntegerType(64);
+  auto rtFuncType = builder.getFunctionType({i64Type}, {});
 
   // 声明 func.func private @timingStart()
   auto timingStartFunc = builder.create<mlir::func::FuncOp>(
@@ -174,30 +179,29 @@ int main(int argc, char **argv) {
       // 检查操作是否是我们感兴趣的特定类型
       if (dialect == "linalg") {
         ops.push_back(&op);
+
+        // add TimeEvent and instrumentation
+        buddy::runtime::TimeEvent event(&op);
+        buddy::runtime::TimeManager::addEvent(std::move(event));
+
+        buddy::runtime::TimeEvent *e =
+            buddy::runtime::TimeManager::eventsBack();
+
+        auto constantOp = builder.create<mlir::arith::ConstantOp>(
+            op.getLoc(), i64Type, builder.getIntegerAttr(i64Type, uint64_t(e)));
+
+        // 在op的前面添加call start函数
+        builder.setInsertionPoint(&op);
+        builder.create<mlir::func::CallOp>(op.getLoc(), timingStartFunc,
+                                           mlir::ValueRange{constantOp});
+
+        // 在op的后面添加call end 函数
+        builder.setInsertionPointAfter(&op);
+        builder.create<mlir::func::CallOp>(op.getLoc(), timingEndFunc,
+                                           mlir::ValueRange{constantOp});
       }
     }
   });
-
-  if (ops.empty()) {
-    std::cout << " No op " << std::endl;
-    return 1;
-  }
-
-  // 插桩
-  for (auto op : ops) {
-
-    // 在op的前面添加call start函数
-    builder.setInsertionPoint(op);
-    builder.create<mlir::func::CallOp>(op->getLoc(), timingStartFunc,
-                                       mlir::ValueRange{});
-
-    // 在op的后面添加call end 函数
-    builder.setInsertionPointAfter(op);
-    builder.create<mlir::func::CallOp>(op->getLoc(), timingEndFunc,
-                                       mlir::ValueRange{});
-  }
-
-  // 初始化runtime::profiler
 
   // 打印解析好的 ModuleOp
   moduleOp->print(llvm::outs());
