@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <buddy/Core/Container.h>
+#include <buddy/DIP/DIP.h>
 #include <buddy/DIP/ImgContainer.h>
 #include <chrono>
 #include <cmath>
@@ -27,13 +28,13 @@
 #include <vector>
 
 constexpr size_t ParamsSize = 2554968;
-const std::string ImgName = "dog-224*224.png";
+const std::string ImgName = "dog.png";
 
 // Declare the mobilenet C interface.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
                                      MemRef<float, 1> *arg0,
                                      MemRef<long long, 1> *arg1,
-                                     dip::Image<float, 4> *input);
+                                     MemRef<float, 4> *input);
 
 /// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
@@ -115,7 +116,10 @@ int main() {
   std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
   std::string imgPath = mobilenetDir + "/images/" + ImgName;
   dip::Image<float, 4> input(imgPath, dip::DIP_RGB, true /* norm */);
-  
+  MemRef<float, 4> inputResize = dip::Resize4D_NCHW(
+      &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION,
+      {1, 3, 224, 224} /*{image_cols, image_rows}*/);
+
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
@@ -126,7 +130,7 @@ int main() {
   loadParameters(paramsDir, intDir, paramsContainerf32, ParamsContainerInt64);
   // Call the forward function of the model.
   _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64,
-                       &input);
+                       &inputResize);
 
   auto out = output.getData();
   softmax(out, 1000);

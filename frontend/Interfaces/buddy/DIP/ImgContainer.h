@@ -33,7 +33,7 @@ enum ImageModes {
   DIP_RGB = 1,
 };
 
-inline bool isBigEndian() {
+inline bool ifBigEndian() {
   int num = 1;
   char *ptr = (char *)&num;
   return (*ptr == 0);
@@ -475,7 +475,7 @@ bool Image<T, N>::decodePNG(const std::vector<uint8_t> &fileData) {
     // Convert big or little Endian and convert 16 bits to 8 bits
     if (this->bitDepth == 16)
       png_set_strip_16(png_ptr);
-    else if (!isBigEndian())
+    else if (!ifBigEndian())
       png_set_swap(png_ptr);
 
     // Remove alpha channel
