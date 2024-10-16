@@ -1,5 +1,5 @@
 // RUN: buddy-opt %s \
-// RUN:     -matmul_transpose_b_vectorization \
+// RUN:     -matmul-transpose-b-vectorization \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf \

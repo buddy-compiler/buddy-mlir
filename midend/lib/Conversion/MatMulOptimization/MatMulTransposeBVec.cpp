@@ -172,7 +172,7 @@ namespace{
         :public PassWrapper<MatMulTransposeBVecPass,OperationPass<ModuleOp>>{
 public:
     MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MatMulTransposeBVecPass)
-    StringRef getArgument() const final{ return "matmul_transpose_b_vectorization"; }
+    StringRef getArgument() const final{ return "matmul-transpose-b-vectorization"; }
     StringRef getDescription() const final { return "vectorize linalg MatmulTransposeBOp"; }
     MatMulTransposeBVecPass() = default;
     MatMulTransposeBVecPass(const MatMulTransposeBVecPass &) {}
