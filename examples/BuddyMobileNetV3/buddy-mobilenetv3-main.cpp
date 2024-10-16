@@ -32,41 +32,40 @@ const std::string ImgName = "dog-224*224.png";
 // Declare the mobilenet C interface.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
                                      MemRef<float, 1> *arg0,
-                                     MemRef<long long, 1> *arg1,
                                      dip::Image<float, 4> *input);
 
 /// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
-void loadParameters(const std::string &floatParamPath,
-                    const std::string &int64ParamPath,
-                    MemRef<float, 1> &floatParam,
-                    MemRef<long long, 1> &int64Param) {
-  std::ifstream floatParamFile(floatParamPath, std::ios::in | std::ios::binary);
-  if (!floatParamFile.is_open()) {
-    std::string errMsg = "Failed to open float param file: " +
-                         std::filesystem::canonical(floatParamPath).string();
-    throw std::runtime_error(errMsg);
+/// Load parameters into data container.
+void loadParameters(const std::string &paramFilePath,
+                    MemRef<float, 1> &params) {
+  const auto loadStart = std::chrono::high_resolution_clock::now();
+  // Open the parameter file in binary mode.
+  std::ifstream paramFile(paramFilePath, std::ios::in | std::ios::binary);
+  if (!paramFile.is_open()) {
+    throw std::runtime_error("[Error] Failed to open params file!");
   }
-  floatParamFile.read(reinterpret_cast<char *>(floatParam.getData()),
-                      floatParam.getSize() * sizeof(float));
-  if (floatParamFile.fail()) {
-    throw std::runtime_error("Failed to read float param file");
+  printLogLabel();
+  std::cout << "Loading params..." << std::endl;
+  printLogLabel();
+  // Print the canonical path of the parameter file.
+  std::cout << "Params file: " << std::filesystem::canonical(paramFilePath)
+            << std::endl;
+  // Read the parameter data into the provided memory reference.
+  paramFile.read(reinterpret_cast<char *>(params.getData()),
+                 sizeof(float) * (params.getSize()));
+  if (paramFile.fail()) {
+    throw std::runtime_error("Error occurred while reading params file!");
   }
-  floatParamFile.close();
-
-  std::ifstream int64ParamFile(int64ParamPath, std::ios::in | std::ios::binary);
-  if (!int64ParamFile.is_open()) {
-    std::string errMsg = "Failed to open int64 param file: " +
-                         std::filesystem::canonical(int64ParamPath).string();
-    throw std::runtime_error(errMsg);
-  }
-  int64ParamFile.read(reinterpret_cast<char *>(int64Param.getData()),
-                      int64Param.getSize() * sizeof(long long));
-  if (int64ParamFile.fail()) {
-    throw std::runtime_error("Failed to read int64 param file");
-  }
-  int64ParamFile.close();
+  paramFile.close();
+  const auto loadEnd = std::chrono::high_resolution_clock::now();
+  const std::chrono::duration<double, std::milli> loadTime =
+      loadEnd - loadStart;
+  printLogLabel();
+  std::cout << "Params load time: " << (double)(loadTime.count()) / 1000
+            << "s\n"
+            << std::endl;
 }
 
 // Softmax function.
@@ -120,13 +119,10 @@ int main() {
 
   // Load model parameters from the specified file.
   std::string paramsDir = mobilenetDir + "/arg0.data";
-  std::string intDir = mobilenetDir + "/arg1.data";
-  MemRef<float, 1> paramsContainerf32({ParamsSize});
-  MemRef<long long, 1> ParamsContainerInt64({34});
-  loadParameters(paramsDir, intDir, paramsContainerf32, ParamsContainerInt64);
+  MemRef<float, 1> paramsContainer({ParamsSize});
+  loadParameters(paramsDir, paramsContainer);
   // Call the forward function of the model.
-  _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64,
-                       &input);
+  _mlir_ciface_forward(&output, &paramsContainer, &input);
 
   auto out = output.getData();
   softmax(out, 1000);

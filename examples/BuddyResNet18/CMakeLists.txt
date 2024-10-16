@@ -1,6 +1,5 @@
 add_custom_command(
   OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/arg0.data
-         ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/arg1.data
          ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/forward.mlir
          ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/subgraph0.mlir
   COMMAND python3 ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/buddy-resnet-import.py
