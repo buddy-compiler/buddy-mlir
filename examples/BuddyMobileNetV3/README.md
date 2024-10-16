@@ -16,7 +16,8 @@ $ cmake -G Ninja .. \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
     -DPython3_EXECUTABLE=$(which python3) \
-    -DBUDDY_MLIR_ENABLE_DIP_LIB=ON
+    -DBUDDY_MLIR_ENABLE_DIP_LIB=ON \
+    -DBUDDY_ENABLE_PNG=ON
 $ ninja
 $ ninja check-buddy
 ```
