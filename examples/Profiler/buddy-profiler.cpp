@@ -30,7 +30,9 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
-#include "TimeEvent"
+// #include "TimeEvent"
+#include <dlfcn.h> // for dlopen, dlsym, dlclose
+#include <thread>
 
 const std::string mlir_file_path = "llama_annotation_linalg.mlir";
 
@@ -111,6 +113,20 @@ std::string getLabel(int idx) {
   return label;
 }
 
+void compile_shared_object() {
+
+  const char *compile_command =
+      "g++ -fPIC -o libdynamic.sobb libcode.cpp";
+
+  int result = std::system(compile_command);
+
+  if (result == 0) {
+    std::cout << "Shared library compiled successfully." << std::endl;
+  } else {
+    std::cerr << "Failed to compile shared library." << std::endl;
+  }
+}
+
 int main() {
   // Print the title of this example.
   const std::string title = "MobileNetV3 Inference Powered by Buddy Compiler";
@@ -133,6 +149,9 @@ int main() {
   MemRef<long long, 1> ParamsContainerInt64({34});
   loadParameters(paramsDir, intDir, paramsContainerf32, ParamsContainerInt64);
   // Call the forward function of the model.
+  std::thread compile_thread(compile_shared_object);
+
+
   _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64,
                        &input);
 

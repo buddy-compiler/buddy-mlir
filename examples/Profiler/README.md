@@ -6,43 +6,26 @@
 
 1. Build buddy-mlir
 
-```bash
-$ cd buddy-mlir
-$ mkdir build && cd build
-$ cmake -G Ninja .. \
-    -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
-    -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
-    -DLLVM_ENABLE_ASSERTIONS=ON \
-    -DCMAKE_BUILD_TYPE=RELEASE \
-    -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-    -DPython3_EXECUTABLE=$(which python3) \
-    -DBUDDY_MLIR_ENABLE_DIP_LIB=ON
-$ ninja
-$ ninja check-buddy
-```
+2. Same config as your example
 
-2. Set the `PYTHONPATH` environment variable.
+3.Set BUDDY_PROFILE_EXAMPLES=ON
 
-Make sure you are in the build directory.
-
-```bash
-$ export BUDDY_MLIR_BUILD_DIR=$PWD
-$ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
-$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
-```
-
-3. Set the `MOBILENETV3_EXAMPLE_PATH` environment variable.
-
-```bash
-$ export MOBILENETV3_EXAMPLE_PATH=${BUDDY_MLIR_BUILD_DIR}/../examples/BuddyMobileNetV3/
-```
-
-4. Build and run the MobileNetV3 example
-
+4.Build profiler
 ```bash
 $ cmake -G Ninja .. -DBUDDY_PROFILE_EXAMPLES=ON
-$ ninja buddy-mobilenetv3-run
+$ ninja  buddy-profile
 $ cd bin
-$ ./buddy-mobilenetv3-run
+$ cp buddy-profile path/to/your/profiler_dir
+$ cd path/to/your/profiler_dir
+```
+
+5. Set the `your example path` environment variable.
+
+```bash
+$ export MOBILENETV3_EXAMPLE_PATH= path/to/your/example
+```
+
+```bash
+$ ./buddy-profile
 ```
 

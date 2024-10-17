@@ -26,14 +26,20 @@
 #include <utility>
 #include <vector>
 
+#include <cstdlib> // for std::system
+#include <dlfcn.h> // for dlopen, dlsym, dlclose
+#include <iostream>
+#include <thread>
+#include <cstdint>
+
 constexpr size_t ParamsSize = 2554968;
 const std::string ImgName = "dog-224*224.png";
 
 // Declare the mobilenet C interface.
-extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
-                                     MemRef<float, 1> *arg0,
-                                     MemRef<long long, 1> *arg1,
-                                     dip::Image<float, 4> *input);
+// extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
+//                                      MemRef<float, 1> *arg0,
+//                                      MemRef<long long, 1> *arg1,
+//                                      dip::Image<float, 4> *input);
 
 /// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
@@ -103,7 +109,46 @@ std::string getLabel(int idx) {
   return label;
 }
 
+
+// 编译共享库的函数
+void compile_buddy_forward_gen() {
+  // 假设我们有个 source file "dynamic_code.cpp" 要编译成 "libdynamic.so"
+  const char *compile_command =
+      "make buddy-forward-gen";
+
+  // 使用 system 调用
+  int result = std::system(compile_command);
+
+  if (result == 0) {
+    std::cout << "Shared B library compiled successfully." << std::endl;
+  } else {
+    std::cerr << "Failed B to compile shared library." << std::endl;
+  }
+}
+// 编译共享库的函数
+void compile_buddy_subgraph0_gen() {
+  // 假设我们有个 source file "dynamic_code.cpp" 要编译成 "libdynamic.so"
+  const char *compile_command =
+      "make buddy-subgraph0-gen";
+
+  // 使用 system 调用
+  int result = std::system(compile_command);
+
+  if (result == 0) {
+    std::cout << "Shared A library compiled successfully." << std::endl;
+  } else {
+    std::cerr << "Failed A to compile shared library." << std::endl;
+  }
+}
+
+
 int main() {
+  std::thread compile_sb(compile_buddy_subgraph0_gen);
+
+  compile_sb.join();
+    std::thread compile_fw(compile_buddy_forward_gen);
+
+  compile_fw.join();;
   // Print the title of this example.
   const std::string title = "MobileNetV3 Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
@@ -125,8 +170,33 @@ int main() {
   MemRef<long long, 1> ParamsContainerInt64({34});
   loadParameters(paramsDir, intDir, paramsContainerf32, ParamsContainerInt64);
   // Call the forward function of the model.
+
+ 
+  void *handle = dlopen("./libforward.so", RTLD_LAZY); // 动态加载 .so 文件
+  if (!handle) {
+    std::cerr << "Failed to load shared library: " << dlerror() << std::endl;
+    return 0;
+  }
+  void (*_mlir_ciface_forward)(MemRef<float, 2> *output,
+                                     MemRef<float, 1> *arg0,
+                                     MemRef<long long, 1> *arg1,
+                                     dip::Image<float, 4> *input);
+
+  *(void **)(&_mlir_ciface_forward) = dlsym(handle, "_mlir_ciface_forward");
+  char *error = dlerror();
+    if (error != NULL) {
+        // 如果查找函数失败，输出错误信息并返回
+        fprintf(stderr, "%s\n", error);
+        dlclose(handle);
+        return 0;
+    }
+
+
   _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64,
                        &input);
+
+  // 卸载共享库
+  dlclose(handle);
 
   auto out = output.getData();
   softmax(out, 1000);
