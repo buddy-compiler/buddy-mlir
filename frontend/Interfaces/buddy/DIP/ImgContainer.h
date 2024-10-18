@@ -25,10 +25,7 @@
 #include <cstring>
 #include <fstream>
 #include <memory>
-#include <array>
-#ifdef BUDDY_ENABLE_PNG
 #include <png.h>
-#endif
 
 namespace dip {
 enum ImageModes {
@@ -91,9 +88,7 @@ private:
   // Decodes a BMP image from raw file data.
   bool decodeBMP(const std::vector<uint8_t> &fileData);
   // Decodes a PNG image from raw file data.
-#ifdef BUDDY_ENABLE_PNG
   bool decodePNG(const std::vector<uint8_t> &fileData);
-#endif
 };
 
 // Image Container Constructor
@@ -134,17 +129,13 @@ Image<T, N>::Image(std::string filePath, ImageModes mode, bool norm)
       this->imageFormat = ImageFormat::ERROR;
       throw std::runtime_error("Failed to decode BMP file from " + filePath);
     };
-  }
-#ifdef BUDDY_ENABLE_PNG
-  else if (this->imageFormat == ImageFormat::PNG) {
+  } else if (this->imageFormat == ImageFormat::PNG) {
     bool success = decodePNG(fileData);
     if (!success) {
       this->imageFormat = ImageFormat::ERROR;
       throw std::runtime_error("Failed to decode PNG file from " + filePath);
     };
-  }
-#endif
-  else {
+  } else {
     throw std::runtime_error("Unsupported image file format.");
   }
 }
@@ -423,7 +414,6 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
 }
 
 // PNG Image File Decoder
-#ifdef BUDDY_ENABLE_PNG
 template <typename T, std::size_t N>
 bool Image<T, N>::decodePNG(const std::vector<uint8_t> &fileData) {
   // Check if the provided data is large enough to contain a minimal PNG header
@@ -614,7 +604,6 @@ bool Image<T, N>::decodePNG(const std::vector<uint8_t> &fileData) {
   }
   return true;
 }
-#endif
 
 } // namespace dip
 

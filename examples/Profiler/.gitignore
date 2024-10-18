@@ -1,0 +1,18 @@
+# model params file
+arg0.data
+arg1.data
+
+# model mlir file
+forward.mlir
+subgraph0.mlir
+subgraph0_instrumented.mlir
+
+# lib file
+forward.o
+subgraph0.o
+libforward.so
+libsubgraph0.so
+
+# out file
+buddy-mobilenetv3-profiling
+

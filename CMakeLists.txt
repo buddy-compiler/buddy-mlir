@@ -86,6 +86,7 @@ set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include/)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include/)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
+set(BUDDY_RUNTIME_DIR ${BUDDY_SOURCE_DIR}/runtime)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${BUDDY_LIBRARY_DIR})
@@ -106,11 +107,6 @@ if(BUDDY_MLIR_ENABLE_DIP_LIB)
   find_package(PNG REQUIRED)
 endif()
 
-if(BUDDY_ENABLE_PNG)
-  add_definitions(-DBUDDY_ENABLE_PNG)
-  find_package(PNG REQUIRED)
-endif()
-
 # Generate libraries into `lib` of build directory.
 set(LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
@@ -125,6 +121,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/lib)
 include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/frontend/Interfaces)
+include_directories(${BUDDY_RUNTIME_DIR}/profiler/include)
 
 # Add MLIR and LLVM headers to the include path
 include_directories(${LLVM_INCLUDE_DIRS})
@@ -240,6 +237,7 @@ add_subdirectory(backend)
 add_subdirectory(tools)
 add_subdirectory(examples)
 add_subdirectory(tests)
+add_subdirectory(runtime)
 
 #-------------------------------------------------------------------------------
 # Target check-buddy

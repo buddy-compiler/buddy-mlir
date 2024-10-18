@@ -108,8 +108,6 @@ if config.buddy_enable_opencv == "ON":
     tools.append("buddy-image-container-test")
 
 if config.buddy_mlir_enable_dip_lib == "ON":
-    tools.append("buddy-new-image-container-test-bmp")
-    if config.buddy_enable_png == "ON":
-        tools.append("buddy-new-image-container-test-png")
+    tools.append("buddy-new-image-container-test")
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)

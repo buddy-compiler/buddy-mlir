@@ -15,3 +15,7 @@
 
 # Clangd configurations
 .clangd
+
+# submodule
+/llvm
+thirdparty/pybind11

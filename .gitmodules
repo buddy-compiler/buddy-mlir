@@ -11,3 +11,6 @@
 	path = thirdparty/riscv-gnu-toolchain
 	url = https://github.com/riscv-collab/riscv-gnu-toolchain.git
 	shallow = true
+[submodule "thirdparty/pybind11"]
+	path = thirdparty/pybind11
+	url = https://github.com/pybind/pybind11.git

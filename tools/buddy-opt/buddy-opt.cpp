@@ -46,6 +46,8 @@
 #include "RVV/RVVDialect.h"
 #include "Sche/ScheDialect.h"
 #include "Sche/ScheOps.h"
+#include "Trace/TraceDialect.h"
+#include "Trace/TraceOps.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
 
@@ -53,25 +55,20 @@ namespace mlir {
 namespace buddy {
 void registerConvVectorizationPass();
 void registerPointwiseConvToGemmPass();
-void registerPointwiseConvToGemmForNhwcFhwcPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
+void registerLowerTracePass();
 void registerLowerDIPPass();
-void registerBatchMatMulOptimizePass();
-void registerBatchMatMulTileOptimizePass();
-void registerBatchMatMuSCFOptimize();
 void registerLowerDAPPass();
 void registerExtendDAPPass();
 void registerDAPVectorizePass();
 void registerLowerRVVPass();
+void registerBatchMatMulOptimizePass();
 void registerMatMulOptimizePass();
 void registerMatMulVectorizationPass();
 void registerMatMulParallelVectorizationPass();
 void registerTransposeOptimizationPass();
 void registerConvOptimizePass();
-void registerConvNhwcFhwcOptimizePass();
-void registerConvNhwcFhwcTileOptimizePass();
-void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
@@ -92,6 +89,7 @@ int main(int argc, char **argv) {
   // Register Vectorization of Pooling.
   mlir::buddy::registerPoolingVectorizationPass();
   mlir::buddy::registerLowerBudPass();
+  mlir::buddy::registerLowerTracePass();
   mlir::buddy::registerLowerDIPPass();
   mlir::buddy::registerLowerDAPPass();
   mlir::buddy::registerExtendDAPPass();
@@ -104,16 +102,11 @@ int main(int argc, char **argv) {
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulOptimizePass();
-  mlir::buddy::registerBatchMatMulOptimizePass();
-  mlir::buddy::registerBatchMatMulTileOptimizePass();
-  mlir::buddy::registerBatchMatMuSCFOptimize();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
+  mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerConvOptimizePass();
-  mlir::buddy::registerConvNhwcFhwcOptimizePass();
-  mlir::buddy::registerConvNhwcFhwcTileOptimizePass();
-  mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
   mlir::buddy::registerDeviceSchedulePass();
   mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
@@ -129,6 +122,7 @@ int main(int argc, char **argv) {
   // Register dialects in buddy-mlir project.
   // clang-format off
   registry.insert<buddy::bud::BudDialect,
+                  buddy::trace::TraceDialect,
                   buddy::dip::DIPDialect,
                   buddy::dap::DAPDialect,
                   buddy::rvv::RVVDialect,

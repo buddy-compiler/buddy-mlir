@@ -14,6 +14,8 @@ target_link_libraries(buddy-opt
   MLIROptLib
   CBConvVectorization
   BuddyBud
+  BuddyTrace
+  LowerTracePass
   BuddySche
   LowerBudPass
   BuddyDIP
@@ -29,7 +31,6 @@ target_link_libraries(buddy-opt
   MatMulParallelVectorization
   TransposeOptimization
   ConvOptimization
-  DepthwiseConvOptimization
   VectorExp
   LowerVectorExpPass
   BuddyGemmini

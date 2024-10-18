@@ -1,5 +1,6 @@
 add_custom_command(
   OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/arg0.data
+         ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/arg1.data
          ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/forward.mlir
          ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/subgraph0.mlir
   COMMAND python3 ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/buddy-mobilenetv3-import.py
