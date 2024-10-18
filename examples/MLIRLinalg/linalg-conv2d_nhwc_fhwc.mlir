@@ -40,7 +40,7 @@ module {
     %current_image_h = arith.constant 4 : index
     %current_image_w = arith.constant 4 : index
 
-    %current_filter_f = arith.constant 1 : index
+    %current_filter_f = arith.constant 2 : index
     %current_filter_c = arith.constant 2 : index
     %current_filter_h = arith.constant 2 : index
     %current_filter_w = arith.constant 2 : index
@@ -71,12 +71,12 @@ module {
 }
 
 // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 3, 3, 2] strides = [18, 6, 2, 1] data = 
-// CHECK{LITERAL}: [[[[4,     1], 
-// CHECK{LITERAL}:    [4,     1], 
-// CHECK{LITERAL}:    [4,     1]], 
-// CHECK{LITERAL}:   [[4,     1], 
-// CHECK{LITERAL}:    [4,     1], 
-// CHECK{LITERAL}:    [4,     1]], 
-// CHECK{LITERAL}:   [[4,     1], 
-// CHECK{LITERAL}:    [4,     1], 
-// CHECK{LITERAL}:    [4,     1]]]]
+// CHECK{LITERAL}: [[[[4,     5], 
+// CHECK{LITERAL}:    [4,     5], 
+// CHECK{LITERAL}:    [4,     5]], 
+// CHECK{LITERAL}:   [[4,     5], 
+// CHECK{LITERAL}:    [4,     5], 
+// CHECK{LITERAL}:    [4,     5]], 
+// CHECK{LITERAL}:   [[4,     5], 
+// CHECK{LITERAL}:    [4,     5], 
+// CHECK{LITERAL}:    [4,     5]]]]
