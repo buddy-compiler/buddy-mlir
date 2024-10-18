@@ -534,3 +534,15 @@ class GtOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
+
+
+class ScaledDotProductEfficientAttentionOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class UnsafeIndexOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
