@@ -3,8 +3,6 @@
 namespace buddy {
 namespace runtime {
 
-std::vector<TimeEvent> TimeManager::events;
-
 // TODO
 void TimeManager::processTimingData() {
   int size = events.size();

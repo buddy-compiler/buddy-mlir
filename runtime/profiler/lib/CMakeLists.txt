@@ -18,32 +18,16 @@ target_link_libraries(BuddyRuntime
   ${conversion_libs}
   ${extension_libs}
   MLIROptLib
-  CBConvVectorization
   BuddyBud
   BuddyTrace
-  LowerTracePass
   BuddySche
-  LowerBudPass
   BuddyDIP
-  LowerDIPPass
   BuddyDAP
-  LowerDAPPass
-  ExtendDAPPass
   DAPVectorization
   BuddyRVV
-  LowerRVVPass
-  MatMulOptimization
-  BatchMatMulOptimization
-  MatMulParallelVectorization
-  TransposeOptimization
-  ConvOptimization
   VectorExp
-  LowerVectorExpPass
   BuddyGemmini
-  LowerGemminiPass
-  LowerLinalgToGemminiPass
   SchedulingOnDevices
-  LowerSche
   FuncBufferizeDynamicOffset
 )
 

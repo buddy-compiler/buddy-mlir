@@ -22,30 +22,32 @@ namespace runtime {
 class TimeManager {
 public:
   TimeManager() = default;
-  ~TimeManager() = default;
+  ~TimeManager() {
+    for (TimeEvent *e : events) {
+      delete e;
+    }
+  }
   TimeManager(const TimeManager &) = delete;
   TimeManager &operator=(const TimeManager &) = delete;
 
-  static void timingStart(TimeEvent *e) { (*e).setStartTimestamp(); }
+  void timingStart(TimeEvent *e) { (*e).setStartTimestamp(); }
 
-  static void timingEnd(TimeEvent *e) {
+  void timingEnd(TimeEvent *e) {
     (*e).setEndTimestamp();
     (*e).updateDuration();
   }
 
   // 添加计时事件
-  template <typename T> static void addEvent(T &&event) {
-    events.push_back(std::forward<T>(event));
-  }
+  void addEvent(TimeEvent *event) { events.push_back(event); }
 
-  static TimeEvent *eventsBack() { return &(events.back()); }
+  TimeEvent *eventsBack() { return events.back(); }
 
   // 处理并输出计时数据
   void processTimingData();
 
 private:
   // 存储所有的计时事件
-  static std::vector<TimeEvent> events;
+  std::vector<TimeEvent *> events;
 };
 
 } // namespace runtime

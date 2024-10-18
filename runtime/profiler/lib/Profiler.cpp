@@ -47,15 +47,14 @@ std::string Profiler::instrument(const std::string &targetDialect) {
       if (opDialectName == targetDialect) {
 
         // add TimeEvent and instrumentation
-        TimeEvent event(&op);
-        timeManager.addEvent(std::move(event));
-
-        TimeEvent *e = timeManager.eventsBack();
+        TimeEvent *event = new TimeEvent(&op);
+        timeManager.addEvent(event);
 
         // 在op的前面添加call start函数
         builder.setInsertionPoint(&op);
         auto constantOp = builder.create<mlir::arith::ConstantOp>(
-            op.getLoc(), i64Type, builder.getIntegerAttr(i64Type, uint64_t(e)));
+            op.getLoc(), i64Type,
+            builder.getIntegerAttr(i64Type, uint64_t(event)));
 
         builder.create<mlir::func::CallOp>(op.getLoc(), timingStartFunc,
                                            mlir::ValueRange{constantOp});

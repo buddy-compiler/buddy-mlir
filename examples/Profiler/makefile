@@ -55,7 +55,7 @@ profiling-forward:
 		-o forward.o
 		${LLVM_TOOLS_BINARY_DIR}/clang -shared -o libforward.so forward.o subgraph0.o /home/gaoshihao/project/buddy-mlir/build-profiler/lib/libBuddyRuntime.a ${BUDDY_LIB_DIR}/libStaticMLIRCRunnerUtils.a ${BUDDY_LIB_DIR}/libStaticMLIRRunnerUtils.a 
 
-  # subgraph0_instrumented.mlir
+# subgraph0_instrumented.mlir
 profiling-subgraph0:
 	${BUDDY_OPT} ./subgraph0_instrumented.mlir \
 		-pass-pipeline \
@@ -83,7 +83,9 @@ profiling-subgraph0:
 	${LLVM_TOOLS_BINARY_DIR}/llvm-as | \
 	${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3 \
 		-o subgraph0.o
-	${LLVM_TOOLS_BINARY_DIR}/clang -o libsubgraph0.so subgraph0.o  ${BUDDY_LIB_DIR}/libStaticMLIRCRunnerUtils.a ${BUDDY_LIB_DIR}/libStaticMLIRRunnerUtils.a
+
+
+#${LLVM_TOOLS_BINARY_DIR}/clang -o libsubgraph0.so subgraph0.o  /home/gaoshihao/project/buddy-mlir/build-profiler/lib/libBuddyRuntime.a ${BUDDY_LIB_DIR}/libStaticMLIRCRunnerUtils.a ${BUDDY_LIB_DIR}/libStaticMLIRRunnerUtils.a
 
 clean:
 	rm -f forward.o subgraph0.o libforward.so libsubgraph0.so buddy-mobilenetv3-profiling subgraph0_instrumented.mlir

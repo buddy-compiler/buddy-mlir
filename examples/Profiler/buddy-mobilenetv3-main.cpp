@@ -178,7 +178,8 @@ int main() {
   // Call the forward function of the model.
 
   //调用动态链接库
-  void *handle = dlopen("./libforward.so", RTLD_LAZY); // 动态加载 .so 文件
+  void *handle =
+      dlopen("./libforward.so", RTLD_LAZY | RTLD_GLOBAL); // 动态加载 .so 文件
   if (!handle) {
     std::cerr << "Failed to load shared library: " << dlerror() << std::endl;
     return 0;
@@ -196,6 +197,8 @@ int main() {
     dlclose(handle);
     return 0;
   }
+
+  std::cout << "Load success!" << std::endl;
 
   _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64,
                        &input);

@@ -8,7 +8,7 @@ set(BUDDY_MOBILENETV3_PROFILING_LIBS
   BuddyLibDIP 
   ${PNG_LIBRARIES})
 target_link_libraries(buddy-mobilenetv3-profiling ${BUDDY_MOBILENETV3_PROFILING_LIBS})
-
+set_target_properties(buddy-mobilenetv3-profiling PROPERTIES LINK_FLAGS "-rdynamic")
 
 add_custom_command(
     TARGET buddy-mobilenetv3-profiling
