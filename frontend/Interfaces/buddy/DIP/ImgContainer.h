@@ -42,6 +42,28 @@ inline bool ifBigEndian() {
   return (*ptr == 0);
 }
 
+inline int validToInt(size_t sz) {
+  int valueInt = (int)sz;
+  assert((size_t)valueInt == sz);
+  return valueInt;
+}
+
+struct PaletteBlock {
+  unsigned char b, g, r, a;
+};
+
+// file bmp image palette
+void FillPalette(PaletteBlock *palette, int bpp, bool negative = false) {
+  int i, length = 1 << bpp;
+  int xor_mask = negative ? 255 : 0;
+
+  for (i = 0; i < length; i++) {
+    int val = (i * 255 / (length - 1)) ^ xor_mask;
+    palette[i].b = palette[i].g = palette[i].r = (unsigned char)val;
+    palette[i].a = 0;
+  }
+}
+
 template <typename T, size_t N> class Image : public MemRef<T, N> {
 public:
   // Constructor initializes the image by loading from a file.
@@ -50,6 +72,9 @@ public:
   //   mode: Specifies the image mode (e.g., DIP_GRAYSCALE, DIP_RGB).
   //   norm: Indicates whether to normalize pixel values (default is false).
   Image(std::string filename, ImageModes mode, bool norm = false);
+
+  // from data to initialize image
+  Image(T *data, intptr_t sizes[N]);
 
   // Retrieves the name of the current image format as a string.
   std::string getFormatName() const {
@@ -68,6 +93,8 @@ public:
   size_t getHeight() const { return this->height; }
   // Returns the bit depth of the image.
   int getBitDepth() const { return this->bitDepth; }
+  // Write a image
+  static void imageWrite(const string &filename, Image<T, N> &image);
 
 private:
   // Enum to represent supported image formats.
@@ -90,11 +117,18 @@ private:
   void determineFormat(const std::vector<uint8_t> &fileData);
   // Decodes a BMP image from raw file data.
   bool decodeBMP(const std::vector<uint8_t> &fileData);
-  // Decodes a PNG image from raw file data.
+  // encode image format
+  int findFormat(const string &_ext);
+  // BMP image encode
+  void BMPEncode(const string &filename, Image<T, N> &image);
 #ifdef BUDDY_ENABLE_PNG
+  // Decodes a PNG image from raw file data.
   bool decodePNG(const std::vector<uint8_t> &fileData);
 #endif
 };
+
+template <typename T, std::size_t N>
+Image<T, N>::Image(T *data, intptr_t sizes[N]): MemRef<T, N>(data, sizes) {}
 
 // Image Container Constructor
 // Constructs an image container object from the image file path.
@@ -615,6 +649,102 @@ bool Image<T, N>::decodePNG(const std::vector<uint8_t> &fileData) {
   return true;
 }
 #endif
+
+template <typename T, size_t N>
+int findFormat(const string &_ext){
+  if (_ext.size() <= 1)
+    return 0;
+
+  const char *ext = strrchr(_ext.c_str(), '.');
+  if (!ext)
+    return 0;
+  
+  if (strcmp(ext, ".bmp") == 0) {
+    return 1;
+  } else {
+    std::cerr << "Unsupported to generate" << ext << "format image" << std::endl;
+    return 0;
+  }
+}
+
+template <typename T, size_t N>
+static void imageWrite(const string &filename, Image<T, N> &image){
+  int imformat = findFormat<T, N>(filename);
+  switch (imformat) {
+    case 1:
+      BMPEncode(filename, image);
+      break;
+    default: 
+      return;
+  }
+  return;
+}
+
+template <typename T, size_t N>
+void BMPEncode(const string &filename, Image<T, N> &image){
+  std::ofstream bmp(filename, std::ios::binary);
+  if (!bmp) {
+      std::cerr << "Failed to create file" << std::endl;
+      return;
+  }
+  int width = image.getSizes()[3];
+  int height = image.getSizes()[2];
+  int channels = image.getSizes()[1];
+  // Align each row of data with 4 bytes
+  int fileStep = (width * channels + 3) & -4;
+  int bitmapHeaderSize = 40;
+  int paletteSize = channels > 1 ? 0 : 1024;
+  int headerSize = 14 /* fileheader */ + bitmapHeaderSize + paletteSize;
+  size_t fileSize = (size_t)fileStep * height + headerSize;
+  PaletteBlock palette[256];
+  // Fixed value in BMP
+  int zero = 0;
+  int one = 1;
+  char zeropad[] = "\0\0\0\0";
+
+  // Write file header
+  bmp.write("BM", 2);
+  int fileSizeInt = validToInt(fileSize);
+  bmp.write(reinterpret_cast<char*>(&fileSizeInt), 4);
+  bmp.write(reinterpret_cast<char*>(&zero), 4);
+  bmp.write(reinterpret_cast<char*>(&headerSize), 4);
+
+  // Write bitmap header
+  bmp.write(reinterpret_cast<char*>(&bitmapHeaderSize), 4);
+  bmp.write(reinterpret_cast<char*>(&width), 4);
+  bmp.write(reinterpret_cast<char*>(&height), 4);
+  bmp.write(reinterpret_cast<char*>(&one), 2);
+  int bitDepth = channels << 3;
+  bmp.write(reinterpret_cast<char*>(&(bitDepth)), 2);
+  bmp.write(reinterpret_cast<char*>(&zero), 4);
+  bmp.write(reinterpret_cast<char*>(&zero), 4);  
+  bmp.write(reinterpret_cast<char*>(&zero), 4);
+  bmp.write(reinterpret_cast<char*>(&zero), 4);
+  bmp.write(reinterpret_cast<char*>(&zero), 4);
+  bmp.write(reinterpret_cast<char*>(&zero), 4);
+
+  // Write palette
+  if (channels == 1) {
+    FillPalette(palette, 8);
+    bmp.write(reinterpret_cast<char*>(&palette), sizeof(palette));
+  }
+
+  // Write image data
+  int step = width * height;
+  T *data = image.getData();
+  for (int y = height - 1; y >= 0; y--) {
+    for (int i = 0; i < width; i++) {
+      for (int t = channels - 1; t >= 0; t--) {
+        unsigned char pixel= static_cast<unsigned char>(data[y * width + i + t * step]);
+        bmp.write(reinterpret_cast<char*>(&pixel), 1);
+      }
+    }
+    if (fileStep > width * channels)
+      bmp.write(zeropad, fileStep - width * channels);
+  }
+  
+  bmp.close();
+}
 
 } // namespace dip
 
