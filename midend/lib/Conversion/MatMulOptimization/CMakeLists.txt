@@ -1,10 +1,8 @@
 add_mlir_library(MatMulOptimization
+  BatchMatMulOptimize.cpp
 	MatMulOptimize.cpp
   MatMulVectorization.cpp
   MatMulParallelVectorization.cpp
-  BatchMatMulOptimize.cpp
-  BatchMatMulTileOptimize.cpp
-  BatchMatMulSCFOptimize.cpp
   LINK_LIBS PUBLIC
   BuddyUtils
 )

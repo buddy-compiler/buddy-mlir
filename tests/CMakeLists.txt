@@ -22,10 +22,7 @@ if(BUDDY_ENABLE_OPENCV)
 endif()
 
 if(BUDDY_MLIR_ENABLE_DIP_LIB)
-  list(APPEND BUDDY_TEST_DEPENDS buddy-new-image-container-test-bmp)
-  if(BUDDY_ENABLE_PNG)
-    list(APPEND BUDDY_TEST_DEPENDS buddy-new-image-container-test-png)
-  endif()
+  list(APPEND BUDDY_TEST_DEPENDS buddy-new-image-container-test)
 endif()
 
 add_lit_testsuite(check-tests "Running the buddy regression tests..."

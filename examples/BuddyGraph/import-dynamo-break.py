@@ -48,8 +48,8 @@ dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=aot_autograd_decompositions
 )
-model_opt = torch.compile(model, backend=dynamo_compiler)
-print(model_opt(a, b))
+# model_opt = torch.compile(model, backend=dynamo_compiler)
+# print(model_opt(a, b))
 
 torch._dynamo.reset()
 
