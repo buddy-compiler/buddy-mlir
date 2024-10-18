@@ -78,11 +78,33 @@ public:
 
   void compile(const std::string &target);
 
-  void loadLib(const std::string &);
+  template <typename Func>
+  Func loadLib(const std::string &libpath, const std::string &funcName) {
 
-  mlir::OwningOpRef<mlir::ModuleOp> parseMLIRsrcfile(std::string mlirFilePath);
+    //调用动态链接库
+    void *handle =
+        dlopen(libpath.c_str(), RTLD_LAZY | RTLD_GLOBAL); // 动态加载 .so 文件
+    if (!handle) {
+      std::cerr << "Failed to load shared library: " << dlerror() << std::endl;
+      return 0;
+    }
+
+    Func fptr = reinterpret_cast<Func>(dlsym(handle, funcName.c_str()));
+    char *error = dlerror();
+    if (error != NULL) {
+      std::cerr << "Failed to load symbol: " << error << std::endl;
+      dlclose(handle);
+      return nullptr;
+    }
+
+    std::cout << "Load success!" << std::endl;
+    return fptr;
+  }
 
   static TimeManager &getTimeManager() { return *timeManager; }
+
+private:
+  mlir::OwningOpRef<mlir::ModuleOp> parseMLIRsrcfile(std::string mlirFilePath);
 
   void makeTarget(const std::string &target);
 

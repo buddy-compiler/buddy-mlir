@@ -96,8 +96,6 @@ void Profiler::compile(const std::string &target) {
   t.join();
 }
 
-void Profiler::loadLib(const std::string &lib) {}
-
 void Profiler::makeTarget(const std::string &target) {
   std::string targetFullName = "profiling-" + target;
   std::string makeCommand = "make " + targetFullName;

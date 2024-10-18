@@ -28,6 +28,7 @@
 
 #include <cstdint>
 #include <dlfcn.h> // for dlopen, dlsym, dlclose
+#include <functional>
 #include <iostream>
 #include <thread>
 
@@ -100,7 +101,7 @@ void softmax(float *input, size_t size) {
 
 std::string getLabel(int idx) {
   std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
-  std::ifstream in(mobilenetDir + "Labels.txt");
+  std::ifstream in(mobilenetDir + "/Labels.txt");
   assert(in.is_open() && "Could not read the label file.");
   std::string label;
   for (int i = 0; i < idx; ++i)
@@ -110,37 +111,9 @@ std::string getLabel(int idx) {
   return label;
 }
 
-// 编译共享库的函数
-void compile_buddy_forward_gen() {
-  const char *compile_command = "make buddy-forward-gen";
-
-  int result = std::system(compile_command);
-
-  if (result == 0) {
-    std::cout << "Shared buddy-forward-gen library compiled successfully."
-              << std::endl;
-  } else {
-    std::cerr << "Failed buddy-forward-gen to compile shared library."
-              << std::endl;
-  }
-}
-// 编译共享库的函数
-void compile_buddy_subgraph0_gen() {
-  const char *compile_command = "make buddy-subgraph0-gen";
-
-  int result = std::system(compile_command);
-
-  if (result == 0) {
-    std::cout << "Shared buddy-subgraph0-gen library compiled successfully."
-              << std::endl;
-  } else {
-    std::cerr << "Failed buddy-subgraph0-gen to compile shared library."
-              << std::endl;
-  }
-}
-
 int main() {
 
+  /* init Profiler */
   buddy::runtime::Profiler profiler(
       "/home/gaoshihao/project/buddy-mlir/examples/Profiler/subgraph0.mlir");
 
@@ -152,8 +125,14 @@ int main() {
   profiler.compile("subgraph0");
   profiler.compile("forward");
 
+  /* define MLIR Function type */
+  typedef void (*MLIRFuncType)(
+      MemRef<float, 2> * output, MemRef<float, 1> * arg0,
+      MemRef<long long, 1> * arg1, dip::Image<float, 4> * input);
+
   /* Load Shared Library */
-  profiler.loadLib("libforward.so");
+  MLIRFuncType _mlir_ciface_forward =
+      profiler.loadLib<MLIRFuncType>("libforward.so", "_mlir_ciface_forward");
 
   // Print the title of this example.
   const std::string title = "MobileNetV3 Inference Powered by Buddy Compiler";
@@ -175,31 +154,8 @@ int main() {
   MemRef<float, 1> paramsContainerf32({ParamsSize});
   MemRef<long long, 1> ParamsContainerInt64({34});
   loadParameters(paramsDir, intDir, paramsContainerf32, ParamsContainerInt64);
+
   // Call the forward function of the model.
-
-  //调用动态链接库
-  void *handle =
-      dlopen("./libforward.so", RTLD_LAZY | RTLD_GLOBAL); // 动态加载 .so 文件
-  if (!handle) {
-    std::cerr << "Failed to load shared library: " << dlerror() << std::endl;
-    return 0;
-  }
-  //调用库中的函数
-  void (*_mlir_ciface_forward)(
-      MemRef<float, 2> * output, MemRef<float, 1> * arg0,
-      MemRef<long long, 1> * arg1, dip::Image<float, 4> * input);
-
-  *(void **)(&_mlir_ciface_forward) = dlsym(handle, "_mlir_ciface_forward");
-  char *error = dlerror();
-  if (error != NULL) {
-    // 如果查找函数失败，输出错误信息并返回
-    fprintf(stderr, "%s\n", error);
-    dlclose(handle);
-    return 0;
-  }
-
-  std::cout << "Load success!" << std::endl;
-
   _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64,
                        &input);
 
