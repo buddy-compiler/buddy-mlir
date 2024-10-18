@@ -43,7 +43,7 @@ public:
   TimeEvent *eventsBack() { return events.back(); }
 
   // 处理并输出计时数据
-  void processTimingData();
+  void processTimingData(const std::string &outputFilepath);
 
 private:
   // 存储所有的计时事件

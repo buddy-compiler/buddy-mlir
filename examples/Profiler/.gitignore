@@ -16,3 +16,6 @@ libsubgraph0.so
 # out file
 buddy-mobilenetv3-profiling
 
+# result file
+result.json
+

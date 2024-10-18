@@ -1,4 +1,5 @@
-#include "mlir/IR/Operation.h"
+#include <iostream>
+#include <mlir/IR/Operation.h>
 
 namespace buddy {
 namespace runtime {
@@ -7,17 +8,25 @@ class TimeEvent {
 public:
   using OpPtr = mlir::Operation *;
 
-  TimeEvent(const OpPtr opPtr)
-      : opPtr(opPtr), startTimestamp(0.0), endTimestamp(0.0), duration(0.0) {}
-  TimeEvent(const TimeEvent &) {}
-  TimeEvent(TimeEvent &&) {}
+  TimeEvent(OpPtr opPtr)
+      : opPtr(opPtr), opName(opPtr->getName().getStringRef().str()),
+        startTimestamp(0), endTimestamp(0), duration(0) {}
+  TimeEvent(const TimeEvent &) = default;
+  TimeEvent(TimeEvent &&) = default;
 
-  void setStartTimestamp() { startTimestamp = getCurrentTimeStamp(); };
+  void setStartTimestamp() {
+    // std::cout << "setStartTimestamp" << std::endl;
+    startTimestamp = getCurrentTimeStamp();
+  };
   double getStartTimestamp() const { return startTimestamp; };
 
-  void setEndTimestamp() { endTimestamp = getCurrentTimeStamp(); };
+  void setEndTimestamp() {
+    // std::cout << "setEndTimestamp" << std::endl;
+    endTimestamp = getCurrentTimeStamp();
+  };
 
   void updateDuration() {
+    // std::cout << "updateDuration" << std::endl;
     double interval = getInterval();
     double curDuration = getDuration();
     setDuration(curDuration + interval);
@@ -33,10 +42,13 @@ public:
 
   OpPtr getOpPtr() const { return opPtr; }
 
+  std::string getOpName() const { return opName; }
+
 private:
   double getCurrentTimeStamp();
 
   OpPtr opPtr;
+  std::string opName;
   double startTimestamp;
   double endTimestamp;
   double duration;

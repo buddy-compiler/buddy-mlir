@@ -159,6 +159,9 @@ int main() {
   _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64,
                        &input);
 
+  // Output profiling results
+  profiler.outputResult("result.json");
+
   auto out = output.getData();
   softmax(out, 1000);
   // Find the classification and print the result.
