@@ -23,9 +23,9 @@
 //===----------------------------------------------------------------------===//
 #include "buddy/DIP/imgcodecs/loadsave.h"
 #include <buddy/Core/Container.h>
-#include <buddy/DIP/ImgContainer.h>
 #include <buddy/DIP/DIP.h>
 #include <buddy/DIP/ImageContainer.h>
+#include <buddy/DIP/ImgContainer.h>
 #include <iostream>
 #include <math.h>
 
@@ -33,7 +33,7 @@ using namespace std;
 
 void testImplementation(int argc, char *argv[]) {
   // Read as colar image.
-  dip::Image<float, 4> inputBatch(argv[1], dip::DIP_RGB, true);
+  dip::Image<float, 4> inputBatch(argv[1], dip::DIP_RGB);
 
   // Note : Both values in output image dimensions and scaling ratios must be
   // positive numbers.
@@ -42,12 +42,12 @@ void testImplementation(int argc, char *argv[]) {
       {1, 3, 224, 224} /*{image_cols, image_rows}*/);
 
   // Define Img with the output of Resize4D.
-  intptr_t outSizes[3] = {output.getSizes()[2], output.getSizes()[3],
-                          output.getSizes()[1]};
+  intptr_t outSizes[4] = {output.getSizes()[0], output.getSizes()[1],
+                          output.getSizes()[2], output.getSizes()[3]};
 
-  Img<float, 3> outputImageResize4D(output.getData(), outSizes);
+  dip::Image<float, 4> outputImageResize4D(output.getData(), outSizes);
 
-  // dip::imwrite(argv[2], outputImageResize4D);
+  dip::imageWrite(argv[2], outputImageResize4D);
 
   return;
 }
