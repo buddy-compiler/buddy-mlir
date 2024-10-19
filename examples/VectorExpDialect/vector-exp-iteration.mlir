@@ -45,7 +45,7 @@ func.func @main() -> i32 {
     } : () -> ()
 
     // Update dynamic vector length.
-    %new_vl = arith.subi %vl_total_i32, %vl_step_i32 : i32
+    %new_vl = arith.subi %iter_vl_i32, %vl_step_i32 : i32
     scf.yield %new_vl : i32
   }
 
