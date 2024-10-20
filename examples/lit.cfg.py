@@ -42,7 +42,6 @@ config.excludes = [
     'BuddyWhisper',
     'BuddyBert',
     'BuddyMobileNetV3',
-    'TestOp',
     'BuddyStableDiffusion',
     'BuddyResNet18',
     'BuddyGPU',
