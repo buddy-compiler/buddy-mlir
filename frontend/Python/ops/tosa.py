@@ -18,13 +18,13 @@
 #
 # ===---------------------------------------------------------------------------
 
-import array
+import array, copy
 from typing import Dict, List, Tuple, Union
 import numpy
 import sys
 
 import mlir.ir as ir
-from mlir.dialects import tensor, tosa, arith, linalg
+from mlir.dialects import tensor, tosa, arith, linalg, math
 
 from ..graph import TensorDType
 from ..graph import (
@@ -62,6 +62,7 @@ from ..graph import (
     ClampMaxOp,
     RandIntLowOp,
     ArgMaxOp,
+    ScaledDotProductEfficientAttentionOp,
 )
 from .utils import *
 
@@ -522,9 +523,56 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
     }
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     to_cast_type = types_mapping[node.args[1]]
-    sizes = ir.RankedTensorType(input_tensor.type).shape
-    output_type = ir.RankedTensorType.get(sizes, to_cast_type)
-    return tosa.CastOp(output_type, input_tensor)
+    input_type = ir.RankedTensorType(input_tensor.type).element_type
+    # When converting float to int, tosa.cast lowers to math.roundeven, but we don't need rounding.
+    if str(to_cast_type).find("i") != -1 and str(input_type).find("f") != -1:
+        output_shape = list(node.tensor_meta["shape"])
+        dtype = node.tensor_meta["dtype"]
+        mlir_dtype = mlir_element_type_get(dtype)
+        tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+        output = tensor.EmptyOp(output_shape, mlir_dtype)
+        generic_map = ir.AffineMap.get_permutation(
+            [i for i in range(len(output_shape))]
+        )
+        op = linalg.GenericOp(
+            [tensor_type],
+            [input_tensor],
+            [output],
+            ir.ArrayAttr.get(
+                [
+                    ir.AffineMapAttr.get(
+                        generic_map.get_submap(
+                            [i for i in range(len(output_shape))]
+                        )
+                    ),
+                    ir.AffineMapAttr.get(
+                        generic_map.get_submap(
+                            [i for i in range(len(output_shape))]
+                        )
+                    ),
+                ]
+            ),
+            ir.ArrayAttr.get(
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                * len(output_shape)
+            ),
+        )
+        block = ir.Block.create_at_start(
+            op.region,
+            [
+                input_type,
+                to_cast_type,
+            ],
+        )
+        fptosi_op = arith.FPToSIOp(to_cast_type, block.arguments[0])
+        block.append(fptosi_op)
+        block.append(linalg.YieldOp([fptosi_op.result]))
+    else:
+        sizes = ir.RankedTensorType(input_tensor.type).shape
+        output_type = ir.RankedTensorType.get(sizes, to_cast_type)
+        op = tosa.CastOp(output_type, input_tensor)
+
+    return op
 
 
 def clone_op(node: CloneOp, symbol_table):
@@ -1479,6 +1527,243 @@ def argmax_op(node: ArgMaxOp, symbol_table):
     return op
 
 
+def scaled_dot_product_efficient_attention_op(
+    node: ScaledDotProductEfficientAttentionOp, symbol_table
+):
+    """
+    Perform scaled dot-product attention computation.
+
+    Args:
+        node (ScaledDotProductEfficientAttentionOp): The scaled dot-product attention operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+
+    Returns:
+        result_reshape_op: Reshaped result tensor of the attention operation.
+        log_sumexp_op: Log-sum-exp constant operation.
+        philox_seed_op: Seed constant operation for random number generation.
+        philox_offset_op: Offset constant operation for random number generation.
+    """
+    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    key = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    bias = symbol_table.get((str(node.args[3]), 0), node.args[3])
+    compute_log_sumexp = symbol_table.get((str(node.args[4]), 0), node.args[4])
+    query_shape = query.type.shape
+    key_shape = key.type.shape
+    value_shape = value.type.shape
+    L, S = query_shape[-2], key_shape[-2]
+    scale_factor = 1 / numpy.sqrt(query.type.shape[-1])
+
+    # Initialize attention bias
+    dtype = node.tensor_meta["dtype"][0]
+    attn_bias_shape = [L, S]
+    mlir_dtype = mlir_element_type_get(dtype)
+    attn_bias_type = ir.RankedTensorType.get(attn_bias_shape, mlir_dtype)
+    if bias == None:
+        zero_constant = arith.ConstantOp(mlir_dtype, 0.0)
+        attn_bias = tensor.SplatOp(attn_bias_type, zero_constant)
+    # Transpose key tensor
+    key_shape = list(key.type.shape)
+    perm_list = list(range(len(key_shape)))
+    perm_list[-1], perm_list[-2] = perm_list[-2], perm_list[-1]
+    perm_const_op = tosa.ConstOp(
+        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+    )
+    perm_shape = []
+    perm_shape.append(key_shape[0])
+    perm_shape.append(key_shape[1])
+    perm_shape.append(key_shape[3])
+    perm_shape.append(key_shape[2])
+    permute_result_type = ir.RankedTensorType.get(perm_shape, mlir_dtype)
+    key = tosa.TransposeOp(
+        permute_result_type, key, perm_const_op.results[0]
+    ).result
+
+    # Matrix multiplication of query and key
+    query_reshape_op = tosa.ReshapeOp(
+        query,
+        memoryview(
+            array.array(
+                "i",
+                [
+                    query_shape[0] * query_shape[1],
+                    query_shape[2],
+                    query_shape[3],
+                ],
+            )
+        ),
+    )
+    key_reshape_op = tosa.ReshapeOp(
+        key,
+        memoryview(
+            array.array(
+                "i", [key_shape[0] * key_shape[1], key_shape[3], key_shape[2]]
+            )
+        ),
+    )
+    matmul_result_shp = [
+        key_shape[0] * key_shape[1],
+        query_shape[2],
+        key_shape[2],
+    ]
+    matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
+    matmul_op = tosa.MatMulOp(
+        matmul_result_type, query_reshape_op.result, key_reshape_op.result
+    )
+    # Multiply result by scale factor
+    scale_factor_constant = arith.ConstantOp(mlir_dtype, scale_factor)
+    scale_factor = tensor.SplatOp(matmul_result_type, scale_factor_constant)
+    mul_op = tosa.MulOp(
+        matmul_result_type,
+        matmul_op,
+        scale_factor,
+        ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+    )
+
+    # Add attention bias to the result
+    add_op = tosa.AddOp(matmul_result_type, mul_op.result, attn_bias)
+    # Apply softmax to the result
+    softmax_output_shape = list(add_op.result.type.shape)
+    softmax_dim = len(softmax_output_shape) - 1
+
+    # Subtract the maximum value along the dimension where softmax is applied to prevent overflow during the exp operation.
+    max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
+    sub_op_output = ir.RankedTensorType.get(
+        add_op.result.type.shape, mlir_dtype
+    )
+    sub_op = tosa.SubOp(sub_op_output, add_op, max_vals)
+
+    softmax_input = sub_op.result
+    sum_tensor_shape = copy.deepcopy(softmax_output_shape)
+    sum_tensor_shape[softmax_dim] = 1
+    sum_tensor_type = ir.RankedTensorType.get(sum_tensor_shape, mlir_dtype)
+    element = mlir_element_attr_get(dtype, 0)
+    attr = ir.DenseElementsAttr.get_splat(sum_tensor_type, element)
+    sum_tensor = arith.ConstantOp(sum_tensor_type, attr).result
+    softmax_input_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(softmax_output_shape))
+    ]
+    softmax_input_map = ir.AffineMap.get(
+        len(softmax_output_shape), 0, softmax_input_map
+    )
+    sum_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(softmax_output_shape))
+    ]
+    sum_tensor_map[softmax_dim] = ir.AffineExpr.get_constant(0)
+    sum_tensor_map = ir.AffineMap.get(
+        len(softmax_output_shape), 0, sum_tensor_map
+    )
+    loop_type = [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * len(
+        softmax_output_shape
+    )
+    loop_type[softmax_dim] = ir.Attribute.parse(
+        "#linalg.iterator_type<reduction>"
+    )
+    sum_tensor_op = linalg.GenericOp(
+        [sum_tensor_type],
+        [softmax_input],
+        [sum_tensor],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(softmax_input_map),
+                ir.AffineMapAttr.get(sum_tensor_map),
+            ]
+        ),
+        ir.ArrayAttr.get(loop_type),
+    )
+    block = ir.Block.create_at_start(
+        sum_tensor_op.region,
+        [
+            mlir_dtype,
+            mlir_dtype,
+        ],
+    )
+    exp_op = math.ExpOp(block.arguments[0])
+    add_op = arith.AddFOp(exp_op.result, block.arguments[1])
+    block.append(exp_op)
+    block.append(add_op)
+    block.append(linalg.YieldOp([add_op.result]))
+    result_tensor_type = ir.RankedTensorType.get(
+        softmax_output_shape, mlir_dtype
+    )
+    result_tensor = tensor.EmptyOp(softmax_output_shape, mlir_dtype)
+    result_tensor_map = [
+        ir.AffineExpr.get_dim(i) for i in range(len(softmax_output_shape))
+    ]
+    result_tensor_map = ir.AffineMap.get(
+        len(softmax_output_shape), 0, result_tensor_map
+    )
+    softmax_op = linalg.GenericOp(
+        [result_tensor_type],
+        [softmax_input, sum_tensor_op.result],
+        [result_tensor.result],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(softmax_input_map),
+                ir.AffineMapAttr.get(sum_tensor_map),
+                ir.AffineMapAttr.get(result_tensor_map),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(softmax_output_shape)
+        ),
+    )
+    block = ir.Block.create_at_start(
+        softmax_op.region,
+        [
+            mlir_dtype,
+            mlir_dtype,
+            mlir_dtype,
+        ],
+    )
+    exp_op = math.ExpOp(block.arguments[0])
+    div_op = arith.DivFOp(exp_op.result, block.arguments[1])
+    block.append(exp_op)
+    block.append(div_op)
+    block.append(linalg.YieldOp([div_op.result]))
+
+    # This step includes dropout during training.
+    # Multiply the result by the value tensor.
+    value_reshape_op = tosa.ReshapeOp(
+        value,
+        memoryview(
+            array.array(
+                "i",
+                [key_shape[0] * key_shape[1], value_shape[2], value_shape[3]],
+            )
+        ),
+    )
+    matmul_result_shp = matmul_result_shp = [
+        key_shape[0] * key_shape[1],
+        query_shape[2],
+        value_shape[3],
+    ]
+    matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
+    matmul_op = tosa.MatMulOp(
+        matmul_result_type, softmax_op.result, value_reshape_op.result
+    )
+
+    result_reshape_op = tosa.ReshapeOp(
+        matmul_op.result,
+        memoryview(
+            array.array(
+                "i",
+                [key_shape[0], key_shape[1], query_shape[2], value_shape[3]],
+            )
+        ),
+    )
+    if compute_log_sumexp == False:
+        log_sumexp = ir.DenseElementsAttr.get(memoryview(array.array("i", [0])))
+        log_sumexp_op = tosa.ConstOp(log_sumexp)
+    philox_seed = ir.DenseElementsAttr.get(memoryview(array.array("i", [0])))
+    philox_seed_op = tosa.ConstOp(philox_seed)
+    philox_offset = ir.DenseElementsAttr.get(memoryview(array.array("i", [0])))
+    philox_offset_op = tosa.ConstOp(philox_offset)
+
+    return result_reshape_op, log_sumexp_op, philox_seed_op, philox_offset_op
+
+
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,
@@ -1515,4 +1800,5 @@ ops_registry = {
     "ClampMaxOp": clamp_max_op,
     "RandIntLowOp": randint_low_op,
     "ArgMaxOp": argmax_op,
+    "ScaledDotProductEfficientAttentionOp": scaled_dot_product_efficient_attention_op,
 }
