@@ -114,6 +114,8 @@ public:
   size_t getHeight() const { return this->height; }
   // Returns the bit depth of the image.
   int getBitDepth() const { return this->bitDepth; }
+  // Write a image
+  static void imageWrite(const std::string &filename, Image<T, N> &image);
 
 private:
   // Enum to represent supported image formats.
@@ -137,9 +139,9 @@ private:
   // Decodes a BMP image from raw file data.
   bool decodeBMP(const std::vector<uint8_t> &fileData);
   // encode image format
-  int findFormat(const string &_ext);
+  int findFormat(const std::string &_ext);
   // BMP image encode
-  void BMPEncode(const string &filename, Image<T, N> &image);
+  void BMPEncode(const std::string &filename, Image<T, N> &image);
 #ifdef BUDDY_ENABLE_PNG
   // Decodes a PNG image from raw file data.
   bool decodePNG(const std::vector<uint8_t> &fileData);
@@ -670,7 +672,7 @@ bool Image<T, N>::decodePNG(const std::vector<uint8_t> &fileData) {
 #endif
 
 template <typename T, size_t N>
-int findFormat(const string &_ext){
+int findFormat(const std::string &_ext){
   if (_ext.size() <= 1)
     return 0;
 
@@ -687,7 +689,7 @@ int findFormat(const string &_ext){
 }
 
 template <typename T, size_t N>
-static void imageWrite(const string &filename, Image<T, N> &image){
+static void imageWrite(const std::string &filename, Image<T, N> &image){
   int imformat = findFormat<T, N>(filename);
   switch (imformat) {
     case 1:
@@ -700,7 +702,7 @@ static void imageWrite(const string &filename, Image<T, N> &image){
 }
 
 template <typename T, size_t N>
-void BMPEncode(const string &filename, Image<T, N> &image){
+void BMPEncode(const std::string &filename, Image<T, N> &image){
   std::ofstream bmp(filename, std::ios::binary);
   if (!bmp) {
       std::cerr << "Failed to create file" << std::endl;
