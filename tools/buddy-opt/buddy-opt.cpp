@@ -50,8 +50,7 @@
 #include "VectorExp/VectorExpOps.h"
 #include "Trace/TraceDialect.h"
 #include "Trace/TraceOps.h"
-#include "VectorExp/VectorExpDialect.h"
-#include "VectorExp/VectorExpOps.h"
+
 
 namespace mlir {
 namespace buddy {
