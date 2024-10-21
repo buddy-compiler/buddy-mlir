@@ -29,6 +29,7 @@ from .. import DeviceType
 # ANCHOR_OP_TYPE = []
 
 from ..type import TensorDType
+from torch.fx.node import Node
 from torch.fx.immutable_collections import immutable_list
 from ..operation import OutputOp, PlaceholderOp
 
@@ -96,10 +97,18 @@ class BuddyTopoGraph:
             return "placeholder", "var"
         elif node_name is None:
             return "None", "var"
-        elif isinstance(
-            node_name, (TensorDType, int, float, bool, immutable_list)
-        ):
+        elif isinstance(node_name, (TensorDType, int, float, bool)):
             return type(node_name), "var"
+        elif isinstance(node_name, immutable_list):
+            if isinstance(node_name[0], Node):
+                node_list = []
+                for node_name_element in node_name:
+                    node_list.append(
+                        self._graph.node_table[node_name_element.name]
+                    )
+                return node_list, "node_list"
+            else:
+                return type(node_name), "var"
 
         logger.info("cannot find node {0}".format(node_name))
 
@@ -175,6 +184,12 @@ class BuddyTopoGraph:
                 self.visited_list.append(input_node)
             elif node_type == "var":
                 self.visited_list.append(input_node)
+            elif node_type == "node_list":
+                for next_node in input_node:
+                    edge_node = self.Update(next_node, node, edge_pattern)
+                    self.edge_node_dict[next_node.name] = edge_node
+                    self.VisitExpr(next_node)
+                    self.visited_list.append(next_node)
         self.AddNode(node, op_pattern)
         return
 
@@ -326,7 +341,9 @@ class GraphPartioner:
         if child == parent:
             return
         parent.num_nodes += child.num_nodes
-        self._graph.op_groups[parent.name][:0] = self._graph.op_groups[child.name]
+        self._graph.op_groups[parent.name][:0] = self._graph.op_groups[
+            child.name
+        ]
         del self._graph.op_groups[child.name]
         child.parent = parent
         if child.master_ref is not None:
@@ -369,7 +386,6 @@ class GraphPartioner:
                 dom_node = tree.tree_nodes[i]
                 group_node = tree.groups[i]
 
-
                 # if group_node.pattern == OpType.Unfusable:
                 #     continue
                 # if dom_node.parent == None:
@@ -392,7 +408,6 @@ class GraphPartioner:
                 #     continue
                 # if tree.groups[dom_parent_gindex].pattern == OpType.GetItemType:
                 #     continue
-
 
                 if dom_node != None and group_node.pattern == OpType.ReduceType:
                     if phase != 0:
@@ -425,7 +440,7 @@ class GraphPartioner:
                 #         self.CommitFuse(graph_node, dom_node.parent_gnode, tree)
                 # else:
                 #     pass
-                
+
             for node in tree.groups:
                 if node.master_ref is not None:
                     logger.info(
