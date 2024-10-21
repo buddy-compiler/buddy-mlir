@@ -40,14 +40,12 @@ public:
     if (!constOp1 || !constOp2)
       return failure();
 
-    // Check if one of the operands is zero
     DenseElementsAttr constAttr2 =
         constOp2.getValue().cast<DenseElementsAttr>();
     if (!constAttr2.isSplat() || !constAttr2.getSplatValue<APFloat>().isZero())
       return failure();
     
     auto resultTy = cast<ShapedType>(reshapeOp.getType());
-    // Replace with reshape of the first constant
     rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
         reshapeOp, reshapeOp.getType(), constOp1,
         rewriter.getDenseI64ArrayAttr(resultTy.getShape()));
