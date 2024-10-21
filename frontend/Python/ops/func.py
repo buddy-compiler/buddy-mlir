@@ -59,8 +59,8 @@ def call_op(node: CallOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
     From Buddy CallOp to MLIR FUNC call operation.
     """
     arguments = []
-    for arg in node.args:
-        input_node = symbol_table.get((str(arg), 0))
+    for i, arg in enumerate(node.args):
+        input_node = symbol_table.get((str(arg), node._args_index[i]))
         memref_type = ir.MemRefType(input_node.type)
         stride = []
         shape = memref_type.shape
