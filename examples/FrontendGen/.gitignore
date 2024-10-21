@@ -1,3 +1,4 @@
-Toy.g4
-MLIRToyVisitor.h
-
+test/
+*.g4
+*.td
+*.cpp
