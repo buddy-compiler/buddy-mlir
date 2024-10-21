@@ -38,7 +38,7 @@ linalg-batchmatmul-f32-run:
 
 linalg-matmul-transpose-b-f32-run:
 	@${BUDDY_OPT} ./linalg-transposematmulb-f32.mlir\
-		-matmul_transpose_b_vectorization \
+		-matmul-transpose-b-vectorization \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
 		-convert-vector-to-scf \
