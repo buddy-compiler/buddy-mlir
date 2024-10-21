@@ -31,6 +31,7 @@ target_link_libraries(buddy-opt
   MatMulParallelVectorization
   TransposeOptimization
   ConvOptimization
+  DepthwiseConvOptimization
   VectorExp
   LowerVectorExpPass
   BuddyGemmini
@@ -39,4 +40,10 @@ target_link_libraries(buddy-opt
   SchedulingOnDevices
   LowerSche
   FuncBufferizeDynamicOffset
+  MLIRGPUPasses
+  BuddyGPUTransformOPs
+  MLIRTestTransforms
+  MLIRTestTransformDialect
+  MLIRTransforms
+  MLIRTransformUtils
   )
