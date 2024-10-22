@@ -80,7 +80,6 @@ void registerLowerSchePass();
 void registerFuncBufferizeDynamicOffsetPass();
 void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
-void registerMatMul_TransposeB_VecPass();
 void registerMatMulTransposeBVecPass();
 void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();

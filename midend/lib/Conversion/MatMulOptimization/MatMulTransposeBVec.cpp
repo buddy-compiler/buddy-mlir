@@ -54,7 +54,7 @@ public:
         Value B = op->getOperand(1);
         Value C = op->getOperand(2);
 
-        // Get shape of input and output
+        // Get shape of input and output.
         ShapedType ATy = A.getType().cast<ShapedType>();
         Type eleTy = ATy.getElementType();
 
