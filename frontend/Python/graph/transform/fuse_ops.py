@@ -19,14 +19,14 @@
 # ===---------------------------------------------------------------------------
 
 from .. import Graph
-from ..operation import PlaceholderOp, OpType
+from ..operation import *
 from .. import DeviceType
 
 # TODO: classify op type for op fusion
 # OP_TYPE_FUSABLE = [OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType]
 # OP_TYPE_UNFUSABLE = [OpType.Unfusable, OpType.ConcatType]
 # OP_TYPE_FUSABLE_BY_SPECIFIC_PASS = []
-# ANCHOR_OP_TYPE = []
+# ANCHOR_OP_TYPE = [] 
 
 def simply_fuse(graph: Graph):
     """
@@ -47,5 +47,3 @@ def simply_fuse(graph: Graph):
     graph.op_groups = {}
     graph.op_groups["subgraph0"] = new_op_group
     graph.group_map_device = {"subgraph0": device}
-
-
