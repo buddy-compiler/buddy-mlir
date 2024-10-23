@@ -124,3 +124,117 @@ buddy-lenet-opt-run:
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+buddy-lenet-vec-lower:
+	@${BUDDY_OPT} ./fake-lenet.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-convert-tensor-to-linalg \
+		-linalg-bufferize \
+		-batchmatmul-optimize \
+		-conv2d-nhwc-fhwc-vectorization \
+		-pooling-nhwc-max-vectorization \
+		-convert-linalg-to-affine-loops \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-func-bufferize \
+		-arith-bufferize \
+		-tensor-bufferize \
+		-buffer-deallocation \
+		-finalizing-bufferize \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts \
+		-o ./log.mlir
+
+buddy-lenet-vec-run:
+	@${BUDDY_OPT} ./fake-lenet.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-convert-tensor-to-linalg \
+		-linalg-bufferize \
+		-batchmatmul-optimize \
+		-conv2d-nhwc-fhwc-vectorization \
+		-pooling-nhwc-max-vectorization \
+		-convert-linalg-to-affine-loops \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-func-bufferize \
+		-arith-bufferize \
+		-tensor-bufferize \
+		-buffer-deallocation \
+		-finalizing-bufferize \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+buddy-lenet-adapt-vec-lower:
+	@${BUDDY_OPT} ./fake-lenet.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-convert-tensor-to-linalg \
+		-linalg-bufferize \
+		-batchmatmul-optimize \
+		-conv2d-nhwc-fhwc-vectorization \
+		-pooling-nhwc-max-vectorization \
+		-convert-linalg-to-affine-loops \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-func-bufferize \
+		-arith-bufferize \
+		-tensor-bufferize \
+		-buffer-deallocation \
+		-finalizing-bufferize \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts \
+		-o ./log.mlir
+
+buddy-lenet-adapt-vec-run:
+	@${BUDDY_OPT} ./fake-lenet.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-convert-tensor-to-linalg \
+		-linalg-bufferize \
+		-batchmatmul-optimize \
+		-conv2d-nhwc-fhwc-adapt-vectorization \
+		-pooling-nhwc-max-adapt-vectorization \
+		-convert-linalg-to-affine-loops \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-func-bufferize \
+		-arith-bufferize \
+		-tensor-bufferize \
+		-buffer-deallocation \
+		-finalizing-bufferize \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}

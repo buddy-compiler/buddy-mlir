@@ -17,9 +17,10 @@ module {
   func.func private @printMemrefF32(memref<*xf32>)
   func.func private @rtclock() -> f64
 
-  func.func @conv_2d_nhwc_fhwc(%arg0: memref<?x?x?x?xf32>, %arg1: memref<?x?x?x?xf32>, %arg2: memref<?x?x?x?xf32>) {
-    linalg.conv_2d_nhwc_fhwc ins (%arg0, %arg1: memref<?x?x?x?xf32>, memref<?x?x?x?xf32>)
-                             outs (%arg2: memref<?x?x?x?xf32>)
+  func.func @conv_2d_nhwc_fhwc(%arg0: memref<1x12x12x6xf32>, %arg1: memref<16x5x5x6xf32>, %arg2: memref<1x8x8x16xf32>) {
+    linalg.conv_2d_nhwc_fhwc {dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>}
+            ins (%arg0, %arg1: memref<1x12x12x6xf32>, memref<16x5x5x6xf32>)
+            outs (%arg2: memref<1x8x8x16xf32>)
     return
   }
 
@@ -54,17 +55,17 @@ module {
     %c16 = arith.constant 16 : index
     %c24 = arith.constant 24 : index
     %c28 = arith.constant 28 : index
-
-    // %v0 = call @alloc_f32(%c1, %c12, %c12, %c6, %f2) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
-    // %v1 = call @alloc_f32(%c16, %c5, %c5, %c6, %f3) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
-    // %v2 = call @alloc_f32(%c1, %c8, %c8, %c16, %f0) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
     
-    %v0 = call @alloc_f32(%c1, %c28, %c28, %c1, %f2) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
-    %v1 = call @alloc_f32(%c6, %c5, %c5, %c1, %f3) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
-    %v2 = call @alloc_f32(%c1, %c24, %c24, %c6, %f0) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
+    %v0 = call @alloc_f32(%c1, %c12, %c12, %c6, %f2) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
+    %v1 = call @alloc_f32(%c16, %c5, %c5, %c6, %f3) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
+    %v2 = call @alloc_f32(%c1, %c8, %c8, %c16, %f0) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
+
+    %a = memref.cast %v0 : memref<?x?x?x?xf32> to memref<1x12x12x6xf32>
+    %b = memref.cast %v1 : memref<?x?x?x?xf32> to memref<16x5x5x6xf32>
+    %c = memref.cast %v2 : memref<?x?x?x?xf32> to memref<1x8x8x16xf32>
 
     %t_start = call @rtclock() : () -> f64
-    call @conv_2d_nhwc_fhwc(%v0, %v1, %v2) : (memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>) -> ()
+    call @conv_2d_nhwc_fhwc(%a, %b, %c) : (memref<1x12x12x6xf32>, memref<16x5x5x6xf32>, memref<1x8x8x16xf32>) -> ()
     %t_end = call @rtclock() : () -> f64
 
     // All the elements of the MemRef are the same,
@@ -73,8 +74,8 @@ module {
     // CHECK: [
     // CHECK: [
     // CHECK: [
-    // CHECK: [150{{(, 150)*}}],
-    %print_v2 = memref.cast %v2 : memref<?x?x?x?xf32> to memref<*xf32>
+    // CHECK: [900{{(, 900)*}}],
+    %print_v2 = memref.cast %c : memref<1x8x8x16xf32> to memref<*xf32>
     call @printMemrefF32(%print_v2) : (memref<*xf32>) -> ()
 
     %time = arith.subf %t_end, %t_start : f64

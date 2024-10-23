@@ -125,3 +125,34 @@ conv2d-nhwc-fhwc-opt-aot:
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
 		-o a.out
 	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out
+
+conv2d-nhwc-fhwc-adapt-run:
+	@${BUDDY_OPT} ./conv2d-nhwc-fhwc-adapt.mlir \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-arith-bufferize \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+conv2d-nhwc-fhwc-adapt-aot:
+	@${BUDDY_OPT} ./conv2d-nhwc-fhwc-adapt.mlir \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-arith-bufferize \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir -o log.ll
+	${CLANG} log.ll -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
+		-o a.out
+	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out
