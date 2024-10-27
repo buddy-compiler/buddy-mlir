@@ -231,6 +231,8 @@ next-concat-matmul-translate:
 
 next-concat-matmul-run:
 	@${MLIR_OPT} ./next-concat-matmul.mlir \
+next-sigmoid-run:
+	@${MLIR_OPT} ./next-sigmoid.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${MLIR_OPT} \
 		-arith-expand \
@@ -328,6 +330,8 @@ next-eliminate-add-zero-translate:
 
 next-eliminate-add-zero-run:
 	@${MLIR_OPT} ./next-eliminate-add-zero.mlir \
+next-rope-run:
+	@${MLIR_OPT} ./next-rope.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${MLIR_OPT} \
 		-arith-expand \

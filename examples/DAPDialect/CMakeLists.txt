@@ -20,6 +20,7 @@ add_executable(buddy-fir FIRLowpass.cpp)
 add_dependencies(buddy-fir buddy-opt)
 target_link_libraries(buddy-fir
   BuddyLibDAP
+  mlir_c_runner_utils
 )
 
 #-------------------------------------------------------------------------------
@@ -30,6 +31,7 @@ add_executable(buddy-biquad biquad.cpp)
 add_dependencies(buddy-biquad buddy-opt)
 target_link_libraries(buddy-biquad
   BuddyLibDAP
+  mlir_c_runner_utils
 )
 
 #-------------------------------------------------------------------------------
@@ -40,10 +42,30 @@ add_executable(buddy-iir-scalar IIRLowpass.cpp)
 add_dependencies(buddy-iir-scalar buddy-opt)
 target_link_libraries(buddy-iir-scalar 
   BuddyLibDAP
+  mlir_c_runner_utils
 )
 
 add_executable(buddy-iir-vectorization IIRVectorization.cpp)
 add_dependencies(buddy-iir-vectorization buddy-opt)
 target_link_libraries(buddy-iir-vectorization
-  BuddyLibDAPVectorization
+  BuddyLibDAP
+  mlir_c_runner_utils
+)
+
+#-------------------------------------------------------------------------------
+# Buddy DAP Dialect WhisperPreprocess Operation
+#-------------------------------------------------------------------------------
+
+add_executable(buddy-whisper-preprocess WhisperPreprocess.cpp)
+add_dependencies(buddy-whisper-preprocess buddy-opt)
+target_link_libraries(buddy-whisper-preprocess
+  BuddyLibDAP
+  mlir_c_runner_utils
+)
+
+add_executable(buddy-rfft RFFT.cpp)
+add_dependencies(buddy-rfft buddy-opt)
+target_link_libraries(buddy-rfft
+  BuddyLibDAP
+  mlir_c_runner_utils
 )

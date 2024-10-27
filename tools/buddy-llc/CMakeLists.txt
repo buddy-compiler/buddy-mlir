@@ -29,7 +29,7 @@ set(LLVM_LINK_COMPONENTS
 )
 
 add_llvm_tool(buddy-llc
-  ${LLVM_PROJECT_SOURCE_DIR}/llvm/tools/llc/llc.cpp
+  ${LLVM_MAIN_SRC_DIR}/tools/llc/llc.cpp
 
   DEPENDS
   buddy_intrinsics_gen

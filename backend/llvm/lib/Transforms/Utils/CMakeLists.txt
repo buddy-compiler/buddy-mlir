@@ -1,4 +1,4 @@
-set(LLVM_Utils_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Transforms/Utils)
+set(LLVM_Utils_DIR ${LLVM_MAIN_SRC_DIR}/lib/Transforms/Utils)
 
 
 add_llvm_component_library(LLVMBuddyTransformUtils

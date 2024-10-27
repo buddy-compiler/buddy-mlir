@@ -13,21 +13,29 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
+//
+// This file implements an example for Whisper Model Inference. 
+//
+// ------------------------------------------------------------------------===//
 
 #include <buddy/Core/Container.h>
+#include <buddy/DAP/DAP.h>
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+
+using namespace std;
 using namespace buddy;
+using namespace dap;
 
 constexpr size_t ParamsSize = 99148800;
 constexpr size_t MaxVocabSize = 51865;
 constexpr size_t MaxTokenLength = 448;
-constexpr size_t HiddenSize = 512;
 
 /// Declare Whisper forward function.
 extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
@@ -36,14 +44,6 @@ extern "C" void _mlir_ciface_forward(MemRef<float, 3> *, MemRef<float, 1> *,
 // -----------------------------------------------------------------------------
 // Helper Functions
 // -----------------------------------------------------------------------------
-
-/// Capture input message.
-void getUserInput(std::string &inputStr) {
-  std::cout << "\nPlease send a message:" << std::endl;
-  std::cout << ">>> ";
-  getline(std::cin, inputStr);
-  std::cout << std::endl;
-}
 
 /// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
@@ -83,30 +83,18 @@ void loadParameters(const std::string &paramFilePath,
             << std::endl;
 }
 
-void loadAudio(const std::string &paramFilePath, MemRef<float, 3> &params) {
+/// Conduct audio data preprocess.
+void runPreprocess(dap::Audio<double, 1> &rawAudioContainer,
+                   MemRef<float, 3> &audioFeatures) {
+  printLogLabel();
+  std::cout << "Preprocessing audio..." << std::endl;
   const auto loadStart = std::chrono::high_resolution_clock::now();
-  std::ifstream paramFile(paramFilePath, std::ios::in | std::ios::binary);
-  if (!paramFile.is_open()) {
-    throw std::runtime_error("[Error] Failed to open input_features file!");
-  }
-  printLogLabel();
-  std::cout << "Loading input_features..." << std::endl;
-  printLogLabel();
-  std::cout << "input_features file: "
-            << std::filesystem::canonical(paramFilePath) << std::endl;
-
-  paramFile.read(reinterpret_cast<char *>(params.getData()),
-                 sizeof(float) * (params.getSize()));
-
-  if (paramFile.fail()) {
-    throw std::runtime_error("Error occurred while reading params file!");
-  }
-  paramFile.close();
+  dap::whisperPreprocess(&rawAudioContainer, &audioFeatures);
   const auto loadEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> loadTime =
       loadEnd - loadStart;
   printLogLabel();
-  std::cout << "input_features load time: " << (double)(loadTime.count()) / 1000
+  std::cout << "Audio preprocess time: " << (double)(loadTime.count()) / 1000
             << "s\n"
             << std::endl;
 }
@@ -129,14 +117,13 @@ int main() {
   /// Define directories of vacabulary and parameter file.
   const std::string vocabDir = "../../examples/BuddyWhisper/vocab.txt";
   const std::string paramsDir = "../../examples/BuddyWhisper/arg0.data";
-  const std::string input_featuresDir =
-      "../../examples/BuddyWhisper/input_features.data";
 
   /// Initialize data containers
   //  - Result container
   //  - Output container.
   //  - Parameters container.
   Text<size_t, 2> outputContainer;
+  Audio<double, 1> rawAudioContainer("../../examples/BuddyWhisper/audio.wav");
   MemRef<float, 3> audioInput({1, 80, 3000});
   MemRef<float, 3> resultContainer[2] = {
       MemRef<float, 3>({1, 1500, 512}, false, 0),
@@ -148,16 +135,17 @@ int main() {
   /// Fill data into containers
   //  - Output: register vocabulary.
   //  - Parameters: load parameters from the `arg0` file into the container.
+  //  - Input: compute audioInput.
   outputContainer.loadVocab(vocabDir);
   loadParameters(paramsDir, paramsContainer);
-  loadAudio(input_featuresDir, audioInput);
+  runPreprocess(rawAudioContainer, audioInput);
 
   /// Run Whisper Inference
   //  - Perform the forward function.
   //  - Find and append the generated token.
   //  - Continue iterating until the terminal condition is met.
 
-  for (int i = 0; i < MaxTokenLength - 1; i++) {
+  for (size_t i = 0; i < MaxTokenLength - 1; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
     // Execute the forward pass of the model.
     _mlir_ciface_forward(resultContainer, &paramsContainer, &audioInput,

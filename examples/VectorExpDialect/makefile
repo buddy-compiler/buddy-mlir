@@ -319,3 +319,24 @@ vector-exp-dynamic-vector-run:
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} ${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu max a.out
+
+vector-exp-iteration-aot:
+	@${BUDDY_OPT} ./vector-exp-iteration.mlir \
+		-lower-vector-exp \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-convert-index-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir -o log.ll
+	${LOCAL_CLANG} -O3 log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu -fPIC \
+		--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot \
+		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
+		-o a.out
+
