@@ -141,6 +141,7 @@ Img<T, N>::Img(T *data, intptr_t sizes[N]) : MemRef<T, N>(data, sizes) {}
 
 #ifdef BUDDY_ENABLE_OPENCV
 // Image Constructor from OpenCV Mat.
+
 template <typename T, size_t N>
 Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
   if (image.channels() == 1) {
@@ -189,14 +190,16 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
     this->allocated = new T[size];
     this->aligned = this->allocated;
     size_t k = 0;
+    //NCHW Layout
     for (int batch = 0; batch < this->sizes[0]; batch++) {
       for (int channel = 0; channel < this->sizes[1]; channel++) {
+        T *chandata = image.ptr<T>(batch, channel);
         for (int row = 0; row < this->sizes[2]; row++) {
           for (int col = 0; col < this->sizes[3]; col++) {
             if (norm) {
-              this->aligned[k] = (T)image.at<uchar>(row, col) / 255;
+              this->aligned[k] = chandata[row * this->sizes[3] + col] / 255;
             } else {
-              this->aligned[k] = (T)image.at<uchar>(row, col);
+              this->aligned[k] = chandata[row * this->sizes[3] + col];
             }
             k++;
           }
@@ -205,6 +208,7 @@ Img<T, N>::Img(cv::Mat image, intptr_t sizes[N], bool norm) : MemRef<T, N>() {
     }
   }
 }
+
 #endif
 
 template <typename T, size_t N> int Img<T, N>::channels() {
