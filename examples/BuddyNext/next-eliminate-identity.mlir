@@ -46,7 +46,7 @@ module {
         %tensor_unranked = tensor.cast %121 : tensor<1x40x4096xf32> to tensor<*xf32>
         // All the elements of the MemRef are the same,
         // only check the first line to verify the correctness.
-        // CHECK: Unranked Memref base@ = 0x5566a6a81700 rank = 3 offset = 0 sizes = [1, 40, 4096] strides = [163840, 4096, 1] data = 
+        // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 4096] strides = [163840, 4096, 1] data = 
         // CHECK-NEXT: [
         // CHECK-SAME: [
         // CHECK-SAME: [1{{(, 1)*}}],
@@ -71,7 +71,7 @@ module {
         %tensor_unranked = tensor.cast %121 : tensor<1x40x4096xf32> to tensor<*xf32>
         // All the elements of the MemRef are the same,
         // only check the first line to verify the correctness.
-        // CHECK: Unranked Memref base@ = 0x5566a6a81700 rank = 3 offset = 0 sizes = [1, 40, 4096] strides = [163840, 4096, 1] data = 
+        // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 4096] strides = [163840, 4096, 1] data = 
         // CHECK-NEXT: [
         // CHECK-SAME: [
         // CHECK-SAME: [1{{(, 1)*}}],

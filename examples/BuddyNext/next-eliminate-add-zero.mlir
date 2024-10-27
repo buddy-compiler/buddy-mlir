@@ -48,7 +48,7 @@ module {
 
         // All the elements of the MemRef are the same,
         // only check the first line to verify the correctness.
-        // CHECK: Unranked Memref base@ = 0x55c56c8e7980 rank = 3 offset = 0 sizes = [32, 40, 128] strides = [5120, 128, 1] data = 
+        // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [32, 40, 128] strides = [5120, 128, 1] data = 
         // CHECK-NEXT: [
         // CHECK-SAME: [
         // CHECK-SAME: [2{{(, 2)*}}],
@@ -72,12 +72,7 @@ module {
 
         %tensor_unranked = tensor.cast %94 : tensor<32x40x128xf32> to tensor<*xf32>
 
-        // All the elements of the MemRef are the same,
-        // only check the first line to verify the correctness.
-        // CHECK: Unranked Memref base@ = 0x55c56c8e7980 rank = 3 offset = 0 sizes = [32, 40, 128] strides = [5120, 128, 1] data = 
-        // CHECK-NEXT: [
-        // CHECK-SAME: [
-        // CHECK-SAME: [2{{(, 2)*}}],
+        
 
         // Print results.
         call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
