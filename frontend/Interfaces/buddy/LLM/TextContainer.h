@@ -335,7 +335,7 @@ void Text<T, N>::tokenizeStableDiffusion(const std::string &vocab, size_t length
   size_t size = this->product(this->sizes);
   this->allocated = (T *)malloc(sizeof(T) * size);
   this->aligned = this->allocated;
-  this->pad = 49407;
+  this->pad = 0;
   this->unk = 49407;
   this->bos = 49406;
   this->eos = 49407;
@@ -347,7 +347,7 @@ void Text<T, N>::tokenizeStableDiffusion(const std::string &vocab, size_t length
   std::string token;
 
   for (size_t i = 0; i < str.size(); ++i) {
-      char c = str[i];
+      char c = tolower(str[i]);
       // Special match cases
       if (str.substr(i, 15) == "<|startoftext|>" || str.substr(i, 13) == "<|endoftext|>") {
           if (!token.empty()) {

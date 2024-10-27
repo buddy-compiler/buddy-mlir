@@ -182,11 +182,25 @@ add_custom_command(
   COMMENT "Building subgraph0_vae.o"
   VERBATIM)
 
-add_library(STABLEDIFFUSION STATIC subgraph0_text_encoder.o forward_text_encoder.o subgraph0_unet.o forward_unet.o subgraph0_vae.o forward_vae.o)
-SET_TARGET_PROPERTIES(STABLEDIFFUSION PROPERTIES LINKER_LANGUAGE C)
+add_library(TEXTENCODER STATIC subgraph0_text_encoder.o forward_text_encoder.o)
+add_library(UNET STATIC subgraph0_unet.o forward_unet.o)
+add_library(VAE STATIC subgraph0_vae.o forward_vae.o)
+
+target_compile_options(TEXTENCODER PRIVATE -ffunction-sections -fdata-sections -mcmodel=large -mlong-calls)
+target_compile_options(UNET PRIVATE -ffunction-sections -fdata-sections -mcmodel=large -mlong-calls)
+target_compile_options(VAE PRIVATE -ffunction-sections -fdata-sections -mcmodel=large -mlong-calls)
+
+SET_TARGET_PROPERTIES(TEXTENCODER PROPERTIES LINKER_LANGUAGE C)
+SET_TARGET_PROPERTIES(UNET PROPERTIES LINKER_LANGUAGE C)
+SET_TARGET_PROPERTIES(VAE PROPERTIES LINKER_LANGUAGE C)
 
 add_executable(buddy-stablediffusion-run buddy-stablediffusion-main.cpp)
 target_link_directories(buddy-stablediffusion-run PRIVATE ${LLVM_LIBRARY_DIR})
 
-set(BUDDY_STABLEDIFFUSION_LIBS STABLEDIFFUSION mlir_c_runner_utils)
-target_link_libraries(buddy-stablediffusion-run ${BUDDY_STABLEDIFFUSION_LIBS})
+target_link_options(buddy-stablediffusion-run PRIVATE -Wl,--no-relax)
+
+set(BUDDY_STABLEDIFFUSION_LIBS TEXTENCODER UNET VAE mlir_c_runner_utils)
+
+target_link_libraries(buddy-stablediffusion-run ${BUDDY_STABLEDIFFUSION_LIBS} ${JPEG_LIBRARIES} ${PNG_LIBRARIES})
+include_directories(${JPEG_INCLUDE_DIRS})
+include_directories(${PNG_INCLUDE_DIRS})

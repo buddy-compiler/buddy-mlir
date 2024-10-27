@@ -13,7 +13,7 @@ from buddy.compiler.ops import tosa
 from diffusers import StableDiffusionPipeline
 
 device = torch.device("cuda")
-model_id = "stabilityai/stable-diffusion-2-1"
+model_id = "stabilityai/stable-diffusion-2-1-base"
 pipe = StableDiffusionPipeline.from_pretrained(
     model_id, torch_dtype=torch.float32
 )
@@ -24,7 +24,7 @@ tokenizer = pipe.tokenizer
 
 text_encoder = pipe.text_encoder.forward
 unet = pipe.unet.forward
-vae = pipe.vae.decoder
+vae = pipe.vae.decode
 
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
@@ -50,19 +50,19 @@ data_text_encoder = tokenizer(
     prompt, return_tensors="pt", padding="max_length"
 ).to(device)
 data_unet = {
-    "sample": torch.ones((1, 4, 96, 96), dtype=torch.float32).to(device),
+    "sample": torch.ones((2, 4, 64, 64), dtype=torch.float32).to(device),
     "timestep": torch.tensor([1], dtype=torch.float32).to(device),
-    "encoder_hidden_states": torch.ones((1, 77, 1024), dtype=torch.float32).to(
+    "encoder_hidden_states": torch.ones((2, 77, 1024), dtype=torch.float32).to(
         device
     ),
 }
-data_vae = torch.ones((1, 4, 96, 96), dtype=torch.float32).to(device)
+data_vae = torch.ones((1, 4, 64, 64), dtype=torch.float32).to(device)
 
 
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
     graphs_text_encoder = dynamo_compiler_text_encoder.importer(
-        text_encoder, **data_text_encoder
+        text_encoder, data_text_encoder["input_ids"].to(device), None
     )
     graphs_unet = dynamo_compiler_unet.importer(unet, **data_unet)
     graphs_vae = dynamo_compiler_vae.importer(vae, data_vae)
