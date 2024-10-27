@@ -23,8 +23,9 @@ add_custom_command(
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
-            -convert-tensor-to-linalg 
+            -convert-tensor-to-linalg
             -linalg-bufferize
+            -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -lower-affine
             -func-bufferize-dynamic-offset
@@ -56,5 +57,6 @@ SET_TARGET_PROPERTIES(LENET PROPERTIES LINKER_LANGUAGE C)
 add_executable(buddy-lenet-run buddy-lenet-main.cpp)
 target_link_directories(buddy-lenet-run PRIVATE ${LLVM_LIBRARY_DIR})
 
-set(BUDDY_LENET_LIBS LENET mlir_c_runner_utils ${OpenCV_LIBS})
+set(BUDDY_LENET_LIBS LENET mlir_c_runner_utils ${PNG_LIBRARIES})
+
 target_link_libraries(buddy-lenet-run ${BUDDY_LENET_LIBS})

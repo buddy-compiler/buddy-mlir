@@ -43,12 +43,11 @@ dynamo_compiler = DynamoCompiler(
     aot_autograd_decomposition=inductor_decomp,
 )
 
-# Pass the function and input data to the dynamo compiler's importer, the 
-# importer will first build a graph. Then, lower the graph to top-level IR. 
+# Pass the function and input data to the dynamo compiler's importer, the
+# importer will first build a graph. Then, lower the graph to top-level IR.
 # (tosa, linalg, etc.). Finally, accepts the generated module and weight parameters.
-graphs = dynamo_compiler.importer(foo, *(float32_in1, float32_in2))
+graphs = dynamo_compiler.importer(foo, float32_in1, float32_in2)
 graph = graphs[0]
-graph.lower_to_top_level_ir(do_params_pack=True)
+graph.lower_to_top_level_ir()
 
 print(graph._imported_module)
-print(dynamo_compiler.imported_params[graph])

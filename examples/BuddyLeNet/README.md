@@ -24,7 +24,8 @@ $ cmake -G Ninja .. \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-    -DPython3_EXECUTABLE=$(which python3)
+    -DPython3_EXECUTABLE=$(which python3) \
+    -DBUDDY_MLIR_ENABLE_DIP_LIB=ON
 $ ninja
 $ ninja check-buddy
 ```

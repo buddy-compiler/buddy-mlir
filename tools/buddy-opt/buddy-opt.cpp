@@ -40,37 +40,49 @@
 #include "DAP/DAPOps.h"
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
-#include "RVV/RVVDialect.h"
-#include "VectorExp/VectorExpDialect.h"
-#include "VectorExp/VectorExpOps.h"
+#include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
+#include "RVV/RVVDialect.h"
 #include "Sche/ScheDialect.h"
 #include "Sche/ScheOps.h"
+#include "VectorExp/VectorExpDialect.h"
+#include "VectorExp/VectorExpOps.h"
 
 namespace mlir {
 namespace buddy {
 void registerConvVectorizationPass();
 void registerPointwiseConvToGemmPass();
+void registerPointwiseConvToGemmForNhwcFhwcPass();
 void registerPoolingVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
+void registerBatchMatMulOptimizePass();
+void registerBatchMatMulTileOptimizePass();
+void registerBatchMatMuSCFOptimize();
 void registerLowerDAPPass();
 void registerExtendDAPPass();
 void registerDAPVectorizePass();
 void registerLowerRVVPass();
-void registerBatchMatMulOptimizePass();
 void registerMatMulOptimizePass();
 void registerMatMulVectorizationPass();
 void registerMatMulParallelVectorizationPass();
 void registerTransposeOptimizationPass();
 void registerConvOptimizePass();
+void registerConvNhwcFhwcOptimizePass();
+void registerConvNhwcFhwcTileOptimizePass();
+void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
 void registerDeviceSchedulePass();
 void registerLowerSchePass();
 void registerFuncBufferizeDynamicOffsetPass();
+void registerConvertMemcpyToGPUPass();
+void registerLegalizeShmemOutliningPass();
+void registerMatMulTransposeBVecPass();
+void registerConvertMemcpyToGPUPass();
+void registerLegalizeShmemOutliningPass();
 void registerSimplifyTosaAddAndReshapePass();
 } // namespace buddy
 } // namespace mlir
@@ -96,14 +108,25 @@ int main(int argc, char **argv) {
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulOptimizePass();
+  mlir::buddy::registerBatchMatMulOptimizePass();
+  mlir::buddy::registerBatchMatMulTileOptimizePass();
+  mlir::buddy::registerBatchMatMuSCFOptimize();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
-  mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerConvOptimizePass();
+  mlir::buddy::registerConvNhwcFhwcOptimizePass();
+  mlir::buddy::registerConvNhwcFhwcTileOptimizePass();
+  mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
   mlir::buddy::registerDeviceSchedulePass();
   mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
+  mlir::buddy::registerMatMulTransposeBVecPass();
+  mlir::buddy::registerSimplifyTosaAddAndReshapePass();
+
+  // Register gpu passes
+  mlir::buddy::registerConvertMemcpyToGPUPass();
+  mlir::buddy::registerLegalizeShmemOutliningPass();
 
   mlir::buddy::registerSimplifyTosaAddAndReshapePass();
 
@@ -121,6 +144,8 @@ int main(int argc, char **argv) {
                   buddy::gemmini::GemminiDialect,
                   buddy::sche::ScheDialect>();
   // clang-format on
+
+  mlir::buddy::registerBuddyGPUTransformOps(registry);
 
   return mlir::failed(
       mlir::MlirOptMain(argc, argv, "buddy-mlir optimizer driver", registry));

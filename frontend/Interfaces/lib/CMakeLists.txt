@@ -59,7 +59,7 @@ add_custom_command(OUTPUT DAP.o
   DEPENDS mlir-translate llc buddy-opt
   )
 
-  add_custom_command(OUTPUT DAP-extend.o
+add_custom_command(OUTPUT DAP-extend.o
   COMMAND ${CMAKE_BINARY_DIR}/bin/buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/DAP-extend.mlir 
               -extend-dap
               -one-shot-bufferize
@@ -85,14 +85,7 @@ add_custom_command(OUTPUT DAP.o
   DEPENDS mlir-translate llc buddy-opt
   )
 
-add_library(BuddyLibDAP STATIC DAP.o DAP-extend.o)
-
-SET_TARGET_PROPERTIES(BuddyLibDAP PROPERTIES
-  LINKER_LANGUAGE CXX
-  ARCHIVE_OUTPUT_DIRECTORY ${LIBRARY_OUTPUT_DIRECTORY}
-  )
-
-  add_custom_command(OUTPUT DAPVectorization.o
+add_custom_command(OUTPUT DAPVectorization.o
   COMMAND cat ${CMAKE_CURRENT_SOURCE_DIR}/DAP.mlir |
           sed 's/buddy_fir/buddy_fir_vectorization/' |
           sed 's/buddy_iir/buddy_iir_vectorization/' |
@@ -118,9 +111,13 @@ SET_TARGET_PROPERTIES(BuddyLibDAP PROPERTIES
   DEPENDS mlir-translate llc buddy-opt
   )
 
-add_library(BuddyLibDAPVectorization STATIC DAPVectorization.o)
+add_library(BuddyLibDAP STATIC 
+  DAP.o 
+  DAP-extend.o 
+  DAPVectorization.o
+  )
 
-SET_TARGET_PROPERTIES(BuddyLibDAPVectorization PROPERTIES
+SET_TARGET_PROPERTIES(BuddyLibDAP PROPERTIES
   LINKER_LANGUAGE CXX
   ARCHIVE_OUTPUT_DIRECTORY ${LIBRARY_OUTPUT_DIRECTORY}
   )
