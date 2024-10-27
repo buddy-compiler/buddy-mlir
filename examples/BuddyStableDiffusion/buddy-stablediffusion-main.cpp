@@ -130,7 +130,7 @@ MemRef<float, 4> memref_add(const MemRef<float, 4>& a, const MemRef<float, 4>& b
     return result;
 }
 
-// get_prev_sample 函数实现
+// get_prev_sample function implementation
 MemRef<float, 4> get_prev_sample(
     const MemRef<float, 4>& sample,
     int timestep,
