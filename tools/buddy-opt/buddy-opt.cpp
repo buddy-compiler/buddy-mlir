@@ -122,7 +122,6 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
-  mlir::buddy::registerSimplifyTosaAddAndReshapePass();
 
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
