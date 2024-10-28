@@ -23,6 +23,7 @@
 
 #include "buddy/Core/Container.h"
 #include <cstring>
+#include <string>
 #include <fstream>
 #include <memory>
 #include <array>
