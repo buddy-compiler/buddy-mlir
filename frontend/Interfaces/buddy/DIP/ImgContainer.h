@@ -24,7 +24,6 @@
 #include "buddy/Core/Container.h"
 #include <array>
 #include <cstring>
-#include <string>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -98,7 +97,7 @@ public:
   Image(std::string filename, ImageModes mode, bool norm = false);
 
   // from data to initialize image
-  Image(T *data, intptr_t sizes[N]) : MemRef<T, N>(data, sizes) {};
+  Image(T *data, intptr_t sizes[N]) : MemRef<T, N>(data, sizes){};
 
   // Retrieves the name of the current image format as a string.
   std::string getFormatName() const {
@@ -150,9 +149,6 @@ private:
   bool decodePNG(const std::vector<uint8_t> &fileData);
 #endif
 };
-
-// template <typename T, std::size_t N>
-// Image<T, N>::Image(T *data, intptr_t sizes[N]): MemRef<T, N>(data, sizes) {}
 
 // Image Container Constructor
 // Constructs an image container object from the image file path.
@@ -674,42 +670,42 @@ bool Image<T, N>::decodePNG(const std::vector<uint8_t> &fileData) {
 }
 #endif
 
-template <typename T, size_t N>
-int findFormat(const std::string &_ext){
+template <typename T, size_t N> int findFormat(const std::string &_ext) {
   if (_ext.size() <= 1)
     return 0;
 
   const char *ext = strrchr(_ext.c_str(), '.');
   if (!ext)
     return 0;
-  
+
   if (strcmp(ext, ".bmp") == 0) {
     return 1;
   } else {
-    std::cerr << "Unsupported to generate" << ext << "format image" << std::endl;
+    std::cerr << "Unsupported to generate" << ext << "format image"
+              << std::endl;
     return 0;
   }
 }
 
 template <typename T, size_t N>
-static void imageWrite(const std::string &filename, Image<T, N> &image){
+static void imageWrite(const std::string &filename, Image<T, N> &image) {
   int imformat = findFormat<T, N>(filename);
   switch (imformat) {
-    case 1:
-      BMPEncode(filename, image);
-      break;
-    default: 
-      return;
+  case 1:
+    BMPEncode(filename, image);
+    break;
+  default:
+    return;
   }
   return;
 }
 
 template <typename T, size_t N>
-void BMPEncode(const std::string &filename, Image<T, N> &image){
+void BMPEncode(const std::string &filename, Image<T, N> &image) {
   std::ofstream bmp(filename, std::ios::binary);
   if (!bmp) {
-      std::cerr << "Failed to create file" << std::endl;
-      return;
+    std::cerr << "Failed to create file" << std::endl;
+    return;
   }
   int width = image.getSizes()[3];
   int height = image.getSizes()[2];
@@ -729,28 +725,28 @@ void BMPEncode(const std::string &filename, Image<T, N> &image){
   // Write file header
   bmp.write("BM", 2);
   int fileSizeInt = validToInt(fileSize);
-  bmp.write(reinterpret_cast<char*>(&fileSizeInt), 4);
-  bmp.write(reinterpret_cast<char*>(&zero), 4);
-  bmp.write(reinterpret_cast<char*>(&headerSize), 4);
+  bmp.write(reinterpret_cast<char *>(&fileSizeInt), 4);
+  bmp.write(reinterpret_cast<char *>(&zero), 4);
+  bmp.write(reinterpret_cast<char *>(&headerSize), 4);
 
   // Write bitmap header
-  bmp.write(reinterpret_cast<char*>(&bitmapHeaderSize), 4);
-  bmp.write(reinterpret_cast<char*>(&width), 4);
-  bmp.write(reinterpret_cast<char*>(&height), 4);
-  bmp.write(reinterpret_cast<char*>(&one), 2);
+  bmp.write(reinterpret_cast<char *>(&bitmapHeaderSize), 4);
+  bmp.write(reinterpret_cast<char *>(&width), 4);
+  bmp.write(reinterpret_cast<char *>(&height), 4);
+  bmp.write(reinterpret_cast<char *>(&one), 2);
   int bitDepth = channels << 3;
-  bmp.write(reinterpret_cast<char*>(&(bitDepth)), 2);
-  bmp.write(reinterpret_cast<char*>(&zero), 4);
-  bmp.write(reinterpret_cast<char*>(&zero), 4);  
-  bmp.write(reinterpret_cast<char*>(&zero), 4);
-  bmp.write(reinterpret_cast<char*>(&zero), 4);
-  bmp.write(reinterpret_cast<char*>(&zero), 4);
-  bmp.write(reinterpret_cast<char*>(&zero), 4);
+  bmp.write(reinterpret_cast<char *>(&(bitDepth)), 2);
+  bmp.write(reinterpret_cast<char *>(&zero), 4);
+  bmp.write(reinterpret_cast<char *>(&zero), 4);
+  bmp.write(reinterpret_cast<char *>(&zero), 4);
+  bmp.write(reinterpret_cast<char *>(&zero), 4);
+  bmp.write(reinterpret_cast<char *>(&zero), 4);
+  bmp.write(reinterpret_cast<char *>(&zero), 4);
 
   // Write palette
   if (channels == 1) {
     FillPalette(palette, 8);
-    bmp.write(reinterpret_cast<char*>(&palette), sizeof(palette));
+    bmp.write(reinterpret_cast<char *>(&palette), sizeof(palette));
   }
 
   // Write image data
@@ -759,14 +755,15 @@ void BMPEncode(const std::string &filename, Image<T, N> &image){
   for (int y = height - 1; y >= 0; y--) {
     for (int i = 0; i < width; i++) {
       for (int t = channels - 1; t >= 0; t--) {
-        unsigned char pixel= static_cast<unsigned char>(data[y * width + i + t * step]);
-        bmp.write(reinterpret_cast<char*>(&pixel), 1);
+        unsigned char pixel =
+            static_cast<unsigned char>(data[y * width + i + t * step]);
+        bmp.write(reinterpret_cast<char *>(&pixel), 1);
       }
     }
     if (fileStep > width * channels)
       bmp.write(zeropad, fileStep - width * channels);
   }
-  
+
   bmp.close();
 }
 
