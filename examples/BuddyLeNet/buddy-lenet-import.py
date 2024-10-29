@@ -27,7 +27,7 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.graph.transform import cpu_fuse, gpu_fuse, custom_partition
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa, gpu
 from buddy.compiler.graph.json_decoder import json_to_graph
@@ -58,7 +58,7 @@ with torch.no_grad():
 assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
-pattern_list = [simply_fuse]
+pattern_list = [custom_partition]
 graph.fuse_ops(pattern_list)
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 
@@ -71,10 +71,10 @@ with open(os.path.join(path_prefix, "lenet.json"), "w") as module_file:
 graph0 = json_to_graph(json_str)
 driver = GraphDriver(graph0)
 driver.subgraphs[0].lower_to_top_level_ir()
-driver.subgraphs[1].lower_to_top_level_ir()
-
 with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
     print(driver.subgraphs[0]._imported_module, file=module_file)
+# Add heterogeneous hardware partition
+driver.subgraphs[1].lower_to_top_level_ir()
 with open(os.path.join(path_prefix, "subgraph1.mlir"), "w") as module_file:
     print(driver.subgraphs[1]._imported_module, file=module_file)
 with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:

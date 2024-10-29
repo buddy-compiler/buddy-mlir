@@ -109,7 +109,7 @@ class Graph:
         ops_registry: dict,
         func_name: str,
         device: DeviceType = DeviceType.CPU,
-        verbose=False
+        verbose=False,
     ) -> None:
         """
         Initializes the Graph.
@@ -175,26 +175,14 @@ class Graph:
         Returns:
         - None
         """
-        # for i, op in enumerate(self._body):
-        #     if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp):
-        #         continue
-        #     group = [op]
-        #     subgraph_name = "subgraph{}".format(i)
-        #     self.group_map_device[subgraph_name] = DeviceType.CPU
-        #     self.op_groups[subgraph_name] = group
         group = []
         for i, op in enumerate(self._body):
-            if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp) or i == 25:
+            if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp):
                 continue
-            group.append(op)
-        subgraph_name = "subgraph1"
-        self.group_map_device[subgraph_name] = DeviceType.CPU
-        self.op_groups[subgraph_name] = group
-        
-        new_group = [self._body[25]]
-        subgraph_name = "subgraph0"
-        self.group_map_device[subgraph_name] = DeviceType.GPU
-        self.op_groups[subgraph_name] = new_group
+            group = [op]
+            subgraph_name = "subgraph{}".format(i)
+            self.group_map_device[subgraph_name] = DeviceType.CPU
+            self.op_groups[subgraph_name] = group
 
     def fuse_ops(self, pattern_list: List[FunctionType]):
         """
@@ -214,9 +202,9 @@ class Graph:
         # Initialize operation groups
         self.init_op_group()
 
-        # # Apply fusion patterns
-        # for pattern_func in pattern_list:
-        #     pattern_func(self)
+        # Apply fusion patterns
+        for pattern_func in pattern_list:
+            pattern_func(self)
 
     def perform(self, func_list: List[FunctionType]):
         """
@@ -258,7 +246,7 @@ class Graph:
                 self._ops_registry,
                 False,
                 self.device,
-                verbose=self._verbose
+                verbose=self._verbose,
             )
             self._imported_module = fx_importer.import_graph()
             outputs = fx_importer.get_output_nodes()
@@ -353,7 +341,7 @@ class Graph:
         Returns:
             str: A DOT string representing the buddy graph for visualization.
         """
-        dot = graphviz.Digraph(comment='Buddy Graph')
+        dot = graphviz.Digraph(comment="Buddy Graph")
         for op in self._body:
             # if isinstance(op, PlaceholderOp):
             #     continue
@@ -361,14 +349,23 @@ class Graph:
                 dot.edge(op._name, child)
         for op in self._body:
             if isinstance(op, PlaceholderOp):
-                dot.node(op._name, shape="ellipse", fillcolor="white", style="filled")
+                dot.node(
+                    op._name, shape="ellipse", fillcolor="white", style="filled"
+                )
                 # continue
             elif isinstance(op, OutputOp):
-                dot.node(op._name, shape="ellipse", fillcolor="white", style="filled")
+                dot.node(
+                    op._name, shape="ellipse", fillcolor="white", style="filled"
+                )
             elif isinstance(op, MaxPool2dOp):
                 dot.node(op._name, shape="box", fillcolor="red", style="filled")
             else:
-                dot.node(op._name, shape="box", fillcolor="deepskyblue", style="filled")
+                dot.node(
+                    op._name,
+                    shape="box",
+                    fillcolor="deepskyblue",
+                    style="filled",
+                )
         return str(dot)
 
     def to_json(self):
@@ -380,7 +377,7 @@ class Graph:
         """
         json_str = json.dumps(self, cls=BuddyGraphEncoder)
         return json_str
-    
+
 
 class BuddyGraphEncoder(json.JSONEncoder):
     """
@@ -392,36 +389,36 @@ class BuddyGraphEncoder(json.JSONEncoder):
     Returns:
         JSONEncoder: A JSON encoder instance for Buddy Graph objects.
     """
+
     def default(self, obj):
         if isinstance(obj, Graph):
             node_map_device = {}
             for subgraph_name, ops in obj.op_groups.items():
                 for op in ops:
-                    node_map_device[op.name] = obj.group_map_device[subgraph_name]
+                    node_map_device[op.name] = obj.group_map_device[
+                        subgraph_name
+                    ]
             return {
-                'graph_name' : obj._func_name,
-                'nodes' : obj._body,
-                'device' : obj.device,
-                'params' : obj._fake_params,
-                'inputs' : obj._inputs,
-                'node_map_device' : node_map_device
+                "graph_name": obj._func_name,
+                "nodes": obj._body,
+                "device": obj.device,
+                "params": obj._fake_params,
+                "inputs": obj._inputs,
+                "node_map_device": node_map_device,
             }
         elif isinstance(obj, Op):
             return {
-                'name' : obj._name,
-                'children' : obj._children,
-                'parents' : obj._parents,
-                'arguments' : obj._arguments,
-                'keyword_arguments' : obj._keyword_arguments,
-                'tensor_meta' : obj._tensor_meta,
-                'type' : obj._op_type,
-                'class' : obj.__class__.__name__
+                "name": obj._name,
+                "children": obj._children,
+                "parents": obj._parents,
+                "arguments": obj._arguments,
+                "keyword_arguments": obj._keyword_arguments,
+                "tensor_meta": obj._tensor_meta,
+                "type": obj._op_type,
+                "class": obj.__class__.__name__,
             }
         elif isinstance(obj, TensorMeta):
-            return {
-                'shape' : obj.shape,
-                'dtype' : obj.dtype
-            }
+            return {"shape": obj.shape, "dtype": obj.dtype}
         elif isinstance(obj, OpType):
             return obj._name_
         elif isinstance(obj, TensorDType):
@@ -430,6 +427,7 @@ class BuddyGraphEncoder(json.JSONEncoder):
             return obj._value_
         else:
             return super().default(obj)
+
 
 class GraphImporter:
     """
@@ -454,7 +452,7 @@ class GraphImporter:
         ops_registry: dict,
         do_param_pack: bool = False,
         device: DeviceType = DeviceType.CPU,
-        verbose=False
+        verbose=False,
     ):
         """
         Initializes the buddy Graph importer.
@@ -572,40 +570,32 @@ class GraphImporter:
                             self._symbol_table.get((str(output_arg), 0))
                             for output_arg in output_node_args
                         ]
-                        # if self._device == DeviceType.GPU:
-                        #     returns = [
-                        #         buffer.to_tensor(ret)
-                        #         for ret in returns
-                        #     ]
                         self._symbol_table[("output", 0)] = returns
                     elif isinstance(node, PlaceholderOp):
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
-                        self._symbol_table[
-                            (str(node.name), 0)
-                        ] = self._symbol_table[
-                            (str(node.args[0]), node.args[1])
-                        ]
+                        self._symbol_table[(str(node.name), 0)] = (
+                            self._symbol_table[
+                                (str(node.args[0]), node.args[1])
+                            ]
+                        )
                     else:
                         self._import_op(node)
                     new_ops = [op for op in func_op.body.blocks[0].operations]
                     if self._verbose:
-                        print('='*20 + "Graph Node" + "="*20)
+                        print("=" * 20 + "Graph Node" + "=" * 20)
                         print("Node: " + node.name)
                         print("Type: " + str(node._op_type))
                         print("Arguments: " + str(node.args))
                         print("Parents: " + str(node._parents))
                         print("Children: " + str(node._children))
-                        print('-'*20 + "MLIR OPS" + '-'*20)
+                        print("-" * 20 + "MLIR OPS" + "-" * 20)
                         for op in new_ops:
                             if op not in old_ops:
                                 print(op)
                         print("")
-                        
+
                 return self._symbol_table.get(("output", 0))
-        
-        # if self._device == DeviceType.GPU:
-        #     self._module.operation.attributes["gpu.container_module"] = ir.UnitAttr.get()
 
         return self._module
 
@@ -653,11 +643,11 @@ class GraphImporter:
                     elif isinstance(node, PlaceholderOp):
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
-                        self._symbol_table[
-                            (str(node.name), 0)
-                        ] = self._symbol_table[
-                            (str(node.args[0]), node.args[1])
-                        ]
+                        self._symbol_table[(str(node.name), 0)] = (
+                            self._symbol_table[
+                                (str(node.args[0]), node.args[1])
+                            ]
+                        )
                     else:
                         self._import_op(node)
 
@@ -706,16 +696,6 @@ class GraphImporter:
         else:
             placeholder_name = args_list[self._num_input_visited]
 
-        # TODO : Consider converting arg type from RankedTensorType to MemRefType
-        # if self._device == DeviceType.GPU:
-        #     placeholder_name = buffer.to_memref(
-        #         ir.MemRefType.get(
-        #             list(node.tensor_meta.shape), 
-        #             self._str_to_mlir_dtype(node.tensor_meta.dtype)
-        #         ),
-        #         placeholder_name
-        #     )
-
         self._symbol_table[(str(node.name), 0)] = placeholder_name
         self._num_input_visited += 1
 
@@ -727,16 +707,10 @@ class GraphImporter:
             node (Op): The buddy node representing the operation.
 
         """
-        
         op_name = node.__class__.__name__
-        # if self._device == DeviceType.CPU:
         op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)
         )
-        # else:
-        #     op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
-        #         self._ops_gpu_registry[op_name](node, self._symbol_table)
-        #     )
         if isinstance(op_ret, tuple | List):
             for i, operation in enumerate(op_ret):
                 if isinstance(operation, ir.Operation) or isinstance(

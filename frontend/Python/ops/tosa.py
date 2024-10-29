@@ -1254,7 +1254,6 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     return op
 
 
-
 def relu_op(node: ReluOp, symbol_table):
     """
     Import the tensor relu operation.

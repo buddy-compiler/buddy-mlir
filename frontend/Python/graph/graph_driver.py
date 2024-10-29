@@ -41,6 +41,7 @@ class GraphDriver:
     - _subgraphs_outputs (dict): A dictionary mapping subgraph names to their
     output op's result.
     """
+
     def __init__(self, graph: Graph) -> None:
         """
         Initialize the GraphDriver object with a given computational graph.
@@ -53,9 +54,9 @@ class GraphDriver:
         - None
         """
         self._graph = graph
-        self._subgraph_dependencies = { 
-            subgraph_name : set() 
-            for subgraph_name in list(self._graph.op_groups.keys()) 
+        self._subgraph_dependencies = {
+            subgraph_name: set()
+            for subgraph_name in list(self._graph.op_groups.keys())
         }
         self._call_table = {}
         (
@@ -100,7 +101,7 @@ class GraphDriver:
             if isinstance(node, OutputOp):
                 for arg in node.args:
                     output_node.append(arg)
-        
+
         # Identify outputs for each subgraph and build dependencies between subgraphs
         for subgraph_name in self._graph.op_groups.keys():
             subgraphs_outputs[subgraph_name] = []
@@ -135,11 +136,11 @@ class GraphDriver:
                     if inp in node._parents:
                         placeholder_node.add_children(op.name)
                 subgraph_body.append(placeholder_node)
-            
+
             # Add operations to subgraph body
             for op in self._graph.op_groups[subgraph_name]:
                 subgraph_body.append(op)
-            
+
             # Construct output node
             output_node = OutputOp()
             output_node.name = "output"
@@ -151,11 +152,11 @@ class GraphDriver:
             # Create subgraph and add it to the dictionary
             subgraph = Graph(
                 subgraph_input,
-                [], 
-                self._graph._ops_registry, 
+                [],
+                self._graph._ops_registry,
                 subgraph_name,
-                subgraph_device, 
-                verbose=self._graph._verbose
+                subgraph_device,
+                verbose=self._graph._verbose,
             )
             subgraph.body = subgraph_body
             for op in subgraph_body:
@@ -176,12 +177,14 @@ class GraphDriver:
         """
 
         # Calculate in degree of each subgraph
-        in_degree = { subgraph_name : 0 for subgraph_name in list(self._subgraphs.keys()) }
+        in_degree = {
+            subgraph_name: 0 for subgraph_name in list(self._subgraphs.keys())
+        }
         for src, dests in self._subgraph_dependencies.items():
             for dest in dests:
                 in_degree[dest] += 1
 
-        # Topological sorting 
+        # Topological sorting
         queue = deque([node for node in in_degree if in_degree[node] == 0])
         topo_order = []
 
@@ -194,7 +197,11 @@ class GraphDriver:
                     queue.append(child)
 
         # TODO: If the custom subgraph partitioning is illegal, further partition the subgraph to make it valid.
-        return topo_order if len(topo_order) == len(list(self._subgraphs.keys())) else None
+        return (
+            topo_order
+            if len(topo_order) == len(list(self._subgraphs.keys()))
+            else None
+        )
 
     def construct_main_graph(self, do_param_pack=False):
         """
@@ -217,7 +224,7 @@ class GraphDriver:
             self._graph._fake_params,
             self._graph._ops_registry,
             self._graph._func_name,
-            self._graph._verbose
+            self._graph._verbose,
         )
 
         # Adding FuncOp nodes for each subgraph
@@ -235,18 +242,18 @@ class GraphDriver:
                     self._graph.node_table[output].tensor_meta["dtype"]
                 )
             main_graph.add_node(func_node)
-        
+
         # Adding placeholder operations from the original graph
         for op in self._graph.body:
             if isinstance(op, PlaceholderOp):
                 main_graph.add_node(op)
-            
+
         # Analysis topology order to sort subgraph call.
         topo_order = self.topological_sort_subgraph()
-        if topo_order ==  None:
-            print('Error : Graph Partitioning is illegal!')
+        if topo_order == None:
+            print("Error : Graph Partitioning is illegal!")
             return None
-        
+
         # Adding CallOp to invoke the single subgraph
         for i, subgraph_name in enumerate(topo_order):
             call_node = CallOp()
@@ -261,7 +268,7 @@ class GraphDriver:
                     if inp in value:
                         call_node.add_argument(
                             arg=self._call_table[key].name,
-                            arg_index=value.index(inp)
+                            arg_index=value.index(inp),
                         )
                         break
             for output in self._subgraphs_outputs[subgraph_name]:
@@ -283,7 +290,7 @@ class GraphDriver:
             getitem_node.name = "getitem{}".format(i)
             output_node.add_argument(getitem_node.name)
             main_graph.add_node(getitem_node)
-        
+
         # Marking the final output of the main graph
         output_node.name = "output"
         main_graph.add_node(output_node)
