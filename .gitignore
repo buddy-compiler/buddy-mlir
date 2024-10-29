@@ -13,7 +13,5 @@
 # Clangd cache
 .cache
 
-# environment bash
-env.sh
 # Clangd configurations
 .clangd

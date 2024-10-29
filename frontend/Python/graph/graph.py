@@ -343,8 +343,6 @@ class Graph:
         """
         dot = graphviz.Digraph(comment="Buddy Graph")
         for op in self._body:
-            # if isinstance(op, PlaceholderOp):
-            #     continue
             for child in op._children:
                 dot.edge(op._name, child)
         for op in self._body:
@@ -352,7 +350,6 @@ class Graph:
                 dot.node(
                     op._name, shape="ellipse", fillcolor="white", style="filled"
                 )
-                # continue
             elif isinstance(op, OutputOp):
                 dot.node(
                     op._name, shape="ellipse", fillcolor="white", style="filled"
