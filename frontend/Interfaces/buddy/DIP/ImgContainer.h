@@ -97,6 +97,9 @@ public:
   //   norm: Indicates whether to normalize pixel values (default is false).
   Image(std::string filename, ImageModes mode, bool norm = false);
 
+  // from data to initialize image
+  Image(T *data, intptr_t sizes[N]) : MemRef<T, N>(data, sizes) {};
+
   // Retrieves the name of the current image format as a string.
   std::string getFormatName() const {
     switch (this->imageFormat) {
@@ -148,8 +151,8 @@ private:
 #endif
 };
 
-template <typename T, std::size_t N>
-Image<T, N>::Image(T *data, intptr_t sizes[N]): MemRef<T, N>(data, sizes) {}
+// template <typename T, std::size_t N>
+// Image<T, N>::Image(T *data, intptr_t sizes[N]): MemRef<T, N>(data, sizes) {}
 
 // Image Container Constructor
 // Constructs an image container object from the image file path.
