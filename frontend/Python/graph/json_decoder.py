@@ -10,7 +10,6 @@ from ..ops.linalg import ops_registry as linalg_ops_registry
 from ..ops.tosa import ops_registry as tosa_ops_registry
 from ..ops.math import ops_registry as math_ops_registry
 from ..ops.func import ops_registry as func_ops_registry
-from ..ops.gpu import ops_registry as gpu_ops_registry
 
 def json_to_graph(json_str):
     """
@@ -59,7 +58,6 @@ def json_to_graph(json_str):
         inputs, 
         params,
         ops_registry, 
-        gpu_ops_registry,
         graph_name
     )
     graph.device = _graph['device']

@@ -16,10 +16,6 @@ if (BUDDY_LENET_EXAMPLES)
   add_subdirectory(BuddyLeNet)
 endif()
 
-if (BUDDY_TEST_EXAMPLES)
-  add_subdirectory(BuddyTest)
-endif()
-
 if(BUDDY_WHISPER_EXAMPLES)
   add_subdirectory(BuddyWhisper)
 endif()

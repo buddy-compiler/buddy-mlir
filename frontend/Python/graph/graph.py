@@ -107,7 +107,6 @@ class Graph:
         inputs: List[TensorMeta],
         fake_params: List[TensorMeta],
         ops_registry: dict,
-        ops_gpu_registry: dict,
         func_name: str,
         device: DeviceType = DeviceType.CPU,
         verbose=False
@@ -133,7 +132,6 @@ class Graph:
         self._imported_module = None
         self._verbose = verbose
         self._ops_registry = ops_registry
-        self._ops_gpu_registry = ops_gpu_registry
         self._func_name = func_name
         self._ctx = ir.Context()
         self._output_memref = None
@@ -182,7 +180,7 @@ class Graph:
         #         continue
         #     group = [op]
         #     subgraph_name = "subgraph{}".format(i)
-        #     self.group_map_device[subgraph_name] = DeviceType.GPU
+        #     self.group_map_device[subgraph_name] = DeviceType.CPU
         #     self.op_groups[subgraph_name] = group
         group = []
         for i, op in enumerate(self._body):
@@ -258,7 +256,6 @@ class Graph:
                 self._inputs,
                 self._func_name,
                 self._ops_registry,
-                self._ops_gpu_registry,
                 False,
                 self.device,
                 verbose=self._verbose
@@ -455,7 +452,6 @@ class GraphImporter:
         inputs: List[TensorMeta],
         func_name: str,
         ops_registry: dict,
-        ops_gpu_registry: dict,
         do_param_pack: bool = False,
         device: DeviceType = DeviceType.CPU,
         verbose=False
@@ -483,7 +479,6 @@ class GraphImporter:
         self._num_input_visited = 0
         self._module = ir.Module.create()
         self._ops_registry = ops_registry
-        self._ops_gpu_registry = ops_gpu_registry
         self._current_param_pack_offset = None
 
     def _str_to_mlir_dtype(self, dtype: str) -> ir.Type:
@@ -577,11 +572,11 @@ class GraphImporter:
                             self._symbol_table.get((str(output_arg), 0))
                             for output_arg in output_node_args
                         ]
-                        if self._device == DeviceType.GPU:
-                            returns = [
-                                buffer.to_tensor(ret)
-                                for ret in returns
-                            ]
+                        # if self._device == DeviceType.GPU:
+                        #     returns = [
+                        #         buffer.to_tensor(ret)
+                        #         for ret in returns
+                        #     ]
                         self._symbol_table[("output", 0)] = returns
                     elif isinstance(node, PlaceholderOp):
                         self._import_placeholder(node, args_list)
@@ -609,8 +604,8 @@ class GraphImporter:
                         
                 return self._symbol_table.get(("output", 0))
         
-        if self._device == DeviceType.GPU:
-            self._module.operation.attributes["gpu.container_module"] = ir.UnitAttr.get()
+        # if self._device == DeviceType.GPU:
+        #     self._module.operation.attributes["gpu.container_module"] = ir.UnitAttr.get()
 
         return self._module
 
@@ -712,14 +707,14 @@ class GraphImporter:
             placeholder_name = args_list[self._num_input_visited]
 
         # TODO : Consider converting arg type from RankedTensorType to MemRefType
-        if self._device == DeviceType.GPU:
-            placeholder_name = buffer.to_memref(
-                ir.MemRefType.get(
-                    list(node.tensor_meta.shape), 
-                    self._str_to_mlir_dtype(node.tensor_meta.dtype)
-                ),
-                placeholder_name
-            )
+        # if self._device == DeviceType.GPU:
+        #     placeholder_name = buffer.to_memref(
+        #         ir.MemRefType.get(
+        #             list(node.tensor_meta.shape), 
+        #             self._str_to_mlir_dtype(node.tensor_meta.dtype)
+        #         ),
+        #         placeholder_name
+        #     )
 
         self._symbol_table[(str(node.name), 0)] = placeholder_name
         self._num_input_visited += 1
@@ -734,14 +729,14 @@ class GraphImporter:
         """
         
         op_name = node.__class__.__name__
-        if self._device == DeviceType.CPU:
-            op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
-                self._ops_registry[op_name](node, self._symbol_table)
-            )
-        else:
-            op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
-                self._ops_gpu_registry[op_name](node, self._symbol_table)
-            )
+        # if self._device == DeviceType.CPU:
+        op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
+            self._ops_registry[op_name](node, self._symbol_table)
+        )
+        # else:
+        #     op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
+        #         self._ops_gpu_registry[op_name](node, self._symbol_table)
+        #     )
         if isinstance(op_ret, tuple | List):
             for i, operation in enumerate(op_ret):
                 if isinstance(operation, ir.Operation) or isinstance(
