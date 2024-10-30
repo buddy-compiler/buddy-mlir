@@ -1,4 +1,4 @@
-add_mlir_library(LlamaOptimizations
+add_mlir_library(OpSimplification
   AddConstReshape2Const.cpp
 
   LINK_LIBS PUBLIC
