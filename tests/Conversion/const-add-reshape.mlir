@@ -1,4 +1,3 @@
-
 // RUN: buddy-opt -simplify-tosa-add-reshape %s | FileCheck %s
 
 // CHECK: %0 = "tosa.const"() <{value = dense<7.000000e+00> : tensor<32x40x128xf32>}> : () -> tensor<32x40x128xf32>
