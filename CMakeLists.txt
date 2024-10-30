@@ -94,12 +94,22 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${BUDDY_LIBRARY_DIR})
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
-if(BUDDY_ENABLE_OPENCV)
-  add_definitions(-DBUDDY_ENABLE_OPENCV)
-  find_package(JPEG REQUIRED)
+ if(BUDDY_ENABLE_OPENCV)
+   add_definitions(-DBUDDY_ENABLE_OPENCV)
+   find_package(JPEG REQUIRED)
+   find_package(PNG REQUIRED)
+   find_package(OpenCV REQUIRED CONFIG)
+   include_directories(${OpenCV_INCLUDE_DIRS})
+ endif()
+
+if(BUDDY_MLIR_ENABLE_DIP_LIB)
+  add_definitions(-DBUDDY_MLIR_ENABLE_DIP_LIB)
   find_package(PNG REQUIRED)
-  find_package(OpenCV REQUIRED CONFIG)
-  include_directories(${OpenCV_INCLUDE_DIRS})
+endif()
+
+if(BUDDY_ENABLE_PNG)
+  add_definitions(-DBUDDY_ENABLE_PNG)
+  find_package(PNG REQUIRED)
 endif()
 
 # Generate libraries into `lib` of build directory.

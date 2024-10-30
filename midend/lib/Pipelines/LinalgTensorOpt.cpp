@@ -24,9 +24,9 @@ void addGPULinalgOptPasses(OpPassManager &pm) {
         // TileSizeConfig of Dim (M) & Dim(N) & Dim(K) -> BM & BN & BK
         // blockIdx.y = M / BM
         // blockIdx.x = N / BN
-        SmallVector<int64_t> tileConfig = {128, 128, 64};
+        SmallVector<int64_t> tileConfig = {128, 128, 32};
         // threadIdx.x y z
-        SmallVector<int64_t> workGroup = {32, 4, 1};
+        SmallVector<int64_t> workGroup = {64, 2, 1};
         int64_t stages = 3;
         mlir::buddy::GPUGemmCodegenConfigOptions configOptions;
         configOptions.tileConfig = tileConfig;

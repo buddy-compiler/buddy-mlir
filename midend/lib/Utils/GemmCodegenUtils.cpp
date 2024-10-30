@@ -11,7 +11,9 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/MLIRContext.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <optional>
@@ -29,6 +31,7 @@ void setMarker(Operation *op, StringRef marker) {
 bool hasMarker(Operation *op, StringRef marker) {
   return op->hasAttrOfType<UnitAttr>(marker);
 }
+
 
 bool isLinalgMatmul(Operation *op) {
     if (!llvm::isa<linalg::LinalgOp>(op)) {

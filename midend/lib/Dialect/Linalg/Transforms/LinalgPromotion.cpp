@@ -64,15 +64,15 @@ std::optional<Value> allocateWorkgroupMemory(OpBuilder &builder, memref::SubView
     builder.setInsertionPointToStart(forallOp.getBody());
 
     auto smemBufferType = MemRefType::get(shapes, subview.getType().getElementType(),
-                                        MemRefLayoutAttrInterface{},
-                                        gpu::AddressSpaceAttr::get(builder.getContext(),
-                                            gpu::GPUDialect::getWorkgroupAddressSpace()));
+                                          MemRefLayoutAttrInterface{},
+                                          gpu::AddressSpaceAttr::get(builder.getContext(), gpu::GPUDialect::getWorkgroupAddressSpace()));
     
     memref::AllocOp smemBuffer = builder.create<memref::AllocOp>(forallOp.getLoc(), smemBufferType);
     setMarker(smemBuffer, allocMarker[OPERAND]);
-
+    subview->replaceUsesWithIf(smemBuffer, [&](OpOperand &opOperand) {
+        return isa<linalg::FillOp>(opOperand.getOwner());
+    });
     return smemBuffer;
-
 }
 
 // nvgpu device mem no need to manually deallocate

@@ -1,5 +1,5 @@
-#ifndef DIALECT_GPU_TRANSFORMS_GPUDistributeToWarp_H
-#define DIALECT_GPU_TRANSFORMS_GPUDistributeToWarp_H
+#ifndef DIALECT_GPU_TRANSFORMS_GPUDISTRIBUTETOWARP_H
+#define DIALECT_GPU_TRANSFORMS_GPUDISTRIBUTETOWARP_H
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
@@ -8,7 +8,8 @@
 
 namespace mlir {
 
-std::unique_ptr<OperationPass<func::FuncOp>> createGPUDistributeToWarpPass();
+std::unique_ptr<OperationPass<func::FuncOp>> 
+createGPUDistributeToWarpPass();
 
 } // namespace mlir
 

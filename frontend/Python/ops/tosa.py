@@ -60,6 +60,8 @@ from ..graph import (
     MeanOp,
     ClampMinOp,
     ClampMaxOp,
+    RandIntLowOp,
+    ArgMaxOp,
 )
 from .utils import *
 
@@ -514,6 +516,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
         TensorDType.Float64: ir.F64Type.get(),
         TensorDType.Float32: ir.F32Type.get(),
         TensorDType.Float16: ir.F16Type.get(),
+        TensorDType.Int64: ir.IntegerType.get_signless(64),
         TensorDType.Int32: ir.IntegerType.get_signless(32),
         TensorDType.Bool: ir.IntegerType.get_signless(1),
     }
@@ -801,7 +804,10 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
     result_element_type = ir.RankedTensorType(
         to_expand_tensor.type
     ).element_type
-    if result_element_type == ir.IntegerType.get_signless(1):
+    if result_element_type in (
+        ir.IntegerType.get_signless(1),
+        ir.IntegerType.get_signless(64),
+    ):
         element = ir.IntegerAttr.get(result_element_type, 0)
     elif result_element_type == ir.F32Type.get():
         element = ir.FloatAttr.get(result_element_type, 0.0)
@@ -1427,6 +1433,52 @@ def clamp_max_op(node: ClampMaxOp, symbol_table):
     return op
 
 
+def randint_low_op(node: RandIntLowOp, symbol_table):
+    """
+    Generates a tensor of random integers within a specified range.
+
+    Parameters:
+    - node (RandIntLowOp): Node containing the range and shape.
+    - symbol_table (dict): Maps identifiers to values.
+
+    Returns:
+    - tosa.ConstOp: Tensor with random integers.
+    """
+    min_value = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    max_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    shape = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    output = ir.DenseElementsAttr.get(
+        numpy.random.randint(min_value, max_value, size=shape)
+    )
+    op = tosa.ConstOp(output)
+    return op
+
+
+def argmax_op(node: ArgMaxOp, symbol_table):
+    """
+    Compute the indices of the maximum values along the specified axis.
+
+    Args:
+        node (ArgMaxOp): The ArgMax operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+
+    Returns:
+        op: The constructed ArgMax operation.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    axis = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+
+    if axis < 0:
+        axis += len(input_shape)
+
+    result_shape = input_shape[:axis] + input_shape[axis + 1 :]
+    result_type = ir.IntegerType.get_signless(64)
+    result = ir.RankedTensorType.get(result_shape, result_type)
+    op = tosa.ArgMaxOp(result, input_tensor, axis)
+    return op
+
+
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,
@@ -1461,4 +1513,6 @@ ops_registry = {
     "MeanOp": mean_op,
     "ClampMinOp": clamp_min_op,
     "ClampMaxOp": clamp_max_op,
+    "RandIntLowOp": randint_low_op,
+    "ArgMaxOp": argmax_op,
 }

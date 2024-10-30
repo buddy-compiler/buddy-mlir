@@ -4,6 +4,7 @@
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include <mlir/Dialect/SCF/IR/SCF.h>
 #include <optional>
@@ -22,6 +23,14 @@ bool isLinalgMatmul(Operation *op);
 void setMarker(mlir::Operation *op, llvm::StringRef marker);
 
 bool hasMarker(Operation *op, StringRef marker);
+
+bool hasAnyMarker(Operation *op, ArrayRef<StringRef> markers);
+
+ArrayRef<StringRef> getSharedMemCopyMarkers();
+
+static constexpr StringRef getVectorizeMarkerAttrName() {
+    return "__linalg_transform_vectorize__";
+}
 
 static constexpr StringRef getGemmMarkerAttrName() {
     return "__buddy_gemm__";

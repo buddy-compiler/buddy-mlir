@@ -172,6 +172,7 @@ LogicalResult distributeToWarpLevel(scf::ForallOp forallOp,
     if (failed(res)) {
       return failure();
     }
+    setMarker(res->op, buddy::getVectorizeMarkerAttrName());
     if (res->tensorResults.empty()) {
       rewriter.eraseOp(linalgOp);
     } else {

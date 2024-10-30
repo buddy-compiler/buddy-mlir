@@ -1,6 +1,5 @@
 add_custom_command(
   OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/arg0.data
-         ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/arg1.data
          ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/forward.mlir
          ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/subgraph0.mlir
   COMMAND python3 ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/buddy-mobilenetv3-import.py
@@ -71,5 +70,5 @@ SET_TARGET_PROPERTIES(MOBILENETV3 PROPERTIES LINKER_LANGUAGE C)
 add_executable(buddy-mobilenetv3-run buddy-mobilenetv3-main.cpp)
 target_link_directories(buddy-mobilenetv3-run PRIVATE ${LLVM_LIBRARY_DIR})
 
-set(BUDDY_MOBILENETV3_LIBS MOBILENETV3 mlir_c_runner_utils ${OpenCV_LIBS})
+set(BUDDY_MOBILENETV3_LIBS MOBILENETV3 mlir_c_runner_utils BuddyLibDIP ${PNG_LIBRARIES})
 target_link_libraries(buddy-mobilenetv3-run ${BUDDY_MOBILENETV3_LIBS})

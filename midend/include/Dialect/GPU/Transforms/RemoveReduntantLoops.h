@@ -9,7 +9,8 @@
 
 namespace mlir {
 
-std::unique_ptr<OperationPass<func::FuncOp>> createRemoveReduntantLoops();
+std::unique_ptr<OperationPass<func::FuncOp>> 
+createRemoveReduntantLoops();
 
 } // namespace mlir
 
