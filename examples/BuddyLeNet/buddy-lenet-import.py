@@ -31,11 +31,11 @@ from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import (
     simply_fuse,
     gpu_fuse,
-    custom_partition,
 )
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa, gpu
 from buddy.compiler.graph.json_decoder import json_to_graph
+from buddy.compiler.graph.operation import *
 from model import LeNet
 
 # Retrieve the LeNet model path from environment variables.
@@ -73,9 +73,20 @@ params = dynamo_compiler.imported_params[graph]
 
 if type == "cpu":
     pattern_list = [simply_fuse]
-else:
-    pattern_list = [custom_partition]
-graph.fuse_ops(pattern_list)
+    graph.fuse_ops(pattern_list)
+elif type == "heter":
+    group = []
+    for i, op in enumerate(graph._body):
+        if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp) or i == 25:
+            continue
+        group.append(op)
+        subgraph_name = "subgraph0"
+        graph.group_map_device[subgraph_name] = DeviceType.CPU
+        graph.op_groups[subgraph_name] = group
+    new_group = [graph._body[25]]
+    subgraph_name = "subgraph1"
+    graph.group_map_device[subgraph_name] = DeviceType.GPU
+    graph.op_groups[subgraph_name] = new_group
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 driver = GraphDriver(graph)
 driver.subgraphs[0].lower_to_top_level_ir()

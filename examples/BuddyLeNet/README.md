@@ -50,11 +50,11 @@ $ export LENET_EXAMPLE_PATH=${BUDDY_MLIR_BUILD_DIR}/../examples/BuddyLeNet/
 
 ```bash
 $ cmake -G Ninja .. -DBUDDY_LENET_EXAMPLES=ON
-$ ninja buddy-lenet-run
+$ ninja buddy-lenet-{DEVICE_TYPE}-run
 $ cd bin
-$ ./buddy-lenet-run
+$ ./buddy-lenet-{DEVICE_TYPE}-run
 ```
-
+{DEVICE_TYPE} is device type, currently supporting cpu, heter.
 ## Debug the Lowering Pass Pipeline with Fake Parameters.
 
 ```bash
