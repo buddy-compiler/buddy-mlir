@@ -22,6 +22,9 @@ pipe = pipe.to("cuda")
 prompt = "a photo of an astronaut riding a horse on mars"
 tokenizer = pipe.tokenizer
 
+pipe.text_encoder.eval()
+pipe.unet.eval()
+pipe.vae.eval()
 text_encoder = pipe.text_encoder.forward
 unet = pipe.unet.forward
 vae = pipe.vae.decode

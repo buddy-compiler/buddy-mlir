@@ -1,6 +1,5 @@
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
-#include <buddy/DIP/DIP.h>
 #include <buddy/DIP/ImgContainer.h>
 #include <buddy/DIP/imgcodecs/loadsave.h>
 #include <chrono>
@@ -21,14 +20,14 @@ void getUserInput(std::string &inputStr) {
 }
 
 void getInferenceSteps(int &input) {
-  std::cout << "\nPlease enter the number of inference steps:" << std::endl;
+  std::cout << "Please enter the number of inference steps:" << std::endl;
   std::cout << ">>> ";
   std::cin >> input;
   std::cout << std::endl;
 }
 
 void getFileName(std::string &input) {
-  std::cout << "\nPlease enter the file name of the generated image:" << std::endl;
+  std::cout << "Please enter the file name of the generated image:" << std::endl;
   std::cout << ">>> ";
   std::cin >> input;
   std::cout << std::endl;
@@ -299,8 +298,19 @@ int main() {
   MemRef<float, 1> timestep({1});
   // Define vae parameters
   MemRef<float, 4> resultVae({1, 3, 512, 512});
-  MemRef<float, 1> arg0_vae({49490179});
+  MemRef<float, 1> arg0_vae({49490199});
 
+  //Output directory information
+  printLogLabel();
+  std::cout << "Vocab file: " << std::filesystem::canonical(vocabDir)
+            << std::endl;
+  printLogLabel();
+  std::cout << "Params file: " << std::endl 
+            << std::filesystem::canonical(TextEncoderParamsDir1) << std::endl
+            << std::filesystem::canonical(TextEncoderParamsDir2) << std::endl
+            << std::filesystem::canonical(UnetParamsDir) << std::endl
+            << std::filesystem::canonical(VaeParamsDir) << std::endl;
+  
   // Loading model parameters
   printLogLabel();
   std::cout << "Loading params..." << std::endl;
@@ -316,7 +326,7 @@ int main() {
             << "s\n"
             << std::endl;
   
-  // encode prompt
+  // Encode prompt
   printLogLabel();
   std::cout << "Encoding prompt..." << std::endl;
   const auto encodeStart = std::chrono::high_resolution_clock::now();
@@ -359,6 +369,7 @@ int main() {
   auto timesteps = set_timesteps(InferenceSteps);
 
   // Denoising loop
+  const auto inferenceTotalStart = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < (int)timesteps.size() ; i ++){
     MemRef<float, 4> noise({2, 4, 64, 64});
     for (int j = 0 ; j < 2 * 4 * 64 * 64 ; j ++ )
@@ -376,12 +387,19 @@ int main() {
     }
     latents = step_plms(pred_noise, timesteps[i], latents, InferenceSteps, config, i, ets);
   }
+  const auto inferenceTotalEnd = std::chrono::high_resolution_clock::now();
+  const std::chrono::duration<double, std::milli> inferenceTotalTime = inferenceTotalEnd - inferenceTotalStart;
+  printLogLabel();
+  std::cout << "Denoising complete." << std::endl;
+  printLogLabel();
+  std::cout << "Total time spent on denoising: " << (double)(encodeTime.count()) / 1000
+            << "s" << std::endl;
 
   for (int i = 0 ; i < 1 * 4 * 64 * 64 ; i ++){
     latents.getData()[i] = latents.getData()[i] / 0.18215;
   }
 
-  // decode
+  // Decode
   std::cout << std::endl;
   printLogLabel();
   std::cout << "Start decoding..." << std::endl;
@@ -413,12 +431,17 @@ int main() {
     img.getData()[i + 2] = resultVae.getData()[i / 3 + 512 * 512 * 0];
   }
 
-  String filename = "../../examples/BuddyStableDiffusion/" + image_name + ".png";
+  String Imgfilename = "../../examples/BuddyStableDiffusion/" + image_name + ".bmp";
   // Call the imwrite function
-  bool success = imwrite(filename, img);
+  bool success = imwrite(Imgfilename, img);
 
+  printLogLabel();
+  std::cout << "The prompt used to generate the image:"<< inputStr << std::endl;
+
+  printLogLabel();
   if (success) {
-      std::cout << "Image saved successfully to " << filename << std::endl;
+      std::cout << "Image saved successfully to " 
+                << std::filesystem::canonical(Imgfilename) << std::endl;
   } else {
       std::cerr << "Failed to save the image." << std::endl;
   }
