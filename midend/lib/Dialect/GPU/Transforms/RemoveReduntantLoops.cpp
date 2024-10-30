@@ -129,8 +129,7 @@ private:
   }
 
   static void replaceOpWithBlocks(PatternRewriter &rewriter, Operation *op,
-                                  Region &region, ValueRange blockArgs = {}) {
-  }
+                                  Region &region, ValueRange blockArgs = {}) {}
 
   /// Return true if we can prove that the we always run at least the first
   /// iteration of the ForOp.

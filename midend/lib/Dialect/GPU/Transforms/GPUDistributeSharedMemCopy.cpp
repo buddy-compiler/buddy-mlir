@@ -61,7 +61,7 @@ transformLinalgCopyOpsToGenericOps(ArrayRef<linalg::CopyOp> linalgCopyOps) {
   return genericLinalgCopyOps;
 }
 
-// 1. 
+// 1.
 static inline unsigned getTypeBitWidth(Type type) {
   if (auto complexType = type.dyn_cast<ComplexType>()) {
     return 2 * complexType.getElementType().getIntOrFloatBitWidth();
@@ -102,7 +102,8 @@ getCopyOpDistributedTileSize(linalg::GenericOp genericOp,
   assert(copySharedMemShape.back() % loadVectorSize == 0);
   for (auto [index, dim] : llvm::enumerate(llvm::reverse(copySharedMemShape))) {
     int64_t numElementPerThread = index == 0 ? loadVectorSize : 1;
-    int64_t numThreads = std::min(dim / numElementPerThread, totalWorkGroupSize);
+    int64_t numThreads =
+        std::min(dim / numElementPerThread, totalWorkGroupSize);
 
     unroll.push_back(numThreads * numElementPerThread);
     assert(totalWorkGroupSize % numThreads == 0);
@@ -113,7 +114,7 @@ getCopyOpDistributedTileSize(linalg::GenericOp genericOp,
   assert(totalWorkGroupSize == 1);
   unroll.resize(copySharedMemShape.size(), 1);
   std::reverse(unroll.begin(), unroll.end());
-  
+
   return unroll;
 }
 
@@ -126,20 +127,20 @@ static LogicalResult tileLinalgCopyOp(scf::ForallOp forallOp,
     if (!genericCopyOp) {
       return tileSizeVals;
     }
-    std::optional<SmallVector<int64_t>> optionalStaticSize = 
-            getCopyOpDistributedTileSize(genericCopyOp, totalWorkGroupSize);
+    std::optional<SmallVector<int64_t>> optionalStaticSize =
+        getCopyOpDistributedTileSize(genericCopyOp, totalWorkGroupSize);
     SmallVector<int64_t> staticSize = optionalStaticSize.value();
     for (auto dim : staticSize) {
-        tileSizeVals.push_back(
-            builder.create<arith::ConstantIndexOp>(op->getLoc(), dim)
-        );
+      tileSizeVals.push_back(
+          builder.create<arith::ConstantIndexOp>(op->getLoc(), dim));
     }
     return tileSizeVals;
   };
 
-  auto linalgTilingOptions = linalg::LinalgTilingOptions()
-                        .setLoopType(linalg::LinalgTilingLoopType::Loops)
-                        .setTileSizeComputationFunction(copyTileSizeFn);
+  auto linalgTilingOptions =
+      linalg::LinalgTilingOptions()
+          .setLoopType(linalg::LinalgTilingLoopType::Loops)
+          .setTileSizeComputationFunction(copyTileSizeFn);
 
   SmallVector<linalg::LinalgOp> candidates;
   forallOp.walk([&](linalg::LinalgOp linalgOp) {
@@ -189,44 +190,44 @@ static Value createFlatId(scf::ForallOp forallOp,
 }
 
 static SmallVector<mlir::linalg::ProcInfo>
-getThreadProcInfo(OpBuilder &b, Location loc, 
-                  ArrayRef<Range> parallelLoopRanges,
-                  Value flatThreadId) {
-    SmallVector<linalg::ProcInfo> threadProcInfos;
-    Value id = flatThreadId;
-    AffineExpr d0 = b.getAffineConstantExpr(0);
-    for (Range range : llvm::reverse(parallelLoopRanges)) {
-        auto size = range.size.dyn_cast<Attribute>();
-        auto offset = range.offset.dyn_cast<Attribute>();
-        auto stride = range.stride.dyn_cast<Attribute>();
+getThreadProcInfo(OpBuilder &b, Location loc,
+                  ArrayRef<Range> parallelLoopRanges, Value flatThreadId) {
+  SmallVector<linalg::ProcInfo> threadProcInfos;
+  Value id = flatThreadId;
+  AffineExpr d0 = b.getAffineConstantExpr(0);
+  for (Range range : llvm::reverse(parallelLoopRanges)) {
+    auto size = range.size.dyn_cast<Attribute>();
+    auto offset = range.offset.dyn_cast<Attribute>();
+    auto stride = range.stride.dyn_cast<Attribute>();
 
-        int64_t numThreadsPerDim = (llvm::cast<IntegerAttr>(size).getInt() -
-                                    llvm::cast<IntegerAttr>(offset).getInt()) /
-                                    llvm::cast<IntegerAttr>(stride).getInt();
-        Value dimId = id;
-        linalg::ProcInfo procInfo;
-        procInfo.procId = dimId;
-        procInfo.nprocs = b.create<arith::ConstantIndexOp>(loc, numThreadsPerDim);
-        procInfo.distributionMethod = linalg::DistributionMethod::CyclicNumProcsEqNumIters;
-        threadProcInfos.push_back(procInfo);
-        
-    }
-    std::reverse(threadProcInfos.begin(), threadProcInfos.end());
-    return threadProcInfos;
+    int64_t numThreadsPerDim = (llvm::cast<IntegerAttr>(size).getInt() -
+                                llvm::cast<IntegerAttr>(offset).getInt()) /
+                               llvm::cast<IntegerAttr>(stride).getInt();
+    Value dimId = id;
+    linalg::ProcInfo procInfo;
+    procInfo.procId = dimId;
+    procInfo.nprocs = b.create<arith::ConstantIndexOp>(loc, numThreadsPerDim);
+    procInfo.distributionMethod =
+        linalg::DistributionMethod::CyclicNumProcsEqNumIters;
+    threadProcInfos.push_back(procInfo);
+  }
+  std::reverse(threadProcInfos.begin(), threadProcInfos.end());
+  return threadProcInfos;
 }
 
 static SmallVector<int64_t> getVectorizeDstShape(linalg::GenericOp copyOp) {
-    SmallVector<int64_t> vectorDstShape;
-    for (auto dim : copyOp.getStaticLoopRanges()) {
-        vectorDstShape.push_back((dim == 1 ? 0 : 1));
-    }
-    vectorDstShape.back() = getLoadVectorSize(copyOp);
-    return vectorDstShape;
+  SmallVector<int64_t> vectorDstShape;
+  for (auto dim : copyOp.getStaticLoopRanges()) {
+    vectorDstShape.push_back((dim == 1 ? 0 : 1));
+  }
+  vectorDstShape.back() = getLoadVectorSize(copyOp);
+  return vectorDstShape;
 }
 
-static LogicalResult distributeLinalgCopyOp(scf::ForallOp forallOp,
-                                            SmallVector<int64_t, 3> workGroupSize) {
-    linalg::TileSizeComputationFunction wgCopyTileSizeFn =
+static LogicalResult
+distributeLinalgCopyOp(scf::ForallOp forallOp,
+                       SmallVector<int64_t, 3> workGroupSize) {
+  linalg::TileSizeComputationFunction wgCopyTileSizeFn =
       [](OpBuilder &builder, Operation *operation) {
         SmallVector<Value> tileSizesVal;
         auto copyOp = dyn_cast<linalg::GenericOp>(operation);
@@ -239,20 +240,20 @@ static LogicalResult distributeLinalgCopyOp(scf::ForallOp forallOp,
         }
         return tileSizesVal;
       };
-      
-    Value flatThreadId = createFlatId(forallOp, workGroupSize);
-    linalg::LinalgLoopDistributionOptions distributionOptions;
-    auto getProcInfoFn = [flatThreadId](OpBuilder &b, Location loc, 
-                                    ArrayRef<Range> parallelLoopRanges) {
-        return getThreadProcInfo(b, loc, parallelLoopRanges, flatThreadId);
-    };
-    distributionOptions.procInfo = getProcInfoFn;
 
-    linalg::LinalgTilingOptions linalgTilingOptions;
-    linalgTilingOptions.setLoopType(linalg::LinalgTilingLoopType::ParallelLoops)
-                       .setTileSizeComputationFunction(wgCopyTileSizeFn)
-                       .setDistributionOptions(distributionOptions);
-    return success();
+  Value flatThreadId = createFlatId(forallOp, workGroupSize);
+  linalg::LinalgLoopDistributionOptions distributionOptions;
+  auto getProcInfoFn = [flatThreadId](OpBuilder &b, Location loc,
+                                      ArrayRef<Range> parallelLoopRanges) {
+    return getThreadProcInfo(b, loc, parallelLoopRanges, flatThreadId);
+  };
+  distributionOptions.procInfo = getProcInfoFn;
+
+  linalg::LinalgTilingOptions linalgTilingOptions;
+  linalgTilingOptions.setLoopType(linalg::LinalgTilingLoopType::ParallelLoops)
+      .setTileSizeComputationFunction(wgCopyTileSizeFn)
+      .setDistributionOptions(distributionOptions);
+  return success();
 }
 
 static LogicalResult

@@ -7,25 +7,26 @@
 
 namespace mlir {
 namespace buddy {
-struct GPUGemmCodegenConfigOptions : public PassPipelineOptions<GPUGemmCodegenConfigOptions> {
-    Option<std::string> funcAnchor {
-        *this, "func-anchor", 
-        llvm::cl::desc(
+struct GPUGemmCodegenConfigOptions
+    : public PassPipelineOptions<GPUGemmCodegenConfigOptions> {
+  Option<std::string> funcAnchor{
+      *this, "func-anchor",
+      llvm::cl::desc(
           "An optional Unit attribute anchoring on target functions."),
       llvm::cl::init("")};
-    Option<std::string> annotatePrefix {
-        *this, "annotate-prefix",
-        llvm::cl::desc("An optional annotate prefix attribute on target ops."),
-        llvm::cl::init("__buddy_gpu_gemm__")};
-    ListOption<int64_t> tileConfig {
-        *this, "tile-config",
-        llvm::cl::desc("An optional tile config for matmul op")};
-    ListOption<int64_t> workGroup {
-        *this, "work-group",
-        llvm::cl::desc("An optional workgroup size config for matmul op")};
-    Option<int64_t> stages {
-        *this, "stages",
-        llvm::cl::desc("An optional stages config for matmul op")};
+  Option<std::string> annotatePrefix{
+      *this, "annotate-prefix",
+      llvm::cl::desc("An optional annotate prefix attribute on target ops."),
+      llvm::cl::init("__buddy_gpu_gemm__")};
+  ListOption<int64_t> tileConfig{
+      *this, "tile-config",
+      llvm::cl::desc("An optional tile config for matmul op")};
+  ListOption<int64_t> workGroup{
+      *this, "work-group",
+      llvm::cl::desc("An optional workgroup size config for matmul op")};
+  Option<int64_t> stages{
+      *this, "stages",
+      llvm::cl::desc("An optional stages config for matmul op")};
 };
 
 struct GPUGemmGeneralOptions
@@ -35,19 +36,19 @@ struct GPUGemmGeneralOptions
       llvm::cl::desc(
           "An optional Unit attribute anchoring on target functions."),
       llvm::cl::init("")};
-  Option<std::string> annotatePrefix {
-        *this, "annotate-prefix",
-        llvm::cl::desc("An optional annotate prefix attribute on target ops."),
-        llvm::cl::init("__buddy_gpu_gemm__")};
+  Option<std::string> annotatePrefix{
+      *this, "annotate-prefix",
+      llvm::cl::desc("An optional annotate prefix attribute on target ops."),
+      llvm::cl::init("__buddy_gpu_gemm__")};
 };
 
-
-void createGemmTileConfigInsertTransform(OpPassManager &pm, const GPUGemmCodegenConfigOptions &options);
+void createGemmTileConfigInsertTransform(
+    OpPassManager &pm, const GPUGemmCodegenConfigOptions &options);
 
 void createGemmTileTransform(OpPassManager &pm,
                              const GPUGemmGeneralOptions &options);
 
-} // namespace mlir::buddy
+} // namespace buddy
 } // namespace mlir
 
 #endif

@@ -3,8 +3,8 @@
 
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
-#include <string>
 #include <memory>
+#include <string>
 
 namespace mlir {
 namespace buddy {
@@ -20,12 +20,12 @@ struct LinalgTensorOptPipelineOptions
       llvm::cl::init("nv_sm_80")};
 };
 
-void createLinalgTensorOptPassPipeline(OpPassManager &pm, const LinalgTensorOptPipelineOptions &options);
+void createLinalgTensorOptPassPipeline(
+    OpPassManager &pm, const LinalgTensorOptPipelineOptions &options);
 
 void registerLinalgTensorOptPassPipeline();
 
-    
-} // namespace mlir::buddy
+} // namespace buddy
 } // namespace mlir
 
 #endif

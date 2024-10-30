@@ -17,6 +17,6 @@ class ModuleOp;
 #define GEN_PASS_REGISTRATION
 #include "Transform/Passes.h.inc"
 
-}
+} // namespace mlir
 
 #endif

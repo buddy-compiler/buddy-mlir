@@ -28,7 +28,7 @@ void invokeOpPassPipelineBuilder(Builder builder, OpPassManager &pm,
 
 void addCleanUpPassPipeline(OpPassManager &pm, bool isModuleOp = true);
 
-} // namespace mlir::buddy
+} // namespace buddy
 } // namespace mlir
 
 #endif

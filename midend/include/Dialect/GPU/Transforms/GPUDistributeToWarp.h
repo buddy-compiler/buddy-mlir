@@ -8,8 +8,7 @@
 
 namespace mlir {
 
-std::unique_ptr<OperationPass<func::FuncOp>> 
-createGPUDistributeToWarpPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createGPUDistributeToWarpPass();
 
 } // namespace mlir
 

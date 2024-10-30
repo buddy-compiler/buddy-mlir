@@ -10,20 +10,21 @@
 namespace mlir {
 namespace buddy {
 
-struct LinalgMemrefOptPipelineOptions :
-    public PassPipelineOptions<LinalgMemrefOptPipelineOptions> {
-    Option<std::string> target {
-        *this, "target",
-        llvm::cl::desc("An optional attribute to speicify target."),
-    };
+struct LinalgMemrefOptPipelineOptions
+    : public PassPipelineOptions<LinalgMemrefOptPipelineOptions> {
+  Option<std::string> target{
+      *this,
+      "target",
+      llvm::cl::desc("An optional attribute to speicify target."),
+  };
 };
 
-void createLinalgMemrefOptPipeline(OpPassManager &pm, 
-                                   const LinalgMemrefOptPipelineOptions &options);
+void createLinalgMemrefOptPipeline(
+    OpPassManager &pm, const LinalgMemrefOptPipelineOptions &options);
 
 void registerLinalgMemrefOptPipeline();
 
-} // mlir::buddy
-} // mlir
+} // namespace buddy
+} // namespace mlir
 
 #endif

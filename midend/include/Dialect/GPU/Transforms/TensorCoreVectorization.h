@@ -8,7 +8,7 @@
 
 namespace mlir {
 
-std::unique_ptr<OperationPass<func::FuncOp>> 
+std::unique_ptr<OperationPass<func::FuncOp>>
 createTensorCoreVectorizationPass();
 
 } // namespace mlir

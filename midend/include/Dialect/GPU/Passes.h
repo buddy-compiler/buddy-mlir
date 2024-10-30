@@ -2,7 +2,7 @@
 #define DIALECT_GPU_PASSES_H
 
 // Include the constructor of passes in GPU Dialect
-#include "GPU/Transforms/GPUDistributeToWarp.h" 
+#include "GPU/Transforms/GPUDistributeToWarp.h"
 #include "GPU/Transforms/RemoveReduntantLoops.h"
 
 namespace mlir {

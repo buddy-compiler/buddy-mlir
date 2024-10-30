@@ -10,20 +10,22 @@
 
 namespace mlir {
 namespace buddy {
-    
-struct BuddyBufferizeOptOptions :
-    public PassPipelineOptions<BuddyBufferizeOptOptions> {
-    Option<std::string> target {
-        *this, "target",
-        llvm::cl::desc("An option to specify target"),
-    };
+
+struct BuddyBufferizeOptOptions
+    : public PassPipelineOptions<BuddyBufferizeOptOptions> {
+  Option<std::string> target{
+      *this,
+      "target",
+      llvm::cl::desc("An option to specify target"),
+  };
 };
 
-void createBufferizeOptPipeline(OpPassManager &pm, const BuddyBufferizeOptOptions &options);
+void createBufferizeOptPipeline(OpPassManager &pm,
+                                const BuddyBufferizeOptOptions &options);
 
 void registerBufferizeOptPassPipeline();
 
-} // namespace mlir::buddy
+} // namespace buddy
 } // namespace mlir
 
 #endif

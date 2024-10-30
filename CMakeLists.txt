@@ -22,7 +22,6 @@ project(buddy-mlir LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
-set(CMAKE_BUILD_TYPE Debug)
 include(ExternalProject)
 
 #-------------------------------------------------------------------------------
