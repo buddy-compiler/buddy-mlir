@@ -20,6 +20,7 @@
 
 import os
 from pathlib import Path
+import argparse
 
 import numpy as np
 import torch
@@ -59,21 +60,39 @@ data = torch.randn([1, 1, 28, 28])
 with torch.no_grad():
     graphs = dynamo_compiler.importer(model, data)
 
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--DEVICE_TYPE", type=str, required=True, choices=["cpu", "heter"]
+)
+args = parser.parse_args()
+type = args.DEVICE_TYPE
+
 assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
-pattern_list = [custom_partition]
+
+if type == "cpu":
+    pattern_list = [simply_fuse]
+else:
+    pattern_list = [custom_partition]
 graph.fuse_ops(pattern_list)
 path_prefix = os.path.dirname(os.path.abspath(__file__))
 driver = GraphDriver(graph)
 driver.subgraphs[0].lower_to_top_level_ir()
-with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
+with open(
+    os.path.join(path_prefix, f"subgraph0-{type}.mlir"), "w"
+) as module_file:
     print(driver.subgraphs[0]._imported_module, file=module_file)
 # Add heterogeneous hardware partition
-driver.subgraphs[1].lower_to_top_level_ir()
-with open(os.path.join(path_prefix, "subgraph1.mlir"), "w") as module_file:
-    print(driver.subgraphs[1]._imported_module, file=module_file)
-with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
+if type == "heter":
+    driver.subgraphs[1].lower_to_top_level_ir()
+    with open(
+        os.path.join(path_prefix, f"subgraph1-{type}.mlir"), "w"
+    ) as module_file:
+        print(driver.subgraphs[1]._imported_module, file=module_file)
+with open(
+    os.path.join(path_prefix, f"forward-{type}.mlir"), "w"
+) as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
 params = dynamo_compiler.imported_params[graph]
