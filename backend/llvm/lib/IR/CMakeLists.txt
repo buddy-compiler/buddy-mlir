@@ -1,4 +1,4 @@
-set(LLVM_IR_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/IR)
+set(LLVM_IR_DIR ${LLVM_MAIN_SRC_DIR}/lib/IR)
 
 add_llvm_component_library(LLVMBuddyCore
   ${LLVM_IR_DIR}/AbstractCallSite.cpp

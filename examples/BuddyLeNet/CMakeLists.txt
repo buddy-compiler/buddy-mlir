@@ -6,25 +6,26 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT forward.o
-  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/forward.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/forward.mlir 
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg, arith-bufferize, func.func(linalg-bufferize, tensor-bufferize), func-bufferize)" |
-          ${LLVM_MLIR_BINARY_DIR}/mlir-opt 
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt 
             -pass-pipeline "builtin.module(func.func(buffer-deallocation-simplification, convert-linalg-to-loops), eliminate-empty-tensors, func.func(llvm-request-c-wrappers),convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llvm-as |
-          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyLeNet/forward.o
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyLeNet/forward.o
   DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/forward.mlir
   COMMENT "Building forward.o"
   VERBATIM)
 
 add_custom_command(
   OUTPUT subgraph0.o
-  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/subgraph0.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/subgraph0.mlir 
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
-            -convert-tensor-to-linalg 
+            -convert-tensor-to-linalg
             -linalg-bufferize
+            -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -lower-affine
             -func-bufferize-dynamic-offset
@@ -42,9 +43,9 @@ add_custom_command(
             -convert-arith-to-llvm
             -convert-func-to-llvm
             -reconcile-unrealized-casts | 
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llvm-as |
-          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyLeNet/subgraph0.o
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyLeNet/subgraph0.o
   DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/subgraph0.mlir
   COMMENT "Building subgraph0.o"
   VERBATIM)
@@ -54,7 +55,8 @@ add_library(LENET STATIC subgraph0.o forward.o)
 SET_TARGET_PROPERTIES(LENET PROPERTIES LINKER_LANGUAGE C)
 
 add_executable(buddy-lenet-run buddy-lenet-main.cpp)
-target_link_directories(buddy-lenet-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})
+target_link_directories(buddy-lenet-run PRIVATE ${LLVM_LIBRARY_DIR})
 
-set(BUDDY_LENET_LIBS LENET mlir_c_runner_utils ${OpenCV_LIBS})
+set(BUDDY_LENET_LIBS LENET mlir_c_runner_utils ${PNG_LIBRARIES})
+
 target_link_libraries(buddy-lenet-run ${BUDDY_LENET_LIBS})

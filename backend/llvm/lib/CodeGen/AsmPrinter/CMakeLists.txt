@@ -1,4 +1,4 @@
-set(LLVM_AsmPrinter_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/CodeGen/AsmPrinter)
+set(LLVM_AsmPrinter_DIR ${LLVM_MAIN_SRC_DIR}/lib/CodeGen/AsmPrinter)
 
 add_llvm_component_library(LLVMBuddyAsmPrinter
   ${LLVM_AsmPrinter_DIR}/AccelTable.cpp

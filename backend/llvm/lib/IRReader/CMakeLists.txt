@@ -1,4 +1,4 @@
-set(LLVM_IRReader_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/IRReader)
+set(LLVM_IRReader_DIR ${LLVM_MAIN_SRC_DIR}/lib/IRReader)
 
 add_llvm_component_library(LLVMBuddyIRReader
   ${LLVM_IRReader_DIR}/IRReader.cpp

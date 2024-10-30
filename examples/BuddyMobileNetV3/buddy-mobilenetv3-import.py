@@ -38,8 +38,16 @@ if model_path is None:
         "The environment variable 'MOBILENETV3_MODEL_PATH' is not set or is invalid."
     )
 
-model = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weights.IMAGENET1K_V1, pretrained=True)
+model = models.mobilenet_v3_small(
+    weights=models.MobileNet_V3_Small_Weights.IMAGENET1K_V1, pretrained=True
+)
 model = model.eval()
+
+# Remove the num_batches_tracked attribute.
+for layer in model.modules():
+    if isinstance(layer, torch.nn.BatchNorm2d):
+        if hasattr(layer, "num_batches_tracked"):
+            del layer.num_batches_tracked
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
@@ -68,11 +76,10 @@ current_path = os.path.dirname(os.path.abspath(__file__))
 
 
 float32_param = np.concatenate(
-    [param.detach().numpy().reshape([-1]) for param in params if param.dtype == torch.float32]
+    [
+        param.detach().numpy().reshape([-1])
+        for param in params
+        if param.dtype == torch.float32
+    ]
 )
 float32_param.tofile(Path(current_path) / "arg0.data")
-
-int64_param = np.concatenate(
-    [param.detach().numpy().reshape([-1]) for param in params if param.dtype == torch.int64]
-)
-int64_param.tofile(Path(current_path) / "arg1.data")

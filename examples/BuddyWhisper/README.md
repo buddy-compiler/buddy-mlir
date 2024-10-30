@@ -1,7 +1,7 @@
 # Buddy Compiler WHISPER Example
 
 ## Introduction
-This example shows how to use Buddy Compiler to compile a WHISPER model to MLIR code then run it.  The [model](openai/whisper-base) is a pre-trained model for automatic speech recognition (ASR) and speech translation.
+This example shows how to use Buddy Compiler to compile a WHISPER model to MLIR code then run it.  The [model](https://huggingface.co/openai/whisper-base) is a pre-trained model for automatic speech recognition (ASR) and speech translation (ST).
 
 
 ## How to run
@@ -63,16 +63,15 @@ $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
 $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
-3. Set model and dataset environment variable.
+3. Set model environment variable.
 
 ```bash
 $ export WHISPER_MODEL_PATH=/path-to-whisper-model/
-$ export AUDIO_DATASET_PATH=/path-to-audio-dataset/
 
 // For example:
 $ export WHISPER_MODEL_PATH=/home/xxx/whisper-base
-$ export AUDIO_DATASET_PATH=/home/xxx/librispeech_asr_dummy
 ```
+Alternatively, you can leave the path blank, and import-whisper.py will automatically download the model for you.
 
 4. Build and run the WHISPER example
 
@@ -83,4 +82,4 @@ $ cd bin
 $ ./buddy-whisper-run
 ```
 
-4. Enjoy it!
+5. Enjoy it!
