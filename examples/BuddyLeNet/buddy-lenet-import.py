@@ -27,7 +27,11 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse, gpu_fuse, custom_partition
+from buddy.compiler.graph.transform import (
+    simply_fuse,
+    gpu_fuse,
+    custom_partition,
+)
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa, gpu
 from buddy.compiler.graph.json_decoder import json_to_graph
@@ -61,15 +65,7 @@ params = dynamo_compiler.imported_params[graph]
 pattern_list = [custom_partition]
 graph.fuse_ops(pattern_list)
 path_prefix = os.path.dirname(os.path.abspath(__file__))
-
-# Convert the lenet graph to JSON string
-json_str = graph.to_json()
-with open(os.path.join(path_prefix, "lenet.json"), "w") as module_file:
-    module_file.write(json_str)
-
-# Convert the lenet graph Json string to a lenet graph
-graph0 = json_to_graph(json_str)
-driver = GraphDriver(graph0)
+driver = GraphDriver(graph)
 driver.subgraphs[0].lower_to_top_level_ir()
 with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
     print(driver.subgraphs[0]._imported_module, file=module_file)
@@ -88,4 +84,3 @@ float32_param = np.concatenate(
 )
 
 float32_param.tofile(Path(current_path) / "arg0.data")
-

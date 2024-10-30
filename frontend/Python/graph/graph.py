@@ -198,13 +198,10 @@ class Graph:
         # TODO: discuss two fuse strategy
         # 1. fuse ops adapt for DSA(hardware dependent)
         # 2. common fuse strategy(hardware independent)
-
-        # Initialize operation groups
-        self.init_op_group()
-
         # Apply fusion patterns
         for pattern_func in pattern_list:
             pattern_func(self)
+        # Initialize operation groups
 
     def perform(self, func_list: List[FunctionType]):
         """
