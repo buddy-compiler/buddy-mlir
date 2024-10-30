@@ -26,10 +26,11 @@ graph = graphs[0]
 graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
-# CHECK: module {
-# CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tensor.empty
-# CHECK: %{{.*}} = linalg.generic
-# CHECK: return %{{.*}}
-# CHECK: }
-# CHECK: }
+# CHECK: "builtin.module"() ({
+# CHECK-LABEL: "func.func"() <{function_type = ({{.*}} -> {{.*}}, sym_name = "forward"}
+# CHECK: %{{.*}} = "arith.constant"
+# CHECK: %{{.*}} = "tensor.empty"
+# CHECK: %{{.*}} = "linalg.generic"
+# CHECK: "func.return"(%{{.*}}) : {{.*}} -> ()
+# CHECK:   }) : () -> ()
+# CHECK: }) : () -> ()

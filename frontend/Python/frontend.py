@@ -165,10 +165,11 @@ class DynamoCompiler:
             "cos.default": CosOp,
             "sin.default": SinOp,
             "argmax.default": ArgMaxOp,
-            "split.Tensor":SplitOp,
-            "max.default":MaxOp,
-            "gt.Scalar":GtOp,
+            "split.Tensor": SplitOp,
+            "max.default": MaxOp,
+            "gt.Scalar": GtOp,
             "ge.Scalar": GeOp,
+            "gt.Tensor": GreaterThanOp,
         }
 
     @property
