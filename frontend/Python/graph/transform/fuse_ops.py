@@ -71,25 +71,3 @@ def gpu_fuse(graph: Graph):
     graph.group_map_device = {"subgraph0": device}
 
 
-def custom_partition(graph: Graph):
-    """
-    Function to custom subgraph partition.
-
-    Args:
-    - graph (Graph): The input graph to be simplified.
-
-    Returns:
-    - None: Modifies the input graph in place.
-    """
-    group = []
-    for i, op in enumerate(graph._body):
-        if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp) or i == 25:
-            continue
-        group.append(op)
-        subgraph_name = "subgraph0"
-        graph.group_map_device[subgraph_name] = DeviceType.CPU
-        graph.op_groups[subgraph_name] = group
-    new_group = [graph._body[25]]
-    subgraph_name = "subgraph1"
-    graph.group_map_device[subgraph_name] = DeviceType.GPU
-    graph.op_groups[subgraph_name] = new_group

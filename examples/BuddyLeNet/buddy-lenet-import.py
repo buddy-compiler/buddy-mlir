@@ -31,7 +31,6 @@ from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import (
     simply_fuse,
     gpu_fuse,
-    custom_partition,
 )
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa, gpu
