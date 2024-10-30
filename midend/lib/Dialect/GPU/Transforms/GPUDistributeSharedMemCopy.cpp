@@ -1,15 +1,26 @@
-//===----------------------------------------------------------------------===//
-// Some code comes from
-// compiler/src/iree/compiler/Codegen/LLVMGPU/LLVMGPUDistributeSharedMemoryCopy.cpp
-// of IREE project
-// Original licence:
-// Copyright 2021 The IREE Authors
+//===- GPUDistributeSharedMemCopy.cpp --------------------------------------===//
 //
-// Licensed under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//===----------------------------------------------------------------------===//
+//
+// The process in this file references the IREE project,
+// which is hereby acknowledged.
+// For the license of the IREE project
+// please see: https://github.com/iree-org/iree/blob/main/LICENSE
+//
+//===----------------------------------------------------------------------===//
 
-//====---------------------------------------------------------------------===//
 #include "GPU/Transforms/GPUDistributeSharedMemCopy.h"
 #include "PassDetail.h"
 #include "Utils/GemmCodegenUtils.h"
