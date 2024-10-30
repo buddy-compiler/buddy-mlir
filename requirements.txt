@@ -12,3 +12,5 @@ tabulate
 datasets
 soundfile
 librosa
+graphviz
+json

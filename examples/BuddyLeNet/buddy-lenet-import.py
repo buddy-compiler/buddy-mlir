@@ -33,7 +33,7 @@ from buddy.compiler.graph.transform import (
     gpu_fuse,
 )
 from buddy.compiler.graph.type import DeviceType
-from buddy.compiler.ops import tosa, gpu
+from buddy.compiler.ops import tosa
 from buddy.compiler.graph.json_decoder import json_to_graph
 from buddy.compiler.graph.operation import *
 from model import LeNet
