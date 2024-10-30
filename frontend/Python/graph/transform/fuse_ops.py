@@ -90,9 +90,8 @@ class BuddyTopoGraph:
         self._graph = graph
 
     def FindNode(self, node_name, nodes):
-        for node in nodes:
-            if node_name in self._graph.node_table:
-                return self._graph.node_table[node_name], "node"
+        if node_name in self._graph.node_table:
+            return self._graph.node_table[node_name], "node"
         if node_name == "placeholder":
             return "placeholder", "var"
         elif node_name is None:
@@ -294,7 +293,6 @@ class DominatorTree:
         size = len(graph.post_dfs_order)
         self.tree_nodes = [None] * size
         for i in range(size, 0, -1):
-            print(i)
             self.tree_nodes[i - 1] = self.GetNode(
                 graph.post_dfs_order[i - 1], graph.post_dfs_order
             )
