@@ -2,7 +2,6 @@ __pycache__
 
 # model params file
 *.data
-*.txt
 
 # model mlir file
 *.mlir

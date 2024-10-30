@@ -321,8 +321,8 @@ class BackendQuantizer(Quantizer):
         self, model: torch.fx.GraphModule, config: QuantizationConfig
     ) -> torch.fx.GraphModule:
         self._annotate_linear(model, config)
-        # self._annotate_conv2d(model, config)
-        # self._annotate_maxpool2d(model, config)
+        self._annotate_conv2d(model, config)
+        self._annotate_maxpool2d(model, config)
         return model
 
     def _annotate_conv2d(

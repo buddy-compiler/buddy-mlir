@@ -1,8 +1,11 @@
-# Buddy Compiler LLaMA Example
+# Buddy Compiler Quantized LLaMA Example
 
-1. Download LLaMA2 model
+1. Download LLaMA model
 
-You should download llama model. You can get model from [meta ai](https://ai.meta.com/llama/).
+You should download llama model from HuggingFace, and set an environment variable for the LLaMA model.
+```
+$ export LLAMA_MODEL_PATH=/path-to-save-llama-hf-model/
+```
 
 2. Enter Python virtual environment
 
@@ -14,29 +17,13 @@ $ cd buddy-mlir
 $ pip install -r requirements.txt
 ```
 
-3. LLaMA2 model convert to HuggingFace format
-
-You should convert LLaMA2 model which download from meta ai to HuggingFace format. Because we use HuggingFace api to get LLaMA2 model.
-
-```
-$ cd examples/BuddyLlama
-$ python llama2-to-hf.py --input_dir path-to-llama2-model --model_size 7B --output_dir path-to-save-llama-hf-model
-```
-
-Such as you have a 7B LLaMA2 model, in your input_dir path-to-llama-model, you should have a tokenizer.model and a directory named "7B". You should put your 7B LLaMA2 model inside the "7B" directory.
-
-In addition, set an environment variable for the generated LLaMA model.
-```
-$ export LLAMA_MODEL_PATH=/path-to-save-llama-hf-model/
-```
-
-4.Prepare LLaMA model
+3.Prepare LLaMA model
 ```
 $ cd examples/BuddyLlama
 $ python prepare.py 
 ```
 
-5. Build and check LLVM/MLIR
+4. Build and check LLVM/MLIR
 
 ```
 $ cd buddy-mlir
@@ -53,7 +40,7 @@ $ cmake -G Ninja ../llvm \
 $ ninja check-clang check-mlir omp
 ```
 
-6. Build and check buddy-mlir
+5. Build and check buddy-mlir
 
 ```
 $ cd buddy-mlir
@@ -83,7 +70,7 @@ $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
 $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
-7. Build and run LLaMA example
+6. Build and run QuantLLaMA example
 
 ```
 $ cmake -G Ninja .. -DBUDDY_LLAMA_EXAMPLES=ON
@@ -92,8 +79,5 @@ $ cd bin
 $ ./buddy-{dtype}-llama-run {mtype}
 ```
 
-{dtype} is the data type, currently supporting fp32, fp16 and bf16.
+{dtype} is the data type, currently supporting fp32, fp16, bf16 and int8.
 This build will spend a few minutes. We recommend you to use better cpu such as server-level cpu to run buddy-llama-run.
-
-If you wish to utilize `mimalloc` as a memory allocator, you need to set `BUDDY_MLIR_USE_MIMALLOC` and `MIMALLOC_BUILD_DIR`.
-For more details, please see [here](../../thirdparty/README.md#the-mimalloc-allocator).
