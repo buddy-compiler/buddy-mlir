@@ -160,6 +160,7 @@ class DynamoCompiler:
             "reciprocal.default": ReciprocalOp,
             "clamp_min.default": ClampMinOp,
             "clamp_max.default": ClampMaxOp,
+            "dequantize_per_channel.default": DequantizePerChannelOp,
         }
 
     @property
@@ -178,6 +179,8 @@ class DynamoCompiler:
                 return TensorDType.Int64
             case "torch.int32":
                 return TensorDType.Int32
+            case "torch.int8":
+                return TensorDType.Int8
             case "torch.float32":
                 return TensorDType.Float32
             case "torch.float64":
@@ -188,6 +191,7 @@ class DynamoCompiler:
                 return TensorDType.Float16
             case "torch.bfloat16":
                 return TensorDType.BFloat16
+
             case _:
                 raise NotImplementedError(f"Unsupported dtype: {dtype}")
 

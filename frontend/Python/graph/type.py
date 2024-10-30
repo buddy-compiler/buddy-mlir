@@ -26,16 +26,23 @@ class TensorDType(Enum):
     Enum class for declaring tensor data types.
 
     Members:
+    - Int8: str
+        Represents the 8-bit integer data type.
     - Int32: str
         Represents the 32-bit integer data type.
     - Int64: str
         Represents the 64-bit integer data type.
+    - Float16: str
+        Represents the 16-bit floating-point data type.
+    - BFloat16: str
+        Represents the 16-bit floating-point data type.
     - Float32: str
         Represents the 32-bit floating-point data type.
     - Bool: str
         Represents the boolean data type.
     """
 
+    Int8 = "int8"
     Int32 = "int32"
     Int64 = "int64"
     Float16 = "float16"

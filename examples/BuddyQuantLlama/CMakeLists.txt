@@ -14,6 +14,8 @@ add_custom_command(
 )
 endif()
 
+set(LLVM_MLIR_BINARY_DIR ${BUDDY_EXAMPLES_DIR}/../llvm/build/bin)
+
 add_custom_command(
   OUTPUT ${dtype}-forward.o
   COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyQuantLlama/${dtype}-forward.mlir 
@@ -23,7 +25,7 @@ add_custom_command(
           -eliminate-empty-tensors
           -empty-tensor-to-alloc-tensor
           -one-shot-bufferize
-          -matmul-paralell-vectorization-optimize
+          -matmul-parallel-vectorization-optimize
           -batchmatmul-optimize
           -convert-linalg-to-affine-loops
           -affine-loop-fusion
@@ -70,7 +72,7 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize
-            -matmul-paralell-vectorization-optimize
+            -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion

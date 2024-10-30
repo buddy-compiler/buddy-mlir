@@ -60,6 +60,7 @@ from ..graph import (
     MeanOp,
     ClampMinOp,
     ClampMaxOp,
+    DequantizePerChannelOp
 )
 from .utils import *
 
@@ -514,6 +515,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
         TensorDType.Float64: ir.F64Type.get(),
         TensorDType.Float32: ir.F32Type.get(),
         TensorDType.Float16: ir.F16Type.get(),
+        TensorDType.Int8: ir.IntegerType.get_signless(8),
         TensorDType.Int32: ir.IntegerType.get_signless(32),
         TensorDType.Bool: ir.IntegerType.get_signless(1),
         TensorDType.BFloat16: ir.BF16Type.get(),
@@ -1428,6 +1430,10 @@ def clamp_max_op(node: ClampMaxOp, symbol_table):
     return op
 
 
+def dequantize_per_channel_op(node: DequantizePerChannelOp, symbol_table):
+    pass
+
+
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,
@@ -1462,4 +1468,5 @@ ops_registry = {
     "MeanOp": mean_op,
     "ClampMinOp": clamp_min_op,
     "ClampMaxOp": clamp_max_op,
+    "DequantizePerChannelOp": dequantize_per_channel_op
 }
