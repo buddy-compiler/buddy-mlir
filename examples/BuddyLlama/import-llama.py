@@ -1,16 +1,3 @@
-###### import-llama.py
-import os
-import torch
-import torch._dynamo as dynamo
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from torch._decomp import get_decompositions
-
-import numpy
-
-from buddy.compiler.frontend import DynamoCompiler
-
 # ===- import-llama.py --------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,6 +17,18 @@ from buddy.compiler.frontend import DynamoCompiler
 # This is the test of llama model.
 #
 # ===---------------------------------------------------------------------------
+
+import os
+import torch
+import torch._dynamo as dynamo
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from torch._inductor.decomposition import decompositions as inductor_decomp
+from torch._decomp import get_decompositions
+
+import numpy
+
+from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
