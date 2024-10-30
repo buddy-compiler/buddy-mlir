@@ -45,6 +45,7 @@ from .ops.func import ops_registry as func_ops_registry
 from .graph import Graph, TensorDType, TensorMeta
 from .graph.operation import *
 from .graph.transform import maxpool2d_simplify
+from .graph.type import *
 
 
 class DynamoCompiler:
@@ -284,6 +285,7 @@ class DynamoCompiler:
                 fake_params,
                 self._ops_registry,
                 self._func_name,
+                DeviceType.CPU,
                 self._verbose
             )
             for gm_node in _gm.graph.nodes:
