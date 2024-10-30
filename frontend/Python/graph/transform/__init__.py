@@ -18,5 +18,5 @@
 #
 # ===---------------------------------------------------------------------------
 
-from .fuse_ops import cpu_fuse, gpu_fuse, custom_partition
+from .fuse_ops import simply_fuse, gpu_fuse, custom_partition
 from .useless_op_eliminate import maxpool2d_simplify

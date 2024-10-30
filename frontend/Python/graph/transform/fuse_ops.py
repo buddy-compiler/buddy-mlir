@@ -29,7 +29,7 @@ from .. import DeviceType
 # ANCHOR_OP_TYPE = []
 
 
-def cpu_fuse(graph: Graph):
+def simply_fuse(graph: Graph):
     """
     Function to fuse all operations into one graph. Set the device type to CPU.
 

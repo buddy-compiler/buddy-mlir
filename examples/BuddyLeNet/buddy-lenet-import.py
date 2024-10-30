@@ -27,7 +27,7 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import cpu_fuse, gpu_fuse, custom_partition
+from buddy.compiler.graph.transform import simply_fuse, gpu_fuse, custom_partition
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa, gpu
 from buddy.compiler.graph.json_decoder import json_to_graph
