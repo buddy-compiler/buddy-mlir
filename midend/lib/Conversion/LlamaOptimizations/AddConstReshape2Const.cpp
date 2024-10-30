@@ -8,11 +8,10 @@
 #include <mlir/Pass/Pass.h>
 
 #include "Utils/Utils.h"
-#include "mlir/IR/PatternMatch.h"
-#include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Tosa/IR/TosaOps.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 using namespace mlir;
@@ -44,7 +43,7 @@ public:
         constOp2.getValue().cast<DenseElementsAttr>();
     if (!constAttr2.isSplat() || !constAttr2.getSplatValue<APFloat>().isZero())
       return failure();
-    
+
     auto resultTy = cast<ShapedType>(reshapeOp.getType());
     rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
         reshapeOp, reshapeOp.getType(), constOp1,
@@ -67,7 +66,9 @@ struct SimplifyTosaAddAndReshapePass
                          OperationPass<ModuleOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SimplifyTosaAddAndReshapePass)
   StringRef getArgument() const final { return "simplify-tosa-add-reshape"; }
-  StringRef getDescription() const final { return "Simplify tosa.add and tosa.reshape operations."; }
+  StringRef getDescription() const final {
+    return "Simplify tosa.add and tosa.reshape operations.";
+  }
   SimplifyTosaAddAndReshapePass() = default;
   SimplifyTosaAddAndReshapePass(const SimplifyTosaAddAndReshapePass &) {}
 
@@ -76,28 +77,26 @@ struct SimplifyTosaAddAndReshapePass
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<tosa::TosaDialect, arith::ArithDialect>();
   }
-
 };
 
 } // end anonymous namespace
 
 void SimplifyTosaAddAndReshapePass::runOnOperation() {
-    MLIRContext *context = &getContext();
-    ModuleOp module = getOperation();
-    
-    ConversionTarget target(*context);
-    target
-        .addLegalDialect<arith::ArithDialect, affine::AffineDialect,
-                        scf::SCFDialect, memref::MemRefDialect>();
-    target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
-    target.addLegalOp<linalg::FillOp>();
-    
-    RewritePatternSet patterns(context);
-    patterns.add<SimplifyAddAndReshapePattern>(context);
+  MLIRContext *context = &getContext();
+  ModuleOp module = getOperation();
 
-    if (failed(applyPatternsAndFoldGreedily(module, std::move(patterns))))
-      signalPassFailure();
-  }
+  ConversionTarget target(*context);
+  target.addLegalDialect<arith::ArithDialect, affine::AffineDialect,
+                         scf::SCFDialect, memref::MemRefDialect>();
+  target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
+  target.addLegalOp<linalg::FillOp>();
+
+  RewritePatternSet patterns(context);
+  patterns.add<SimplifyAddAndReshapePattern>(context);
+
+  if (failed(applyPatternsAndFoldGreedily(module, std::move(patterns))))
+    signalPassFailure();
+}
 
 //===----------------------------------------------------------------------===//
 // Pass Registration
@@ -108,5 +107,5 @@ namespace buddy {
 void registerSimplifyTosaAddAndReshapePass() {
   PassRegistration<SimplifyTosaAddAndReshapePass>();
 }
-}
+} // namespace buddy
 } // namespace mlir
