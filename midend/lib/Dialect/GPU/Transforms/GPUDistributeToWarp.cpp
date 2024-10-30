@@ -232,3 +232,4 @@ std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createGPUDistributeToWarpPass() {
   return std::make_unique<GPUDistributeToWarpPass>();
 }
+

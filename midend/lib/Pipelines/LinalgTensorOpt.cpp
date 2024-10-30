@@ -66,3 +66,4 @@ void mlir::buddy::registerLinalgTensorOptPassPipeline() {
       "linalg-tensor-opt", "Linalg with Tensor Opt Pass Pipeline",
       mlir::buddy::createLinalgTensorOptPassPipeline);
 }
+
