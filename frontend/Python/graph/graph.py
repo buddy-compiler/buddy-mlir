@@ -23,9 +23,12 @@ from types import FunctionType
 import ctypes
 import functools
 import numpy as np
+import graphviz
+import json
 
 import mlir.ir as ir
 import mlir.dialects.func as func
+import mlir.dialects.bufferization as buffer
 from mlir.passmanager import *
 from mlir.execution_engine import *
 from mlir import runtime as rt
@@ -105,7 +108,8 @@ class Graph:
         fake_params: List[TensorMeta],
         ops_registry: dict,
         func_name: str,
-        verbose=False
+        device: DeviceType = DeviceType.CPU,
+        verbose=False,
     ) -> None:
         """
         Initializes the Graph.
@@ -124,7 +128,7 @@ class Graph:
         self._inputs = inputs
         self.node_table: Dict[str, Op] = {}
         self._fake_params = fake_params
-        self.device = "cpu"
+        self.device = device
         self._imported_module = None
         self._verbose = verbose
         self._ops_registry = ops_registry
@@ -171,12 +175,13 @@ class Graph:
         Returns:
         - None
         """
+        group = []
         for i, op in enumerate(self._body):
-            if isinstance(op, PlaceholderOp):
+            if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp):
                 continue
             group = [op]
             subgraph_name = "subgraph{}".format(i)
-            self.group_map_device[subgraph_name] = DeviceType.UNKNOW
+            self.group_map_device[subgraph_name] = DeviceType.CPU
             self.op_groups[subgraph_name] = group
 
     def fuse_ops(self, pattern_list: List[FunctionType]):
@@ -193,13 +198,10 @@ class Graph:
         # TODO: discuss two fuse strategy
         # 1. fuse ops adapt for DSA(hardware dependent)
         # 2. common fuse strategy(hardware independent)
-
-        # Initialize operation groups
-        self.init_op_group()
-
         # Apply fusion patterns
         for pattern_func in pattern_list:
             pattern_func(self)
+        # Initialize operation groups
 
     def perform(self, func_list: List[FunctionType]):
         """
@@ -239,7 +241,9 @@ class Graph:
                 self._inputs,
                 self._func_name,
                 self._ops_registry,
-                verbose=self._verbose
+                False,
+                self.device,
+                verbose=self._verbose,
             )
             self._imported_module = fx_importer.import_graph()
             outputs = fx_importer.get_output_nodes()
@@ -327,6 +331,97 @@ class Graph:
         self.lower_to_top_level_ir()
         self.lower_to_llvm_ir()
 
+    def to_dot(self):
+        """
+        Converts a buddy graph to a DOT string for visualization.
+
+        Returns:
+            str: A DOT string representing the buddy graph for visualization.
+        """
+        dot = graphviz.Digraph(comment="Buddy Graph")
+        for op in self._body:
+            for child in op._children:
+                dot.edge(op._name, child)
+        for op in self._body:
+            if isinstance(op, PlaceholderOp):
+                dot.node(
+                    op._name, shape="ellipse", fillcolor="white", style="filled"
+                )
+            elif isinstance(op, OutputOp):
+                dot.node(
+                    op._name, shape="ellipse", fillcolor="white", style="filled"
+                )
+            elif isinstance(op, MaxPool2dOp):
+                dot.node(op._name, shape="box", fillcolor="red", style="filled")
+            else:
+                dot.node(
+                    op._name,
+                    shape="box",
+                    fillcolor="deepskyblue",
+                    style="filled",
+                )
+        return str(dot)
+
+    def to_json(self):
+        """
+        Converts a buddy graph to a JSON string.
+
+        Returns:
+            str: A JSON string representing the buddy graph.
+        """
+        json_str = json.dumps(self, cls=BuddyGraphEncoder)
+        return json_str
+
+
+class BuddyGraphEncoder(json.JSONEncoder):
+    """
+    Custom JSON encoder for converting Buddy Graph objects to JSON strings.
+
+    This encoder handles encoding of Graph, Op, TensorMeta, OpType, TensorDType,
+    and DeviceType objects to their JSON representation.
+
+    Returns:
+        JSONEncoder: A JSON encoder instance for Buddy Graph objects.
+    """
+
+    def default(self, obj):
+        if isinstance(obj, Graph):
+            node_map_device = {}
+            for subgraph_name, ops in obj.op_groups.items():
+                for op in ops:
+                    node_map_device[op.name] = obj.group_map_device[
+                        subgraph_name
+                    ]
+            return {
+                "graph_name": obj._func_name,
+                "nodes": obj._body,
+                "device": obj.device,
+                "params": obj._fake_params,
+                "inputs": obj._inputs,
+                "node_map_device": node_map_device,
+            }
+        elif isinstance(obj, Op):
+            return {
+                "name": obj._name,
+                "children": obj._children,
+                "parents": obj._parents,
+                "arguments": obj._arguments,
+                "keyword_arguments": obj._keyword_arguments,
+                "tensor_meta": obj._tensor_meta,
+                "type": obj._op_type,
+                "class": obj.__class__.__name__,
+            }
+        elif isinstance(obj, TensorMeta):
+            return {"shape": obj.shape, "dtype": obj.dtype}
+        elif isinstance(obj, OpType):
+            return obj._name_
+        elif isinstance(obj, TensorDType):
+            return obj._name_
+        elif isinstance(obj, DeviceType):
+            return obj._value_
+        else:
+            return super().default(obj)
+
 
 class GraphImporter:
     """
@@ -350,7 +445,8 @@ class GraphImporter:
         func_name: str,
         ops_registry: dict,
         do_param_pack: bool = False,
-        verbose=False
+        device: DeviceType = DeviceType.CPU,
+        verbose=False,
     ):
         """
         Initializes the buddy Graph importer.
@@ -365,6 +461,7 @@ class GraphImporter:
             ops_registry = {}
         self._symbol_table = {}
         self._body = body
+        self._device = device
         self._func_name = func_name
         self._params = params
         self._inputs = inputs
@@ -471,27 +568,27 @@ class GraphImporter:
                     elif isinstance(node, PlaceholderOp):
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
-                        self._symbol_table[
-                            (str(node.name), 0)
-                        ] = self._symbol_table[
-                            (str(node.args[0]), node.args[1])
-                        ]
+                        self._symbol_table[(str(node.name), 0)] = (
+                            self._symbol_table[
+                                (str(node.args[0]), node.args[1])
+                            ]
+                        )
                     else:
                         self._import_op(node)
                     new_ops = [op for op in func_op.body.blocks[0].operations]
                     if self._verbose:
-                        print('='*20 + "Graph Node" + "="*20)
+                        print("=" * 20 + "Graph Node" + "=" * 20)
                         print("Node: " + node.name)
                         print("Type: " + str(node._op_type))
                         print("Arguments: " + str(node.args))
                         print("Parents: " + str(node._parents))
                         print("Children: " + str(node._children))
-                        print('-'*20 + "MLIR OPS" + '-'*20)
+                        print("-" * 20 + "MLIR OPS" + "-" * 20)
                         for op in new_ops:
                             if op not in old_ops:
                                 print(op)
                         print("")
-                        
+
                 return self._symbol_table.get(("output", 0))
 
         return self._module
@@ -540,11 +637,11 @@ class GraphImporter:
                     elif isinstance(node, PlaceholderOp):
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
-                        self._symbol_table[
-                            (str(node.name), 0)
-                        ] = self._symbol_table[
-                            (str(node.args[0]), node.args[1])
-                        ]
+                        self._symbol_table[(str(node.name), 0)] = (
+                            self._symbol_table[
+                                (str(node.args[0]), node.args[1])
+                            ]
+                        )
                     else:
                         self._import_op(node)
 

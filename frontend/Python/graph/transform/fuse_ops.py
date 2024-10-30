@@ -26,11 +26,12 @@ from .. import DeviceType
 # OP_TYPE_FUSABLE = [OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType]
 # OP_TYPE_UNFUSABLE = [OpType.Unfusable, OpType.ConcatType]
 # OP_TYPE_FUSABLE_BY_SPECIFIC_PASS = []
-# ANCHOR_OP_TYPE = [] 
+# ANCHOR_OP_TYPE = []
+
 
 def simply_fuse(graph: Graph):
     """
-    Function to fuse all operations into one graph.
+    Function to fuse all operations into one graph. Set the device type to CPU.
 
     Args:
     - graph (Graph): The input graph to be simplified.
@@ -39,7 +40,7 @@ def simply_fuse(graph: Graph):
     - None: Modifies the input graph in place.
     """
     new_op_group = []
-    device = DeviceType.UNKNOW
+    device = DeviceType.CPU
     for op in graph.body:
         if isinstance(op, PlaceholderOp):
             continue
@@ -47,3 +48,48 @@ def simply_fuse(graph: Graph):
     graph.op_groups = {}
     graph.op_groups["subgraph0"] = new_op_group
     graph.group_map_device = {"subgraph0": device}
+
+
+def gpu_fuse(graph: Graph):
+    """
+    Function to fuse all operations into one graph. Set the device type to GPU.
+
+    Args:
+    - graph (Graph): The input graph to be simplified.
+
+    Returns:
+    - None: Modifies the input graph in place.
+    """
+    new_op_group = []
+    device = DeviceType.GPU
+    for op in graph.body:
+        if isinstance(op, PlaceholderOp):
+            continue
+        new_op_group.append(op)
+    graph.op_groups = {}
+    graph.op_groups["subgraph0"] = new_op_group
+    graph.group_map_device = {"subgraph0": device}
+
+
+def custom_partition(graph: Graph):
+    """
+    Function to custom subgraph partition.
+
+    Args:
+    - graph (Graph): The input graph to be simplified.
+
+    Returns:
+    - None: Modifies the input graph in place.
+    """
+    group = []
+    for i, op in enumerate(graph._body):
+        if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp) or i == 25:
+            continue
+        group.append(op)
+        subgraph_name = "subgraph1"
+        graph.group_map_device[subgraph_name] = DeviceType.CPU
+        graph.op_groups[subgraph_name] = group
+    new_group = [graph._body[25]]
+    subgraph_name = "subgraph0"
+    graph.group_map_device[subgraph_name] = DeviceType.GPU
+    graph.op_groups[subgraph_name] = new_group
