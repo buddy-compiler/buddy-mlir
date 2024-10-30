@@ -67,7 +67,6 @@ tools = [
     "buddy-translate",
     "buddy-container-test",
     "buddy-audio-container-test",
-    "buddy-new-image-container-test",
     "buddy-text-container-test",
     "mlir-cpu-runner",
 ]
@@ -107,5 +106,10 @@ if config.buddy_mlir_enable_python_packages:
 
 if config.buddy_enable_opencv == "ON":
     tools.append("buddy-image-container-test")
+
+if config.buddy_mlir_enable_dip_lib == "ON":
+    tools.append("buddy-new-image-container-test-bmp")
+    if config.buddy_enable_png == "ON":
+        tools.append("buddy-new-image-container-test-png")
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)

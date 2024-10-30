@@ -66,7 +66,7 @@ int main() {
   MemRef<float, 3> testArrayNoMallocConstructor(arrayShape, false, 0);
   // CHECK: {{(nil)|0x0}}
   fprintf(stderr, "%p\n", testArrayNoMallocConstructor.getData());
-  
+
   //===--------------------------------------------------------------------===//
   // Test array constructor.
   //===--------------------------------------------------------------------===//
@@ -76,6 +76,16 @@ int main() {
   fprintf(stderr, "%f\n", testArrayConstructor.getData()[0]);
   // CHECK: 5.0
   fprintf(stderr, "%f\n", testArrayConstructor[5]);
+
+  //===--------------------------------------------------------------------===//
+  // Test 2-D array constructor.
+  //===--------------------------------------------------------------------===//
+  float data2D[2][3] = {{0.0, 1.0, 2.0}, {0.0, 1.0, 2.0}};
+  MemRef<float, 2> test2DArrayConstructor(&data2D[0][0], sizes);
+  // CHECK: 0.0
+  fprintf(stderr, "%f\n", test2DArrayConstructor.getData()[0]);
+  // CHECK: 1.0
+  fprintf(stderr, "%f\n", test2DArrayConstructor[4]);
 
   //===--------------------------------------------------------------------===//
   // Test copy constructor and copy assignment operator.
@@ -118,7 +128,6 @@ int main() {
   //===--------------------------------------------------------------------===//
   // Test overloading bracket operator.
   //===--------------------------------------------------------------------===//
-  
   float data1[6] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
   MemRef<float, 2> testBracketOperator1(data1, sizes);
   // CHECK: 0.0

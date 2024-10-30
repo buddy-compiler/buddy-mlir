@@ -143,7 +143,7 @@ class GraphDriver:
 
             # Create subgraph and add it to the dictionary
             subgraph = Graph(
-                subgraph_input, [], self._graph._ops_registry, subgraph_name
+                subgraph_input, [], self._graph._ops_registry, subgraph_name, verbose=self._graph._verbose
             )
             subgraph.body = subgraph_body
             for op in subgraph_body:
@@ -173,6 +173,7 @@ class GraphDriver:
             self._graph._fake_params,
             self._graph._ops_registry,
             self._graph._func_name,
+            self._graph._verbose
         )
 
         # Adding FuncOp nodes for each subgraph
