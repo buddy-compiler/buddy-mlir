@@ -1,0 +1,9 @@
+__pycache__
+
+# model params file
+*.data
+
+# model mlir file
+*.mlir
+*.mlir
+config*

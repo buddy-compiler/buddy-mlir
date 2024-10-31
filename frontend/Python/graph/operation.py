@@ -493,7 +493,6 @@ class ClampMaxOp(Op):
         super().__init__()
         self._op_type = OpType.ElementwiseType
 
-
 class RandIntLowOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -531,6 +530,12 @@ class MaxOp(Op):
 
 
 class GtOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+        
+class DequantizePerChannelOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType

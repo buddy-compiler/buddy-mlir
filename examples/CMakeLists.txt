@@ -6,6 +6,7 @@ endif()
 
 if(BUDDY_LLAMA_EXAMPLES)
   add_subdirectory(BuddyLlama)
+  add_subdirectory(BuddyQuantLlama)
 endif()
 
 if (BUDDY_BERT_EXAMPLES)

@@ -253,12 +253,19 @@ class Graph:
             match str(dtype):
                 case "i1":
                     np_type = np.dtype(np.bool_)
+                case "i8":
+                    np_type = np.dtype(np.int8)
                 case "i32":
                     np_type = np.dtype(np.int32)
                 case "i64":
                     np_type = np.dtype(np.int64)
                 case "f32":
                     np_type = np.dtype(np.float32)
+                case "f16":
+                    np_type = np.dtype(np.float16)
+                case "bf16":
+                    # TODO
+                    np_type = np.dtype(np.float16)
                 case _:
                     raise NotImplementedError(f"Unsupported dtype {dtype}")
             self._output_memref.append(
@@ -390,6 +397,8 @@ class GraphImporter:
             NotImplementedError: If the given dtype is not supported.
         """
         match dtype:
+            case TensorDType.Int8:
+                return ir.IntegerType.get_signless(8)
             case TensorDType.Int32:
                 return ir.IntegerType.get_signless(32)
             case TensorDType.Int64:
@@ -398,6 +407,10 @@ class GraphImporter:
                 return ir.F32Type.get()
             case TensorDType.Bool:
                 return ir.IntegerType.get_signless(1)
+            case TensorDType.Float16:
+                return ir.F16Type.get()
+            case TensorDType.BFloat16:
+                return ir.BF16Type.get()
             case _:
                 raise NotImplementedError(f"Unsupported dtype {dtype}")
 

@@ -62,6 +62,7 @@ from ..graph import (
     ClampMaxOp,
     RandIntLowOp,
     ArgMaxOp,
+    DequantizePerChannelOp,
 )
 from .utils import *
 
@@ -119,7 +120,7 @@ def _scalar_to_tensor(
     doesn't support operation between scalers and tensors."""
     element = (
         ir.FloatAttr.get(element_type, float(scalar))
-        if str(element_type) == "f32"
+        if str(element_type) in ("f32", "bf16", "f16")
         else ir.IntegerAttr.get(element_type, int(scalar))
     )
     attr = ir.DenseElementsAttr.get_splat(
@@ -518,7 +519,9 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
         TensorDType.Float16: ir.F16Type.get(),
         TensorDType.Int64: ir.IntegerType.get_signless(64),
         TensorDType.Int32: ir.IntegerType.get_signless(32),
+        TensorDType.Int8: ir.IntegerType.get_signless(8),
         TensorDType.Bool: ir.IntegerType.get_signless(1),
+        TensorDType.BFloat16: ir.BF16Type.get(),
     }
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     to_cast_type = types_mapping[node.args[1]]
@@ -809,7 +812,7 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         ir.IntegerType.get_signless(64),
     ):
         element = ir.IntegerAttr.get(result_element_type, 0)
-    elif result_element_type == ir.F32Type.get():
+    elif result_element_type in (ir.F32Type.get(), ir.BF16Type.get(), ir.F16Type.get()):
         element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")
@@ -1008,17 +1011,15 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     result_element_type = mlir_element_type_get(dtype)
     out_shape = node.tensor_meta["shape"]
 
-    # Prepare Depthwise Conv2D information
-    is_grouped = (list(weight_shape)[1] == 1) and (groups != 1)
-    is_depthwise = (groups == list(weight_shape)[0]) and is_grouped
-
     # Prepare input channel and output channel.
+    # TODO: confirm and modify this part.
     if is_kernel_transposed:
         in_channels = list(weight_shape)[0]
-        out_channels = list(weight_shape)[1] * groups
+        out_channels = list(weight_shape)[1]
     else:
-        in_channels = list(weight_shape)[1] * groups
+        in_channels = list(weight_shape)[1]
         out_channels = list(weight_shape)[0]
+    is_depthwise = (groups == in_channels) or (groups == out_channels)
 
     # Prepare bias tensor.
     if len(node._parents) == 2:
@@ -1033,19 +1034,20 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     else:
         bias_tensor = symbol_table.get((str(bias), 0))
 
+    # Prepare input padding.
+    if len(input_padding) == 1:
+        input_padding = [input_padding[0]] * 4
+    elif len(input_padding) == 2:
+        input_padding = [input_padding[0]] * 2 + [input_padding[1]] * 2
+
     # Prepare attributes.
+    input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
     dilation_attr = ir._denseI64ArrayAttr(dilation, None)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
 
+    # TODO: Convolution 1D
     # Convolution 2D
     if len(weight_shape) == 4:
-        # Prepare input padding.
-        if len(input_padding) == 1:
-            input_padding = [input_padding[0]] * 4
-        elif len(input_padding) == 2:
-            input_padding = [input_padding[0]] * 2 + [input_padding[1]] * 2
-        # Prepare input_padding attributes.
-        input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
         # If the input layout is NCHW, then convert to NHWC.
         if node._layout.find("NCHW") != -1:
             perm_list = [0, 2, 3, 1]
@@ -1075,9 +1077,9 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             out_shape = perm_shape
         output_type = ir.RankedTensorType.get(out_shape, result_element_type)
 
-        # Depthwise Conv2D Operation.
         if is_depthwise is True:
-            # If groups == in_channels,out_channels == in_channels
+            # Depthwise Conv2D Operation.
+            # TODO: the layout may lead misunderstanding
             if node._layout.find("FCHW") != -1:
                 perm_list = [2, 3, 0, 1]
                 perm_const_op = tosa.ConstOp(
@@ -1173,84 +1175,6 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             op = tosa.TransposeOp(
                 permute_result_type, op.result, perm_const_op.results[0]
             )
-    # Convolution 1D
-    elif len(weight_shape) == 3:
-        # Prepare input with padding.
-        if input_padding[0] != 0:
-            input_shape = list(ir.RankedTensorType(input_val.type).shape)
-            padded_type = ir.RankedTensorType.get(
-                [
-                    input_shape[0],
-                    input_shape[1],
-                    input_shape[2] + 2 * input_padding[0],
-                ],
-                result_element_type,
-            )
-            pad_values_type = ir.RankedTensorType.get(
-                [3, 2], ir.IntegerType.get_signless(32)
-            )
-            pad_values = ir.DenseElementsAttr.get(
-                numpy.array(
-                    [[0, 0], [0, 0], [input_padding[0], input_padding[0]]],
-                    dtype=numpy.int32,
-                ),
-                type=pad_values_type,
-            )
-            pad_constant = arith.ConstantOp(pad_values_type, pad_values).result
-            input_val = tosa.PadOp(padded_type, input_val, pad_constant)
-        output_type = ir.RankedTensorType.get(out_shape, result_element_type)
-        output_conv = tensor.EmptyOp(list(out_shape), result_element_type)
-        assert groups == 1, "only support one group"
-        # Con1D Operation Without Bias
-        conv_op = linalg.conv_1d_ncw_fcw(
-            input_val,
-            weight_val,
-            outs=[output_conv],
-            strides=stride_attr,
-            dilations=dilation_attr,
-        )
-        output = tensor.EmptyOp(list(out_shape), result_element_type)
-        generic_map = ir.AffineMap.get_permutation(
-            [i for i in range(len(list(out_shape)))]
-        )
-        loop_type = [
-            ir.Attribute.parse("#linalg.iterator_type<parallel>")
-        ] * len(list(out_shape))
-        loop_type[1] = ir.Attribute.parse("#linalg.iterator_type<reduction>")
-        # Add Bias To Conv2d.
-        op = linalg.GenericOp(
-            [output_type],
-            [conv_op, bias_tensor],
-            [output],
-            ir.ArrayAttr.get(
-                [
-                    ir.AffineMapAttr.get(
-                        generic_map.get_submap(
-                            [i for i in range(len(list(out_shape)))]
-                        )
-                    ),
-                    ir.AffineMapAttr.get(generic_map.get_submap([1])),
-                    ir.AffineMapAttr.get(
-                        generic_map.get_submap(
-                            [i for i in range(len(list(out_shape)))]
-                        )
-                    ),
-                ]
-            ),
-            ir.ArrayAttr.get(loop_type),
-        )
-        block = ir.Block.create_at_start(
-            op.region,
-            [
-                result_element_type,
-                ir.RankedTensorType(bias_tensor.type).element_type,
-                result_element_type,
-            ],
-        )
-        add_op = arith.AddFOp(block.arguments[1], block.arguments[0])
-        block.append(add_op)
-        block.append(linalg.YieldOp([add_op.result]))
-
     return op
 
 
@@ -1432,6 +1356,61 @@ def clamp_max_op(node: ClampMaxOp, symbol_table):
     op = tosa.ClampOp(tensor_type, input1, min_int, max_int, min_fp, max_fp)
     return op
 
+  
+def dequantize_per_channel_op(node: DequantizePerChannelOp, symbol_table):
+    """
+    From Buddy DequantizePerChannelOp to MLIR TOSA operation.
+    """
+    # torch.ops.quantized_decomposed.dequantize_per_channel.default(_frozen_param0, linear_scale_0, linear_zero_point_0, 0, -127, 127, torch.int8)
+    quants = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    scales = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    zero_points = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    """
+    if scales.dtype != torch.float32:
+        scale = ops.to_dtype(scale, torch.float32)
+    if zero_points.dtype != torch.float32:
+        zero_point = ops.to_dtype(zero_point, torch.float32)
+    val = ops.sub(ops.to_dtype(input, torch.float32), zero_point) * scale
+    """
+    print(f'Translating DequantizePerChannelOp')
+    
+    # convert quants to float32
+    quants_sizes = ir.RankedTensorType(quants.type).shape
+    quants_type = ir.RankedTensorType.get(quants_sizes, ir.F32Type.get())
+    quants = tosa.CastOp(quants_type, quants).result
+    
+    # convert zero_points to float32
+    zero_points_sizes = ir.RankedTensorType(zero_points.type).shape
+    zero_points_type = ir.RankedTensorType.get(zero_points_sizes, ir.F32Type.get())
+    zero_points = tosa.CastOp(zero_points_type, quants).result
+    
+    # append one dimension to zero_points
+    zero_points_sizes.append(1)
+    new_shape_content = array.array("i", zero_points_sizes)
+    new_shape_content = memoryview(new_shape_content)
+    zero_points = tosa.ReshapeOp(zero_points, new_shape_content).result
+    
+    # append one dimension to scales
+    scales_sizes = ir.RankedTensorType(scales.type).shape
+    scales_sizes.append(1)
+    new_shape_content = array.array("i", scales_sizes)
+    new_shape_content = memoryview(new_shape_content)
+    scales = tosa.ReshapeOp(scales, new_shape_content).result
+    
+    # quants - zero_points
+    ret = _gen_arith_binary_op(quants, zero_points, tosa.SubOp).result
+    
+    # multiply scales
+    def _inner_op(result_type, input1, input2):
+        return tosa.MulOp(
+            result_type,
+            input1,
+            input2,
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        )
+    ret = _gen_arith_binary_op(ret, scales, _inner_op)
+    return ret
+    
 
 def randint_low_op(node: RandIntLowOp, symbol_table):
     """
@@ -1478,7 +1457,6 @@ def argmax_op(node: ArgMaxOp, symbol_table):
     op = tosa.ArgMaxOp(result, input_tensor, axis)
     return op
 
-
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,
@@ -1515,4 +1493,5 @@ ops_registry = {
     "ClampMaxOp": clamp_max_op,
     "RandIntLowOp": randint_low_op,
     "ArgMaxOp": argmax_op,
+    "DequantizePerChannelOp": dequantize_per_channel_op,
 }
