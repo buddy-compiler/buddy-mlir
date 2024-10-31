@@ -800,6 +800,7 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
           the result.
     """
     to_expand_tensor = symbol_table.get((str(node.args[0]), 0))
+    original_size = to_expand_tensor.type.shape
     new_size = node.args[1]
     result_element_type = ir.RankedTensorType(
         to_expand_tensor.type
@@ -813,8 +814,14 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")
+    expanded_size = []
+    for dim, size in zip(original_size, new_size):
+        if size == -1:
+            expanded_size.append(dim)
+        else:
+            expanded_size.append(size)
     new_size_tensor_type = ir.RankedTensorType.get(
-        new_size, result_element_type
+        expanded_size, result_element_type
     )
     new_size_attr = ir.DenseElementsAttr.get_splat(
         new_size_tensor_type, element
@@ -1481,7 +1488,7 @@ def argmax_op(node: ArgMaxOp, symbol_table):
 
 ops_registry = {
     "AddOp": add_op,
-    "MulOp": mul_op,
+    # "MulOp": mul_op,
     "SubOp": sub_op,
     "SumDimOp": sum_op,
     "TanhOp": tanh_op,

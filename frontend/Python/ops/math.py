@@ -26,6 +26,7 @@ def erf_op(node, symbol_table):
     op = math.ErfOp(input_tensor)
     return op
 
+
 def sqrt_op(node, symbol_table):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     op = math.SqrtOp(input_tensor)
@@ -42,9 +43,19 @@ def sin_op(node, symbol_table):
     return op
 
 
+def cos_op(node, symbol_table):
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    return math.CosOp(input_tensor)
+
+
+def sin_op(node, symbol_table):
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    return math.SinOp(input_tensor)
+
+
 ops_registry = {
     "ErfOp": erf_op,
     "SqrtOp": sqrt_op,
     "CosOp": cos_op,
-    "SinOp": sin_op
+    "SinOp": sin_op,
 }
