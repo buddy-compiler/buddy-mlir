@@ -392,7 +392,7 @@ int main() {
   printLogLabel();
   std::cout << "Denoising complete." << std::endl;
   printLogLabel();
-  std::cout << "Total time spent on denoising: " << (double)(encodeTime.count()) / 1000
+  std::cout << "Total time spent on denoising: " << (double)(inferenceTotalTime.count()) / 1000
             << "s" << std::endl;
 
   for (int i = 0 ; i < 1 * 4 * 64 * 64 ; i ++){
