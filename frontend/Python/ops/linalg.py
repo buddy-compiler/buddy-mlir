@@ -1073,6 +1073,26 @@ def mul_op(
         element = mlir_element_attr_get(dtype, node.args[1])
         attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
         input2 = arith.ConstantOp(tensor_type, attr).result
+        
+    input1_type = ir.RankedTensorType(input1.type)
+    input2_type = ir.RankedTensorType(input2.type)
+    if input1_type != mlir_dtype:
+        input1 = tosa.CastOp(
+            ir.RankedTensorType.get(
+                ir.RankedTensorType(input1.type).shape,
+                mlir_dtype,
+            ),
+            input1,
+        )
+    if input2_type != mlir_dtype:
+        input2 = tosa.CastOp(
+            ir.RankedTensorType.get(
+                ir.RankedTensorType(input2.type).shape,
+                mlir_dtype,
+            ),
+            input2,
+        )
+
     if input1 is None or input2 is None:
         return
     mul_result_tensor_type = ir.RankedTensorType.get(shape, mlir_dtype)
@@ -1782,6 +1802,9 @@ def where_op(
     if input1 is None or input2 is None or input3 is None:
         return
 
+    if isinstance(input2.type, ir.RankedTensorType):
+        input2, input3 = input3, input2
+
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
@@ -1819,17 +1842,11 @@ def where_op(
         ),
     )
 
-    def get_element_type(value):
-        if isinstance(value.type, ir.RankedTensorType):
-            return value.type.element_type
-        else:
-            return value.type
-
     block = ir.Block.create_at_start(
         op.region,
         [
             ir.RankedTensorType(input1.type).element_type,
-            get_element_type(input3),
+            ir.RankedTensorType(input3.type).element_type,
             ir.RankedTensorType(output.result.type).element_type,
         ],
     )
@@ -1990,59 +2007,20 @@ def ge_op(
     Returns:
         op: The operation return the linalg.generic op.
     """
-    input1 = symbol_table.get((str(node.args[0]), 0))
-    scalar = node.args[1]
-    value = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), 5)
-    output_shape = list(node.tensor_meta["shape"])
-    dtype = node.tensor_meta["dtype"]
-    mlir_dtype = mlir_element_type_get(dtype)
-    if not isinstance(scalar, str):
-        scalar = arith.ConstantOp(
-            mlir_dtype, mlir_element_attr_get(dtype, scalar)
-        )
-        generic_map = ir.AffineMap.get_permutation(
-            [i for i in range(len(output_shape))]
-        )
-        tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-        output = tensor.EmptyOp(output_shape, mlir_dtype)
-        op = linalg.GenericOp(
-            [tensor_type],
-            [input1],
-            [output],
-            ir.ArrayAttr.get(
-                [
-                    ir.AffineMapAttr.get(
-                        generic_map.get_submap(
-                            [i for i in range(len(output_shape))]
-                        )
-                    ),
-                    ir.AffineMapAttr.get(
-                        generic_map.get_submap(
-                            [i for i in range(len(output_shape))]
-                        )
-                    ),
-                ]
-            ),
-            ir.ArrayAttr.get(
-                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-                * len(output_shape)
-            ),
-        )
-        block = ir.Block.create_at_start(
-            op.region,
-            [
-                ir.RankedTensorType(input1.type).element_type,
-                ir.RankedTensorType(output.result.type).element_type,
-            ],
-        )
-        if str(ir.RankedTensorType(input1.type).element_type).find("i") != -1:
-            cmpop = arith.CmpIOp(value, block.arguments[0], block.arguments[1])
-        else:
-            cmpop = arith.CmpFOp(value, block.arguments[0], block.arguments[1])
-        block.append(cmpop)
-        block.append(linalg.YieldOp([cmpop.result]))
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    input_shape = ir.RankedTensorType(input_tensor.type).shape
+    tensor_type = ir.RankedTensorType.get(input_shape, input_dtype)
 
-    return op
+    scalar = arith.ConstantOp(input_dtype, node.args[1])
+    rhs = tensor.SplatOp(tensor_type, scalar)
+
+    if str(input_dtype).find("i") != -1:
+        cmp_op = arith.CmpIOp(5, input_tensor, rhs)
+    else:
+        cmp_op = arith.CmpFOp(3, input_tensor, rhs)
+
+    return cmp_op
 
 def greater_than_op(
     node: GreaterThanOp,

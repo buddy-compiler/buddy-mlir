@@ -1,9 +1,9 @@
 --pre --extra-index-url https://download.pytorch.org/whl/cpu
 torch == 2.1.2
 numpy < 2
-transformers >= 4.42.3
-tokenizers >= 0.19.1
-sentencepiece >= 0.2.0
+transformers == 4.33.1
+tokenizers == 0.13.3
+sentencepiece == 0.1.99
 accelerate
 protobuf
 pybind11 == 2.11.1

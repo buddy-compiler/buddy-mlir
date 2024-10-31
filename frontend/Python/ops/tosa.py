@@ -1488,7 +1488,7 @@ def argmax_op(node: ArgMaxOp, symbol_table):
 
 ops_registry = {
     "AddOp": add_op,
-    "MulOp": mul_op,
+    # "MulOp": mul_op,
     "SubOp": sub_op,
     "SumDimOp": sum_op,
     "TanhOp": tanh_op,

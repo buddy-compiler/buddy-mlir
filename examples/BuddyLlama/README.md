@@ -20,10 +20,11 @@ You should convert LLaMA model which download from meta ai to HuggingFace format
 
 ```
 $ cd examples/BuddyLlama
-$ python llama-to-hf.py --input_dir path-to-llama-model --model_size 7B/8B --output_dir path-to-save-llama-hf-model
+$ python llama-to-hf.py --input_dir path-to-llama-model --model_size 7B/8B --output_dir path-to-save-llama-hf-model [--llama_version 3]
 ```
 
 Such as you have a 7B LLaMA2 model, in your input_dir path-to-llama-model, you should have a tokenizer.model and a directory named "7B". You should put your 7B LLaMA2 model inside the "7B" directory.
+If you want to convert llama3 models, command should add option [--llama_version 3], and work enviroment should have torch == 2.4.0, transformers >= 4.42.3, tokenizers >= 0.19.1, sentencepiece >= 0.2.0, tiktoken, blobfile packages.
 
 In addition, set an environment variable for the generated LLaMA model.
 ```
