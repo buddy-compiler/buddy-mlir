@@ -62,3 +62,10 @@ target_link_libraries(buddy-whisper-preprocess
   BuddyLibDAP
   mlir_c_runner_utils
 )
+
+add_executable(buddy-rfft RFFT.cpp)
+add_dependencies(buddy-rfft buddy-opt)
+target_link_libraries(buddy-rfft
+  BuddyLibDAP
+  mlir_c_runner_utils
+)

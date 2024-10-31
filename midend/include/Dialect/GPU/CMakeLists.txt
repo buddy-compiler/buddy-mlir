@@ -1,0 +1,7 @@
+set(LLVM_TARGET_DEFINITIONS Passes.td)
+mlir_tablegen(Passes.h.inc -gen-pass-decls)
+add_public_tablegen_target(BuddyGPUPassIncGen)
+set(LLVM_TARGET_DEFINITIONS TransformOps.td)
+mlir_tablegen(TransformOps.h.inc -gen-op-decls)
+mlir_tablegen(TransformOps.cpp.inc -gen-op-defs)
+add_public_tablegen_target(TransformOpsIncGen)
