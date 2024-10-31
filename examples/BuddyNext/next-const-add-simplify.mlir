@@ -1,4 +1,6 @@
 // RUN: buddy-opt %s \
+// RUN:     --simplify-tosa-add-reshape \
+// RUN: | buddy-opt \
 // RUN:     -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" \
 // RUN: | buddy-opt \
 // RUN:     -arith-expand \
@@ -36,16 +38,21 @@ module {
     func.func private @printMemrefF32(tensor<*xf32>)
     func.func private @rtclock() -> f64
 
-    func.func @const_add_original() {
-        %t0_original = call @rtclock() : () -> f64 
-
+    func.func @const_add_reshape() -> tensor<32x40x128xf32> {
         %0 = "tosa.const"() <{value = dense<3.5> : tensor<1x32x40x128xf32>}> : () -> tensor<1x32x40x128xf32>
         %1 = "tosa.const"() <{value = dense<3.5> : tensor<1x32x40x128xf32>}> : () -> tensor<1x32x40x128xf32>
         %2 = tosa.add %0, %1 : (tensor<1x32x40x128xf32>, tensor<1x32x40x128xf32>) -> tensor<1x32x40x128xf32>
         %3 = tosa.reshape %2 {new_shape = array<i64: 32, 40, 128>} : (tensor<1x32x40x128xf32>) -> tensor<32x40x128xf32>
-        
+
+        return %3 : tensor<32x40x128xf32>
+    }
+
+    func.func @main() {
+        %t0_original = call @rtclock() : () -> f64 
+
+        %res = call @const_add_reshape() : () -> tensor<32x40x128xf32>
         %t1_original = call @rtclock() : () -> f64
-        %tensor_unranked = tensor.cast %3 : tensor<32x40x128xf32> to tensor<*xf32>
+        %tensor_unranked = tensor.cast %res : tensor<32x40x128xf32> to tensor<*xf32>
 
         // All the elements of the MemRef are the same,
         // only check the first line to verify the correctness.
@@ -59,33 +66,7 @@ module {
         // Print timings.
 
         %t_original = arith.subf %t1_original, %t0_original : f64
-        vector.print str "original operation time: "
         vector.print %t_original : f64
-        return 
-    }
-
-    func.func @const_add_optimized() {
-        %t0_optimized = call @rtclock() : () -> f64
-
-        %0 = "tosa.const"() <{value = dense<7.000000e+00> : tensor<32x40x128xf32>}> : () -> tensor<32x40x128xf32>
-        %t1_optimized = call @rtclock() : () -> f64
-
-        %tensor_unranked = tensor.cast %0 : tensor<32x40x128xf32> to tensor<*xf32>
-
-        // Print results.
-        call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
-        // Print timings.
-
-        %t_optimized = arith.subf %t1_optimized, %t0_optimized : f64
-        vector.print str "optimized operation time: "
-        vector.print %t_optimized : f64
-        return 
-    }
-
-
-    func.func @main() {
-        call @const_add_original() : () -> ()
-        call @const_add_optimized() : () -> ()
 
         return 
     }
