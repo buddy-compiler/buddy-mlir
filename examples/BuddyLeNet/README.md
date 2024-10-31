@@ -27,6 +27,7 @@ $ cmake -G Ninja .. \
     -DPython3_EXECUTABLE=$(which python3) \
     -DBUDDY_MLIR_ENABLE_DIP_LIB=ON \
     -DBUDDY_ENABLE_PNG=ON
+    
 $ ninja
 $ ninja check-buddy
 ```
