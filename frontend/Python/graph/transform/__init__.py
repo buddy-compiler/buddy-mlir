@@ -18,5 +18,5 @@
 #
 # ===---------------------------------------------------------------------------
 
-from .fuse_ops import simply_fuse
-from .useless_op_eliminate import maxpool2d_simplify
+from .fuse_ops import simply_fuse, my_fuse_ops_test
+from .useless_op_eliminate import maxpool2d_simplify, varmean_simpplify
