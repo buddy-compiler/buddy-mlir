@@ -51,4 +51,8 @@ target_link_libraries(buddy-opt
   MLIRTestTransformDialect
   MLIRTransforms
   MLIRTransformUtils
+  BuddyPipelines
+  BuddyGPUPipelines
+  BuddyTransformPasses
+  BuddyLinalgPasses
   )

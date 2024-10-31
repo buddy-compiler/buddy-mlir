@@ -4,6 +4,8 @@ add_mlir_library(BuddyUtils
   DAPUtils.cpp
   GPUUtils.cpp
   AffineTransformUtils.cpp
+  GemmCodegenUtils.cpp
+  PipelineUtils.cpp
   )
 
 add_mlir_library(BuddyDIPUtils
@@ -47,4 +49,18 @@ add_mlir_library(BuddyGPUUtils
   MLIRVectorDialect
   MLIRViewLikeInterface
   MLIRGPUPasses
+)
+
+add_mlir_library(BuddyGemmCodegenUtils
+  GemmCodegenUtils.cpp
+  
+  LINK_LIBS PUBLIC
+  BuddyUtils
+)
+
+add_mlir_library(BuddyPipelineUtils
+  PipelineUtils.cpp
+  
+  LINK_LIBS PUBLIC
+  BuddyUtils
 )

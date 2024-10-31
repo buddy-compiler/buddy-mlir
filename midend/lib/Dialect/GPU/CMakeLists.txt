@@ -1,3 +1,4 @@
+add_subdirectory(Transforms)
 add_mlir_library(BuddyGPUTransformOPs
   TransformOps.cpp
 

@@ -83,6 +83,9 @@ void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
 void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
+void registerLinalgTensorOptPassPipeline();
+void registerBufferizeOptPassPipeline();
+void registerLinalgMemrefOptPipeline();
 } // namespace buddy
 } // namespace mlir
 
@@ -125,6 +128,11 @@ int main(int argc, char **argv) {
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
   mlir::buddy::registerLegalizeShmemOutliningPass();
+
+  // Register Pipeline Passes
+  mlir::buddy::registerLinalgTensorOptPassPipeline();
+  mlir::buddy::registerLinalgMemrefOptPipeline();
+  mlir::buddy::registerBufferizeOptPassPipeline();
 
   mlir::DialectRegistry registry;
   // Register all MLIR core dialects.
