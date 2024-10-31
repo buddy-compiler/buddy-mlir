@@ -1,4 +1,3 @@
-background
 tench
 goldfish
 great white shark
@@ -133,7 +132,7 @@ flamingo
 little blue heron
 American egret
 bittern
-crane
+crane bird
 limpkin
 European gallinule
 American coot
@@ -638,7 +637,7 @@ magnetic compass
 mailbag
 mailbox
 maillot
-maillot
+maillot tank suit
 manhole cover
 maraca
 marimba

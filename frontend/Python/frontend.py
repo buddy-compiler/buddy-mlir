@@ -160,6 +160,13 @@ class DynamoCompiler:
             "reciprocal.default": ReciprocalOp,
             "clamp_min.default": ClampMinOp,
             "clamp_max.default": ClampMaxOp,
+            "randint.low": RandIntLowOp,
+            "cos.default": CosOp,
+            "sin.default": SinOp,
+            "argmax.default": ArgMaxOp,
+            "split.Tensor":SplitOp,
+            "max.default":MaxOp,
+            "gt.Scalar":GtOp,
             "dequantize_per_channel.default": DequantizePerChannelOp,
         }
 
@@ -283,6 +290,7 @@ class DynamoCompiler:
                 fake_params,
                 self._ops_registry,
                 self._func_name,
+                self._verbose
             )
             for gm_node in _gm.graph.nodes:
                 node_users = []
@@ -325,7 +333,8 @@ class DynamoCompiler:
                 else:
                     tensor_meta = gm_node.meta.get("tensor_meta")
                     val = gm_node.meta.get("val")
-                    num_returns = len(gm_node.target._schema.returns)
+                    # num_returns = len(gm_node.target._schema.returns)
+                    num_returns = len(val) if isinstance(val, list) else len(gm_node.target._schema.returns)
                     if num_returns == 1:
                         node_dtype = self._torch_dtype_translate(
                             str(tensor_meta.dtype)

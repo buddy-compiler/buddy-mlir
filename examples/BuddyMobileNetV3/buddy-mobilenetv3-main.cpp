@@ -15,13 +15,14 @@
 //===----------------------------------------------------------------------===//
 
 #include <buddy/Core/Container.h>
-#include <buddy/DIP/ImageContainer.h>
+#include <buddy/DIP/DIP.h>
+#include <buddy/DIP/ImgContainer.h>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <limits>
-#include <opencv2/opencv.hpp>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,60 +32,43 @@ const std::string ImgName = "dog.png";
 
 // Declare the mobilenet C interface.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
-                          MemRef<float, 1> *arg0,
-                          MemRef<long long, 1> *arg1,
-                          Img<float, 4> *input);
-
-const cv::Mat imagePreprocessing() {
-  // Get the directory of the LeNet example and construct the image path.
-  std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
-  std::string imgPath = mobilenetDir + "/images/" + ImgName; 
-  // Read the image in grayscale mode.
-  cv::Mat inputImage = cv::imread(imgPath, cv::IMREAD_GRAYSCALE);
-  assert(!inputImage.empty() && "Could not read the image.");
-  cv::Mat resizedImage;
-  int imageWidth = 224;
-  int imageHeight = 224;
-  // Resize the image to 224x224 pixels.
-  cv::resize(inputImage, resizedImage, cv::Size(imageWidth, imageHeight),
-             cv::INTER_LINEAR);
-  return resizedImage;
-}
+                                     MemRef<float, 1> *arg0,
+                                     MemRef<float, 4> *input);
 
 /// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
-void loadParameters(const std::string &floatParamPath,
-                    const std::string &int64ParamPath,
-                    MemRef<float, 1> &floatParam,
-                    MemRef<long long, 1> &int64Param) {
-  std::ifstream floatParamFile(floatParamPath, std::ios::in | std::ios::binary);
-  if (!floatParamFile.is_open()) {
-    std::string errMsg = "Failed to open float param file: " +
-                         std::filesystem::canonical(floatParamPath).string();
-    throw std::runtime_error(errMsg);
+/// Load parameters into data container.
+void loadParameters(const std::string &paramFilePath,
+                    MemRef<float, 1> &params) {
+  const auto loadStart = std::chrono::high_resolution_clock::now();
+  // Open the parameter file in binary mode.
+  std::ifstream paramFile(paramFilePath, std::ios::in | std::ios::binary);
+  if (!paramFile.is_open()) {
+    throw std::runtime_error("[Error] Failed to open params file!");
   }
-  floatParamFile.read(reinterpret_cast<char *>(floatParam.getData()),
-                      floatParam.getSize() * sizeof(float));
-  if (floatParamFile.fail()) {
-    throw std::runtime_error("Failed to read float param file");
+  printLogLabel();
+  std::cout << "Loading params..." << std::endl;
+  printLogLabel();
+  // Print the canonical path of the parameter file.
+  std::cout << "Params file: " << std::filesystem::canonical(paramFilePath)
+            << std::endl;
+  // Read the parameter data into the provided memory reference.
+  paramFile.read(reinterpret_cast<char *>(params.getData()),
+                 sizeof(float) * (params.getSize()));
+  if (paramFile.fail()) {
+    throw std::runtime_error("Error occurred while reading params file!");
   }
-  floatParamFile.close();
-
-
-  std::ifstream int64ParamFile(int64ParamPath, std::ios::in | std::ios::binary);
-  if (!int64ParamFile.is_open()) {
-    std::string errMsg = "Failed to open int64 param file: " +
-                         std::filesystem::canonical(int64ParamPath).string();
-    throw std::runtime_error(errMsg);
-  }
-  int64ParamFile.read(reinterpret_cast<char *>(int64Param.getData()),
-                      int64Param.getSize() * sizeof(long long));
-  if (int64ParamFile.fail()) {
-    throw std::runtime_error("Failed to read int64 param file");
-  }
-  int64ParamFile.close();
+  paramFile.close();
+  const auto loadEnd = std::chrono::high_resolution_clock::now();
+  const std::chrono::duration<double, std::milli> loadTime =
+      loadEnd - loadStart;
+  printLogLabel();
+  std::cout << "Params load time: " << (double)(loadTime.count()) / 1000
+            << "s\n"
+            << std::endl;
 }
+
 
 // Softmax function.
 void softmax(float *input, size_t size) {
@@ -110,8 +94,7 @@ void softmax(float *input, size_t size) {
 
 std::string getLabel(int idx) {
   std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
-  std::ifstream in(
-      mobilenetDir + "Labels.txt");
+  std::ifstream in(mobilenetDir + "Labels.txt");
   assert(in.is_open() && "Could not read the label file.");
   std::string label;
   for (int i = 0; i < idx; ++i)
@@ -126,27 +109,26 @@ int main() {
   const std::string title = "MobileNetV3 Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
-  // Preprocess the image to match the input requirements of the model.
-  cv::Mat image = imagePreprocessing();
-
   // Define the sizes of the input and output tensors.
-  intptr_t sizesInput[4] = {1, 3, 224, 224};
   intptr_t sizesOutput[2] = {1, 1000};
 
   // Create input and output containers for the image and model output.
-  Img<float, 4> input(image, sizesInput, true);
+  std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
+  std::string imgPath = mobilenetDir + "/images/" + ImgName;
+  dip::Image<float, 4> input(imgPath, dip::DIP_RGB, true /* norm */);
+  MemRef<float, 4> inputResize = dip::Resize4D_NCHW(
+      &input, dip::INTERPOLATION_TYPE::BILINEAR_INTERPOLATION,
+      {1, 3, 224, 224} /*{image_cols, image_rows}*/);
+
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
-  std::string mobilenetDir = getenv("MOBILENETV3_EXAMPLE_PATH");
   std::string paramsDir = mobilenetDir + "/arg0.data";
-  std::string intDir = mobilenetDir + "/arg1.data";
-  MemRef<float, 1> paramsContainerf32({ParamsSize});
-  MemRef<long long, 1> ParamsContainerInt64({34});
-  loadParameters(paramsDir, intDir, paramsContainerf32, ParamsContainerInt64);
+  MemRef<float, 1> paramsContainer({ParamsSize});
+  loadParameters(paramsDir, paramsContainer);
   // Call the forward function of the model.
-  _mlir_ciface_forward(&output, &paramsContainerf32, &ParamsContainerInt64, &input);
- 
+  _mlir_ciface_forward(&output, &paramsContainer, &inputResize);
+
   auto out = output.getData();
   softmax(out, 1000);
   // Find the classification and print the result.
