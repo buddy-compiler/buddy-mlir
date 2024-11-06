@@ -191,7 +191,8 @@ class Graph:
             newnode.add_children(i)
         users = [self.node_table[i] for i in node._children]
         for user in users:
-            user._parents[user._parents.index(node.name)]=newnode.name
+            if node.name in user._parents:
+                user._parents[user._parents.index(node.name)]=newnode.name
             user.args[user.args.index(node.name)]=newnode.name
         node._children.clear()
         #deal with parents+args

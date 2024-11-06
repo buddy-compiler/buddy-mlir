@@ -94,6 +94,7 @@ def simply_fuse(graph: Graph):
     """
     new_op_group = []
     device = DeviceType.UNKNOW
+    
     #Run the first round of op fusion
     classic_fuse_check(graph)
     for op in graph.body:
