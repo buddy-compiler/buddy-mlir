@@ -90,7 +90,7 @@ public:
     const Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     const Value c2 = rewriter.create<arith::ConstantIndexOp>(loc, 2);
     const Value c3 = rewriter.create<arith::ConstantIndexOp>(loc, 3);
-    const Value c32 = rewriter.create<arith::ConstantIndexOp>(loc, vecsize);
+    const Value vl_step = rewriter.create<arith::ConstantIndexOp>(loc, vecsize);
     const Value zero =
         buddy::insertZeroConstantOp(ctx, rewriter, loc, elementTy);
 
@@ -110,194 +110,149 @@ public:
     Value height_o = rewriter.create<memref::DimOp>(loc, output, c1);
     Value width_o = rewriter.create<memref::DimOp>(loc, output, c2);
 
-    auto inBound = BoolAttr::get(ctx, false);
+    // Calculate the upper bound for vectorized processing
+    // - Subtract `vl_step` is to avoid overflow at the vectorization tail.
+    // - Add 1 to ensure the final loop runs when the workload length
+    //   is divisible by the vector size.
+    Value upperBound_tmp =
+        rewriter.create<arith::SubIOp>(loc, channels, vl_step);
+    Value upperBound = rewriter.create<arith::AddIOp>(loc, upperBound_tmp, c1);
 
-    AffineExpr d0;
-    bindDims(ctx, d0);
-    AffineMap vecsizeMap = AffineMap::get(1, 0, {d0.ceilDiv(vecsize)}, ctx);
-    // Define AffineMap.
-    // The `outputVector` and `inputVector` share the
-    // same AffineMap.
-    AffineExpr output0, output1, output2, output3;
-    bindDims(ctx, output0, output1, output2, output3);
-    AffineMap VectorMap = AffineMap::get(
-        /*dimCount=*/4, /*symbolCount=*/0, {output2}, ctx);
     SmallVector<Value, 8> lowerBounds(4, c0);
-    SmallVector<Value, 8> uperBounds{batch, f_o, channels, height_o};
+    SmallVector<Value, 8> uperBounds{batch, height_o, width_o, f_o};
     SmallVector<int64_t, 8> steps(4, /*Value=*/1);
     affine::buildAffineLoopNest(
         rewriter, loc, lowerBounds, uperBounds, steps,
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
           // Create vecsize mining loop.
-          builder.create<affine::AffineForOp>(
-              loc, ValueRange{c0}, builder.getDimIdentityMap(),
-              ValueRange{width_o}, vecsizeMap, /*Step=*/1, std::nullopt,
+          auto iter_val = builder.create<scf::ForOp>(
+              loc, c0, upperBound, /*Step=*/vl_step, ValueRange{c0, zero},
               [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
                   ValueRange itrArgs) {
-                // Calculate the tail.
-                Value currWidth = builder.create<arith::MulIOp>(loc, iv, c32);
-                Value tail =
-                    builder.create<arith::SubIOp>(loc, width_o, currWidth);
-                Value tailCond = rewriter.create<arith::CmpIOp>(
-                    loc, arith::CmpIPredicate::sge, tail, c32);
-
-                // If the current column does not reach the tail.
-                builder.create<scf::IfOp>(
-                    loc, tailCond,
-                    [&](OpBuilder &builder, Location loc) {
-                      // Vectorize the kernel.
-                      Value outputVector =
-                          nestedBuilder.create<vector::TransferReadOp>(
-                              loc, vectorTy, output,
-                              ValueRange{ivs[0], ivs[3], currWidth, ivs[1]},
-                              VectorMap);
-
-                      auto tmp0 = nestedBuilder.create<affine::AffineForOp>(
+                auto tmp0 = nestedBuilder.create<affine::AffineForOp>(
+                    nestedLoc, ValueRange{c0}, builder.getDimIdentityMap(),
+                    ValueRange{height_k}, builder.getDimIdentityMap(),
+                    /*Step=*/1, ValueRange{itrArgs[1]},
+                    [&](OpBuilder &builder, Location loc, Value iv0,
+                        ValueRange itrArgs0) {
+                      auto tmp1 = builder.create<affine::AffineForOp>(
                           loc, ValueRange{c0}, builder.getDimIdentityMap(),
-                          ValueRange{height_k}, builder.getDimIdentityMap(),
-                          /*Step=*/1, ValueRange{outputVector},
-                          [&](OpBuilder &builder, Location loc, Value iv0,
-                              ValueRange itrArgs0) {
-                            auto tmp1 = nestedBuilder.create<
-                                affine::AffineForOp>(
-                                loc, ValueRange{c0},
-                                builder.getDimIdentityMap(),
-                                ValueRange{width_k},
-                                builder.getDimIdentityMap(),
-                                /*Step=*/1, ValueRange{itrArgs0[0]},
-                                [&](OpBuilder &builder, Location loc, Value iv1,
-                                    ValueRange itrArgs1) {
-                                  Value kernelValue =
-                                      nestedBuilder.create<memref::LoadOp>(
-                                          loc, kernel,
-                                          ValueRange{ivs[1], iv0, iv1, ivs[2]});
-
-                                  Value kernelVector =
-                                      builder.create<vector::BroadcastOp>(
-                                          loc, vectorTy, kernelValue);
-                                  Value inputHeight =
-                                      nestedBuilder.create<arith::AddIOp>(
-                                          loc, ivs[3], iv0);
-                                  Value inputWidth =
-                                      nestedBuilder.create<arith::AddIOp>(
-                                          loc, currWidth, iv1);
-                                  Value inputVector =
-                                      nestedBuilder
-                                          .create<vector::TransferReadOp>(
-                                              loc, vectorTy, input,
-                                              ValueRange{ivs[0], inputHeight,
-                                                         inputWidth, ivs[2]},
-                                              VectorMap);
-                                  // FMA
-                                  Value resultVector;
-                                  if (auto ty = llvm::dyn_cast<IntegerType>(
-                                          elementTy)) {
-                                    Value tmpVector =
-                                        nestedBuilder.create<arith::MulIOp>(
-                                            loc, inputVector, kernelVector);
-                                    resultVector =
-                                        nestedBuilder.create<arith::AddIOp>(
-                                            loc, tmpVector, itrArgs1[0]);
-                                  } else {
-                                    resultVector = nestedBuilder.create<FMAOp>(
-                                        loc, inputVector, kernelVector,
-                                        itrArgs1[0]);
-                                  }
-                                  nestedBuilder.create<affine::AffineYieldOp>(
-                                      loc, resultVector);
-                                });
-                            nestedBuilder.create<affine::AffineYieldOp>(
-                                loc, tmp1.getResult(0));
+                          ValueRange{width_k}, builder.getDimIdentityMap(),
+                          /*Step=*/1, ValueRange{itrArgs0[0]},
+                          [&](OpBuilder &builder, Location loc, Value iv1,
+                              ValueRange itrArgs1) {
+                            Value inputHeight =
+                                builder.create<arith::AddIOp>(loc, ivs[1],
+                                                                    iv0);
+                            Value inputWidth =
+                                builder.create<arith::AddIOp>(loc, ivs[2],
+                                                                    iv1);
+                            Value inputVector =
+                                builder.create<vector::LoadOp>(
+                                    loc, vectorTy, input,
+                                    ValueRange{ivs[0], inputHeight, inputWidth,
+                                               iv});
+                            Value kernelVector =
+                                builder.create<vector::LoadOp>(
+                                    loc, vectorTy, kernel,
+                                    ValueRange{ivs[3], iv0, iv1, iv});
+                            // FMA
+                            Value resultVal;
+                            if (auto ty =
+                                    llvm::dyn_cast<IntegerType>(elementTy)) {
+                              Value tmpVec =
+                                  builder.create<arith::MulIOp>(
+                                      loc, inputVector, kernelVector);
+                              Value tmpVal =
+                                  builder.create<vector::ReductionOp>(
+                                      loc, vector::CombiningKind::ADD, tmpVec, ::mlir::arith::FastMathFlags::none);
+                              resultVal =
+                                  builder.create<arith::AddIOp>(
+                                      loc, tmpVal, itrArgs1[0]);
+                            } else {
+                              Value tmpVec =
+                                  builder.create<arith::MulFOp>(
+                                      loc, inputVector, kernelVector);
+                              Value tmpVal =
+                                  builder.create<vector::ReductionOp>(
+                                      loc, vector::CombiningKind::ADD, tmpVec, ::mlir::arith::FastMathFlags::none);
+                              resultVal =
+                                  builder.create<arith::AddFOp>(
+                                      loc, tmpVal, itrArgs1[0]);
+                            }
+                            builder.create<affine::AffineYieldOp>(
+                                loc, resultVal);
                           });
-                      builder.create<vector::TransferWriteOp>(
-                          loc, tmp0.getResult(0), output,
-                          ValueRange{ivs[0], ivs[3], currWidth, ivs[1]},
-                          VectorMap);
-                      builder.create<scf::YieldOp>(loc);
-                    },
-                    [&](OpBuilder &builder, Location loc) {
-                      // Create mask according to the tail.
-                      Value tailMask = nestedBuilder.create<CreateMaskOp>(
-                          loc, vectorMaskTy, tail);
-                      // Masked load output.
-                      Value outputVector =
-                          nestedBuilder.create<vector::TransferReadOp>(
-                              loc, vectorTy, output,
-                              ValueRange{ivs[0], ivs[3], currWidth, ivs[1]},
-                              AffineMapAttr::get(VectorMap), zero, tailMask,
-                              ArrayAttr::get(ctx,
-                                             ArrayRef<Attribute>(inBound)));
-
-                      auto tmp0 = nestedBuilder.create<affine::AffineForOp>(
-                          loc, ValueRange{c0}, builder.getDimIdentityMap(),
-                          ValueRange{height_k}, builder.getDimIdentityMap(),
-                          /*Step=*/1, ValueRange{outputVector},
-                          [&](OpBuilder &builder, Location loc, Value iv0,
-                              ValueRange itrArgs0) {
-                            auto tmp1 = nestedBuilder.create<
-                                affine::AffineForOp>(
-                                loc, ValueRange{c0},
-                                builder.getDimIdentityMap(),
-                                ValueRange{width_k},
-                                builder.getDimIdentityMap(),
-                                /*Step=*/1, ValueRange{itrArgs0[0]},
-                                [&](OpBuilder &builder, Location loc, Value iv1,
-                                    ValueRange itrArgs1) {
-                                  Value kernelValue =
-                                      nestedBuilder.create<memref::LoadOp>(
-                                          loc, kernel,
-                                          ValueRange{ivs[1], iv0, iv1, ivs[2]});
-
-                                  Value kernelVector =
-                                      builder.create<vector::BroadcastOp>(
-                                          loc, vectorTy, kernelValue);
-                                  Value inputHeight =
-                                      nestedBuilder.create<arith::AddIOp>(
-                                          loc, ivs[3], iv0);
-                                  Value inputWidth =
-                                      nestedBuilder.create<arith::AddIOp>(
-                                          loc, currWidth, iv1);
-                                  Value inputVector =
-                                      nestedBuilder
-                                          .create<vector::TransferReadOp>(
-                                              loc, vectorTy, input,
-                                              ValueRange{ivs[0], inputHeight,
-                                                         inputWidth, ivs[2]},
-                                              AffineMapAttr::get(VectorMap),
-                                              zero, tailMask,
-                                              ArrayAttr::get(
-                                                  ctx, ArrayRef<Attribute>(
-                                                           inBound)));
-                                  // FMA
-                                  Value resultVector;
-                                  if (auto ty = llvm::dyn_cast<IntegerType>(
-                                          elementTy)) {
-                                    Value tmpVector =
-                                        nestedBuilder.create<arith::MulIOp>(
-                                            loc, inputVector, kernelVector);
-                                    resultVector =
-                                        nestedBuilder.create<arith::AddIOp>(
-                                            loc, tmpVector, itrArgs1[0]);
-                                  } else {
-                                    resultVector = nestedBuilder.create<FMAOp>(
-                                        loc, inputVector, kernelVector,
-                                        itrArgs1[0]);
-                                  }
-                                  nestedBuilder.create<affine::AffineYieldOp>(
-                                      loc, resultVector);
-                                });
-                            nestedBuilder.create<affine::AffineYieldOp>(
-                                loc, tmp1.getResult(0));
-                          });
-                      builder.create<vector::TransferWriteOp>(
-                          loc, tmp0.getResult(0), output,
-                          ValueRange{ivs[0], ivs[3], currWidth, ivs[1]},
-                          AffineMapAttr::get(VectorMap), tailMask,
-                          ArrayAttr::get(ctx, ArrayRef<Attribute>(inBound)));
-                      builder.create<scf::YieldOp>(loc);
+                      nestedBuilder.create<affine::AffineYieldOp>(
+                          nestedLoc, tmp1.getResult(0));
                     });
-                nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);
+                Value idx = builder.create<arith::AddIOp>(loc, iv, vl_step);
+                builder.create<scf::YieldOp>(loc, ValueRange{idx, tmp0.getResult(0)});
               });
+          // Compute the tail size and Process the remaining elements
+          // using masked vector operations.
+          Value idx = iter_val.getResult(0); 
+          Value tailSize =
+              builder.create<arith::SubIOp>(loc, channels, idx);
+          Value tailMask =
+              builder.create<CreateMaskOp>(loc, vectorMaskTy, tailSize);
+          auto tmp0 = builder.create<affine::AffineForOp>(
+              loc, ValueRange{c0}, builder.getDimIdentityMap(),
+              ValueRange{height_k}, builder.getDimIdentityMap(),
+              /*Step=*/1, ValueRange{iter_val.getResult(1)},
+              [&](OpBuilder &builder, Location loc, Value iv0,
+                  ValueRange itrArgs0) {
+                auto tmp1 = builder.create<affine::AffineForOp>(
+                    loc, ValueRange{c0}, builder.getDimIdentityMap(),
+                    ValueRange{width_k}, builder.getDimIdentityMap(),
+                    /*Step=*/1, ValueRange{itrArgs0[0]},
+                    [&](OpBuilder &builder, Location loc, Value iv1,
+                        ValueRange itrArgs1) {
+                      Value inputHeight =
+                          builder.create<arith::AddIOp>(loc, ivs[1],
+                                                              iv0);
+                      Value inputWidth =
+                          builder.create<arith::AddIOp>(loc, ivs[2],
+                                                              iv1);
+                      Value inputVec = builder.create<MaskedLoadOp>(
+                        loc, vectorTy, input,
+                        ValueRange{ivs[0], inputHeight, inputWidth, idx},
+                        tailMask, passThroughVec);
+                      Value kernelVec = builder.create<MaskedLoadOp>(
+                        loc, vectorTy, kernel,
+                        ValueRange{ivs[3], iv0, iv1, idx},
+                        tailMask, passThroughVec);
+                      // FMA
+                      Value resultVal;
+                      if (auto ty =
+                              llvm::dyn_cast<IntegerType>(elementTy)) {
+                        Value tmpVec =
+                            builder.create<arith::MulIOp>(
+                                loc, inputVec, kernelVec);
+                        Value tmpVal =
+                            builder.create<vector::ReductionOp>(
+                                loc, vector::CombiningKind::ADD, tmpVec, ::mlir::arith::FastMathFlags::none);
+                        resultVal =
+                            builder.create<arith::AddIOp>(
+                                loc, tmpVal, itrArgs1[0]);
+                      } else {
+                        Value tmpVec =
+                            builder.create<arith::MulFOp>(
+                                loc, inputVec, kernelVec);
+                        Value tmpVal =
+                            builder.create<vector::ReductionOp>(
+                                loc, vector::CombiningKind::ADD, tmpVec, ::mlir::arith::FastMathFlags::none);
+                        resultVal =
+                            builder.create<arith::AddFOp>(
+                                loc, tmpVal, itrArgs1[0]);
+                      }
+                      builder.create<affine::AffineYieldOp>(
+                          loc, resultVal);
+                    });
+                builder.create<affine::AffineYieldOp>(
+                    loc, tmp1.getResult(0));
+              });
+          builder.create<memref::StoreOp>(loc, tmp0.getResult(0), output, ValueRange{ivs[0], ivs[1], ivs[2], ivs[3]});
         });
     // Remove the origin convolution operation.
     rewriter.eraseOp(op);
