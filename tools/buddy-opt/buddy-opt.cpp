@@ -55,6 +55,7 @@ void registerConvVectorizationPass();
 void registerPointwiseConvToGemmPass();
 void registerPointwiseConvToGemmForNhwcFhwcPass();
 void registerPoolingVectorizationPass();
+void registerConv2dNhwcFhwcVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
 void registerBatchMatMulOptimizePass();
@@ -94,6 +95,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerConvVectorizationPass();
   // Register Vectorization of Pooling.
   mlir::buddy::registerPoolingVectorizationPass();
+  // Register Vectorization of Conv2D Nhwc Fhwc.
+  mlir::buddy::registerConv2dNhwcFhwcVectorizationPass();
   mlir::buddy::registerLowerBudPass();
   mlir::buddy::registerLowerDIPPass();
   mlir::buddy::registerLowerDAPPass();
@@ -116,6 +119,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerConvOptimizePass();
   mlir::buddy::registerConvNhwcFhwcOptimizePass();
   mlir::buddy::registerConvNhwcFhwcTileOptimizePass();
+
   mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
   mlir::buddy::registerDeviceSchedulePass();
   mlir::buddy::registerLowerSchePass();
