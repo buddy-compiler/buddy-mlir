@@ -125,8 +125,9 @@ int main() {
   Text<size_t, 2> outputContainer;
   Audio<double, 1> rawAudioContainer("../../examples/BuddyWhisper/audio.wav");
   MemRef<float, 3> audioInput({1, 80, 3000});
-  MemRef<float, 3> resultContainer[2] = {
+  MemRef<float, 3> resultContainer[3] = {
       MemRef<float, 3>({1, 1500, 512}, false, 0),
+      MemRef<float, 3>({1, 448, 512}, false, 0),
       MemRef<float, 3>({1, 448, MaxVocabSize}, false, 0),
   };
   MemRef<size_t, 2> textContainer({1, MaxTokenLength}, 50258);
@@ -155,7 +156,7 @@ int main() {
         inferenceEnd - inferenceStart;
 
     // Determine the generated token.
-    const float *startPtr = resultContainer[1].getData() + i * MaxVocabSize;
+    const float *startPtr = resultContainer[2].getData() + i * MaxVocabSize;
     const float *endPtr = startPtr + MaxVocabSize;
 
     int maxIndex = findMaxIndex(startPtr, endPtr);
@@ -171,8 +172,9 @@ int main() {
     textContainer.getData()[i + 1] = maxIndex;
     outputContainer.appendTokenIdx(maxIndex);
 
-    free(resultContainer[0].release());
-    free(resultContainer[1].release());
+    // free(resultContainer[0].release());
+    // free(resultContainer[1].release());
+    // free(resultContainer[2].release());
   }
 
   /// Print the final result
