@@ -273,9 +273,49 @@ def mul_op(node: MulOp, symbol_table):
             input2,
             ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
+    
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
 
-    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    if isinstance(node.args[0], str):
+        input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    else:
+        data = [node.args[0]]
+        input1_shape = numpy.array(data).shape
+        tensor_type = ir.RankedTensorType.get(input1_shape, mlir_dtype)
+        element = mlir_element_attr_get(dtype, node.args[0])
+        attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+        input2 = arith.ConstantOp(tensor_type, attr).result
+    
+    if isinstance(node.args[1], str):
+        input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    else:
+        data = [node.args[1]]
+        input2_shape = numpy.array(data).shape
+        tensor_type = ir.RankedTensorType.get(input2_shape, mlir_dtype)
+        element = mlir_element_attr_get(dtype, node.args[1])
+        attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+        input2 = arith.ConstantOp(tensor_type, attr).result
+    
+    input1_dtype = ir.RankedTensorType(input1.type).element_type
+    input2_dtype = ir.RankedTensorType(input2.type).element_type
+    if input1_dtype != mlir_dtype:
+        input1 = tosa.CastOp(
+            ir.RankedTensorType.get(
+                ir.RankedTensorType(input1.type).shape,
+                mlir_dtype,
+            ),
+            input1,
+        ).result
+    if input2_dtype != mlir_dtype:
+        input2 = tosa.CastOp(
+            ir.RankedTensorType.get(
+                ir.RankedTensorType(input2.type).shape,
+                mlir_dtype,
+            ),
+            input2,
+        ).result
 
     return _gen_arith_binary_op(input1, input2, _inner_op)
 
@@ -527,10 +567,14 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
     # When converting float to int, tosa.cast lowers to math.roundeven, but we don't need rounding.
     if str(to_cast_type).find("i") != -1 and str(input_type).find("f") != -1:
         output_shape = list(node.tensor_meta["shape"])
-        dtype = node.tensor_meta["dtype"]
-        mlir_dtype = mlir_element_type_get(dtype)
-        tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-        output = tensor.EmptyOp(output_shape, mlir_dtype)
+        tensor_type = ir.RankedTensorType.get(output_shape, to_cast_type)
+        output = tensor.EmptyOp(output_shape, to_cast_type)
+
+        if str(to_cast_type) == "i1":
+            false_val = arith.ConstantOp(to_cast_type, 0)
+            true_val = arith.ConstantOp(to_cast_type, 1)
+            zero_val = arith.ConstantOp(input_type, 0.0)
+
         generic_map = ir.AffineMap.get_permutation(
             [i for i in range(len(output_shape))]
         )
@@ -564,9 +608,16 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
                 to_cast_type,
             ],
         )
-        fptosi_op = arith.FPToSIOp(to_cast_type, block.arguments[0])
-        block.append(fptosi_op)
-        block.append(linalg.YieldOp([fptosi_op.result]))
+        if str(to_cast_type) == "i1":
+            is_zero = arith.CmpFOp(1, block.arguments[0], zero_val)
+            result = arith.SelectOp(is_zero, false_val, true_val)
+            block.append(is_zero)
+            block.append(result)
+            block.append(linalg.YieldOp([result.result]))
+        else:
+            fptosi_op = arith.FPToSIOp(to_cast_type, block.arguments[0])
+            block.append(fptosi_op)
+            block.append(linalg.YieldOp([fptosi_op.result]))
     else:
         sizes = ir.RankedTensorType(input_tensor.type).shape
         output_type = ir.RankedTensorType.get(sizes, to_cast_type)
@@ -835,41 +886,6 @@ def embedding_op(node: EmbeddingOp, symbol_table):
 
     return op
 
-
-# def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
-#     """
-#     Import the expand operation.
-#     From buddy graph ir's `ExpandOp` operator to MLIR TOSA `add` operation.
-
-#     Note: This conversion is implemented using the broadcast machanism of TOSA
-#           `add` operation. We allocate a tensor with the shape to expand and
-#           elements in this tensor is all zero. Then we add the original tensor
-#           to this all-zero tensor. After the applying the broadcasting, we get
-#           the result.
-#     """
-#     to_expand_tensor = symbol_table.get((str(node.args[0]), 0))
-#     new_size = node.args[1]
-#     result_element_type = ir.RankedTensorType(
-#         to_expand_tensor.type
-#     ).element_type
-#     if result_element_type in (
-#         ir.IntegerType.get_signless(1),
-#         ir.IntegerType.get_signless(64),
-#     ):
-#         element = ir.IntegerAttr.get(result_element_type, 0)
-#     elif result_element_type == ir.F32Type.get():
-#         element = ir.FloatAttr.get(result_element_type, 0.0)
-#     else:
-#         raise NotImplementedError("Unsupported element type!")
-#     new_size_tensor_type = ir.RankedTensorType.get(
-#         new_size, result_element_type
-#     )
-#     new_size_attr = ir.DenseElementsAttr.get_splat(
-#         new_size_tensor_type, element
-#     )
-#     new_size_tensor = tosa.ConstOp(new_size_attr).results[0]
-#     op = _gen_arith_binary_op(to_expand_tensor, new_size_tensor, tosa.AddOp)
-#     return op
 
 def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
     """
@@ -1581,11 +1597,10 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         result_reshape_op: Reshaped result tensor of the attention operation.
         log_sumexp_op: Log-sum-exp constant operation.
     """
-    print(node.args)
-    print(node.kwargs)
     query = symbol_table.get((str(node.args[0]), 0), node.args[0])
     key = symbol_table.get((str(node.args[1]), 0), node.args[1])
     value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+
     if len(node.args) == 4:
         dropout_p = node.args[3]
         assert dropout_p != 0.0
@@ -1597,11 +1612,6 @@ def scaled_dot_product_flash_attention_for_cpu_op(
 
     attn_mask = node.kwargs.get("attn_mask", None)
     scale = node.kwargs.get("scale", None)
-    
-    
-    # print("attn_mask")
-    # print(attn_mask)
-
 
     query_shape = query.type.shape
     key_shape = key.type.shape
@@ -1751,7 +1761,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
 
 ops_registry = {
     "AddOp": add_op,
-    # "MulOp": mul_op,
+    "MulOp": mul_op,
     "SubOp": sub_op,
     "SumDimOp": sum_op,
     "TanhOp": tanh_op,

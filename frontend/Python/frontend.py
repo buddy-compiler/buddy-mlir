@@ -290,9 +290,6 @@ class DynamoCompiler:
                 self._func_name,
                 self._verbose
             )
-            # with open('/home/zhuxinye/buddy-mlir/examples/TestOp/op.txt', 'w') as f:
-            #     for gm_node in _gm.graph.nodes:
-            #         f.write(f"{gm_node.name}\n")
             for gm_node in _gm.graph.nodes:
                 node_users = []
                 for user in gm_node.users.keys():
@@ -332,18 +329,10 @@ class DynamoCompiler:
                     )
 
                 else:
-                    # if str(gm_node.target) == "aten._scaled_dot_product_flash_attention_for_cpu.default":
-                        # print(gm_node)
-                        # print(gm_node.target)
-                        # print(gm_node.target._schema.returns)
-                        # print(gm_node.meta.get("val"))
-                        # print(gm_node.meta.get("tensor_meta"))
-                        # print(gm_node.kwargs)
-                        # print(gm_node.args)
                     tensor_meta = gm_node.meta.get("tensor_meta")
                     val = gm_node.meta.get("val")
-                    # num_returns = len(gm_node.target._schema.returns)
-                    num_returns = len(val) if isinstance(val, list) else len(gm_node.target._schema.returns)
+                    num_returns = len(gm_node.target._schema.returns)
+                    # num_returns = len(val) if isinstance(val, list) else len(gm_node.target._schema.returns)
                     if num_returns == 1:
                         node_dtype = self._torch_dtype_translate(
                             str(tensor_meta.dtype)

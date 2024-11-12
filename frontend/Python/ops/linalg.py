@@ -1807,11 +1807,6 @@ def where_op(
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     output = tensor.EmptyOp(output_shape, mlir_dtype)
     
-    # print("input:")
-    # print(input1)
-    # print(input2)
-    # print(input3)
-    # print(input3.type)
     if not isinstance(input2.type, ir.RankedTensorType):
         input2 = tensor.SplatOp(tensor_type, input2).result
     if not isinstance(input3.type, ir.RankedTensorType):
@@ -2121,98 +2116,6 @@ def greater_than_op(
             block.append(linalg.YieldOp([cmpop.result]))
 
     return op
-
-    # print(node.args)
-    # input1 = symbol_table.get((str(node.args[0]), 0))
-    # input2 = symbol_table.get((str(node.args[1]), 0))
-    # shp1 = list(ir.RankedTensorType(ir.Value(input1).type).shape)
-    # shp2 = list(ir.RankedTensorType(ir.Value(input2).type).shape)
-    # output_shape = list(node.tensor_meta["shape"])
-    # dtype = node.tensor_meta["dtype"]
-    # mlir_dtype = mlir_element_type_get(dtype)
-    # tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-    # print(tensor_type)
-    # print(mlir_dtype)
-    # print(input1.type)
-    # print(ir.RankedTensorType(input1.type).element_type)
-    # output = tensor.EmptyOp(output_shape, mlir_dtype)
-
-    # generic_map = ir.AffineMap.get_permutation(
-    #     [i for i in range(len(output_shape))]
-    # )
-    # # print(generic_map2)
-
-    # op = linalg.GenericOp(
-    #     [tensor_type],
-    #     [input1, input2],
-    #     [output],
-    #     ir.ArrayAttr.get(
-    #         [
-    #             ir.AffineMapAttr.get(
-    #                 generic_map.get_submap(
-    #                     [i for i in range(1, len(output_shape))]
-    #                 )
-    #             ),
-    #             ir.AffineMapAttr.get(
-    #                 generic_map.get_submap(
-    #                     [i for i in range(len(shp2))]
-    #                 )
-    #             ),
-    #             ir.AffineMapAttr.get(
-    #                 generic_map.get_submap(
-    #                     [i for i in range(len(output_shape))]
-    #                 )
-    #             ),
-    #         ]
-    #     ),
-    #     ir.ArrayAttr.get(
-    #         [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-    #         * len(output_shape)
-    #     ),
-    # )
-    # block = ir.Block.create_at_start(
-    #     op.region,
-    #     [
-    #         ir.RankedTensorType(input1.type).element_type,
-    #         ir.RankedTensorType(input2.type).element_type,
-    #         ir.RankedTensorType(output.result.type).element_type,
-    #     ],
-    # )
-
-    # print("here1")
-    # if str(input1.type).find("i") != -1:
-    #     lhs_index = []
-    #     rhs_index = []
-    #     for i in range(0, len(shp1)):
-    #         lhs_indexcast_op = arith.IndexCastOp(ir.IndexType.get(), block.arguments[0])
-    #         block.append(lhs_indexcast_op)
-    #         lhs_index.append(lhs_indexcast_op)
-    #     print("here2")
-    #     # index_op1 = linalg.IndexOp(ir._i64Attr(i, None))
-        
-    #     for i in range(0, len(shp2) - 1):
-    #         rhs_indexcast_op = arith.IndexCastOp(ir.IndexType.get(), block.arguments[1])
-    #         rhs_index.append(rhs_indexcast_op)
-    #         block.append(rhs_indexcast_op)
-    #     print("here3")
-    #     rhs_index_op = linalg.IndexOp(ir._i64Attr(len(shp2) - 1, None))
-    #     rhs_index.append(rhs_index_op)
-    #     block.append(rhs_index_op)
-        
-    #     print("here4")
-    #     lhs = tensor.ExtractOp(input1, lhs_index)
-    #     rhs = tensor.ExtractOp(input2, rhs_index)
-    #     block.append(lhs)
-    #     block.append(rhs)
-    #     cmp_op = arith.CmpIOp(4, lhs, rhs)
-    #     print("here5")
-    #     block.append(cmp_op)
-    #     block.append(linalg.YieldOp([cmp_op.result]))
-    #     print("here6")
-    # else:
-    #     cmp_op = arith.CmpFOp(2, block.arguments[0], block.arguments[1])
-    
-    # return op
 
 ops_registry = {
     "MatmulOp": matmul_op,

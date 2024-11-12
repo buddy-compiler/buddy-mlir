@@ -22,7 +22,6 @@ import os
 import torch
 import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
-import transformers
 from transformers import WhisperForConditionalGeneration
 import numpy
 
@@ -30,11 +29,7 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
-from torch._decomp import get_decompositions
 
-
-print(torch.__version__)
-print(transformers.__version__)
 # Retrieve the Whisper model path from environment variables.
 model_path = os.environ.get("WHISPER_MODEL_PATH")
 if model_path is None:
@@ -45,36 +40,17 @@ model = WhisperForConditionalGeneration.from_pretrained(model_path)
 model.config.use_cache = False
 
 # Generate placeholder for inputs.
-input_features = torch.ones(size=(1, 80, 3000), dtype=torch.float32)
-decoder_input_ids = torch.ones(size=(1, 448), dtype=torch.long) * 50258
+input_features = torch.zeros(size=(1, 80, 3000), dtype=torch.float32)
+decoder_input_ids = torch.zeros(size=(1, 448), dtype=torch.long)
 inputs = {
     "input_features": input_features,
     "decoder_input_ids": decoder_input_ids,
 }
 
-out = model(**inputs)
-print(out.logits.flatten()[0:10])
-print(out.logits.shape)
-print(out.encoder_last_hidden_state.shape)
-
-# DEFAULT_DECOMPOSITIONS = [
-#     torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
-# ]
-
-# decomp = get_decompositions(DEFAULT_DECOMPOSITIONS)
-
-# # Initialize Dynamo Compiler with specific configurations as an importer.
-# dynamo_compiler = DynamoCompiler(
-#     primary_registry=tosa.ops_registry,
-#     aot_autograd_decomposition={**inductor_decomp, **decomp},
-#     # verbose=True
-# )
-
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
-    # verbose=True
 )
 
 # Import the model into MLIR module and parameters.
