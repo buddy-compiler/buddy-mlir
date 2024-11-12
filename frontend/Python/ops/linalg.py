@@ -1073,7 +1073,7 @@ def mul_op(
         element = mlir_element_attr_get(dtype, node.args[1])
         attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
         input2 = arith.ConstantOp(tensor_type, attr).result
-    
+
     input1_dtype = ir.RankedTensorType(input1.type).element_type
     input2_dtype = ir.RankedTensorType(input2.type).element_type
     if input1_dtype != mlir_dtype:
@@ -1806,7 +1806,7 @@ def where_op(
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     output = tensor.EmptyOp(output_shape, mlir_dtype)
-    
+
     if not isinstance(input2.type, ir.RankedTensorType):
         input2 = tensor.SplatOp(tensor_type, input2).result
     if not isinstance(input3.type, ir.RankedTensorType):
@@ -1857,7 +1857,9 @@ def where_op(
             ir.RankedTensorType(output.result.type).element_type,
         ],
     )
-    select_op = arith.SelectOp(block.arguments[0], block.arguments[1], block.arguments[2])
+    select_op = arith.SelectOp(
+        block.arguments[0], block.arguments[1], block.arguments[2]
+    )
     block.append(select_op)
     block.append(linalg.YieldOp([select_op.result]))
 
@@ -1996,6 +1998,7 @@ def gt_op(node: GtOp, symbol_table):
 
     return cmp_op
 
+
 def ge_op(
     node: GeOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
@@ -2026,6 +2029,7 @@ def ge_op(
         cmp_op = arith.CmpFOp(3, input_tensor, rhs)
 
     return cmp_op
+
 
 def greater_than_op(
     node: GreaterThanOp,
@@ -2105,17 +2109,14 @@ def greater_than_op(
                 str(ir.RankedTensorType(input2.type).element_type).find("i")
                 != -1
             ):
-                cmpop = arith.CmpIOp(
-                    4, block.arguments[0], block.arguments[1]
-                )
+                cmpop = arith.CmpIOp(4, block.arguments[0], block.arguments[1])
             else:
-                cmpop = arith.CmpFOp(
-                    2, block.arguments[0], block.arguments[1]
-                )
+                cmpop = arith.CmpFOp(2, block.arguments[0], block.arguments[1])
             block.append(cmpop)
             block.append(linalg.YieldOp([cmpop.result]))
 
     return op
+
 
 ops_registry = {
     "MatmulOp": matmul_op,

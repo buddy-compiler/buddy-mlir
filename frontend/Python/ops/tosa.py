@@ -273,7 +273,7 @@ def mul_op(node: MulOp, symbol_table):
             input2,
             ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
-    
+
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
@@ -287,7 +287,7 @@ def mul_op(node: MulOp, symbol_table):
         element = mlir_element_attr_get(dtype, node.args[0])
         attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
         input2 = arith.ConstantOp(tensor_type, attr).result
-    
+
     if isinstance(node.args[1], str):
         input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
     else:
@@ -297,7 +297,7 @@ def mul_op(node: MulOp, symbol_table):
         element = mlir_element_attr_get(dtype, node.args[1])
         attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
         input2 = arith.ConstantOp(tensor_type, attr).result
-    
+
     input1_dtype = ir.RankedTensorType(input1.type).element_type
     input2_dtype = ir.RankedTensorType(input2.type).element_type
     if input1_dtype != mlir_dtype:
@@ -1618,7 +1618,9 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     value_shape = value.type.shape
     output_shape = list(node.tensor_meta["shape"])
     L, S = query_shape[-2], key_shape[-2]
-    scale_factor = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    scale_factor = (
+        1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    )
 
     # Initialize attention bias
     dtype = node.tensor_meta["dtype"][0]
@@ -1631,16 +1633,31 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
         if attn_mask.type.element_type == ir.IntegerType.get_signless(1):
             assert attn_mask.type.element_type == ir.IntegerType.get_signless(1)
-            tensor_type = ir.RankedTensorType.get(attn_mask.type.shape, ir.IntegerType.get_signless(1))
-            true_tensor = arith.ConstantOp(tensor_type, ir.DenseElementsAttr.get_splat(tensor_type, ir.BoolAttr.get(True)))
+            tensor_type = ir.RankedTensorType.get(
+                attn_mask.type.shape, ir.IntegerType.get_signless(1)
+            )
+            true_tensor = arith.ConstantOp(
+                tensor_type,
+                ir.DenseElementsAttr.get_splat(
+                    tensor_type, ir.BoolAttr.get(True)
+                ),
+            )
             attn_mask = arith.XOrIOp(attn_mask, true_tensor)
-            minus_inf_tensor = arith.ConstantOp(attn_mask.type, ir.DenseElementsAttr.get_splat(attn_mask.type, ir.FloatAttr.get(f32_type, float('-inf'))))
+            minus_inf_tensor = arith.ConstantOp(
+                attn_mask.type,
+                ir.DenseElementsAttr.get_splat(
+                    attn_mask.type, ir.FloatAttr.get(f32_type, float("-inf"))
+                ),
+            )
             attn_bias = tensor.SelectOp(attn_mask, minus_inf_tensor, attn_bias)
         else:
             if attn_mask.type.shape != attn_bias.result.type.shape:
-                attn_mask = tosa.ReshapeOp(attn_mask, memoryview(array.array("i",attn_bias.result.type.shape)))
+                attn_mask = tosa.ReshapeOp(
+                    attn_mask,
+                    memoryview(array.array("i", attn_bias.result.type.shape)),
+                )
             attn_bias = tosa.AddOp(attn_bias.result.type, attn_bias, attn_mask)
-    
+
     # Transpose key tensor
     key_shape = list(key.type.shape)
     perm_list = list(range(len(key_shape)))
@@ -1756,7 +1773,6 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     )
 
     return result_reshape_op, log_sumexp
-
 
 
 ops_registry = {
