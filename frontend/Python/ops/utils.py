@@ -33,6 +33,8 @@ def mlir_element_type_get(type_name):
     match type_name:
         case TensorDType.Float32:
             return ir.F32Type.get()
+        case TensorDType.Float16:
+            return ir.F16Type.get()
         case TensorDType.Int64:
             return ir.IntegerType.get_signless(64)
         case TensorDType.Bool:
@@ -49,6 +51,8 @@ def mlir_element_attr_get(type_name, value):
     match type_name:
         case TensorDType.Float32:
             return ir.FloatAttr.get(ir.F32Type.get(), value)
+        case TensorDType.Float16:
+            return ir.FloatAttr.get(ir.F16Type.get(), value)
         case TensorDType.Int64:
             return ir.IntegerAttr.get(ir.IntegerType.get_signless(64), value)
         case TensorDType.Bool:
