@@ -160,7 +160,7 @@ conv2d-nhwc-fhwc-vectorization-aot:
 	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out
 
 conv2d-nhwc-fhwc-vec-run:
-	@${BUDDY_OPT} ./conv2d-nhwc-fhwc-seq.mlir \
+	@${BUDDY_OPT} ./conv2d-nhwc-fhwc-vec.mlir \
 		-convert-vector-to-scf \
 		-lower-affine \
 		-arith-bufferize \
@@ -174,7 +174,7 @@ conv2d-nhwc-fhwc-vec-run:
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 		
 conv2d-nhwc-fhwc-vec-aot:
-	@${BUDDY_OPT} ./conv2d-nhwc-fhwc-seq.mlir \
+	@${BUDDY_OPT} ./conv2d-nhwc-fhwc-vec.mlir \
 		-convert-vector-to-scf \
 		-lower-affine \
 		-arith-bufferize \
