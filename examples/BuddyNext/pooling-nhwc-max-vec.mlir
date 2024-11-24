@@ -63,20 +63,22 @@ module {
           } 
           // Compute the tail size and Process the remaining elements 
           // using masked vector operations.
-          %tail_size = arith.subi %dim_4, %iter_idx : index
-          %mask = vector.create_mask %tail_size : vector<32xi1>
-          %5 = vector.maskedload %arg2[%arg3, %arg4, %arg5, %iter_idx], %mask, %0 : memref<?x?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
-          %6 = affine.for %arg7 = #map(%c0) to #map(%dim) iter_args(%arg8 = %5) -> (vector<32xf32>) {
-            %8 = arith.addi %arg4, %arg7 : index
-            %7 = affine.for %arg9 = #map(%c0) to #map(%dim_0) iter_args(%arg10 = %arg8) -> (vector<32xf32>) {
-              %9 = arith.addi %arg9, %arg5 : index
-              %10 = vector.maskedload %arg0[%arg3, %8, %9, %iter_idx], %mask, %0 : memref<?x?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
-              %11 = arith.maximumf %10, %arg10 : vector<32xf32>
-              affine.yield %11 : vector<32xf32>
+          scf.for %arg6 = %c0 to %dim_4 step %vl_step {
+            %tail_size = arith.subi %dim_4, %iter_idx : index
+            %mask = vector.create_mask %tail_size : vector<32xi1>
+            %5 = vector.maskedload %arg2[%arg3, %arg4, %arg5, %iter_idx], %mask, %0 : memref<?x?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
+            %6 = affine.for %arg7 = #map(%c0) to #map(%dim) iter_args(%arg8 = %5) -> (vector<32xf32>) {
+              %8 = arith.addi %arg4, %arg7 : index
+              %7 = affine.for %arg9 = #map(%c0) to #map(%dim_0) iter_args(%arg10 = %arg8) -> (vector<32xf32>) {
+                %9 = arith.addi %arg9, %arg5 : index
+                %10 = vector.maskedload %arg0[%arg3, %8, %9, %iter_idx], %mask, %0 : memref<?x?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
+                %11 = arith.maximumf %10, %arg10 : vector<32xf32>
+                affine.yield %11 : vector<32xf32>
+              }
+              affine.yield %7 : vector<32xf32>
             }
-            affine.yield %7 : vector<32xf32>
+            vector.maskedstore %arg2[%arg3, %arg4, %arg5, %iter_idx], %mask, %6 : memref<?x?x?x?xf32>, vector<32xi1>, vector<32xf32>
           }
-          vector.maskedstore %arg2[%arg3, %arg4, %arg5, %iter_idx], %mask, %6 : memref<?x?x?x?xf32>, vector<32xi1>, vector<32xf32>
         }
       }
     }
