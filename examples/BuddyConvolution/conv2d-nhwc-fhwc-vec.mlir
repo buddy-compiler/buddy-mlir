@@ -46,8 +46,9 @@ module {
       affine.for %idx_h_o = %c0 to %h_o { 
         affine.for %idx_w_o = %c0 to %w_o { 
           affine.for %idx_f = %c0 to %f  { 
+            %tmp_result = memref.load %arg2[%idx_n, %idx_h_o, %idx_w_o, %idx_f] : memref<?x?x?x?xf32>
             %iter_idx, %iter_value = scf.for %idx_c = %c0 to %upbound step %vl_step 
-                iter_args(%iter_init = %c0, %iter_value0 = %f0) -> (index, f32) {
+                iter_args(%iter_init = %c0, %iter_value0 = %tmp_result) -> (index, f32) {
               %tmp8 = affine.for %idx_h_k = %c0 to %h_k iter_args(%tmp9 = %iter_value0) -> (f32) {             
                 %tmp6 = affine.for %idx_w_k = %c0 to %w_k iter_args(%tmp7 = %tmp9) -> (f32) {
                   %in_iter_h = arith.addi %idx_h_k, %idx_h_o : index
