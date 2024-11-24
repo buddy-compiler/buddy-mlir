@@ -43,7 +43,7 @@ func.func private @rtclock() -> f64
 #map6 = affine_map<(d0, d1, d2) -> (d0, 0, d1, d2)>
 #map7 = affine_map<(d0, d1) -> (0, d0, d1)>
 
-func.func @kenerl(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, %arg2 : tensor<1x40x4096xf32>, %arg3 : tensor<1x1x2048x128xf32>, %arg4 : tensor<1x1x2048x128xf32>, %arg5 : tensor<1x40xi64>) {
+func.func @kernel(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, %arg2 : tensor<1x40x4096xf32>, %arg3 : tensor<1x1x2048x128xf32>, %arg4 : tensor<1x1x2048x128xf32>, %arg5 : tensor<1x40xi64>) {
   %t_start = call @rtclock() : () -> f64
 
   %57 = tosa.reshape %arg0 {new_shape = array<i64: 1, 40, 32, 128>} : (tensor<1x40x4096xf32>) -> tensor<1x40x32x128xf32>
@@ -150,7 +150,7 @@ func.func @main() {
   %c6 = arith.constant dense<6.0> : tensor<1x1x2048x128xf32>
   %c7 = arith.constant dense<7> : tensor<1x40xi64>
 
-  call @kenerl(%c2, %c3, %c4, %c5, %c6, %c7) : (tensor<1x40x4096xf32>, tensor<1x40x4096xf32>, tensor<1x40x4096xf32>, tensor<1x1x2048x128xf32>, tensor<1x1x2048x128xf32>, tensor<1x40xi64>) -> ()
+  call @kernel(%c2, %c3, %c4, %c5, %c6, %c7) : (tensor<1x40x4096xf32>, tensor<1x40x4096xf32>, tensor<1x40x4096xf32>, tensor<1x1x2048x128xf32>, tensor<1x1x2048x128xf32>, tensor<1x40xi64>) -> ()
 
   return
 }
