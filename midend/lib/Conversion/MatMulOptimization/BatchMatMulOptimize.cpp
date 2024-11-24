@@ -162,44 +162,52 @@ public:
                     });
                 // Compute the tail size and Process the remaining elements
                 // using masked vector operations.
-                Value idx = iter_idx.getResult(0);
-                Value tailSize = builder.create<arith::SubIOp>(loc, bCol, idx);
-                // Create mask according to the tail.
-                Value tailMask =
-                    builder.create<CreateMaskOp>(loc, vectorMaskTy, tailSize);
-                Value maskedCVec = builder.create<MaskedLoadOp>(
-                    loc, vectorTy, C, ValueRange{ivs[0], iv1, idx}, tailMask,
-                    passThroughVec);
-                auto iter_vec = builder.create<scf::ForOp>(
-                    loc, c0, bRow, /*Step=*/c1, ValueRange{maskedCVec},
-                    [&](OpBuilder &builder, Location loc, Value iv3,
-                        ValueRange itrArgs1) {
-                      Value aValue = builder.create<memref::LoadOp>(
-                          loc, A, ValueRange{ivs[0], iv1, iv3});
-                      Value aVec = builder.create<vector::BroadcastOp>(
-                          loc, vectorTy, aValue);
-                      Value maskedBVec = builder.create<MaskedLoadOp>(
-                          loc, vectorTy, B, ValueRange{ivs[0], iv3, idx},
+                builder.create<scf::ForOp>(
+                    loc, iter_idx.getResult(0), bCol, /*Step=*/vl_step,
+                    std::nullopt,
+                    [&](OpBuilder &builder, Location loc, Value iv,
+                        ValueRange itrArgs) {
+                      Value idx = iter_idx.getResult(0);
+                      Value tailSize =
+                          builder.create<arith::SubIOp>(loc, bCol, idx);
+                      // Create mask according to the tail.
+                      Value tailMask = builder.create<CreateMaskOp>(
+                          loc, vectorMaskTy, tailSize);
+                      Value maskedCVec = builder.create<MaskedLoadOp>(
+                          loc, vectorTy, C, ValueRange{ivs[0], iv1, idx},
                           tailMask, passThroughVec);
-                      // Compute the result vector either through integer
-                      // multiplication and addition or fused multiply-add
-                      // based on the element type.
-                      Value computedVec;
-                      if (isa<IntegerType>(elementType)) {
-                        Value mulVec = builder.create<arith::MulIOp>(
-                            loc, aVec, maskedBVec);
-                        computedVec = builder.create<arith::AddIOp>(
-                            loc, mulVec, itrArgs1[0]);
-                      } else {
-                        computedVec = builder.create<vector::FMAOp>(
-                            loc, aVec, maskedBVec, itrArgs1[0]);
-                      }
-                      builder.create<scf::YieldOp>(loc, computedVec);
+                      auto iter_vec = builder.create<scf::ForOp>(
+                          loc, c0, bRow, /*Step=*/c1, ValueRange{maskedCVec},
+                          [&](OpBuilder &builder, Location loc, Value iv3,
+                              ValueRange itrArgs1) {
+                            Value aValue = builder.create<memref::LoadOp>(
+                                loc, A, ValueRange{ivs[0], iv1, iv3});
+                            Value aVec = builder.create<vector::BroadcastOp>(
+                                loc, vectorTy, aValue);
+                            Value maskedBVec = builder.create<MaskedLoadOp>(
+                                loc, vectorTy, B, ValueRange{ivs[0], iv3, idx},
+                                tailMask, passThroughVec);
+                            // Compute the result vector either through integer
+                            // multiplication and addition or fused multiply-add
+                            // based on the element type.
+                            Value computedVec;
+                            if (isa<IntegerType>(elementType)) {
+                              Value mulVec = builder.create<arith::MulIOp>(
+                                  loc, aVec, maskedBVec);
+                              computedVec = builder.create<arith::AddIOp>(
+                                  loc, mulVec, itrArgs1[0]);
+                            } else {
+                              computedVec = builder.create<vector::FMAOp>(
+                                  loc, aVec, maskedBVec, itrArgs1[0]);
+                            }
+                            builder.create<scf::YieldOp>(loc, computedVec);
+                          });
+                      builder.create<MaskedStoreOp>(
+                          loc, C, ValueRange{ivs[0], iv1, idx}, tailMask,
+                          iter_vec.getResult(0));
+                      builder.create<scf::YieldOp>(loc);
                     });
-                builder.create<MaskedStoreOp>(loc, C,
-                                              ValueRange{ivs[0], iv1, idx},
-                                              tailMask, iter_vec.getResult(0));
-                builder.create<affine::AffineYieldOp>(loc);
+                    builder.create<affine::AffineYieldOp>(loc);
               });
         });
     rewriter.eraseOp(op);
