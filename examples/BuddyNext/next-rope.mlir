@@ -133,8 +133,30 @@ func.func @kernel(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, 
   // CHECK-SAME: [
   // CHECK-SAME: [-3{{(, [-]?3)*}}],
 
+  %tensor_unranked_1 = tensor.cast %84 : tensor<1x32x40x128xf32> to tensor<*xf32>
+
+  // All the elements of the MemRef are the same,
+  // only check the first line to verify the correctness.
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 32, 40, 128] strides = [163840, 5120, 128, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [-2{{(, -2)*}}{{(, 22)*}}],
+
+  %tensor_unranked_2 = tensor.cast %85 : tensor<1x32x40x128xf32> to tensor<*xf32>
+
+  // All the elements of the MemRef are the same,
+  // only check the first line to verify the correctness.
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 32, 40, 128] strides = [163840, 5120, 128, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [15{{(, 15)*}}],
+
   // Print results.
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
+  call @printMemrefF32(%tensor_unranked_1) : (tensor<*xf32>) -> ()
+  call @printMemrefF32(%tensor_unranked_2) : (tensor<*xf32>) -> ()
   // Print timings.
   vector.print %time : f64
 
