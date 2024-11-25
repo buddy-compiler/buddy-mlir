@@ -190,20 +190,21 @@ public:
               });
           // Compute the tail size and Process the remaining elements
           // using masked vector operations.
-          auto result = builder.create<scf::ForOp>(
-              loc, iter_val.getResult(0), channels, /*Step=*/vl_step,
-              ValueRange{iter_val.getResult(1)},
-              [&](OpBuilder &builder, Location loc, Value iv,
-                  ValueRange itrArgs) {
-                Value idx = iter_val.getResult(0);
-                Value tailSize =
-                    builder.create<arith::SubIOp>(loc, channels, idx);
+
+          Value idx = iter_val.getResult(0);
+          Value tailSize = builder.create<arith::SubIOp>(loc, channels, idx);
+          Value tailCond = rewriter.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sge, tailSize, c0);
+          // If the current column does not reach the tail.
+          builder.create<scf::IfOp>(
+              loc, tailCond,
+              [&](OpBuilder &builder, Location loc) {
                 Value tailMask =
                     builder.create<CreateMaskOp>(loc, vectorMaskTy, tailSize);
                 auto tmp0 = builder.create<affine::AffineForOp>(
                     loc, ValueRange{c0}, builder.getDimIdentityMap(),
                     ValueRange{height_k}, builder.getDimIdentityMap(),
-                    /*Step=*/1, ValueRange{itrArgs[0]},
+                    /*Step=*/1, ValueRange{iter_val.getResult(1)},
                     [&](OpBuilder &builder, Location loc, Value iv0,
                         ValueRange itrArgs0) {
                       auto tmp1 = builder.create<affine::AffineForOp>(
@@ -253,11 +254,17 @@ public:
                       builder.create<affine::AffineYieldOp>(loc,
                                                             tmp1.getResult(0));
                     });
-                builder.create<scf::YieldOp>(loc, tmp0.getResult(0));
+                builder.create<memref::StoreOp>(
+                    loc, tmp0.getResult(0), output,
+                    ValueRange{ivs[0], ivs[1], ivs[2], ivs[3]});
+                builder.create<scf::YieldOp>(loc);
+              },
+              [&](OpBuilder &builder, Location loc) {
+                builder.create<memref::StoreOp>(
+                    loc, iter_val.getResult(1), output,
+                    ValueRange{ivs[0], ivs[1], ivs[2], ivs[3]});
+                builder.create<scf::YieldOp>(loc);
               });
-          builder.create<memref::StoreOp>(
-              loc, result.getResult(0), output,
-              ValueRange{ivs[0], ivs[1], ivs[2], ivs[3]});
         });
     // Remove the origin convolution operation.
     rewriter.eraseOp(op);

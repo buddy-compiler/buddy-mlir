@@ -8,41 +8,43 @@
 // CHECK-NEXT:       affine.for %arg6 = #map(%c0) to #map(%dim_1) {
 // CHECK-NEXT:         %3 = memref.load %arg2[%arg3, %arg4, %arg5, %arg6] : memref<?x?x?x?xf32>
 // CHECK-NEXT:         %4:2 = scf.for %arg7 = %c0 to %2 step %c8 iter_args(%arg8 = %c0, %arg9 = %3) -> (index, f32) {
-// CHECK-NEXT:           %6 = affine.for %arg10 = #map(%c0) to #map(%dim_2) iter_args(%arg11 = %arg9) -> (f32) {
-// CHECK-NEXT:             %8 = affine.for %arg12 = #map(%c0) to #map(%dim_3) iter_args(%arg13 = %arg11) -> (f32) {
-// CHECK-NEXT:               %9 = arith.addi %arg4, %arg10 : index
-// CHECK-NEXT:               %10 = arith.addi %arg5, %arg12 : index
-// CHECK-NEXT:               %11 = vector.load %arg0[%arg3, %9, %10, %arg7] : memref<?x?x?x?xf32>, vector<8xf32>
-// CHECK-NEXT:               %12 = vector.load %arg1[%arg6, %arg10, %arg12, %arg7] : memref<?x?x?x?xf32>, vector<8xf32>
-// CHECK-NEXT:               %13 = arith.mulf %11, %12 : vector<8xf32>
-// CHECK-NEXT:               %14 = vector.reduction <add>, %13 : vector<8xf32> into f32
-// CHECK-NEXT:               %15 = arith.addf %14, %arg13 : f32
-// CHECK-NEXT:               affine.yield %15 : f32
-// CHECK-NEXT:             }
-// CHECK-NEXT:             affine.yield %8 : f32
-// CHECK-NEXT:           }
-// CHECK-NEXT:           %7 = arith.addi %arg8, %c8 : index
-// CHECK-NEXT:           scf.yield %7, %6 : index, f32
-// CHECK-NEXT:         }
-// CHECK-NEXT:         %5 = scf.for %arg7 = %4#0 to %dim_0 step %c8 iter_args(%arg8 = %4#1) -> (f32) {
-// CHECK-NEXT:           %6 = arith.subi %dim_0, %4#0 : index
-// CHECK-NEXT:           %7 = vector.create_mask %6 : vector<8xi1>
-// CHECK-NEXT:           %8 = affine.for %arg9 = #map(%c0) to #map(%dim_2) iter_args(%arg10 = %arg8) -> (f32) {
-// CHECK-NEXT:             %9 = affine.for %arg11 = #map(%c0) to #map(%dim_3) iter_args(%arg12 = %arg10) -> (f32) {
-// CHECK-NEXT:               %10 = arith.addi %arg4, %arg9 : index
-// CHECK-NEXT:               %11 = arith.addi %arg5, %arg11 : index
-// CHECK-NEXT:               %12 = vector.maskedload %arg0[%arg3, %10, %11, %4#0], %7, %0 : memref<?x?x?x?xf32>, vector<8xi1>, vector<8xf32> into vector<8xf32>
-// CHECK-NEXT:               %13 = vector.maskedload %arg1[%arg6, %arg9, %arg11, %4#0], %7, %0 : memref<?x?x?x?xf32>, vector<8xi1>, vector<8xf32> into vector<8xf32>
+// CHECK-NEXT:           %7 = affine.for %arg10 = #map(%c0) to #map(%dim_2) iter_args(%arg11 = %arg9) -> (f32) {
+// CHECK-NEXT:             %9 = affine.for %arg12 = #map(%c0) to #map(%dim_3) iter_args(%arg13 = %arg11) -> (f32) {
+// CHECK-NEXT:               %10 = arith.addi %arg4, %arg10 : index
+// CHECK-NEXT:               %11 = arith.addi %arg5, %arg12 : index
+// CHECK-NEXT:               %12 = vector.load %arg0[%arg3, %10, %11, %arg7] : memref<?x?x?x?xf32>, vector<8xf32>
+// CHECK-NEXT:               %13 = vector.load %arg1[%arg6, %arg10, %arg12, %arg7] : memref<?x?x?x?xf32>, vector<8xf32>
 // CHECK-NEXT:               %14 = arith.mulf %12, %13 : vector<8xf32>
 // CHECK-NEXT:               %15 = vector.reduction <add>, %14 : vector<8xf32> into f32
-// CHECK-NEXT:               %16 = arith.addf %15, %arg12 : f32
+// CHECK-NEXT:               %16 = arith.addf %15, %arg13 : f32
 // CHECK-NEXT:               affine.yield %16 : f32
 // CHECK-NEXT:             }
 // CHECK-NEXT:             affine.yield %9 : f32
 // CHECK-NEXT:           }
-// CHECK-NEXT:           scf.yield %8 : f32
+// CHECK-NEXT:           %8 = arith.addi %arg8, %c8 : index
+// CHECK-NEXT:           scf.yield %8, %7 : index, f32
 // CHECK-NEXT:         }
-// CHECK-NEXT:         memref.store %5, %arg2[%arg3, %arg4, %arg5, %arg6] : memref<?x?x?x?xf32>
+// CHECK-NEXT:         %5 = arith.subi %dim_0, %4#0 : index
+// CHECK-NEXT:         %6 = arith.cmpi sge, %5, %c0 : index
+// CHECK-NEXT:         scf.if %6 {
+// CHECK-NEXT:           %7 = vector.create_mask %5 : vector<8xi1>
+// CHECK-NEXT:           %8 = affine.for %arg7 = #map(%c0) to #map(%dim_2) iter_args(%arg8 = %4#1) -> (f32) {
+// CHECK-NEXT:             %9 = affine.for %arg9 = #map(%c0) to #map(%dim_3) iter_args(%arg10 = %arg8) -> (f32) {
+// CHECK-NEXT:               %10 = arith.addi %arg4, %arg7 : index
+// CHECK-NEXT:               %11 = arith.addi %arg5, %arg9 : index
+// CHECK-NEXT:               %12 = vector.maskedload %arg0[%arg3, %10, %11, %4#0], %7, %0 : memref<?x?x?x?xf32>, vector<8xi1>, vector<8xf32> into vector<8xf32>
+// CHECK-NEXT:               %13 = vector.maskedload %arg1[%arg6, %arg7, %arg9, %4#0], %7, %0 : memref<?x?x?x?xf32>, vector<8xi1>, vector<8xf32> into vector<8xf32>
+// CHECK-NEXT:               %14 = arith.mulf %12, %13 : vector<8xf32>
+// CHECK-NEXT:               %15 = vector.reduction <add>, %14 : vector<8xf32> into f32
+// CHECK-NEXT:               %16 = arith.addf %15, %arg10 : f32
+// CHECK-NEXT:               affine.yield %16 : f32
+// CHECK-NEXT:             }
+// CHECK-NEXT:             affine.yield %9 : f32
+// CHECK-NEXT:           }
+// CHECK-NEXT:           memref.store %8, %arg2[%arg3, %arg4, %arg5, %arg6] : memref<?x?x?x?xf32>
+// CHECK-NEXT:         } else {
+// CHECK-NEXT:           memref.store %4#1, %arg2[%arg3, %arg4, %arg5, %arg6] : memref<?x?x?x?xf32>
+// CHECK-NEXT:         }
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:   }
