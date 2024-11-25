@@ -162,14 +162,13 @@ public:
                     });
                 // Compute the tail size and Process the remaining elements
                 // using masked vector operations.
-                builder.create<scf::ForOp>(
-                    loc, iter_idx.getResult(0), bCol, /*Step=*/vl_step,
-                    std::nullopt,
-                    [&](OpBuilder &builder, Location loc, Value iv,
-                        ValueRange itrArgs) {
-                      Value idx = iter_idx.getResult(0);
-                      Value tailSize =
-                          builder.create<arith::SubIOp>(loc, bCol, idx);
+                Value idx = iter_idx.getResult(0);
+                Value tailSize = builder.create<arith::SubIOp>(loc, bCol, idx);
+                Value tailCond = rewriter.create<arith::CmpIOp>(
+                    loc, arith::CmpIPredicate::sge, tailSize, c0);
+                // If the current column does not reach the tail.
+                builder.create<scf::IfOp>(
+                    loc, tailCond, [&](OpBuilder &builder, Location loc) {
                       // Create mask according to the tail.
                       Value tailMask = builder.create<CreateMaskOp>(
                           loc, vectorMaskTy, tailSize);
@@ -207,7 +206,7 @@ public:
                           iter_vec.getResult(0));
                       builder.create<scf::YieldOp>(loc);
                     });
-                    builder.create<affine::AffineYieldOp>(loc);
+                builder.create<affine::AffineYieldOp>(loc);
               });
         });
     rewriter.eraseOp(op);

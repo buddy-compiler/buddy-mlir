@@ -40,9 +40,9 @@ module {
     %dim_3_upbound_tmp = arith.subi %dim_3, %vl_step : index
     %dim_3_upbound = arith.addi %dim_3_upbound_tmp, %c1 : index
 
-    affine.for %arg3 = %c0 to %dim {                               // C
+    affine.for %arg3 = %c0 to %dim {                                      // C
       affine.prefetch %arg0[%arg3, %dim_1, %dim_2], read, locality<3>, data : memref<?x?x?xf32>
-      affine.for %arg4 = %c0 to %dim_1 {                    // M
+      affine.for %arg4 = %c0 to %dim_1 {                                  // M
         // Perform the vectorization body.
         %iter_idx = scf.for %arg5 = %c0 to %dim_3_upbound 
               step %vl_step iter_args(%iter_init = %c0) -> (index) {      // N
@@ -62,17 +62,20 @@ module {
         // Compute the tail size and Process the remaining elements 
         // using masked vector operations.
         %tail_size = arith.subi %dim_3, %iter_idx : index
-        %mask = vector.create_mask %tail_size : vector<32xi1>
-        %1 = vector.maskedload %arg2[%arg3, %arg4, %iter_idx], %mask, %0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
-        %iter_vec = scf.for %arg6 = %c0 to %dim_2 step %c1
-            iter_args(%iter_vec0 = %1) -> (vector<32xf32>) {             // K 
-          %5 = vector.maskedload %arg1[%arg3, %arg6, %iter_idx], %mask, %0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
-          %6 = memref.load %arg0[%arg3, %arg4, %arg6] : memref<?x?x?xf32>
-          %7 = vector.broadcast %6 : f32 to vector<32xf32>
-          %9 = vector.fma %7, %5, %iter_vec0 : vector<32xf32>
-          scf.yield %9 : vector<32xf32>
+        %3 = arith.cmpi sgt, %tail_size, %c0 : index
+        scf.if %3 {
+          %mask = vector.create_mask %tail_size : vector<32xi1>
+          %1 = vector.maskedload %arg2[%arg3, %arg4, %iter_idx], %mask, %0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
+          %iter_vec = scf.for %arg6 = %c0 to %dim_2 step %c1
+              iter_args(%iter_vec0 = %1) -> (vector<32xf32>) {             // K 
+            %5 = vector.maskedload %arg1[%arg3, %arg6, %iter_idx], %mask, %0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
+            %6 = memref.load %arg0[%arg3, %arg4, %arg6] : memref<?x?x?xf32>
+            %7 = vector.broadcast %6 : f32 to vector<32xf32>
+            %9 = vector.fma %7, %5, %iter_vec0 : vector<32xf32>
+            scf.yield %9 : vector<32xf32>
+          }
+          vector.maskedstore %arg2[%arg3, %arg4, %iter_idx], %mask, %iter_vec : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32>
         }
-        vector.maskedstore %arg2[%arg3, %arg4, %iter_idx], %mask, %iter_vec : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32>
       }
     }
     return
