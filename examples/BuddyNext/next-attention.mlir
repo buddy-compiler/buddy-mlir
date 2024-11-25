@@ -34,7 +34,7 @@
 
 func.func private @rtclock() -> f64
 
-func.func @kenerl(%t0 : tensor<32x40x128xf32>, %t1 : tensor<32x128x40xf32>, %t2 : tensor<1x1x40x40xf32>, %t3 : tensor<1x32x40x128xf32>) {
+func.func @kernel(%t0 : tensor<32x40x128xf32>, %t1 : tensor<32x128x40xf32>, %t2 : tensor<1x1x40x40xf32>, %t3 : tensor<1x32x40x128xf32>) {
   %t_start = call @rtclock() : () -> f64
   
   %0 = tosa.matmul %t0, %t1 : (tensor<32x40x128xf32>, tensor<32x128x40xf32>) -> tensor<32x40x40xf32>
@@ -84,7 +84,7 @@ func.func @main() {
   %c2 = arith.constant dense <4.0> : tensor<1x1x40x40xf32>
   %c3 = arith.constant dense <8.0> : tensor<1x32x40x128xf32>
 
-  call @kenerl(%c0, %c1, %c2, %c3) : (tensor<32x40x128xf32>, tensor<32x128x40xf32>, tensor<1x1x40x40xf32>, tensor<1x32x40x128xf32>) -> ()
+  call @kernel(%c0, %c1, %c2, %c3) : (tensor<32x40x128xf32>, tensor<32x128x40xf32>, tensor<1x1x40x40xf32>, tensor<1x32x40x128xf32>) -> ()
 
   return
 }
