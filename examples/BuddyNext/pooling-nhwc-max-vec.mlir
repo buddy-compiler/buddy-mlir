@@ -63,8 +63,9 @@ module {
           } 
           // Compute the tail size and Process the remaining elements 
           // using masked vector operations.
-          scf.for %arg6 = %c0 to %dim_4 step %vl_step {
-            %tail_size = arith.subi %dim_4, %iter_idx : index
+          %tail_size = arith.subi %dim_4, %iter_idx : index
+          %3 = arith.cmpi sgt, %tail_size, %c0 : index
+          scf.if %3 {
             %mask = vector.create_mask %tail_size : vector<32xi1>
             %5 = vector.maskedload %arg2[%arg3, %arg4, %arg5, %iter_idx], %mask, %0 : memref<?x?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
             %6 = affine.for %arg7 = #map(%c0) to #map(%dim) iter_args(%arg8 = %5) -> (vector<32xf32>) {
