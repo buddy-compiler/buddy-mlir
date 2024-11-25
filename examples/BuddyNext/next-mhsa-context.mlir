@@ -45,16 +45,18 @@ func.func @kernel(%t0: tensor<1x32x40x40xf32>, %t1: tensor<1x32x40x128xf32>) {
   %114 = tosa.add %t1, %113 : (tensor<1x32x40x128xf32>, tensor<1x32x40x128xf32>) -> tensor<1x32x40x128xf32>
   %115 = tosa.reshape %114 {new_shape = array<i64: 32, 40, 128>} : (tensor<1x32x40x128xf32>) -> tensor<32x40x128xf32>
   %116 = tosa.matmul %112, %115 : (tensor<32x40x40xf32>, tensor<32x40x128xf32>) -> tensor<32x40x128xf32>
+  %117 = tosa.reshape %116 {new_shape = array<i64: 1, 32, 40, 128>} : (tensor<32x40x128xf32>) -> tensor<1x32x40x128xf32>
 
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64
 
-  %tensor_unranked = tensor.cast %116 : tensor<32x40x128xf32> to tensor<*xf32>
+  %tensor_unranked = tensor.cast %117 : tensor<1x32x40x128xf32> to tensor<*xf32>
 
   // All the elements of the MemRef are the same,
   // only check the first line to verify the correctness.
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [32, 40, 128] strides = [5120, 128, 1] data = 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 32, 40, 128] strides = [163840, 5120, 128, 1] data = 
   // CHECK-NEXT: [
+  // CHECK-SAME: [
   // CHECK-SAME: [
   // CHECK-SAME: [240{{(, 240)*}}],
 
