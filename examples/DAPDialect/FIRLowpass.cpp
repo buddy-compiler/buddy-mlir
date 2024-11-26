@@ -62,7 +62,7 @@ int main() {
   printLogLabel();
   std::cout << "Running FIR operation..." << std::endl;
   const auto loadStart = std::chrono::high_resolution_clock::now();
-  dap::fir(&inputContainer, &kernel, &outputMemRef);
+  dap::FIR(&inputContainer, &kernel, &outputMemRef);
   const auto loadEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> loadTime =
       loadEnd - loadStart;
