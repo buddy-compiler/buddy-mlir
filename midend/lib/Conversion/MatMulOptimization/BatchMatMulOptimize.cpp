@@ -165,7 +165,7 @@ public:
                 Value idx = iter_idx.getResult(0);
                 Value tailSize = builder.create<arith::SubIOp>(loc, bCol, idx);
                 Value tailCond = rewriter.create<arith::CmpIOp>(
-                    loc, arith::CmpIPredicate::sge, tailSize, c0);
+                    loc, arith::CmpIPredicate::sgt, tailSize, c0);
                 // If the current column does not reach the tail.
                 builder.create<scf::IfOp>(
                     loc, tailCond, [&](OpBuilder &builder, Location loc) {
