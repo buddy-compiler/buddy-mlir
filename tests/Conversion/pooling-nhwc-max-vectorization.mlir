@@ -22,7 +22,7 @@
 // CHECK-NEXT:         scf.yield %8 : index
 // CHECK-NEXT:       }
 // CHECK-NEXT:       %4 = arith.subi %dim_4, %3 : index
-// CHECK-NEXT:       %5 = arith.cmpi sge, %4, %c0 : index
+// CHECK-NEXT:       %5 = arith.cmpi sgt, %4, %c0 : index
 // CHECK-NEXT:       scf.if %5 {
 // CHECK-NEXT:         %6 = vector.create_mask %4 : vector<32xi1>
 // CHECK-NEXT:         %7 = vector.maskedload %arg2[%arg3, %arg4, %arg5, %3], %6, %0 : memref<?x?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
