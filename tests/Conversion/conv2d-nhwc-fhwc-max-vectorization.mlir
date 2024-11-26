@@ -25,7 +25,7 @@
 // CHECK-NEXT:           scf.yield %8, %7 : index, f32
 // CHECK-NEXT:         }
 // CHECK-NEXT:         %5 = arith.subi %dim_0, %4#0 : index
-// CHECK-NEXT:         %6 = arith.cmpi sge, %5, %c0 : index
+// CHECK-NEXT:         %6 = arith.cmpi sgt, %5, %c0 : index
 // CHECK-NEXT:         scf.if %6 {
 // CHECK-NEXT:           %7 = vector.create_mask %5 : vector<8xi1>
 // CHECK-NEXT:           %8 = affine.for %arg7 = #map(%c0) to #map(%dim_2) iter_args(%arg8 = %4#1) -> (f32) {
