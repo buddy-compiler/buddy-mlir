@@ -167,6 +167,8 @@ class DynamoCompiler:
             "split.Tensor":SplitOp,
             "max.default":MaxOp,
             "gt.Scalar":GtOp,
+            "_scaled_dot_product_efficient_attention.default": ScaledDotProductEfficientAttentionOp,
+            "_unsafe_index.Tensor": UnsafeIndexOp,
         }
 
     @property
