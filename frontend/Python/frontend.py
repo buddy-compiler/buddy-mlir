@@ -171,6 +171,7 @@ class DynamoCompiler:
             "_scaled_dot_product_flash_attention_for_cpu.default": ScaledDotProductFlashAttentionForCpuOp,
             "ge.Scalar": GeOp,
             "gt.Tensor": GreaterThanOp,
+            "_unsafe_index.Tensor": UnsafeIndexOp,
         }
 
     @property
@@ -261,11 +262,26 @@ class DynamoCompiler:
             return for torchdynamo's call.
         """
 
-        params = {
-            **dict(gm.named_parameters(remove_duplicate=False)),
-            **dict(gm.named_buffers(remove_duplicate=False)),
-        }
-        params_flat, _ = pytree.tree_flatten(params)
+        # params = {
+        #     # **dict(gm.named_parameters(remove_duplicate=False)),
+        #     **dict(gm.named_buffers(remove_duplicate=False)),
+        # }
+        # print(len(params))
+        # params_flat, _ = pytree.tree_flatten(params)
+        inputs_pos = []
+        params_pos = []
+        buffers_pos = []
+        for i, node in enumerate(gm.graph.nodes):
+            if i >= len(inputs):
+                break
+            if not str(node).startswith("l_self"):
+                inputs_pos.append(i)
+            elif "buffer" in str(node):
+                buffers_pos.append(i)
+            else:
+                params_pos.append(i)
+
+        params_flat = [inputs[i] for i in params_pos + buffers_pos]
 
         if self._verbose:
             print("Graph in tabular form:")
@@ -275,7 +291,9 @@ class DynamoCompiler:
             """Compile a FX graph in Aten/Prims IR to MLIR."""
             nonlocal params_flat
             func_inputs = []
-            for inp in _inputs[len(params_flat) :]:
+            for i in inputs_pos:
+            # for inp in _inputs[len(params_flat) :]:
+                inp = _inputs[i]
                 inp_shape = inp.shape
                 inp_dtype = self._torch_dtype_translate(str(inp.dtype))
                 func_inputs.append(TensorMeta(inp_shape, inp_dtype))
@@ -290,7 +308,20 @@ class DynamoCompiler:
                 self._func_name,
                 self._verbose
             )
-            for gm_node in _gm.graph.nodes:
+            param_nodes = []
+            buffers_nodes = []
+            input_nodes = []
+            for i, node in enumerate(_gm.graph.nodes):
+                if i in params_pos:
+                    param_nodes.append(node)
+                elif i in buffers_pos:
+                    buffers_nodes.append(node)
+                elif i in inputs_pos:
+                    input_nodes.append(node)
+            
+            gm_nodes = param_nodes + buffers_nodes + input_nodes
+
+            for gm_node in gm_nodes:
                 node_users = []
                 for user in gm_node.users.keys():
                     node_users.append(str(user))

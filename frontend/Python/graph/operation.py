@@ -553,3 +553,8 @@ class GreaterThanOp(Op):
         super().__init__()
         self._op_type = OpType.BroadcastType
 
+
+class UnsafeIndexOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType

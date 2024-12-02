@@ -24,18 +24,9 @@
 
 using namespace buddy;
 
-// Define ResultContainer
-struct ResultContainer {
-  MemRef<float, 3> memRef3D;
-  MemRef<float, 2> memRef2D;
-
-  ResultContainer(MemRef<float, 3> m1, MemRef<float, 2> m2)
-      : memRef3D(m1), memRef2D(m2) {}
-};
-
 // Declare BERT forward function.
 extern "C" void
-_mlir_ciface_forward(ResultContainer *result, MemRef<float, 1> *arg0,
+_mlir_ciface_forward(MemRef<float, 2> *result, MemRef<float, 1> *arg0,
                      MemRef<long long, 1> *arg1, MemRef<long long, 2> *arg2,
                      MemRef<long long, 2> *arg3, MemRef<long long, 2> *arg4);
 
@@ -94,9 +85,7 @@ int main() {
   pureStrContainer.tokenizeBert(vocabDir, 5);
 
   /// Initialize data containers.
-  MemRef<float, 3> result1({1, 5, 768});
-  MemRef<float, 2> result2({1, 6});
-  ResultContainer result(result1, result2);
+  MemRef<float, 2> result({1, 6});
   MemRef<long long, 2> attention_mask({1, 5}, 1LL);
   MemRef<long long, 2> token_type_ids({1, 5}, 0LL);
 
@@ -104,7 +93,7 @@ int main() {
 
   /// Execute forward inference of the model.
   _mlir_ciface_forward(&result, &arg0, &arg1, &pureStrContainer,
-                        &token_type_ids, &attention_mask);
+                       &token_type_ids, &attention_mask);
   
   const auto inferenceEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> inferenceTime =
@@ -113,8 +102,8 @@ int main() {
   int predict_label = -1;
   float max_logits = std::numeric_limits<float>::min();
   for (int i = 0; i < 6; i++) {
-    if (max_logits < result.memRef2D.getData()[i]) {
-      max_logits = result.memRef2D.getData()[i];
+    if (max_logits < result.getData()[i]) {
+      max_logits = result.getData()[i];
       predict_label = i;
     }
   }
