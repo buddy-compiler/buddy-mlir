@@ -23,7 +23,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
@@ -39,13 +38,12 @@ if model_path is None:
     )
 
 model = LeNet()
-model = torch.load(model_path + "/lenet-model.pth")
+model = torch.load(model_path + "/lenet-model.pth", weights_only=False)
 model = model.eval()
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=inductor_decomp,
 )
 
 data = torch.randn([1, 1, 28, 28])

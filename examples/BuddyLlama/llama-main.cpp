@@ -24,7 +24,7 @@
 
 using namespace buddy;
 
-constexpr size_t ParamsSize = 6755192832;
+constexpr size_t ParamsSize = 6738415680;
 constexpr size_t MaxVocabSize = 32000;
 constexpr size_t MaxTokenLength = 40;
 constexpr size_t HiddenSize = 4096;

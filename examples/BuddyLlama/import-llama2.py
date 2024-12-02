@@ -38,7 +38,7 @@ if model_path is None:
     )
 
 # Initialize the tokenizer and model from the specified model path.
-tokenizer = LlamaTokenizer.from_pretrained(model_path)
+tokenizer = LlamaTokenizer.from_pretrained(model_path, legacy=True)
 model = LlamaForCausalLM.from_pretrained(model_path, torchscript=True)
 model.config.use_cache = False
 

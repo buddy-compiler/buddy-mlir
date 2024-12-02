@@ -93,7 +93,7 @@ int main() {
 
   /// Execute forward inference of the model.
   _mlir_ciface_forward(&result, &arg0, &arg1, &pureStrContainer,
-                       &attention_mask, &token_type_ids);
+                       &token_type_ids, &attention_mask);
   
   const auto inferenceEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> inferenceTime =

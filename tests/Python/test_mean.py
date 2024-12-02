@@ -24,7 +24,7 @@ foo_mlir = torch.compile(foo, backend=dynamo_compiler)
 assert torch.allclose(
     foo_mlir(in1, in2, keepdim=in3), foo(in1, in2, keepdim=in3), equal_nan=True
 )
-graphs = dynamo_compiler.importer(foo, in1, in2, in3)
+graphs = dynamo_compiler._imported_graphs
 assert len(graphs) == 1
 graph = graphs[0]
 graph.lower_to_top_level_ir()
