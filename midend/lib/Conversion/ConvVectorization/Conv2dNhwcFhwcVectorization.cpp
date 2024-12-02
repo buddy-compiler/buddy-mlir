@@ -77,6 +77,10 @@ public:
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
+    auto strides = op->getAttrOfType<mlir::DenseIntElementsAttr>("strides")
+                       .getValues<int64_t>();
+    Value strHeight = rewriter.create<arith::ConstantIndexOp>(loc, strides[0]);
+    Value strWidth = rewriter.create<arith::ConstantIndexOp>(loc, strides[1]);
 
     // Get i1 as the element type for mask vector.
     IntegerType i1 = IntegerType::get(ctx, 1);
@@ -124,6 +128,9 @@ public:
     affine::buildAffineLoopNest(
         rewriter, loc, lowerBounds, uperBounds, steps,
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+          Value tmp_ivs1 =
+              builder.create<arith::MulIOp>(loc, ivs[1], strHeight);
+          Value tmp_ivs2 = builder.create<arith::MulIOp>(loc, ivs[2], strWidth);
           Value tmp_result = builder.create<memref::LoadOp>(
               loc, elementTy, output,
               ValueRange{ivs[0], ivs[1], ivs[2], ivs[3]});
@@ -144,10 +151,10 @@ public:
                           /*Step=*/1, ValueRange{itrArgs0[0]},
                           [&](OpBuilder &builder, Location loc, Value iv1,
                               ValueRange itrArgs1) {
-                            Value inputHeight =
-                                builder.create<arith::AddIOp>(loc, ivs[1], iv0);
-                            Value inputWidth =
-                                builder.create<arith::AddIOp>(loc, ivs[2], iv1);
+                            Value inputHeight = builder.create<arith::AddIOp>(
+                                loc, tmp_ivs1, iv0);
+                            Value inputWidth = builder.create<arith::AddIOp>(
+                                loc, tmp_ivs2, iv1);
                             Value inputVector = builder.create<vector::LoadOp>(
                                 loc, vectorTy, input,
                                 ValueRange{ivs[0], inputHeight, inputWidth,
@@ -213,10 +220,10 @@ public:
                           /*Step=*/1, ValueRange{itrArgs0[0]},
                           [&](OpBuilder &builder, Location loc, Value iv1,
                               ValueRange itrArgs1) {
-                            Value inputHeight =
-                                builder.create<arith::AddIOp>(loc, ivs[1], iv0);
-                            Value inputWidth =
-                                builder.create<arith::AddIOp>(loc, ivs[2], iv1);
+                            Value inputHeight = builder.create<arith::AddIOp>(
+                                loc, tmp_ivs1, iv0);
+                            Value inputWidth = builder.create<arith::AddIOp>(
+                                loc, tmp_ivs2, iv1);
                             Value inputVec = builder.create<MaskedLoadOp>(
                                 loc, vectorTy, input,
                                 ValueRange{ivs[0], inputHeight, inputWidth,
