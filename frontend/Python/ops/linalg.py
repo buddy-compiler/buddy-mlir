@@ -1151,6 +1151,26 @@ def matmul_op(
     return op
 
 
+def matmul_transpose_b_op(
+    node: TransposeMatmulFusedOp, 
+    symbol_table:Dict[Tuple[str, int], ir.Operation]
+    ):
+    input1 = symbol_table.get((str(node.args[0]),0))
+    input2 = symbol_table.get((str(node.args[1]),0))
+    
+    if input1 is None or input2 is None:
+        return
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    element = mlir_element_attr_get(dtype, 0.0)
+    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+    result_buffer = arith.ConstantOp(tensor_type, attr).result
+    op = linalg.matmul_transpose_b(input1, input2, outs=[result_buffer])
+    return op
+
+
 def transpose_op(
     node: TransposeOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
@@ -1968,6 +1988,7 @@ def gt_op(node: GtOp, symbol_table):
 
 ops_registry = {
     "MatmulOp": matmul_op,
+    "TransposeMatmulFusedOp": matmul_transpose_b_op,
     "ArangeOp": arange_op,
     "UnsqueezeOp": unsqueeze_op,
     "ViewOp": view_op,
