@@ -31,8 +31,8 @@ namespace detail {
 extern "C" {
 // TODO: support both float and double.
 void _mlir_ciface_buddy_fir(MemRef<float, 1> *inputBuddyConv1D,
-                               MemRef<float, 1> *kernelBuddyConv1D,
-                               MemRef<float, 1> *outputBuddyConv1D);
+                            MemRef<float, 1> *kernelBuddyConv1D,
+                            MemRef<float, 1> *outputBuddyConv1D);
 }
 } // namespace detail
 
@@ -67,7 +67,7 @@ void firLowpass(MemRef<T, N> &input, WINDOW_TYPE type, size_t len, T cutoff,
 }
 
 template <typename T, size_t N>
-void fir(MemRef<float, N> *input, MemRef<T, N> *filter,
+void FIR(MemRef<float, N> *input, MemRef<T, N> *filter,
          MemRef<float, N> *output) {
   if (N != 1)
     assert(0 && "Only mono audio is supported for now.");

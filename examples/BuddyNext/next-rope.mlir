@@ -43,7 +43,7 @@ func.func private @rtclock() -> f64
 #map6 = affine_map<(d0, d1, d2) -> (d0, 0, d1, d2)>
 #map7 = affine_map<(d0, d1) -> (0, d0, d1)>
 
-func.func @kenerl(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, %arg2 : tensor<1x40x4096xf32>, %arg3 : tensor<1x1x2048x128xf32>, %arg4 : tensor<1x1x2048x128xf32>, %arg5 : tensor<1x40xi64>) {
+func.func @kernel(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, %arg2 : tensor<1x40x4096xf32>, %arg3 : tensor<1x1x2048x128xf32>, %arg4 : tensor<1x1x2048x128xf32>, %arg5 : tensor<1x40xi64>) {
   %t_start = call @rtclock() : () -> f64
 
   %57 = tosa.reshape %arg0 {new_shape = array<i64: 1, 40, 32, 128>} : (tensor<1x40x4096xf32>) -> tensor<1x40x32x128xf32>
@@ -133,8 +133,30 @@ func.func @kenerl(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, 
   // CHECK-SAME: [
   // CHECK-SAME: [-3{{(, [-]?3)*}}],
 
+  %tensor_unranked_1 = tensor.cast %84 : tensor<1x32x40x128xf32> to tensor<*xf32>
+
+  // All the elements of the MemRef are the same,
+  // only check the first line to verify the correctness.
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 32, 40, 128] strides = [163840, 5120, 128, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [-2{{(, -2)*}}{{(, 22)*}}],
+
+  %tensor_unranked_2 = tensor.cast %85 : tensor<1x32x40x128xf32> to tensor<*xf32>
+
+  // All the elements of the MemRef are the same,
+  // only check the first line to verify the correctness.
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 32, 40, 128] strides = [163840, 5120, 128, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [15{{(, 15)*}}],
+
   // Print results.
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
+  call @printMemrefF32(%tensor_unranked_1) : (tensor<*xf32>) -> ()
+  call @printMemrefF32(%tensor_unranked_2) : (tensor<*xf32>) -> ()
   // Print timings.
   vector.print %time : f64
 
@@ -150,7 +172,7 @@ func.func @main() {
   %c6 = arith.constant dense<6.0> : tensor<1x1x2048x128xf32>
   %c7 = arith.constant dense<7> : tensor<1x40xi64>
 
-  call @kenerl(%c2, %c3, %c4, %c5, %c6, %c7) : (tensor<1x40x4096xf32>, tensor<1x40x4096xf32>, tensor<1x40x4096xf32>, tensor<1x1x2048x128xf32>, tensor<1x1x2048x128xf32>, tensor<1x40xi64>) -> ()
+  call @kernel(%c2, %c3, %c4, %c5, %c6, %c7) : (tensor<1x40x4096xf32>, tensor<1x40x4096xf32>, tensor<1x40x4096xf32>, tensor<1x1x2048x128xf32>, tensor<1x1x2048x128xf32>, tensor<1x40xi64>) -> ()
 
   return
 }
