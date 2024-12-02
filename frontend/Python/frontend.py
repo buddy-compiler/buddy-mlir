@@ -311,6 +311,7 @@ class DynamoCompiler:
             param_nodes = []
             buffers_nodes = []
             input_nodes = []
+            other_nodes = []
             for i, node in enumerate(_gm.graph.nodes):
                 if i in params_pos:
                     param_nodes.append(node)
@@ -318,8 +319,9 @@ class DynamoCompiler:
                     buffers_nodes.append(node)
                 elif i in inputs_pos:
                     input_nodes.append(node)
-            
-            gm_nodes = param_nodes + buffers_nodes + input_nodes
+                else:
+                    other_nodes.append(node)
+            gm_nodes = param_nodes + buffers_nodes + input_nodes + other_nodes
 
             for gm_node in gm_nodes:
                 node_users = []
