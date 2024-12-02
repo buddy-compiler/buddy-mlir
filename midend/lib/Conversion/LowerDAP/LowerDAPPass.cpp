@@ -51,13 +51,67 @@ public:
   LogicalResult matchAndRewrite(dap::FirOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
-    // auto ctx = op->getContext();
+    auto ctx = op->getContext();
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
 
-    rewriter.create<linalg::Conv1DOp>(loc, ValueRange{input, kernel},
-                                      ValueRange{output});
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    FloatType f32 = FloatType::getF32(ctx);
+    Value f0 =
+        rewriter.create<arith::ConstantFloatOp>(loc, APFloat(float(0.0)), f32);
+
+    Value kernelSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
+    Value dataLen = rewriter.create<memref::DimOp>(loc, output, c0);
+
+    // Populate the FIR pipeline by padding the `input` with [`kernelSize`-1]
+    // zeros at the beginning. Compute only the padding section of the input
+    // data.
+    Value fillInLen = rewriter.create<arith::SubIOp>(loc, kernelSize, c1);
+    rewriter.create<scf::ForOp>(
+        loc, c0, fillInLen, c1, ValueRange{std::nullopt},
+        [&](OpBuilder &b, Location loc, Value iv_n, ValueRange iargs) {
+          Value upperBound = b.create<arith::AddIOp>(loc, iv_n, c1);
+          Value outFinal =
+              b.create<scf::ForOp>(
+                   loc, c0, upperBound, c1, ValueRange{f0},
+                   [&](OpBuilder &b, Location loc, Value iv_k,
+                       ValueRange iargs) {
+                     Value i = b.create<arith::SubIOp>(loc, iv_n, iv_k);
+                     Value in = b.create<memref::LoadOp>(loc, input, i);
+                     Value k = b.create<memref::LoadOp>(loc, kernel, iv_k);
+                     Value mul = b.create<arith::MulFOp>(loc, in, k);
+                     Value outNext =
+                         b.create<arith::AddFOp>(loc, iargs[0], mul);
+                     b.create<scf::YieldOp>(loc, outNext);
+                   })
+                  .getResult(0);
+          b.create<memref::StoreOp>(loc, outFinal, output, ValueRange{iv_n});
+          b.create<scf::YieldOp>(loc, std::nullopt);
+        });
+
+    // Compute the input data following the padding section.
+    rewriter.create<scf::ForOp>(
+        loc, fillInLen, dataLen, c1, ValueRange{std::nullopt},
+        [&](OpBuilder &b, Location loc, Value iv_n, ValueRange iargs) {
+          Value outFinal =
+              b.create<scf::ForOp>(
+                   loc, c0, kernelSize, c1, ValueRange{f0},
+                   [&](OpBuilder &b, Location loc, Value iv_k,
+                       ValueRange iargs) {
+                     Value i = b.create<arith::SubIOp>(loc, iv_n, iv_k);
+                     Value in = b.create<memref::LoadOp>(loc, input, i);
+                     Value k = b.create<memref::LoadOp>(loc, kernel, iv_k);
+                     Value mul = b.create<arith::MulFOp>(loc, in, k);
+                     Value outNext =
+                         b.create<arith::AddFOp>(loc, iargs[0], mul);
+                     b.create<scf::YieldOp>(loc, outNext);
+                   })
+                  .getResult(0);
+          b.create<memref::StoreOp>(loc, outFinal, output, ValueRange{iv_n});
+          b.create<scf::YieldOp>(loc, std::nullopt);
+        });
 
     rewriter.eraseOp(op);
     return success();
