@@ -11,6 +11,12 @@ buddy-gpu-matmul-lower:
 		-transform-interpreter="entry-point=codegen" \
 		-o log.mlir
 
+buddy-gpu-conv2d-lower:
+	@${BUDDY_OPT} conv2d.mlir \
+		-transform-preload-library="transform-library-paths=transform-conv2d.mlir" \
+		-transform-interpreter="entry-point=codegen" \
+		-o log.mlir
+
 buddy-gpu-matmul:
 	@${BUDDY_OPT} matmul.mlir -transform-preload-library="transform-library-paths=transform.mlir" -transform-interpreter="entry-point=codegen" | \
 	${BUDDY_OPT} --pass-pipeline='builtin.module(func.func(nvgpu-optimize-shared-memory))' | \
