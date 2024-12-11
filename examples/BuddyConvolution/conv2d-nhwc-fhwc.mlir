@@ -1,4 +1,5 @@
 // RUN: buddy-opt %s \
+// RUN: 	-conv2d-nhwc-fhwc-vectorization \
 // RUN: 	-convert-linalg-to-loops \
 // RUN: 	-lower-affine \
 // RUN: 	-arith-bufferize \
