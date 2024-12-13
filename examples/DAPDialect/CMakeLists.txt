@@ -16,9 +16,16 @@ message(STATUS "Spliting size: ${SPLITING_SIZE}")
 # Buddy DAP Dialect FIR operation
 #-------------------------------------------------------------------------------
 
-add_executable(buddy-fir FIRLowpass.cpp)
-add_dependencies(buddy-fir buddy-opt)
-target_link_libraries(buddy-fir
+add_executable(buddy-fir-scalar FIRLowpass.cpp)
+add_dependencies(buddy-fir-scalar buddy-opt)
+target_link_libraries(buddy-fir-scalar
+  BuddyLibDAP
+  mlir_c_runner_utils
+)
+
+add_executable(buddy-fir-vectorization FIRVectorization.cpp)
+add_dependencies(buddy-fir-vectorization buddy-opt)
+target_link_libraries(buddy-fir-vectorization
   BuddyLibDAP
   mlir_c_runner_utils
 )
