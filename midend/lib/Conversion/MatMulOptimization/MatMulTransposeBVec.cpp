@@ -127,7 +127,10 @@ public:
                             },
                         // The else branch 
                         [&](OpBuilder &builder, Location loc) {
-                            Value aVec = builder.create<affine::AffineVectorLoadOp>(
+                            // TODO: remove this value and operation?
+                            // Value aVec = builder.create<affine::AffineVectorLoadOp>(
+                            //     loc, vectorTy, A, AVectorMap, ValueRange{ivs[0], ivs[1], iv});
+                            builder.create<affine::AffineVectorLoadOp>(
                                 loc, vectorTy, A, AVectorMap, ValueRange{ivs[0], ivs[1], iv});
                             // Create mask according to the tail.
                             Value maskVec = builder.create<CreateMaskOp>(
