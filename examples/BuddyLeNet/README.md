@@ -51,9 +51,16 @@ $ export LENET_EXAMPLE_PATH=${BUDDY_MLIR_BUILD_DIR}/../examples/BuddyLeNet/
 
 ```bash
 $ cmake -G Ninja .. -DBUDDY_LENET_EXAMPLES=ON
+
+// CPU
 $ ninja buddy-lenet-run
 $ cd bin
 $ ./buddy-lenet-run
+
+// GPU
+$ ninja buddy-lenet-run-gpu
+$ cd bin
+$ ./buddy-lenet-run-gpu
 ```
 
 ## Debug the Lowering Pass Pipeline with Fake Parameters.
