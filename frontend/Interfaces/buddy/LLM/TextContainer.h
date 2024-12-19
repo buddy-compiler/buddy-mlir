@@ -73,7 +73,8 @@ public:
   // Read the string at once, and replace all whitespace with a special
   // mark — thick underline.
   void tokenizeLlama(const std::string &vocab, size_t length);
-
+  // Stable Diffusion Tokenizer
+  // This function is designed for tokenizing input text for Stable Diffusion models.
   void tokenizeStableDiffusion(const std::string &vocab, size_t length);
 
   // Revert the ids into tokens.
