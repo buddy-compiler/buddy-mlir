@@ -81,16 +81,32 @@ public:
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
-    auto strides = op->getAttrOfType<mlir::DenseIntElementsAttr>("strides")
-                       .getValues<int64_t>();
+    // Get strides.
+    SmallVector<int64_t, 2> strides = {1, 1};
+    if (op->hasAttr("strides")) {
+        // 获取 "strides" 属性
+        if (auto attr = op->getAttrOfType<mlir::DenseIntElementsAttr>("strides")) {
+            strides.clear(); // 清空默认值
+            for (auto value : attr.getValues<int64_t>()) {
+                strides.push_back(value);
+            }
+        }
+    }
     bool stride1 = strides[0] != 1;
     bool stride2 = strides[1] != 1;
     Value strHeight = rewriter.create<arith::ConstantIndexOp>(loc, strides[0]);
     Value strWidth = rewriter.create<arith::ConstantIndexOp>(loc, strides[1]);
 
-    // Dilations.
-    auto dilations = op->getAttrOfType<mlir::DenseIntElementsAttr>("dilations")
-                         .getValues<int64_t>();
+    // // Get dilations.
+    SmallVector<int64_t, 2> dilations = {1, 1};
+    if (op->hasAttr("dilations")) {
+        if (auto attr = op->getAttrOfType<mlir::DenseIntElementsAttr>("dilations")) {
+            dilations.clear(); 
+            for (auto value : attr.getValues<int64_t>()) {
+                dilations.push_back(value);
+            }
+        }
+    }
     bool dilated1 = dilations[0] != 1;
     bool dilated2 = dilations[1] != 1;
     Value dilHeight = rewriter.create<arith::ConstantIndexOp>(loc, dilations[0]);
