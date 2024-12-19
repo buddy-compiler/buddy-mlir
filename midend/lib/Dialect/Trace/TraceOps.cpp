@@ -1,4 +1,4 @@
-//===- BudDialect.h - Bud Dialect Definition --------------------*- C++ -*-===//
+//===- TraceOps.cpp - Trace Dialect Ops --------------------------*- C++-*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,16 +13,15 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-// 
-// This is the header file for the bud dialect.
+//
+// This file defines operations in the trace dialect.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef BUD_BUDDIALECT_H
-#define BUD_BUDDIALECT_H
+#include "Trace/TraceOps.h"
+#include "Trace/TraceDialect.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/OpImplementation.h"
 
-#include "mlir/IR/Dialect.h"
-
-#include "Bud/BudOpsDialect.h.inc"
-
-#endif // BUD_BUDDIALECT_H
+#define GET_OP_CLASSES
+#include "Trace/TraceOps.cpp.inc"
