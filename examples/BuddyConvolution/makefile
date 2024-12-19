@@ -126,6 +126,11 @@ conv2d-nhwc-fhwc-opt-aot:
 		-o a.out
 	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out
 
+conv2d-nhwc-fhwc-vectorization-lower:
+	@${BUDDY_OPT} ./conv2d-nhwc-fhwc.mlir \
+		-conv2d-nhwc-fhwc-vectorization \
+		-o log.mlir
+
 conv2d-nhwc-fhwc-vectorization-run:
 	@${BUDDY_OPT} ./conv2d-nhwc-fhwc.mlir \
 		-conv2d-nhwc-fhwc-vectorization \

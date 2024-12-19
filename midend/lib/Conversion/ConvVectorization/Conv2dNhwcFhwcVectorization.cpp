@@ -77,10 +77,31 @@ public:
     Value input = op->getOperand(0);
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
-    auto strides = op->getAttrOfType<mlir::DenseIntElementsAttr>("strides")
-                       .getValues<int64_t>();
+    // Get Strides.
+    SmallVector<int64_t, 2> strides = {1, 1};
+    if (op->hasAttr("strides")) {
+        strides.clear();
+        for (auto value : op->getAttrOfType<mlir::DenseIntElementsAttr>("strides").getValues<int64_t>()) {
+            strides.push_back(value);
+        }
+    }
+    bool stride1 = strides[0] != 1;
+    bool stride2 = strides[1] != 1;
     Value strHeight = rewriter.create<arith::ConstantIndexOp>(loc, strides[0]);
     Value strWidth = rewriter.create<arith::ConstantIndexOp>(loc, strides[1]);
+
+    // Get Dilations.
+    SmallVector<int64_t, 2> dilations = {1, 1};
+    if (op->hasAttr("dilations")) {
+        dilations.clear();
+        for (auto value : op->getAttrOfType<mlir::DenseIntElementsAttr>("dilations").getValues<int64_t>()) {
+            dilations.push_back(value);
+        }
+    }
+    bool dilated1 = dilations[0] != 1;
+    bool dilated2 = dilations[1] != 1;
+    Value dilHeight = rewriter.create<arith::ConstantIndexOp>(loc, dilations[0]);
+    Value dilWidth = rewriter.create<arith::ConstantIndexOp>(loc, dilations[1]);
 
     // Get i1 as the element type for mask vector.
     IntegerType i1 = IntegerType::get(ctx, 1);
@@ -128,9 +149,15 @@ public:
     affine::buildAffineLoopNest(
         rewriter, loc, lowerBounds, uperBounds, steps,
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-          Value tmp_ivs1 =
-              builder.create<arith::MulIOp>(loc, ivs[1], strHeight);
-          Value tmp_ivs2 = builder.create<arith::MulIOp>(loc, ivs[2], strWidth);
+          // Create strides variables.
+          Value tmp_ivs1 = ivs[1];
+          if(stride1){
+            tmp_ivs1 = builder.create<arith::MulIOp>(loc, ivs[1], strHeight);
+          }
+          Value tmp_ivs2 = ivs[2];
+          if(stride2){
+            tmp_ivs2 = builder.create<arith::MulIOp>(loc, ivs[2], strWidth);
+          }
           Value tmp_result = builder.create<memref::LoadOp>(
               loc, elementTy, output,
               ValueRange{ivs[0], ivs[1], ivs[2], ivs[3]});
@@ -145,16 +172,24 @@ public:
                     /*Step=*/1, ValueRange{itrArgs[1]},
                     [&](OpBuilder &builder, Location loc, Value iv0,
                         ValueRange itrArgs0) {
+                      // Create dilated[0] variables.
+                      Value tmp_ivs3 = iv0;
+                      if(dilated1){
+                        tmp_ivs3 = builder.create<arith::MulIOp>(loc, iv0, dilHeight);
+                      }
+                      Value inputHeight = builder.create<arith::AddIOp>(loc, tmp_ivs1, tmp_ivs3);
                       auto tmp1 = builder.create<affine::AffineForOp>(
                           loc, ValueRange{c0}, builder.getDimIdentityMap(),
                           ValueRange{width_k}, builder.getDimIdentityMap(),
                           /*Step=*/1, ValueRange{itrArgs0[0]},
                           [&](OpBuilder &builder, Location loc, Value iv1,
                               ValueRange itrArgs1) {
-                            Value inputHeight = builder.create<arith::AddIOp>(
-                                loc, tmp_ivs1, iv0);
-                            Value inputWidth = builder.create<arith::AddIOp>(
-                                loc, tmp_ivs2, iv1);
+                            // Create dilated[1] variables.
+                            Value tmp_ivs4 = iv1;
+                            if(dilated2){
+                              tmp_ivs4 = builder.create<arith::MulIOp>(loc, iv1, dilWidth);
+                            }
+                            Value inputWidth = builder.create<arith::AddIOp>(loc, tmp_ivs2, tmp_ivs4);
                             Value inputVector = builder.create<vector::LoadOp>(
                                 loc, vectorTy, input,
                                 ValueRange{ivs[0], inputHeight, inputWidth,
@@ -214,16 +249,26 @@ public:
                     /*Step=*/1, ValueRange{iter_val.getResult(1)},
                     [&](OpBuilder &builder, Location loc, Value iv0,
                         ValueRange itrArgs0) {
+                      // Create dilated[0] variables.
+                      Value tmp_ivs3 = iv0;
+                      if(dilated1){
+                        tmp_ivs3 = builder.create<arith::MulIOp>(loc, iv0, dilHeight);
+                      }
+                      Value inputHeight =
+                                builder.create<arith::AddIOp>(loc, tmp_ivs1, tmp_ivs3);
                       auto tmp1 = builder.create<affine::AffineForOp>(
                           loc, ValueRange{c0}, builder.getDimIdentityMap(),
                           ValueRange{width_k}, builder.getDimIdentityMap(),
                           /*Step=*/1, ValueRange{itrArgs0[0]},
                           [&](OpBuilder &builder, Location loc, Value iv1,
                               ValueRange itrArgs1) {
-                            Value inputHeight = builder.create<arith::AddIOp>(
-                                loc, tmp_ivs1, iv0);
-                            Value inputWidth = builder.create<arith::AddIOp>(
-                                loc, tmp_ivs2, iv1);
+                            // Create dilated[1] variables.
+                            Value tmp_ivs4 = iv1;
+                            if(dilated2){
+                              tmp_ivs4 = builder.create<arith::MulIOp>(loc, iv1, dilWidth);
+                            }
+                            Value inputWidth =
+                                builder.create<arith::AddIOp>(loc, tmp_ivs2, tmp_ivs4);
                             Value inputVec = builder.create<MaskedLoadOp>(
                                 loc, vectorTy, input,
                                 ValueRange{ivs[0], inputHeight, inputWidth,
