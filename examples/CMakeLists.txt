@@ -24,7 +24,7 @@ if (BUDDY_MOBILENETV3_EXAMPLES)
   add_subdirectory(BuddyMobileNetV3)
 endif()
 
-if (BUDDY_STABLEDIFFUSION_EXAMPLES)
+if (BUDDY_STABLE_DIFFUSION_EXAMPLES)
   add_subdirectory(BuddyStableDiffusion)
 endif()
 

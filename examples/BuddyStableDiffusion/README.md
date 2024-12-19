@@ -59,12 +59,12 @@ $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:
 6. Build and run Stable Diffusion example
 
 ```
-$ cmake -G Ninja .. -DBUDDY_STABLEDIFFUSION_EXAMPLES=ON
-$ ninja buddy-stablediffusion-run
+$ cmake -G Ninja .. -DBUDDY_STABLE_DIFFUSION_EXAMPLES=ON
+$ ninja buddy-stable-diffusion-run
 $ cd bin
-$ ./buddy-stablediffusion-run
+$ ./buddy-stable-diffusion-run
 ```
-This build will spend a few minutes. We recommend you to use better cpu such as server-level cpu to run buddy-stablediffusion-run.
+This build will spend a few minutes. We recommend you to use better cpu such as server-level cpu to run buddy-stable-diffusion-run.
 
 If you wish to utilize `mimalloc` as a memory allocator, you need to set `BUDDY_MLIR_USE_MIMALLOC` and `MIMALLOC_BUILD_DIR`.
 For more details, please see [here](../../thirdparty/README.md#the-mimalloc-allocator).

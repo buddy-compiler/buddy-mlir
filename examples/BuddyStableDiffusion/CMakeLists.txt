@@ -292,14 +292,14 @@ SET_TARGET_PROPERTIES(TEXTENCODER PROPERTIES LINKER_LANGUAGE C)
 SET_TARGET_PROPERTIES(UNET PROPERTIES LINKER_LANGUAGE C)
 SET_TARGET_PROPERTIES(VAE PROPERTIES LINKER_LANGUAGE C)
 
-add_executable(buddy-stablediffusion-run buddy-stablediffusion-main.cpp)
-target_link_directories(buddy-stablediffusion-run PRIVATE ${LLVM_LIBRARY_DIR})
+add_executable(buddy-stable-diffusion-run buddy-stable-diffusion-main.cpp)
+target_link_directories(buddy-stable-diffusion-run PRIVATE ${LLVM_LIBRARY_DIR})
 
-set(BUDDY_STABLEDIFFUSION_LIBS TEXTENCODER UNET VAE mlir_c_runner_utils omp)
+set(BUDDY_STABLE_DIFFUSION_LIBS TEXTENCODER UNET VAE mlir_c_runner_utils omp)
 
 if(BUDDY_MLIR_USE_MIMALLOC)
   list(APPEND BUDDY_LLAMA_LIBS mimalloc)
 endif()
 
-target_link_libraries(buddy-stablediffusion-run ${BUDDY_STABLEDIFFUSION_LIBS})
+target_link_libraries(buddy-stable-diffusion-run ${BUDDY_STABLE_DIFFUSION_LIBS})
 

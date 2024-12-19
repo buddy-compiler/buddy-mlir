@@ -1,4 +1,4 @@
-//===- buddy-stablediffusion-main.cpp
+//===- buddy-stable-diffusion-main.cpp
 //-----------------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
