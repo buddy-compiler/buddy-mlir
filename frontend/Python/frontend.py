@@ -172,6 +172,8 @@ class DynamoCompiler:
             "ge.Scalar": GeOp,
             "gt.Tensor": GreaterThanOp,
             "_unsafe_index.Tensor": UnsafeIndexOp,
+            # "_low_memory_max_pool2d_with_offsets.default":LowMemoryMaxPool2dWithOffsets,
+            # "_low_memory_max_pool2d_offsets_to_indices.default":LowMemoryMaxPool2dOffsetsToIndices
         }
 
     @property
@@ -190,6 +192,8 @@ class DynamoCompiler:
                 return TensorDType.Int64
             case "torch.int32":
                 return TensorDType.Int32
+            case "torch.int8":
+                return TensorDType.Int8
             case "torch.float16":
                 return TensorDType.Float16
             case "torch.float32":
