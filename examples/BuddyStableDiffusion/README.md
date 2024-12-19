@@ -1,4 +1,4 @@
-# Buddy Compiler StableDiffusion Example
+# Buddy Compiler Stable Diffusion Example
 1. Enter Python virtual environment
 
 We recommend you to use anaconda3 to create python virtual environment. You should install python packages as buddy-mlir/requirements.
@@ -56,7 +56,7 @@ $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
 $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
-6. Build and run StableDiffusion example
+6. Build and run Stable Diffusion example
 
 ```
 $ cmake -G Ninja .. -DBUDDY_STABLEDIFFUSION_EXAMPLES=ON
