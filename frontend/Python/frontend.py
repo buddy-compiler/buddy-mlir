@@ -172,8 +172,6 @@ class DynamoCompiler:
             "ge.Scalar": GeOp,
             "gt.Tensor": GreaterThanOp,
             "_unsafe_index.Tensor": UnsafeIndexOp,
-            # "_low_memory_max_pool2d_with_offsets.default":LowMemoryMaxPool2dWithOffsets,
-            # "_low_memory_max_pool2d_offsets_to_indices.default":LowMemoryMaxPool2dOffsetsToIndices
         }
 
     @property
