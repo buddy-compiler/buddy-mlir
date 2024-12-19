@@ -18,6 +18,7 @@
 // RUN: | FileCheck %s
 
 func.func private @printMemrefF32(memref<*xf32>)
+func.func private @rtclock() -> f64
 
 func.func @batch_matmul(%arg0: memref<?x?x?xf32>, %arg1: memref<?x?x?xf32>, %arg2: memref<?x?x?xf32>) {
   linalg.batch_matmul 
@@ -68,7 +69,9 @@ func.func @main(){
   %m4 = call @alloc_f32(%c1, %c1024, %c1000, %f3) : (index, index, index, f32) -> memref<?x?x?xf32>
   %m5 = call @alloc_f32(%c1, %c1, %c1000, %f0) : (index, index, index, f32) -> memref<?x?x?xf32>
 
+  %t_start = call @rtclock() : () -> f64
   call @batch_matmul(%m3, %m4, %m5) : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
+  %t_end = call @rtclock() : () -> f64
 
   %printed_m5 = memref.cast %m5 : memref<?x?x?xf32> to memref<*xf32>
 
@@ -77,6 +80,9 @@ func.func @main(){
   // CHECK: [
   // CHECK: [6144{{(, 6144)*}}]
   call @printMemrefF32(%printed_m5) : (memref<*xf32>) -> ()
+
+  %time = arith.subf %t_end, %t_start : f64
+  vector.print %time : f64
 
   return
 }
