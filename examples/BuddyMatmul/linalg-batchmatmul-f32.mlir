@@ -18,11 +18,24 @@
 // RUN: | FileCheck %s
 
 func.func private @printMemrefF32(memref<*xf32>)
+func.func private @rtclock() -> f64
 
 func.func @batch_matmul(%arg0: memref<?x?x?xf32>, %arg1: memref<?x?x?xf32>, %arg2: memref<?x?x?xf32>) {
+  %t_start = call @rtclock() : () -> f64
+
   linalg.batch_matmul 
     ins(%arg0, %arg1 : memref<?x?x?xf32>, memref<?x?x?xf32>) 
     outs(%arg2 : memref<?x?x?xf32>)
+
+  %t_end = call @rtclock() : () -> f64
+  %time = arith.subf %t_end, %t_start : f64
+
+  %printed_output = memref.cast %arg2 : memref<?x?x?xf32> to memref<*xf32>
+  call @printMemrefF32(%printed_output) : (memref<*xf32>) -> ()
+
+  // Print timings.
+  vector.print %time : f64
+
   return
 }
 
@@ -54,29 +67,21 @@ func.func @main(){
   %m1 = call @alloc_f32(%c1, %c576, %c1024, %f3) : (index, index, index, f32) -> memref<?x?x?xf32>
   %m2 = call @alloc_f32(%c1, %c1, %c1024, %f0) : (index, index, index, f32) -> memref<?x?x?xf32>
 
-  call @batch_matmul(%m0, %m1, %m2) : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
-
-  %printed_m2 = memref.cast %m2 : memref<?x?x?xf32> to memref<*xf32>
-
   // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 1, 1024] strides = [1024, 1024, 1] data = 
   // CHECK-NEXT: [
   // CHECK: [
   // CHECK: [3456{{(, 3456)*}}]
-  call @printMemrefF32(%printed_m2) : (memref<*xf32>) -> ()
+  call @batch_matmul(%m0, %m1, %m2) : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
 
   %m3 = call @alloc_f32(%c1, %c1, %c1024, %f2) : (index, index, index, f32) -> memref<?x?x?xf32>
   %m4 = call @alloc_f32(%c1, %c1024, %c1000, %f3) : (index, index, index, f32) -> memref<?x?x?xf32>
   %m5 = call @alloc_f32(%c1, %c1, %c1000, %f0) : (index, index, index, f32) -> memref<?x?x?xf32>
 
-  call @batch_matmul(%m3, %m4, %m5) : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
-
-  %printed_m5 = memref.cast %m5 : memref<?x?x?xf32> to memref<*xf32>
-
   // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 1, 1000] strides = [1000, 1000, 1] data =
   // CHECK-NEXT: [
   // CHECK: [
   // CHECK: [6144{{(, 6144)*}}]
-  call @printMemrefF32(%printed_m5) : (memref<*xf32>) -> ()
+  call @batch_matmul(%m3, %m4, %m5) : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
 
   return
 }
