@@ -191,3 +191,4 @@ param_vae = numpy.concatenate(
     [param.detach().cpu().numpy().reshape([-1]) for param in params_vae]
 )
 param_vae.tofile(os.path.join(path_prefix, "arg0_vae.data"))
+

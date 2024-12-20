@@ -302,3 +302,4 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 target_link_libraries(buddy-stable-diffusion-run ${BUDDY_STABLE_DIFFUSION_LIBS} ${JPEG_LIBRARIES} ${PNG_LIBRARIES})
+
