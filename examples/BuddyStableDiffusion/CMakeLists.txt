@@ -301,5 +301,4 @@ if(BUDDY_MLIR_USE_MIMALLOC)
   list(APPEND BUDDY_LLAMA_LIBS mimalloc)
 endif()
 
-target_link_libraries(buddy-stable-diffusion-run ${BUDDY_STABLE_DIFFUSION_LIBS})
-
+target_link_libraries(buddy-stable-diffusion-run ${BUDDY_STABLE_DIFFUSION_LIBS} ${JPEG_LIBRARIES} ${PNG_LIBRARIES})
