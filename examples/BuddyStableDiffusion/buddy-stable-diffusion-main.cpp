@@ -294,7 +294,7 @@ extern "C" void _mlir_ciface_forward_vae(MemRef<float, 4> *result,
 
 int main() {
   const std::string title =
-      "StableDiffusion Inference Powered by Buddy Compiler";
+      "Stable Diffusion Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
   // Define directories of vacabulary and parameter file.
