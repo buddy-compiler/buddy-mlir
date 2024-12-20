@@ -1,4 +1,4 @@
-# ===- buddy-mobilenetv3-import.py ---------------------------------------------
+# ===- buddy-resnet-import.py --------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the MobileNet V3 model AOT importer.
+# This is the ResNet18 model AOT importer.
 #
 # ===---------------------------------------------------------------------------
 
@@ -23,25 +23,24 @@ import os
 from pathlib import Path
 import numpy as np
 import torch
-import torch._inductor.lowering
 import torchvision.models as models
+import torch._inductor.lowering
 from torch._inductor.decomposition import decompositions as inductor_decomp
+from torch._decomp import remove_decompositions
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
 
-# Retrieve the MobileNet V3 model path from environment variables.
-model_path = os.environ.get("MOBILENETV3_EXAMPLE_PATH")
+# Retrieve the ResNet18 model path from environment variables.
+model_path = os.environ.get("RESNET_EXAMPLE_PATH")
 if model_path is None:
     raise EnvironmentError(
-        "The environment variable 'MOBILENETV3_MODEL_PATH' is not set or is invalid."
+        "The environment variable 'RESNET_MODEL_PATH' is not set or is invalid."
     )
 
-model = models.mobilenet_v3_small(
-    weights=models.MobileNet_V3_Small_Weights.IMAGENET1K_V1, pretrained=True
-)
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 model = model.eval()
 
 # Remove the num_batches_tracked attribute.
@@ -49,6 +48,12 @@ for layer in model.modules():
     if isinstance(layer, torch.nn.BatchNorm2d):
         if hasattr(layer, "num_batches_tracked"):
             del layer.num_batches_tracked
+
+DEFAULT_DECOMPOSITIONS = [
+    torch.ops.aten.max_pool2d_with_indices.default,
+]
+
+remove_decompositions(inductor_decomp, DEFAULT_DECOMPOSITIONS)
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(

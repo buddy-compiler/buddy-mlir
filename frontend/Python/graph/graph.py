@@ -253,6 +253,8 @@ class Graph:
             match str(dtype):
                 case "i1":
                     np_type = np.dtype(np.bool_)
+                case "i8":
+                    np_type = np.dtype(np.int8)
                 case "i32":
                     np_type = np.dtype(np.int32)
                 case "i64":
@@ -390,6 +392,8 @@ class GraphImporter:
             NotImplementedError: If the given dtype is not supported.
         """
         match dtype:
+            case TensorDType.Int8:
+                return ir.IntegerType.get_signless(8)
             case TensorDType.Int32:
                 return ir.IntegerType.get_signless(32)
             case TensorDType.Int64:
