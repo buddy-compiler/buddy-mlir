@@ -15,3 +15,5 @@ librosa
 PyYAML
 certifi
 idna
+diffusers
+
