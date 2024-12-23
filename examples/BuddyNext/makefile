@@ -493,11 +493,12 @@ next-mhsa-qkv-parallel-vec-run:
 next-mhsa-qkv-fusion-lower:
 	@${MLIR_OPT} ./next-mhsa-qkv-fusion.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
-	${MLIR_OPT} \
+	${BUDDY_OPT} \
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries=1 function-boundary-type-conversion=identity-layout-map" \
+		-matmul-transpose-b-vectorization \
 		-o log.mlir
 
 next-mhsa-qkv-fusion-run:
@@ -540,7 +541,7 @@ next-mhsa-qkv-fusion-vec-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries=1 function-boundary-type-conversion=identity-layout-map" \
 		-matmul-transpose-b-vectorization \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
