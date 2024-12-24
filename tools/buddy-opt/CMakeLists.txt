@@ -14,6 +14,8 @@ target_link_libraries(buddy-opt
   MLIROptLib
   CBConvVectorization
   BuddyBud
+  BuddyTrace
+  LowerTracePass
   BuddySche
   LowerBudPass
   BuddyDIP
