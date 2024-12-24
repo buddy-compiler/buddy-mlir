@@ -4,6 +4,25 @@ BUDDY_TRANSLATE := ../../build/bin/buddy-translate
 BUDDY_LLC := ../../build/bin/buddy-llc 
 INTERFACES:= ../../frontend/Interfaces
 
+mvin-mvout-lower:
+	@${BUDDY_OPT} ./mvin-mvout.mlir \
+		-lower-gemmini \
+		-o log.mlir
+
+mvin-mvout-translate:
+	@${BUDDY_OPT} ./mvin-mvout.mlir \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+
+mvin-mvout-asm:
+	@${BUDDY_OPT} ./mvin-mvout.mlir \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.s
+
 mvin-mvout-run:
 	@${BUDDY_OPT} ./mvin-mvout.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
