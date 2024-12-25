@@ -409,7 +409,8 @@ public:
     // Value inputBatch = rewriter.create<memref::DimOp>(loc, input, c0);
     Value inputRow = rewriter.create<memref::DimOp>(loc, input, c1);
     Value inputCol = rewriter.create<memref::DimOp>(loc, input, c2);
-    Value inputColor = rewriter.create<memref::DimOp>(loc, input, c3);
+    // TODO: remove inputColor?
+    // Value inputColor = rewriter.create<memref::DimOp>(loc, input, c3);
 
     Value outputBatch = rewriter.create<memref::DimOp>(loc, output, c0);
     Value outputRow = rewriter.create<memref::DimOp>(loc, output, c1);
@@ -547,7 +548,8 @@ public:
     Value c0F32 = indexToF32(rewriter, loc, c0);
 
     // Value inputBatch = rewriter.create<memref::DimOp>(loc, input, c0);
-    Value inputColor = rewriter.create<memref::DimOp>(loc, input, c1);
+    // TODO: remove inputColor?
+    // Value inputColor = rewriter.create<memref::DimOp>(loc, input, c1);
     Value inputRow = rewriter.create<memref::DimOp>(loc, input, c2);
     Value inputCol = rewriter.create<memref::DimOp>(loc, input, c3);
 

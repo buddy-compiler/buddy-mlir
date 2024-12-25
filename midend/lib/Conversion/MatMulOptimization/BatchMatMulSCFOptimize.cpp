@@ -81,10 +81,11 @@ public:
     const Value cVecSize =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(vecSize));
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
-    const AffineExpr d1 = rewriter.getAffineDimExpr(1);
-    const AffineExpr d2 = rewriter.getAffineDimExpr(2);
-    const AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
-    const AffineExpr zeroAffine = rewriter.getAffineConstantExpr(0);
+    // TODO: remove the following values?
+    // const AffineExpr d1 = rewriter.getAffineDimExpr(1);
+    // const AffineExpr d2 = rewriter.getAffineDimExpr(2);
+    // const AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
+    // const AffineExpr zeroAffine = rewriter.getAffineConstantExpr(0);
 
     const Value zeroElementType = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getZeroAttr(elementType));

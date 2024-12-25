@@ -929,13 +929,15 @@ void radfgExtend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
   Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
-  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // TODO: remove c4?
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
 
   Value cdim = opBuilder.create<arith::SubIOp>(loc, ip, c0);
   Value tmp0 = opBuilder.create<arith::AddIOp>(loc, ip, c1);
   Value ipph = opBuilder.create<arith::DivSIOp>(loc, tmp0, c2);
   Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
-  Value idom2 = opBuilder.create<arith::SubIOp>(loc, ido, c2);
+  // TODO: remove the following values?
+  // Value idom2 = opBuilder.create<arith::SubIOp>(loc, ido, c2);
   Value idl1 = opBuilder.create<arith::MulIOp>(loc, ido, l1);
 
   opBuilder.create<scf::ForOp>(
@@ -1095,13 +1097,15 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   Value ipm1 = opBuilder.create<arith::SubIOp>(loc, ip, c1);
   Value ipm2 = opBuilder.create<arith::SubIOp>(loc, ip, c2);
 
-  Value cdim = opBuilder.create<arith::SubIOp>(loc, ip, c0);
+  // TODO: remove the following values?
+  // Value cdim = opBuilder.create<arith::SubIOp>(loc, ip, c0);
   Value tmp = opBuilder.create<arith::AddIOp>(loc, ip, c1);
   Value ipph = opBuilder.create<arith::DivSIOp>(loc, tmp, c2);
 
   Value idl1 = opBuilder.create<arith::MulIOp>(loc, ido, l1);
   Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
-  Value idom2 = opBuilder.create<arith::SubIOp>(loc, ido, c2);
+  // TODO: remove idom2?
+  // Value idom2 = opBuilder.create<arith::SubIOp>(loc, ido, c2);
 
   Value condition =
       opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, ido, l1);
@@ -1317,9 +1321,10 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
                     Value jp1 = b2.create<arith::AddIOp>(loc, j, c1);
                     Value jp2 = b2.create<arith::AddIOp>(loc, j, c2);
                     Value jp3 = b2.create<arith::AddIOp>(loc, j, c3);
-                    Value jm1 = b2.create<arith::SubIOp>(loc, j, c1);
-                    Value jm2 = b2.create<arith::SubIOp>(loc, j, c2);
-                    Value jm3 = b2.create<arith::SubIOp>(loc, j, c3);
+                    // TODO: remove the following values?
+                    // Value jm1 = b2.create<arith::SubIOp>(loc, j, c1);
+                    // Value jm2 = b2.create<arith::SubIOp>(loc, j, c2);
+                    // Value jm3 = b2.create<arith::SubIOp>(loc, j, c3);
 
                     Value c2ikj = C2(b2, loc, cc, ik_c, j, idl1);
                     Value c2ikjp1 = C2(b2, loc, cc, ik_c, jp1, idl1);
@@ -1405,7 +1410,8 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
                   [&](OpBuilder &b2, Location loc, Value ik_d,
                       ValueRange ik_d_args) {
                     Value jp1 = b2.create<arith::AddIOp>(loc, j, c1);
-                    Value jm1 = b2.create<arith::SubIOp>(loc, j, c1);
+                    // TODO: remove jm1?
+                    // Value jm1 = b2.create<arith::SubIOp>(loc, j, c1);
 
                     Value c2ikj = C2(b2, loc, cc, ik_d, j, idl1);
                     Value c2ikjp1 = C2(b2, loc, cc, ik_d, jp1, idl1);
@@ -1447,7 +1453,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
         Value jc_2_c = loop2.getResults()[1];
         Value iang2_c = loop2.getResults()[2];
 
-        auto loop3 = builder.create<scf::ForOp>(
+        builder.create<scf::ForOp>(
             loc, j_2_c, ipph, c1, ValueRange{j_2_c, jc_2_c, iang2_c},
             [&](OpBuilder &b, Location loc, Value j_loop,
                 ValueRange j_loop_args) {
@@ -1494,16 +1500,18 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
 
 void radf2Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
                  Value wa, Value ido, Value l1, Value cdim) {
-  FloatType f64Ty = opBuilder.getF64Type();
+  // TODO: remove f64Ty?
+  // FloatType f64Ty = opBuilder.getF64Type();
 
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
-  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c20 = opBuilder.create<ConstantIndexOp>(loc, 20);
+  // TODO: remove the following values?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c20 = opBuilder.create<ConstantIndexOp>(loc, 20);
 
-  Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
+  // Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
 
   opBuilder.create<scf::ForOp>(
       loc, c0, l1, c1, std::nullopt,
@@ -1542,16 +1550,17 @@ void radf2Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
 // Handle radix-2 FFT computation
 void radf2(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
            Value ido, Value l1) {
-
-  FloatType f64Ty = opBuilder.getF64Type();
+  // TODO: remove the f64Ty?
+  // FloatType f64Ty = opBuilder.getF64Type();
   Value cdim = opBuilder.create<ConstantIndexOp>(loc, 2);
 
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
-  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c20 = opBuilder.create<ConstantIndexOp>(loc, 20);
+  // TODO: remove the following values?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c20 = opBuilder.create<ConstantIndexOp>(loc, 20);
 
   Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
 
@@ -1606,8 +1615,9 @@ void radf3Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
-  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // TODO: remove c3 and c4?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
 
   opBuilder.create<scf::ForOp>(
       loc, c0, l1, c1, std::nullopt,
@@ -1687,8 +1697,9 @@ void radf3(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
-  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // TODO: remove c3 and c4?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
 
   Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
 
@@ -2072,10 +2083,11 @@ Value rfftp_factorize(OpBuilder &opBuilder, Location loc,
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
   Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
   Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c_neg1 = opBuilder.create<ConstantIndexOp>(loc, -1);
-  Value NFCT = opBuilder.create<ConstantIndexOp>(loc, 25);
+  // TODO: remove the following values?
+  // Value c_neg1 = opBuilder.create<ConstantIndexOp>(loc, -1);
+  // Value NFCT = opBuilder.create<ConstantIndexOp>(loc, 25);
 
-  FloatType f64Ty = opBuilder.getF64Type();
+  // FloatType f64Ty = opBuilder.getF64Type();
   IndexType indexTy = opBuilder.getIndexType();
 
   Value length =
@@ -2088,7 +2100,7 @@ Value rfftp_factorize(OpBuilder &opBuilder, Location loc,
 
   opBuilder.create<memref::StoreOp>(loc, c0, nfct, c0);
 
-  auto loop = opBuilder.create<scf::WhileOp>(
+  opBuilder.create<scf::WhileOp>(
       loc, TypeRange{indexTy}, ValueRange{length_1},
       [&](OpBuilder &builder, Location loc, ValueRange args) {
         Value length_while = args[0];
@@ -2136,8 +2148,9 @@ Value rfftp_factorize(OpBuilder &opBuilder, Location loc,
         builder.create<scf::YieldOp>(loc, std::nullopt);
       });
 
-  TypeRange type1 = TypeRange{f64Ty};
-  TypeRange type2 = TypeRange{indexTy};
+  // TODO: remove type1 and type2?
+  // TypeRange type1 = TypeRange{f64Ty};
+  // TypeRange type2 = TypeRange{indexTy};
 
   Value maxl =
       opBuilder.create<memref::AllocOp>(loc, MemRefType::get(1, indexTy));
@@ -2253,7 +2266,8 @@ Value rfftp_factorize(OpBuilder &opBuilder, Location loc,
 }
 
 Value index_to_f64(OpBuilder &opBuilder, Location loc, Value n) {
-  TypeRange type = TypeRange{opBuilder.getF64Type()};
+  // TODO: remove the following values?
+  // TypeRange type = TypeRange{opBuilder.getF64Type()};
   Value n_i32 =
       opBuilder.create<arith::IndexCastOp>(loc, opBuilder.getI32Type(), n);
   Value n_f64 =
@@ -2262,7 +2276,8 @@ Value index_to_f64(OpBuilder &opBuilder, Location loc, Value n) {
 }
 
 Value f64_to_index(OpBuilder &opBuilder, Location loc, Value n_f64) {
-  TypeRange type = TypeRange{opBuilder.getI32Type()};
+  // TODO: remove type?
+  // TypeRange type = TypeRange{opBuilder.getI32Type()};
   Value n_i32 =
       opBuilder.create<arith::FPToSIOp>(loc, opBuilder.getI32Type(), n_f64);
   Value n_index = opBuilder.create<arith::IndexCastOp>(
@@ -2355,8 +2370,9 @@ void calc_first_octant_extend2(OpBuilder &opBuilder, Location loc, Value den,
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
   Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
   Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
-  Value c50 = opBuilder.create<ConstantIndexOp>(loc, 50);
+  // TODO: remove c5 and c50?
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // Value c50 = opBuilder.create<ConstantIndexOp>(loc, 50);
 
   Value den_plus_4 = opBuilder.create<arith::AddIOp>(loc, den, c4);
   Value n = opBuilder.create<arith::ShRUIOp>(loc, den_plus_4, c3);
@@ -2382,8 +2398,9 @@ void calc_first_octant_extend2(OpBuilder &opBuilder, Location loc, Value den,
       opBuilder.create<ConstantFloatOp>(loc, APFloat(double(2.0)), f64Ty);
   Value f1 =
       opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
-  Value f0 =
-      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+  // TODO: remove f0?
+  // Value f0 =
+  //     opBuilder.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
 
   Value n_f64 = index_to_f64(opBuilder, loc, n);
   Value l1_f64 = opBuilder.create<math::SqrtOp>(loc, n_f64);
@@ -2490,10 +2507,11 @@ void calc_first_octant_extend1(OpBuilder &opBuilder, Location loc, Value den,
                                Value res, Value bias) {
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
-  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // TODO: remove c2 and c5?
+  // Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
   Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
   Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
 
   Value den_plus_4 = opBuilder.create<arith::AddIOp>(loc, den, c4);
   Value n = opBuilder.create<arith::ShRUIOp>(loc, den_plus_4, c3);
@@ -2536,11 +2554,12 @@ void calc_first_octant_extend1(OpBuilder &opBuilder, Location loc, Value den,
 void calc_first_octant(OpBuilder &opBuilder, Location loc, Value den, Value res,
                        Value bias) {
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
-  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
-  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // TODO: remove c1, c2, and c5?
+  // Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  // Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
   Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
   Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
 
   Value den_plus_4 = opBuilder.create<arith::AddIOp>(loc, den, c4);
   Value n = opBuilder.create<arith::ShRUIOp>(loc, den_plus_4, c3);
@@ -2561,8 +2580,9 @@ void calc_first_quadrant(OpBuilder &opBuilder, Location loc, Value n,
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
   Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
-  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // TODO: remove c4 and c5?
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
 
   Value size = opBuilder.create<memref::DimOp>(loc, res, c0);
   Value remaining_size = opBuilder.create<arith::SubIOp>(loc, size, n);
@@ -2628,7 +2648,8 @@ void calc_first_quadrant(OpBuilder &opBuilder, Location loc, Value n,
 
   Value i_v = loop.getResults()[0];
   Value idx1_v = loop.getResults()[1];
-  Value idx2_v = loop.getResults()[2];
+  // TODO: remove idx2_v?
+  // Value idx2_v = loop.getResults()[2];
 
   Value condition = opBuilder.create<arith::CmpIOp>(
       loc, arith::CmpIPredicate::ne, i_v, ndone);
@@ -2655,15 +2676,17 @@ void calc_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
   Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
   Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // TODO: remove c5?
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
 
   IndexType indexTy = opBuilder.getIndexType();
   FloatType f64Ty = opBuilder.getF64Type();
 
   Value f0 =
       opBuilder.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
-  Value f1 =
-      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+  // TODO: remove f1?
+  // Value f1 =
+  //     opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
 
   Value n_plus_1 = opBuilder.create<arith::AddIOp>(loc, n, c1);
   Value ndone = opBuilder.create<arith::ShRUIOp>(loc, n_plus_1, c1);
@@ -2802,7 +2825,7 @@ void calc_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
   Value final_i4_2 = loop2.getResults()[0];
   Value final_i_2 = loop2.getResults()[1];
 
-  auto loop3 = opBuilder.create<scf::WhileOp>(
+  opBuilder.create<scf::WhileOp>(
       loc, TypeRange{indexTy, indexTy}, ValueRange{final_i4_2, final_i_2},
       [&](OpBuilder &builder, Location loc, ValueRange args) {
         Value i4 = args[0];
@@ -2847,9 +2870,10 @@ void fill_first_quadrant(OpBuilder &opBuilder, Location loc, Value n,
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
-  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // TODO: remove c3, c4, and c5?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
   Value c8 = opBuilder.create<ConstantIndexOp>(loc, 8);
 
   FloatType f64Ty = opBuilder.getF64Type();
@@ -2899,9 +2923,10 @@ void fill_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // TODO: remove c3 and c5?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
   Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
 
   FloatType f64Ty = opBuilder.getF64Type();
   Value c_1 =
@@ -2966,12 +2991,13 @@ void fill_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
 void sincos_2pibyn_half(OpBuilder &opBuilder, Location loc, Value n,
                         Value res) {
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
-  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
-  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // TODO: remove the following values?
+  // Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  // Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
   Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
-  Value c50 = opBuilder.create<ConstantIndexOp>(loc, 50);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // Value c50 = opBuilder.create<ConstantIndexOp>(loc, 50);
 
   Value n_mod_4 = opBuilder.create<arith::RemUIOp>(loc, n, c4);
 
@@ -2988,9 +3014,12 @@ void sincos_2pibyn_half(OpBuilder &opBuilder, Location loc, Value n,
         builder.create<scf::YieldOp>(loc, std::nullopt);
       },
       [&](OpBuilder &builder, Location loc) {
-        Value n_mod_2 = builder.create<arith::RemUIOp>(loc, n, c2);
-        Value condition1 = builder.create<arith::CmpIOp>(
-            loc, arith::CmpIPredicate::eq, n_mod_2, c0);
+        // TODO: remove the following values?
+        // Value n_mod_2 = builder.create<arith::RemUIOp>(loc, n, c2);
+        
+        // TODO: remove condition1?
+        // Value condition1 = builder.create<arith::CmpIOp>(
+        //     loc, arith::CmpIPredicate::eq, n_mod_2, c0);
 
         opBuilder.create<scf::IfOp>(
             loc, condition,
@@ -3013,12 +3042,13 @@ Value rfftp_comp_twiddle(OpBuilder &opBuilder, Location loc, Value length,
                          Value Rfftp_fctdata_tws, Value Rfftp_plan_length,
                          Value Rfftp_plan_nfct, Value Rfftp_plan_mem) {
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  // TODO: remove the following values?
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
-  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
   Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
-  Value c50 = opBuilder.create<ConstantIndexOp>(loc, 50);
+  // Value c50 = opBuilder.create<ConstantIndexOp>(loc, 50);
 
   Value length_2 = opBuilder.create<arith::MulIOp>(loc, length, c2);
   FloatType f64Ty = opBuilder.getF64Type();
@@ -3167,9 +3197,10 @@ std::vector<Value> make_rfftp_plan(OpBuilder &opBuilder, Location loc,
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
   Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
-  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // TODO: remove the following values?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
 
   int64_t NFCT_num = 25;
   Value NFCT = opBuilder.create<ConstantIndexOp>(loc, NFCT_num);
@@ -3216,7 +3247,8 @@ std::vector<Value> make_rfftp_plan(OpBuilder &opBuilder, Location loc,
 
   opBuilder.create<scf::IfOp>(
       loc, condition, [&](OpBuilder &builder, Location loc) {
-        Value xxx = builder.create<ConstantIndexOp>(loc, 1);
+        // TODO: remove xxx?
+        // Value xxx = builder.create<ConstantIndexOp>(loc, 1);
         rfftp_factorize(builder, loc, Rfftp_fctdata_fct, Rfftp_fctdata_tw,
                         Rfftp_fctdata_tws, Rfftp_plan_length, Rfftp_plan_nfct,
                         Rfftp_plan_mem);
@@ -3233,10 +3265,11 @@ std::vector<Value> make_rfftp_plan(OpBuilder &opBuilder, Location loc,
 void memref_SWAP(OpBuilder &opBuilder, Location loc, Value p, Value p1) {
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
-  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
-  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
-  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // TODO: remove the following values?
+  // Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
 
   Value length = opBuilder.create<memref::DimOp>(loc, p, c0);
 
@@ -3269,8 +3302,9 @@ void copy_and_norm(OpBuilder &opBuilder, Location loc, Value c, Value p1,
                    Value n, Value fct, Value flag) {
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
-  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
-  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // TODO: remove the following values?
+  // Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
   FloatType f64Ty = opBuilder.getF64Type();
   Value f1 =
       opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
@@ -3340,7 +3374,8 @@ void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
   Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
   Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
   Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
-  Value c20 = opBuilder.create<ConstantIndexOp>(loc, 20);
+  // TODO: remove the following values?
+  // Value c20 = opBuilder.create<ConstantIndexOp>(loc, 20);
   FloatType f64Ty = opBuilder.getF64Type();
 
   Value n = opBuilder.create<memref::LoadOp>(loc, Rfftp_plan_length, c0);
@@ -3643,19 +3678,21 @@ public:
   LogicalResult matchAndRewrite(dap::RFFTOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
-    auto ctx = op->getContext();
+    // TODO: remove the following values?
+    // auto ctx = op->getContext();
     Value bufferMem = op->getOperand(0);
 
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
-    Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
-    Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
-    Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
-    Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
-    Value c9 = rewriter.create<ConstantIndexOp>(loc, 9);
-    Value c24 = rewriter.create<ConstantIndexOp>(loc, 24);
-    Value c25 = rewriter.create<ConstantIndexOp>(loc, 25);
-    Value c50 = rewriter.create<ConstantIndexOp>(loc, 50);
+    // TODO: remove the following values?
+    // Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    // Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
+    // Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
+    // Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
+    // Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
+    // Value c9 = rewriter.create<ConstantIndexOp>(loc, 9);
+    // Value c24 = rewriter.create<ConstantIndexOp>(loc, 24);
+    // Value c25 = rewriter.create<ConstantIndexOp>(loc, 25);
+    // Value c50 = rewriter.create<ConstantIndexOp>(loc, 50);
 
     Value inputFeatures = rewriter.create<bufferization::ToTensorOp>(
         loc, bufferMem, /*restrict=*/true, /*writable=*/true);
@@ -3664,8 +3701,9 @@ public:
 
     FloatType f64Ty = rewriter.getF64Type();
 
-    Value f0 =
-        rewriter.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+    // TODO: remove the following values?
+    // Value f0 =
+    //     rewriter.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
     Value f1 =
         rewriter.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
 

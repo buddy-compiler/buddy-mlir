@@ -22,14 +22,20 @@ func.func private @rtclock() -> f64
 
 func.func @batch_matmul(%arg0: memref<?x?x?xf32>, %arg1: memref<?x?x?xf32>, %arg2: memref<?x?x?xf32>) {
   %t_start = call @rtclock() : () -> f64
+
   linalg.batch_matmul 
     ins(%arg0, %arg1 : memref<?x?x?xf32>, memref<?x?x?xf32>) 
     outs(%arg2 : memref<?x?x?xf32>)
+
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64
+
   %printed_output = memref.cast %arg2 : memref<?x?x?xf32> to memref<*xf32>
   call @printMemrefF32(%printed_output) : (memref<*xf32>) -> ()
+
+  // Print timings.
   vector.print %time : f64
+  
   return
 }
 

@@ -53,6 +53,7 @@ add_custom_command(
     COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/subgraph0.mlir 
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             ${BUDDY_BINARY_DIR}/buddy-opt
+            -convert-elementwise-to-linalg
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
