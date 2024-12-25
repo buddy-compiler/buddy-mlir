@@ -18,11 +18,6 @@ MLIR_C_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_c_runner_utils.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
 
-linalg-batchmatmul-lower:
-	@${BUDDY_OPT} ./linalg-batchmatmul-f32.mlir \
-		-batchmatmul-optimize \
-		-o ./log.mlir
-
 linalg-batchmatmul-f32-run:
 	@${BUDDY_OPT} ./linalg-batchmatmul-f32.mlir \
 		-convert-linalg-to-loops \
@@ -39,6 +34,11 @@ linalg-batchmatmul-f32-run:
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+linalg-batchmatmul-vectorization-lower:
+	@${BUDDY_OPT} ./linalg-batchmatmul-f32.mlir \
+		-batchmatmul-optimize \
+		-o ./log.mlir
 
 linalg-batchmatmul-f32-vectorization-run:
 	@${BUDDY_OPT} ./linalg-batchmatmul-f32.mlir \

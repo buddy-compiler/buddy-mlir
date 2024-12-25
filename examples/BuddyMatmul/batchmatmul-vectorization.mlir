@@ -40,6 +40,7 @@ module {
     %dim_3_upbound_tmp = arith.subi %dim_3, %vl_step : index
     %dim_3_upbound = arith.addi %dim_3_upbound_tmp, %c1 : index
 
+    %t_start = call @rtclock() : () -> f64
     affine.for %arg3 = %c0 to %dim {                                      // C
       affine.prefetch %arg0[%arg3, %dim_1, %dim_2], read, locality<3>, data : memref<?x?x?xf32>
       affine.for %arg4 = %c0 to %dim_1 {                                  // M
@@ -78,6 +79,11 @@ module {
         }
       }
     }
+    %t_end = call @rtclock() : () -> f64
+    %time = arith.subf %t_end, %t_start : f64
+    %printed_output = memref.cast %arg2 : memref<?x?x?xf32> to memref<*xf32>
+    call @printMemrefF32(%printed_output) : (memref<*xf32>) -> ()
+    vector.print %time : f64
     return
   }
   func.func @alloc_f32(%arg0: index, %arg1: index, %arg2: index, %arg4: f32) -> memref<?x?x?xf32> {
@@ -108,29 +114,21 @@ module {
     %m1 = call @alloc_f32(%c1, %c576, %c1024, %f3) : (index, index, index, f32) -> memref<?x?x?xf32>
     %m2 = call @alloc_f32(%c1, %c1, %c1024, %f0) : (index, index, index, f32) -> memref<?x?x?xf32>
 
-    call @batch_matmul(%m0, %m1, %m2) : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
-
-    %printed_m2 = memref.cast %m2 : memref<?x?x?xf32> to memref<*xf32>
-
     // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 1, 1024] strides = [1024, 1024, 1] data = 
     // CHECK-NEXT: [
     // CHECK: [
     // CHECK: [3456{{(, 3456)*}}]
-    call @printMemrefF32(%printed_m2) : (memref<*xf32>) -> ()
+    call @batch_matmul(%m0, %m1, %m2) : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
 
     %m3 = call @alloc_f32(%c1, %c1, %c1024, %f2) : (index, index, index, f32) -> memref<?x?x?xf32>
     %m4 = call @alloc_f32(%c1, %c1024, %c1000, %f3) : (index, index, index, f32) -> memref<?x?x?xf32>
     %m5 = call @alloc_f32(%c1, %c1, %c1000, %f0) : (index, index, index, f32) -> memref<?x?x?xf32>
 
-    call @batch_matmul(%m3, %m4, %m5) : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
-
-    %printed_m5 = memref.cast %m5 : memref<?x?x?xf32> to memref<*xf32>
-
     // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 1, 1000] strides = [1000, 1000, 1] data =
     // CHECK-NEXT: [
     // CHECK: [
     // CHECK: [6144{{(, 6144)*}}]
-    call @printMemrefF32(%printed_m5) : (memref<*xf32>) -> ()
+    call @batch_matmul(%m3, %m4, %m5) : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
 
     return
   }
