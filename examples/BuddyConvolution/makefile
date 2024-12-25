@@ -133,7 +133,7 @@ conv2d-nhwc-fhwc-vectorization-lower:
 
 conv2d-nhwc-fhwc-vectorization-run:
 	@${BUDDY_OPT} ./conv2d-nhwc-fhwc.mlir \
-		-conv2d-nhwc-fhwc-vectorization \
+		-conv2d-nhwc-fhwc-vectorization="vec-size=2" \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-arith-bufferize \

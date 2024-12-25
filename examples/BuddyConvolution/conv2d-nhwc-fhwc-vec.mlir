@@ -41,6 +41,7 @@ module {
     %upbound_tmp = arith.subi %c, %vl_step : index
     %upbound = arith.addi %upbound_tmp, %c1 : index
 
+    %t_start = call @rtclock() : () -> f64
     // Output is NHoWoF
     affine.for %idx_n = %c0 to %n {         
       affine.for %idx_h_o = %c0 to %h_o { 
@@ -92,6 +93,14 @@ module {
         }
       }
     }
+    %t_end = call @rtclock() : () -> f64
+    %time = arith.subf %t_end, %t_start : f64
+
+    %printed_output = memref.cast %arg2 : memref<?x?x?x?xf32> to memref<*xf32>
+    call @printMemrefF32(%printed_output) : (memref<*xf32>) -> ()
+
+    // Print timings.
+    vector.print %time : f64
     return
   }
 
@@ -135,10 +144,6 @@ module {
     %v1 = call @alloc_f32(%c6, %c5, %c5, %c1, %f3) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
     %v2 = call @alloc_f32(%c1, %c24, %c24, %c6, %f0) : (index, index, index, index, f32) -> memref<?x?x?x?xf32>
 
-    %t_start = call @rtclock() : () -> f64
-    call @conv_2d_nhwc_fhwc(%v0, %v1, %v2) : (memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>) -> ()
-    %t_end = call @rtclock() : () -> f64
-
     // All the elements of the MemRef are the same,
     // only check the first line to verify the correctness.
     // CHECK: Unranked Memref
@@ -146,12 +151,8 @@ module {
     // CHECK: [
     // CHECK: [
     // CHECK: [150{{(, 150)*}}],
-    %print_v2 = memref.cast %v2 : memref<?x?x?x?xf32> to memref<*xf32>
-    call @printMemrefF32(%print_v2) : (memref<*xf32>) -> ()
-
-    %time = arith.subf %t_end, %t_start : f64
-    vector.print %time : f64
-
+    call @conv_2d_nhwc_fhwc(%v0, %v1, %v2) : (memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>) -> ()
+    
     memref.dealloc %v0 : memref<?x?x?x?xf32>
     memref.dealloc %v1 : memref<?x?x?x?xf32>
     memref.dealloc %v2 : memref<?x?x?x?xf32>
