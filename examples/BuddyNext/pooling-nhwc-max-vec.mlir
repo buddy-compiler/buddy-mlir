@@ -40,6 +40,7 @@ module {
     %dim_4_upbound_tmp = arith.subi %dim_4, %vl_step : index
     %dim_4_upbound = arith.addi %dim_4_upbound_tmp, %c1 : index
 
+    %t_start = call @rtclock() : () -> f64
     affine.for %arg3 = #map(%c0) to #map(%dim_1) {
       affine.for %arg4 = #map(%c0) to #map(%dim_2) {
         affine.for %arg5 = #map(%c0) to #map(%dim_3) {
@@ -83,6 +84,14 @@ module {
         }
       }
     }
+    %t_end = call @rtclock() : () -> f64
+    %time = arith.subf %t_end, %t_start : f64
+    %printed_output = memref.cast %arg2 : memref<?x?x?x?xf32> to memref<*xf32>
+    call @printMemrefF32(%printed_output) : (memref<*xf32>) -> ()
+
+    // Print timings.
+    vector.print %time : f64
+
     return
   }
 
@@ -105,9 +114,6 @@ module {
     linalg.fill ins(%cf1_32 : f32) outs(%b : memref<?x?xf32>)
     linalg.fill ins(%cf1_32 : f32) outs(%c : memref<?x?x?x?xf32>)
 
-    %t0 = call @rtclock() : () -> f64
-    call @pooling_nhwc_max(%a, %b, %c) : (memref<?x?x?x?xf32>, memref<?x?xf32>, memref<?x?x?x?xf32>) -> ()
-    %t1 = call @rtclock() : () -> f64
     // All the elements of the MemRef are the same,
     // only check the first line to verify the correctness.
     // CHECK: Unranked Memref
@@ -115,10 +121,7 @@ module {
     // CHECK: [
     // CHECK: [
     // CHECK: [1{{(, 1)*}}],
-    %print_C = memref.cast %c : memref<?x?x?x?xf32> to memref<*xf32>
-    call @printMemrefF32(%print_C) : (memref<*xf32>) -> ()
-    %time = arith.subf %t1, %t0 : f64
-    vector.print %time : f64
+    call @pooling_nhwc_max(%a, %b, %c) : (memref<?x?x?x?xf32>, memref<?x?xf32>, memref<?x?x?x?xf32>) -> ()
 
     memref.dealloc %c : memref<?x?x?x?xf32>
     memref.dealloc %b : memref<?x?xf32>
