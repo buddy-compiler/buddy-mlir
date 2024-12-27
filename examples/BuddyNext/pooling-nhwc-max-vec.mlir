@@ -100,7 +100,7 @@ module {
     %c1 = arith.constant 1 : index
     %cInput = arith.constant 24 : index
     %cKernel = arith.constant 2 : index
-    %cOutput = arith.constant 23 : index
+    %cOutput = arith.constant 12 : index
     %c6 = arith.constant 6 : index
 
     // Set Init Value.
