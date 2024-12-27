@@ -112,9 +112,9 @@ declare_mlir_python_extension(BuddyMLIRPythonSources.Extension
 
 add_mlir_python_common_capi_library(BuddyMLIRPythonCAPI
   INSTALL_COMPONENT BuddyMLIRPythonModules
-  INSTALL_DESTINATION python_packages/mlir_core/buddy_mlir/_mlir_libs
-  OUTPUT_DIRECTORY "${BUDDY_BUILD_DIR}/midend/python_packages/mlir_core/buddy_mlir/_mlir_libs"
-  RELATIVE_INSTALL_ROOT "../../../.."
+  INSTALL_DESTINATION python_packages/buddy_mlir/_mlir_libs
+  OUTPUT_DIRECTORY "${BUDDY_BUILD_DIR}/python_packages/buddy_mlir/_mlir_libs"
+  RELATIVE_INSTALL_ROOT "../../.."
   DECLARED_SOURCES
     BuddyMLIRPythonSources
     MLIRPythonSources
@@ -126,8 +126,8 @@ add_mlir_python_common_capi_library(BuddyMLIRPythonCAPI
 ################################################################################
 
 add_mlir_python_modules(BuddyMLIRPythonModules
-  ROOT_PREFIX "${BUDDY_BUILD_DIR}/midend/python_packages/mlir_core/buddy_mlir"
-  INSTALL_PREFIX "python_packages/mlir_core/buddy_mlir"
+  ROOT_PREFIX "${BUDDY_BUILD_DIR}/python_packages/buddy_mlir"
+  INSTALL_PREFIX "python_packages/buddy_mlir"
   DECLARED_SOURCES
     BuddyMLIRPythonSources
     MLIRPythonSources

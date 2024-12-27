@@ -1,13 +1,7 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
-from buddy_mlir.ir import *
-from buddy_mlir.passmanager import *
-from buddy_mlir.dialects import (
-    builtin,
-    func,
-    linalg,
-    gemmini
-)
+from buddy_mlir.ir import Context, Module
+from buddy_mlir.passmanager import PassManager
 
 with Context():
     mod = Module.parse("""
