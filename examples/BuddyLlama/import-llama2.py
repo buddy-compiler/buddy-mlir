@@ -47,7 +47,6 @@ os.makedirs(output_dir, exist_ok=True)
 
 # Retrieve the LLaMA model path from environment variables.
 model_path = os.environ.get("LLAMA_MODEL_PATH")
-print(model_path)
 if model_path is None:
     raise EnvironmentError(
         "The environment variable 'LLAMA_MODEL_PATH' is not set or is invalid."

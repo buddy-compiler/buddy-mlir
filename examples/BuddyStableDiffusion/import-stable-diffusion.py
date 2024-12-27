@@ -122,6 +122,32 @@ driver_text_encoder = GraphDriver(graphs_text_encoder[0])
 driver_unet = GraphDriver(graphs_unet[0])
 driver_vae = GraphDriver(graphs_vae[0])
 
+driver_text_encoder._subgraphs[
+    "subgraph0_text_encoder"
+] = driver_text_encoder._subgraphs.pop("subgraph0")
+driver_text_encoder._subgraphs_inputs[
+    "subgraph0_text_encoder"
+] = driver_text_encoder._subgraphs_inputs.pop("subgraph0")
+driver_text_encoder._subgraphs_outputs[
+    "subgraph0_text_encoder"
+] = driver_text_encoder._subgraphs_outputs.pop("subgraph0")
+driver_unet._subgraphs["subgraph0_unet"] = driver_unet._subgraphs.pop(
+    "subgraph0"
+)
+driver_unet._subgraphs_inputs[
+    "subgraph0_unet"
+] = driver_unet._subgraphs_inputs.pop("subgraph0")
+driver_unet._subgraphs_outputs[
+    "subgraph0_unet"
+] = driver_unet._subgraphs_outputs.pop("subgraph0")
+driver_vae._subgraphs["subgraph0_vae"] = driver_vae._subgraphs.pop("subgraph0")
+driver_vae._subgraphs_inputs[
+    "subgraph0_vae"
+] = driver_vae._subgraphs_inputs.pop("subgraph0")
+driver_vae._subgraphs_outputs[
+    "subgraph0_vae"
+] = driver_vae._subgraphs_outputs.pop("subgraph0")
+
 driver_text_encoder.subgraphs[0]._func_name = "subgraph0_text_encoder"
 driver_unet.subgraphs[0]._func_name = "subgraph0_unet"
 driver_vae.subgraphs[0]._func_name = "subgraph0_vae"
