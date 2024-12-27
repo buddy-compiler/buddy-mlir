@@ -14,12 +14,6 @@
 // RUN: | FileCheck %s
 
 // Using `8` as the vector size.
-#map = affine_map<(d0) -> (d0 floordiv 8)>
-#map0 = affine_map<(d0, d1, d2, d3) -> (d2)>
-#map1 = affine_map<(d0, d1) -> (d0 + d1)>
-#map2 = affine_map<(d0, d1) -> (d0 + d1 * 8)>
-#map3 = affine_map<(d0) -> (d0 * 8)>
-
 module {
   func.func private @printMemrefF32(memref<*xf32>)
   func.func private @rtclock() -> f64
@@ -30,9 +24,9 @@ module {
     %c1 = arith.constant 1 : index
     %c2 = arith.constant 2 : index
     %c3 = arith.constant 3 : index
+    %vl_step = arith.constant 8 : index
+    %vec0 = vector.splat %f0 : vector<8xf32>
     %n = memref.dim %arg0, %c0 : memref<?x?x?x?xf32>
-    %h_i = memref.dim %arg0, %c1 : memref<?x?x?x?xf32>
-    %w_i = memref.dim %arg0, %c2 : memref<?x?x?x?xf32>
     %c = memref.dim %arg0, %c3 : memref<?x?x?x?xf32>
     %f = memref.dim %arg1, %c0 : memref<?x?x?x?xf32>
     %h_k = memref.dim %arg1, %c1 : memref<?x?x?x?xf32>
@@ -40,29 +34,60 @@ module {
     %h_o = memref.dim %arg2, %c1 : memref<?x?x?x?xf32>
     %w_o = memref.dim %arg2, %c2 : memref<?x?x?x?xf32>
 
+    // Calculate the upper bound for vectorized processing
+    // - Subtract `vl_step` is to avoid overflow at the vectorization tail.
+    // - Add 1 to ensure the final loop runs when the workload length 
+    //   is divisible by the vector size.
+    %upbound_tmp = arith.subi %c, %vl_step : index
+    %upbound = arith.addi %upbound_tmp, %c1 : index
+
     %t_start = call @rtclock() : () -> f64
     // Output is NHoWoF
-    affine.for %idx_n = %c0 to %n {
-      affine.for %idx_f = %c0 to %f {
-        affine.for %idx_c = %c0 to %c {
-          affine.for %idx_h_o = %c0 to %h_o {
-            affine.for %idx_h_k = %c0 to %h_k {
-              affine.for %idx_w_k = %c0 to %w_k {
-                affine.for %idx_w_o = %c0 to #map(%w_o) {
-                  %kernel_ele = memref.load %arg1[%idx_f, %idx_h_k, %idx_w_k, %idx_c] : memref<?x?x?x?xf32>
-                  %kernel_vec = vector.broadcast %kernel_ele : f32 to vector<8xf32>
-                  %in_iter_h = affine.apply #map1 (%idx_h_k, %idx_h_o)
-                  %in_iter_w = affine.apply #map2 (%idx_w_k, %idx_w_o)
-                  %out_iter_w = affine.apply #map3 (%idx_w_o)
-                  %input_vec = vector.transfer_read %arg0[%idx_n, %in_iter_h, %in_iter_w, %idx_c], %f0
-                    { permutation_map = #map0 } : memref<?x?x?x?xf32>, vector<8xf32>
-                  %output_vec = vector.transfer_read %arg2[%idx_n, %idx_h_o, %out_iter_w, %idx_f], %f0
-                    { permutation_map = #map0 } : memref<?x?x?x?xf32>, vector<8xf32>
-                  %res_vec = vector.fma %kernel_vec, %input_vec, %output_vec : vector<8xf32>
-                  vector.transfer_write %res_vec, %arg2[%idx_n, %idx_h_o, %out_iter_w, %idx_f]
-                    { permutation_map = #map0 } : vector<8xf32>, memref<?x?x?x?xf32>
+    affine.for %idx_n = %c0 to %n {         
+      affine.for %idx_h_o = %c0 to %h_o { 
+        affine.for %idx_w_o = %c0 to %w_o { 
+          affine.for %idx_f = %c0 to %f  { 
+            %tmp_result = memref.load %arg2[%idx_n, %idx_h_o, %idx_w_o, %idx_f] : memref<?x?x?x?xf32>
+            %iter_idx, %iter_value = scf.for %idx_c = %c0 to %upbound step %vl_step 
+                iter_args(%iter_init = %c0, %iter_value0 = %tmp_result) -> (index, f32) {
+              %tmp8 = affine.for %idx_h_k = %c0 to %h_k iter_args(%tmp9 = %iter_value0) -> (f32) {             
+                %tmp6 = affine.for %idx_w_k = %c0 to %w_k iter_args(%tmp7 = %tmp9) -> (f32) {
+                  %in_iter_h = arith.addi %idx_h_k, %idx_h_o : index
+                  %in_iter_w = arith.addi %idx_w_k, %idx_w_o : index
+                  %input_vec = vector.load %arg0[%idx_n, %in_iter_h, %in_iter_w, %idx_c] : memref<?x?x?x?xf32>, vector<8xf32>
+                  %kernel_vec = vector.load %arg1[%idx_f, %idx_h_k, %idx_w_k, %idx_c] : memref<?x?x?x?xf32>, vector<8xf32>
+                  %tmp_vec0 = arith.mulf %kernel_vec, %input_vec : vector<8xf32>
+                  %tmp_val = vector.reduction <add>, %tmp_vec0 : vector<8xf32> into f32 
+                  %tmp4 = arith.addf %tmp7, %tmp_val  : f32
+                  affine.yield %tmp4 : f32
                 }
+                affine.yield %tmp6 : f32
               }
+              %tmp11 = arith.addi %iter_init, %vl_step  : index
+              scf.yield %tmp11, %tmp8 : index, f32
+            }
+            // Compute the tail size and Process the remaining elements 
+            // using masked vector operations.
+            %tail_size = arith.subi %c, %iter_idx : index
+            %3 = arith.cmpi sgt, %tail_size, %c0 : index
+            scf.if %3 {
+              %mask = vector.create_mask %tail_size : vector<8xi1>
+              %tmp8 = affine.for %idx_h_k = %c0 to %h_k iter_args(%tmp9 = %iter_value) -> (f32) { 
+                %tmp6 = affine.for %idx_w_k = %c0 to %w_k iter_args(%tmp7 = %tmp9) -> (f32) { 
+                  %in_iter_h = arith.addi %idx_h_k, %idx_h_o : index
+                  %in_iter_w = arith.addi %idx_w_k, %idx_w_o : index
+                  %input_vec = vector.maskedload %arg0[%idx_n, %in_iter_h, %in_iter_w, %iter_idx], %mask, %vec0 : memref<?x?x?x?xf32>, vector<8xi1>, vector<8xf32> into vector<8xf32>
+                  %kernel_vec = vector.maskedload %arg1[%idx_f, %idx_h_k, %idx_w_k, %iter_idx], %mask, %vec0 : memref<?x?x?x?xf32>, vector<8xi1>, vector<8xf32> into vector<8xf32>
+                  %tmp_vec0 = arith.mulf %kernel_vec, %input_vec : vector<8xf32>
+                  %tmp_val = vector.reduction <add>, %tmp_vec0 : vector<8xf32> into f32 
+                  %tmp4 = arith.addf %tmp7, %tmp_val  : f32
+                  affine.yield %tmp4 : f32
+                }
+                affine.yield %tmp6 : f32
+              }
+              memref.store %tmp8, %arg2[%idx_n, %idx_h_o, %idx_w_o, %idx_f] : memref<?x?x?x?xf32>
+            } else {
+              memref.store %iter_value, %arg2[%idx_n, %idx_h_o, %idx_w_o, %idx_f] : memref<?x?x?x?xf32>
             }
           }
         }
