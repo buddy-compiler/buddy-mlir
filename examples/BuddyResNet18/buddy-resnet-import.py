@@ -19,7 +19,7 @@
 # ===---------------------------------------------------------------------------
 
 import os
-
+import argparse
 from pathlib import Path
 import numpy as np
 import torch
@@ -32,6 +32,20 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
+
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description="Buddy ResNet18 Importer")
+parser.add_argument(
+    "--output-dir", 
+    type=str, 
+    default="./", 
+    help="Directory to save output files."
+)
+args = parser.parse_args()
+
+# Ensure output directory exists
+output_dir = os.path.abspath(args.output_dir)
+os.makedirs(output_dir, exist_ok=True)
 
 # Retrieve the ResNet18 model path from environment variables.
 model_path = os.environ.get("RESNET_EXAMPLE_PATH")
@@ -71,15 +85,15 @@ pattern_list = [simply_fuse]
 graphs[0].fuse_ops(pattern_list)
 driver = GraphDriver(graphs[0])
 driver.subgraphs[0].lower_to_top_level_ir()
-path_prefix = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
+
+# Write the MLIR module and forward graph to the specified output directory
+with open(os.path.join(output_dir, "subgraph0.mlir"), "w") as module_file:
     print(driver.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
+with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
 params = dynamo_compiler.imported_params[graph]
 current_path = os.path.dirname(os.path.abspath(__file__))
-
 
 float32_param = np.concatenate(
     [
@@ -88,4 +102,4 @@ float32_param = np.concatenate(
         if param.dtype == torch.float32
     ]
 )
-float32_param.tofile(Path(current_path) / "arg0.data")
+float32_param.tofile(Path(output_dir) / "arg0.data")

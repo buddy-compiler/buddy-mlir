@@ -123,7 +123,7 @@ int main() {
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
-  std::string paramsDir = resnetDir + "/arg0.data";
+  std::string paramsDir = resnetDir + "../../build/examples/BuddyResNet18/arg0.data";
   MemRef<float, 1> paramsContainer({ParamsSize});
   loadParameters(paramsDir, paramsContainer);
   // Call the forward function of the model.

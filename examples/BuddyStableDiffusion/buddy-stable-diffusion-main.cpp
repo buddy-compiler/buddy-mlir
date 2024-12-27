@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImgContainer.h>
-#include <buddy/DIP/imgcodecs/loadsave.h>
+#include <buddy/DIP/ImageContainer.h>
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
 #include <cstddef>
@@ -300,13 +300,13 @@ int main() {
   // Define directories of vacabulary and parameter file.
   const std::string vocabDir = "../../examples/BuddyStableDiffusion/vocab.txt";
   const std::string TextEncoderParamsDir1 =
-      "../../examples/BuddyStableDiffusion/arg0_text_encoder.data";
+      "../../build/examples/BuddyStableDiffusion/arg0_text_encoder.data";
   const std::string TextEncoderParamsDir2 =
-      "../../examples/BuddyStableDiffusion/arg1_text_encoder.data";
+      "../../build/examples/BuddyStableDiffusion/arg1_text_encoder.data";
   const std::string UnetParamsDir =
-      "../../examples/BuddyStableDiffusion/arg0_unet.data";
+      "../../build/examples/BuddyStableDiffusion/arg0_unet.data";
   const std::string VaeParamsDir =
-      "../../examples/BuddyStableDiffusion/arg0_vae.data";
+      "../../build/examples/BuddyStableDiffusion/arg0_vae.data";
 
   // Get user message.
   std::string inputStr;
@@ -473,7 +473,7 @@ int main() {
     resultVae.getData()[i] = resultVae.getData()[i] * 255;
   }
   intptr_t sizes[4] = {512, 512, 3, 1};
-  Img<float, 4> img(sizes);
+  Image<float, 4> img(new float[512 * 512 * 3 * 1], sizes);
 
   // Rearrange the images
   for (int i = 0; i < 3 * 512 * 512; i += 3) {
@@ -482,22 +482,18 @@ int main() {
     img.getData()[i + 2] = resultVae.getData()[i / 3 + 512 * 512 * 0];
   }
 
-  String Imgfilename =
-      "../../examples/BuddyStableDiffusion/" + image_name + ".bmp";
-  // Call the imwrite function
-  bool success = imwrite(Imgfilename, img);
+  const std::string Imgfilename =
+      "../../build/examples/BuddyStableDiffusion/" + image_name + ".bmp";
+  // Call the imageWrite function
+  imageWrite(Imgfilename, img);
 
   printLogLabel();
   std::cout << "The prompt used to generate the image:" << inputStr
             << std::endl;
 
   printLogLabel();
-  if (success) {
-    std::cout << "Image saved successfully to "
-              << std::filesystem::canonical(Imgfilename) << std::endl;
-  } else {
-    std::cerr << "Failed to save the image." << std::endl;
-  }
+  std::cout << "Image saved successfully to "
+            << std::filesystem::canonical(Imgfilename) << std::endl;
 
   return 0;
 }

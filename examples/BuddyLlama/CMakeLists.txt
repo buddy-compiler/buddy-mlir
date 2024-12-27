@@ -1,12 +1,16 @@
 add_custom_command(
-  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyLlama/forward.mlir ${BUDDY_EXAMPLES_DIR}/BuddyLlama/subgraph0.mlir ${BUDDY_EXAMPLES_DIR}/BuddyLlama/arg0.data
-  COMMAND ${Python3_EXECUTABLE} ${BUDDY_EXAMPLES_DIR}/BuddyLlama/import-llama2.py
+  OUTPUT ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/forward.mlir 
+         ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/subgraph0.mlir 
+         ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/arg0.data
+  COMMAND ${Python3_EXECUTABLE} ${BUDDY_EXAMPLES_DIR}/BuddyLlama/import-llama2.py 
+          --output-dir ${BUDDY_BINARY_DIR}/../examples/BuddyLlama
   COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
 )
 
+
 add_custom_command(
   OUTPUT forward.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/forward.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/forward.mlir 
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -arith-expand
@@ -44,13 +48,13 @@ add_custom_command(
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
         ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
           -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/forward.o
-  DEPENDS buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/forward.mlir
+  DEPENDS buddy-opt ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/forward.mlir
   COMMENT "Building forward.o "
   VERBATIM)
 
 add_custom_command(
     OUTPUT subgraph.o
-    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/subgraph0.mlir 
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/subgraph0.mlir 
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -convert-elementwise-to-linalg
@@ -90,7 +94,7 @@ add_custom_command(
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
             -o ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/subgraph.o
-    DEPENDS buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyLlama/subgraph0.mlir
+    DEPENDS buddy-opt ${BUDDY_BINARY_DIR}/../examples/BuddyLlama/subgraph0.mlir
     COMMENT "Building subgraph.o "
     VERBATIM)
 

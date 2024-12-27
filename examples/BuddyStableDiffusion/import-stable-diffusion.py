@@ -17,8 +17,9 @@
 # This is the Stable Diffusion model AOT importer.
 #
 # ===---------------------------------------------------------------------------
-import os
 
+import os
+import argparse
 from pathlib import Path
 import numpy
 import torch
@@ -30,6 +31,20 @@ from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
 from diffusers import StableDiffusionPipeline
+
+# Parse command-line arguments for output directory
+parser = argparse.ArgumentParser(description="Import Stable Diffusion Model")
+parser.add_argument(
+    "--output-dir",
+    type=str,
+    default="./",
+    help="Directory to save the output files.",
+)
+args = parser.parse_args()
+output_dir = args.output_dir
+
+# Ensure the output directory exists
+os.makedirs(output_dir, exist_ok=True)
 
 device = torch.device("cpu")
 model_id = "stabilityai/stable-diffusion-2-1-base"
@@ -45,7 +60,6 @@ pipe.vae.eval()
 text_encoder = pipe.text_encoder.forward
 unet = pipe.unet.forward
 vae = pipe.vae.decode
-
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler_text_encoder = DynamoCompiler(
@@ -76,7 +90,6 @@ data_unet = {
 }
 data_vae = torch.ones((1, 4, 64, 64), dtype=torch.float32).to(device)
 
-
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
     graphs_text_encoder = dynamo_compiler_text_encoder.importer(
@@ -84,7 +97,6 @@ with torch.no_grad():
     )
     graphs_unet = dynamo_compiler_unet.importer(unet, **data_unet)
     graphs_vae = dynamo_compiler_vae.importer(vae, data_vae, return_dict=False)
-
 
 assert len(graphs_text_encoder) == 1
 assert len(graphs_unet) == 1
@@ -110,32 +122,6 @@ driver_text_encoder = GraphDriver(graphs_text_encoder[0])
 driver_unet = GraphDriver(graphs_unet[0])
 driver_vae = GraphDriver(graphs_vae[0])
 
-driver_text_encoder._subgraphs[
-    "subgraph0_text_encoder"
-] = driver_text_encoder._subgraphs.pop("subgraph0")
-driver_text_encoder._subgraphs_inputs[
-    "subgraph0_text_encoder"
-] = driver_text_encoder._subgraphs_inputs.pop("subgraph0")
-driver_text_encoder._subgraphs_outputs[
-    "subgraph0_text_encoder"
-] = driver_text_encoder._subgraphs_outputs.pop("subgraph0")
-driver_unet._subgraphs["subgraph0_unet"] = driver_unet._subgraphs.pop(
-    "subgraph0"
-)
-driver_unet._subgraphs_inputs[
-    "subgraph0_unet"
-] = driver_unet._subgraphs_inputs.pop("subgraph0")
-driver_unet._subgraphs_outputs[
-    "subgraph0_unet"
-] = driver_unet._subgraphs_outputs.pop("subgraph0")
-driver_vae._subgraphs["subgraph0_vae"] = driver_vae._subgraphs.pop("subgraph0")
-driver_vae._subgraphs_inputs[
-    "subgraph0_vae"
-] = driver_vae._subgraphs_inputs.pop("subgraph0")
-driver_vae._subgraphs_outputs[
-    "subgraph0_vae"
-] = driver_vae._subgraphs_outputs.pop("subgraph0")
-
 driver_text_encoder.subgraphs[0]._func_name = "subgraph0_text_encoder"
 driver_unet.subgraphs[0]._func_name = "subgraph0_unet"
 driver_vae.subgraphs[0]._func_name = "subgraph0_vae"
@@ -144,25 +130,20 @@ driver_text_encoder.subgraphs[0].lower_to_top_level_ir()
 driver_unet.subgraphs[0].lower_to_top_level_ir()
 driver_vae.subgraphs[0].lower_to_top_level_ir()
 
-path_prefix = os.path.dirname(os.path.abspath(__file__))
-
-with open(
-    os.path.join(path_prefix, "subgraph0_text_encoder.mlir"), "w"
-) as module_file:
+# Save output files to specified directory
+with open(os.path.join(output_dir, "subgraph0_text_encoder.mlir"), "w") as module_file:
     print(driver_text_encoder.subgraphs[0]._imported_module, file=module_file)
-with open(
-    os.path.join(path_prefix, "forward_text_encoder.mlir"), "w"
-) as module_file:
+with open(os.path.join(output_dir, "forward_text_encoder.mlir"), "w") as module_file:
     print(driver_text_encoder.construct_main_graph(True), file=module_file)
 
-with open(os.path.join(path_prefix, "subgraph0_unet.mlir"), "w") as module_file:
+with open(os.path.join(output_dir, "subgraph0_unet.mlir"), "w") as module_file:
     print(driver_unet.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(path_prefix, "forward_unet.mlir"), "w") as module_file:
+with open(os.path.join(output_dir, "forward_unet.mlir"), "w") as module_file:
     print(driver_unet.construct_main_graph(True), file=module_file)
 
-with open(os.path.join(path_prefix, "subgraph0_vae.mlir"), "w") as module_file:
+with open(os.path.join(output_dir, "subgraph0_vae.mlir"), "w") as module_file:
     print(driver_vae.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(path_prefix, "forward_vae.mlir"), "w") as module_file:
+with open(os.path.join(output_dir, "forward_vae.mlir"), "w") as module_file:
     print(driver_vae.construct_main_graph(True), file=module_file)
 
 float32_param_text_encoder = numpy.concatenate(
@@ -172,23 +153,22 @@ float32_param_text_encoder = numpy.concatenate(
     ]
 )
 float32_param_text_encoder.tofile(
-    os.path.join(path_prefix, "arg0_text_encoder.data")
+    os.path.join(output_dir, "arg0_text_encoder.data")
 )
 
 int64_param_text_encoder = (
     params_text_encoder[-1].detach().cpu().numpy().reshape([-1])
 )
 int64_param_text_encoder.tofile(
-    os.path.join(path_prefix, "arg1_text_encoder.data")
+    os.path.join(output_dir, "arg1_text_encoder.data")
 )
 
 param_unet = numpy.concatenate(
     [param.detach().cpu().numpy().reshape([-1]) for param in params_unet]
 )
-param_unet.tofile(os.path.join(path_prefix, "arg0_unet.data"))
+param_unet.tofile(os.path.join(output_dir, "arg0_unet.data"))
 
 param_vae = numpy.concatenate(
     [param.detach().cpu().numpy().reshape([-1]) for param in params_vae]
 )
-param_vae.tofile(os.path.join(path_prefix, "arg0_vae.data"))
-
+param_vae.tofile(os.path.join(output_dir, "arg0_vae.data"))

@@ -123,7 +123,7 @@ int main() {
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
-  std::string paramsDir = mobilenetDir + "/arg0.data";
+  std::string paramsDir = mobilenetDir + "../../build/examples/BuddyMobileNetV3/arg0.data";
   MemRef<float, 1> paramsContainer({ParamsSize});
   loadParameters(paramsDir, paramsContainer);
   // Call the forward function of the model.

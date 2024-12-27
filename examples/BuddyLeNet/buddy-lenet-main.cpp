@@ -105,7 +105,7 @@ int main() {
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
-  std::string paramsDir = lenetDir + "/arg0.data";
+  std::string paramsDir = lenetDir + "../../build/examples/BuddyLeNet/arg0.data";
   MemRef<float, 1> paramsContainer({ParamsSize});
   loadParameters(paramsDir, paramsContainer);
 
