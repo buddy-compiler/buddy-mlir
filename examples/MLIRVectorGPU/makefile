@@ -1,0 +1,148 @@
+#!/bin/bash
+BUDDY_OPT := ../../build/bin/buddy-opt
+MLIR_OPT := ../../llvm/build/bin/mlir-opt
+MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
+MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+LLC := ../../llvm/build/bin/llc
+OPT_FLAG := -O0
+
+ifeq ($(shell uname),Linux)
+MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
+MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.so
+MLIR_CUDA_RUNTIME := ../../llvm/build/lib/libmlir_cuda_runtime.so
+MTRIPLE := x86_64-unknown-linux-gnu
+else ifeq ($(shell uname),Darwin)
+MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.dylib
+MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
+MTRIPLE := x86_64-apple-darwin
+endif
+
+.SECONDEXPANSION:
+all-run: $$(run-targets)
+
+# vector-load-lower:
+vector-load-store-lower:
+	@${MLIR_OPT} ./vector-load-store.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		arith-bufferize, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" \
+	-o log.mlir
+
+vector-load-store-translate:
+	@${MLIR_OPT} ./vector-load-store.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		arith-bufferize, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+run-targets += vector-load-store-run
+vector-load-store-run:
+	@${MLIR_OPT} ./vector-load-store.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		arith-bufferize, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" | \
+	${MLIR_CPU_RUNNER} -entry-point-result=void \
+	-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
+
+vector-bitcast-lower:
+	@${MLIR_OPT} ./vector-bitcast.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" \
+	-o log.mlir
+
+vector-bitcast-translate:
+	@${MLIR_OPT} ./vector-bitcast.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-bitcast-run:
+	@${MLIR_OPT} ./vector-bitcast.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" | \
+	${MLIR_CPU_RUNNER} -entry-point-result=void \
+	-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
