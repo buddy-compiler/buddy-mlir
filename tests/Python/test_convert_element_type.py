@@ -13,7 +13,7 @@ def foo(x, to_cast_type):
 
 
 in1 = torch.randn(10).to(torch.float32)
-to_cast_type = torch.float16
+to_cast_type = torch.int32
 
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(
@@ -21,13 +21,16 @@ dynamo_compiler = DynamoCompiler(
     aot_autograd_decomposition=inductor_decomp,
 )
 
-foo_mlir = dynamo.optimize(dynamo_compiler)(foo)
-foo_mlir(in1, to_cast_type)
+graphs = dynamo_compiler.importer(foo, in1, to_cast_type)
+assert len(graphs) == 1
+graph = graphs[0]
+graph.lower_to_top_level_ir()
+print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tosa.cast
+# CHECK: %{{.*}} = tensor.empty
+# CHECK: %{{.*}} = linalg.generic
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }
-print(dynamo_compiler.imported_module)

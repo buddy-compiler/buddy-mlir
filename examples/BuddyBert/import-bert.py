@@ -24,6 +24,8 @@ from pathlib import Path
 import numpy as np
 import torch
 from buddy.compiler.frontend import DynamoCompiler
+from buddy.compiler.graph import GraphDriver
+from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
 from torch._inductor.decomposition import decompositions as inductor_decomp
 from transformers import BertForSequenceClassification, BertTokenizer
@@ -46,12 +48,23 @@ inputs = {
     "attention_mask": torch.tensor([[1 for _ in range(5)]], dtype=torch.int64),
 }
 with torch.no_grad():
-    module, params = dynamo_compiler.importer(model, **inputs)
+    graphs = dynamo_compiler.importer(model, **inputs)
 
+assert len(graphs) == 1
+graph = graphs[0]
+params = dynamo_compiler.imported_params[graph]
+pattern_list = [simply_fuse]
+graphs[0].fuse_ops(pattern_list)
+driver = GraphDriver(graphs[0])
+driver.subgraphs[0].lower_to_top_level_ir()
+path_prefix = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
+    print(driver.subgraphs[0]._imported_module, file=module_file)
+with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
+    print(driver.construct_main_graph(True), file=module_file)
+
+params = dynamo_compiler.imported_params[graph]
 current_path = os.path.dirname(os.path.abspath(__file__))
-
-with open(Path(current_path) / "bert.mlir", "w") as module_file:
-    module_file.write(str(module))
 
 float32_param = np.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params[:-1]]

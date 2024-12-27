@@ -12,6 +12,26 @@ if (BUDDY_BERT_EXAMPLES)
   add_subdirectory(BuddyBert)
 endif()
 
+if (BUDDY_LENET_EXAMPLES)
+  add_subdirectory(BuddyLeNet)
+endif()
+
+if(BUDDY_WHISPER_EXAMPLES)
+  add_subdirectory(BuddyWhisper)
+endif()
+
+if (BUDDY_MOBILENETV3_EXAMPLES)
+  add_subdirectory(BuddyMobileNetV3)
+endif()
+
+if (BUDDY_RESNET_EXAMPLES)
+  add_subdirectory(BuddyResNet18)
+endif()
+
+if (BUDDY_STABLE_DIFFUSION_EXAMPLES)
+  add_subdirectory(BuddyStableDiffusion)
+endif()
+
 if(BUDDY_DSL_EXAMPLES)
   add_subdirectory(ToyDSL)
 endif()
@@ -27,6 +47,7 @@ set(BUDDY_EXAMPLES_DEPENDS
   FileCheck count not
   buddy-opt
   buddy-translate
+  mlir-cpu-runner
   )
 
 add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."

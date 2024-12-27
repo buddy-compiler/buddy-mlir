@@ -8,25 +8,28 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
 
-def foo(x, new_size):
-    return torch.ops.aten.expand(x, new_size)
+class foo(torch.nn.Module):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
-x = torch.randn(1, 3)
-new_size = (6, 3)
+    def forward(self, a):
+        return torch.sigmoid(a)
 
-# Initialize the dynamo compiler.
+
+model = foo()
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
 )
-
-foo_mlir = dynamo.optimize(dynamo_compiler)(foo)
-foo_mlir(x, new_size)
-
+in1 = torch.randn((1, 3, 640, 480), device="cpu")
+graphs = dynamo_compiler.importer(model, in1)
+assert len(graphs) == 1
+graph = graphs[0]
+graph.lower_to_top_level_ir()
+print(graph._imported_module)
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tosa.add
-# CHECK: return %{{.*}} : tensor<6x3xf32>
+# CHECK: %{{.*}} = tosa.sigmoid
+# CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }
-print(dynamo_compiler.imported_module)

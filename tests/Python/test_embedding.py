@@ -22,8 +22,11 @@ dynamo_compiler = DynamoCompiler(
 weight = torch.randn(10, 5)
 indices = torch.randint(10, (3, 3)).to(torch.int32)
 
-foo_mlir = dynamo.optimize(dynamo_compiler)(foo)
-foo_mlir(weight, indices)
+graphs = dynamo_compiler.importer(foo, weight, indices)
+assert len(graphs) == 1
+graph = graphs[0]
+graph.lower_to_top_level_ir()
+print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
@@ -34,16 +37,29 @@ foo_mlir(weight, indices)
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }
-print(dynamo_compiler.imported_module)
-
 
 # test cast case
 weight = torch.randn(10, 5)
 indices = torch.randint(10, (3, 3)).to(torch.int64)
 
+graphs = dynamo_compiler.importer(foo, weight, indices)
+print(graphs)
+assert len(graphs) == 2
+graphs[0].lower_to_top_level_ir()
+print(graphs[0]._imported_module)
 
-foo_mlir = dynamo.optimize(dynamo_compiler)(foo)
-foo_mlir(weight, indices)
+# CHECK: module {
+# CHECK-LABEL: func.func @forward
+# CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tosa.gather
+# CHECK: %{{.*}} = tosa.reshape
+# CHECK: return %{{.*}}
+# CHECK: }
+# CHECK: }
+
+graphs[1].lower_to_top_level_ir()
+print(graphs[1]._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
@@ -55,4 +71,3 @@ foo_mlir(weight, indices)
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }
-print(dynamo_compiler.imported_module)

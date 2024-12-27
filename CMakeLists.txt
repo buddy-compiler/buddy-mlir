@@ -22,6 +22,7 @@ project(buddy-mlir LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
+include(ExternalProject)
 
 #-------------------------------------------------------------------------------
 # Options and settings
@@ -41,11 +42,15 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
     message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
     message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
-    set(LLVM_MLIR_BINARY_DIR ${MLIR_DIR}/../../../bin)
-    set(LLVM_MLIR_LIBRARY_DIR ${MLIR_DIR}/../../../lib)
-    set(LLVM_MLIR_SOURCE_DIR ${MLIR_DIR}/../../../../mlir)
-    set(LLVM_PROJECT_BUILD_DIR ${MLIR_DIR}/../../../)
-    set(LLVM_PROJECT_SOURCE_DIR ${MLIR_DIR}/../../../../)
+    # LLVM_MAIN_SRC_DIR is a private variable for the LLVM in-tree build.
+    # To provide compatibility for unifying the one-step and two-step build,
+    # we set LLVM_MAIN_SRC_DIR ourselves here.
+    # This could benefit users who want to specify a custom LLVM source directory,
+    # but also not interfere with normal users who just want to use the buddy-mlir provided LLVM sources.
+    if(NOT DEFINED LLVM_MAIN_SRC_DIR)
+      get_filename_component(LLVM_MAIN_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/llvm/llvm ABSOLUTE)
+    endif()
+    set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
 
     list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
     list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
@@ -63,16 +68,9 @@ else()
     #-------------------------------------------------------------------------------
     # MLIR/LLVM Configuration
     #-------------------------------------------------------------------------------
-
-    # Allow using out-of-tree llvm directory
-    set(LLVM_PROJECT_SOURCE_DIR ${LLVM_MAIN_SRC_DIR}/..)
-    message(STATUS "Using LLVM Project ${LLVM_PROJECT_SOURCE_DIR}")
-
     set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
     set(MLIR_INCLUDE_DIR ${MLIR_MAIN_SRC_DIR}/include)
     set(MLIR_GENERATED_INCLUDE_DIR ${LLVM_BINARY_DIR}/tools/mlir/include)
-    set(LLVM_MLIR_BINARY_DIR ${CMAKE_BINARY_DIR}/bin)
-    set(MLIR_INCLUDE_DIRS "${MLIR_INCLUDE_DIR};${MLIR_GENERATED_INCLUDE_DIR}")
 endif()
 
 #-------------------------------------------------------------------------------
@@ -83,18 +81,34 @@ endif()
 set(BUDDY_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(BUDDY_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
+set(BUDDY_LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include/)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include/)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${BUDDY_LIBRARY_DIR})
 
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
-if(BUDDY_ENABLE_OPENCV)
-  add_definitions(-DBUDDY_ENABLE_OPENCV)
+ if(BUDDY_ENABLE_OPENCV)
+   add_definitions(-DBUDDY_ENABLE_OPENCV)
+   find_package(JPEG REQUIRED)
+   find_package(PNG REQUIRED)
+   find_package(OpenCV REQUIRED CONFIG)
+   include_directories(${OpenCV_INCLUDE_DIRS})
+ endif()
+
+if(BUDDY_MLIR_ENABLE_DIP_LIB)
+  add_definitions(-DBUDDY_MLIR_ENABLE_DIP_LIB)
+  find_package(PNG REQUIRED)
+endif()
+
+if(BUDDY_ENABLE_PNG)
+  add_definitions(-DBUDDY_ENABLE_PNG)
+  find_package(PNG REQUIRED)
 endif()
 
 # Generate libraries into `lib` of build directory.
@@ -181,13 +195,38 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 #-------------------------------------------------------------------------------
+# The RISC-V toolchain
+#-------------------------------------------------------------------------------
+
+if(BUDDY_MLIR_ENABLE_RISCV_GNU_TOOLCHAIN)
+  set(RISCV_GNU_TOOLCHAIN_DIR "${BUDDY_SOURCE_DIR}/thirdparty/riscv-gnu-toolchain")
+  set(RISCV_GNU_TOOLCHAIN_INSTALL_DIR "${CMAKE_BINARY_DIR}/thirdparty/riscv-gnu-toolchain")
+  ExternalProject_Add(
+    riscv-gnu-toolchain
+    SOURCE_DIR        ${RISCV_GNU_TOOLCHAIN_DIR}
+    PREFIX            ${RISCV_GNU_TOOLCHAIN_INSTALL_DIR}
+    CONFIGURE_COMMAND ${RISCV_GNU_TOOLCHAIN_DIR}/configure --prefix=${RISCV_GNU_TOOLCHAIN_INSTALL_DIR}
+    BUILD_COMMAND     make clean && make linux build-qemu -j
+    BUILD_IN_SOURCE   TRUE
+    INSTALL_COMMAND   ""
+  )
+endif()
+
+#-------------------------------------------------------------------------------
 # Initialize Python packages
 #-------------------------------------------------------------------------------
 if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
+  # Find the Python interpreter and development components,
+  # requiring a minimum version of 3.10
+  find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter Development)
+  # Create directories for the BUDDY-MLIR Python packages
   file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy)
   file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler)
+  # Create empty __init__.py files to make these directories Python packages
   file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/__init__.py "")
   file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/__init__.py "")
+
+  install(DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy DESTINATION python_packages)
 endif()
 
 #-------------------------------------------------------------------------------

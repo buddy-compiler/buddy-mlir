@@ -14,16 +14,57 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# The registry of mappings from Torch node to MLIR tosa dialect operations.
+# The registry of mappings from Buddy Graph to MLIR tosa dialect operations.
 #
 # ===---------------------------------------------------------------------------
 
-import torch
-import array
+import array, copy
 from typing import Dict, List, Tuple, Union
+import numpy
+import sys
 
 import mlir.ir as ir
-from mlir.dialects import tensor, tosa
+from mlir.dialects import tensor, tosa, arith, linalg, math
+
+from ..graph import TensorDType
+from ..graph import (
+    AddOp,
+    PermuteOp,
+    AddMMOp,
+    BatchMatmulOp,
+    SubOp,
+    MulOp,
+    DivOp,
+    TanhOp,
+    ExpOp,
+    RsqrtOp,
+    AmaxOp,
+    ReshapeOp,
+    UnsqueezeOp,
+    SelectOp,
+    SliceOp,
+    ConvertElementTypeOp,
+    CloneOp,
+    VarMeanOp,
+    EmbeddingOp,
+    ExpandOp,
+    SumDimOp,
+    TOp,
+    TransposeOp,
+    MaxPool2dOp,
+    Conv2dOp,
+    ReluOp,
+    IotaOp,
+    SigmoidOp,
+    ReciprocalOp,
+    MeanOp,
+    ClampMinOp,
+    ClampMaxOp,
+    RandIntLowOp,
+    ArgMaxOp,
+    ScaledDotProductFlashAttentionForCpuOp,
+)
+from .utils import *
 
 
 def _normalize_binary_operator_shape(shp1, shp2):
@@ -75,9 +116,8 @@ def _gen_arith_binary_op(input1, input2, op_func):
 def _scalar_to_tensor(
     scalar: Union[float, int], element_type: ir.Type, shape: List[int]
 ):
-    """PyTorch allow the binary operation between tensor and scalar. But MLIR
-    does not.
-    So we need to convert scalars to the corresponding tensors."""
+    """Convert scalers to cooresponding tensors since MLIR
+    doesn't support operation between scalers and tensors."""
     element = (
         ir.FloatAttr.get(element_type, float(scalar))
         if str(element_type) == "f32"
@@ -128,11 +168,11 @@ def _normalize_binary_operator_args(arg1, arg2):
 
 
 def addmm_op(
-    node, symbol_table: Dict[Tuple[str, int], ir.Operation]
+    node: AddMMOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
 ) -> ir.Operation:
     """
     Import matrix multiplication operation.
-    From PyTorch `aten.addmm.default` operator to MLIR TOSA `matmul` operation.
+    From buddy graph ir's `AddMMOp` operator to MLIR TOSA `matmul` operation.
 
     Note: this function first reshapes the input matrices to 3D tensors
     (since tosa.MatMulOp requires it). Then it multiplies these reshaped
@@ -146,8 +186,7 @@ def addmm_op(
 
     Returns:
         op: The operation representing the result of adding the matrix
-        multiplication
-            to the input tensor.
+        multiplication to the input tensor.
     """
     # get input
     input_ = symbol_table.get((str(node.args[0]), 0))
@@ -184,10 +223,11 @@ def addmm_op(
     return op
 
 
-def bmm_op(node, symbol_table) -> ir.Operation:
+def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
     """
     Import batch matrix multiplication operation.
-    From PyTorch `aten.bmm.default` operator to MLIR TOSA `matmul` operation.
+    From buddy graph ir's `BatchMatmulOp` operator to MLIR TOSA `matmul`
+    operation.
     """
     input_ = symbol_table.get((str(node.args[0]), 0))
     mat2 = symbol_table.get((str(node.args[1]), 0))
@@ -200,30 +240,30 @@ def bmm_op(node, symbol_table) -> ir.Operation:
     return op
 
 
-def add_op(node, symbol_table):
+def add_op(node: AddOp, symbol_table):
     """
     Import tensor addition operation.
-    From PyTorch `aten.add.Tensor` operator to MLIR TOSA `add` operation.
+    From buddy graph ir's `AddOp` operator to MLIR TOSA `add` operation.
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
     return _gen_arith_binary_op(input1, input2, tosa.AddOp)
 
 
-def sub_op(node, symbol_table):
+def sub_op(node: SubOp, symbol_table):
     """
     Import tensor subtraction operation.
-    From PyTorch `aten.sub.Tensor` operator to MLIR TOSA `sub` operation.
+    From buddy graph ir's `SubOp` operator to MLIR TOSA `sub` operation.
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
     return _gen_arith_binary_op(input1, input2, tosa.SubOp)
 
 
-def mul_op(node, symbol_table):
+def mul_op(node: MulOp, symbol_table):
     """
-    Import tensor multiplication operation.
-    From PyTorch `aten.mul.Tensor` operator to MLIR TOSA `mul` operation.
+    Import tensor division operation.
+    From buddy graph ir's `DivOp` operator to MLIR TOSA `div` operation.
     """
 
     def _inner_op(result_type, input1, input2):
@@ -234,16 +274,56 @@ def mul_op(node, symbol_table):
             ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
-    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+
+    if isinstance(node.args[0], str):
+        input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    else:
+        data = [node.args[0]]
+        input1_shape = numpy.array(data).shape
+        tensor_type = ir.RankedTensorType.get(input1_shape, mlir_dtype)
+        element = mlir_element_attr_get(dtype, node.args[0])
+        attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+        input2 = arith.ConstantOp(tensor_type, attr).result
+
+    if isinstance(node.args[1], str):
+        input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    else:
+        data = [node.args[1]]
+        input2_shape = numpy.array(data).shape
+        tensor_type = ir.RankedTensorType.get(input2_shape, mlir_dtype)
+        element = mlir_element_attr_get(dtype, node.args[1])
+        attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+        input2 = arith.ConstantOp(tensor_type, attr).result
+
+    input1_dtype = ir.RankedTensorType(input1.type).element_type
+    input2_dtype = ir.RankedTensorType(input2.type).element_type
+    if input1_dtype != mlir_dtype:
+        input1 = tosa.CastOp(
+            ir.RankedTensorType.get(
+                ir.RankedTensorType(input1.type).shape,
+                mlir_dtype,
+            ),
+            input1,
+        ).result
+    if input2_dtype != mlir_dtype:
+        input2 = tosa.CastOp(
+            ir.RankedTensorType.get(
+                ir.RankedTensorType(input2.type).shape,
+                mlir_dtype,
+            ),
+            input2,
+        ).result
 
     return _gen_arith_binary_op(input1, input2, _inner_op)
 
 
-def div_op(node, symbol_table):
+def div_op(node: DivOp, symbol_table):
     """
     Import tensor division operation.
-    From PyTorch `aten.div.Tensor` operator to MLIR TOSA `div` operation.
+    From buddy graph ir's `DivOp` operator to MLIR TOSA `div` operation.
     """
 
     def _inner_op(result_type, input1, input2):
@@ -260,10 +340,10 @@ def div_op(node, symbol_table):
     return _gen_arith_binary_op(input1, input2, _inner_op)
 
 
-def tanh_op(node, symbol_table):
+def tanh_op(node: TanhOp, symbol_table):
     """
     Import elementwise tanh operation.
-    From PyTorch `aten.tanh.default` operator to MLIR TOSA `tanh` operation.
+    From buddy graph ir's `TanhOp` operator to MLIR TOSA `tanh` operation.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
     sizes = ir.RankedTensorType(input1.type).shape
@@ -273,10 +353,10 @@ def tanh_op(node, symbol_table):
     return op
 
 
-def exp_op(node, symbol_table):
+def exp_op(node: ExpOp, symbol_table):
     """
     Import elementwise exponential operation.
-    From PyTorch `aten.exp.default` operator to MLIR TOSA `exp` operation.
+    From buddy graph ir's `ExpOp` operator to MLIR TOSA `exp` operation.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
     sizes = ir.RankedTensorType(input1.type).shape
@@ -286,10 +366,10 @@ def exp_op(node, symbol_table):
     return op
 
 
-def rsqrt_op(node, symbol_table):
+def rsqrt_op(node: RsqrtOp, symbol_table):
     """
     Import elementwise reciprocal square root operation.
-    From PyTorch `aten.rsqrt.default` operator to MLIR TOSA `rsqrt` operation.
+    From buddy graph ir's `RsqrtOp` operator to MLIR TOSA `rsqrt` operation.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
     sizes = ir.RankedTensorType(input1.type).shape
@@ -301,15 +381,11 @@ def rsqrt_op(node, symbol_table):
     return op
 
 
-def amax_op(node, symbol_table):
+def amax_op(node: AmaxOp, symbol_table):
     """
     Import the amax operation.
-    From PyTorch `aten.amax.default` operator to MLIR TOSA `reduce_max`
+    From buddy graph ir's `AmaxOp` operator to MLIR TOSA `reduce_max`
     operation.
-
-    Note: This conversion function returns the maximum value of each slice
-          of the input tensor in the given dimension(s). This is consistent
-          with PyTorch's `torch.amax` operator.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
     dim_val = node.args[1][0]
@@ -321,10 +397,10 @@ def amax_op(node, symbol_table):
     return op
 
 
-def reshape_op(node, symbol_table):
+def reshape_op(node: ReshapeOp, symbol_table):
     """
     Import the reshape operation.
-    From PyTorch `aten.reshape.default` operator to MLIR TOSA `reshape`
+    From buddy graph ir's `ReshapeOp` operator to MLIR TOSA `reshape`
     operation.
 
     Note: If the new shape contains one and only one `-1`, the size of the new
@@ -362,34 +438,30 @@ def reshape_op(node, symbol_table):
     return op
 
 
-def unsqueeze_op(node, symbol_table):
+def unsqueeze_op(node: UnsqueezeOp, symbol_table):
     """
     Import the unsqueeze operation.
-    From PyTorch `aten.unsqueeze.default` operator to MLIR TOSA `reshape`
+    From buddy graph ir's `UnsqueezeOp` operator to MLIR TOSA `reshape`
     operation.
-
-    Note: "unsqueeze" means inserting a new dimension of size 1 at the specified
-          position. For more information, please refer to
-          https://pytorch.org/docs/stable/generated/torch.unsqueeze.html
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     dim = node.args[1]
     sizes = ir.RankedTensorType(input_tensor.type).shape
-    sizes.insert(dim, 1)
+    if dim == -1:
+        sizes.append(1)
+    else:
+        sizes.insert(dim, 1)
     new_shape_content = array.array("i", sizes)
     new_shape_content = memoryview(new_shape_content)
     op = tosa.ReshapeOp(input_tensor, new_shape_content)
     return op
 
 
-def select_op(node, symbol_table):
+def select_op(node: SelectOp, symbol_table):
     """
     Import the select operation.
-    From PyTorch `aten.select.int` operator to MLIR TOSA `reshape` operation.
-
-    Note: "select" means slicing the input tensor along the selected dimension
-    at the given index. For more information, please refer to
-          https://pytorch.org/docs/stable/generated/torch.select.html
+    From buddy graph ir's `SelectOp` operator to MLIR TOSA `reshape`
+    operation.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     dim = node.args[1]
@@ -416,14 +488,11 @@ def select_op(node, symbol_table):
     return op
 
 
-def slice_op(node, symbol_table):
+def slice_op(node: SliceOp, symbol_table):
     """
     Import the slice operation.
-    From PyTorch `aten.slice.Tensor` operator to MLIR tensor `extract_slice`
+    From buddy graph ir's `SliceOp` operator to MLIR TOSA `extract_slice`
     operation.
-
-    Note: "slice" means slicing the input tensor along the selected dimension
-    from a given start index to an end index.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     dim = node.args[1]
@@ -477,32 +546,93 @@ def slice_op(node, symbol_table):
     return op
 
 
-def convert_element_type_op(node, symbol_table):
+def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
     """
     Import the element type conversion operation.
-    From PyTorch `prims.convert_element_type.default` operator to
-    MLIR TOSA `cast` operation.
+    From buddy graph ir's `ConvertElementTypeOp` operator to MLIR TOSA
+    `cast` operation.
     """
-    # maintain a mapping of torch types and mlir types
+    # maintain a mapping of buddy dtype to mlir types
     types_mapping = {
-        torch.float64: ir.F64Type.get(),
-        torch.float32: ir.F32Type.get(),
-        torch.float16: ir.F16Type.get(),
+        TensorDType.Float64: ir.F64Type.get(),
+        TensorDType.Float32: ir.F32Type.get(),
+        TensorDType.Float16: ir.F16Type.get(),
+        TensorDType.Int64: ir.IntegerType.get_signless(64),
+        TensorDType.Int32: ir.IntegerType.get_signless(32),
+        TensorDType.Bool: ir.IntegerType.get_signless(1),
     }
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     to_cast_type = types_mapping[node.args[1]]
-    sizes = ir.RankedTensorType(input_tensor.type).shape
-    output_type = ir.RankedTensorType.get(sizes, to_cast_type)
-    return tosa.CastOp(output_type, input_tensor)
+    input_type = ir.RankedTensorType(input_tensor.type).element_type
+    # When converting float to int, tosa.cast lowers to math.roundeven, but we don't need rounding.
+    if str(to_cast_type).find("i") != -1 and str(input_type).find("f") != -1:
+        output_shape = list(node.tensor_meta["shape"])
+        tensor_type = ir.RankedTensorType.get(output_shape, to_cast_type)
+        output = tensor.EmptyOp(output_shape, to_cast_type)
+
+        if str(to_cast_type) == "i1":
+            false_val = arith.ConstantOp(to_cast_type, 0)
+            true_val = arith.ConstantOp(to_cast_type, 1)
+            zero_val = arith.ConstantOp(input_type, 0.0)
+
+        generic_map = ir.AffineMap.get_permutation(
+            [i for i in range(len(output_shape))]
+        )
+        op = linalg.GenericOp(
+            [tensor_type],
+            [input_tensor],
+            [output],
+            ir.ArrayAttr.get(
+                [
+                    ir.AffineMapAttr.get(
+                        generic_map.get_submap(
+                            [i for i in range(len(output_shape))]
+                        )
+                    ),
+                    ir.AffineMapAttr.get(
+                        generic_map.get_submap(
+                            [i for i in range(len(output_shape))]
+                        )
+                    ),
+                ]
+            ),
+            ir.ArrayAttr.get(
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                * len(output_shape)
+            ),
+        )
+        block = ir.Block.create_at_start(
+            op.region,
+            [
+                input_type,
+                to_cast_type,
+            ],
+        )
+        if str(to_cast_type) == "i1":
+            is_zero = arith.CmpFOp(1, block.arguments[0], zero_val)
+            result = arith.SelectOp(is_zero, false_val, true_val)
+            block.append(is_zero)
+            block.append(result)
+            block.append(linalg.YieldOp([result.result]))
+        else:
+            fptosi_op = arith.FPToSIOp(to_cast_type, block.arguments[0])
+            block.append(fptosi_op)
+            block.append(linalg.YieldOp([fptosi_op.result]))
+    else:
+        sizes = ir.RankedTensorType(input_tensor.type).shape
+        output_type = ir.RankedTensorType.get(sizes, to_cast_type)
+        op = tosa.CastOp(output_type, input_tensor)
+
+    return op
 
 
-def clone_op(node, symbol_table):
+def clone_op(node: CloneOp, symbol_table):
     """
     Import the clone operation.
-    From PyTorch `aten.clone.default` operator to MLIR TOSA `identity`
+    From buddy graph ir's `CloneOp` operator to MLIR TOSA `identity`
     operation.
 
-    Note: Since MLIR follow the SSA form, when using the `identity` operation,
+    Note: Since MLIR follows the SSA form, when using the `identity` operation,
     we actually deep-copies the original tensor.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
@@ -513,13 +643,16 @@ def clone_op(node, symbol_table):
     return tosa.IdentityOp(output_type, input_tensor)
 
 
-def var_mean_op(node, symbol_table):
+def var_mean_op(node: VarMeanOp, symbol_table):
     """
     Import the variance & mean operation.
-    From PyTorch `aten.var_mean.default` operator to two MLIR TOSA `mul`
+    From buddy graph ir's `VarMeanOp` operator to two MLIR TOSA `mul`
     operation.
 
-    Note: The conversion procedure can be splited into two steps:
+    Note: By now, this conversion function follows PyTorch's `var_mean`
+    semantic.
+
+          The conversion procedure can be splited into two steps:
           1. In the first part, we calculate the mean value along the given
           dimension(s) in `mean_dim_op` function. We first reduce the input
           tensor along the given dimension(s) using tosa's `reduce_sum`
@@ -667,10 +800,10 @@ def var_mean_op(node, symbol_table):
     return var_op, mean_op
 
 
-def permute_op(node, symbol_table):
+def permute_op(node: PermuteOp, symbol_table):
     """
     Import the permute operation.
-    From PyTorch `aten.permute.default` operator to MLIR TOSA `transpose`
+    From buddy graph ir's `PermuteOp` operator to MLIR TOSA `transpose`
     operation.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
@@ -693,10 +826,10 @@ def permute_op(node, symbol_table):
     return permute_op
 
 
-def embedding_op(node, symbol_table):
+def embedding_op(node: EmbeddingOp, symbol_table):
     """
     Import the embedding operation.
-    From PyTorch `aten.embedding.default` operator to MLIR TOSA `reshape`
+    From buddy graph ir's `EmbeddingOp` operator to MLIR TOSA `reshape`
     operation.
 
     Note: Althought this conversion function will finally return a `reshape`
@@ -754,10 +887,10 @@ def embedding_op(node, symbol_table):
     return op
 
 
-def expand_op(node, symbol_table) -> ir.Operation:
+def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
     """
     Import the expand operation.
-    From PyTorch `aten.expand.default` operator to MLIR TOSA `add` operation.
+    From buddy graph ir's `ExpandOp` operator to MLIR TOSA `add` operation.
 
     Note: This conversion is implemented using the broadcast machanism of TOSA
           `add` operation. We allocate a tensor with the shape to expand and
@@ -766,18 +899,28 @@ def expand_op(node, symbol_table) -> ir.Operation:
           the result.
     """
     to_expand_tensor = symbol_table.get((str(node.args[0]), 0))
+    original_size = to_expand_tensor.type.shape
     new_size = node.args[1]
     result_element_type = ir.RankedTensorType(
         to_expand_tensor.type
     ).element_type
-    if result_element_type == ir.IntegerType.get_signless(1):
+    if result_element_type in (
+        ir.IntegerType.get_signless(1),
+        ir.IntegerType.get_signless(64),
+    ):
         element = ir.IntegerAttr.get(result_element_type, 0)
     elif result_element_type == ir.F32Type.get():
         element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")
+    expanded_size = []
+    for dim, size in zip(original_size, new_size):
+        if size == -1:
+            expanded_size.append(dim)
+        else:
+            expanded_size.append(size)
     new_size_tensor_type = ir.RankedTensorType.get(
-        new_size, result_element_type
+        expanded_size, result_element_type
     )
     new_size_attr = ir.DenseElementsAttr.get_splat(
         new_size_tensor_type, element
@@ -787,11 +930,10 @@ def expand_op(node, symbol_table) -> ir.Operation:
     return op
 
 
-def sum_op(node, symbol_table):
+def sum_op(node: SumDimOp, symbol_table):
     """
     Import the sum operation.
-    From PyTorch `aten.sum.dim_IntList` operator to MLIR TOSA `reduce_sum`
-    operation.
+    From buddy graph ir's `SumDimOp` operator to MLIR TOSA `reduce_sum`
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     reduce_sum_dims = node.args[1]
@@ -813,40 +955,37 @@ def sum_op(node, symbol_table):
     return reduce_sum_op
 
 
-def t_op(node, symbol_table):
+def t_op(node: TOp, symbol_table):
     """
     Import the tensor transpose operation.
-    From PyTorch `aten.t.default` operator to MLIR TOSA `reduce_sum` operation.
+    From buddy graph ir's `TOp` operator to MLIR TOSA `transpose` operation
     """
     assert len(node.args) == 1
     input1 = symbol_table.get((str(node.args[0]), 0))
-    if input1 is None:
-        return
+    assert input1 is not None
 
     input_shape = list(ir.RankedTensorType(input1.type).shape)
-    output_shape = list(node.meta["tensor_meta"].shape)
-    if len(input_shape) == 2:
-        perm_const_op = tosa.ConstOp(
-            ir.DenseElementsAttr.get(memoryview(array.array("i", [1, 0])))
-        )
-        result_element_type = ir.RankedTensorType(input1.type).element_type
-        permute_result_type = ir.RankedTensorType.get(
-            output_shape, result_element_type
-        )
-        op = tosa.TransposeOp(
-            permute_result_type, input1, perm_const_op.results[0]
-        )
+    output_shape = list(node.tensor_meta["shape"])
+    assert len(input_shape) == 2, "Input tensor must be 2D"
+    perm_const_op = tosa.ConstOp(
+        ir.DenseElementsAttr.get(memoryview(array.array("i", [1, 0])))
+    )
+    result_element_type = ir.RankedTensorType(input1.type).element_type
+    permute_result_type = ir.RankedTensorType.get(
+        output_shape, result_element_type
+    )
+    op = tosa.TransposeOp(permute_result_type, input1, perm_const_op.results[0])
 
     return op
 
 
-def transpose_op(node, symbol_table):
+def transpose_op(node: TransposeOp, symbol_table):
     """
     Import the tensor permute operation based on input dims.
-    From PyTorch `aten.transpose.int` operator to MLIR TOSA `reduce_sum`
+    From buddy graph ir's `TransposeOp` operator to MLIR TOSA `transpose`
     operation.
     """
-    assert len(node.args) == 3
+    assert len(node.args) == 3, "Input tensor must be 3D"
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
         return
@@ -857,7 +996,7 @@ def transpose_op(node, symbol_table):
     temp = perm_list[dim1]
     perm_list[dim1] = perm_list[dim2]
     perm_list[dim2] = temp
-    output_shape = list(node.meta["tensor_meta"].shape)
+    output_shape = list(node.tensor_meta["shape"])
     perm_const_op = tosa.ConstOp(
         ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
     )
@@ -870,29 +1009,807 @@ def transpose_op(node, symbol_table):
     return op
 
 
+def maxpool2d_op(node: MaxPool2dOp, symbol_table):
+    """
+    Import the maxpool2d operation.
+    From Buddy MaxPool2dOp to MLIR TOSA `max_pool2d` operation.
+    """
+    if len(node.args) == 5:
+        raise NotImplementedError
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    kernel = node.args[1]
+    stride = node.args[2]
+    if len(node.args) > 3:
+        pad = node.args[3]
+    else:
+        pad = [0 for _ in kernel]
+    dtype = node.tensor_meta["dtype"]
+    result_element_type = mlir_element_type_get(dtype)
+    if node._layout.find("NCHW") != -1:
+        perm_list = [0, 2, 3, 1]
+        perm_const_op = tosa.ConstOp(
+            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+        )
+        out_shape = list(ir.RankedTensorType(input1.type).shape)
+        perm_shape = []
+        perm_shape.append(out_shape[0])
+        perm_shape.append(out_shape[2])
+        perm_shape.append(out_shape[3])
+        perm_shape.append(out_shape[1])
+        permute_result_type = ir.RankedTensorType.get(
+            perm_shape, result_element_type
+        )
+        input1 = tosa.TransposeOp(
+            permute_result_type, input1, perm_const_op.results[0]
+        ).result
+    out_shape = node.tensor_meta["shape"]
+    if len(pad) == 1:
+        pad = [pad[0]] * 4
+    elif len(pad) == 2:
+        pad = [pad[0]] * 2 + [pad[1]] * 2
+    kernel_attr = ir._denseI64ArrayAttr(kernel, None)
+    stride_attr = ir._denseI64ArrayAttr(stride, None)
+    pad_attr = ir._denseI64ArrayAttr(pad, None)
+    if node._layout.find("NCHW") != -1:
+        perm_shape = []
+        perm_shape.append(out_shape[0])
+        perm_shape.append(out_shape[2])
+        perm_shape.append(out_shape[3])
+        perm_shape.append(out_shape[1])
+        out_shape = perm_shape
+    output = ir.RankedTensorType.get(out_shape, result_element_type)
+    op = tosa.MaxPool2dOp(output, input1, kernel_attr, stride_attr, pad_attr)
+    if node._layout.find("NCHW") != -1:
+        perm_list = [0, 3, 1, 2]
+        perm_const_op = tosa.ConstOp(
+            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+        )
+        perm_shape = []
+        perm_shape.append(out_shape[0])
+        perm_shape.append(out_shape[3])
+        perm_shape.append(out_shape[1])
+        perm_shape.append(out_shape[2])
+        permute_result_type = ir.RankedTensorType.get(
+            perm_shape, result_element_type
+        )
+        op = tosa.TransposeOp(
+            permute_result_type, op.result, perm_const_op.results[0]
+        )
+    return op
+
+
+# TODO: Rename convolution2d_op -> convolution_op
+def convolution2d_op(node: Conv2dOp, symbol_table):
+    """
+    Import the convolution operation.
+    From Buddy Conv2dOp to MLIR TOSA `conv2d` operation.
+    arg[0]: Tensor input
+    arg[1]: Tensor weight
+    arg[2]: Tensor? bias
+    arg[3]: SymInt[] stride
+    arg[4]: SymInt[] padding
+    arg[5]: SymInt[] dilation
+    arg[6]: bool transposed
+    arg[7]: SymInt[] output_padding
+    arg[8]: SymInt groups
+    """
+    # Get arguments from convolution node.
+    assert len(node.args) == 9
+    input = node.args[0]
+    weight = node.args[1]
+    bias = node.args[2]
+    stride = node.args[3]
+    input_padding = node.args[4]
+    dilation = node.args[5]
+    is_kernel_transposed = node.args[6]
+    out_padding = node.args[7]
+    groups = node.args[8]
+
+    # Prepare input, weight, and output information.
+    input_val = symbol_table.get((str(input), 0))
+    input_shape = list(ir.RankedTensorType(input_val.type).shape)
+    weight_val = symbol_table.get((str(weight), 0))
+    weight_shape = ir.RankedTensorType(weight_val.type).shape
+    dtype = node.tensor_meta["dtype"]
+    result_element_type = mlir_element_type_get(dtype)
+    out_shape = node.tensor_meta["shape"]
+
+    # Prepare Depthwise Conv2D information
+    is_grouped = (list(weight_shape)[1] == 1) and (groups != 1)
+    is_depthwise = (groups == list(weight_shape)[0]) and is_grouped
+
+    # Prepare input channel and output channel.
+    if is_kernel_transposed:
+        in_channels = list(weight_shape)[0]
+        out_channels = list(weight_shape)[1] * groups
+    else:
+        in_channels = list(weight_shape)[1] * groups
+        out_channels = list(weight_shape)[0]
+
+    # Prepare bias tensor.
+    if len(node._parents) == 2:
+        new_size_tensor_type = ir.RankedTensorType.get(
+            [out_channels], result_element_type
+        )
+        element = mlir_element_attr_get(dtype, 0)
+        new_size_attr = ir.DenseElementsAttr.get_splat(
+            new_size_tensor_type, element
+        )
+        bias_tensor = tosa.ConstOp(new_size_attr).results[0]
+    else:
+        bias_tensor = symbol_table.get((str(bias), 0))
+
+    # Prepare attributes.
+    dilation_attr = ir._denseI64ArrayAttr(dilation, None)
+    stride_attr = ir._denseI64ArrayAttr(stride, None)
+
+    # Convolution 2D
+    if len(weight_shape) == 4:
+        # Prepare input padding.
+        if len(input_padding) == 1:
+            input_padding = [input_padding[0]] * 4
+        elif len(input_padding) == 2:
+            input_padding = [input_padding[0]] * 2 + [input_padding[1]] * 2
+        # Prepare input_padding attributes.
+        input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
+        # If the input layout is NCHW, then convert to NHWC.
+        if node._layout.find("NCHW") != -1:
+            perm_list = [0, 2, 3, 1]
+            perm_const_op = tosa.ConstOp(
+                ir.DenseElementsAttr.get(
+                    memoryview(array.array("i", perm_list))
+                )
+            )
+            perm_shape = []
+            perm_shape.append(input_shape[0])
+            perm_shape.append(input_shape[2])
+            perm_shape.append(input_shape[3])
+            perm_shape.append(input_shape[1])
+            permute_result_type = ir.RankedTensorType.get(
+                perm_shape, result_element_type
+            )
+            input_val = tosa.TransposeOp(
+                permute_result_type, input_val, perm_const_op.results[0]
+            ).result
+        # If the output layout is NCHW, then convert to NHWC
+        if node._layout.find("NCHW") != -1:
+            perm_shape = []
+            perm_shape.append(out_shape[0])
+            perm_shape.append(out_shape[2])
+            perm_shape.append(out_shape[3])
+            perm_shape.append(out_shape[1])
+            out_shape = perm_shape
+        output_type = ir.RankedTensorType.get(out_shape, result_element_type)
+
+        # Depthwise Conv2D Operation.
+        if is_depthwise is True:
+            # If groups == in_channels,out_channels == in_channels
+            if node._layout.find("FCHW") != -1:
+                perm_list = [2, 3, 0, 1]
+                perm_const_op = tosa.ConstOp(
+                    ir.DenseElementsAttr.get(
+                        memoryview(array.array("i", perm_list))
+                    )
+                )
+                perm_shape = []
+                perm_shape.append(weight_shape[2])
+                perm_shape.append(weight_shape[3])
+                perm_shape.append(weight_shape[0])
+                perm_shape.append(weight_shape[1])
+                permute_result_type = ir.RankedTensorType.get(
+                    perm_shape, result_element_type
+                )
+                weight_depthwise = tosa.TransposeOp(
+                    permute_result_type, weight_val, perm_const_op.results[0]
+                ).result
+            op = tosa.DepthwiseConv2DOp(
+                output_type,
+                input_val,
+                weight_depthwise,
+                bias_tensor,
+                input_padding_attr,
+                stride_attr,
+                dilation_attr,
+            )
+        else:
+            # Transpose Conv2D Operation.
+            if is_kernel_transposed:
+                if sum(input_padding) > 0 or sum(dilation) > len(dilation):
+                    raise NotImplementedError
+                for i in range(len(out_padding), 4):
+                    out_padding = [0] + out_padding
+                out_padding_attr = ir._denseI64ArrayAttr(out_padding, None)
+                out_shape_attr = ir._denseI64ArrayAttr(out_shape, None)
+                op = tosa.TransposeConv2DOp(
+                    output_type,
+                    input_val,
+                    weight_val,
+                    bias_tensor,
+                    out_padding_attr,
+                    stride_attr,
+                    out_shape_attr,
+                )
+            # Generic Conv2D Operation.
+            else:
+                if node._layout.find("FCHW") != -1:
+                    perm_list = [0, 2, 3, 1]
+                    perm_const_op = tosa.ConstOp(
+                        ir.DenseElementsAttr.get(
+                            memoryview(array.array("i", perm_list))
+                        )
+                    )
+                    perm_shape = []
+                    perm_shape.append(weight_shape[0])
+                    perm_shape.append(weight_shape[2])
+                    perm_shape.append(weight_shape[3])
+                    perm_shape.append(weight_shape[1])
+                    permute_result_type = ir.RankedTensorType.get(
+                        perm_shape, result_element_type
+                    )
+                    weight_val = tosa.TransposeOp(
+                        permute_result_type,
+                        weight_val,
+                        perm_const_op.results[0],
+                    ).result
+                op = tosa.Conv2DOp(
+                    output_type,
+                    input_val,
+                    weight_val,
+                    bias_tensor,
+                    input_padding_attr,
+                    stride_attr,
+                    dilation_attr,
+                )
+        # Output transpose
+        if node._layout.find("NCHW") != -1:
+            perm_list = [0, 3, 1, 2]
+            perm_const_op = tosa.ConstOp(
+                ir.DenseElementsAttr.get(
+                    memoryview(array.array("i", perm_list))
+                )
+            )
+            perm_shape = []
+            perm_shape.append(out_shape[0])
+            perm_shape.append(out_shape[3])
+            perm_shape.append(out_shape[1])
+            perm_shape.append(out_shape[2])
+            permute_result_type = ir.RankedTensorType.get(
+                perm_shape, result_element_type
+            )
+            op = tosa.TransposeOp(
+                permute_result_type, op.result, perm_const_op.results[0]
+            )
+    # Convolution 1D
+    elif len(weight_shape) == 3:
+        # Prepare input with padding.
+        if input_padding[0] != 0:
+            input_shape = list(ir.RankedTensorType(input_val.type).shape)
+            padded_type = ir.RankedTensorType.get(
+                [
+                    input_shape[0],
+                    input_shape[1],
+                    input_shape[2] + 2 * input_padding[0],
+                ],
+                result_element_type,
+            )
+            pad_values_type = ir.RankedTensorType.get(
+                [3, 2], ir.IntegerType.get_signless(32)
+            )
+            pad_values = ir.DenseElementsAttr.get(
+                numpy.array(
+                    [[0, 0], [0, 0], [input_padding[0], input_padding[0]]],
+                    dtype=numpy.int32,
+                ),
+                type=pad_values_type,
+            )
+            pad_constant = arith.ConstantOp(pad_values_type, pad_values).result
+            input_val = tosa.PadOp(padded_type, input_val, pad_constant)
+        output_type = ir.RankedTensorType.get(out_shape, result_element_type)
+        output_conv = tensor.EmptyOp(list(out_shape), result_element_type)
+        assert groups == 1, "only support one group"
+        # Con1D Operation Without Bias
+        conv_op = linalg.conv_1d_ncw_fcw(
+            input_val,
+            weight_val,
+            outs=[output_conv],
+            strides=stride_attr,
+            dilations=dilation_attr,
+        )
+        output = tensor.EmptyOp(list(out_shape), result_element_type)
+        generic_map = ir.AffineMap.get_permutation(
+            [i for i in range(len(list(out_shape)))]
+        )
+        loop_type = [
+            ir.Attribute.parse("#linalg.iterator_type<parallel>")
+        ] * len(list(out_shape))
+        loop_type[1] = ir.Attribute.parse("#linalg.iterator_type<reduction>")
+        # Add Bias To Conv2d.
+        op = linalg.GenericOp(
+            [output_type],
+            [conv_op, bias_tensor],
+            [output],
+            ir.ArrayAttr.get(
+                [
+                    ir.AffineMapAttr.get(
+                        generic_map.get_submap(
+                            [i for i in range(len(list(out_shape)))]
+                        )
+                    ),
+                    ir.AffineMapAttr.get(generic_map.get_submap([1])),
+                    ir.AffineMapAttr.get(
+                        generic_map.get_submap(
+                            [i for i in range(len(list(out_shape)))]
+                        )
+                    ),
+                ]
+            ),
+            ir.ArrayAttr.get(loop_type),
+        )
+        block = ir.Block.create_at_start(
+            op.region,
+            [
+                result_element_type,
+                ir.RankedTensorType(bias_tensor.type).element_type,
+                result_element_type,
+            ],
+        )
+        add_op = arith.AddFOp(block.arguments[1], block.arguments[0])
+        block.append(add_op)
+        block.append(linalg.YieldOp([add_op.result]))
+
+    return op
+
+
+def relu_op(node: ReluOp, symbol_table):
+    """
+    Import the tensor relu operation.
+    From Buddy ReluOp to MLIR TOSA `maximum` operation.
+    """
+    assert len(node.args) == 1
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    if input1 is None:
+        return
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    element = mlir_element_attr_get(dtype, 0)
+    tensor_type = ir.RankedTensorType.get(output_shape, element.type)
+    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+    zero_op = tosa.ConstOp(attr)
+    result_element_type = mlir_element_type_get(dtype)
+    op = tosa.MaximumOp(tensor_type, input1, zero_op)
+
+    return op
+
+
+def iota_op(node: IotaOp, symbol_table):
+    """
+    Import the tensor iota operation.
+    From Buddy IotaOp to MLIR TOSA `ConstOp` operation.
+    """
+    assert len(node.args) == 1
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    start = node.kwargs["start"]
+    end = node.args[0]
+    step = node.kwargs["step"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    attr = ir.DenseElementsAttr.get(
+        numpy.arange(start, end, step),
+        type=tensor_type,
+    )
+    op = tosa.ConstOp(attr)
+
+    return op
+
+
+def sigmoid_op(node: SigmoidOp, symbol_table):
+    """
+    Import the tensor sigmoid operation.
+    From Buddy SigmoidOp to MLIR TOSA `SigmoidOp` operation.
+    """
+    assert len(node.args) == 1
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    if input1 is None:
+        return
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    op = tosa.SigmoidOp(tensor_type, input1)
+
+    return op
+
+
+def reciprocal_op(node: ReciprocalOp, symbol_table):
+    """
+    Import the buddy ReciprocalOp.
+    From Buddy ReciprocalOp to MLIR TOSA `ReciprocalOp` operation.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    return tosa.ReciprocalOp(input_tensor.type, input_tensor)
+
+
+def mean_op(node: MeanOp, symbol_table):
+    """
+    Import the buddy MeanOp.
+    From Buddy MeanOp to MLIR TOSA operation.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    keepdim = node.args[2]
+    dims = [x for x in node.args[1]]
+    if isinstance(dims, int):
+        dims = [dims]
+
+    for dim_item_idx, _ in enumerate(dims):
+        if dims[dim_item_idx] < 0:
+            dims[dim_item_idx] += len(
+                ir.RankedTensorType(input_tensor.type).shape
+            )
+
+    reduce_sum_result = input_tensor
+    for dim_item in dims:
+        reduce_dim_attr = ir.IntegerAttr.get(
+            ir.IntegerType.get_signless(32), dim_item
+        )
+        reduce_sum_op = tosa.ReduceSumOp(reduce_sum_result, reduce_dim_attr)
+        reduce_sum_result = reduce_sum_op.results[0]
+
+    tensor_shp = ir.RankedTensorType(input_tensor.type).shape
+    dim_size = 1
+
+    for dim_item in dims:
+        dim_size *= tensor_shp[dim_item]
+
+    denominator_const_op = tosa.ConstOp(
+        ir.DenseElementsAttr.get(memoryview(array.array("f", [dim_size])))
+    )
+    reciprocal_op = tosa.ReciprocalOp(
+        denominator_const_op.results[0].type, denominator_const_op
+    )
+
+    ret = tosa.MulOp(
+        reduce_sum_op.results[0].type,
+        reciprocal_op.results[0],
+        reduce_sum_op.results[0],
+        ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+    )
+
+    if not keepdim:
+        result_shp = ir.RankedTensorType(ret.results[0].type).shape
+        result_shp = [siz for siz in result_shp if siz != 1]
+        ret = tosa.ReshapeOp(
+            ret.results[0], memoryview(array.array("i", result_shp))
+        )
+
+    return ret
+
+
+def clamp_min_op(node: ClampMinOp, symbol_table):
+    """
+    Creates a TOSA clamp operation to set a minimum value for a tensor.
+
+    Retrieves the input tensor and its minimum clamp value from the symbol table,
+    setting the maximum clamp value to the highest possible for the data type.
+    The operation ensures no values are below the specified minimum.
+
+    Parameters:
+    - node (ClampMinOp): Node with tensor and minimum value details.
+    - symbol_table (dict): Dictionary mapping identifiers to values or nodes.
+
+    Returns:
+    - tosa.ClampOp: Configured TOSA clamp operation with minimum clamping.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    min_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    tensor_type = input1.type
+    min_value_int = round(min_value)
+    min_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), min_value_int)
+    max_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), sys.maxsize)
+    min_fp = ir.FloatAttr.get(ir.F32Type.get(), min_value)
+    max_fp = ir.FloatAttr.get(ir.F32Type.get(), float("inf"))
+    op = tosa.ClampOp(tensor_type, input1, min_int, max_int, min_fp, max_fp)
+    return op
+
+
+def clamp_max_op(node: ClampMaxOp, symbol_table):
+    """
+    Creates a TOSA clamp operation to set a maximum value for a tensor.
+
+    Retrieves the input tensor and its maximum clamp value from the symbol table,
+    setting the minimum clamp value to the lowest possible for the data type.
+    The operation ensures no values exceed the specified maximum.
+
+    Parameters:
+    - node (ClampMaxOp): Node with tensor and maximum value details.
+    - symbol_table (dict): Dictionary mapping identifiers to values or nodes.
+
+    Returns:
+    - tosa.ClampOp: Configured TOSA clamp operation with maximum clamping.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    max_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    tensor_type = input1.type
+    min_value_int = round(max_value)
+    min_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), -sys.maxsize)
+    max_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), min_value_int)
+    min_fp = ir.FloatAttr.get(ir.F32Type.get(), -float("inf"))
+    max_fp = ir.FloatAttr.get(ir.F32Type.get(), max_value)
+    op = tosa.ClampOp(tensor_type, input1, min_int, max_int, min_fp, max_fp)
+    return op
+
+
+def randint_low_op(node: RandIntLowOp, symbol_table):
+    """
+    Generates a tensor of random integers within a specified range.
+
+    Parameters:
+    - node (RandIntLowOp): Node containing the range and shape.
+    - symbol_table (dict): Maps identifiers to values.
+
+    Returns:
+    - tosa.ConstOp: Tensor with random integers.
+    """
+    min_value = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    max_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    shape = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    output = ir.DenseElementsAttr.get(
+        numpy.random.randint(min_value, max_value, size=shape)
+    )
+    op = tosa.ConstOp(output)
+    return op
+
+
+def argmax_op(node: ArgMaxOp, symbol_table):
+    """
+    Compute the indices of the maximum values along the specified axis.
+
+    Args:
+        node (ArgMaxOp): The ArgMax operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+
+    Returns:
+        op: The constructed ArgMax operation.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    axis = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+
+    if axis < 0:
+        axis += len(input_shape)
+
+    result_shape = input_shape[:axis] + input_shape[axis + 1 :]
+    result_type = ir.IntegerType.get_signless(64)
+    result = ir.RankedTensorType.get(result_shape, result_type)
+    op = tosa.ArgMaxOp(result, input_tensor, axis)
+    return op
+
+
+def scaled_dot_product_flash_attention_for_cpu_op(
+    node: ScaledDotProductFlashAttentionForCpuOp, symbol_table
+):
+    """
+    Perform scaled dot-product attention computation.
+    Args:
+        node (ScaledDotProductFlashAttentionForCpuOp): The scaled dot-product attention operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+    Returns:
+        result_reshape_op: Reshaped result tensor of the attention operation.
+        log_sumexp_op: Log-sum-exp constant operation.
+    """
+    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    key = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+
+    if len(node.args) == 4:
+        dropout_p = node.args[3]
+        assert dropout_p != 0.0
+    if len(node.args) == 5:
+        dropout_p = node.args[3]
+        is_causal = node.args[4]
+        assert dropout_p != 0.0
+        assert is_causal == True
+
+    attn_mask = node.kwargs.get("attn_mask", None)
+    scale = node.kwargs.get("scale", None)
+
+    query_shape = query.type.shape
+    key_shape = key.type.shape
+    value_shape = value.type.shape
+    output_shape = list(node.tensor_meta["shape"])
+    L, S = query_shape[-2], key_shape[-2]
+    scale_factor = (
+        1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    )
+
+    # Initialize attention bias
+    dtype = node.tensor_meta["dtype"][0]
+    attn_bias_shape = [L, S]
+    mlir_dtype = mlir_element_type_get(dtype)
+    attn_bias_type = ir.RankedTensorType.get(attn_bias_shape, mlir_dtype)
+    zero_constant = arith.ConstantOp(mlir_dtype, 0.0)
+    attn_bias = tensor.SplatOp(attn_bias_type, zero_constant)
+    if attn_mask is not None:
+        attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
+        if attn_mask.type.element_type == ir.IntegerType.get_signless(1):
+            assert attn_mask.type.element_type == ir.IntegerType.get_signless(1)
+            tensor_type = ir.RankedTensorType.get(
+                attn_mask.type.shape, ir.IntegerType.get_signless(1)
+            )
+            true_tensor = arith.ConstantOp(
+                tensor_type,
+                ir.DenseElementsAttr.get_splat(
+                    tensor_type, ir.BoolAttr.get(True)
+                ),
+            )
+            attn_mask = arith.XOrIOp(attn_mask, true_tensor)
+            minus_inf_tensor = arith.ConstantOp(
+                attn_mask.type,
+                ir.DenseElementsAttr.get_splat(
+                    attn_mask.type, ir.FloatAttr.get(f32_type, float("-inf"))
+                ),
+            )
+            attn_bias = tensor.SelectOp(attn_mask, minus_inf_tensor, attn_bias)
+        else:
+            if attn_mask.type.shape != attn_bias.result.type.shape:
+                attn_mask = tosa.ReshapeOp(
+                    attn_mask,
+                    memoryview(array.array("i", attn_bias.result.type.shape)),
+                )
+            attn_bias = tosa.AddOp(attn_bias.result.type, attn_bias, attn_mask)
+
+    # Transpose key tensor
+    key_shape = list(key.type.shape)
+    perm_list = list(range(len(key_shape)))
+    perm_list[-1], perm_list[-2] = perm_list[-2], perm_list[-1]
+    perm_const_op = tosa.ConstOp(
+        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+    )
+    perm_shape = []
+    perm_shape.append(key_shape[0])
+    perm_shape.append(key_shape[1])
+    perm_shape.append(key_shape[3])
+    perm_shape.append(key_shape[2])
+    permute_result_type = ir.RankedTensorType.get(perm_shape, mlir_dtype)
+    key = tosa.TransposeOp(
+        permute_result_type, key, perm_const_op.results[0]
+    ).result
+
+    # Matrix multiplication of query and key
+    query_reshape_op = tosa.ReshapeOp(
+        query,
+        memoryview(
+            array.array(
+                "i",
+                [
+                    query_shape[0] * query_shape[1],
+                    query_shape[2],
+                    query_shape[3],
+                ],
+            )
+        ),
+    )
+    key_reshape_op = tosa.ReshapeOp(
+        key,
+        memoryview(
+            array.array(
+                "i", [key_shape[0] * key_shape[1], key_shape[3], key_shape[2]]
+            )
+        ),
+    )
+    matmul_result_shp = [
+        key_shape[0] * key_shape[1],
+        query_shape[2],
+        key_shape[2],
+    ]
+    matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
+    matmul_op = tosa.MatMulOp(
+        matmul_result_type, query_reshape_op.result, key_reshape_op.result
+    )
+    # Multiply result by scale factor
+    scale_factor_constant = arith.ConstantOp(mlir_dtype, scale_factor)
+    scale_factor = tensor.SplatOp(matmul_result_type, scale_factor_constant)
+    mul_op = tosa.MulOp(
+        matmul_result_type,
+        matmul_op,
+        scale_factor,
+        ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+    )
+
+    # Add attention bias to the result
+    add_op = tosa.AddOp(matmul_result_type, mul_op.result, attn_bias)
+    # Apply softmax to the result
+    softmax_output_shape = list(add_op.result.type.shape)
+    softmax_dim = len(softmax_output_shape) - 1
+
+    # Subtract the maximum value along the dimension where softmax is applied to prevent overflow during the exp operation.
+    max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
+    sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
+    exp_op = math.ExpOp(sub_op)
+    reduce_sum_op = tosa.ReduceSumOp(exp_op, softmax_dim)
+    log_op = tosa.LogOp(reduce_sum_op.result.type, reduce_sum_op)
+    log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
+    log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
+    softmax_result = math.ExpOp(log_weights)
+    log_sumexp = tosa.ReshapeOp(
+        log_sumexp,
+        memoryview(
+            array.array(
+                "i",
+                output_shape[1],
+            )
+        ),
+    )
+
+    # This step includes dropout during training.
+    # Multiply the result by the value tensor.
+    value_reshape_op = tosa.ReshapeOp(
+        value,
+        memoryview(
+            array.array(
+                "i",
+                [key_shape[0] * key_shape[1], value_shape[2], value_shape[3]],
+            )
+        ),
+    )
+    matmul_result_shp = matmul_result_shp = [
+        key_shape[0] * key_shape[1],
+        query_shape[2],
+        value_shape[3],
+    ]
+    matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
+    matmul_op = tosa.MatMulOp(
+        matmul_result_type, softmax_result.result, value_reshape_op.result
+    )
+
+    result_reshape_op = tosa.ReshapeOp(
+        matmul_op.result,
+        memoryview(
+            array.array(
+                "i",
+                [key_shape[0], key_shape[1], query_shape[2], value_shape[3]],
+            )
+        ),
+    )
+
+    return result_reshape_op, log_sumexp
+
+
 ops_registry = {
-    "add.Tensor": add_op,
-    "mul.Tensor": mul_op,
-    "sub.Tensor": sub_op,
-    "sum.dim_IntList": sum_op,
-    "tanh.default": tanh_op,
-    "amax.default": amax_op,
-    "rsqrt.default": rsqrt_op,
-    "bmm.default": bmm_op,
-    "clone.default": clone_op,
-    "div.Tensor": div_op,
-    "exp.default": exp_op,
-    "expand.default": expand_op,
-    "var_mean.correction": var_mean_op,
-    "addmm.default": addmm_op,
-    "reshape.default": reshape_op,
-    "view.default": reshape_op,
-    "select.int": select_op,
-    "slice.Tensor": slice_op,
-    "embedding.default": embedding_op,
-    "convert_element_type.default": convert_element_type_op,
-    "permute.default": permute_op,
-    "unsqueeze.default": unsqueeze_op,
-    "t.default": t_op,
-    "transpose.int": transpose_op,
+    "AddOp": add_op,
+    "MulOp": mul_op,
+    "SubOp": sub_op,
+    "SumDimOp": sum_op,
+    "TanhOp": tanh_op,
+    "AmaxOp": amax_op,
+    "RsqrtOp": rsqrt_op,
+    "BatchMatmulOp": bmm_op,
+    "CloneOp": clone_op,
+    "DivOp": div_op,
+    "ExpOp": exp_op,
+    "ExpandOp": expand_op,
+    "VarMeanOp": var_mean_op,
+    "AddMMOp": addmm_op,
+    "ReshapeOp": reshape_op,
+    "ViewOp": reshape_op,
+    "SelectOp": select_op,
+    "SliceOp": slice_op,
+    "EmbeddingOp": embedding_op,
+    "ConvertElementTypeOp": convert_element_type_op,
+    "PermuteOp": permute_op,
+    "UnsqueezeOp": unsqueeze_op,
+    "TOp": t_op,
+    "TransposeOp": transpose_op,
+    "MaxPool2dOp": maxpool2d_op,
+    "Conv2dOp": convolution2d_op,
+    "ReluOp": relu_op,
+    "IotaOp": iota_op,
+    "SigmoidOp": sigmoid_op,
+    "ReciprocalOp": reciprocal_op,
+    "MeanOp": mean_op,
+    "ClampMinOp": clamp_min_op,
+    "ClampMaxOp": clamp_max_op,
+    "RandIntLowOp": randint_low_op,
+    "ArgMaxOp": argmax_op,
+    "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
 }

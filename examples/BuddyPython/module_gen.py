@@ -43,23 +43,11 @@ dynamo_compiler = DynamoCompiler(
     aot_autograd_decomposition=inductor_decomp,
 )
 
-# The first way to generate an MLIR Module:
-# Pass the function and input data to the dynamo compiler's importer,
-# and accepts the generated module and weight parameters.
-module, params = dynamo_compiler.importer(foo, *(float32_in1, float32_in2))
+# Pass the function and input data to the dynamo compiler's importer, the
+# importer will first build a graph. Then, lower the graph to top-level IR.
+# (tosa, linalg, etc.). Finally, accepts the generated module and weight parameters.
+graphs = dynamo_compiler.importer(foo, float32_in1, float32_in2)
+graph = graphs[0]
+graph.lower_to_top_level_ir()
 
-print(module)
-print(params)
-
-# The second way to generate an MLIR Module:
-# Execute the target function using a define-by-run style,
-# and get the module and weight parameters from the dynamo compiler's attribute.
-foo_mlir = dynamo.optimize(dynamo_compiler)(foo)
-
-foo_mlir(float32_in1, float32_in2)
-print(dynamo_compiler.imported_module)
-print(dynamo_compiler.imported_params)
-
-foo_mlir(int32_in1, int32_in2)
-print(dynamo_compiler.imported_module)
-print(dynamo_compiler.imported_params)
+print(graph._imported_module)

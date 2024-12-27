@@ -73,12 +73,16 @@ public:
   // Read the string at once, and replace all whitespace with a special
   // mark — thick underline.
   void tokenizeLlama(const std::string &vocab, size_t length);
+  // Stable Diffusion Tokenizer
+  // This function is designed for tokenizing input text for Stable Diffusion models.
+  void tokenizeStableDiffusion(const std::string &vocab, size_t length);
 
   // Revert the ids into tokens.
   // This function initializes the conversion from Text memref to a string.
   // Tokens are identified by ids and thick underlines are replaced with
   // whitespaces.
   std::string revertLlama();
+  std::string revertWhisper();
 
   // Get sequence length
   size_t getTokenCnt() { return this->tokenCnt; }
@@ -160,6 +164,7 @@ private:
   void tokenizeWithAffix(const std::string &token, size_t &tokenCnt);
   std::string findLongestSubToken(const std::string &token, size_t start);
   void assignTokenId(const std::string &token, size_t &tokenCnt);
+  void assignTokenIdSD(const std::string &token, size_t &tokenCnt);
   // [UNK] NLP Padding Marker
   int pad;
   // [UNK] NLP Unknown Marker
@@ -168,6 +173,10 @@ private:
   int cls;
   // [SEP] NLP Separator Marker
   int sep;
+  // [BOS] NLP Begin of Sentence Marker
+  int bos;
+  // [EOS] NLP End of Sentence Marker
+  int eos;
   // The maximum number of input characters that can be accepted in one word.
   size_t maxInputChars = 200;
   // The string member of the text container.
@@ -316,6 +325,86 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
   }
 }
 
+// StableDiffusion Tokenizer
+template <typename T, size_t N>
+void Text<T, N>::tokenizeStableDiffusion(const std::string &vocab, size_t length) {
+  // Initialize MemRef container members.
+  this->offset = 0;
+  this->sizes[0] = 1;
+  this->sizes[1] = length;
+  this->setStrides();
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
+  this->aligned = this->allocated;
+  this->pad = 0;
+  this->unk = 49407;
+  this->bos = 49406;
+  this->eos = 49407;
+  loadVocab(vocab);
+  // Tokenize string and convert to MemRef container object.
+  // Mark the beginning of our token.
+  this->aligned[0] = bos;
+  tokenCnt = 1;
+  std::string token;
+
+  for (size_t i = 0; i < str.size(); ++i) {
+      char c = tolower(str[i]);
+      // Special match cases
+      if (str.substr(i, 15) == "<|startoftext|>" || str.substr(i, 13) == "<|endoftext|>") {
+          if (!token.empty()) {
+              assignTokenIdSD(token, tokenCnt);
+              token.clear();
+          }
+          size_t len = (str.substr(i, 15) == "<|startoftext|>") ? 15 : 13;
+          assignTokenIdSD(str.substr(i, len), tokenCnt);
+          i += len - 1;
+      }
+      // Handle contractions
+      else if (c == '\'' && (str.substr(i, 2) == "'s" || str.substr(i, 2) == "'t" ||
+                              str.substr(i, 3) == "'re" || str.substr(i, 3) == "'ve" ||
+                              str.substr(i, 2) == "'m" || str.substr(i, 3) == "'ll" ||
+                              str.substr(i, 2) == "'d")) {
+          if (!token.empty()) {
+              assignTokenIdSD(token, tokenCnt);
+              token.clear();
+          }
+          size_t len = (str.substr(i, 3) == "'re" || str.substr(i, 3) == "'ve" || 
+                        str.substr(i, 3) == "'ll") ? 3 : 2;
+          assignTokenIdSD(str.substr(i, len), tokenCnt);
+          i += len - 1;
+      }
+      // Handle letters
+      else if (std::isalpha(static_cast<unsigned char>(c))) {
+          token += c;
+      }
+      // Handle digits
+      else if (std::isdigit(static_cast<unsigned char>(c))) {
+          token += c;
+      }
+      // Handle other characters
+      else {
+          if (!token.empty()) {
+              assignTokenIdSD(token, tokenCnt);
+              token.clear();
+          }
+          token += c;
+          if (token != " ") assignTokenIdSD(token, tokenCnt);
+          token.clear();
+      }
+  }
+  // Parse the last token if exists.
+  if (!token.empty()) {
+      assignTokenIdSD(token, tokenCnt);
+  }
+
+  // Mark the end of token stream.
+  this->aligned[tokenCnt++] = eos;
+  // Padding the rest text container.
+  for (size_t i = tokenCnt; i < length; i++) {
+    this->aligned[i] = pad;
+  }
+}
+
 // The revert function is used to convert the tokenized sequence back to a
 // full string.
 template <typename T, size_t N> std::string Text<T, N>::revertLlama() {
@@ -325,7 +414,7 @@ template <typename T, size_t N> std::string Text<T, N>::revertLlama() {
   const int CLS_ID = 1;
   const int SEP_ID = 2;
 
-  for (size_t i = 0; i < this->getSize(); i++) {
+  for (size_t i = 0; i < this->tokenCnt; i++) {
     int id = this->aligned[i];
     if (id == PAD_ID || id == CLS_ID)
       continue;
@@ -337,6 +426,39 @@ template <typename T, size_t N> std::string Text<T, N>::revertLlama() {
     while (pos != std::string::npos) {
       token.replace(pos, 3, " ");
       pos = token.find("▁", pos + 1);
+    }
+    dst.append(token);
+  }
+  if (dst[0] == ' ') {
+    dst.erase(0, 1);
+  }
+  return dst;
+}
+
+template <typename T, size_t N> std::string Text<T, N>::revertWhisper() {
+  std::string dst;
+
+  const int PAD_ID = 50257;
+  const int CLS_ID = 50258;
+  const int SEP_ID = 50257;
+  const int TRAN_ID = 50359;
+  const int NOTIMESTAMPS_ID = 50363;
+
+  for (size_t i = 0; i < this->tokenCnt; i++) {
+    int id = this->aligned[i];
+    // pad / start / type timestamps / language
+    if (id == PAD_ID || id == CLS_ID || id == TRAN_ID ||
+        id == NOTIMESTAMPS_ID ||
+        (id >= 50259 && id <= 50357))
+      continue;
+    if (id == SEP_ID)
+      break;
+    // Replace each "▁" with a space.
+    std::string token = this->idToTokenVec[id];
+    size_t pos = token.find("Ġ");
+    while (pos != std::string::npos) {
+      token.replace(pos, 2, " ");
+      pos = token.find("Ġ", pos + 1);
     }
     dst.append(token);
   }
@@ -419,6 +541,18 @@ void Text<T, N>::assignTokenId(const std::string &token, size_t &tokenCnt) {
     this->aligned[tokenCnt++] = unk;
   }
 }
+
+template <typename T, size_t N>
+void Text<T, N>::assignTokenIdSD(const std::string &token, size_t &tokenCnt) {
+  const std::string token_suffixed = token + "</w>";
+  if (tokenToIdMap.count(token_suffixed)) {
+    this->aligned[tokenCnt++] = tokenToIdMap[token_suffixed];
+  } else {
+    //The BPE encoding needs to be implemented here.
+    this->aligned[tokenCnt++] = unk;
+  }
+}
+
 } // namespace buddy
 
 #endif // FRONTEND_INTERFACES_BUDDY_LLM_TEXTCONTAINER

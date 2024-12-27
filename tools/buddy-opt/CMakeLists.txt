@@ -20,6 +20,7 @@ target_link_libraries(buddy-opt
   LowerDIPPass
   BuddyDAP
   LowerDAPPass
+  ExtendDAPPass
   DAPVectorization
   BuddyRVV
   LowerRVVPass
@@ -28,6 +29,7 @@ target_link_libraries(buddy-opt
   MatMulParallelVectorization
   TransposeOptimization
   ConvOptimization
+  DepthwiseConvOptimization
   VectorExp
   LowerVectorExpPass
   BuddyGemmini
@@ -35,4 +37,18 @@ target_link_libraries(buddy-opt
   LowerLinalgToGemminiPass
   SchedulingOnDevices
   LowerSche
+  FuncBufferizeDynamicOffset
+  MLIRGPUPasses
+  BuddyGPUTransformOPs
+  MLIRTestTransforms
+  MLIRTestTransformDialect
+  MLIRTransforms
+  MLIRTransformUtils
+  MatMulTransposeBVec
+  MLIRGPUPasses
+  BuddyGPUTransformOPs
+  MLIRTestTransforms
+  MLIRTestTransformDialect
+  MLIRTransforms
+  MLIRTransformUtils
   )

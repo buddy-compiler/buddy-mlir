@@ -92,7 +92,7 @@ $ buddy-opt <input> -lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
 
 ```
 $ cd buddy-mlir/build/bin
-$ ./buddy-opt ../../examples/DIPDialect/dip.mlir --lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
+$ ./buddy-opt ../../frontend/Interfaces/DIP.mlir --lower-dip="DIP-strip-mining=${BUDDY_DIP_OPT_STRIP_MINING}"
 ```
 
 - Edge detection example:
@@ -172,10 +172,12 @@ $ cmake -G Ninja .. \
     -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
     -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DBUDDY_EXAMPLES=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
-$ ninja firLowpass
+$ ninja buddy-fir-scalar buddy-fir-vectorization
 $ cd bin
-$ ./firLowpass [input_file] [output_dest]
+$ ./buddy-fir-scalar
+$ ./buddy-fir-vectorization
 ```
 Specify nothing to process default NASA audio.
 
@@ -195,9 +197,9 @@ $ cmake -G Ninja .. \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DBUDDY_EXAMPLES=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
-$ ninja biquad
+$ ninja buddy-biquad
 $ cd bin
-$ ./biquad [input_file] [output_dest]
+$ ./buddy-biquad
 ```
 You can also use your own configuration assigning values `-DBUDDY_DAP_OPT_VECTOR_SPLITTING` (e.g. 64) and `-DBUDDY_OPT_ATTR` (e.g. avx2).
 
@@ -219,9 +221,10 @@ $ cmake -G Ninja .. \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DBUDDY_EXAMPLES=ON \
     -DCMAKE_BUILD_TYPE=RELEASE
-$ ninja iirLowpass
+$ ninja buddy-iir-scalar buddy-iir-vectorization
 $ cd bin
-$ ./iirLowpass [input_file] [output_dest]
+$ ./buddy-iir-scalar
+$ ./buddy-iir-vectorization
 ```
 You can also use your own configuration assigning values `-DBUDDY_DAP_OPT_VECTOR_SPLITTING` (e.g. 64) and `-DBUDDY_OPT_ATTR` (e.g. avx2).
 
@@ -237,7 +240,7 @@ Example:
 
 ```
 $ cd buddy-mlir/build/bin
-$ ./buddy-opt ../../examples/BudDialect/TestConstant.mlir --lower-bud
+$ ./buddy-opt ../../examples/BudDialect/bud-print.mlir --lower-bud
 ```
 
 ## DSL Examples

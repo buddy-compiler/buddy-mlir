@@ -1,4 +1,4 @@
-set(LLVM_CodeGen_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/CodeGen)
+set(LLVM_CodeGen_DIR ${LLVM_MAIN_SRC_DIR}/lib/CodeGen)
 
 add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/AggressiveAntiDepBreaker.cpp
