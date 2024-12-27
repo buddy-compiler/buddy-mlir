@@ -30,24 +30,24 @@
 
 namespace mlir {
 namespace buddy {
-  void registerConvOptimizePass();
-  void registerConvVectorizationPass();
-  void registerPointwiseConvToGemmPass();
-  void registerPoolingVectorizationPass();
-  void registerLowerBudPass();
-  void registerLowerDAPPass();
-  void registerLowerDIPPass();
-  void registerLowerGemminiPass();
-  void registerLowerLinalgToGemminiPass();
-  void registerLowerRVVPass();
-  void registerLowerSchePass();
-  void registerLowerVectorExpPass();
-  void registerBatchMatMulOptimizePass();
-  void registerMatMulOptimizePass();
-  void registerMatMulParallelVectorizationPass();
-  void registerMatMulVectorizationPass();
-  void registerDeviceSchedulePass();
-  void registerTransposeOptimizationPass();
+void registerConvOptimizePass();
+void registerConvVectorizationPass();
+void registerPointwiseConvToGemmPass();
+void registerPoolingVectorizationPass();
+void registerLowerBudPass();
+void registerLowerDAPPass();
+void registerLowerDIPPass();
+void registerLowerGemminiPass();
+void registerLowerLinalgToGemminiPass();
+void registerLowerRVVPass();
+void registerLowerSchePass();
+void registerLowerVectorExpPass();
+void registerBatchMatMulOptimizePass();
+void registerMatMulOptimizePass();
+void registerMatMulParallelVectorizationPass();
+void registerMatMulVectorizationPass();
+void registerDeviceSchedulePass();
+void registerTransposeOptimizationPass();
 } // namespace buddy
 } // namespace mlir
 

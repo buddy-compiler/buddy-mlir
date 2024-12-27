@@ -14,7 +14,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #ifndef BUDDY_MLIR_INITALL_H
 #define BUDDY_MLIR_INITALL_H
 

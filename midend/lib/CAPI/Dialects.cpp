@@ -35,7 +35,9 @@
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Bud, bud, buddy::bud::BudDialect)
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(DAP, dap, buddy::dap::DAPDialect)
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(DIP, dip, buddy::dip::DIPDialect)
-MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Gemmini, gemmini, buddy::gemmini::GemminiDialect)
+MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Gemmini, gemmini,
+                                      buddy::gemmini::GemminiDialect)
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(RVV, rvv, buddy::rvv::RVVDialect)
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Sche, sche, buddy::sche::ScheDialect)
-MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(VectorExp, vector_exp, buddy::vector_exp::VectorExpDialect)
+MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(VectorExp, vector_exp,
+                                      buddy::vector_exp::VectorExpDialect)

@@ -35,4 +35,4 @@ MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(VectorExp, vector_exp);
 }
 #endif
 
-#endif  // BUDDYMLIR_C_DIALECTS_H
+#endif // BUDDYMLIR_C_DIALECTS_H

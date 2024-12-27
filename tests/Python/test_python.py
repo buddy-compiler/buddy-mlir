@@ -22,11 +22,11 @@ with Context():
         outs(%mem2 : memref<8x8xi8>)
         gemmini.print %mem2 : memref<8x8xi8>
         """)
-    
-    pm = PassManager('builtin.module')
+
+    pm = PassManager("builtin.module")
     pm.add("convert-linalg-to-gemmini")
     pm.run(mod.operation)
-    
+
     # CHECK: module {
     # CHECK: %c0_i8 = arith.constant 0 : i8
     # CHECK: %c1_i8 = arith.constant 1 : i8
