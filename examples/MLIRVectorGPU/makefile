@@ -879,3 +879,125 @@ vector-reduction-run:
 	)" | \
 	${MLIR_CPU_RUNNER} -entry-point-result=void \
 	-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
+
+vector-type-cast-lower:
+	@${MLIR_OPT} ./vector-type-cast.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" \
+	-o log.mlir
+
+vector-type-cast-translate:
+	@${MLIR_OPT} ./vector-type-cast.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-type-cast-run:
+	@${MLIR_OPT} ./vector-type-cast.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" | \
+	${MLIR_CPU_RUNNER} -entry-point-result=void \
+	-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
+
+vector-shape-cast-lower:
+	@${MLIR_OPT} ./vector-shape-cast.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" \
+	-o log.mlir
+
+vector-shape-cast-translate:
+	@${MLIR_OPT} ./vector-shape-cast.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-shape-cast-run:
+	@${MLIR_OPT} ./vector-shape-cast.mlir \
+	--pass-pipeline="builtin.module( \
+		convert-linalg-to-loops, \
+		convert-vector-to-scf, \
+		lower-affine, \
+		convert-scf-to-cf, \
+		convert-vector-to-llvm, \
+		convert-arith-to-llvm, \
+		convert-func-to-llvm, \
+		gpu-kernel-outlining, \
+		nvvm-attach-target{chip=sm_89 O=3}, \
+		strip-debuginfo, \
+		gpu.module(convert-gpu-to-nvvm), \
+		gpu-to-llvm, \
+		reconcile-unrealized-casts, \
+		gpu-module-to-binary \
+	)" | \
+	${MLIR_CPU_RUNNER} -entry-point-result=void \
+	-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
