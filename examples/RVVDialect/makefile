@@ -221,3 +221,42 @@ rvv-stripmining-aot:
 		-o a.out
 	@LD_LIBRARY_PATH=${CROSS_MLIR_LIB} \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu max a.out
+
+
+rvv-max-min-lower:
+	@${BUDDY_OPT} ./rvv-max-min.mlir \
+		-convert-scf-to-cf \
+		-convert-math-to-llvm \
+		-lower-rvv \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts \
+		-o ./log.mlir
+
+rvv-max-min-translate:
+	@${BUDDY_OPT} ./rvv-max-min.mlir \
+		-convert-scf-to-cf \
+		-convert-math-to-llvm \
+		-lower-rvv \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir -o log.ll
+
+rvv-max-min-run:
+	@${BUDDY_OPT} ./rvv-max-min.mlir \
+		-convert-scf-to-cf \
+		-convert-math-to-llvm \
+		-lower-rvv \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} \
+			-cpu max \
+	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v \
+		-dlopen=${CROSS_MLIR_C_RUNNER_UTILS} \
+		-dlopen=${CROSS_MLIR_RUNNER_UTILS}	

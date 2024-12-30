@@ -142,6 +142,12 @@ class RVV_BinaryAAXNoMask_Op<string mnemonic, string op_description,
 def RVVAddOp : RVV_BinaryAAXNoMask_Op<"add", "addition">;
 def RVVMulOp : RVV_BinaryAAXNoMask_Op<"mul", "multiplication">;
 
+def RVVMaxOp : RVV_BinaryAAXNoMask_Op<"max", "maximum">;
+def RVVMinOp : RVV_BinaryAAXNoMask_Op<"min", "minimun">;
+def RVVAndOp : RVV_BinaryAAXNoMask_Op<"and", "and">;
+def RVVOrOp : RVV_BinaryAAXNoMask_Op<"or", "or">;
+def RVVXorOp : RVV_BinaryAAXNoMask_Op<"xor", "exclusive or">;
+
 //===----------------------------------------------------------------------===//
 // RVV intrinsic operation definitions
 //===----------------------------------------------------------------------===//
@@ -206,4 +212,16 @@ def RVVIntrAddOp : RVV_BinaryAAXNoMask_IntrOp<"vadd">,
 def RVVIntrMulOp : RVV_BinaryAAXNoMask_IntrOp<"vmul">, 
   Arguments<(ins AnyScalableVector, AnyScalableVector, AnyType, AnyInteger)>;
 
+
+def RVVIntrMaxOp : RVV_BinaryAAXNoMask_IntrOp<"vmax">, 
+  Arguments<(ins AnyScalableVector, AnyScalableVector, AnyType, AnyInteger)>;
+def RVVIntrMinOp : RVV_BinaryAAXNoMask_IntrOp<"vmin">, 
+  Arguments<(ins AnyScalableVector, AnyScalableVector, AnyType, AnyInteger)>;
+def RVVIntrAndOp : RVV_BinaryAAXNoMask_IntrOp<"vand">, 
+  Arguments<(ins AnyScalableVector, AnyScalableVector, AnyType, AnyInteger)>;
+def RVVIntrOrOp : RVV_BinaryAAXNoMask_IntrOp<"vor">, 
+  Arguments<(ins AnyScalableVector, AnyScalableVector, AnyType, AnyInteger)>;
+def RVVIntrXorOp : RVV_BinaryAAXNoMask_IntrOp<"vxor">, 
+  Arguments<(ins AnyScalableVector, AnyScalableVector, AnyType, AnyInteger)>;
+   
 #endif // RVV_OPS

@@ -212,6 +212,17 @@ using RVVAddOpLowering =
 using RVVMulOpLowering =
     ConvertPassthruOperandOpToLLVMPattern<RVVMulOp, RVVIntrMulOp>;
 
+using RVVMaxOpLowering =
+    ConvertPassthruOperandOpToLLVMPattern<RVVMaxOp, RVVIntrMaxOp>;
+using RVVMinOpLowering =
+    ConvertPassthruOperandOpToLLVMPattern<RVVMinOp, RVVIntrMinOp>;
+using RVVAndOpLowering =
+    ConvertPassthruOperandOpToLLVMPattern<RVVAndOp, RVVIntrAndOp>;
+using RVVOrOpLowering =
+    ConvertPassthruOperandOpToLLVMPattern<RVVOrOp, RVVIntrOrOp>;
+using RVVXorOpLowering =
+    ConvertPassthruOperandOpToLLVMPattern<RVVXorOp, RVVIntrXorOp>;
+
 struct RsqrtOpLowering : public ConvertOpToLLVMPattern<RsqrtOp> {
   using ConvertOpToLLVMPattern<RsqrtOp>::ConvertOpToLLVMPattern;
 
@@ -250,7 +261,12 @@ void mlir::populateRVVLegalizeForLLVMExportPatterns(
                RVVStoreOpLowering>(converter);
   patterns.add<RsqrtOpLowering>(converter);
   patterns.add<RVVAddOpLowering,
-               RVVMulOpLowering>(converter);
+               RVVMulOpLowering,
+               RVVMaxOpLowering,
+               RVVMinOpLowering,
+               RVVAndOpLowering,
+               RVVOrOpLowering,
+               RVVXorOpLowering>(converter);
   // clang-format on
 }
 
@@ -261,12 +277,22 @@ void mlir::configureRVVLegalizeForExportTarget(LLVMConversionTarget &target) {
                     RVVIntrStoreEleOp,
                     IntrFrsqrt7Op,
                     RVVIntrAddOp,
-                    RVVIntrMulOp>();
+                    RVVIntrMulOp,
+                    RVVIntrMaxOp,
+                    RVVIntrMinOp,
+                    RVVIntrAndOp,
+                    RVVIntrOrOp,
+                    RVVIntrXorOp>();
   target.addIllegalOp<RVVSetVlOp,
                       RVVLoadOp,
                       RVVStoreOp,
                       RsqrtOp,
                       RVVAddOp,
-                      RVVMulOp>();
+                      RVVMulOp,
+                      RVVMaxOp,
+                      RVVMinOp,
+                      RVVAndOp,
+                      RVVOrOp,
+                      RVVXorOp>();
   // clang-format on
 }
