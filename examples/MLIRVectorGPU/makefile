@@ -5,6 +5,7 @@ MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
 MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
 LLC := ../../llvm/build/bin/llc
 OPT_FLAG := -O0
+CUDA_COMPUTE_CAPACITY ?= $(shell nvidia-smi --query-gpu=compute_cap --format=csv,noheader | awk 'NR==1{printf "sm_%.0f", $$0*10}')
 
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
@@ -33,7 +34,7 @@ vector-load-store-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -54,7 +55,7 @@ vector-load-store-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -76,7 +77,7 @@ vector-load-store-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -85,6 +86,8 @@ vector-load-store-run:
 	)" | \
 	${MLIR_CPU_RUNNER} -entry-point-result=void \
 	-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
+
+run-targets += vector-load-store-run
 
 vector-bitcast-lower:
 	@${MLIR_OPT} ./vector-bitcast.mlir \
@@ -97,7 +100,7 @@ vector-bitcast-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=sm_86 O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -117,7 +120,7 @@ vector-bitcast-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=sm_86 O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -126,6 +129,7 @@ vector-bitcast-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-bitcast-run
 vector-bitcast-run:
 	@${MLIR_OPT} ./vector-bitcast.mlir \
 	--pass-pipeline="builtin.module( \
@@ -137,7 +141,7 @@ vector-bitcast-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=sm_86 O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -146,6 +150,7 @@ vector-bitcast-run:
 	)" | \
 	${MLIR_CPU_RUNNER} -entry-point-result=void \
 	-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_CUDA_RUNTIME}
+
 
 vector-compressstore-lower:
 	@${MLIR_OPT} ./vector-compressstore.mlir \
@@ -158,7 +163,7 @@ vector-compressstore-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -178,7 +183,7 @@ vector-compressstore-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -187,6 +192,7 @@ vector-compressstore-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-compressstore-run
 vector-compressstore-run:
 	@${MLIR_OPT} ./vector-compressstore.mlir \
 	--pass-pipeline="builtin.module( \
@@ -198,7 +204,7 @@ vector-compressstore-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -220,7 +226,7 @@ vector-constant-mask-lower:
 		convert-vector-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -240,7 +246,7 @@ vector-constant-mask-translate:
 		convert-vector-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -249,6 +255,7 @@ vector-constant-mask-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-constant-mask-run
 vector-constant-mask-run:
 	@${MLIR_OPT} ./vector-constant-mask.mlir \
 	--pass-pipeline="builtin.module( \
@@ -260,7 +267,7 @@ vector-constant-mask-run:
 		convert-vector-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -281,7 +288,7 @@ vector-contract-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -301,7 +308,7 @@ vector-contract-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -310,6 +317,7 @@ vector-contract-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-contract-run
 vector-contract-run:
 	@${MLIR_OPT} ./vector-contract.mlir \
 	--pass-pipeline="builtin.module( \
@@ -321,7 +329,7 @@ vector-contract-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -342,7 +350,7 @@ vector-create-mask-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -362,7 +370,7 @@ vector-create-mask-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -371,6 +379,7 @@ vector-create-mask-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-create-mask-run
 vector-create-mask-run:
 	@${MLIR_OPT} ./vector-create-mask.mlir \
 	--pass-pipeline="builtin.module( \
@@ -382,7 +391,7 @@ vector-create-mask-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -403,7 +412,7 @@ vector-extract-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -423,7 +432,7 @@ vector-extract-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -432,6 +441,7 @@ vector-extract-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-extract-run
 vector-extract-run:
 	@${MLIR_OPT} ./vector-extract.mlir \
 	--pass-pipeline="builtin.module( \
@@ -443,7 +453,7 @@ vector-extract-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -464,7 +474,7 @@ vector-fma-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -484,7 +494,7 @@ vector-fma-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -493,6 +503,7 @@ vector-fma-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-fma-run
 vector-fma-run:
 	@${MLIR_OPT} ./vector-fma.mlir \
 	--pass-pipeline="builtin.module( \
@@ -504,7 +515,7 @@ vector-fma-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -525,7 +536,7 @@ vector-splat-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -545,7 +556,7 @@ vector-splat-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -554,6 +565,7 @@ vector-splat-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-splat-run
 vector-splat-run:
 	@${MLIR_OPT} ./vector-splat.mlir \
 	--pass-pipeline="builtin.module( \
@@ -565,7 +577,7 @@ vector-splat-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -586,7 +598,7 @@ vector-gather-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -606,7 +618,7 @@ vector-gather-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -615,6 +627,7 @@ vector-gather-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-gather-run
 vector-gather-run:
 	@${MLIR_OPT} ./vector-gather.mlir \
 	--pass-pipeline="builtin.module( \
@@ -626,7 +639,7 @@ vector-gather-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -647,7 +660,7 @@ vector-insert-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -667,7 +680,7 @@ vector-insert-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -676,6 +689,7 @@ vector-insert-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-insert-run
 vector-insert-run:
 	@${MLIR_OPT} ./vector-insert.mlir \
 	--pass-pipeline="builtin.module( \
@@ -687,7 +701,7 @@ vector-insert-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -708,7 +722,7 @@ vector-transpose-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -728,7 +742,7 @@ vector-transpose-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -737,6 +751,7 @@ vector-transpose-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-transpose-run
 vector-transpose-run:
 	@${MLIR_OPT} ./vector-transpose.mlir \
 	--pass-pipeline="builtin.module( \
@@ -748,7 +763,7 @@ vector-transpose-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -769,7 +784,7 @@ vector-outerproduct-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -789,7 +804,7 @@ vector-outerproduct-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -798,6 +813,7 @@ vector-outerproduct-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-outerproduct-run
 vector-outerproduct-run:
 	@${MLIR_OPT} ./vector-outerproduct.mlir \
 	--pass-pipeline="builtin.module( \
@@ -809,7 +825,7 @@ vector-outerproduct-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -830,7 +846,7 @@ vector-reduction-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -850,7 +866,7 @@ vector-reduction-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -859,6 +875,7 @@ vector-reduction-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-reduction-run
 vector-reduction-run:
 	@${MLIR_OPT} ./vector-reduction.mlir \
 	--pass-pipeline="builtin.module( \
@@ -870,7 +887,7 @@ vector-reduction-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -891,7 +908,7 @@ vector-type-cast-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -911,7 +928,7 @@ vector-type-cast-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -920,6 +937,7 @@ vector-type-cast-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-type-cast-run
 vector-type-cast-run:
 	@${MLIR_OPT} ./vector-type-cast.mlir \
 	--pass-pipeline="builtin.module( \
@@ -931,7 +949,7 @@ vector-type-cast-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -952,7 +970,7 @@ vector-shape-cast-lower:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -972,7 +990,7 @@ vector-shape-cast-translate:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
@@ -981,6 +999,7 @@ vector-shape-cast-translate:
 	)" | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+run-targets += vector-shape-cast-run
 vector-shape-cast-run:
 	@${MLIR_OPT} ./vector-shape-cast.mlir \
 	--pass-pipeline="builtin.module( \
@@ -992,7 +1011,7 @@ vector-shape-cast-run:
 		convert-arith-to-llvm, \
 		convert-func-to-llvm, \
 		gpu-kernel-outlining, \
-		nvvm-attach-target{chip=sm_89 O=3}, \
+		nvvm-attach-target{chip=${CUDA_COMPUTE_CAPACITY} O=3}, \
 		strip-debuginfo, \
 		gpu.module(convert-gpu-to-nvvm), \
 		gpu-to-llvm, \
