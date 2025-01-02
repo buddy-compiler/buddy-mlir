@@ -32,7 +32,7 @@ from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 
 # Parse command-line arguments for output directory.
-parser = argparse.ArgumentParser(description="Whisper AOT importer")
+parser = argparse.ArgumentParser(description="Whisper model AOT importer")
 parser.add_argument(
     "--output-dir",
     type=str,

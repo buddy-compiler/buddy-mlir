@@ -32,7 +32,7 @@ from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 
 # Add argument parser to allow custom output directory.
-parser = argparse.ArgumentParser(description="LLaMA2 AOT importer")
+parser = argparse.ArgumentParser(description="LLaMA2 model AOT importer")
 parser.add_argument(
     "--output-dir",
     type=str,
