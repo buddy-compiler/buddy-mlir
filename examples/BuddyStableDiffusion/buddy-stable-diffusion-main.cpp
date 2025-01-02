@@ -473,7 +473,7 @@ int main() {
     resultVae.getData()[i] = resultVae.getData()[i] * 255;
   }
   intptr_t sizes[4] = {1, 3, 512, 512};
-  Image<float, 4> img(resultVae, sizes);
+  Image<float, 4> img(resultVae.getData(), sizes);
 
   const std::string Imgfilename =
       "../../build/examples/BuddyStableDiffusion/" + image_name + ".bmp";
