@@ -472,15 +472,8 @@ int main() {
       resultVae.getData()[i] = 1;
     resultVae.getData()[i] = resultVae.getData()[i] * 255;
   }
-  intptr_t sizes[4] = {512, 512, 3, 1};
-  Image<float, 4> img(new float[512 * 512 * 3 * 1], sizes);
-
-  // Rearrange the images
-  for (int i = 0; i < 3 * 512 * 512; i += 3) {
-    img.getData()[i] = resultVae.getData()[i / 3 + 512 * 512 * 2];
-    img.getData()[i + 1] = resultVae.getData()[i / 3 + 512 * 512 * 1];
-    img.getData()[i + 2] = resultVae.getData()[i / 3 + 512 * 512 * 0];
-  }
+  intptr_t sizes[4] = {1, 3, 512, 512};
+  Image<float, 4> img(resultVae, sizes);
 
   const std::string Imgfilename =
       "../../build/examples/BuddyStableDiffusion/" + image_name + ".bmp";
