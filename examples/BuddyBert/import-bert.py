@@ -32,7 +32,7 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 from transformers import BertForSequenceClassification, BertTokenizer
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(description="BERT Model Importer")
+parser = argparse.ArgumentParser(description="BERT AOT importer")
 parser.add_argument(
     "--output-dir", 
     type=str, 

@@ -33,7 +33,7 @@ from buddy.compiler.ops import tosa
 from diffusers import StableDiffusionPipeline
 
 # Parse command-line arguments for output directory
-parser = argparse.ArgumentParser(description="Import Stable Diffusion Model")
+parser = argparse.ArgumentParser(description="Stable Diffusion AOT importer)
 parser.add_argument(
     "--output-dir",
     type=str,

@@ -32,7 +32,7 @@ from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 
 # Parse command-line arguments for output directory.
-parser = argparse.ArgumentParser(description="Import Whisper model into MLIR.")
+parser = argparse.ArgumentParser(description="Whisper AOT importer")
 parser.add_argument(
     "--output-dir",
     type=str,

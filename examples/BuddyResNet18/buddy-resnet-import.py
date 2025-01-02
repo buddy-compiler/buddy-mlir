@@ -34,7 +34,7 @@ from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(description="Buddy ResNet18 Importer")
+parser = argparse.ArgumentParser(description="ResNet18 AOT importer")
 parser.add_argument(
     "--output-dir", 
     type=str, 
