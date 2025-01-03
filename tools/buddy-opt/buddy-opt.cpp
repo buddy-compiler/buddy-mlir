@@ -46,6 +46,8 @@
 #include "RVV/RVVDialect.h"
 #include "Sche/ScheDialect.h"
 #include "Sche/ScheOps.h"
+#include "Trace/TraceDialect.h"
+#include "Trace/TraceOps.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
 
@@ -57,6 +59,7 @@ void registerPointwiseConvToGemmForNhwcFhwcPass();
 void registerPoolingVectorizationPass();
 void registerPoolingNhwcMaxVectorizationPass();
 void registerLowerBudPass();
+void registerLowerTracePass();
 void registerLowerDIPPass();
 void registerBatchMatMulOptimizePass();
 void registerBatchMatMulTileOptimizePass();
@@ -98,6 +101,7 @@ int main(int argc, char **argv) {
   // Register Vectorization of Pooling Nhwc Max.
   mlir::buddy::registerPoolingNhwcMaxVectorizationPass();
   mlir::buddy::registerLowerBudPass();
+  mlir::buddy::registerLowerTracePass();
   mlir::buddy::registerLowerDIPPass();
   mlir::buddy::registerLowerDAPPass();
   mlir::buddy::registerExtendDAPPass();
@@ -136,6 +140,7 @@ int main(int argc, char **argv) {
   // Register dialects in buddy-mlir project.
   // clang-format off
   registry.insert<buddy::bud::BudDialect,
+                  buddy::trace::TraceDialect,
                   buddy::dip::DIPDialect,
                   buddy::dap::DAPDialect,
                   buddy::rvv::RVVDialect,
