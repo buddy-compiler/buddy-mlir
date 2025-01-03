@@ -20,14 +20,20 @@
 
 import os
 from pathlib import Path
+import argparse
 
 import numpy as np
 import torch
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse, apply_classic_fusion
+from buddy.compiler.graph.transform import (
+    simply_fuse
+)
+from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa
+from buddy.compiler.graph.operation import *
 from model import LeNet
 
 # Retrieve the LeNet model path from environment variables.
@@ -38,7 +44,7 @@ if model_path is None:
     )
 
 model = LeNet()
-model = torch.load(model_path + "/lenet-model.pth", weights_only=False)
+model = torch.load(model_path + "/lenet-model.pth")
 model = model.eval()
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
@@ -51,17 +57,50 @@ data = torch.randn([1, 1, 28, 28])
 with torch.no_grad():
     graphs = dynamo_compiler.importer(model, data)
 
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--DEVICE_TYPE", type=str, required=True, choices=["cpu", "heter"]
+)
+args = parser.parse_args()
+type = args.DEVICE_TYPE
+
 assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
-pattern_list = [simply_fuse]
-graphs[0].fuse_ops(pattern_list)
-driver = GraphDriver(graphs[0])
-driver.subgraphs[0].lower_to_top_level_ir()
+
+if type == "cpu":
+    pattern_list = [simply_fuse]
+    graph.fuse_ops(pattern_list)
+elif type == "heter":
+    group = []
+    for i, op in enumerate(graph._body):
+        if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp) or i == 25:
+            continue
+        group.append(op)
+        subgraph_name = "subgraph0"
+        graph.group_map_device[subgraph_name] = DeviceType.CPU
+        graph.op_groups[subgraph_name] = group
+    new_group = [graph._body[25]]
+    subgraph_name = "subgraph1"
+    graph.group_map_device[subgraph_name] = DeviceType.GPU
+    graph.op_groups[subgraph_name] = new_group
 path_prefix = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
+driver = GraphDriver(graph)
+driver.subgraphs[0].lower_to_top_level_ir()
+with open(
+    os.path.join(path_prefix, f"subgraph0-{type}.mlir"), "w"
+) as module_file:
     print(driver.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
+# Add heterogeneous hardware partition
+if type == "heter":
+    driver.subgraphs[1].lower_to_top_level_ir()
+    with open(
+        os.path.join(path_prefix, f"subgraph1-{type}.mlir"), "w"
+    ) as module_file:
+        print(driver.subgraphs[1]._imported_module, file=module_file)
+with open(
+    os.path.join(path_prefix, f"forward-{type}.mlir"), "w"
+) as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
 params = dynamo_compiler.imported_params[graph]

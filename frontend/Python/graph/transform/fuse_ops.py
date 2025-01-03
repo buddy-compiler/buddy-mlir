@@ -103,7 +103,7 @@ def apply_classic_fusion(graph: Graph):
     - None: Modifies the input graph in place.
     """
     new_op_group = []
-    device = DeviceType.UNKNOW
+    device = DeviceType.CPU
     # Run the first round of op fusion
     classic_fuse_check(graph)
     for op in graph.body:
@@ -126,7 +126,7 @@ def simply_fuse(graph: Graph):
     - None: Modifies the input graph in place.
     """
     new_op_group = []
-    device = DeviceType.UNKNOW
+    device = DeviceType.CPU
     for op in graph.body:
         if isinstance(op, PlaceholderOp):
             continue
