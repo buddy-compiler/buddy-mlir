@@ -1,4 +1,4 @@
-//===- GemminiDialect.h - MLIR Dialect for RISC-V Gemmmini extension ------===//
+//===----------------- Dialects.h - CAPI for dialects ---------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,11 +14,25 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef GEMMINI_GEMMINIOPS_H
-#define GEMMINI_GEMMINIOPS_H
+#ifndef BUDDYMLIR_C_DIALECTS_H
+#define BUDDYMLIR_C_DIALECTS_H
 
-#include "mlir/IR/Dialect.h"
+#include "mlir-c/IR.h"
 
-#include "Gemmini/GemminiDialect.h.inc"
-
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Bud, bud);
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(DAP, dap);
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(DIP, dip);
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Gemmini, gemmini);
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(RVV, rvv);
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Sche, sche);
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(VectorExp, vector_exp);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // BUDDYMLIR_C_DIALECTS_H

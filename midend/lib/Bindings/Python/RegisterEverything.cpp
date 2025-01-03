@@ -1,4 +1,4 @@
-//===- GemminiDialect.h - MLIR Dialect for RISC-V Gemmmini extension ------===//
+//===- RegisterEverything.cpp - API to register all dialects/passes -------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,11 +14,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef GEMMINI_GEMMINIOPS_H
-#define GEMMINI_GEMMINIOPS_H
+#include "buddy-mlir-c/RegisterEverything.h"
+#include "mlir/Bindings/Python/PybindAdaptors.h"
 
-#include "mlir/IR/Dialect.h"
+PYBIND11_MODULE(_mlirRegisterEverything, m) {
+  m.doc() = "Buddy MLIR All Dialects, Translations and Passes Registration";
 
-#include "Gemmini/GemminiDialect.h.inc"
+  m.def("register_dialects", [](MlirDialectRegistry registry) {
+    buddyRegisterAllDialects(registry);
+  });
+  m.def("register_llvm_translations",
+        [](MlirContext context) { buddyRegisterAllTranslations(context); });
 
-#endif
+  // Register all passes on load.
+  buddyRegisterAllPasses();
+}
