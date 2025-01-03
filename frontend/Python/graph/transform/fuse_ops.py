@@ -23,7 +23,7 @@ from ..operation import *
 from .. import DeviceType
 from torch.fx.immutable_collections import immutable_list
 
-classicfuse_register = {"transpose+mamtmul2D": TransposeMatmulFusedOp}
+classicfuse_register = {"transpose_matmul_fusion": TransposeMatmulFusedOp}
 
 # TODO: classify op type for op fusion
 # OP_TYPE_FUSABLE = [OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType]
@@ -32,29 +32,33 @@ classicfuse_register = {"transpose+mamtmul2D": TransposeMatmulFusedOp}
 # ANCHOR_OP_TYPE = []
 
 
-def check_classicfusetype(graph: Graph, op: Op):
-    pattern = None
-    if isinstance(op, MatmulOp):
-        parentop = [graph.node_table[str(i)] for i in op._parents]
-        for target in parentop:
-            if isinstance(target, PermuteOp) and target.args[
-                1
-            ] == immutable_list([1, 0]):
-                pattern = target, parentop, "transpose+mamtmul2D"
-    # TODO:other classic fusion pattern
-    return pattern
-
-
 def classic_fuse_check(graph: Graph):
+    """
+    Function to identifies and fuses PermuteOp operations with preceding
+    MatmulOp operations in a computation graph to optimize performance.
+
+    Args:
+        graph (Graph): The computation graph to analyze and optimize.
+
+    Returns:
+        None
+    """
     for op in graph.body:
-        pattern = check_classicfusetype(graph, op)
+        pattern = None
+        if isinstance(op, MatmulOp):
+            parentop = [graph.node_table[str(i)] for i in op._parents]
+            for target in parentop:
+                if isinstance(target, PermuteOp) and target.args[
+                    1
+                ] == immutable_list([1, 0]):
+                    pattern = target, parentop, "transpose_matmul_fusion"
         if pattern:
-            do_classicfusion(graph, op, pattern[0], pattern[1], pattern[2])
-        else:
-            continue
+            transpose_matmul_fusion(
+                graph, op, pattern[0], pattern[1], pattern[2]
+            )
 
 
-def do_classicfusion(
+def transpose_matmul_fusion(
     graph: Graph, node, target: Op, parents: List[Op], pattern: str
 ):
     """
@@ -69,27 +73,28 @@ def do_classicfusion(
     Returns:
     - None: Modifies the input graph in place.
     """
-    fusedop = classicfuse_register.get(pattern)()
+    fused_op = classicfuse_register.get(pattern)()
     # matmulop -> fusedmatmulopnode
-    fusedop.name = "fused" + node.name
-    graph.displace_node(node, fusedop)
-    fusedop.args.pop(fusedop.args.index(target.name))
-    fusedop._parents.pop(fusedop._parents.index(target.name))
-    fusedop.args.extend(target.args)
+    fused_op.name = "fused" + node.name
+    graph.displace_node(node, fused_op)
+    fused_op.args.pop(fused_op.args.index(target.name))
+    fused_op._parents.pop(fused_op._parents.index(target.name))
+    fused_op.args.extend(target.args)
 
-    fusedop._parents.extend(target._parents)
+    fused_op._parents.extend(target._parents)
     targets_parent = [graph.node_table[i] for i in target._parents]
     for i in targets_parent:
-        i.add_children(fusedop.name)
-    target._children.pop(target._children.index(fusedop.name))
+        i.add_children(fused_op.name)
+    target._children.pop(target._children.index(fused_op.name))
 
-    if graph.check_deletenode(target):
+    if graph.check_delete_node(target):
         graph.delete_node(target, targets_parent)
 
 
-def classic_fuse(graph: Graph):
+def apply_classic_fusion(graph: Graph):
     """
-    Function to fuse all operations into one graph.
+    Function to fuse some typical operations into one operation and fuse
+    all operations into one graph.
 
     Args:
     - graph (Graph): The input graph to be simplified.

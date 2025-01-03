@@ -7,7 +7,7 @@ from torch._functorch.aot_autograd import aot_autograd_decompositions
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import linalg
-from buddy.compiler.graph.transform import simply_fuse, classic_fuse
+from buddy.compiler.graph.transform import simply_fuse, apply_classic_fusion
 
 def foo(m1, m2,map):
     tmp = torch.ops.aten.permute(m2,map)
@@ -25,7 +25,7 @@ dynamo_compiler = DynamoCompiler(
 graphs = dynamo_compiler.importer(foo, m1,m2,map)
 assert len(graphs) == 1
 graph = graphs[0]
-pattern_list = [classic_fuse]
+pattern_list = [apply_classic_fusion]
 graphs[0].fuse_ops(pattern_list)
 
 graph.lower_to_top_level_ir()

@@ -164,7 +164,16 @@ class Graph:
         self._body.append(node)
         self.node_table[node.name] = node
 
-    def check_deletenode(self, node: Op) -> bool:
+    def check_delete_node(self, node: Op) -> bool:
+        """
+        Determines if a node exists in the graph and has no child nodes.
+
+        Args:
+            node (Op): The operation node to check for deletion eligibility.
+
+        Returns:
+            bool: True if the node exists in the graph and has no children.
+        """
         if not (node.name in self.node_table):
             raise KeyError("node{0} not in graph".format(node.name))
 
@@ -173,6 +182,16 @@ class Graph:
         return False
 
     def delete_node(self, node: Op, parents: List[Op]):
+        """
+        Removes a node from the graph and updates its parent nodes accordingly.
+
+        Args:
+            node (Op): The operation node to be deleted from the graph.
+            parents (List[Op]): A list of parent operation nodes that reference the node to be deleted.
+
+        Returns:
+            None
+        """
         for i in parents:
             i._children.remove(node.name)
         node.args.clear()
@@ -182,6 +201,16 @@ class Graph:
         self.node_table.pop(node.name)
 
     def displace_node(self, node: Op, newnode: Op):
+        """
+        Replaces an existing node with a new node in the graph.
+
+        Args:
+            node (Op): The operation node to be replaced.
+            newnode (Op): The new operation node that will replace the existing node.
+
+        Returns:
+            None
+        """
         newnode._arguments = node.args
         newnode._keyword_arguments = node.kwargs
         newnode._tensor_meta = node.tensor_meta
