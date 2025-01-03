@@ -70,8 +70,8 @@ int main() {
   /// Load weights to MemRef container.
   MemRef<float, 1> arg0({109486854});
   MemRef<long long, 1> arg1({512});
-  loadParameters("../../examples/BuddyBert/arg0.data",
-                 "../../examples/BuddyBert/arg1.data", arg0, arg1);
+  loadParameters("../../build/examples/BuddyBert/arg0.data",
+                 "../../build/examples/BuddyBert/arg1.data", arg0, arg1);
 
   /// Get user message and build Text container.
   std::cout << "What sentence do you want to say to BERT?" << std::endl;

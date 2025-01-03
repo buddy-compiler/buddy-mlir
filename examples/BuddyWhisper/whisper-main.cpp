@@ -116,7 +116,7 @@ int main() {
 
   /// Define directories of vacabulary and parameter file.
   const std::string vocabDir = "../../examples/BuddyWhisper/vocab.txt";
-  const std::string paramsDir = "../../examples/BuddyWhisper/arg0.data";
+  const std::string paramsDir = "../../build/examples/BuddyWhisper/arg0.data";
 
   /// Initialize data containers
   //  - Result container

@@ -19,6 +19,7 @@
 # ===---------------------------------------------------------------------------
 
 import os
+import argparse
 import torch
 import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
@@ -29,6 +30,19 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
+
+# Parse command-line arguments for output directory.
+parser = argparse.ArgumentParser(description="Whisper model AOT importer")
+parser.add_argument(
+    "--output-dir",
+    type=str,
+    default="./",
+    help="Directory to save output files.",
+)
+args = parser.parse_args()
+
+output_dir = args.output_dir
+os.makedirs(output_dir, exist_ok=True)
 
 # Retrieve the Whisper model path from environment variables.
 model_path = os.environ.get("WHISPER_MODEL_PATH")
@@ -64,16 +78,15 @@ pattern_list = [simply_fuse]
 graphs[0].fuse_ops(pattern_list)
 driver = GraphDriver(graphs[0])
 driver.subgraphs[0].lower_to_top_level_ir()
-path_prefix = os.path.dirname(os.path.abspath(__file__))
 
-
-with open(os.path.join(path_prefix, "subgraph0.mlir"), "w") as module_file:
+# Save the MLIR files and parameter data to the specified output directory.
+with open(os.path.join(output_dir, "subgraph0.mlir"), "w") as module_file:
     print(driver.subgraphs[0]._imported_module, file=module_file)
 
-with open(os.path.join(path_prefix, "forward.mlir"), "w") as module_file:
+with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
 all_param = numpy.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params]
 )
-all_param.tofile(os.path.join(path_prefix, "arg0.data"))
+all_param.tofile(os.path.join(output_dir, "arg0.data"))

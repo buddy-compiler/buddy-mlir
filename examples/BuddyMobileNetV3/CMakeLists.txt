@@ -1,15 +1,16 @@
 add_custom_command(
-  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/arg0.data
-         ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/forward.mlir
-         ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/subgraph0.mlir
+  OUTPUT ${BUDDY_BINARY_DIR}/../examples/BuddyMobileNetV3/arg0.data
+         ${BUDDY_BINARY_DIR}/../examples/BuddyMobileNetV3/forward.mlir
+         ${BUDDY_BINARY_DIR}/../examples/BuddyMobileNetV3/subgraph0.mlir
   COMMAND python3 ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/buddy-mobilenetv3-import.py
+          --output-dir ${BUDDY_BINARY_DIR}/../examples/BuddyMobileNetV3
   COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files"
 )
 
 
 add_custom_command(
   OUTPUT forward.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/forward.mlir
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_BINARY_DIR}/../examples/BuddyMobileNetV3/forward.mlir
             -pass-pipeline
             "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), \
             empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg, arith-bufferize, \
@@ -25,14 +26,14 @@ add_custom_command(
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O3 
             -o ${BUDDY_BINARY_DIR}/../examples/BuddyMobileNetV3/forward.o
-  DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/forward.mlir
+  DEPENDS ${BUDDY_BINARY_DIR}/../examples/BuddyMobileNetV3/forward.mlir
   COMMENT "Building forward.o"
   VERBATIM)
 
 
 add_custom_command(
   OUTPUT subgraph0.o
-  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/subgraph0.mlir 
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_BINARY_DIR}/../examples/BuddyMobileNetV3/subgraph0.mlir 
             -pass-pipeline
             "builtin.module(func.func(tosa-to-linalg-named, tosa-to-arith, tosa-to-linalg, tosa-to-tensor))" |
           ${BUDDY_BINARY_DIR}/buddy-opt  
@@ -58,7 +59,7 @@ add_custom_command(
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3 
             -o ${BUDDY_BINARY_DIR}/../examples/BuddyMobileNetV3/subgraph0.o
-  DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyMobileNetV3/subgraph0.mlir
+  DEPENDS ${BUDDY_BINARY_DIR}/../examples/BuddyMobileNetV3/subgraph0.mlir
           buddy-opt
   COMMENT "Building subgraph0.o"
   VERBATIM)

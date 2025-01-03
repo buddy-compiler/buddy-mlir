@@ -115,7 +115,7 @@ int main() {
 
   /// Define directories of vacabulary and parameter file.
   const std::string vocabDir = "../../examples/BuddyLlama/vocab.txt";
-  const std::string paramsDir = "../../examples/BuddyLlama/arg0.data";
+  const std::string paramsDir = "../../build/examples/BuddyLlama/arg0.data";
 
   /// Get user message.
   std::string inputStr;
