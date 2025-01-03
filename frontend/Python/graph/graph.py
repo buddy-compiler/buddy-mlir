@@ -105,7 +105,7 @@ class Graph:
         fake_params: List[TensorMeta],
         ops_registry: dict,
         func_name: str,
-        verbose=False
+        verbose=False,
     ) -> None:
         """
         Initializes the Graph.
@@ -163,6 +163,49 @@ class Graph:
         """
         self._body.append(node)
         self.node_table[node.name] = node
+
+    def check_deletenode(self, node: Op) -> bool:
+        if not (node.name in self.node_table):
+            raise KeyError("node{0} not in graph".format(node.name))
+
+        if len(node._children) == 0:
+            return True
+        return False
+
+    def delete_node(self, node: Op, parents: List[Op]):
+        for i in parents:
+            i._children.remove(node.name)
+        node.args.clear()
+        node.kwargs.clear()
+        node._children.clear()
+        self._body.remove(node)
+        self.node_table.pop(node.name)
+
+    def displace_node(self, node: Op, newnode: Op):
+        newnode._arguments = node.args
+        newnode._keyword_arguments = node.kwargs
+        newnode._tensor_meta = node.tensor_meta
+        newnode._op_type = node._op_type
+
+        for i in node._children:
+            newnode.add_children(i)
+        users = [self.node_table[i] for i in node._children]
+        for user in users:
+            if node.name in user._parents:
+                user._parents[user._parents.index(node.name)] = newnode.name
+            user.args[user.args.index(node.name)] = newnode.name
+        node._children.clear()
+        # deal with parents+args
+        for i in node._parents:
+            newnode.add_parent(i)
+        parents = [self.node_table[i] for i in node._parents]
+        for parent in parents:
+            parent._children[parent._children.index(node.name)] = newnode.name
+        node._parents.clear()
+        # update node table
+        self._body[self._body.index(node)] = newnode
+        self.node_table.pop(node.name)
+        self.node_table[newnode.name] = newnode
 
     def init_op_group(self):
         """
@@ -239,7 +282,7 @@ class Graph:
                 self._inputs,
                 self._func_name,
                 self._ops_registry,
-                verbose=self._verbose
+                verbose=self._verbose,
             )
             self._imported_module = fx_importer.import_graph()
             outputs = fx_importer.get_output_nodes()
@@ -352,7 +395,7 @@ class GraphImporter:
         func_name: str,
         ops_registry: dict,
         do_param_pack: bool = False,
-        verbose=False
+        verbose=False,
     ):
         """
         Initializes the buddy Graph importer.
@@ -475,27 +518,27 @@ class GraphImporter:
                     elif isinstance(node, PlaceholderOp):
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
-                        self._symbol_table[
-                            (str(node.name), 0)
-                        ] = self._symbol_table[
-                            (str(node.args[0]), node.args[1])
-                        ]
+                        self._symbol_table[(str(node.name), 0)] = (
+                            self._symbol_table[
+                                (str(node.args[0]), node.args[1])
+                            ]
+                        )
                     else:
                         self._import_op(node)
                     new_ops = [op for op in func_op.body.blocks[0].operations]
                     if self._verbose:
-                        print('='*20 + "Graph Node" + "="*20)
+                        print("=" * 20 + "Graph Node" + "=" * 20)
                         print("Node: " + node.name)
                         print("Type: " + str(node._op_type))
                         print("Arguments: " + str(node.args))
                         print("Parents: " + str(node._parents))
                         print("Children: " + str(node._children))
-                        print('-'*20 + "MLIR OPS" + '-'*20)
+                        print("-" * 20 + "MLIR OPS" + "-" * 20)
                         for op in new_ops:
                             if op not in old_ops:
                                 print(op)
                         print("")
-                        
+
                 return self._symbol_table.get(("output", 0))
 
         return self._module
@@ -544,11 +587,11 @@ class GraphImporter:
                     elif isinstance(node, PlaceholderOp):
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
-                        self._symbol_table[
-                            (str(node.name), 0)
-                        ] = self._symbol_table[
-                            (str(node.args[0]), node.args[1])
-                        ]
+                        self._symbol_table[(str(node.name), 0)] = (
+                            self._symbol_table[
+                                (str(node.args[0]), node.args[1])
+                            ]
+                        )
                     else:
                         self._import_op(node)
 
