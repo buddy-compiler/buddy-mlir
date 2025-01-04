@@ -34,4 +34,3 @@ module attributes {gpu.container_module} {
   }
   func.func private @printMemrefF32(%ptr : memref<*xf32>)
 }
-
