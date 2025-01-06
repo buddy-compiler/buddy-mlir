@@ -68,10 +68,12 @@ int main() {
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
   
   /// Load weights to MemRef container.
+  std::string bertDir = BERT_EXAMPLE_PATH;
+  std::string bertBuildDir = BERT_EXAMPLE_BUILD_PATH;
   MemRef<float, 1> arg0({109486854});
   MemRef<long long, 1> arg1({512});
-  loadParameters("../../build/examples/BuddyBert/arg0.data",
-                 "../../build/examples/BuddyBert/arg1.data", arg0, arg1);
+  loadParameters(bertBuildDir + "/arg0.data",
+                 bertBuildDir + "/arg1.data", arg0, arg1);
 
   /// Get user message and build Text container.
   std::cout << "What sentence do you want to say to BERT?" << std::endl;
@@ -81,7 +83,7 @@ int main() {
   Text<long long, 2> pureStrContainer(pureStr);
 
   /// Define vacabulary and tokenize the 
-  std::string vocabDir = "../../examples/BuddyBert/vocab.txt";
+  std::string vocabDir = bertDir + "/vocab.txt";
   pureStrContainer.tokenizeBert(vocabDir, 5);
 
   /// Initialize data containers.

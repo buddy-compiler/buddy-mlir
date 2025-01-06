@@ -47,12 +47,8 @@ args = parser.parse_args()
 output_dir = os.path.abspath(args.output_dir)
 os.makedirs(output_dir, exist_ok=True)
 
-# Retrieve the ResNet18 model path from environment variables.
-model_path = os.environ.get("RESNET_EXAMPLE_PATH")
-if model_path is None:
-    raise EnvironmentError(
-        "The environment variable 'RESNET_MODEL_PATH' is not set or is invalid."
-    )
+# Retrieve the ResNet18 model path.
+model_path = os.path.dirname(os.path.abspath(__file__))
 
 model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 model = model.eval()

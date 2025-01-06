@@ -45,12 +45,8 @@ args = parser.parse_args()
 output_dir = Path(args.output_dir)
 output_dir.mkdir(parents=True, exist_ok=True)
 
-# Retrieve the LeNet model path from environment variables.
-model_path = os.environ.get("LENET_EXAMPLE_PATH")
-if model_path is None:
-    raise EnvironmentError(
-        "The environment variable 'LENET_MODEL_PATH' is not set or is invalid."
-    )
+# Retrieve the LeNet model path.
+model_path = os.path.dirname(os.path.abspath(__file__))
 
 model = LeNet()
 model = torch.load(model_path + "/lenet-model.pth", weights_only=False)

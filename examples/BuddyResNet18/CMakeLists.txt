@@ -1,15 +1,16 @@
 add_custom_command(
-  OUTPUT ${BUDDY_BINARY_DIR}/../examples/BuddyResNet18/arg0.data
-         ${BUDDY_BINARY_DIR}/../examples/BuddyResNet18/forward.mlir
-         ${BUDDY_BINARY_DIR}/../examples/BuddyResNet18/subgraph0.mlir
-  COMMAND python3 ${BUDDY_EXAMPLES_DIR}/BuddyResNet18/buddy-resnet-import.py
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+         ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
+         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/buddy-resnet-import.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files"
 )
 
 
 add_custom_command(
   OUTPUT forward.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_BINARY_DIR}/../examples/BuddyResNet18/forward.mlir
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
             -pass-pipeline
             "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), \
             empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg, arith-bufferize, \
@@ -24,15 +25,15 @@ add_custom_command(
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O3 
-            -o ${BUDDY_BINARY_DIR}/../examples/BuddyResNet18/forward.o
-  DEPENDS ${BUDDY_BINARY_DIR}/../examples/BuddyResNet18/forward.mlir
+            -o ${CMAKE_CURRENT_BINARY_DIR}/forward.o
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
   COMMENT "Building forward.o"
   VERBATIM)
 
 
 add_custom_command(
   OUTPUT subgraph0.o
-  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_BINARY_DIR}/../examples/BuddyResNet18/subgraph0.mlir 
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir 
             -pass-pipeline
             "builtin.module(func.func(tosa-to-linalg-named, tosa-to-arith, tosa-to-linalg, tosa-to-tensor))" |
           ${BUDDY_BINARY_DIR}/buddy-opt  
@@ -57,8 +58,8 @@ add_custom_command(
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3 
-            -o ${BUDDY_BINARY_DIR}/../examples/BuddyResNet18/subgraph0.o
-  DEPENDS ${BUDDY_BINARY_DIR}/../examples/BuddyResNet18/subgraph0.mlir
+            -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
           buddy-opt
   COMMENT "Building subgraph0.o"
   VERBATIM)
@@ -68,6 +69,15 @@ add_library(RESNET STATIC subgraph0.o forward.o)
 SET_TARGET_PROPERTIES(RESNET PROPERTIES LINKER_LANGUAGE C)
 
 add_executable(buddy-resnet-run buddy-resnet-main.cpp)
+
+set(RESNET_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+set(RESNET_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
+
+target_compile_definitions(buddy-resnet-run PRIVATE 
+  RESNET_EXAMPLE_PATH="${RESNET_EXAMPLE_PATH}" 
+  RESNET_EXAMPLE_BUILD_PATH="${RESNET_EXAMPLE_BUILD_PATH}"
+)
+
 target_link_directories(buddy-resnet-run PRIVATE ${LLVM_LIBRARY_DIR})
 
 set(BUDDY_RESNET_LIBS RESNET mlir_c_runner_utils BuddyLibDIP ${PNG_LIBRARIES})

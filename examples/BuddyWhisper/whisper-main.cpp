@@ -115,15 +115,17 @@ int main() {
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
   /// Define directories of vacabulary and parameter file.
-  const std::string vocabDir = "../../examples/BuddyWhisper/vocab.txt";
-  const std::string paramsDir = "../../build/examples/BuddyWhisper/arg0.data";
+  std::string whisperDir = WHISPER_EXAMPLE_PATH;
+  std::string whisperBuildDir = WHISPER_EXAMPLE_BUILD_PATH;
+  const std::string vocabDir =  whisperDir + "/vocab.txt";
+  const std::string paramsDir =  whisperBuildDir + "/arg0.data";
 
   /// Initialize data containers
   //  - Result container
   //  - Output container.
   //  - Parameters container.
   Text<size_t, 2> outputContainer;
-  Audio<double, 1> rawAudioContainer("../../examples/BuddyWhisper/audio.wav");
+  Audio<double, 1> rawAudioContainer(whisperDir + "/audio.wav");
   MemRef<float, 3> audioInput({1, 80, 3000});
   MemRef<float, 3> resultContainer[2] = {
       MemRef<float, 3>({1, 1500, 512}, false, 0),

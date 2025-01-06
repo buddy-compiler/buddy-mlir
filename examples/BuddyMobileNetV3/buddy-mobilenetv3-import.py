@@ -45,12 +45,8 @@ args = parser.parse_args()
 output_dir = Path(args.output_dir)
 output_dir.mkdir(parents=True, exist_ok=True)
 
-# Retrieve the MobileNet V3 model path from environment variables.
-model_path = os.environ.get("MOBILENETV3_EXAMPLE_PATH")
-if model_path is None:
-    raise EnvironmentError(
-        "The environment variable 'MOBILENETV3_MODEL_PATH' is not set or is invalid."
-    )
+# Retrieve the MobileNet V3 model path.
+model_path = os.path.dirname(os.path.abspath(__file__))
 
 model = models.mobilenet_v3_small(
     weights=models.MobileNet_V3_Small_Weights.IMAGENET1K_V1, pretrained=True
