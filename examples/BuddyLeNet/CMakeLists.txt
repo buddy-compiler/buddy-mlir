@@ -60,7 +60,7 @@ target_link_directories(buddy-lenet-run PRIVATE ${LLVM_LIBRARY_DIR})
 if(NOT DEFINED BUDDY_ENABLE_PNG)
   message(FATAL_ERROR "To run LeNet inference, the png library is required. Please define BUDDY_ENABLE_PNG for CMake.")
 endif()
-set(BUDDY_LENET_LIBS LENET mlir_c_runner_utils mlir_async_runtime mlir_runner_utils mlir_cuda_runtime ${PNG_LIBRARIES})
+set(BUDDY_LENET_LIBS LENET mlir_c_runner_utils mlir_async_runtime mlir_runner_utils ${PNG_LIBRARIES})
 
 target_link_libraries(buddy-lenet-run ${BUDDY_LENET_LIBS})
 

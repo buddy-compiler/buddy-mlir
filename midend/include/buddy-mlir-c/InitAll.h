@@ -1,4 +1,4 @@
-//===- GemminiDialect.h - MLIR Dialect for RISC-V Gemmmini extension ------===//
+//===------------- InitAll.h - Register all dialects and passes -----------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,11 +14,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef GEMMINI_GEMMINIOPS_H
-#define GEMMINI_GEMMINIOPS_H
+#ifndef BUDDY_MLIR_INITALL_H
+#define BUDDY_MLIR_INITALL_H
 
 #include "mlir/IR/Dialect.h"
 
-#include "Gemmini/GemminiDialect.h.inc"
+namespace mlir {
+namespace buddy {
 
-#endif
+void registerAllDialects(mlir::DialectRegistry &registry);
+void registerAllPasses();
+
+} // namespace buddy
+} // namespace mlir
+
+#endif // BUDDY_MLIR_INITALL_H

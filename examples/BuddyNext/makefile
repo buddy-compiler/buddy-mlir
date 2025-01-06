@@ -9,6 +9,7 @@ OPT_FLAG := -O0
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
 MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.so
+LIB_OMP := ../../llvm/build/lib/libomp.so
 MTRIPLE := x86_64-unknown-linux-gnu
 else ifeq ($(shell uname),Darwin)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.dylib
@@ -313,6 +314,73 @@ next-sgemm-run:
     ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
         -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
+next-transpose-lower:
+	@${MLIR_OPT} ./next-transpose.mlir \
+        -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+    ${MLIR_OPT} \
+        -arith-expand \
+        -eliminate-empty-tensors \
+        -empty-tensor-to-alloc-tensor \
+        -one-shot-bufferize \
+		-func-bufferize \
+        -arith-bufferize \
+        -o log.mlir
+
+next-transpose-run:
+	@${MLIR_OPT} ./next-transpose.mlir \
+        -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+    ${MLIR_OPT} \
+        -arith-expand \
+        -eliminate-empty-tensors \
+        -empty-tensor-to-alloc-tensor \
+        -one-shot-bufferize \
+		-func-bufferize \
+        -arith-bufferize \
+        -convert-linalg-to-affine-loops \
+        -affine-loop-fusion \
+        -lower-affine \
+        -convert-vector-to-scf \
+        -expand-strided-metadata \
+        -convert-vector-to-llvm \
+        -memref-expand \
+        -arith-expand \
+        -convert-arith-to-llvm \
+        -finalize-memref-to-llvm \
+        -convert-scf-to-cf \
+        -convert-openmp-to-llvm \
+        -convert-arith-to-llvm \
+        -convert-math-to-llvm \
+        -convert-math-to-libm  \
+        -convert-func-to-llvm \
+        -reconcile-unrealized-casts | \
+    ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+        -shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS}
+
+next-transpose-vec-manual-run:
+	@${MLIR_OPT} ./next-transpose-vec-manual.mlir \
+        -convert-linalg-to-affine-loops \
+        -affine-loop-fusion \
+        -lower-affine \
+		-convert-scf-to-openmp \
+        -convert-vector-to-scf \
+        -expand-strided-metadata \
+        -convert-vector-to-llvm \
+        -memref-expand \
+        -arith-expand \
+        -convert-arith-to-llvm \
+        -finalize-memref-to-llvm \
+        -convert-scf-to-cf \
+        -convert-openmp-to-llvm \
+        -convert-arith-to-llvm \
+        -convert-math-to-llvm \
+        -convert-math-to-libm  \
+        -convert-func-to-llvm \
+        -reconcile-unrealized-casts | \
+    ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+        -shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS}
+
 next-embedding-lower:
 	@${MLIR_OPT} ./next-embedding.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
@@ -493,11 +561,12 @@ next-mhsa-qkv-parallel-vec-run:
 next-mhsa-qkv-fusion-lower:
 	@${MLIR_OPT} ./next-mhsa-qkv-fusion.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
-	${MLIR_OPT} \
+	${BUDDY_OPT} \
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries=1 function-boundary-type-conversion=identity-layout-map" \
+		-matmul-transpose-b-vectorization \
 		-o log.mlir
 
 next-mhsa-qkv-fusion-run:
@@ -540,7 +609,7 @@ next-mhsa-qkv-fusion-vec-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries=1 function-boundary-type-conversion=identity-layout-map" \
 		-matmul-transpose-b-vectorization \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
@@ -696,6 +765,19 @@ next-ffn-parallel-vec-run:
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm  \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+pooling-nhwc-max-vec-run:
+	@${BUDDY_OPT} ./pooling-nhwc-max-vec.mlir \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \

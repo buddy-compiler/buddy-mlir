@@ -1,4 +1,4 @@
-# ===- __init__.py -------------------------------------------------------------
+# ===------------------------ rvv.py -------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,10 +13,5 @@
 # limitations under the License.
 #
 # ===---------------------------------------------------------------------------
-#
-# Init the packages in transform directory.
-#
-# ===---------------------------------------------------------------------------
 
-from .fuse_ops import simply_fuse, apply_classic_fusion
-from .useless_op_eliminate import maxpool2d_simplify
+from ._rvv_ops_gen import *
