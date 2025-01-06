@@ -16,4 +16,4 @@ PyYAML
 certifi
 idna
 diffusers
-
+pre-commit
