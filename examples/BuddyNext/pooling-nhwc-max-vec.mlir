@@ -58,9 +58,9 @@ module {
               }
               affine.yield %6 : vector<32xf32>
             }
-           vector.store %5, %arg2[%arg3, %arg4, %arg5, %arg6] : memref<?x?x?x?xf32>, vector<32xf32>
-            %dim_4_next = arith.addi %dim_4, %vl_step : index
-            scf.yield %dim_4_next : index
+            vector.store %5, %arg2[%arg3, %arg4, %arg5, %arg6] : memref<?x?x?x?xf32>, vector<32xf32>
+            %idx_next = arith.addi %arg6, %vl_step : index
+            scf.yield %idx_next : index
           } 
           // Compute the tail size and Process the remaining elements 
           // using masked vector operations.
