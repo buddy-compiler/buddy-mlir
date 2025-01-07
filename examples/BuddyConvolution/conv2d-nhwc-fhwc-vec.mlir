@@ -63,7 +63,7 @@ module {
                 }
                 affine.yield %tmp6 : f32
               }
-              %tmp11 = arith.addi %iter_init, %vl_step  : index
+              %tmp11 = arith.addi %idx_c, %vl_step  : index
               scf.yield %tmp11, %tmp8 : index, f32
             }
             // Compute the tail size and Process the remaining elements 

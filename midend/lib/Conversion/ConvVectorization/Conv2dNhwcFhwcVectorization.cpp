@@ -233,7 +233,7 @@ public:
                           nestedLoc, tmp1.getResult(0));
                     });
                 Value idx =
-                    builder.create<arith::AddIOp>(loc, itrArgs[0], vlStep);
+                    builder.create<arith::AddIOp>(loc, iv, vlStep);
                 builder.create<scf::YieldOp>(
                     loc, ValueRange{idx, tmp0.getResult(0)});
               });

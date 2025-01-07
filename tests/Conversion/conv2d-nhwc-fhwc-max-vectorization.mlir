@@ -21,7 +21,7 @@
 // CHECK-NEXT:             }
 // CHECK-NEXT:             affine.yield %10 : f32
 // CHECK-NEXT:           }
-// CHECK-NEXT:           %8 = arith.addi %arg8, %c8 : index
+// CHECK-NEXT:           %8 = arith.addi %arg7, %c8 : index
 // CHECK-NEXT:           scf.yield %8, %7 : index, f32
 // CHECK-NEXT:         }
 
