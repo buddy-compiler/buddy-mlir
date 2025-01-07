@@ -35,16 +35,16 @@
 func.func private @rtclock() -> f64
 func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 
-func.func @kernel(%t0 : tensor<1x32x40x128xf32>) {
+func.func @kernel(%t0 : tensor<1x32x40x127xf32>) -> (){
   %t_start = call @rtclock() : () -> f64
 
   %idx = "tosa.const"() <{value = dense<[0, 2, 1, 3]> : tensor<4xi32>}> : () -> tensor<4xi32>
-  %t1 = tosa.transpose %t0, %idx : (tensor<1x32x40x128xf32>, tensor<4xi32>) -> tensor<1x40x32x128xf32>
+  %t1 = tosa.transpose %t0, %idx : (tensor<1x32x40x127xf32>, tensor<4xi32>) -> tensor<1x40x32x127xf32>
 
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64
-
-  %tensor_unranked = tensor.cast %t1 : tensor<1x40x32x128xf32> to tensor<*xf32>
+  
+  %tensor_unranked = tensor.cast %t1 : tensor<1x40x32x127xf32> to tensor<*xf32>
 
   // All the elements of the MemRef are the same,
   // only check the first line to verify the correctness.
@@ -56,6 +56,7 @@ func.func @kernel(%t0 : tensor<1x32x40x128xf32>) {
 
   // Print results.
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
+
   // Print timings.
   vector.print %time : f64
 
@@ -63,8 +64,7 @@ func.func @kernel(%t0 : tensor<1x32x40x128xf32>) {
 }
 
 func.func @main() {
-  %c0 = arith.constant dense<3.0> : tensor<1x32x40x128xf32>
-  call @kernel(%c0) : (tensor<1x32x40x128xf32>) -> ()
-
+  %c0 = arith.constant dense<3.0> : tensor<1x32x40x127xf32>
+  call @kernel(%c0) : (tensor<1x32x40x127xf32>) -> ()
   return
 }

@@ -3,6 +3,7 @@ add_mlir_library(CBConvVectorization
   GEMMPointwiseConv2DNhwcHwcf.cpp
   PoolingVectorization.cpp
   PoolingNhwcMaxVectorization.cpp
+  TransposeVectorization.cpp
   
   LINK_LIBS PUBLIC
   BuddyUtils

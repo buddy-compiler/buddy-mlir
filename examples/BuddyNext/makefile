@@ -316,15 +316,15 @@ next-sgemm-run:
 
 next-transpose-lower:
 	@${MLIR_OPT} ./next-transpose.mlir \
-        -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
-    ${MLIR_OPT} \
-        -arith-expand \
+				-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+		${MLIR_OPT} \
+				-arith-expand \
         -eliminate-empty-tensors \
         -empty-tensor-to-alloc-tensor \
-        -one-shot-bufferize \
-		-func-bufferize \
-        -arith-bufferize \
-        -o log.mlir
+				-one-shot-bufferize \
+				-func-bufferize \
+				-arith-bufferize \
+				-o log.mlir
 
 next-transpose-run:
 	@${MLIR_OPT} ./next-transpose.mlir \
@@ -334,7 +334,7 @@ next-transpose-run:
         -eliminate-empty-tensors \
         -empty-tensor-to-alloc-tensor \
         -one-shot-bufferize \
-		-func-bufferize \
+				-func-bufferize \
         -arith-bufferize \
         -convert-linalg-to-affine-loops \
         -affine-loop-fusion \
@@ -353,21 +353,43 @@ next-transpose-run:
         -convert-math-to-libm  \
         -convert-func-to-llvm \
         -reconcile-unrealized-casts | \
-    ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+    ${MLIR_CPU_RUNNER} -O3 -e main -entry-point-result=void \
         -shared-libs=${MLIR_RUNNER_UTILS} \
 		-shared-libs=${MLIR_C_RUNNER_UTILS}
 
-next-transpose-vec-manual-run:
-	@${MLIR_OPT} ./next-transpose-vec-manual.mlir \
-        -convert-linalg-to-affine-loops \
-        -affine-loop-fusion \
+next-transpose-vectorization-lower:
+	@${BUDDY_OPT} ./next-transpose.mlir \
+			-transpose-vectorization \
+			-arith-expand \
+			-eliminate-empty-tensors \
+			-empty-tensor-to-alloc-tensor \
+			-one-shot-bufferize \
+			-func-bufferize \
+			-arith-bufferize \
+			-o log.mlir
+
+next-transpose-vectorization-run:
+	@${BUDDY_OPT} ./log.mlir \
+			-transpose-vectorization \
+			-arith-expand \
+			-eliminate-empty-tensors \
+			-empty-tensor-to-alloc-tensor \
+			-one-shot-bufferize \
+			-func-bufferize \
+			-arith-bufferize \
+			-convert-linalg-to-affine-loops \
+			 -affine-loop-fusion \
         -lower-affine \
-		-convert-scf-to-openmp \
+				-convert-scf-to-openmp \
         -convert-vector-to-scf \
         -expand-strided-metadata \
         -convert-vector-to-llvm \
         -memref-expand \
         -arith-expand \
+				-arith-bufferize \
+				-buffer-deallocation \
+        -finalizing-bufferize \
+				-convert-linalg-to-affine-loops \
         -convert-arith-to-llvm \
         -finalize-memref-to-llvm \
         -convert-scf-to-cf \
@@ -377,7 +399,35 @@ next-transpose-vec-manual-run:
         -convert-math-to-libm  \
         -convert-func-to-llvm \
         -reconcile-unrealized-casts | \
-    ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+    ${MLIR_CPU_RUNNER} -O3 -e main -entry-point-result=void \
+        -shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS}
+
+next-transpose-vec-manual-run:
+	@${BUDDY_OPT} ./next-transpose-vec-manual.mlir \
+        -convert-linalg-to-affine-loops \
+        -affine-loop-fusion \
+        -lower-affine \
+				-convert-scf-to-openmp \
+        -convert-vector-to-scf \
+        -expand-strided-metadata \
+        -convert-vector-to-llvm \
+        -memref-expand \
+        -arith-expand \
+				-arith-bufferize \
+				-buffer-deallocation \
+        -finalizing-bufferize \
+				-convert-linalg-to-affine-loops \
+        -convert-arith-to-llvm \
+        -finalize-memref-to-llvm \
+        -convert-scf-to-cf \
+        -convert-openmp-to-llvm \
+        -convert-arith-to-llvm \
+        -convert-math-to-llvm \
+        -convert-math-to-libm  \
+        -convert-func-to-llvm \
+        -reconcile-unrealized-casts | \
+    ${MLIR_CPU_RUNNER} -O3 -e main -entry-point-result=void \
         -shared-libs=${MLIR_RUNNER_UTILS} \
 		-shared-libs=${MLIR_C_RUNNER_UTILS}
 
