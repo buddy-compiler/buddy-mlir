@@ -58,6 +58,7 @@ config.excludes = [
     'MLIRSparseTensor',
     'MLIRTOSA',
     'MLIRTransform',
+    'MLIRVectorGPU',
     'Pooling',
     'RISCVBuddyExt',
     'RVVDialect',

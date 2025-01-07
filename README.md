@@ -195,6 +195,12 @@ This program should be a drop-in replacement for `mlir-lsp-server`, supporting n
 
 After modification, your editor should have correct completion and error prompts for new dialects such as `rvv` and `gemmini`.
 
+### pre-commit checks
+
+The .pre-commit-config.yaml file checks code format and style on each commit, using tools such as clang-format, black, and flake8. You can also run these checks without committing by using "pre-commit run --all-files". This ensures consistent coding standards and prevents common errors before pushing changes.
+
+To get started, you should install pre-commit (e.g., pip install pre-commit) and verify that clang-format, black, and flake8 are available. On Linux, you can use your package manager for clang-format, and pip for Python tools. If you need to revert any unwanted formatting changes, you can use "git stash" or "git restore ." (for all files) or "git restore <file>" (for a specific file), or revert the commit through your Git history.
+
 ## Examples
 
 The purpose of the examples is to give users a better understanding of how to use the passes and the interfaces in buddy-mlir. Currently, we provide three types of examples.
