@@ -68,6 +68,12 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize
+            -func-bufferize-dynamic-offset
+            -tensor-bufferize
+            -arith-bufferize
+            -buffer-deallocation
+            -finalizing-bufferize
+            -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -75,11 +81,6 @@ add_custom_command(
             -affine-parallelize
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
-            -tensor-bufferize
-            -arith-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
             -convert-vector-to-scf
             -expand-strided-metadata
             -cse
@@ -93,7 +94,7 @@ add_custom_command(
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
-            -convert-math-to-libm 
+            -convert-math-to-libm
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
@@ -158,6 +159,12 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize
+            -func-bufferize-dynamic-offset
+            -tensor-bufferize
+            -arith-bufferize
+            -buffer-deallocation
+            -finalizing-bufferize
+            -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -165,11 +172,6 @@ add_custom_command(
             -affine-parallelize
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
-            -tensor-bufferize
-            -arith-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
             -convert-vector-to-scf
             -expand-strided-metadata
             -cse
@@ -183,7 +185,7 @@ add_custom_command(
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
-            -convert-math-to-libm 
+            -convert-math-to-libm
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
@@ -248,6 +250,12 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize
+            -func-bufferize-dynamic-offset
+            -tensor-bufferize
+            -arith-bufferize
+            -buffer-deallocation
+            -finalizing-bufferize
+            -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -255,11 +263,6 @@ add_custom_command(
             -affine-parallelize
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
-            -tensor-bufferize
-            -arith-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
             -convert-vector-to-scf
             -expand-strided-metadata
             -cse
@@ -273,7 +276,7 @@ add_custom_command(
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
-            -convert-math-to-libm 
+            -convert-math-to-libm
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
