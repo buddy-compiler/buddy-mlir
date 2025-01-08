@@ -21,7 +21,7 @@
 #ifndef DIP_DIPOPS_TD
 #define DIP_DIPOPS_TD
 
-include "DIPDialect.td"
+include "DIP/DIPDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/EnumAttr.td"

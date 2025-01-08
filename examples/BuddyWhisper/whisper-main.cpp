@@ -33,7 +33,7 @@ using namespace std;
 using namespace buddy;
 using namespace dap;
 
-constexpr size_t ParamsSize = 99148800;
+constexpr size_t ParamsSize = 72593920;
 constexpr size_t MaxVocabSize = 51865;
 constexpr size_t MaxTokenLength = 448;
 

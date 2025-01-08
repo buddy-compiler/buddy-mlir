@@ -59,7 +59,8 @@ public:
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(vecSize));
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
-    const AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
+    // TODO: remove s0?
+    // const AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
 
     Value input = op->getOperand(0);
     Value filter = op->getOperand(1);
@@ -122,7 +123,7 @@ public:
     // clang format off
     //  Step 1: Create outer most loops.
     // Create the scf::ForallOp operation For N,OH,OW
-    auto outputForAllOp = rewriter.create<scf::ForallOp>(
+    rewriter.create<scf::ForallOp>(
         loc, SmallVector<OpFoldResult, 3>({N, OH, OW}), ValueRange{},
         std::nullopt, // No mapping specified in this example
         [&](OpBuilder &nestedBuilder, Location nestedLoc,

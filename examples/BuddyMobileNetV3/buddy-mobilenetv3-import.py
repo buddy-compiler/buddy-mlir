@@ -23,6 +23,7 @@ import os
 from pathlib import Path
 import numpy as np
 import torch
+import torch._inductor.lowering
 import torchvision.models as models
 from torch._inductor.decomposition import decompositions as inductor_decomp
 

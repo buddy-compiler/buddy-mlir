@@ -28,7 +28,7 @@ import numpy
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.graph.transform import simply_fuse, apply_classic_fusion
 
 # Retrieve the LLaMA model path from environment variables.
 model_path = os.environ.get("LLAMA_MODEL_PATH")
@@ -38,7 +38,7 @@ if model_path is None:
     )
 
 # Initialize the tokenizer and model from the specified model path.
-tokenizer = LlamaTokenizer.from_pretrained(model_path)
+tokenizer = LlamaTokenizer.from_pretrained(model_path, legacy=True)
 model = LlamaForCausalLM.from_pretrained(model_path, torchscript=True)
 model.config.use_cache = False
 
