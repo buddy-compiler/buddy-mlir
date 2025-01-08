@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImgContainer.h>
-#include <buddy/DIP/imgcodecs/loadsave.h>
+#include <buddy/DIP/ImageContainer.h>
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
 #include <cstddef>
@@ -298,15 +298,17 @@ int main() {
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
   // Define directories of vacabulary and parameter file.
-  const std::string vocabDir = "../../examples/BuddyStableDiffusion/vocab.txt";
+  std::string stableDiffusionDir = STABLE_DIFFUSION_EXAMPLE_PATH;
+  std::string stableDiffusionBuildDir = STABLE_DIFFUSION_EXAMPLE_BUILD_PATH;
+  const std::string vocabDir = stableDiffusionDir + "/vocab.txt";
   const std::string TextEncoderParamsDir1 =
-      "../../examples/BuddyStableDiffusion/arg0_text_encoder.data";
+      stableDiffusionBuildDir + "/arg0_text_encoder.data";
   const std::string TextEncoderParamsDir2 =
-      "../../examples/BuddyStableDiffusion/arg1_text_encoder.data";
+      stableDiffusionBuildDir + "/arg1_text_encoder.data";
   const std::string UnetParamsDir =
-      "../../examples/BuddyStableDiffusion/arg0_unet.data";
+      stableDiffusionBuildDir + "/arg0_unet.data";
   const std::string VaeParamsDir =
-      "../../examples/BuddyStableDiffusion/arg0_vae.data";
+      stableDiffusionBuildDir + "/arg0_vae.data";
 
   // Get user message.
   std::string inputStr;
@@ -472,32 +474,21 @@ int main() {
       resultVae.getData()[i] = 1;
     resultVae.getData()[i] = resultVae.getData()[i] * 255;
   }
-  intptr_t sizes[4] = {512, 512, 3, 1};
-  Img<float, 4> img(sizes);
+  intptr_t sizes[4] = {1, 3, 512, 512};
+  Image<float, 4> img(resultVae.getData(), sizes);
 
-  // Rearrange the images
-  for (int i = 0; i < 3 * 512 * 512; i += 3) {
-    img.getData()[i] = resultVae.getData()[i / 3 + 512 * 512 * 2];
-    img.getData()[i + 1] = resultVae.getData()[i / 3 + 512 * 512 * 1];
-    img.getData()[i + 2] = resultVae.getData()[i / 3 + 512 * 512 * 0];
-  }
-
-  String Imgfilename =
-      "../../examples/BuddyStableDiffusion/" + image_name + ".bmp";
-  // Call the imwrite function
-  bool success = imwrite(Imgfilename, img);
+  const std::string Imgfilename =
+      stableDiffusionBuildDir + "/" + image_name + ".bmp";
+  // Call the imageWrite function
+  imageWrite(Imgfilename, img);
 
   printLogLabel();
   std::cout << "The prompt used to generate the image:" << inputStr
             << std::endl;
 
   printLogLabel();
-  if (success) {
-    std::cout << "Image saved successfully to "
-              << std::filesystem::canonical(Imgfilename) << std::endl;
-  } else {
-    std::cerr << "Failed to save the image." << std::endl;
-  }
+  std::cout << "Image saved successfully to "
+            << std::filesystem::canonical(Imgfilename) << std::endl;
 
   return 0;
 }

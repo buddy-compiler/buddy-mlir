@@ -1,25 +1,28 @@
 add_custom_command(
-  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/forward.mlir ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/subgraph0.mlir ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/arg0.data
-  COMMAND python3 ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/buddy-lenet-import.py
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
+         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
+         ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/buddy-lenet-import.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files"
 )
 
 add_custom_command(
   OUTPUT forward.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/forward.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir 
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg, arith-bufferize, func.func(linalg-bufferize, tensor-bufferize), func-bufferize)" |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-opt 
             -pass-pipeline "builtin.module(func.func(buffer-deallocation-simplification, convert-linalg-to-loops), eliminate-empty-tensors, func.func(llvm-request-c-wrappers),convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyLeNet/forward.o
-  DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/forward.mlir
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${CMAKE_CURRENT_BINARY_DIR}/forward.o
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
   COMMENT "Building forward.o"
   VERBATIM)
 
 add_custom_command(
   OUTPUT subgraph0.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/subgraph0.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir 
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
@@ -45,10 +48,13 @@ add_custom_command(
             -reconcile-unrealized-casts | 
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyLeNet/subgraph0.o
-  DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/subgraph0.mlir
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
   COMMENT "Building subgraph0.o"
   VERBATIM)
+
+set(LENET_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+set(LENET_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(LENET STATIC subgraph0.o forward.o)
 
@@ -64,6 +70,11 @@ set(BUDDY_LENET_LIBS LENET mlir_c_runner_utils mlir_async_runtime mlir_runner_ut
 
 target_link_libraries(buddy-lenet-run ${BUDDY_LENET_LIBS})
 
+target_compile_definitions(buddy-lenet-run PRIVATE 
+    LENET_EXAMPLE_PATH="${LENET_EXAMPLE_PATH}" 
+    LENET_EXAMPLE_BUILD_PATH="${LENET_EXAMPLE_BUILD_PATH}"
+)
+
 set(ONE_SHOT_BUFFERIZE_OPTION "bufferize-function-boundaries=1 function-boundary-type-conversion=identity-layout-map")
 set(LOWER_TO_NVVM_OPTION "cubin-chip=sm_80 cubin-features=+ptx71 cubin-format=fatbin")
 set(CONVERT_MEMCPY_TO_GPU_OPTION "process-args=1")
@@ -71,20 +82,20 @@ set(CONVERT_MEMCPY_TO_GPU_OPTION_DISABLE_PROCESS_ARG "process-args=0")
 
 add_custom_command(
   OUTPUT forward_gpu.o
-  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/forward.mlir 
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir 
           -buffer-deallocation
           -canonicalize -cse -expand-strided-metadata -convert-memcpy-to-gpu -gpu-async-region |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-opt -llvm-request-c-wrappers --gpu-to-llvm |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyLeNet/forward_gpu.o
-  DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/forward.mlir
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${CMAKE_CURRENT_BINARY_DIR}/forward_gpu.o
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
   COMMENT "Building forward_gpu.o"
   VERBATIM)
 
 add_custom_command(
   OUTPUT subgraph0_gpu.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/subgraph0.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir 
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
           -one-shot-bufferize
@@ -101,8 +112,8 @@ add_custom_command(
           ${LLVM_TOOLS_BINARY_DIR}/mlir-opt -llvm-request-c-wrappers --test-lower-to-nvvm=${LOWER_TO_NVVM_OPTION} |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyLeNet/subgraph0_gpu.o
-  DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyLeNet/subgraph0.mlir
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_gpu.o
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
   COMMENT "Building subgraph0_gpu.o"
   VERBATIM)
 
@@ -116,3 +127,8 @@ target_link_directories(buddy-lenet-run-gpu PRIVATE ${LLVM_LIBRARY_DIR})
 set(BUDDY_LENET_LIBS_GPU LENET_GPU mlir_c_runner_utils mlir_async_runtime mlir_runner_utils mlir_cuda_runtime ${PNG_LIBRARIES})
 
 target_link_libraries(buddy-lenet-run-gpu ${BUDDY_LENET_LIBS_GPU})
+
+target_compile_definitions(buddy-lenet-run-gpu PRIVATE 
+    LENET_EXAMPLE_PATH="${LENET_EXAMPLE_PATH}" 
+    LENET_EXAMPLE_BUILD_PATH="${LENET_EXAMPLE_BUILD_PATH}"
+)

@@ -32,13 +32,7 @@ $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
 $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
-3. Set the `MOBILENETV3_EXAMPLE_PATH` environment variable.
-
-```bash
-$ export MOBILENETV3_EXAMPLE_PATH=${BUDDY_MLIR_BUILD_DIR}/../examples/BuddyMobileNetV3/
-```
-
-4. Build and run the MobileNetV3 example
+3. Build and run the MobileNetV3 example
 
 ```bash
 $ cmake -G Ninja .. -DBUDDY_MOBILENETV3_EXAMPLES=ON
