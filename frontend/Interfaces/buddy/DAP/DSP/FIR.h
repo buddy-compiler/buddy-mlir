@@ -30,9 +30,12 @@ namespace detail {
 // Declare the Fir C interface.
 extern "C" {
 // TODO: support both float and double.
-void _mlir_ciface_buddy_fir(MemRef<float, 1> *inputBuddyConv1D,
-                               MemRef<float, 1> *kernelBuddyConv1D,
-                               MemRef<float, 1> *outputBuddyConv1D);
+void _mlir_ciface_buddy_fir(MemRef<float, 1> *inputBuddyFIR,
+                            MemRef<float, 1> *kernelBuddyFIR,
+                            MemRef<float, 1> *outputBuddyFIR);
+void _mlir_ciface_buddy_fir_vectorization(MemRef<float, 1> *inputBuddyFIR,
+                                          MemRef<float, 1> *kernelBuddyFIR,
+                                          MemRef<float, 1> *outputBuddyFIR);
 }
 } // namespace detail
 
@@ -67,11 +70,14 @@ void firLowpass(MemRef<T, N> &input, WINDOW_TYPE type, size_t len, T cutoff,
 }
 
 template <typename T, size_t N>
-void fir(MemRef<float, N> *input, MemRef<T, N> *filter,
-         MemRef<float, N> *output) {
+void FIR(MemRef<float, N> *input, MemRef<T, N> *filter,
+         MemRef<float, N> *output, bool isVectorization = false) {
   if (N != 1)
     assert(0 && "Only mono audio is supported for now.");
-  detail::_mlir_ciface_buddy_fir(input, filter, output);
+  if (!isVectorization)
+    detail::_mlir_ciface_buddy_fir(input, filter, output);
+  else
+    detail::_mlir_ciface_buddy_fir_vectorization(input, filter, output);
 }
 } // namespace dap
 

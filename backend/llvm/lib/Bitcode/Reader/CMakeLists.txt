@@ -1,4 +1,4 @@
-set(LLVM_Reader_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Bitcode/Reader)
+set(LLVM_Reader_DIR ${LLVM_MAIN_SRC_DIR}/lib/Bitcode/Reader)
 
 add_llvm_component_library(LLVMBuddyBitReader
   ${LLVM_Reader_DIR}/BitcodeAnalyzer.cpp

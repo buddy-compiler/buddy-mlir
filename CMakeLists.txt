@@ -46,13 +46,15 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
     message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
     message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
-    set(LLVM_MLIR_BINARY_DIR ${MLIR_DIR}/../../../bin)
-    set(LLVM_MLIR_LIBRARY_DIR ${MLIR_DIR}/../../../lib)
-    set(LLVM_PROJECT_BUILD_DIR ${MLIR_DIR}/../../../)
-    if(NOT DEFINED LLVM_PROJECT_SOURCE_DIR)
-      get_filename_component(LLVM_PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/llvm/ ABSOLUTE)
+    # LLVM_MAIN_SRC_DIR is a private variable for the LLVM in-tree build.
+    # To provide compatibility for unifying the one-step and two-step build,
+    # we set LLVM_MAIN_SRC_DIR ourselves here.
+    # This could benefit users who want to specify a custom LLVM source directory,
+    # but also not interfere with normal users who just want to use the buddy-mlir provided LLVM sources.
+    if(NOT DEFINED LLVM_MAIN_SRC_DIR)
+      get_filename_component(LLVM_MAIN_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/llvm/llvm ABSOLUTE)
     endif()
-    set(LLVM_MLIR_SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}/mlir)
+    set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
 
     list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
     list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
@@ -71,16 +73,9 @@ else()
     #-------------------------------------------------------------------------------
     # MLIR/LLVM Configuration
     #-------------------------------------------------------------------------------
-
-    # Allow using out-of-tree llvm directory
-    set(LLVM_PROJECT_SOURCE_DIR ${LLVM_MAIN_SRC_DIR}/..)
-    message(STATUS "Using LLVM Project ${LLVM_PROJECT_SOURCE_DIR}")
-
     set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
     set(MLIR_INCLUDE_DIR ${MLIR_MAIN_SRC_DIR}/include)
     set(MLIR_GENERATED_INCLUDE_DIR ${LLVM_BINARY_DIR}/tools/mlir/include)
-    set(LLVM_MLIR_BINARY_DIR ${CMAKE_BINARY_DIR}/bin)
-    set(MLIR_INCLUDE_DIRS "${MLIR_INCLUDE_DIR};${MLIR_GENERATED_INCLUDE_DIR}")
 endif()
 
 #-------------------------------------------------------------------------------
@@ -103,12 +98,22 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${BUDDY_LIBRARY_DIR})
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
-if(BUDDY_ENABLE_OPENCV)
-  add_definitions(-DBUDDY_ENABLE_OPENCV)
-  find_package(JPEG REQUIRED)
+ if(BUDDY_ENABLE_OPENCV)
+   add_definitions(-DBUDDY_ENABLE_OPENCV)
+   find_package(JPEG REQUIRED)
+   find_package(PNG REQUIRED)
+   find_package(OpenCV REQUIRED CONFIG)
+   include_directories(${OpenCV_INCLUDE_DIRS})
+ endif()
+
+if(BUDDY_MLIR_ENABLE_DIP_LIB)
+  add_definitions(-DBUDDY_MLIR_ENABLE_DIP_LIB)
   find_package(PNG REQUIRED)
-  find_package(OpenCV REQUIRED CONFIG)
-  include_directories(${OpenCV_INCLUDE_DIRS})
+endif()
+
+if(BUDDY_ENABLE_PNG)
+  add_definitions(-DBUDDY_ENABLE_PNG)
+  find_package(PNG REQUIRED)
 endif()
 
 # Generate libraries into `lib` of build directory.
@@ -225,6 +230,8 @@ if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
   # Create empty __init__.py files to make these directories Python packages
   file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/__init__.py "")
   file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/__init__.py "")
+
+  install(DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy DESTINATION python_packages)
 endif()
 
 #-------------------------------------------------------------------------------

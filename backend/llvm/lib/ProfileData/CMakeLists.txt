@@ -1,4 +1,4 @@
-set(LLVM_ProfileData_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/ProfileData)
+set(LLVM_ProfileData_DIR ${LLVM_MAIN_SRC_DIR}/lib/ProfileData)
 
 add_llvm_component_library(LLVMBuddyProfileData
   ${LLVM_ProfileData_DIR}/GCOV.cpp

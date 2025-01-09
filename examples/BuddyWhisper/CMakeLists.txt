@@ -1,27 +1,30 @@
 add_custom_command(
-  OUTPUT ${BUDDY_EXAMPLES_DIR}/BuddyWhisper/forward.mlir ${BUDDY_EXAMPLES_DIR}/BuddyWhisper/subgraph0.mlir ${BUDDY_EXAMPLES_DIR}/BuddyWhisper/arg0.data
-  COMMAND ${Python3_EXECUTABLE} ${BUDDY_EXAMPLES_DIR}/BuddyWhisper/import-whisper.py
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
+         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
+         ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-whisper.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
 )
 set(PATTERN_ARG "test-generalize-pad-tensor")
 add_custom_command(
   OUTPUT forward.o
-  COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyWhisper/forward.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir 
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg, arith-bufferize, func.func(linalg-bufferize, tensor-bufferize), func-bufferize)" |
           ${BUDDY_BINARY_DIR}/buddy-opt
-            -pass-pipeline "builtin.module( func.func(buffer-deallocation-simplification, convert-linalg-to-loops),matmul-paralell-vectorization-optimize, batchmatmul-optimize, eliminate-empty-tensors,func-bufferize-dynamic-offset, func.func(llvm-request-c-wrappers),convert-scf-to-openmp, convert-openmp-to-llvm, convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
-          ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-          ${LLVM_MLIR_BINARY_DIR}/llvm-as |
-          ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${BUDDY_BINARY_DIR}/../examples/BuddyWhisper/forward.o
-  DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyWhisper/forward.mlir
+            -pass-pipeline "builtin.module( func.func(buffer-deallocation-simplification, convert-linalg-to-loops),matmul-parallel-vectorization-optimize, batchmatmul-optimize, eliminate-empty-tensors,func-bufferize-dynamic-offset, func.func(llvm-request-c-wrappers),convert-scf-to-openmp, convert-openmp-to-llvm, convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${CMAKE_CURRENT_BINARY_DIR}/forward.o
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
   COMMENT "Building forward.o"
   VERBATIM)
 
 add_custom_command(
     OUTPUT subgraph0.o
-    COMMAND ${LLVM_MLIR_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/BuddyWhisper/subgraph0.mlir 
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir 
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
-            ${LLVM_MLIR_BINARY_DIR}/mlir-opt
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
               -test-linalg-transform-patterns=${PATTERN_ARG} |
             ${BUDDY_BINARY_DIR}/buddy-opt
               -arith-expand
@@ -29,7 +32,7 @@ add_custom_command(
               -convert-elementwise-to-linalg
               -empty-tensor-to-alloc-tensor
               -one-shot-bufferize
-              -matmul-paralell-vectorization-optimize
+              -matmul-parallel-vectorization-optimize
               -batchmatmul-optimize
               -convert-linalg-to-affine-loops
               -affine-loop-fusion
@@ -55,10 +58,10 @@ add_custom_command(
               -convert-math-to-libm 
               -convert-func-to-llvm
               -reconcile-unrealized-casts |
-            ${LLVM_MLIR_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-            ${LLVM_MLIR_BINARY_DIR}/llvm-as |
-            ${LLVM_MLIR_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O3 -o ${BUDDY_BINARY_DIR}/../examples/BuddyWhisper/subgraph0.o
-    DEPENDS ${BUDDY_EXAMPLES_DIR}/BuddyWhisper/subgraph0.mlir
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+            ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+            ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O3 -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
     COMMENT "Building subgraph0.o "
     VERBATIM)
 
@@ -76,12 +79,20 @@ SET_TARGET_PROPERTIES(
   LINKER_LANGUAGE C)
 
 set(BUDDY_WHISPER_FILES
-  whisper-main.h
   whisper-main.cpp
 )
 
 add_executable(buddy-whisper-run ${BUDDY_WHISPER_FILES})
-target_link_directories(buddy-whisper-run PRIVATE ${LLVM_MLIR_LIBRARY_DIR})
+
+set(WHISPER_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+set(WHISPER_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
+
+target_compile_definitions(buddy-whisper-run PRIVATE 
+  WHISPER_EXAMPLE_PATH="${WHISPER_EXAMPLE_PATH}" 
+  WHISPER_EXAMPLE_BUILD_PATH="${WHISPER_EXAMPLE_BUILD_PATH}"
+)
+
+target_link_directories(buddy-whisper-run PRIVATE ${LLVM_LIBRARY_DIR})
 
 set(BUDDY_WHISPER_LIBS
   WHISPER

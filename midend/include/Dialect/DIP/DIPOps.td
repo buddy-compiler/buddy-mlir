@@ -21,7 +21,7 @@
 #ifndef DIP_DIPOPS_TD
 #define DIP_DIPOPS_TD
 
-include "DIPDialect.td"
+include "DIP/DIPDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/EnumAttr.td"
@@ -191,6 +191,92 @@ def DIP_Resize2DOp : DIP_Op<"resize_2d">
 
     ```mlir
     dip.resize_2d INTERPOLATION_TYPE %inputImage, %horizontal_scaling_factor, %vertical_scaling_factor, %outputImage : memref<?x?xf32>, f32, f32, memref<?x?xf32>
+    ```
+
+    where ```INTERPOLATION_TYPE``` can be ```NEAREST_NEIGHBOUR_INTERPOLATION``` or
+    ```BILINEAR_INTERPOLATION```.
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       F32 : $horizontal_scaling_factor,
+                       F32 : $vertical_scaling_factor,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefO,
+                       DIP_InterpolationAttr:$interpolation_type);
+
+  let assemblyFormat = [{
+     $interpolation_type $memrefI `,` $horizontal_scaling_factor `,` $vertical_scaling_factor `,` $memrefO attr-dict `:` type($memrefI) `,` type($horizontal_scaling_factor) `,` type($vertical_scaling_factor) `,` type($memrefO)
+  }];
+}
+
+def DIP_Resize4D_NHWCOp : DIP_Op<"resize_4d_nhwc">
+{
+  let summary = [{
+    This operation intends to provide a utility for resizing images using the DIP dialect.
+    Image resizing has many applications such as data augmentation, dimension adjustment in ML
+    models, etc. and can thus be used in native MLIR pipelines catering to above mentioned
+    use-cases.
+
+    As of now, two different mechanisms for pixel interpolation are provided namely nearest
+    neighbour interpolation and bilinear interpolation. The user can specify the desired type of
+    interpolation via an attribute provided as argument to the operation. The operation also
+    expects scaling ratios (Input image dimension / Output image dimension) for both dimensions
+    of input and output images as arguments.
+
+    The operation is flexible for its use with images of different sizes without necessarily
+    lowering it every time for each new image (Refer to the example provided in examples
+    directory for the DIP dialect).
+
+    The processed image format is (batch, height, weight, channel).
+
+    Syntax :
+
+    ```mlir
+    dip.resize_4d_nhwc INTERPOLATION_TYPE %inputImage, %horizontal_scaling_factor, %vertical_scaling_factor, %outputImage : memref<?x?x?x?xf32>, f32, f32, memref<?x?x?x?xf32>
+    ```
+
+    where ```INTERPOLATION_TYPE``` can be ```NEAREST_NEIGHBOUR_INTERPOLATION``` or
+    ```BILINEAR_INTERPOLATION```.
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
+                           [MemRead]>:$memrefI,
+                       F32 : $horizontal_scaling_factor,
+                       F32 : $vertical_scaling_factor,
+                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemRead]>:$memrefO,
+                       DIP_InterpolationAttr:$interpolation_type);
+
+  let assemblyFormat = [{
+     $interpolation_type $memrefI `,` $horizontal_scaling_factor `,` $vertical_scaling_factor `,` $memrefO attr-dict `:` type($memrefI) `,` type($horizontal_scaling_factor) `,` type($vertical_scaling_factor) `,` type($memrefO)
+  }];
+}
+
+def DIP_Resize4D_NCHWOp : DIP_Op<"resize_4d_nchw">
+{
+  let summary = [{
+    This operation intends to provide a utility for resizing images using the DIP dialect.
+    Image resizing has many applications such as data augmentation, dimension adjustment in ML
+    models, etc. and can thus be used in native MLIR pipelines catering to above mentioned
+    use-cases.
+
+    As of now, two different mechanisms for pixel interpolation are provided namely nearest
+    neighbour interpolation and bilinear interpolation. The user can specify the desired type of
+    interpolation via an attribute provided as argument to the operation. The operation also
+    expects scaling ratios (Input image dimension / Output image dimension) for both dimensions
+    of input and output images as arguments.
+
+    The operation is flexible for its use with images of different sizes without necessarily
+    lowering it every time for each new image (Refer to the example provided in examples
+    directory for the DIP dialect).
+
+    The processed image format is (batch, channel, height, weight).
+
+    Syntax :
+
+    ```mlir
+    dip.resize_4d_nchw INTERPOLATION_TYPE %inputImage, %horizontal_scaling_factor, %vertical_scaling_factor, %outputImage : memref<?x?x?x?xf32>, f32, f32, memref<?x?x?x?xf32>
     ```
 
     where ```INTERPOLATION_TYPE``` can be ```NEAREST_NEIGHBOUR_INTERPOLATION``` or

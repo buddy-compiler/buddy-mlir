@@ -45,6 +45,7 @@ from .ops.func import ops_registry as func_ops_registry
 from .graph import Graph, TensorDType, TensorMeta
 from .graph.operation import *
 from .graph.transform import maxpool2d_simplify
+from .graph.type import *
 
 
 class DynamoCompiler:
@@ -124,6 +125,7 @@ class DynamoCompiler:
             "mean.dim": MeanOp,
             "rsqrt.default": RsqrtOp,
             "mul.Tensor": MulOp,
+            "mul.Scalar": MulOp,
             "t.default": TOp,
             "mm.default": MatmulOp,
             "transpose.int": TransposeOp,
@@ -160,6 +162,17 @@ class DynamoCompiler:
             "reciprocal.default": ReciprocalOp,
             "clamp_min.default": ClampMinOp,
             "clamp_max.default": ClampMaxOp,
+            "randint.low": RandIntLowOp,
+            "cos.default": CosOp,
+            "sin.default": SinOp,
+            "argmax.default": ArgMaxOp,
+            "split.Tensor": SplitOp,
+            "max.default": MaxOp,
+            "gt.Scalar": GtOp,
+            "_scaled_dot_product_flash_attention_for_cpu.default": ScaledDotProductFlashAttentionForCpuOp,
+            "ge.Scalar": GeOp,
+            "gt.Tensor": GreaterThanOp,
+            "_unsafe_index.Tensor": UnsafeIndexOp,
         }
 
     @property
@@ -178,6 +191,8 @@ class DynamoCompiler:
                 return TensorDType.Int64
             case "torch.int32":
                 return TensorDType.Int32
+            case "torch.int8":
+                return TensorDType.Int8
             case "torch.float16":
                 return TensorDType.Float16
             case "torch.float32":
@@ -223,7 +238,9 @@ class DynamoCompiler:
                 buddy_node.add_argument(str(input_arg))
                 buddy_node.add_parent(str(input_arg))
             elif isinstance(input_arg, torch.dtype):
-                buddy_node.add_argument(self._torch_dtype_translate(str(input_arg)))
+                buddy_node.add_argument(
+                    self._torch_dtype_translate(str(input_arg))
+                )
             else:
                 buddy_node.add_argument(input_arg)
         for user in node_users:
@@ -250,11 +267,26 @@ class DynamoCompiler:
             return for torchdynamo's call.
         """
 
-        params = {
-            **dict(gm.named_parameters(remove_duplicate=False)),
-            **dict(gm.named_buffers(remove_duplicate=False)),
-        }
-        params_flat, _ = pytree.tree_flatten(params)
+        # params = {
+        #     # **dict(gm.named_parameters(remove_duplicate=False)),
+        #     **dict(gm.named_buffers(remove_duplicate=False)),
+        # }
+        # print(len(params))
+        # params_flat, _ = pytree.tree_flatten(params)
+        inputs_pos = []
+        params_pos = []
+        buffers_pos = []
+        for i, node in enumerate(gm.graph.nodes):
+            if i >= len(inputs):
+                break
+            if not str(node).startswith("l_self"):
+                inputs_pos.append(i)
+            elif "buffer" in str(node):
+                buffers_pos.append(i)
+            else:
+                params_pos.append(i)
+
+        params_flat = [inputs[i] for i in params_pos + buffers_pos]
 
         if self._verbose:
             print("Graph in tabular form:")
@@ -264,7 +296,9 @@ class DynamoCompiler:
             """Compile a FX graph in Aten/Prims IR to MLIR."""
             nonlocal params_flat
             func_inputs = []
-            for inp in _inputs[len(params_flat) :]:
+            for i in inputs_pos:
+                # for inp in _inputs[len(params_flat) :]:
+                inp = _inputs[i]
                 inp_shape = inp.shape
                 inp_dtype = self._torch_dtype_translate(str(inp.dtype))
                 func_inputs.append(TensorMeta(inp_shape, inp_dtype))
@@ -277,8 +311,25 @@ class DynamoCompiler:
                 fake_params,
                 self._ops_registry,
                 self._func_name,
+                DeviceType.CPU,
+                self._verbose,
             )
-            for gm_node in _gm.graph.nodes:
+            param_nodes = []
+            buffers_nodes = []
+            input_nodes = []
+            other_nodes = []
+            for i, node in enumerate(_gm.graph.nodes):
+                if i in params_pos:
+                    param_nodes.append(node)
+                elif i in buffers_pos:
+                    buffers_nodes.append(node)
+                elif i in inputs_pos:
+                    input_nodes.append(node)
+                else:
+                    other_nodes.append(node)
+            gm_nodes = param_nodes + buffers_nodes + input_nodes + other_nodes
+
+            for gm_node in gm_nodes:
                 node_users = []
                 for user in gm_node.users.keys():
                     node_users.append(str(user))
@@ -297,10 +348,7 @@ class DynamoCompiler:
 
                 elif gm_node.op == "output":
                     buddy_node = self._create_node(
-                        gm_node.op,
-                        gm_node.name,
-                        gm_node.args,
-                        node_users
+                        gm_node.op, gm_node.name, gm_node.args, node_users
                     )
 
                 elif gm_node.target is operator.getitem:
@@ -319,7 +367,12 @@ class DynamoCompiler:
                 else:
                     tensor_meta = gm_node.meta.get("tensor_meta")
                     val = gm_node.meta.get("val")
-                    num_returns = len(gm_node.target._schema.returns)
+                    # num_returns = len(gm_node.target._schema.returns)
+                    num_returns = (
+                        len(val)
+                        if isinstance(val, list)
+                        else len(gm_node.target._schema.returns)
+                    )
                     if num_returns == 1:
                         node_dtype = self._torch_dtype_translate(
                             str(tensor_meta.dtype)
@@ -429,7 +482,7 @@ class DynamoCompiler:
 
         def cast_c_ptr(outdata_ptr, memref_ptr):
             """
-            Casts a C pointer (`outdata_ptr`) to the type of another C pointer 
+            Casts a C pointer (`outdata_ptr`) to the type of another C pointer
             (`memref_ptr`).
 
             Args:
@@ -440,14 +493,14 @@ class DynamoCompiler:
 
             Returns:
             ctypes.POINTER
-                A new C pointer with the type of `memref_ptr`, representing the 
+                A new C pointer with the type of `memref_ptr`, representing the
                 same memory location as `outdata_ptr`.
 
             Example:
             outdata = ctypes.pointer(ctypes.c_int())
             memref = ctypes.pointer(ctypes.c_float())
             casted_ptr = cast_c_ptr(outdata, memref)
-            # Now `casted_ptr` points to the same memory location as `outdata`, 
+            # Now `casted_ptr` points to the same memory location as `outdata`,
             but with the type of `memref`.
             """
             outdata_addr = ctypes.addressof(outdata_ptr.contents)
@@ -456,15 +509,15 @@ class DynamoCompiler:
 
         def move_c_ptr(outdata_ptr, memref_ptr):
             """
-            Moves a C pointer (`outdata_ptr`) to the next element in memory, 
-            based on the size of the referenced type in another C pointer 
+            Moves a C pointer (`outdata_ptr`) to the next element in memory,
+            based on the size of the referenced type in another C pointer
             (`memref_ptr`).
 
             Args:
                 outdata_ptr: ctypes.POINTER
                 The C pointer whose position needs to be moved.
                 memref_ptr: ctypes.POINTER
-                The reference C pointer whose type determines the size of each 
+                The reference C pointer whose type determines the size of each
                 element for the move.
 
             Returns:
@@ -487,7 +540,7 @@ class DynamoCompiler:
 
             Returns:
             List[torch.Tensor]
-                The result of executing the graph, represented as a list of 
+                The result of executing the graph, represented as a list of
                 output tensors.
             """
             # A list of ctypes pointers representing memory references for input
@@ -500,13 +553,13 @@ class DynamoCompiler:
                 )
                 for tensor in args
             ]
-            # A list of ctypes pointers representing memory references for 
+            # A list of ctypes pointers representing memory references for
             # output tensors.
             output_memref = [
                 ctypes.pointer(ctypes.pointer(graph._output_descriptor()))
             ]
             args_memref = output_memref + input_memref
-            # Invoke the graph's function using the provided execution engine 
+            # Invoke the graph's function using the provided execution engine
             # and memory references
             ee.invoke(graph._func_name, *args_memref)
 
@@ -523,7 +576,7 @@ class DynamoCompiler:
                 # Move to the next element in memory based on the size of the
                 # current output type
                 outdata_ptr = move_c_ptr(outdata_ptr, output_ptr[0])
-            # Convert each NumPy array to a PyTorch tensor and return the list 
+            # Convert each NumPy array to a PyTorch tensor and return the list
             # of tensors
             return [torch.from_numpy(tensor) for tensor in output_tensor]
 
