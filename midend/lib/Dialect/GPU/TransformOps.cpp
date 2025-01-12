@@ -26,6 +26,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "GPU/TransformOps.h"
+#include "GPU/Transforms.h"
 
 #include "mlir/Conversion/VectorToGPU/VectorToGPU.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -179,6 +180,14 @@ buddy::gpu::VectorToMMAConversionOp::applyToOne(
   populatePrepareVectorToMMAPatterns(patterns, getUseMmaSync());
   if (failed(
           applyPatternsAndFoldGreedily(target, std::move(patterns), config))) {
+    target->emitOpError("vector to mma preparation patterns failed to apply");
+    return emitDefaultDefiniteFailure(target);
+  }
+
+  RewritePatternSet patterns2(ctx);
+  mlir::buddy::EliminateBroadcastExtractPatterns(patterns2,ctx);
+  if (failed(
+          applyPatternsAndFoldGreedily(target, std::move(patterns2), config))) {
     target->emitOpError("vector to mma preparation patterns failed to apply");
     return emitDefaultDefiniteFailure(target);
   }
