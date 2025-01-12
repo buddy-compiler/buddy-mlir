@@ -1958,7 +1958,8 @@ def split_op(node: SplitOp, symbol_table):
         offsets[dim] = i * split_size
         offsets_attr = ir._denseI64ArrayAttr(offsets, None)
 
-        # Set the size along the split dimension; the last slice may be smaller than split_size
+        # Set the size along the split dimension;
+        # the last slice may be smaller than split_size
         sizes = list(default_sizes)
         sizes[dim] = min(split_size, input_shape[dim] - i * split_size)
         sizes_attr = ir._denseI64ArrayAttr(sizes, None)
@@ -2031,7 +2032,8 @@ def gt_op(node: GtOp, symbol_table):
     - symbol_table: A mapping of tensor names to their corresponding MLIR objects.
 
     Returns:
-    - cmp_op: A comparison operation result indicating where the input tensor's elements are greater than the scalar.
+    - cmp_op: A comparison operation result indicating where
+      the input tensor's elements are greater than the scalar.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
@@ -2362,6 +2364,62 @@ def unsafe_index_op(
     return op
 
 
+def convolution2d_op(
+    node: Conv2dOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
+):
+    """
+    Import the convolution operation.
+    From Buddy Conv2dOp to MLIR Linarg `conv_2d_*` operation.
+    arg[0]: Tensor input
+    arg[1]: Tensor weight
+    arg[2]: Tensor? bias
+    arg[3]: SymInt[] stride
+    arg[4]: SymInt[] padding
+    arg[5]: SymInt[] dilation
+    arg[6]: bool transposed
+    arg[7]: SymInt[] output_padding
+    arg[8]: SymInt groups
+    """
+    assert len(node.args) == 9
+    input_ = node.args[0]
+    filter_ = node.args[1]
+    bias = node.args[2]
+    strides = node.args[3]
+    dilations = node.args[5]
+
+    input_val = symbol_table.get((str(input_), 0))
+    input_shape = list(ir.RankedTensorType(input_val.type).shape)
+    filter_val = symbol_table.get((str(filter_), 0))
+    filter_shape = list(ir.RankedTensorType(filter_val.type).shape)
+    dtype = node.tensor_meta["dtype"]
+    result_element_type = mlir_element_type_get(dtype)
+    out_shape = node.tensor_meta["shape"]
+    result_tensor_type = ir.RankedTensorType.get(out_shape, result_element_type)
+    strides_attr = ir._denseI64ArrayAttr(strides, None)
+    dilations_attr = ir._denseI64ArrayAttr(dilations, None)
+    conv2d_result = tensor.EmptyOp(out_shape, result_element_type)
+    conv2d_nchw_op = linalg.conv_2d_nchw_fchw(
+        input_val,
+        filter_val,
+        outs=[conv2d_result],
+        strides=strides_attr,
+        dilations=dilations_attr,
+    )
+
+    op_to_return = conv2d_nchw_op
+    if len(node._parents) > 2:
+        bias_tensor = symbol_table.get((str(bias), 0))
+        init = tensor.EmptyOp(out_shape, result_element_type)
+        print(f"{bias_tensor}, {init}, {out_shape}")
+        broadcasted = linalg.broadcast(
+            bias_tensor, outs=[init], dimensions=[0, 2, 3]
+        )
+        add_result = tensor.EmptyOp(out_shape, result_element_type)
+        op_to_return = linalg.add(op_to_return, broadcasted, outs=[add_result])
+
+    return op_to_return
+
+
 ops_registry = {
     "MatmulOp": matmul_op,
     "TransposeMatmulFusedOp": matmul_transpose_b_op,
@@ -2401,4 +2459,5 @@ ops_registry = {
     "GeOp": ge_op,
     "GreaterThanOp": greater_than_op,
     "UnsafeIndexOp": unsafe_index_op,
+    "Conv2dOp": convolution2d_op,
 }
