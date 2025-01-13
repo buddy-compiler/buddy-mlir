@@ -2560,13 +2560,10 @@ def convolution2d_op(
     dilations = node.args[5]
 
     input_val = symbol_table.get((str(input_), 0))
-    input_shape = list(ir.RankedTensorType(input_val.type).shape)
     filter_val = symbol_table.get((str(filter_), 0))
-    filter_shape = list(ir.RankedTensorType(filter_val.type).shape)
     dtype = node.tensor_meta["dtype"]
     result_element_type = mlir_element_type_get(dtype)
     out_shape = node.tensor_meta["shape"]
-    result_tensor_type = ir.RankedTensorType.get(out_shape, result_element_type)
     strides_attr = ir._denseI64ArrayAttr(strides, None)
     dilations_attr = ir._denseI64ArrayAttr(dilations, None)
     conv2d_result = tensor.EmptyOp(out_shape, result_element_type)
@@ -2582,7 +2579,6 @@ def convolution2d_op(
     if len(node._parents) > 2:
         bias_tensor = symbol_table.get((str(bias), 0))
         init = tensor.EmptyOp(out_shape, result_element_type)
-        print(f"{bias_tensor}, {init}, {out_shape}")
         broadcasted = linalg.broadcast(
             bias_tensor, outs=[init], dimensions=[0, 2, 3]
         )
@@ -2590,6 +2586,40 @@ def convolution2d_op(
         op_to_return = linalg.add(op_to_return, broadcasted, outs=[add_result])
 
     return op_to_return
+
+
+def maxpool2d_op(
+    node: Conv2dOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
+):
+    # print(node.kwargs, node.args)
+    input_ = node.args[0]
+    kernel_size = node.args[1]
+    strides = node.args[2]
+    dtype = node.tensor_meta["dtype"]
+    result_element_type = mlir_element_type_get(dtype)
+    result_shape = node.tensor_meta["shape"]
+
+    input_value = symbol_table.get((str(input_), 0))
+    kernel_size_value = tensor.EmptyOp(kernel_size, result_element_type)
+
+    if len(node.args) > 3:
+        dilations = node.args[4]
+    else:
+        dilations = [1, 1]
+
+    strides_attr = ir._denseI64ArrayAttr(strides, None)
+    dilations_attr = ir._denseI64ArrayAttr(dilations, None)
+
+    result = tensor.EmptyOp(result_shape, result_element_type)
+    op = linalg.pooling_nchw_max(
+        input_value,
+        kernel_size_value,
+        outs=[result],
+        strides=strides_attr,
+        dilations=dilations_attr,
+    )
+
+    return op
 
 
 ops_registry = {
@@ -2635,4 +2665,5 @@ ops_registry = {
     "CopyOp": copy_op,
     "SliceScatterOp": slice_scatter_op,
     "Conv2dOp": convolution2d_op,
+    "MaxPool2dOp": maxpool2d_op,
 }
