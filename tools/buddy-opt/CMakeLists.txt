@@ -45,6 +45,7 @@ target_link_libraries(buddy-opt
   MLIRTransforms
   MLIRTransformUtils
   MatMulTransposeBVec
+  MatMulParallelVec
   MLIRGPUPasses
   BuddyGPUTransformOPs
   MLIRTestTransforms

@@ -6,6 +6,7 @@ add_mlir_library(MatMulOptimization
   BatchMatMulTileOptimize.cpp
   BatchMatMulSCFOptimize.cpp
   MatMulTransposeBVec.cpp
+  MatMulParallelVec.cpp
   BatchMatMulOptimize.cpp
   BatchMatMulTileOptimize.cpp
   BatchMatMulSCFOptimize.cpp
@@ -22,5 +23,9 @@ add_mlir_library(MatMulParallelVectorization
 )
 
 add_mlir_library(MatMulTransposeBVec
-  MatMulTransposeBVec.cpp 
+  MatMulTransposeBVec.cpp
+)
+
+add_mlir_library(MatMulParallelVec
+  MatMulParallelVec.cpp
 )
