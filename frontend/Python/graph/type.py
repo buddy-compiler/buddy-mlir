@@ -95,4 +95,4 @@ class DeviceType(Enum):
 
     CPU = "cpu"
     GPU = "gpu"
-    UNKNOWN = "unknow"
+    UNKNOWN = "unknown"

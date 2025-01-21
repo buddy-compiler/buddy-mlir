@@ -37,7 +37,7 @@ parser.add_argument(
     "--output-dir",
     type=str,
     default="./",
-    help="Directory to save output files."
+    help="Directory to save output files.",
 )
 args = parser.parse_args()
 
@@ -54,8 +54,7 @@ model = model.eval()
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
-    primary_registry=linalg.ops_registry,
-    verbose=True
+    primary_registry=linalg.ops_registry, verbose=True
 )
 
 data = torch.randn([1, 1, 28, 28])

@@ -18,13 +18,12 @@
 #
 # ===---------------------------------------------------------------------------
 
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple
 
 import mlir.ir as ir
 from mlir.dialects import tosa, linalg, arith, tensor, math
-import copy, array, sys
+import copy, array
 import numpy
-import functools
 
 from ..graph import *
 from ..graph.graph import TensorDType
@@ -2032,13 +2031,8 @@ def gt_op(node: GtOp, symbol_table):
     - symbol_table: A mapping of tensor names to their corresponding MLIR objects.
 
     Returns:
-<<<<<<< HEAD
     - cmp_op: A comparison operation result indicating where the input tensor's elements
               are greater than the scalar.
-=======
-    - cmp_op: A comparison operation result indicating where
-      the input tensor's elements are greater than the scalar.
->>>>>>> 93de87f (feat: Add conv2d implemented in linalg)
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
@@ -2566,7 +2560,10 @@ def convolution2d_op(
     out_shape = node.tensor_meta["shape"]
     strides_attr = ir._denseI64ArrayAttr(strides, None)
     dilations_attr = ir._denseI64ArrayAttr(dilations, None)
-    conv2d_result = tensor.EmptyOp(out_shape, result_element_type)
+    conv2d_result = tensor.EmptyOp(out_shape, result_element_type).result
+    f32 = ir.F32Type.get()
+    zero = arith.ConstantOp(value=ir.FloatAttr.get(f32, 0.0), result=f32).result
+    conv2d_result = linalg.fill(zero, outs=[conv2d_result])
     conv2d_nchw_op = linalg.conv_2d_nchw_fchw(
         input_val,
         filter_val,
@@ -2591,7 +2588,6 @@ def convolution2d_op(
 def maxpool2d_op(
     node: Conv2dOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
 ):
-    # print(node.kwargs, node.args)
     input_ = node.args[0]
     kernel_size = node.args[1]
     strides = node.args[2]
@@ -2602,22 +2598,34 @@ def maxpool2d_op(
     input_value = symbol_table.get((str(input_), 0))
     kernel_size_value = tensor.EmptyOp(kernel_size, result_element_type)
 
-    if len(node.args) > 3:
-        dilations = node.args[4]
-    else:
-        dilations = [1, 1]
-
     strides_attr = ir._denseI64ArrayAttr(strides, None)
-    dilations_attr = ir._denseI64ArrayAttr(dilations, None)
 
     result = tensor.EmptyOp(result_shape, result_element_type)
-    op = linalg.pooling_nchw_max(
-        input_value,
-        kernel_size_value,
-        outs=[result],
-        strides=strides_attr,
-        dilations=dilations_attr,
+    f32 = ir.F32Type.get()
+
+    # FIXME: fix this magic value!
+    largest = arith.ConstantOp(
+        value=ir.FloatAttr.get(f32, numpy.finfo(numpy.float32).min), result=f32
     )
+    result = linalg.fill(largest, outs=[result])
+
+    if len(node.args) > 3:
+        dilations = node.args[3]
+        dilations_attr = ir._denseI64ArrayAttr(dilations, None)
+        op = linalg.pooling_nchw_max(
+            input_value,
+            kernel_size_value,
+            outs=[result],
+            strides=strides_attr,
+            dilations=dilations_attr,
+        )
+    else:
+        op = linalg.pooling_nchw_max(
+            input_value,
+            kernel_size_value,
+            outs=[result],
+            strides=strides_attr,
+        )
 
     return op
 
