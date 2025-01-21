@@ -27,8 +27,8 @@ import torch
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse, apply_classic_fusion
-from buddy.compiler.ops import tosa, linalg
+from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.ops import linalg
 from model import LeNet
 
 # Parse command-line arguments.
@@ -37,7 +37,7 @@ parser.add_argument(
     "--output-dir",
     type=str,
     default="./",
-    help="Directory to save output files."
+    help="Directory to save output files.",
 )
 args = parser.parse_args()
 
@@ -54,9 +54,7 @@ model = model.eval()
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
-    # primary_registry=linalg.ops_registry,
-    # verbose=True
+    primary_registry=linalg.ops_registry, verbose=True
 )
 
 data = torch.randn([1, 1, 28, 28])
