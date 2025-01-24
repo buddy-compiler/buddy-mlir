@@ -34,6 +34,12 @@
 using namespace buddy;
 using namespace mlir;
 
+namespace mlir {
+namespace test {
+void registerTestLowerToNVVM();
+}
+} // namespace mlir
+
 namespace buddy {
 void registerBuddyToLLVMIRTranslation();
 }
@@ -61,10 +67,13 @@ void buddyRegisterAllTranslations(MlirContext context) {
   ctx.appendDialectRegistry(registry);
 }
 
+void registerTestPasses() { mlir::test::registerTestLowerToNVVM(); }
+
 void buddyRegisterAllPasses() {
   // Register all Passes from UPSTREAM MLIR
   mlir::registerAllPasses();
 
+  registerTestPasses();
   // Register all Passes from BUDDY MLIR
   mlir::buddy::registerAllPasses();
 }

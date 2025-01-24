@@ -87,11 +87,17 @@ void registerMatMulTransposeBVecPass();
 void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 } // namespace buddy
+namespace test {
+void registerTestLowerToNVVM();
+}
 } // namespace mlir
+
+void registerTestPasses() { mlir::test::registerTestLowerToNVVM(); }
 
 int main(int argc, char **argv) {
   // Register all MLIR passes.
   mlir::registerAllPasses();
+  registerTestPasses();
   mlir::buddy::registerPointwiseConvToGemmPass();
   // Register Vectorization of Convolution.
   mlir::buddy::registerConvVectorizationPass();

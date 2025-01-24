@@ -3,6 +3,10 @@ get_property(translation_libs GLOBAL PROPERTY MLIR_TRANSLATION_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 
+set(test_libs
+  MLIRGPUTestPasses
+)
+
 add_mlir_public_c_api_library(BuddyMLIRCAPI
   Dialects.cpp
   RegisterEverything.cpp
@@ -15,6 +19,7 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   ${translation_libs}
   ${conversion_libs}
   ${extension_libs}
+  ${test_libs}
   MLIRBuiltinToLLVMIRTranslation
   MLIRCAPIIR
   MLIRLLVMToLLVMIRTranslation

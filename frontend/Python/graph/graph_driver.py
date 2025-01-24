@@ -20,7 +20,7 @@
 #
 # ===---------------------------------------------------------------------------
 
-from mlir import ir
+from buddy_mlir import ir
 from collections import deque, defaultdict
 
 from .graph import Graph, GraphImporter, TensorMeta
@@ -171,7 +171,8 @@ class GraphDriver:
         Args:
         - graph (Graph): The graph from which subgraphs are constructed.
         Returns:
-        - list: A list of subgraph names in topological order if the graph is acyclic; otherwise, None.
+        - list: A list of subgraph names in topological order if the graph is acyclic;
+          otherwise, None.
         """
         # Calculate in degree of each subgraph
         in_degree = {
@@ -190,7 +191,8 @@ class GraphDriver:
                 in_degree[child] -= 1
                 if in_degree[child] == 0:
                     queue.append(child)
-        # TODO: If the custom subgraph partitioning is illegal, further partition the subgraph to make it valid.
+        # TODO: If the custom subgraph partitioning is illegal,
+        # further partition the subgraph to make it valid.
         return (
             topo_order
             if len(topo_order) == len(list(self._subgraphs.keys()))
