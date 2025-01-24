@@ -34,14 +34,14 @@ using namespace std;
 bool testImplementation(int argc, char *argv[]) {
   const int inputBatch = 1;
 
-  // Read as color image in [HWC] format.
+  // Read as color image in [HWC] format
   Img<float, 3> input = dip::imread<float, 3>(argv[1], dip::IMGRD_COLOR);
   const int inputHeight = input.getSizes()[0];
   const int inputWidth = input.getSizes()[1];
   const int inputChannels = input.getSizes()[2];
   const int inputStride = inputHeight * inputWidth * inputChannels;
 
-  //  Image format is [NHWC].
+  //  Image format is [NHWC]
   intptr_t inputSizes_NHWC[4] = {inputBatch, inputHeight, inputWidth,
                                  inputChannels};
   Img<float, 4> inputImages_NHWC(inputSizes_NHWC);
