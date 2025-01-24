@@ -24,6 +24,14 @@ if (BUDDY_MOBILENETV3_EXAMPLES)
   add_subdirectory(BuddyMobileNetV3)
 endif()
 
+if (BUDDY_RESNET_EXAMPLES)
+  add_subdirectory(BuddyResNet18)
+endif()
+
+if (BUDDY_STABLE_DIFFUSION_EXAMPLES)
+  add_subdirectory(BuddyStableDiffusion)
+endif()
+
 if(BUDDY_DSL_EXAMPLES)
   add_subdirectory(ToyDSL)
 endif()

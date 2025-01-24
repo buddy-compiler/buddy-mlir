@@ -21,7 +21,7 @@
 #ifndef DAP_DAPOPS_TD
 #define DAP_DAPOPS_TD
 
-include "DAPDialect.td"
+include "DAP/DAPDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/EnumAttr.td"
@@ -93,8 +93,8 @@ def DAP_IirOp : DAP_Op<"iir"> {
   }];
 }
 
-def DAP_RFFT400Op : DAP_Op<"rfft400"> {
-  let summary = "RFFT operation for length 400.";
+def DAP_RFFTOp : DAP_Op<"rfft"> {
+  let summary = "RFFT operation.";
   let description = [{
     The RFFT algorithm is designed to handle real-valued input signals. Real 
     signals exhibit conjugate symmetry in the frequency domain, meaning that 
@@ -105,7 +105,7 @@ def DAP_RFFT400Op : DAP_Op<"rfft400"> {
     Example:
 
     ```mlir
-    dap.rfft400 %data : memref<400xf64> 
+    dap.rfft %data : memref<?xf64> 
     ```
   }];
 
