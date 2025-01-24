@@ -37,6 +37,7 @@ class TestModule(torch.nn.Module):
         else:
             return torch.matmul(b, c)
 
+
 # Define a PyTorch model and run it with PyTorch runtime.
 model = TestModule()
 a, b = torch.randn((1024, 1024)), torch.randn((1024, 1024))
@@ -46,7 +47,8 @@ print(model(a, b))
 # Initialize Buddy Dynamo Compiler to compile and execute the PyTorch model.
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=aot_autograd_decompositions
+    aot_autograd_decomposition=aot_autograd_decompositions,
+    compilation_mode="JIT",
 )
 model_opt = torch.compile(model, backend=dynamo_compiler)
 print(model_opt(a, b))
@@ -55,9 +57,7 @@ torch._dynamo.reset()
 
 # AOT Mode
 # Import PyTorch model to Buddy Graph and MLIR/LLVM IR.
-graphs = dynamo_compiler.importer(
-    model, a, b
-)
+graphs = dynamo_compiler.importer(model, a, b)
 for g in graphs:
     g.lower_to_top_level_ir()
     print(g._imported_module)

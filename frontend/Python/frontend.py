@@ -28,11 +28,11 @@ import os
 import ctypes
 import platform
 
-import mlir.ir as ir
-import mlir.dialects.func as func
-from mlir.passmanager import *
-from mlir.execution_engine import *
-from mlir import runtime as rt
+import buddy_mlir.ir as ir
+import buddy_mlir.dialects.func as func
+from buddy_mlir.passmanager import *
+from buddy_mlir.execution_engine import *
+from buddy_mlir import runtime as rt
 import torch
 import torch._dynamo as dynamo
 from torch._functorch.aot_autograd import aot_module_simplified
@@ -65,6 +65,7 @@ class DynamoCompiler:
         primary_registry: Optional[dict] = None,
         aot_autograd_decomposition: Optional[dict] = None,
         verbose=False,
+        compilation_mode: str = "AOT",
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -97,6 +98,7 @@ class DynamoCompiler:
         self._func_name = func_name
         self._aot_autograd_decomposition = aot_autograd_decomposition
         self._verbose = verbose
+        self._compilation_mode = compilation_mode
         self._imported_graphs = []
         self._ops_registry = {}
         self._imported_params = {}
@@ -266,27 +268,27 @@ class DynamoCompiler:
             dynamo_run: The function of the ahead-of-time compiled module,
             return for torchdynamo's call.
         """
+        if self._compilation_mode == "JIT":
+            params = {
+                **dict(gm.named_parameters(remove_duplicate=False)),
+                **dict(gm.named_buffers(remove_duplicate=False)),
+            }
+            params_flat, _ = pytree.tree_flatten(params)
+        elif self._compilation_mode == "AOT":
+            inputs_pos = []
+            params_pos = []
+            buffers_pos = []
+            for i, node in enumerate(gm.graph.nodes):
+                if i >= len(inputs):
+                    break
+                if not str(node).startswith("l_self"):
+                    inputs_pos.append(i)
+                elif "buffer" in str(node):
+                    buffers_pos.append(i)
+                else:
+                    params_pos.append(i)
 
-        # params = {
-        #     # **dict(gm.named_parameters(remove_duplicate=False)),
-        #     **dict(gm.named_buffers(remove_duplicate=False)),
-        # }
-        # print(len(params))
-        # params_flat, _ = pytree.tree_flatten(params)
-        inputs_pos = []
-        params_pos = []
-        buffers_pos = []
-        for i, node in enumerate(gm.graph.nodes):
-            if i >= len(inputs):
-                break
-            if not str(node).startswith("l_self"):
-                inputs_pos.append(i)
-            elif "buffer" in str(node):
-                buffers_pos.append(i)
-            else:
-                params_pos.append(i)
-
-        params_flat = [inputs[i] for i in params_pos + buffers_pos]
+            params_flat = [inputs[i] for i in params_pos + buffers_pos]
 
         if self._verbose:
             print("Graph in tabular form:")
@@ -296,12 +298,17 @@ class DynamoCompiler:
             """Compile a FX graph in Aten/Prims IR to MLIR."""
             nonlocal params_flat
             func_inputs = []
-            for i in inputs_pos:
-                # for inp in _inputs[len(params_flat) :]:
-                inp = _inputs[i]
-                inp_shape = inp.shape
-                inp_dtype = self._torch_dtype_translate(str(inp.dtype))
-                func_inputs.append(TensorMeta(inp_shape, inp_dtype))
+            if self._compilation_mode == "JIT":
+                for inp in _inputs[len(params_flat) :]:
+                    inp_shape = inp.shape
+                    inp_dtype = self._torch_dtype_translate(str(inp.dtype))
+                    func_inputs.append(TensorMeta(inp_shape, inp_dtype))
+            elif self._compilation_mode == "AOT":
+                for i in inputs_pos:
+                    inp = _inputs[i]
+                    inp_shape = inp.shape
+                    inp_dtype = self._torch_dtype_translate(str(inp.dtype))
+                    func_inputs.append(TensorMeta(inp_shape, inp_dtype))
             fake_params = []
             for param in params_flat:
                 param_dtype = self._torch_dtype_translate(str(param.dtype))
@@ -314,20 +321,25 @@ class DynamoCompiler:
                 DeviceType.CPU,
                 self._verbose,
             )
-            param_nodes = []
-            buffers_nodes = []
-            input_nodes = []
-            other_nodes = []
-            for i, node in enumerate(_gm.graph.nodes):
-                if i in params_pos:
-                    param_nodes.append(node)
-                elif i in buffers_pos:
-                    buffers_nodes.append(node)
-                elif i in inputs_pos:
-                    input_nodes.append(node)
-                else:
-                    other_nodes.append(node)
-            gm_nodes = param_nodes + buffers_nodes + input_nodes + other_nodes
+            if self._compilation_mode == "JIT":
+                gm_nodes = _gm.graph.nodes
+            elif self._compilation_mode == "AOT":
+                param_nodes = []
+                buffers_nodes = []
+                input_nodes = []
+                other_nodes = []
+                for i, node in enumerate(_gm.graph.nodes):
+                    if i in params_pos:
+                        param_nodes.append(node)
+                    elif i in buffers_pos:
+                        buffers_nodes.append(node)
+                    elif i in inputs_pos:
+                        input_nodes.append(node)
+                    else:
+                        other_nodes.append(node)
+                gm_nodes = (
+                    param_nodes + buffers_nodes + input_nodes + other_nodes
+                )
 
             for gm_node in gm_nodes:
                 node_users = []
@@ -404,7 +416,10 @@ class DynamoCompiler:
             graph.perform(transform_list)
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
-            return _gm.forward
+            if self._compilation_mode == "AOT":
+                return _gm.forward
+            elif self._compilation_mode == "JIT":
+                return self.dynamo_run()
 
         return aot_module_simplified(
             gm,

@@ -18,7 +18,7 @@
 #
 # ===---------------------------------------------------------------------------
 
-from mlir.dialects import math
+from buddy_mlir.dialects import math
 
 
 def erf_op(node, symbol_table):
@@ -26,15 +26,18 @@ def erf_op(node, symbol_table):
     op = math.ErfOp(input_tensor)
     return op
 
+
 def sqrt_op(node, symbol_table):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     op = math.SqrtOp(input_tensor)
     return op
 
+
 def cos_op(node, symbol_table):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     op = math.CosOp(input_tensor)
     return op
+
 
 def sin_op(node, symbol_table):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
@@ -46,5 +49,5 @@ ops_registry = {
     "ErfOp": erf_op,
     "SqrtOp": sqrt_op,
     "CosOp": cos_op,
-    "SinOp": sin_op
+    "SinOp": sin_op,
 }

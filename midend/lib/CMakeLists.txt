@@ -27,6 +27,8 @@ set(LinkedLibs
   MatMulParallelVectorization
   SchedulingOnDevices
   TransposeOptimization
+  FuncBufferizeDynamicOffset
+  MLIRGPUPasses
 )
 
 

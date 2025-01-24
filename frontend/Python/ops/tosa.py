@@ -23,8 +23,8 @@ from typing import Dict, List, Tuple, Union
 import numpy
 import sys
 
-import mlir.ir as ir
-from mlir.dialects import tensor, tosa, arith, linalg, math
+import buddy_mlir.ir as ir
+from buddy_mlir.dialects import tensor, tosa, arith, linalg, math
 
 from ..graph import TensorDType
 from ..graph import (
@@ -564,7 +564,8 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     to_cast_type = types_mapping[node.args[1]]
     input_type = ir.RankedTensorType(input_tensor.type).element_type
-    # When converting float to int, tosa.cast lowers to math.roundeven, but we don't need rounding.
+    # When converting float to int, tosa.cast lowers to math.roundeven,
+    # but we don't need rounding.
     if str(to_cast_type).find("i") != -1 and str(input_type).find("f") != -1:
         output_shape = list(node.tensor_meta["shape"])
         tensor_type = ir.RankedTensorType.get(output_shape, to_cast_type)
@@ -1591,7 +1592,8 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     """
     Perform scaled dot-product attention computation.
     Args:
-        node (ScaledDotProductFlashAttentionForCpuOp): The scaled dot-product attention operation node with metadata.
+        node (ScaledDotProductFlashAttentionForCpuOp): The scaled dot-product
+        attention operation node with metadata.
         symbol_table: Mapping of variable names to tensor references.
     Returns:
         result_reshape_op: Reshaped result tensor of the attention operation.
@@ -1722,7 +1724,8 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     softmax_output_shape = list(add_op.result.type.shape)
     softmax_dim = len(softmax_output_shape) - 1
 
-    # Subtract the maximum value along the dimension where softmax is applied to prevent overflow during the exp operation.
+    # Subtract the maximum value along the dimension where softmax is applied
+    # to prevent overflow during the exp operation.
     max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
     sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
     exp_op = math.ExpOp(sub_op)

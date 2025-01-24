@@ -20,8 +20,8 @@
 
 from typing import Tuple
 import functools
-from mlir.dialects import func, memref
-from mlir import ir
+from buddy_mlir.dialects import func, memref
+from buddy_mlir import ir
 from ..graph import FuncOp, CallOp, PlaceholderOp
 from .utils import *
 
@@ -106,7 +106,7 @@ def param_extract(
         TensorDType.Int64: ir.IntegerType.get_signless(64),
     }
     memref_element_type = dtype_mapping[node.tensor_meta["dtype"]]
-    if(len(node.tensor_meta['shape'])== 0):
+    if len(node.tensor_meta["shape"]) == 0:
         output_shape = [1]
     else:
         output_shape = list(node.tensor_meta["shape"])

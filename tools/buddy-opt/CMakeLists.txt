@@ -6,11 +6,16 @@ add_llvm_tool(buddy-opt
   buddy-opt.cpp
 )
 
+set(test_libs
+  MLIRGPUTestPasses
+)
+
 target_link_libraries(buddy-opt
   PRIVATE
   ${dialect_libs}
   ${conversion_libs}
   ${extension_libs}
+  ${test_libs}
   MLIROptLib
   CBConvVectorization
   BuddyBud

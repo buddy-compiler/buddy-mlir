@@ -24,11 +24,11 @@ import ctypes
 import functools
 import numpy as np
 
-import mlir.ir as ir
-import mlir.dialects.func as func
-from mlir.passmanager import *
-from mlir.execution_engine import *
-from mlir import runtime as rt
+import buddy_mlir.ir as ir
+import buddy_mlir.dialects.func as func
+from buddy_mlir.passmanager import *
+from buddy_mlir.execution_engine import *
+from buddy_mlir import runtime as rt
 
 from .operation import *
 from .type import *
@@ -188,7 +188,8 @@ class Graph:
 
         Args:
             node (Op): The operation node to be deleted from the graph.
-            parents (List[Op]): A list of parent operation nodes that reference the node to be deleted.
+            parents (List[Op]): A list of parent operation nodes that reference
+            the node to be deleted.
 
         Returns:
             None
@@ -364,32 +365,25 @@ class Graph:
             pm.add("func.func(tosa-to-tensor)")
             pm.add("func.func(tosa-to-arith)")
             pm.run(self._imported_module.operation)
-            pm.add("arith-expand")
             pm.add("eliminate-empty-tensors")
-            pm.add("empty-tensor-to-alloc-tensor")
-            pm.add("convert-elementwise-to-linalg")
-            pm.add("one-shot-bufferize")
-            pm.add("func.func(convert-linalg-to-affine-loops)")
-            pm.add("affine-loop-fusion")
-            pm.add("func.func(affine-parallelize)")
+            pm.add("convert-tensor-to-linalg")
+            pm.add("linalg-bufferize")
+            pm.add("batchmatmul-optimize")
+            pm.add("convert-linalg-to-affine-loops")
             pm.add("lower-affine")
-            pm.add("convert-scf-to-openmp")
-            pm.add("func-bufferize")
+            pm.add("func-bufferize-dynamic-offset")
             pm.add("arith-bufferize")
             pm.add("func.func(tensor-bufferize)")
             pm.add("func.func(buffer-deallocation)")
             pm.add("func.func(finalizing-bufferize)")
+            pm.add("convert-vector-to-scf")
             pm.add("expand-strided-metadata")
             pm.add("convert-vector-to-llvm")
-            pm.add("memref-expand")
-            pm.add("arith-expand")
             pm.add("convert-arith-to-llvm")
             pm.add("finalize-memref-to-llvm")
             pm.add("convert-scf-to-cf")
             pm.add("func.func(llvm-request-c-wrappers)")
-            pm.add("convert-openmp-to-llvm")
-            pm.add("convert-math-to-llvm")
-            pm.add("convert-math-to-libm")
+            pm.add("convert-arith-to-llvm")
             pm.add("convert-func-to-llvm")
             pm.add("reconcile-unrealized-casts")
             pm.run(self._imported_module.operation)
