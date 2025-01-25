@@ -99,13 +99,14 @@ int main() {
   intptr_t sizesOutput[2] = {1, 10};
 
   // Create input and output containers for the image and model output.
-  std::string lenetDir = getenv("LENET_EXAMPLE_PATH");
+  std::string lenetDir = LENET_EXAMPLE_PATH;
+  std::string lenetBuildDir = LENET_EXAMPLE_BUILD_PATH;
   std::string imgPath = lenetDir + "/images/" + ImgName;
   dip::Image<float, 4> input(imgPath, dip::DIP_GRAYSCALE, true /* norm */);
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
-  std::string paramsDir = lenetDir + "/arg0.data";
+  std::string paramsDir = lenetBuildDir + "/arg0.data";
   MemRef<float, 1> paramsContainer({ParamsSize});
   loadParameters(paramsDir, paramsContainer);
 

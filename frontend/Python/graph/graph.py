@@ -105,6 +105,7 @@ class Graph:
         fake_params: List[TensorMeta],
         ops_registry: dict,
         func_name: str,
+        device: DeviceType = DeviceType.CPU,
         verbose=False,
     ) -> None:
         """
@@ -124,7 +125,7 @@ class Graph:
         self._inputs = inputs
         self.node_table: Dict[str, Op] = {}
         self._fake_params = fake_params
-        self.device = "cpu"
+        self.device = device
         self._imported_module = None
         self._verbose = verbose
         self._ops_registry = ops_registry
@@ -244,11 +245,11 @@ class Graph:
         - None
         """
         for i, op in enumerate(self._body):
-            if isinstance(op, PlaceholderOp):
+            if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp):
                 continue
             group = [op]
             subgraph_name = "subgraph{}".format(i)
-            self.group_map_device[subgraph_name] = DeviceType.UNKNOW
+            self.group_map_device[subgraph_name] = DeviceType.CPU
             self.op_groups[subgraph_name] = group
 
     def fuse_ops(self, pattern_list: List[FunctionType]):
@@ -265,9 +266,6 @@ class Graph:
         # TODO: discuss two fuse strategy
         # 1. fuse ops adapt for DSA(hardware dependent)
         # 2. common fuse strategy(hardware independent)
-
-        # Initialize operation groups
-        self.init_op_group()
 
         # Apply fusion patterns
         for pattern_func in pattern_list:
@@ -311,6 +309,8 @@ class Graph:
                 self._inputs,
                 self._func_name,
                 self._ops_registry,
+                False,
+                self.device,
                 verbose=self._verbose,
             )
             self._imported_module = fx_importer.import_graph()
@@ -424,6 +424,7 @@ class GraphImporter:
         func_name: str,
         ops_registry: dict,
         do_param_pack: bool = False,
+        device: DeviceType = DeviceType.CPU,
         verbose=False,
     ):
         """
@@ -439,6 +440,7 @@ class GraphImporter:
             ops_registry = {}
         self._symbol_table = {}
         self._body = body
+        self._device = device
         self._func_name = func_name
         self._params = params
         self._inputs = inputs
