@@ -39,21 +39,32 @@ def testConv2DVectorize():
         # CHECK:      #map = affine_map<(d0) -> (d0)>
         # CHECK:      #map1 = affine_map<(d0) -> (d0 ceildiv 32)>
         # CHECK:      func.func @conv2d(%[[IN:.+]]: memref<?x?xf32>, %[[KERNEL:.+]]: memref<?x?xf32>, %[[OUT:.+]]: memref<?x?xf32>) {
+        # CHECK:        %[[ZERO:.+]] = arith.constant 0 : index
+        # CHECK:        %[[ONE:.+]] = arith.constant 1 : index
+        # CHECK:        %[[C32:.+]] = arith.constant 32 : index
+        # CHECK:        %[[CST:.+]] = arith.constant 0.000000e+00 : f32
 
         # Check the pass-through vector for masked loads and stores
-        # CHECK:        %[[PASS_THRU:.+]] = vector.splat %{{.+}} : vector<32xf32>
+        # CHECK:        %[[PASS_THRU:.+]] = vector.splat %[[CST]] : vector<32xf32>
+
+        # Check the dims
+        # CHECK:        %[[KERNEL_DIM0:.+]] = memref.dim %[[KERNEL]], %[[ZERO]] : memref<?x?xf32>
+        # CHECK:        %[[KERNEL_DIM1:.+]] = memref.dim %[[KERNEL]], %[[ONE]] : memref<?x?xf32>
+        # CHECK:        %[[OUT_DIM0:.+]] = memref.dim %[[OUT]], %[[ZERO]] : memref<?x?xf32>
+        # CHECK:        %[[OUT_DIM1:.+]] = memref.dim %[[OUT]], %[[ONE]] : memref<?x?xf32>
 
         # Check the vectorized loop nest
-        # CHECK:        affine.for %[[I:.+]] = #map(%{{.+}}) to #map(%{{.+}}) {
-        # CHECK-NEXT:     affine.for %[[J:.+]] = #map(%{{.+}}) to #map(%{{.+}}) {
-        # CHECK-NEXT:       affine.for %[[K:.+]] = #map(%{{.+}}) to #map(%{{.+}}) {
-        # CHECK-NEXT:        affine.for %[[L:.+]] = #map(%{{.+}}) to #map1(%{{.+}}) {
+        # CHECK:        affine.for %[[I:.+]] = #map(%[[ZERO]]) to #map(%[[OUT_DIM0]]) {
+        # CHECK-NEXT:     affine.for %[[J:.+]] = #map(%[[ZERO]]) to #map(%[[KERNEL_DIM0]]) {
+        # CHECK-NEXT:       affine.for %[[K:.+]] = #map(%[[ZERO]]) to #map(%[[KERNEL_DIM1]]) {
+        # CHECK-NEXT:        affine.for %[[L:.+]] = #map(%[[ZERO]]) to #map1(%[[OUT_DIM1]]) {
         # CHECK:               %[[KERNEL_VAL:.+]] = memref.load %[[KERNEL]][%[[J]], %[[K]]] : memref<?x?xf32>
-        # CHECK:               scf.if %{{.+}} {
+        # CHECK:               %[[COND:.+]] = arith.cmpf one, %[[KERNEL_VAL]], %{{.+}} : f32
+        # CHECK:               scf.if %[[COND]] {
         # CHECK-NEXT:            %[[BROADCAST:.+]] = vector.broadcast %[[KERNEL_VAL]] : f32 to vector<32xf32>
-        # CHECK-NEXT:            %[[CURRENT:.+]] = arith.muli %[[L]], %{{.+}} : index
-        # CHECK-NEXT:            %[[REMAINDER:.+]] = arith.subi %{{.+}}, %[[CURRENT]] : index
-        # CHECK-NEXT:            %[[COND:.+]] = arith.cmpi sge, %[[REMAINDER]], %{{.+}} : index
+        # CHECK-NEXT:            %[[CURRENT:.+]] = arith.muli %[[L]], %[[C32]] : index
+        # CHECK-NEXT:            %[[REMAINDER:.+]] = arith.subi %[[OUT_DIM1]], %[[CURRENT]] : index
+        # CHECK-NEXT:            %[[COND:.+]] = arith.cmpi sge, %[[REMAINDER]], %[[C32]] : index
         # CHECK-NEXT:            scf.if %[[COND]] {
         # CHECK-NEXT:              %[[IN_VEC:.+]] = affine.vector_load %[[IN]][%[[I]] + %[[J]], %[[K]] + %[[L]] * 32] : memref<?x?xf32>, vector<32xf32>
         # CHECK-NEXT:              %[[OUT_VEC:.+]] = affine.vector_load %[[OUT]][%[[I]], %[[L]] * 32] : memref<?x?xf32>, vector<32xf32>
