@@ -473,7 +473,7 @@ inline MemRef<float, 4> Rotate4D(Img<float, 4> *input, float angle,
     sizesOutput[2] = outputCols;
     sizesOutput[3] = input->getSizes()[3];
   } else {
-    //  format == FORMAT_4D_IMAGE::NCHW
+    //  format == IMAGE_FORMAT::NCHW
     outputRows = std::round(std::abs(input->getSizes()[2] * cosAngle) +
                             std::abs(input->getSizes()[3] * sinAngle));
     outputCols = std::round(std::abs(input->getSizes()[3] * cosAngle) +

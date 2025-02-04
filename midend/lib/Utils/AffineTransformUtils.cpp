@@ -133,7 +133,6 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
                       IntegerType::get(builder.getContext(), 16));
 
   Value resIntPart = builder.create<memref::AllocOp>(loc, resIntPartType);
-
   Value rowStride = builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ / 2);
   Value colStride = builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ * 2);
 #undef BLOCK_SZ
