@@ -50,6 +50,11 @@ checkDIPCommonTypes<dip::Corr2DOp>(dip::Corr2DOp,
 template DIP_ERROR
 checkDIPCommonTypes<dip::Rotate2DOp>(dip::Rotate2DOp,
                                      const std::vector<Value> &args);
+
+template DIP_ERROR
+checkDIPCommonTypes<dip::Rotate4DOp>(dip::Rotate4DOp,
+                                     const std::vector<Value> &args);
+
 template DIP_ERROR
 checkDIPCommonTypes<dip::Resize2DOp>(dip::Resize2DOp,
                                      const std::vector<Value> &args);
@@ -116,6 +121,7 @@ DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args) {
       return DIP_ERROR::UNSUPPORTED_TYPE;
     }
   } else if (op->getName().stripDialect() == "rotate_2d" ||
+             op->getName().stripDialect() == "rotate_4d" ||
              op->getName().stripDialect() == "resize_2d" ||
              op->getName().stripDialect() == "resize_4d_nhwc" ||
              op->getName().stripDialect() == "resize_4d_nchw") {
@@ -459,6 +465,47 @@ Value customTanVal(OpBuilder &builder, Location loc, Value angleVal) {
   return builder.create<arith::DivFOp>(loc, sinVal, cosVal);
 }
 
+// Calculate the real affine matrix for rotation by
+// getting the rotation matrix and modfiying it to
+// preserve the full original image .
+SmallVector<Value, 6> calculateRotationMatrix(OpBuilder &builder, Location loc,
+                                              Value inputCol, Value inputRow,
+                                              Value outputCol, Value outputRow,
+                                              Value angleVal) {
+  Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
+
+  // let alpha = scale * cos(angle), beta = scale * sin(angle)
+  // the affine matrix would be as follow:
+  // [[alpha, beta, (1 - alpha) * centerx - beta * centery],
+  //  [-beta, alpha, beta * centerx + (1 - alpha) * centery]]
+  Value centerX = builder.create<arith::ShRSIOp>(loc, inputCol, c1);
+  Value centerY = builder.create<arith::ShRSIOp>(loc, inputRow, c1);
+  Value centerXF32 = indexToF32(builder, loc, centerX);
+  Value centerYF32 = indexToF32(builder, loc, centerY);
+
+  //  scaling ratio = 1.
+  Value scale = indexToF32(builder, loc, c1);
+
+  auto affineMatrix = dip::getRotationMatrix(builder, loc, centerXF32,
+                                             centerYF32, angleVal, scale);
+
+  //  modify the affine matrix to preserve the full original
+  //  image after rotation
+  Value deltaXI = builder.create<arith::SubIOp>(loc, outputCol, inputCol);
+  Value deltaYI = builder.create<arith::SubIOp>(loc, outputRow, inputRow);
+  Value deltaXIDiv2 = builder.create<arith::ShRSIOp>(loc, deltaXI, c1);
+  Value deltaYIDiv2 = builder.create<arith::ShRSIOp>(loc, deltaYI, c1);
+  Value deltaXFDiv2 = indexToF32(builder, loc, deltaXIDiv2);
+  Value deltaYFDiv2 = indexToF32(builder, loc, deltaYIDiv2);
+
+  affineMatrix[2] =
+      builder.create<arith::AddFOp>(loc, affineMatrix[2], deltaXFDiv2);
+  affineMatrix[5] =
+      builder.create<arith::AddFOp>(loc, affineMatrix[5], deltaYFDiv2);
+
+  return affineMatrix;
+}
+
 // Get affine matrix used in rotation.
 SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
                                         Value centerX, Value centerY,
@@ -544,7 +591,7 @@ inline void inverseAffineMatrix(OpBuilder &builder, Location loc,
 void affineTransformController(OpBuilder &builder, Location loc,
                                MLIRContext *ctx, Value input, Value output,
                                SmallVector<Value, 6> affineMatrix,
-                               int64_t stride) {
+                               int64_t stride, dip::ImageFormat format) {
   VectorType vectorTyF32 = VectorType::get({stride}, FloatType::getF32(ctx));
   VectorType vectorTyI32 = VectorType::get({stride}, IntegerType::get(ctx, 32));
 
@@ -562,8 +609,19 @@ void affineTransformController(OpBuilder &builder, Location loc,
   Value m5Vec =
       builder.create<vector::SplatOp>(loc, vectorTyF32, affineMatrix[5]);
 
-  Value outputRow = builder.create<memref::DimOp>(loc, output, c0Index);
-  Value outputCol = builder.create<memref::DimOp>(loc, output, c1Index);
+  //  get the output image dimensions
+  int dimIndex = -1;
+  if (format == dip::ImageFormat::HW) {
+    dimIndex = 0;
+  } else if (format == dip::ImageFormat::NHWC) {
+    dimIndex = 1;
+  } else if (format == dip::ImageFormat::NCHW) {
+    dimIndex = 2;
+  }
+  Value rowIndex = builder.create<arith::ConstantIndexOp>(loc, dimIndex);
+  Value colIndex = builder.create<arith::ConstantIndexOp>(loc, dimIndex + 1);
+  Value outputRow = builder.create<memref::DimOp>(loc, output, rowIndex);
+  Value outputCol = builder.create<memref::DimOp>(loc, output, colIndex);
 
   Value strideVal = builder.create<arith::ConstantIndexOp>(loc, stride);
   Value outputColStrideRatio =
@@ -630,9 +688,9 @@ void affineTransformController(OpBuilder &builder, Location loc,
         builderFor.create<affine::AffineYieldOp>(locFor);
       });
 
-  affineTransformCore(builder, loc, input, output, c0Index, outputRow, c0Index,
-                      outputCol, affineMatrix[1], affineMatrix[4], xMm0, xMm3,
-                      stride, RSV_BITS, 0);
+  affineTransformCore(builder, loc, ctx, input, output, c0Index, outputRow,
+                      c0Index, outputCol, affineMatrix[1], affineMatrix[4],
+                      xMm0, xMm3, stride, RSV_BITS, 0, format);
 
   builder.create<memref::DeallocOp>(loc, xMm0);
   builder.create<memref::DeallocOp>(loc, xMm3);
