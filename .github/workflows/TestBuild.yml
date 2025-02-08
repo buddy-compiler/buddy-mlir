@@ -10,20 +10,31 @@ jobs:
   build:
     runs-on: self-hosted
     steps:
+      # Checkout action, used to pull the code from the repository.
+      # Ensure that all Git submodules are also checked out, not just the main repository.
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: 'true'
+      # Install Ninja build system. This action ensures that Ninja is available for the build process.
       - name: Set up ninja
         uses: seanmiddleditch/gha-setup-ninja@master
+      # This step has an ID that can be used to reference the output in later steps.
       - name: Prepare llvm build directory name
         id: llvm-build-dir
         run: |
           echo "commit=$(git submodule status llvm | awk '{print $1;}')" >> $GITHUB_OUTPUT
+      # Use GitHub Actions caching to save the build directory for later use.
+      # If the submodule's commit hash changes, a new cache will be created;
+      # otherwise, the previous cache will be used to speed up builds.
       - name: Cache llvm build directory
         uses: actions/cache@v4
         with:
           path: llvm
           key: build-${{ steps.llvm-build-dir.outputs.commit }}
+      # Run a shell script 'TestBuild.sh' to test the build process.
+      # The script is run with the path to the build directory that includes the commit ID,
+      # ensuring the correct build version is tested.
+      # This step executes the actual build verification after caching is set up.
       - name: Test build
         run: bash ./tests/Actions/TestBuild.sh  llvm/build-${{ steps.llvm-build-dir.outputs.commit }}
