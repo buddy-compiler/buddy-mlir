@@ -15,6 +15,7 @@ fi
 
 # Navigate to the LLVM build directory.
 cd $llvm_build_dir
+ls
 pwd
 ls ..
 
