@@ -16,18 +16,14 @@ fi
 # Navigate to the LLVM build directory.
 cd $llvm_build_dir
 
-# Check if the directory is empty, if it is, build LLVM.
-# Assuming if there is something in llvm_build_dir, it is a valid build,
-# so we won't build llvm again.
-if [ -z "$(ls -A ./)" ]
-then
-    cmake -G Ninja ../llvm \
-        -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
-        -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
-        -DLLVM_ENABLE_ASSERTIONS=ON \
-        -DCMAKE_BUILD_TYPE=RELEASE
-    ninja check-clang check-mlir omp
-fi
+# Build and check the LLVM project.
+# If cached build is available, it will save time by only checking the project.
+cmake -G Ninja ../llvm \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE
+ninja check-clang check-mlir omp
 
 # Navigate back to the root project directory.
 cd ../..
