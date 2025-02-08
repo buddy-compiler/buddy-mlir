@@ -15,6 +15,8 @@ fi
 
 # Navigate to the LLVM build directory.
 cd $llvm_build_dir
+pwd
+ls ..
 
 # Build and check the LLVM project.
 # If cached build is available, it will save time by only checking the project.
@@ -28,6 +30,8 @@ ninja check-clang check-mlir omp
 # Navigate back to the root project directory.
 cd ../..
 # Create the build directory for the project.
+pwd
+ls
 mkdir build
 cd build
 
