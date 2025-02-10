@@ -19,6 +19,36 @@ jobs:
       # Install Ninja build system. This action ensures that Ninja is available for the build process.
       - name: Set up ninja
         uses: seanmiddleditch/gha-setup-ninja@master
+      # Install Python 3.10
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      # Define cache key based on requirements.txt checksum
+      - name: Cache Python virtual environment
+        id: cache-pyenv
+        uses: actions/cache@v4
+        with:
+          path: buddy-mlir-venv-${{ hashFiles('requirements.txt') }}
+          key: pyenv-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+      # Create virtual environment if needed and install dependencies
+      - name: Set up virtual environment
+        run: |
+          venv_path="buddy-mlir-venv-${{ hashFiles('requirements.txt') }}"
+          if [ ! -d "$venv_path" ]; then
+            python -m venv $venv_path
+            source $venv_path/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
+          fi
+        shell: bash
+      # Activate virtual environment and verify installation
+      - name: Activate virtual environment and verify installation
+        run: |
+          source buddy-mlir-venv-${{ hashFiles('requirements.txt') }}/bin/activate
+          python --version
+          pip list
+        shell: bash
       # This step has an ID that can be used to reference the output in later steps.
       - name: Prepare llvm build directory name
         id: llvm-build-dir
@@ -37,4 +67,7 @@ jobs:
       # ensuring the correct build version is tested.
       # This step executes the actual build verification after caching is set up.
       - name: Test build
-        run: bash ./tests/Actions/TestBuild.sh  llvm/build-${{ steps.llvm-build-dir.outputs.commit }}
+        run: |
+          source buddy-mlir-venv-${{ hashFiles('requirements.txt') }}/bin/activate
+          bash ./tests/Actions/TestBuild.sh llvm/build-${{ steps.llvm-build-dir.outputs.commit }}
+        shell: bash
