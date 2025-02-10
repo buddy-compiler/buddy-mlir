@@ -38,5 +38,7 @@ cmake -G Ninja .. \
     -DMLIR_DIR=$PWD/../$llvm_build_dir/lib/cmake/mlir \
     -DLLVM_DIR=$PWD/../$llvm_build_dir/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
-    -DCMAKE_BUILD_TYPE=RELEASE
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+    -DPython3_EXECUTABLE=$(which python3)
 ninja check-buddy
