@@ -55,6 +55,7 @@ jobs:
       - name: Configure and Build LLVM
         run: |
           cd llvm
+          rm -rf build
           mkdir build
           cd build
           cmake -G Ninja ../llvm \
