@@ -10,6 +10,10 @@ jobs:
   build:
     runs-on: self-hosted
     steps:
+      # 0. Install Ninja build system.
+      - name: Set up ninja
+        uses: seanmiddleditch/gha-setup-ninja@master
+
       # 1. Checkout main repository, but do not fetch submodules immediately
       - name: Checkout main repository
         uses: actions/checkout@v4
@@ -37,6 +41,32 @@ jobs:
         run: git submodule update --init --recursive llvm
         if: steps.cache-llvm-source.outputs.cache-hit != 'true'
 
+      # 5. Cache llvm build directory
+      - name: Cache LLVM build directory
+        id: cache-llvm-build-dir
+        uses: actions/cache@v4
+        with:
+          path: llvm/build
+          key: llvm-build-${{ steps.llvm-submodule-commit.outputs.commit }}
+          restore-keys: |
+            llvm-build-
+
+      # 6. If cache miss，then build LLVM
+      - name: Configure and Build LLVM
+        run: |
+          cd llvm
+          mkdir build
+          cd build
+          cmake -G Ninja ../llvm \
+            -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+            -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DCMAKE_BUILD_TYPE=RELEASE \
+            -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+            -DPython3_EXECUTABLE=$(which python3)
+          ninja check-clang check-mlir omp
+        if: steps.cache-llvm-build-dir.outputs.cache-hit != 'true'
+
       # # 6. Cache LLVM build directory
       # - name: Cache LLVM build directory
       #   uses: actions/cache@v4
@@ -46,9 +76,7 @@ jobs:
       #     restore-keys: |
       #       build-
 
-      # # Install Ninja build system. This action ensures that Ninja is available for the build process.
-      # - name: Set up ninja
-      #   uses: seanmiddleditch/gha-setup-ninja@master
+
 
       # # Install Python 3.10
       # - name: Set up Python 3.10
