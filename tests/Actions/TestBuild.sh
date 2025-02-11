@@ -1,5 +1,4 @@
 # Python environment setup
-conda activate buddy
 which pip
 pip install -r requirements.txt
 
@@ -23,8 +22,8 @@ cd $llvm_build_dir
 
 # Build and check the LLVM project.
 # If cached build is available, it will save time by only checking the project.
-# if [ -z "$(ls -A ./)" ]
-# then
+if [ -z "$(ls -A ./)" ]
+then
   cmake -G Ninja ../llvm \
       -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
       -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
@@ -33,7 +32,7 @@ cd $llvm_build_dir
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
       -DPython3_EXECUTABLE=$(which python3)
   ninja check-clang check-mlir omp
-# fi
+fi
 
 # Navigate back to the root project directory.
 cd ../..
