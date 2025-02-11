@@ -40,6 +40,7 @@ def dapIir(dtype, context: ir.Context) -> ir.Module:
 def testDapIirF32():
     with ir.Context() as context:
         module = dapIir(ir.F32Type.get(), context)
+        module.operation.verify()
         # CHECK: dap.iir {{.*}} : memref<?xf32>, memref<?x?xf32>, memref<?xf32>
         print(module)
 
@@ -55,6 +56,7 @@ def testDapIirF32():
 def testDapIirF64():
     with ir.Context() as context:
         module = dapIir(ir.F64Type.get(), context)
+        module.operation.verify()
         # CHECK: dap.iir {{.*}} : memref<?xf64>, memref<?x?xf64>, memref<?xf64>
         print(module)
 
@@ -64,6 +66,7 @@ def testDapIirF64():
 def testDapIirI8():
     with ir.Context() as context:
         module = dapIir(ir.IntegerType.get_signless(8), context)
+        module.operation.verify()
         # CHECK: dap.iir {{.*}} : memref<?xi8>, memref<?x?xi8>, memref<?xi8>
         print(module)
 
@@ -73,6 +76,7 @@ def testDapIirI8():
 def testDapIirI16():
     with ir.Context() as context:
         module = dapIir(ir.IntegerType.get_signless(16), context)
+        module.operation.verify()
         # CHECK: dap.iir {{.*}} : memref<?xi16>, memref<?x?xi16>, memref<?xi16>
         print(module)
 
@@ -82,6 +86,7 @@ def testDapIirI16():
 def testDapIirI32():
     with ir.Context() as context:
         module = dapIir(ir.IntegerType.get_signless(32), context)
+        module.operation.verify()
         # CHECK: dap.iir {{.*}} : memref<?xi32>, memref<?x?xi32>, memref<?xi32>
         print(module)
 
@@ -91,5 +96,6 @@ def testDapIirI32():
 def testDapIirI64():
     with ir.Context() as context:
         module = dapIir(ir.IntegerType.get_signless(64), context)
+        module.operation.verify()
         # CHECK: dap.iir {{.*}} : memref<?xi64>, memref<?x?xi64>, memref<?xi64>
         print(module)

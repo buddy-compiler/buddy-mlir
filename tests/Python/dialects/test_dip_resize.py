@@ -128,6 +128,7 @@ def testDipResize2DNearestInpterpolationF32():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_2d NEAREST_NEIGHBOUR_INTERPOLATION{{.*}} : memref<?x?xf32>, f32, f32, memref<?x?xf32>
         print(module)
 
@@ -143,6 +144,7 @@ def testDipResize2DNearestInpterpolationF64():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_2d NEAREST_NEIGHBOUR_INTERPOLATION{{.*}} : memref<?x?xf64>, f32, f32, memref<?x?xf64>
         print(module)
 
@@ -158,6 +160,7 @@ def testDipResize2DBilinearF32():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_2d BILINEAR_INTERPOLATION{{.*}} : memref<?x?xf32>, f32, f32, memref<?x?xf32>
         print(module)
 
@@ -173,6 +176,7 @@ def testDipResize2DBilinearF64():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_2d BILINEAR_INTERPOLATION{{.*}} : memref<?x?xf64>, f32, f32, memref<?x?xf64>
         print(module)
 
@@ -188,6 +192,7 @@ def testDipResize4DNchwNearestInterpolationF32():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_4d_nchw NEAREST_NEIGHBOUR_INTERPOLATION{{.*}} : memref<?x?x?x?xf32>, f32, f32, memref<?x?x?x?xf32>
         print(module)
 
@@ -203,6 +208,7 @@ def testDipResize4DNchwNearestInterpolationF64():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_4d_nchw NEAREST_NEIGHBOUR_INTERPOLATION{{.*}} : memref<?x?x?x?xf64>, f32, f32, memref<?x?x?x?xf64>
         print(module)
 
@@ -218,6 +224,7 @@ def testDipResize4DNchwBilinearF32():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_4d_nchw BILINEAR_INTERPOLATION{{.*}} : memref<?x?x?x?xf32>, f32, f32, memref<?x?x?x?xf32>
         print(module)
 
@@ -233,6 +240,7 @@ def testDipResize4DNchwBilinearF64():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_4d_nchw BILINEAR_INTERPOLATION{{.*}} : memref<?x?x?x?xf64>, f32, f32, memref<?x?x?x?xf64>
         print(module)
 
@@ -248,6 +256,7 @@ def testDipResize4DNhwcNearestInterpolationF32():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_4d_nhwc NEAREST_NEIGHBOUR_INTERPOLATION{{.*}} : memref<?x?x?x?xf32>, f32, f32, memref<?x?x?x?xf32>
         print(module)
 
@@ -263,6 +272,7 @@ def testDipResize4DNhwcNearestInterpolationF64():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_4d_nhwc NEAREST_NEIGHBOUR_INTERPOLATION{{.*}} : memref<?x?x?x?xf64>, f32, f32, memref<?x?x?x?xf64>
         print(module)
 
@@ -278,6 +288,7 @@ def testDipResize4DNhwcBilinearF32():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_4d_nhwc BILINEAR_INTERPOLATION{{.*}} : memref<?x?x?x?xf32>, f32, f32, memref<?x?x?x?xf32>
         print(module)
 
@@ -293,5 +304,6 @@ def testDipResize4DNhwcBilinearF64():
             ),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.resize_4d_nhwc BILINEAR_INTERPOLATION{{.*}} : memref<?x?x?x?xf64>, f32, f32, memref<?x?x?x?xf64>
         print(module)

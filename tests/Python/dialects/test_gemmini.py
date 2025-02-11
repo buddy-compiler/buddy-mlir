@@ -32,6 +32,8 @@ def testLinalgMatmulConversion():
             linalg.fill(c1, outs=[mem1])
             linalg.matmul(mem0, mem1, outs=[mem2])
 
+        module.operation.verify()
+
         pm = PassManager("builtin.module")
         pm.add("convert-linalg-to-gemmini")
         pm.run(module.operation)
@@ -59,6 +61,8 @@ def testLinalgConv2DConversion():
                 linalg.conv_2d_nchw_fchw(input, weight, outs=[mem2])
 
                 return
+
+        module.operation.verify()
 
         pm = PassManager("builtin.module")
         pm.add("convert-linalg-to-gemmini")

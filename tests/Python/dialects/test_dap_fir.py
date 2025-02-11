@@ -31,6 +31,7 @@ def dapFir(dtype, context: ir.Context) -> ir.Module:
 def testDapFirF32():
     with ir.Context() as context:
         module = dapFir(ir.F32Type.get(), context)
+        module.operation.verify()
         # CHECK: dap.fir {{.*}} : memref<?xf32>, memref<?xf32>, memref<?xf32>
         print(module)
 
@@ -40,6 +41,7 @@ def testDapFirF32():
 def testDapFirF64():
     with ir.Context() as context:
         module = dapFir(ir.F64Type.get(), context)
+        module.operation.verify()
         # CHECK: dap.fir {{.*}} : memref<?xf64>, memref<?xf64>, memref<?xf64>
         print(module)
 
@@ -49,6 +51,7 @@ def testDapFirF64():
 def testDapFirI8():
     with ir.Context() as context:
         module = dapFir(ir.IntegerType.get_signless(8), context)
+        module.operation.verify()
         # CHECK: dap.fir {{.*}} : memref<?xi8>, memref<?xi8>, memref<?xi8>
         print(module)
 
@@ -58,6 +61,7 @@ def testDapFirI8():
 def testDapFirI16():
     with ir.Context() as context:
         module = dapFir(ir.IntegerType.get_signless(16), context)
+        module.operation.verify()
         # CHECK: dap.fir {{.*}} : memref<?xi16>, memref<?xi16>, memref<?xi16>
         print(module)
 
@@ -67,6 +71,7 @@ def testDapFirI16():
 def testDapFirI32():
     with ir.Context() as context:
         module = dapFir(ir.IntegerType.get_signless(32), context)
+        module.operation.verify()
         # CHECK: dap.fir {{.*}} : memref<?xi32>, memref<?xi32>, memref<?xi32>
         print(module)
 
@@ -76,5 +81,6 @@ def testDapFirI32():
 def testDapFirI64():
     with ir.Context() as context:
         module = dapFir(ir.IntegerType.get_signless(64), context)
+        module.operation.verify()
         # CHECK: dap.fir {{.*}} : memref<?xi64>, memref<?xi64>, memref<?xi64>
         print(module)

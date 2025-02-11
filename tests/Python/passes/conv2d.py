@@ -30,6 +30,8 @@ def testConv2DVectorize():
                 linalg.conv_2d(input, kernel, outs=[output])
                 return
 
+        module.operation.verify()
+
         pm = PassManager("builtin.module")
         pm.add("conv-vectorization{strip-mining=32}")
         pm.add("cse")

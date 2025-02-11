@@ -29,6 +29,8 @@ def testRVVLegalizeForLLVM():
                 func.return_([vl])
                 return
 
+        module.operation.verify()
+
         # CHECK:      func @rvv_setvl(%[[ARG0:.*]]: index) -> index {
         # CHECK-NEXT:   %[[SEW:.*]] = arith.constant 2 : index
         # CHECK-NEXT:   %[[LMUL:.*]] = arith.constant 2 : index
@@ -66,6 +68,8 @@ def testRVVRsqrtLegalizeForLLVM():
             }
             """
         )
+
+        module.operation.verify()
 
         pm = PassManager("builtin.module")
         pm.add("lower-rvv")

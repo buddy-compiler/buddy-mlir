@@ -30,6 +30,8 @@ def testMatmulVectorize():
                 linalg.matmul(a, b, outs=[c])
                 return
 
+        module.operation.verify()
+
         pm = PassManager("builtin.module")
         pm.add("matmul-vectorization{vector-size=32}")
         pm.add("cse")

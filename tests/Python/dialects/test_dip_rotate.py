@@ -35,6 +35,7 @@ def dipRotate2D(dtype, context: ir.Context) -> ir.Module:
 def testDipRotate2DF32():
     with ir.Context() as context:
         module = dipRotate2D(ir.F32Type.get(), context)
+        module.operation.verify()
         # CHECK: dip.rotate_2d {{.*}} : memref<?x?xf32>, f32, memref<?x?xf32>
         print(module)
 
@@ -44,6 +45,7 @@ def testDipRotate2DF32():
 def testDipRotate2DF64():
     with ir.Context() as context:
         module = dipRotate2D(ir.F64Type.get(), context)
+        module.operation.verify()
         # CHECK: dip.rotate_2d {{.*}} : memref<?x?xf64>, f32, memref<?x?xf64>
         print(module)
 
@@ -53,6 +55,7 @@ def testDipRotate2DF64():
 def testDipRotate2DI8():
     with ir.Context() as context:
         module = dipRotate2D(ir.IntegerType.get_signless(8), context)
+        module.operation.verify()
         # CHECK: dip.rotate_2d {{.*}} : memref<?x?xi8>, f32, memref<?x?xi8>
         print(module)
 
@@ -62,6 +65,7 @@ def testDipRotate2DI8():
 def testDipRotate2DI32():
     with ir.Context() as context:
         module = dipRotate2D(ir.IntegerType.get_signless(32), context)
+        module.operation.verify()
         # CHECK: dip.rotate_2d {{.*}} : memref<?x?xi32>, f32, memref<?x?xi32>
         print(module)
 
@@ -71,5 +75,6 @@ def testDipRotate2DI32():
 def testDipRotate2DI64():
     with ir.Context() as context:
         module = dipRotate2D(ir.IntegerType.get_signless(64), context)
+        module.operation.verify()
         # CHECK: dip.rotate_2d {{.*}} : memref<?x?xi64>, f32, memref<?x?xi64>
         print(module)

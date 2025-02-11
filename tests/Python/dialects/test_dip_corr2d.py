@@ -53,6 +53,7 @@ def testDipCorr2DConstantPaddingF32():
             ir.Attribute.parse("#dip<boundary_option <CONSTANT_PADDING>>"),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.corr_2d <CONSTANT_PADDING>{{.*}} : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
         print(module)
 
@@ -66,6 +67,7 @@ def testDipCorr2DConstantPaddingF64():
             ir.Attribute.parse("#dip<boundary_option <CONSTANT_PADDING>>"),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.corr_2d <CONSTANT_PADDING>{{.*}} : memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, index, index, f64
         print(module)
 
@@ -79,6 +81,7 @@ def testDipCorr2DConstantPaddingI8():
             ir.Attribute.parse("#dip<boundary_option <CONSTANT_PADDING>>"),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.corr_2d <CONSTANT_PADDING>{{.*}} : memref<?x?xi8>, memref<?x?xi8>, memref<?x?xi8>, index, index, i8
         print(module)
 
@@ -92,6 +95,7 @@ def testDipCorr2DConstantPaddingI32():
             ir.Attribute.parse("#dip<boundary_option <CONSTANT_PADDING>>"),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.corr_2d <CONSTANT_PADDING>{{.*}} : memref<?x?xi32>, memref<?x?xi32>, memref<?x?xi32>, index, index, i32
         print(module)
 
@@ -105,6 +109,7 @@ def testDipCorr2DConstantPaddingI64():
             ir.Attribute.parse("#dip<boundary_option <CONSTANT_PADDING>>"),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.corr_2d <CONSTANT_PADDING{{.*}} : memref<?x?xi64>, memref<?x?xi64>, memref<?x?xi64>, index, index, i64
         print(module)
 
@@ -118,6 +123,7 @@ def testDipCorr2DReplicatePaddingF32():
             ir.Attribute.parse("#dip<boundary_option <REPLICATE_PADDING>>"),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.corr_2d <REPLICATE_PADDING>{{.*}} : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, f32
         print(module)
 
@@ -131,6 +137,7 @@ def testDipCorr2DReplicatePaddingF64():
             ir.Attribute.parse("#dip<boundary_option <REPLICATE_PADDING>>"),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.corr_2d <REPLICATE_PADDING>{{.*}} : memref<?x?xf64>, memref<?x?xf64>, memref<?x?xf64>, index, index, f64
         print(module)
 
@@ -144,6 +151,7 @@ def testDipCorr2DReplicatePaddingI8():
             ir.Attribute.parse("#dip<boundary_option <REPLICATE_PADDING>>"),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.corr_2d <REPLICATE_PADDING>{{.*}} : memref<?x?xi8>, memref<?x?xi8>, memref<?x?xi8>, index, index, i8
         print(module)
 
@@ -157,6 +165,7 @@ def testDipCorr2DReplicatePaddingI32():
             ir.Attribute.parse("#dip<boundary_option <REPLICATE_PADDING>>"),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.corr_2d <REPLICATE_PADDING>{{.*}} : memref<?x?xi32>, memref<?x?xi32>, memref<?x?xi32>, index, index, i32
         print(module)
 
@@ -170,5 +179,6 @@ def testDipCorr2DReplicatePaddingI64():
             ir.Attribute.parse("#dip<boundary_option <REPLICATE_PADDING>>"),
             context,
         )
+        module.operation.verify()
         # CHECK: dip.corr_2d <REPLICATE_PADDING>{{.*}} : memref<?x?xi64>, memref<?x?xi64>, memref<?x?xi64>, index, index, i64
         print(module)
