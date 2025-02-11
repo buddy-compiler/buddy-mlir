@@ -1,3 +1,8 @@
+# Python environment setup
+conda activate buddy
+which pip
+pip install -r requirements.txt
+
 # Get the LLVM build directory
 # Check if the first argument is provided,
 # if not, set llvm_build_dir to the default value "llvm/build".
