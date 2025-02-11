@@ -14,6 +14,12 @@ jobs:
       - name: Set up ninja
         uses: seanmiddleditch/gha-setup-ninja@master
 
+      # Install Python 3.10
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
       # 1. Checkout main repository, but do not fetch submodules immediately
       - name: Checkout main repository
         uses: actions/checkout@v4
@@ -54,6 +60,7 @@ jobs:
       # 6. If cache miss，then build LLVM
       - name: Configure and Build LLVM
         run: |
+          source ~/miniconda3/bin/activate buddy
           cd llvm
           rm -rf build
           mkdir build
@@ -62,7 +69,6 @@ jobs:
             -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
             -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
             -DLLVM_ENABLE_ASSERTIONS=ON \
-            -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
             -DCMAKE_BUILD_TYPE=RELEASE \
             -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
             -DPython3_EXECUTABLE=$(which python3)
