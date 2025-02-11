@@ -19,11 +19,11 @@ jobs:
       # Install Ninja build system. This action ensures that Ninja is available for the build process.
       - name: Set up ninja
         uses: seanmiddleditch/gha-setup-ninja@master
-      # Install Python 3.10
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+      # # Install Python 3.10
+      # - name: Set up Python 3.10
+      #   uses: actions/setup-python@v4
+      #   with:
+      #     python-version: '3.10'
       # # Define cache key based on requirements.txt checksum
       # - name: Cache Python virtual environment
       #   id: cache-pyenv
@@ -68,5 +68,6 @@ jobs:
       # This step executes the actual build verification after caching is set up.
       - name: Test build
         run: |
+          conda activate buddy
           bash ./tests/Actions/TestBuild.sh llvm/build-${{ steps.llvm-build-dir.outputs.commit }}
         shell: bash
