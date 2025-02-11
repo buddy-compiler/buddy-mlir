@@ -68,6 +68,6 @@ jobs:
       # This step executes the actual build verification after caching is set up.
       - name: Test build
         run: |
-          conda activate buddy
+          source ~/miniconda3/bin/activate buddy
           bash ./tests/Actions/TestBuild.sh llvm/build-${{ steps.llvm-build-dir.outputs.commit }}
         shell: bash
