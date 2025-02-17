@@ -45,10 +45,6 @@ args = parser.parse_args()
 output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
 
-# Ensure the output directory exists.
-output_dir = args.output_dir
-os.makedirs(output_dir, exist_ok=True)
-
 # Retrieve the LLaMA model path from environment variables.
 model_path = os.environ.get("LLAMA_MODEL_PATH")
 if model_path is None:
