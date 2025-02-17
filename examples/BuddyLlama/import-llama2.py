@@ -45,16 +45,6 @@ args = parser.parse_args()
 output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
 
-# Add argument parser to allow custom output directory.
-parser = argparse.ArgumentParser(description="LLaMA2 model AOT importer")
-parser.add_argument(
-    "--output-dir",
-    type=str,
-    default="./",
-    help="Directory to save output files."
-)
-args = parser.parse_args()
-
 # Ensure the output directory exists.
 output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
