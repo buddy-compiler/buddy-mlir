@@ -585,4 +585,3 @@ class CopyOp(Op):
         super().__init__()
         self._op_type = OpType.ElementwiseType
 
-
