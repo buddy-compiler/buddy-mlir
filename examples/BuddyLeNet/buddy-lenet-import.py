@@ -27,7 +27,7 @@ import torch
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.graph.transform import simply_fuse, apply_classic_fusion
 from buddy.compiler.ops import tosa
 from model import LeNet
 

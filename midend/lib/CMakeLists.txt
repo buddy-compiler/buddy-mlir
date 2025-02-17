@@ -1,7 +1,45 @@
+add_subdirectory(CAPI)
 add_subdirectory(Dialect)
 add_subdirectory(Conversion)
 add_subdirectory(Target)
 add_subdirectory(Utils)
+
+
+get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
+set(LinkedLibs
+  MLIRFuncDialect
+  MLIRIR
+  MLIRSupport
+  ${extension_libs}
+
+  ConvOptimization
+  CBConvVectorization
+  LowerBudPass
+  LowerDAPPass
+  LowerDIPPass
+  LowerGemminiPass
+  LowerLinalgToGemminiPass
+  LowerRVVPass
+  LowerSche
+  LowerVectorExpPass
+  MatMulOptimization
+  BatchMatMulOptimization
+  MatMulParallelVectorization
+  SchedulingOnDevices
+  TransposeOptimization
+)
+
+
+add_mlir_library(BuddyMLIRInitAll
+  InitAll.cpp
+
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
+  ${LinkedLibs}
+)
+
 
 # Build static library for async runtime.
 add_mlir_library(static_mlir_async_runtime

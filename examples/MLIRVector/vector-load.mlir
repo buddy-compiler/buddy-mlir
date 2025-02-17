@@ -16,6 +16,15 @@ memref.global "private" @gv1 : memref<4x4xi32> = dense<[[0, 1, 2, 3],
 
 memref.global "private" @gv2 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 
+func.func @kernel_1(%arg0: memref<8xi32>) {
+  %c0 = arith.constant 0 : index
+  // load normal usage
+  %v0 = vector.load %arg0[%c0] : memref<8xi32>, vector<3xi32>
+  // CHECK: ( 0, 1, 2 )
+  vector.print %v0 : vector<3xi32>
+  return
+}
+
 func.func @main() -> i32 {
   // vector.load can load n-D vector from m-D scalar memref or k-D vector memref
 
@@ -30,12 +39,7 @@ func.func @main() -> i32 {
   %base1 = memref.get_global @gv1 : memref<4x4xi32>
   %base2 = memref.get_global @gv2 : memref<8xi32>
 
-
-  // load normal usage
-  %v0 = vector.load %base0[%c0] : memref<8xi32>, vector<3xi32>
-  // CHECK: ( 0, 1, 2 )
-  vector.print %v0 : vector<3xi32>
-
+  call @kernel_1(%base0) : (memref<8xi32>) -> ()
 
   // load with m-D memref
   //  case 1: inside inner-most dimension
@@ -82,14 +86,14 @@ func.func @main() -> i32 {
   %v5 = vector.load %base5[%c1, %c1] : memref<?x?xi32>, vector<8xi32>
   // ( 5, 6, 7, 8, 9, 10, 11, 12 )
   vector.print %v5 : vector<8xi32>
-  
+
 
   // load with dynamic memref
   //    case 2: out of bound
   // The document says:
-  //    Representation-wise, the ‘vector.load’ operation permits out-of-bounds reads. 
-  //    Support and implementation of out-of-bounds vector loads is target-specific. 
-  //    No assumptions should be made on the value of elements loaded out of bounds. 
+  //    Representation-wise, the ‘vector.load’ operation permits out-of-bounds reads.
+  //    Support and implementation of out-of-bounds vector loads is target-specific.
+  //    No assumptions should be made on the value of elements loaded out of bounds.
   //    Not all targets may support out-of-bounds vector loads.
   %v6 = vector.load %base5[%c3, %c1] : memref<?x?xi32>, vector<8xi32>
   // ( 13, 14, 15, 0, 1, 2, 3, 4 )
@@ -98,7 +102,7 @@ func.func @main() -> i32 {
 
   // load with unranked memref is not allowed
   %base6 = memref.cast %base1 : memref<4x4xi32> to memref<*xi32>
-  // %v7 = vector.load %base6[%c0, %c0] : memref<*xi32>, vector<8xi32> 
+  // %v7 = vector.load %base6[%c0, %c0] : memref<*xi32>, vector<8xi32>
 
   %ret = arith.constant 0 : i32
   return %ret : i32

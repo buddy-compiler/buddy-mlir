@@ -46,6 +46,8 @@
 #include "RVV/RVVDialect.h"
 #include "Sche/ScheDialect.h"
 #include "Sche/ScheOps.h"
+#include "VIR/VIRDialect.h"
+#include "VIR/VIROps.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
 
@@ -140,6 +142,7 @@ int main(int argc, char **argv) {
                   buddy::dap::DAPDialect,
                   buddy::rvv::RVVDialect,
                   buddy::vector_exp::VectorExpDialect,
+                  buddy::vir::VIRDialect,
                   buddy::gemmini::GemminiDialect,
                   buddy::sche::ScheDialect>();
   // clang-format on

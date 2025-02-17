@@ -62,6 +62,11 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize
+            -func-bufferize-dynamic-offset
+            -tensor-bufferize
+            -arith-bufferize
+            -buffer-deallocation
+            -finalizing-bufferize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -69,11 +74,6 @@ add_custom_command(
             -affine-parallelize
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
-            -tensor-bufferize
-            -arith-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
             -convert-vector-to-scf
             -expand-strided-metadata
             -cse
