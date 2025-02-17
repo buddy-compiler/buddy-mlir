@@ -2342,6 +2342,147 @@ def unsafe_index_op(
     return op
 
 
+def equal_op(
+    node: EqualOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    input_shape = ir.RankedTensorType(input_tensor.type).shape
+    tensor_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    if str(input_dtype).find("i") == -1:
+        scalar = arith.ConstantOp(input_dtype, float(node.args[1]))
+    else:
+        scalar = arith.ConstantOp(input_dtype, node.args[1])
+    rhs = tensor.SplatOp(tensor_type, scalar)
+    if str(input_dtype).find("i") != -1:
+        cmp_op = arith.CmpIOp(0, input_tensor, rhs)
+    else:
+        cmp_op = arith.CmpFOp(1, input_tensor, rhs)
+
+    return cmp_op
+
+
+def copy_op(node: CopyOp, symbol_table):
+    """
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    input2 = symbol_table.get((str(node.args[1]), 0))
+
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    output = tensor.EmptyOp(output_shape, mlir_dtype)
+    generic_map = ir.AffineMap.get_permutation(
+        [i for i in range(len(output_shape))]
+    )
+    op = linalg.GenericOp(
+        [tensor_type],
+        [input2],
+        [input1],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(
+                    generic_map.get_submap(
+                        [i for i in range(len(output_shape))]
+                    )
+                ),
+                ir.AffineMapAttr.get(
+                    generic_map.get_submap(
+                        [i for i in range(len(output_shape))]
+                    )
+                ),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(output_shape)
+        ),
+    )
+    block = ir.Block.create_at_start(
+        op.region,
+        [
+            ir.RankedTensorType(input1.type).element_type,
+            ir.RankedTensorType(output.result.type).element_type,
+        ],
+    )
+    block.append(linalg.YieldOp([block.arguments[0]]))
+
+    return op
+
+def slice_scatter_op(node: SliceScatterOp, symbol_table):
+    """
+    Scatter a source tensor into a slice of the input tensor.
+
+    Args:
+        node (SliceScatterOp): The slice_scatter operation node.
+        symbol_table: Mapping of variable names to tensor references.
+
+    Returns:
+        Tensor: The resulting tensor after inserting the source tensor.
+    """
+    # Retrieve input tensor and scatter-related parameters
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    source_tensor = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    dim = node.args[2]  # The dimension to insert into
+    start = node.args[3]  # Start index
+    end = node.args[4]    # End index
+
+    input_shape = input_tensor.type.shape
+    if dim < 0:
+        dim += len(input_shape)  # Handle negative indices
+    
+    if end == 9223372036854775807:
+        end = input_shape[dim]  # Adjust end index if it is set to max value
+
+    tensor_rank = len(input_shape)
+    default_sizes = list(input_shape)
+    default_strides = [1] * tensor_rank
+
+    # 1. Compute slice offsets
+    offsets = [0] * tensor_rank
+    offsets[dim] = start  # Offset only in the target dimension
+    offsets_attr = ir._denseI64ArrayAttr(offsets, None)
+
+    # 2. Compute slice sizes
+    sizes = list(default_sizes)
+    sizes[dim] = end - start  # Modify only the target dimension size
+    sizes_attr = ir._denseI64ArrayAttr(sizes, None)
+
+    # 3. Compute slice strides
+    strides = list(default_strides)
+    strides_attr = ir._denseI64ArrayAttr(strides, None)
+
+    # 4. Extract target slice
+    slice_op = tensor.ExtractSliceOp(
+        source_tensor.type,  # Target type is the same as source_tensor
+        input_tensor,
+        [],
+        [],
+        [],
+        offsets_attr,
+        sizes_attr,
+        strides_attr,
+    )
+
+    # 5. Insert source_tensor into the target position
+    insert_op = tensor.InsertSliceOp(
+        source_tensor,
+        input_tensor,
+        [],
+        [],
+        [],
+        offsets_attr,
+        sizes_attr,
+        strides_attr,
+    )
+
+    return insert_op.result
+
+
 ops_registry = {
     "MatmulOp": matmul_op,
     "ArangeOp": arange_op,
@@ -2380,4 +2521,7 @@ ops_registry = {
     "GeOp": ge_op,
     "GreaterThanOp": greater_than_op,
     "UnsafeIndexOp": unsafe_index_op,
+    "EqualOp": equal_op,
+    "CopyOp": copy_op,
+    "SliceScatterOp": slice_scatter_op,
 }
