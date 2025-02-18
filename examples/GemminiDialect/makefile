@@ -2491,3 +2491,23 @@ exo-matmul-4-run:
 	-I${RISCV}/../../generators/gemmini/software/gemmini-rocc-tests \
 	-O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
+
+gemmini-print-lower:
+	@${BUDDY_OPT} ./print.mlir \
+		-convert-linalg-to-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini \
+		-o log.mlir
+
+gemmini-print-run:
+	@${BUDDY_OPT} ./print.mlir \
+		-convert-linalg-to-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-relocation-model=pic \
+		-o log.o
+	@riscv64-unknown-linux-gnu-gcc -O2 -static log.o -o print
+	@spike --extension=gemmini pk print
