@@ -1,7 +1,7 @@
-# Buddy Compiler WHISPER Example
+# Buddy Compiler DeepSeekR1 Example
 
 ## Introduction
-This example shows how to use Buddy Compiler to compile a WHISPER model to MLIR code then run it.  The [model](https://huggingface.co/openai/whisper-base) is a pre-trained model for automatic speech recognition (ASR) and speech translation (ST).
+This example shows how to use Buddy Compiler to compile a DeepSeekR1 model to MLIR code then run it.
 
 
 ## How to run
@@ -66,20 +66,20 @@ $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:
 3. Set model environment variable.
 
 ```bash
-$ export WHISPER_MODEL_PATH=/path-to-whisper-model/
+$ export DEEPSEEKR1_MODEL_PATH=/path-to-deepseek-r1-model/
 
 // For example:
-$ export WHISPER_MODEL_PATH=/home/xxx/whisper-base
+$ export DEEPSEEKR1_MODEL_PATH=/home/xxx/DeepSeek-R1-Distill-Qwen-1.5B
 ```
-Alternatively, you can leave the path blank, and import-whisper.py will automatically download the model for you.
+Alternatively, you can leave the path blank, and import-deepseek-r1.py will automatically download the model for you.
 
-4. Build and run the WHISPER example
+4. Build and run the DEEPSEEKR1 example
 
 ```bash
-$ cmake -G Ninja .. -DBUDDY_WHISPER_EXAMPLES=ON
-$ ninja buddy-whisper-run
+$ cmake -G Ninja .. -DBUDDY_DEEPSEEKR1_EXAMPLES=ON
+$ ninja buddy-deepseek-r1-run
 $ cd bin
-$ ./buddy-whisper-run
+$ ./buddy-deepseek-r1-run
 ```
 
 5. Enjoy it!
