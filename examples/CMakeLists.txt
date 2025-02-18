@@ -8,6 +8,10 @@ if(BUDDY_LLAMA_EXAMPLES)
   add_subdirectory(BuddyLlama)
 endif()
 
+if(BUDDY_DEEPSEEKR1_EXAMPLES)
+  add_subdirectory(BuddyDeepSeekR1)
+endif()
+
 if (BUDDY_BERT_EXAMPLES)
   add_subdirectory(BuddyBert)
 endif()
