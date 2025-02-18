@@ -14,7 +14,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the test of llama2 model.
+# This is the test of DeepSeekR1 model.
 #
 # ===---------------------------------------------------------------------------
 
@@ -38,7 +38,7 @@ parser.add_argument(
     "--output-dir",
     type=str,
     default="./",
-    help="Directory to save output files."
+    help="Directory to save output files.",
 )
 args = parser.parse_args()
 
@@ -46,19 +46,17 @@ args = parser.parse_args()
 output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
 
-# Retrieve the LLaMA model path from environment variables.
-# model_path = "/home/zhuxinye/.cache/huggingface/hub/models--deepseek-ai--DeepSeek-R1-Distill-Qwen-1.5B/snapshots/530ca3e1ad39d440e182c2e4317aa40f012512fa"
-model_path = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
-# model_path = os.environ.get("DEESEEK_MODEL_PATH")
-# if model_path is None:
-#     raise EnvironmentError(
-#         "The environment variable 'DEESEEK_MODEL_PATH' is not set or is invalid."
-#     )
+# Retrieve the DeepSeekR1 model path from environment variables.
+model_path = os.environ.get("DEEPSEEKR1_MODEL_PATH")
+if model_path is None:
+    model_path = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
 # Initialize the tokenizer and model from the specified model path.
 tokenizer = AutoTokenizer.from_pretrained(model_path)
-model = AutoModelForCausalLM.from_pretrained(model_path, torchscript=True).eval()
-model.config.use_cache = False  # 关闭缓存，以便完整导入
+model = AutoModelForCausalLM.from_pretrained(
+    model_path, torchscript=True
+).eval()
+model.config.use_cache = False
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
 dynamo_compiler = DynamoCompiler(
@@ -70,9 +68,13 @@ dynamo_compiler = DynamoCompiler(
 with torch.no_grad():
     data = {
         "input_ids": torch.zeros((1, 40), dtype=torch.int64),
-        "attention_mask": torch.zeros((1, 40), dtype=torch.int64)
+        "attention_mask": torch.zeros((1, 40), dtype=torch.int64),
     }
-    graphs = dynamo_compiler.importer(model, input_ids=data['input_ids'], attention_mask=data['attention_mask'])
+    graphs = dynamo_compiler.importer(
+        model,
+        input_ids=data["input_ids"],
+        attention_mask=data["attention_mask"],
+    )
 
 assert len(graphs) == 1
 graph = graphs[0]

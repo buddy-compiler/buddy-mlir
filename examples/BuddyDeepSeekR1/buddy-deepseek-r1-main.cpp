@@ -29,11 +29,10 @@ constexpr size_t MaxVocabSize = 151936;
 constexpr size_t MaxTokenLength = 40;
 
 /// Declare DeepSeekR1 forward function.
-extern "C" void
-_mlir_ciface_forward(MemRef<float, 3> *result, 
-                      MemRef<float, 1> *arg0,
-                      MemRef<long long, 2> *arg1,
-                      MemRef<long long, 2> *arg2);
+extern "C" void _mlir_ciface_forward(MemRef<float, 3> *result,
+                                     MemRef<float, 1> *arg0,
+                                     Text<size_t, 2> *arg1,
+                                     MemRef<long long, 2> *arg2);
 
 // -----------------------------------------------------------------------------
 // Helper Functions
@@ -51,7 +50,7 @@ void getUserInput(std::string &inputStr) {
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
 /// Print information for each iteration.
-void printIterInfo(size_t iterIdx, int str, double time) {
+void printIterInfo2(size_t iterIdx, std::string str, double time) {
   std::cout << "\033[32;1m[Iteration " << iterIdx << "] \033[0m";
   std::cout << "Token: " << str << " | "
             << "Time: " << time << "s" << std::endl;
@@ -103,7 +102,6 @@ void loadParameters(const std::string &paramFilePath,
 
 /// Find the index of the max value.
 int findMaxIndex(const float *start, const float *end) {
-  // std:: cout << "max element: " << *std::max_element(start, end) << std::endl; 
   return std::distance(start, std::max_element(start, end));
 }
 
@@ -124,105 +122,71 @@ int main() {
 
   /// Get user message.
   std::string inputStr;
-  // getUserInput(inputStr);
+  getUserInput(inputStr);
 
   /// Initialize data containers
   //  - Input container.
   //  - Result container
   //  - Output container.
   //  - Parameters container.
-  // Text<size_t, 2> outputContainer;
+  Text<size_t, 2> outputContainer;
   MemRef<float, 3> resultContainer({1, 9, 151936});
-  // Text<size_t, 2> input1Container(inputStr);
+  Text<size_t, 2> inputContainer(inputStr);
   MemRef<float, 1> paramsContainer({ParamsSize});
-  MemRef<long long, 2> inputContainer({1, 40});
   MemRef<long long, 2> attention_mask({1, 40}, 0);
-  MemRef<long long, 2> outputContainer({1, 40});
-  long long data[] = {151646, 151646, 151644, 108386, 151645, 151648,    198};
-  for (int i = 0; i < 7; i++) {
-    inputContainer.getData()[i] = data[i];
-    attention_mask.getData()[i] = 1;
-  }
 
   /// Fill data into containers
   //  - Input: register vocabulary and tokenize the input string.
   //  - Output: register vocabulary.
   //  - Parameters: load parameters from the `arg0` file into the container.
-  // tokenizeInput(vocabDir, input1Container);
-  // for (int i = 0 ; i < 10 ; i ++ )
-  //   std::cout << input1Container.getData()[i] << " ";
-  // std::cout << std::endl;
-  // outputContainer.loadVocab(vocabDir);
+  tokenizeInput(vocabDir, inputContainer);
+  for (int i = 0; i < (int)inputContainer.getTokenCnt(); i++) {
+    attention_mask.getData()[i] = 1;
+  }
+  outputContainer.loadVocab(vocabDir);
   loadParameters(paramsDir, paramsContainer);
 
-
-  /// Run LLaMA Inference
+  /// Run DeepSeekR1 Inference
   //  - Perform the forward function.
   //  - Find and append the generated token.
   //  - Continue iterating until the terminal condition is met.
-  // int generateLen = MaxTokenLength - inputContainer.getTokenCnt();
-  for (int i = 0; i < 33; i++) {
+  int generateLen = MaxTokenLength - inputContainer.getTokenCnt();
+  for (int i = 0; i < generateLen; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
-    // std::cout << "input_ids:" << std::endl;
-    // for (int j = 0 ; j < 40 ; j ++ )
-    //   std::cout << inputContainer.getData()[j] << " ";
-    // std::cout << std::endl;
-
-    // std::cout << "attention_mask:" << std::endl;
-    // for (int j = 0 ; j < 40 ; j ++ )
-    //   std::cout << attention_mask.getData()[j] << " ";
-    // std::cout << std::endl;
-
     // Execute the forward pass of the model.
-    _mlir_ciface_forward(&resultContainer, &paramsContainer, &inputContainer, &attention_mask);
+    _mlir_ciface_forward(&resultContainer, &paramsContainer, &inputContainer,
+                         &attention_mask);
 
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =
         inferenceEnd - inferenceStart;
 
     // Determine the generated token.
-    // int tokenIndex = inputContainer.getTokenCnt() - 1;
-    int tokenIndex = 6 + i;
+    int tokenIndex = inputContainer.getTokenCnt() - 1;
     const float *startPtr =
         resultContainer.getData() + tokenIndex * MaxVocabSize;
     const float *endPtr = startPtr + MaxVocabSize;
     int maxIndex = findMaxIndex(startPtr, endPtr);
-    // std::string tok = inputContainer.getStr(maxIndex);
+    std::string tok = inputContainer.getStr(maxIndex);
     // Print the generated token and inference time.
-    // printIterInfo(i, tok, inferenceTime.count() / 1000);
-    printIterInfo(i, maxIndex, inferenceTime.count() / 1000);
+    printIterInfo2(i, tok, inferenceTime.count() / 1000);
 
-    // Stop if a separator token (2, </s>) or line break token (13 <0x0A>) is
-    // generated.
-
-    // Append the generated token into the input and output container.
-    // inputContainer.appendTokenIdx(maxIndex);
-    inputContainer.getData()[7 + i] = maxIndex;
-    attention_mask.getData()[7 + i] = 1;
-    outputContainer.getData()[7 + i] = maxIndex;
-    // outputContainer.appendTokenIdx(maxIndex);
-    free(resultContainer.release());
-
+    // Stop if a <|end▁of▁sentence|> token is generated.
     if (maxIndex == 151643) {
       break;
     }
+    // Append the generated token into the input and output container.
+    // inputContainer.appendTokenIdx(maxIndex);
+    inputContainer.appendTokenIdx(maxIndex);
+    attention_mask.getData()[MaxTokenLength - generateLen + i] = 1;
+    outputContainer.appendTokenIdx(maxIndex);
+    free(resultContainer.release());
   }
 
   /// Print the final result
-  std::cout << "\n\033[33;1m[Output]\033[0m " << "Result Token:" << std::endl;
-  // std::cout << "\033[33;1m[Output]\033[0m " << outputContainer.revertLlama()
-  //           << std::endl;
-
-
-
-  for (int i = 7 ; i < 40 ; i ++ ){
-    
-    std::cout << outputContainer.getData()[i] << " ";
-    if (outputContainer.getData()[i] == 151643)
-      break;
-  }
-
-  std::cout << std::endl;
+  std::cout << "\n\033[33;1m[Input]\033[0m " << inputStr << std::endl;
+  std::cout << "\033[33;1m[Output]\033[0m "
+            << outputContainer.revertDeepSeekR1() << std::endl;
 
   return 0;
 }

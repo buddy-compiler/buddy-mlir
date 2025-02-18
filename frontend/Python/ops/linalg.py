@@ -1958,7 +1958,8 @@ def split_op(node: SplitOp, symbol_table):
         offsets[dim] = i * split_size
         offsets_attr = ir._denseI64ArrayAttr(offsets, None)
 
-        # Set the size along the split dimension; the last slice may be smaller than split_size
+        # Set the size along the split dimension;
+        # the last slice may be smaller than split_size
         sizes = list(default_sizes)
         sizes[dim] = min(split_size, input_shape[dim] - i * split_size)
         sizes_attr = ir._denseI64ArrayAttr(sizes, None)
@@ -2031,7 +2032,8 @@ def gt_op(node: GtOp, symbol_table):
     - symbol_table: A mapping of tensor names to their corresponding MLIR objects.
 
     Returns:
-    - cmp_op: A comparison operation result indicating where the input tensor's elements are greater than the scalar.
+    - cmp_op: A comparison operation result indicating where the input tensor's elements
+              are greater than the scalar.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
@@ -2367,6 +2369,20 @@ def equal_op(
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
+    Import the tensor equal operation.
+    Converts Buddy EqualOp to the MLIR arith `CmpIOp` or `CmpFOp` operation.
+
+    This operation compares two input tensors and produces a boolean tensor
+    representing the comparison result.
+
+    Args:
+        node: The input graph node containing operation details.
+        symbol_table: A dictionary mapping symbols to their corresponding
+                      operations.
+
+    Returns:
+        op: A linalg.generic operation that performs element-wise equality
+            comparison.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
@@ -2387,6 +2403,19 @@ def equal_op(
 
 def copy_op(node: CopyOp, symbol_table):
     """
+    Import the tensor copy operation.
+    Converts Buddy CopyOp to an equivalent MLIR linalg.generic operation.
+
+    This operation copies data from the source tensor to the destination tensor.
+
+    Args:
+        node: The input graph node containing operation details.
+        symbol_table: A dictionary mapping symbols to their corresponding
+                      operations.
+
+    Returns:
+        op: A linalg.generic operation that performs element-wise copying
+            from input to output.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
     input2 = symbol_table.get((str(node.args[1]), 0))
@@ -2433,6 +2462,7 @@ def copy_op(node: CopyOp, symbol_table):
 
     return op
 
+
 def slice_scatter_op(node: SliceScatterOp, symbol_table):
     """
     Scatter a source tensor into a slice of the input tensor.
@@ -2449,12 +2479,12 @@ def slice_scatter_op(node: SliceScatterOp, symbol_table):
     source_tensor = symbol_table.get((str(node.args[1]), 0), node.args[1])
     dim = node.args[2]  # The dimension to insert into
     start = node.args[3]  # Start index
-    end = node.args[4]    # End index
+    end = node.args[4]  # End index
 
     input_shape = input_tensor.type.shape
     if dim < 0:
         dim += len(input_shape)  # Handle negative indices
-    
+
     if end == 9223372036854775807:
         end = input_shape[dim]  # Adjust end index if it is set to max value
 
