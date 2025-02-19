@@ -41,6 +41,9 @@ enum class INTERPOLATION_TYPE {
   BILINEAR_INTERPOLATION
 };
 
+// Available formats for 4D images.
+enum class IMAGE_FORMAT { NHWC, NCHW };
+
 namespace detail {
 // Functions present inside dip::detail are not meant to be called by users
 // directly.
@@ -65,6 +68,13 @@ void _mlir_ciface_corrfft_2d(MemRef<float, 2> *inputReal,
 // Declare the Rotate2D C interface.
 void _mlir_ciface_rotate_2d(Img<float, 2> *input, float angleValue,
                             MemRef<float, 2> *output);
+
+// Declare the Rotate4D C interface.
+void _mlir_ciface_rotate_4d_nhwc(Img<float, 4> *input, float angleValue,
+                                 MemRef<float, 4> *output);
+
+void _mlir_ciface_rotate_4d_nchw(Img<float, 4> *input, float angleValue,
+                                 MemRef<float, 4> *output);
 
 // Declare the Resize2D C interface.
 void _mlir_ciface_resize_2d_nearest_neighbour_interpolation(
@@ -197,6 +207,59 @@ inline void padKernel(MemRef<float, 2> *kernel, unsigned int centerX,
           kernel
               ->getData()[(i + centerY) * kernel->getSizes()[1] + j + centerX];
     }
+  }
+}
+
+template <typename T, int D>
+void Transpose(MemRef<T, D> *output, MemRef<T, D> *input,
+               const std::vector<int> &axes) {
+  std::vector<intptr_t> inputDims(D);
+  for (int i = 0; i < D; ++i) {
+    inputDims[i] = input->getSizes()[i];
+  }
+
+  std::vector<intptr_t> outputDims(D);
+  for (int i = 0; i < D; ++i) {
+    outputDims[i] = inputDims[axes[i]];
+  }
+
+  const T *inputData = input->getData();
+  T *outputData = output->getData();
+
+  std::vector<intptr_t> inputStrides(D);
+  inputStrides[D - 1] = 1;
+  for (int i = D - 2; i >= 0; --i) {
+    inputStrides[i] = inputStrides[i + 1] * inputDims[i + 1];
+  }
+
+  std::vector<intptr_t> outputStrides(D);
+  outputStrides[D - 1] = 1;
+  for (int i = D - 2; i >= 0; --i) {
+    outputStrides[i] = outputStrides[i + 1] * outputDims[i + 1];
+  }
+
+  std::vector<intptr_t> indices(D, 0);
+  std::vector<intptr_t> outputIndices(D, 0);
+
+  while (true) {
+    intptr_t inputIndex = 0;
+    intptr_t outputIndex = 0;
+    for (int i = 0; i < D; ++i) {
+      inputIndex += indices[i] * inputStrides[i];
+      outputIndex += indices[axes[i]] * outputStrides[i];
+    }
+    outputData[outputIndex] = inputData[inputIndex];
+
+    int i = D - 1;
+    while (i >= 0) {
+      indices[i]++;
+      if (indices[i] < inputDims[i])
+        break;
+      indices[i] = 0;
+      i--;
+    }
+    if (i < 0)
+      break;
   }
 }
 
@@ -382,6 +445,52 @@ inline MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
   MemRef<float, 2> output(sizesOutput);
 
   detail::_mlir_ciface_rotate_2d(input, angleRad, &output);
+
+  return output;
+}
+
+inline MemRef<float, 4> Rotate4D(Img<float, 4> *input, float angle,
+                                 ANGLE_TYPE angleType, IMAGE_FORMAT format) {
+  float angleRad;
+
+  if (angleType == ANGLE_TYPE::DEGREE)
+    angleRad = M_PI * angle / 180;
+  else
+    angleRad = angle;
+
+  float sinAngle = std::sin(angleRad);
+  float cosAngle = std::cos(angleRad);
+
+  int outputRows, outputCols;
+  intptr_t sizesOutput[4];
+  if (format == IMAGE_FORMAT::NHWC) {
+    outputRows = std::round(std::abs(input->getSizes()[1] * cosAngle) +
+                            std::abs(input->getSizes()[2] * sinAngle));
+    outputCols = std::round(std::abs(input->getSizes()[2] * cosAngle) +
+                            std::abs(input->getSizes()[1] * sinAngle));
+    sizesOutput[0] = input->getSizes()[0];
+    sizesOutput[1] = outputRows;
+    sizesOutput[2] = outputCols;
+    sizesOutput[3] = input->getSizes()[3];
+  } else {
+    //  format == IMAGE_FORMAT::NCHW
+    outputRows = std::round(std::abs(input->getSizes()[2] * cosAngle) +
+                            std::abs(input->getSizes()[3] * sinAngle));
+    outputCols = std::round(std::abs(input->getSizes()[3] * cosAngle) +
+                            std::abs(input->getSizes()[2] * sinAngle));
+    sizesOutput[0] = input->getSizes()[0];
+    sizesOutput[1] = input->getSizes()[1];
+    sizesOutput[2] = outputRows;
+    sizesOutput[3] = outputCols;
+  }
+
+  MemRef<float, 4> output(sizesOutput);
+  if (format == IMAGE_FORMAT::NHWC) {
+    detail::_mlir_ciface_rotate_4d_nhwc(input, angleRad, &output);
+  } else {
+    // format == FORMAT_4D_IMAGE::NCHW
+    detail::_mlir_ciface_rotate_4d_nchw(input, angleRad, &output);
+  }
 
   return output;
 }

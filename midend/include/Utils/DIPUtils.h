@@ -115,6 +115,14 @@ void fillPixelsNearestNeighbour4D(
 // Calculate tan(angle / 2) where angle is a function parameter.
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal);
 
+// Calculate the real affine matrix for rotation by
+// getting the rotation matrix and modfiying it to
+// preserve the full original image .
+SmallVector<Value, 6> calculateRotationMatrix(OpBuilder &builder, Location loc,
+                                              Value inputCol, Value inputRow,
+                                              Value outputCol, Value outputRow,
+                                              Value angleVal);
+
 // Get affine matrix used in rotation.
 SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
                                         Value centerX, Value centerY,
@@ -124,7 +132,7 @@ SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
 void affineTransformController(OpBuilder &builder, Location loc,
                                MLIRContext *ctx, Value input, Value output,
                                SmallVector<Value, 6> affineMatrix,
-                               int64_t stride);
+                               int64_t stride, dip::ImageFormat format);
 
 // Controls shear transform application.
 void shearTransformController(
