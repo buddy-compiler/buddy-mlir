@@ -1,2 +1,12 @@
+[project]
+name = "buddy"
+version = "0.0.1"
+description = "The buddy-mlir python binding"
+readme = "README.md"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [tool.black]
 line-length = 80
