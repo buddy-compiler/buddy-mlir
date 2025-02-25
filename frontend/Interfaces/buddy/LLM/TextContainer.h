@@ -433,11 +433,11 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
   const int userToken = 151644;
   const int assistantToken = 151645;
   const int thinkToken = 151648;
-
+  
+  tokenCnt = 0;
   this->aligned[tokenCnt++] = bos;
   this->aligned[tokenCnt++] = bos;
   this->aligned[tokenCnt++] = userToken;
-  tokenCnt = 2;
 
   // Load Vocab
   loadVocab(vocab);
