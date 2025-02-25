@@ -1,0 +1,14 @@
+[project]
+name = "buddy_mlir"
+version = "0.0.1"
+description = "The buddy-mlir midend python binding"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "../../build/python_packages/buddy_mlir" }
+
+[tool.setuptools.packages.find]
+where = [""]

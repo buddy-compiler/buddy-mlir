@@ -136,3 +136,25 @@ add_mlir_python_modules(BuddyMLIRPythonModules
     BuddyMLIRPythonCAPI
     MLIRPythonCAPI
   )
+
+
+################################################################################
+# Add __init__.py files
+################################################################################
+
+function(create_python_init_files root_dir)
+  set(init_py "${root_dir}/__init__.py")
+  if(NOT EXISTS "${init_py}")
+    file(WRITE "${init_py}" "")
+  endif()
+
+  file(GLOB children LIST_DIRECTORIES true RELATIVE "${root_dir}" "${root_dir}/*")
+  set(full_path "${root_dir}/${child}")
+  foreach(child IN LISTS children)
+    if(IS_DIRECTORY "${full_path}")
+      create_python_init_files("${full_path}")
+    endif()
+  endforeach()
+endfunction()
+
+create_python_init_files("${BUDDY_BUILD_DIR}/python_packages/buddy_mlir")
