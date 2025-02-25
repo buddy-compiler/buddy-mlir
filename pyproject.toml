@@ -8,5 +8,19 @@ readme = "README.md"
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+packages = [
+    "buddy",
+    "buddy.graph",
+    "buddy.graph.transform",
+    "buddy.ops"
+]
+
+[tool.setuptools.package-dir]
+"buddy" = "frontend/Python"
+"buddy.graph" = "frontend/Python/graph"
+"buddy.graph.transform" = "frontend/Python/graph/transform"
+"buddy.ops" = "frontend/Python/ops"
+
 [tool.black]
 line-length = 80
