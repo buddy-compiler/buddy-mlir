@@ -110,11 +110,11 @@ void PrintInfoPass::runOnOperation() {
     Operation* funcOp = &thisOp->getRegion(0).getBlocks().front().getOperations().front();
     llvm::outs() << funcOp->getName().getStringRef() << '\n';
     FunctionType funcType = dyn_cast<mlir::func::FuncOp>(funcOp).getFunctionType();
-    for (Type ty : funcType.getInputs()) {
-      llvm::outs() << "input" << nextId++ << ": ";
-      ty.print(llvm::outs());
-      llvm::outs() << "\n";
-    }
+    // for (Type ty : funcType.getInputs()) {
+    //   llvm::outs() << "input" << nextId++ << ": ";
+    //   ty.print(llvm::outs());
+    //   llvm::outs() << "\n";
+    // }
   }
   // printOperandsInfo(thisOp);
   // printResultsInfo(thisOp);
@@ -128,7 +128,7 @@ void PrintInfoPass::runOnOperation() {
         llvm::outs() << op->getName().getStringRef() << '-'<< opID[op] <<'\n';
         // Print operands shape and element type.
         llvm::StringRef opNameString = op->getName().getStringRef();
-        if (opNameString == "tosa.conv2d" || opNameString == "tosa.transpose") {
+        if (opNameString == "tosa.conv2d" || opNameString == "tosa.matmul") {
           printAttrsInfo(op);
           printOperandsInfo(op);
           printResultsInfo(op);
