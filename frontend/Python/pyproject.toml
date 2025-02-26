@@ -1,0 +1,17 @@
+[project]
+name = "buddy"
+version = "0.0.1"
+description = "The buddy-mlir frontend"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "buddy.compiler" = "." }
+packages = [
+    "buddy.compiler",
+    "buddy.compiler.graph",
+    "buddy.compiler.ops",
+    "buddy.compiler.graph.transform",
+]
