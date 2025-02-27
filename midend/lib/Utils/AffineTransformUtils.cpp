@@ -129,16 +129,18 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
   const int colStride = BLOCK_SZ * 2;
   MemRefType resIntPartType = MemRefType::get(
       {2, rowStride, colStride}, IntegerType::get(builder.getContext(), 16));
-
-  Value resIntPart = builder.create<memref::AllocOp>(loc, resIntPartType);
   Value rowStrideVal = builder.create<arith::ConstantIndexOp>(loc, rowStride);
   Value colStrideVal = builder.create<arith::ConstantIndexOp>(loc, colStride);
 #undef BLOCK_SZ
 
   if (format == dip::ImageFormat::HW) {
-    builder.create<scf::ForOp>(
-        loc, yStart, yEnd, rowStrideVal, std::nullopt,
-        [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
+    builder.create<scf::ParallelOp>(
+        loc, ValueRange{yStart}, ValueRange{yEnd}, ValueRange{rowStrideVal},
+        [&](OpBuilder &yBuilder, Location yLoc, ValueRange ivs) {
+          Value yiv = ivs[0];
+          Value resIntPart =
+              yBuilder.create<memref::AllocOp>(yLoc, resIntPartType);
+
           Value realYEnd = yBuilder.create<arith::MinUIOp>(
               yLoc, yEnd,
               yBuilder.create<arith::AddIOp>(yLoc, yiv, rowStrideVal));
@@ -163,6 +165,7 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
 
                 xBuilder.create<scf::YieldOp>(xLoc);
               });
+          yBuilder.create<memref::DeallocOp>(yLoc, resIntPart);
           yBuilder.create<scf::YieldOp>(yLoc);
         });
 
@@ -172,9 +175,14 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
     builder.create<scf::ForOp>(
         loc, c0, inputBatch, c1, std::nullopt,
         [&](OpBuilder &nBuilder, Location nLoc, Value niv, ValueRange) {
-          nBuilder.create<scf::ForOp>(
-              loc, yStart, yEnd, rowStrideVal, std::nullopt,
-              [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
+          nBuilder.create<scf::ParallelOp>(
+              loc, ValueRange{yStart}, ValueRange{yEnd},
+              ValueRange{rowStrideVal},
+              [&](OpBuilder &yBuilder, Location yLoc, ValueRange ivs) {
+                Value yiv = ivs[0];
+                Value resIntPart =
+                    yBuilder.create<memref::AllocOp>(yLoc, resIntPartType);
+
                 Value realYEnd = yBuilder.create<arith::MinUIOp>(
                     yLoc, yEnd,
                     yBuilder.create<arith::AddIOp>(yLoc, yiv, rowStrideVal));
@@ -203,13 +211,12 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
 
                       xBuilder.create<scf::YieldOp>(xLoc);
                     });
+                yBuilder.create<memref::DeallocOp>(yLoc, resIntPart);
                 yBuilder.create<scf::YieldOp>(yLoc);
               });
           nBuilder.create<scf::YieldOp>(nLoc);
         });
   }
-
-  builder.create<memref::DeallocOp>(loc, resIntPart);
 }
 
 void remapNearest(OpBuilder &builder, Location loc, MLIRContext *ctx,
