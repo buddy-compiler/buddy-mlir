@@ -223,7 +223,7 @@ public:
                     loc, tmp0.getResult(0), output,
                     ValueRange{ivs[0], ivs[1], ivs[2], iv});
                 Value idx =
-                    builder.create<arith::AddIOp>(loc, itrArgs[0], vlStep);
+                    builder.create<arith::AddIOp>(loc, iv, vlStep);
                 builder.create<scf::YieldOp>(loc, idx);
               });
           // Compute the tail size and Process the remaining elements

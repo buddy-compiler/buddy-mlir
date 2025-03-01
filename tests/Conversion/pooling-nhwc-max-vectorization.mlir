@@ -20,7 +20,7 @@
 // CHECK-NEXT:           affine.yield %12 : vector<16xf32>
 // CHECK-NEXT:         }
 // CHECK-NEXT:         vector.store %9, %arg2[%arg3, %arg4, %arg5, %arg6] : memref<?x?x?x?xf32>, vector<16xf32>
-// CHECK-NEXT:         %10 = arith.addi %arg7, %c16 : index
+// CHECK-NEXT:         %10 = arith.addi %arg6, %c16 : index
 // CHECK-NEXT:         scf.yield %10 : index
 // CHECK-NEXT:       }
 
