@@ -247,6 +247,27 @@ def add_op(node: AddOp, symbol_table):
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    if isinstance(node.args[0], str) and isinstance(node.args[1], str):
+        input1_dtype = ir.RankedTensorType(input1.type).element_type
+        input2_dtype = ir.RankedTensorType(input2.type).element_type
+        if input1_dtype != mlir_dtype:
+            input1 = tosa.CastOp(
+                ir.RankedTensorType.get(
+                    ir.RankedTensorType(input1.type).shape,
+                    mlir_dtype,
+                ),
+                input1,
+            ).result
+        if input2_dtype != mlir_dtype:
+            input2 = tosa.CastOp(
+                ir.RankedTensorType.get(
+                    ir.RankedTensorType(input2.type).shape,
+                    mlir_dtype,
+                ),
+                input2,
+            ).result
     return _gen_arith_binary_op(input1, input2, tosa.AddOp)
 
 

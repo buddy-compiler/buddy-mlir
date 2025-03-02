@@ -29,11 +29,15 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa
+from buddy.compiler.graph.operation import *
 from diffusers import StableDiffusionPipeline
 
 # Parse command-line arguments for output directory
-parser = argparse.ArgumentParser(description="Stable Diffusion model AOT importer")
+parser = argparse.ArgumentParser(
+    description="Stable Diffusion model AOT importer"
+)
 parser.add_argument(
     "--output-dir",
     type=str,
@@ -112,54 +116,46 @@ params_text_encoder = dynamo_compiler_text_encoder.imported_params[
 params_unet = dynamo_compiler_unet.imported_params[graph_unet]
 params_vae = dynamo_compiler_vae.imported_params[graph_vae]
 
-pattern_list = [simply_fuse]
+group_text_encoder = []
+for op in graph_text_encoder.body:
+    if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp):
+        continue
+    group_text_encoder.append(op)
+graph_text_encoder.op_groups["subgraph0_text_encoder"] = group_text_encoder
+graph_text_encoder.group_map_device["subgraph0_text_encoder"] = DeviceType.CPU
 
-graphs_text_encoder[0].fuse_ops(pattern_list)
-graphs_unet[0].fuse_ops(pattern_list)
-graphs_vae[0].fuse_ops(pattern_list)
+group_unet = []
+for op in graph_unet.body:
+    if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp):
+        continue
+    group_unet.append(op)
+graph_unet.op_groups["subgraph0_unet"] = group_unet
+graph_unet.group_map_device["subgraph0_unet"] = DeviceType.CPU
+
+group_vae = []
+for op in graph_vae.body:
+    if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp):
+        continue
+    group_vae.append(op)
+graph_vae.op_groups["subgraph0_vae"] = group_vae
+graph_vae.group_map_device["subgraph0_vae"] = DeviceType.CPU
 
 driver_text_encoder = GraphDriver(graphs_text_encoder[0])
 driver_unet = GraphDriver(graphs_unet[0])
 driver_vae = GraphDriver(graphs_vae[0])
-
-driver_text_encoder._subgraphs[
-    "subgraph0_text_encoder"
-] = driver_text_encoder._subgraphs.pop("subgraph0")
-driver_text_encoder._subgraphs_inputs[
-    "subgraph0_text_encoder"
-] = driver_text_encoder._subgraphs_inputs.pop("subgraph0")
-driver_text_encoder._subgraphs_outputs[
-    "subgraph0_text_encoder"
-] = driver_text_encoder._subgraphs_outputs.pop("subgraph0")
-driver_unet._subgraphs["subgraph0_unet"] = driver_unet._subgraphs.pop(
-    "subgraph0"
-)
-driver_unet._subgraphs_inputs[
-    "subgraph0_unet"
-] = driver_unet._subgraphs_inputs.pop("subgraph0")
-driver_unet._subgraphs_outputs[
-    "subgraph0_unet"
-] = driver_unet._subgraphs_outputs.pop("subgraph0")
-driver_vae._subgraphs["subgraph0_vae"] = driver_vae._subgraphs.pop("subgraph0")
-driver_vae._subgraphs_inputs[
-    "subgraph0_vae"
-] = driver_vae._subgraphs_inputs.pop("subgraph0")
-driver_vae._subgraphs_outputs[
-    "subgraph0_vae"
-] = driver_vae._subgraphs_outputs.pop("subgraph0")
-
-driver_text_encoder.subgraphs[0]._func_name = "subgraph0_text_encoder"
-driver_unet.subgraphs[0]._func_name = "subgraph0_unet"
-driver_vae.subgraphs[0]._func_name = "subgraph0_vae"
 
 driver_text_encoder.subgraphs[0].lower_to_top_level_ir()
 driver_unet.subgraphs[0].lower_to_top_level_ir()
 driver_vae.subgraphs[0].lower_to_top_level_ir()
 
 # Save output files to specified directory
-with open(os.path.join(output_dir, "subgraph0_text_encoder.mlir"), "w") as module_file:
+with open(
+    os.path.join(output_dir, "subgraph0_text_encoder.mlir"), "w"
+) as module_file:
     print(driver_text_encoder.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(output_dir, "forward_text_encoder.mlir"), "w") as module_file:
+with open(
+    os.path.join(output_dir, "forward_text_encoder.mlir"), "w"
+) as module_file:
     print(driver_text_encoder.construct_main_graph(True), file=module_file)
 
 with open(os.path.join(output_dir, "subgraph0_unet.mlir"), "w") as module_file:

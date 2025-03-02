@@ -2,28 +2,92 @@ name: test build process
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, ci ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, ci ]
 
 jobs:
   build:
     runs-on: self-hosted
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: 'true'
+      # 0. Install the Ninja build system.
       - name: Set up ninja
         uses: seanmiddleditch/gha-setup-ninja@master
-      - name: Prepare llvm build directory name
-        id: llvm-build-dir
+
+      # 1. Install Python 3.10 environment.
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # 2. Checkout the main repository without fetching submodules initially
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+        with:
+          submodules: 'false'
+
+      # 3. Retrieve the commit ID of the LLVM submodule.
+      - name: Get LLVM submodule commit
+        id: llvm-submodule-commit
         run: |
           echo "commit=$(git submodule status llvm | awk '{print $1;}')" >> $GITHUB_OUTPUT
-      - name: Cache llvm build directory
+
+      # 4. Cache the LLVM submodule source code.
+      - name: Cache LLVM source
+        id: cache-llvm-source
         uses: actions/cache@v4
         with:
           path: llvm
-          key: build-${{ steps.llvm-build-dir.outputs.commit }}
-      - name: Test build
-        run: bash ./tests/Actions/TestBuild.sh  llvm/build-${{ steps.llvm-build-dir.outputs.commit }}
+          key: llvm-source-${{ steps.llvm-submodule-commit.outputs.commit }}
+          restore-keys: |
+            llvm-source-
+
+      # 5. If the cache is not found, pull the LLVM submodule.
+      - name: Checkout LLVM submodule
+        run: git submodule update --init --recursive llvm
+        if: steps.cache-llvm-source.outputs.cache-hit != 'true'
+
+      # 6. Cache the LLVM build directory.
+      - name: Cache LLVM build directory
+        id: cache-llvm-build-dir
+        uses: actions/cache@v4
+        with:
+          path: llvm/build
+          key: llvm-build-${{ steps.llvm-submodule-commit.outputs.commit }}
+          restore-keys: |
+            llvm-build-
+
+      # 7. If the cache is not found, configure and build LLVM.
+      - name: Configure and Build LLVM
+        run: |
+          source ~/miniconda3/bin/activate buddy
+          cd llvm
+          rm -rf build
+          mkdir build
+          cd build
+          cmake -G Ninja ../llvm \
+            -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+            -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DCMAKE_BUILD_TYPE=RELEASE \
+            -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+            -DPython3_EXECUTABLE=$(which python3)
+          ninja check-clang check-mlir omp
+        if: steps.cache-llvm-build-dir.outputs.cache-hit != 'true'
+
+      # 8. Check the build process of buddy-mlir repository.
+      - name: Check budddy-mlir build
+        run: |
+          source ~/miniconda3/bin/activate buddy
+          pip install -r requirements.txt
+          mkdir build
+          cd build
+          cmake -G Ninja .. \
+            -DMLIR_DIR=./llvm/build/lib/cmake/mlir \
+            -DLLVM_DIR=./llvm/build/lib/cmake/llvm \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DCMAKE_BUILD_TYPE=RELEASE \
+            -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+            -DPython3_EXECUTABLE=$(which python3)
+          ninja
+          ninja check-buddy
