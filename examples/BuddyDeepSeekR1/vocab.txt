@@ -151641,10 +151641,10 @@ kräfte
 ⍨
 ⺟
 ⽗
-<｜end▁of▁sentence｜>
-<｜User｜>
-<｜Assistant｜>
-<｜begin▁of▁sentence｜>
+<|end▁of▁sentence|>
+<|User|>
+<|Assistant|>
+<|begin▁of▁sentence|>
 <|EOT|>
 <think>
 </think>
