@@ -117,16 +117,29 @@ public:
                   ValueRange itrArgs) {
                 Value acc = itrArgs[0];
 
-                AffineExpr a, b, c;
-                bindDims(ctx, a, b, c);
-                AffineMap AVectorMap = AffineMap::get(
-                    /*dimCount=*/3, /*symbolCount=*/0, {a, c * vf}, ctx);
+                AffineExpr a, b;
+                bindDims(ctx, a, b);
+                AffineMap AVectorMap;
+                if (scalable) {
+                  auto s0 = getAffineSymbolExpr(0, ctx);
+                  AVectorMap = AffineMap::get(
+                      /*dimCount=*/2, /*symbolCount=*/1, {a, b * s0}, ctx);
+                } else {
+                  AVectorMap = AffineMap::get(
+                      /*dimCount=*/2, /*symbolCount=*/0, {a, b * vf}, ctx);
+                }
                 // Check tail.
-                AffineExpr m, n, k;
-                bindDims(ctx, m, n, k);
-                AffineMap BVectorMap = AffineMap::get(
-                    /*dimCount=*/3, /*symbolCount=*/0, {m, k * vf}, ctx);
-
+                AffineExpr m, k;
+                bindDims(ctx, m, k);
+                AffineMap BVectorMap;
+                if (scalable) {
+                  auto s0 = getAffineSymbolExpr(0, ctx);
+                  BVectorMap = AffineMap::get(
+                      /*dimCount=*/2, /*symbolCount=*/1, {m, k * s0}, ctx);
+                } else {
+                  BVectorMap = AffineMap::get(
+                      /*dimCount=*/2, /*symbolCount=*/0, {m, k * vf}, ctx);
+                }
                 // Calculate the tail.
                 Value bColCur = builder.create<arith::MulIOp>(loc, iv, step);
                 Value tailLen =
@@ -137,12 +150,16 @@ public:
                 auto ifOp = builder.create<scf::IfOp>(
                     loc, tailFlag,
                     [&](OpBuilder &builder, Location loc) {
+                      SmallVector<Value> aVecMapOperands{ivs[0], iv};
+                      SmallVector<Value> bVecMapOperands{ivs[1], iv};
+                      if (scalable) {
+                        aVecMapOperands.push_back(step);
+                        bVecMapOperands.push_back(step);
+                      }
                       Value aVec = builder.create<affine::AffineVectorLoadOp>(
-                          loc, vectorTy, A, AVectorMap,
-                          ValueRange{ivs[0], ivs[1], iv});
+                          loc, vectorTy, A, AVectorMap, aVecMapOperands);
                       Value bVec = builder.create<affine::AffineVectorLoadOp>(
-                          loc, vectorTy, B, BVectorMap,
-                          ValueRange{ivs[1], ivs[1], iv});
+                          loc, vectorTy, B, BVectorMap, bVecMapOperands);
                       Value resvec =
                           builder.create<arith::MulFOp>(loc, aVec, bVec);
                       Value newAcc =
