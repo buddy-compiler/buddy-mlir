@@ -35,7 +35,8 @@ class TensorDType(Enum):
     - Bool: str
         Represents the boolean data type.
     """
-
+    
+    Int8 = "int8"
     Int32 = "int32"
     Int64 = "int64"
     Float16 = "float16"

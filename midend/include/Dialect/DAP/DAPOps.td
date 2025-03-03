@@ -21,7 +21,7 @@
 #ifndef DAP_DAPOPS_TD
 #define DAP_DAPOPS_TD
 
-include "DAPDialect.td"
+include "DAP/DAPDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/EnumAttr.td"
@@ -50,8 +50,7 @@ def DAP_FirOp : DAP_Op<"fir"> {
   }];
 }
 
-def DAP_BiquadOp : DAP_Op<"biquad">
-{
+def DAP_BiquadOp : DAP_Op<"biquad"> {
   let summary = [{Biquad filter, a infinite impulse response (IIR) filter.
 
   ```mlir
@@ -94,23 +93,48 @@ def DAP_IirOp : DAP_Op<"iir"> {
   }];
 }
 
-def DAP_WhisperPreprocessOp : DAP_Op<"whisper_preprocess"> {
-  let summary = [{Preprocessor for Whisper model, do features extraction for input audio.
-  Input MemRef stores the raw speech data, Output MemRef contains computed features with 
-  shape memref<1x80x3000xf32>.
+def DAP_RFFTOp : DAP_Op<"rfft"> {
+  let summary = "RFFT operation.";
+  let description = [{
+    The RFFT algorithm is designed to handle real-valued input signals. Real 
+    signals exhibit conjugate symmetry in the frequency domain, meaning that 
+    the positive and negative frequency components are complex conjugates of 
+    each other. This symmetry property allows the RFFT algorithm to compute 
+    only half of the frequency spectrum, reducing computational costs.
 
-  ```mlir
-    dap.whisper_preprocess %input, %output : memref<?xf64>, memref<1x80x3000xf32>
-  ```
+    Example:
+
+    ```mlir
+    dap.rfft %data : memref<?xf64> 
+    ```
+  }];
+
+  let arguments = (ins AnyRankedOrUnrankedMemRef:$memref);
+  let assemblyFormat = [{
+    $memref attr-dict `:` type($memref)
+  }];
+}
+
+def DAP_WhisperPreprocessOp : DAP_Op<"whisper_preprocess"> {
+  let summary = "preprocessor for Whisper model";
+  let description = [{
+    Preprocessor for Whisper model, do features extraction for input audio. 
+    Input MemRef stores the raw speech data, Output MemRef contains computed 
+    features with shape memref<1x80x3000xf32>.
+
+    Example:
+
+    ```mlir
+    %output = dap.whisper_preprocess %input : memref<?xf64> to memref<1x80x3000xf32>
+    ```
   }];
 
   let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "inputMemref",
-                           [MemRead]>:$memrefI,
-                       Arg<AnyRankedOrUnrankedMemRef, "outputMemref",
-                           [MemRead]>:$memrefO);
-
+                           [MemRead]>:$memrefI);
+  let results = (outs Res<AnyRankedOrUnrankedMemRef, "outputMemref",
+                           [MemAlloc]>:$memrefO);
   let assemblyFormat = [{
-    $memrefI `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefO) 
+    $memrefI attr-dict `:` type($memrefI) `to` type($memrefO) 
   }];
 }
 

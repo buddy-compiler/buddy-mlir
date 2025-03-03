@@ -23,6 +23,8 @@
 
 #include "buddy/Core/Container.h"
 #include "buddy/DIP/ImageContainer.h"
+#include "buddy/DIP/ImgContainer.h"
+#include <iostream>
 #include <math.h>
 namespace dip {
 // Availale types of boundary extrapolation techniques provided in DIP dialect.
@@ -38,6 +40,9 @@ enum class INTERPOLATION_TYPE {
   NEAREST_NEIGHBOUR_INTERPOLATION,
   BILINEAR_INTERPOLATION
 };
+
+// Available formats for 4D images.
+enum class IMAGE_FORMAT { NHWC, NCHW };
 
 namespace detail {
 // Functions present inside dip::detail are not meant to be called by users
@@ -64,14 +69,39 @@ void _mlir_ciface_corrfft_2d(MemRef<float, 2> *inputReal,
 void _mlir_ciface_rotate_2d(Img<float, 2> *input, float angleValue,
                             MemRef<float, 2> *output);
 
+// Declare the Rotate4D C interface.
+void _mlir_ciface_rotate_4d_nhwc(Img<float, 4> *input, float angleValue,
+                                 MemRef<float, 4> *output);
+
+void _mlir_ciface_rotate_4d_nchw(Img<float, 4> *input, float angleValue,
+                                 MemRef<float, 4> *output);
+
 // Declare the Resize2D C interface.
 void _mlir_ciface_resize_2d_nearest_neighbour_interpolation(
     Img<float, 2> *input, float horizontalScalingFactor,
     float verticalScalingFactor, MemRef<float, 2> *output);
 
+// Declare the Resize4D C interface.
+void _mlir_ciface_resize_4d_nhwc_nearest_neighbour_interpolation(
+    Img<float, 4> *input, float horizontalScalingFactor,
+    float verticalScalingFactor, MemRef<float, 4> *output);
+
+void _mlir_ciface_resize_4d_nchw_nearest_neighbour_interpolation(
+    dip::Image<float, 4> *input, float horizontalScalingFactor,
+    float verticalScalingFactor, MemRef<float, 4> *output);
+
 void _mlir_ciface_resize_2d_bilinear_interpolation(
     Img<float, 2> *input, float horizontalScalingFactor,
     float verticalScalingFactor, MemRef<float, 2> *output);
+
+// Declare the Resize4D C interface.
+void _mlir_ciface_resize_4d_nhwc_bilinear_interpolation(
+    Img<float, 4> *input, float horizontalScalingFactor,
+    float verticalScalingFactor, MemRef<float, 4> *output);
+
+void _mlir_ciface_resize_4d_nchw_bilinear_interpolation(
+    dip::Image<float, 4> *input, float horizontalScalingFactor,
+    float verticalScalingFactor, MemRef<float, 4> *output);
 
 // Declare the Morphology 2D C interface.
 void _mlir_ciface_erosion_2d_constant_padding(
@@ -180,6 +210,59 @@ inline void padKernel(MemRef<float, 2> *kernel, unsigned int centerX,
   }
 }
 
+template <typename T, int D>
+void Transpose(MemRef<T, D> *output, MemRef<T, D> *input,
+               const std::vector<int> &axes) {
+  std::vector<intptr_t> inputDims(D);
+  for (int i = 0; i < D; ++i) {
+    inputDims[i] = input->getSizes()[i];
+  }
+
+  std::vector<intptr_t> outputDims(D);
+  for (int i = 0; i < D; ++i) {
+    outputDims[i] = inputDims[axes[i]];
+  }
+
+  const T *inputData = input->getData();
+  T *outputData = output->getData();
+
+  std::vector<intptr_t> inputStrides(D);
+  inputStrides[D - 1] = 1;
+  for (int i = D - 2; i >= 0; --i) {
+    inputStrides[i] = inputStrides[i + 1] * inputDims[i + 1];
+  }
+
+  std::vector<intptr_t> outputStrides(D);
+  outputStrides[D - 1] = 1;
+  for (int i = D - 2; i >= 0; --i) {
+    outputStrides[i] = outputStrides[i + 1] * outputDims[i + 1];
+  }
+
+  std::vector<intptr_t> indices(D, 0);
+  std::vector<intptr_t> outputIndices(D, 0);
+
+  while (true) {
+    intptr_t inputIndex = 0;
+    intptr_t outputIndex = 0;
+    for (int i = 0; i < D; ++i) {
+      inputIndex += indices[i] * inputStrides[i];
+      outputIndex += indices[axes[i]] * outputStrides[i];
+    }
+    outputData[outputIndex] = inputData[inputIndex];
+
+    int i = D - 1;
+    while (i >= 0) {
+      indices[i]++;
+      if (indices[i] < inputDims[i])
+        break;
+      indices[i] = 0;
+      i--;
+    }
+    if (i < 0)
+      break;
+  }
+}
+
 // Helper function for applying 2D resize operation on images.
 inline MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input,
                                       INTERPOLATION_TYPE type,
@@ -192,6 +275,49 @@ inline MemRef<float, 2> Resize2D_Impl(Img<float, 2> *input,
         input, scalingRatios[0], scalingRatios[1], &output);
   } else if (type == INTERPOLATION_TYPE::BILINEAR_INTERPOLATION) {
     detail::_mlir_ciface_resize_2d_bilinear_interpolation(
+        input, scalingRatios[0], scalingRatios[1], &output);
+  } else {
+    throw std::invalid_argument(
+        "Please chose a supported type of interpolation "
+        "(Nearest neighbour interpolation or Bilinear interpolation)\n");
+  }
+
+  return output;
+}
+
+// Helper function for applying 4D resize operation on images.
+inline MemRef<float, 4> Resize4D_NHWC_Impl(Img<float, 4> *input,
+                                           INTERPOLATION_TYPE type,
+                                           std::vector<float> scalingRatios,
+                                           intptr_t outputSize[4]) {
+  MemRef<float, 4> output(outputSize);
+
+  if (type == INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION) {
+    detail::_mlir_ciface_resize_4d_nhwc_nearest_neighbour_interpolation(
+        input, scalingRatios[0], scalingRatios[1], &output);
+  } else if (type == INTERPOLATION_TYPE::BILINEAR_INTERPOLATION) {
+    detail::_mlir_ciface_resize_4d_nhwc_bilinear_interpolation(
+        input, scalingRatios[0], scalingRatios[1], &output);
+  } else {
+    throw std::invalid_argument(
+        "Please chose a supported type of interpolation "
+        "(Nearest neighbour interpolation or Bilinear interpolation)\n");
+  }
+
+  return output;
+}
+
+inline MemRef<float, 4> Resize4D_NCHW_Impl(dip::Image<float, 4> *input,
+                                           INTERPOLATION_TYPE type,
+                                           std::vector<float> scalingRatios,
+                                           intptr_t outputSize[4]) {
+  MemRef<float, 4> output(outputSize);
+
+  if (type == INTERPOLATION_TYPE::NEAREST_NEIGHBOUR_INTERPOLATION) {
+    detail::_mlir_ciface_resize_4d_nchw_nearest_neighbour_interpolation(
+        input, scalingRatios[0], scalingRatios[1], &output);
+  } else if (type == INTERPOLATION_TYPE::BILINEAR_INTERPOLATION) {
+    detail::_mlir_ciface_resize_4d_nchw_bilinear_interpolation(
         input, scalingRatios[0], scalingRatios[1], &output);
   } else {
     throw std::invalid_argument(
@@ -323,27 +449,92 @@ inline MemRef<float, 2> Rotate2D(Img<float, 2> *input, float angle,
   return output;
 }
 
+inline MemRef<float, 4> Rotate4D(Img<float, 4> *input, float angle,
+                                 ANGLE_TYPE angleType, IMAGE_FORMAT format) {
+  float angleRad;
+
+  if (angleType == ANGLE_TYPE::DEGREE)
+    angleRad = M_PI * angle / 180;
+  else
+    angleRad = angle;
+
+  float sinAngle = std::sin(angleRad);
+  float cosAngle = std::cos(angleRad);
+
+  int outputRows, outputCols;
+  intptr_t sizesOutput[4];
+  if (format == IMAGE_FORMAT::NHWC) {
+    outputRows = std::round(std::abs(input->getSizes()[1] * cosAngle) +
+                            std::abs(input->getSizes()[2] * sinAngle));
+    outputCols = std::round(std::abs(input->getSizes()[2] * cosAngle) +
+                            std::abs(input->getSizes()[1] * sinAngle));
+    sizesOutput[0] = input->getSizes()[0];
+    sizesOutput[1] = outputRows;
+    sizesOutput[2] = outputCols;
+    sizesOutput[3] = input->getSizes()[3];
+  } else {
+    //  format == IMAGE_FORMAT::NCHW
+    outputRows = std::round(std::abs(input->getSizes()[2] * cosAngle) +
+                            std::abs(input->getSizes()[3] * sinAngle));
+    outputCols = std::round(std::abs(input->getSizes()[3] * cosAngle) +
+                            std::abs(input->getSizes()[2] * sinAngle));
+    sizesOutput[0] = input->getSizes()[0];
+    sizesOutput[1] = input->getSizes()[1];
+    sizesOutput[2] = outputRows;
+    sizesOutput[3] = outputCols;
+  }
+
+  MemRef<float, 4> output(sizesOutput);
+  if (format == IMAGE_FORMAT::NHWC) {
+    detail::_mlir_ciface_rotate_4d_nhwc(input, angleRad, &output);
+  } else {
+    // format == FORMAT_4D_IMAGE::NCHW
+    detail::_mlir_ciface_rotate_4d_nchw(input, angleRad, &output);
+  }
+
+  return output;
+}
+
 // User interface for 2D Resize.
 inline MemRef<float, 2> Resize2D(Img<float, 2> *input, INTERPOLATION_TYPE type,
-                                 std::vector<float> scalingRatios) {
-  if (scalingRatios[0] <= 0 || scalingRatios[1] <= 0) {
-    throw std::invalid_argument(
-        "Please enter positive values of scaling ratios.\n"
-        "Note : scaling ratio = "
-        "output_image_dimension / input_image_dimension\n");
+                                 std::vector<uint> size) {
+  if (size.size() != 2) {
+    throw std::invalid_argument("Dimension of an image should be 2\n");
   }
-  std::reverse(scalingRatios.begin(), scalingRatios.end());
+  intptr_t outputSize[2] = {size[0], size[1]};
+  return detail::Resize2D_Impl(input, type,
+                               {(float)input->getSizes()[0] / (float)size[0],
+                                (float)input->getSizes()[1] / (float)size[1]},
+                               outputSize);
+}
 
-  intptr_t outputSize[2] = {static_cast<unsigned>(std::round(
-                                input->getSizes()[0] * scalingRatios[0])),
-                            static_cast<unsigned>(std::round(
-                                input->getSizes()[1] * scalingRatios[1]))};
+// User interface for 4D Resize.
+inline MemRef<float, 4> Resize4D_NHWC(Img<float, 4> *input,
+                                      INTERPOLATION_TYPE type,
+                                      std::vector<uint> size) {
+  if (size.size() != 4) {
+    throw std::invalid_argument("Dimension of an image should be 4\n");
+  }
+  intptr_t outputSize[4] = {size[0], size[1], size[2], size[3]};
+  return detail::Resize4D_NHWC_Impl(
+      input, type,
+      {(float)input->getSizes()[1] / (float)size[1],
+       (float)input->getSizes()[2] / (float)size[2]},
+      outputSize);
+}
 
-  scalingRatios[0] = 1 / scalingRatios[0];
-  scalingRatios[1] = 1 / scalingRatios[1];
-
-  return detail::Resize2D_Impl(
-      input, type, {scalingRatios[1], scalingRatios[0]}, outputSize);
+inline MemRef<float, 4> Resize4D_NCHW(dip::Image<float, 4> *input,
+                                      INTERPOLATION_TYPE type,
+                                      std::vector<uint> size) {
+  if (size.size() != 4) {
+    throw std::invalid_argument("Dimension of an image should be 4\n");
+  }
+  intptr_t outputSize[4] = {size[0], size[1], size[2], size[3]};
+  return detail::Resize4D_NCHW_Impl(
+      input, type,
+      {(float)input->getSizes()[2] / (float)size[2],
+       (float)input->getSizes()[3] / (float)size[3]},
+      outputSize);
 }
 
 // User interface for 2D Resize.

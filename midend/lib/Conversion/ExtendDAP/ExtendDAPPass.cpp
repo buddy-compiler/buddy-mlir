@@ -38,6 +38,7 @@ using namespace vector;
 using namespace mlir::arith;
 using namespace mlir::linalg;
 using namespace mlir::bufferization;
+using namespace mlir::scf;
 
 //===----------------------------------------------------------------------===//
 // Rewrite Pattern
@@ -756,6 +757,28 @@ Value padReflect(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
   return padOp2.getResult();
 }
 
+// function to print a memref for debug
+void printMemref(OpBuilder &rewriter, Location loc, Value input, int l) {
+
+  Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
+  Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+  Value length = rewriter.create<ConstantIndexOp>(loc, l);
+  rewriter.create<vector::PrintOp>(loc, "Print Start:\n");
+
+  rewriter.create<scf::ForOp>(
+      loc, c0, length, c1, std::nullopt,
+      [&](OpBuilder &b, Location loc, Value i, ValueRange iargs) {
+        Value x = b.create<memref::LoadOp>(loc, input, i);
+        b.create<vector::PrintOp>(loc, x);
+
+        b.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  rewriter.create<vector::PrintOp>(loc, "\n");
+}
+
+// WA CC CH PM MULPM C1 C1w C2 CH2 CH2w CH_radfg CCw CSARR AR AI IANG are helper
+// functions for RFFTP
 inline Value WA(OpBuilder &builder, Location loc, Value wa, Value x, Value i,
                 Value ido, Value c1) {
   Value idom1 = builder.create<arith::SubIOp>(loc, ido, c1);
@@ -797,6 +820,918 @@ inline std::vector<Value> MULPM(OpBuilder &builder, Location loc, Value c,
   Value tmp4 = builder.create<arith::MulFOp>(loc, d, e);
   return {builder.create<arith::AddFOp>(loc, tmp1, tmp2),
           builder.create<arith::SubFOp>(loc, tmp3, tmp4)};
+}
+
+inline Value C1(OpBuilder &builder, Location loc, Value cc, Value a, Value b,
+                Value c, Value ido, Value l1) {
+  Value tmp1 = builder.create<arith::MulIOp>(loc, l1, c);
+  Value tmp2 = builder.create<arith::AddIOp>(loc, tmp1, b);
+  Value tmp3 = builder.create<arith::MulIOp>(loc, tmp2, ido);
+  Value index = builder.create<arith::AddIOp>(loc, tmp3, a);
+  return builder.create<memref::LoadOp>(loc, cc, index);
+}
+
+inline void C1w(OpBuilder &builder, Location loc, Value cc, Value a, Value b,
+                Value c, Value ido, Value l1, Value toWrite) {
+  Value tmp1 = builder.create<arith::MulIOp>(loc, l1, c);
+  Value tmp2 = builder.create<arith::AddIOp>(loc, tmp1, b);
+  Value tmp3 = builder.create<arith::MulIOp>(loc, tmp2, ido);
+  Value index = builder.create<arith::AddIOp>(loc, tmp3, a);
+  builder.create<memref::StoreOp>(loc, toWrite, cc, index);
+  return;
+}
+
+inline Value C2(OpBuilder &builder, Location loc, Value cc, Value a, Value b,
+                Value idl1) {
+  Value tmp1 = builder.create<arith::MulIOp>(loc, idl1, b);
+  Value index = builder.create<arith::AddIOp>(loc, tmp1, a);
+  return builder.create<memref::LoadOp>(loc, cc, index);
+}
+
+inline Value CH2(OpBuilder &builder, Location loc, Value ch, Value a, Value b,
+                 Value idl1) {
+  Value tmp1 = builder.create<arith::MulIOp>(loc, idl1, b);
+  Value index = builder.create<arith::AddIOp>(loc, tmp1, a);
+  return builder.create<memref::LoadOp>(loc, ch, index);
+}
+
+inline void CH2w(OpBuilder &builder, Location loc, Value ch, Value a, Value b,
+                 Value idl1, Value toWrite) {
+  Value tmp1 = builder.create<arith::MulIOp>(loc, idl1, b);
+  Value index = builder.create<arith::AddIOp>(loc, tmp1, a);
+  builder.create<memref::StoreOp>(loc, toWrite, ch, index);
+  return;
+}
+
+inline Value CH_radfg(OpBuilder &builder, Location loc, Value ch, Value a,
+                      Value b, Value c, Value ido, Value l1) {
+  Value tmp = builder.create<arith::MulIOp>(loc, l1, c);
+  Value tmp1 = builder.create<arith::AddIOp>(loc, b, tmp);
+  Value tmp2 = builder.create<arith::MulIOp>(loc, tmp1, ido);
+  Value index = builder.create<arith::AddIOp>(loc, tmp2, a);
+  return builder.create<memref::LoadOp>(loc, ch, index);
+}
+
+inline void CCw(OpBuilder &builder, Location loc, Value cc, Value a, Value b,
+                Value c, Value ido, Value cdim, Value toWrite) {
+  Value tmp = builder.create<arith::MulIOp>(loc, cdim, c);
+  Value tmp1 = builder.create<arith::AddIOp>(loc, b, tmp);
+  Value tmp2 = builder.create<arith::MulIOp>(loc, tmp1, ido);
+  Value index = builder.create<arith::AddIOp>(loc, tmp2, a);
+  builder.create<memref::StoreOp>(loc, toWrite, cc, index);
+  return;
+}
+
+inline Value CSARR(OpBuilder &builder, Location loc, Value csarr, Value index) {
+
+  return builder.create<memref::LoadOp>(loc, csarr, index);
+}
+
+inline Value AR(OpBuilder &builder, Location loc, Value csarr, Value iang) {
+  Value c2 = builder.create<ConstantIndexOp>(loc, 2);
+  Value index = builder.create<arith::MulIOp>(loc, iang, c2);
+  return CSARR(builder, loc, csarr, index);
+}
+
+inline Value AI(OpBuilder &builder, Location loc, Value csarr, Value iang) {
+  Value c1 = builder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = builder.create<ConstantIndexOp>(loc, 2);
+  Value tmp = builder.create<arith::MulIOp>(loc, iang, c2);
+  Value index = builder.create<arith::AddIOp>(loc, tmp, c1);
+  return CSARR(builder, loc, csarr, index);
+}
+
+inline Value IANG(OpBuilder &builder, Location loc, Value iang, Value l,
+                  Value ip) {
+
+  Value iang_new = builder.create<arith::AddIOp>(loc, iang, l);
+
+  Value condition = builder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::sge, iang_new, ip);
+
+  auto result = builder.create<scf::IfOp>(
+      loc, condition,
+      [&](OpBuilder &b, Location loc) {
+        Value res = b.create<arith::SubIOp>(loc, iang_new, ip);
+        b.create<scf::YieldOp>(loc, ValueRange{res});
+      },
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, ValueRange{iang_new});
+      });
+
+  return result.getResult(0);
+}
+
+void radfgExtend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
+                 Value wa, Value csarr, Value ido, Value ip, Value l1) {
+
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // TODO: remove c4?
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+
+  Value cdim = opBuilder.create<arith::SubIOp>(loc, ip, c0);
+  Value tmp0 = opBuilder.create<arith::AddIOp>(loc, ip, c1);
+  Value ipph = opBuilder.create<arith::DivSIOp>(loc, tmp0, c2);
+  Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
+  // TODO: remove the following values?
+  // Value idom2 = opBuilder.create<arith::SubIOp>(loc, ido, c2);
+  Value idl1 = opBuilder.create<arith::MulIOp>(loc, ido, l1);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c0, idl1, c1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, Value ik, ValueRange ik_args) {
+        Value c2ik0 = C2(builder, loc, cc, ik, c0, idl1);
+        CH2w(builder, loc, ch, ik, c0, idl1, c2ik0);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  opBuilder.create<scf::ForOp>(
+      loc, c1, ipph, c1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, Value j, ValueRange j_args) {
+        builder.create<scf::ForOp>(
+            loc, c0, idl1, c1, std::nullopt,
+            [&](OpBuilder &b, Location loc, Value ik, ValueRange ik_args) {
+              Value c2ikj = C2(b, loc, cc, ik, j, idl1);
+              Value ch2ik0 = CH2(b, loc, ch, ik, c0, idl1);
+              Value ch2ik0_updated =
+                  b.create<arith::AddFOp>(loc, ch2ik0, c2ikj);
+
+              CH2w(b, loc, ch, ik, c0, idl1, ch2ik0_updated);
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  opBuilder.create<scf::ForOp>(
+      loc, c0, l1, c1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, Value k, ValueRange k_args) {
+        builder.create<scf::ForOp>(
+            loc, c0, ido, c1, std::nullopt,
+            [&](OpBuilder &b, Location loc, Value i, ValueRange i_args) {
+              Value chik0 = CH_radfg(b, loc, ch, i, k, c0, ido, l1);
+
+              CCw(b, loc, cc, i, c0, k, ido, cdim, chik0);
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  Value j_start_0 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value jc_start_0 = opBuilder.create<arith::SubIOp>(loc, ip, c1);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c1, ipph, c1, ValueRange{j_start_0, jc_start_0},
+      [&](OpBuilder &builder, Location loc, Value j_loop,
+          ValueRange j_loop_args) {
+        Value j = j_loop_args[0];
+        Value jc = j_loop_args[1];
+
+        Value tmp = builder.create<arith::MulIOp>(loc, j, c2);
+        Value j2 = builder.create<arith::SubIOp>(loc, tmp, c1);
+        Value j2p1 = builder.create<arith::AddIOp>(loc, j2, c1);
+
+        builder.create<scf::ForOp>(
+            loc, c0, l1, c1, std::nullopt,
+            [&](OpBuilder &b, Location loc, Value k, ValueRange k_args) {
+              Value ch0kj = CH_radfg(b, loc, ch, c0, k, j, ido, l1);
+              CCw(b, loc, cc, idom1, j2, k, ido, cdim, ch0kj);
+
+              Value ch0kjc = CH_radfg(b, loc, ch, c0, k, jc, ido, l1);
+              CCw(b, loc, cc, c0, j2p1, k, ido, cdim, ch0kjc);
+
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+
+        Value j_next = builder.create<arith::AddIOp>(loc, j, c1);
+        Value jc_next = builder.create<arith::SubIOp>(loc, jc, c1);
+        builder.create<scf::YieldOp>(loc, std::vector<Value>{j_next, jc_next});
+      });
+
+  Value condition1 =
+      opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, ido, l1);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition1, [&](OpBuilder &builder, Location loc) {
+        Value j_start_1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+        Value jc_start_1 = opBuilder.create<arith::SubIOp>(loc, ip, c1);
+
+        builder.create<scf::ForOp>(
+            loc, c1, ipph, c1, ValueRange{j_start_1, jc_start_1},
+            [&](OpBuilder &b, Location loc, Value j_loop,
+                ValueRange j_loop_args) {
+              Value j = j_loop_args[0];
+              Value jc = j_loop_args[1];
+
+              Value tmp = b.create<arith::MulIOp>(loc, j, c2);
+              Value j2 = b.create<arith::SubIOp>(loc, tmp, c1);
+              Value j2p1 = b.create<arith::AddIOp>(loc, j2, c1);
+
+              b.create<scf::ForOp>(
+                  loc, c0, l1, c1, std::nullopt,
+                  [&](OpBuilder &b2, Location loc, Value k, ValueRange k_args) {
+                    Value i_start_0 = b2.create<ConstantIndexOp>(loc, 1);
+                    Value ic_start_0 = b2.create<arith::SubIOp>(loc, ido, c3);
+
+                    b2.create<scf::ForOp>(
+                        loc, c1, idom1, c2, ValueRange{i_start_0, ic_start_0},
+                        [&](OpBuilder &b3, Location loc, Value i_loop,
+                            ValueRange i_loop_args) {
+                          Value i = i_loop_args[0];
+                          Value ic = i_loop_args[1];
+
+                          Value ip1 = b3.create<arith::AddIOp>(loc, i, c1);
+                          Value icp1 = b3.create<arith::AddIOp>(loc, ic, c1);
+
+                          Value chikj = CH_radfg(b3, loc, ch, i, k, j, ido, l1);
+                          Value chikjc =
+                              CH_radfg(b3, loc, ch, i, k, jc, ido, l1);
+                          Value tmp2 =
+                              b3.create<arith::AddFOp>(loc, chikj, chikjc);
+                          Value tmp3 =
+                              b3.create<arith::SubFOp>(loc, chikj, chikjc);
+                          CCw(b3, loc, cc, i, j2p1, k, ido, cdim, tmp2);
+                          CCw(b3, loc, cc, ic, j2, k, ido, cdim, tmp3);
+
+                          Value chip1kj =
+                              CH_radfg(b3, loc, ch, ip1, k, j, ido, l1);
+                          Value chip1kjc =
+                              CH_radfg(b3, loc, ch, ip1, k, jc, ido, l1);
+                          Value tmp4 =
+                              b3.create<arith::AddFOp>(loc, chip1kj, chip1kjc);
+                          Value tmp5 =
+                              b3.create<arith::SubFOp>(loc, chip1kjc, chip1kj);
+                          CCw(b3, loc, cc, ip1, j2p1, k, ido, cdim, tmp4);
+                          CCw(b3, loc, cc, icp1, j2, k, ido, cdim, tmp5);
+
+                          Value i_next = b3.create<arith::AddIOp>(loc, i, c2);
+                          Value ic_next = b3.create<arith::SubIOp>(loc, ic, c2);
+                          b3.create<scf::YieldOp>(
+                              loc, std::vector<Value>{i_next, ic_next});
+                        });
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  });
+
+              Value j_next = b.create<arith::AddIOp>(loc, j, c1);
+              Value jc_next = b.create<arith::SubIOp>(loc, jc, c1);
+              b.create<scf::YieldOp>(loc, std::vector<Value>{j_next, jc_next});
+            });
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  return;
+}
+
+// Handle general radix FFT computation.
+void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
+           Value csarr, Value ido, Value ip, Value l1) {
+
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+
+  Value ipm1 = opBuilder.create<arith::SubIOp>(loc, ip, c1);
+  Value ipm2 = opBuilder.create<arith::SubIOp>(loc, ip, c2);
+
+  // TODO: remove the following values?
+  // Value cdim = opBuilder.create<arith::SubIOp>(loc, ip, c0);
+  Value tmp = opBuilder.create<arith::AddIOp>(loc, ip, c1);
+  Value ipph = opBuilder.create<arith::DivSIOp>(loc, tmp, c2);
+
+  Value idl1 = opBuilder.create<arith::MulIOp>(loc, ido, l1);
+  Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
+  // TODO: remove idom2?
+  // Value idom2 = opBuilder.create<arith::SubIOp>(loc, ido, c2);
+
+  Value condition =
+      opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, ido, l1);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition, [&](OpBuilder &builder, Location loc) {
+        Value jc_start = builder.create<arith::SubIOp>(loc, ip, c1);
+
+        builder.create<scf::ForOp>(
+            loc, c1, ipph, c1, ValueRange{jc_start},
+            [&](OpBuilder &b, Location loc, Value j, ValueRange j_args) {
+              Value jc = j_args[0];
+
+              Value jm1 = b.create<arith::SubIOp>(loc, j, c1);
+              Value jcm1 = b.create<arith::SubIOp>(loc, jc, c1);
+
+              Value is = b.create<arith::MulIOp>(loc, jm1, idom1);
+              Value is2 = b.create<arith::MulIOp>(loc, jcm1, idom1);
+
+              b.create<scf::ForOp>(
+                  loc, c0, l1, c1, std::nullopt,
+                  [&](OpBuilder &b2, Location loc, Value k, ValueRange k_args) {
+                    Value idij_start = b2.create<arith::SubIOp>(loc, is, c0);
+                    Value idij2_start = b2.create<arith::SubIOp>(loc, is2, c0);
+
+                    b2.create<scf::ForOp>(
+                        loc, c1, idom1, c2, ValueRange{idij_start, idij2_start},
+                        [&](OpBuilder &b3, Location loc, Value i,
+                            ValueRange i_args) {
+                          Value idij = i_args[0];
+                          Value idij2 = i_args[1];
+
+                          Value ip1 = b3.create<arith::AddIOp>(loc, i, c1);
+                          Value idijp1 =
+                              b3.create<arith::AddIOp>(loc, idij, c1);
+                          Value idij2p1 =
+                              b3.create<arith::AddIOp>(loc, idij2, c1);
+
+                          Value t1 = C1(b3, loc, cc, i, k, j, ido, l1);
+                          Value t2 = C1(b3, loc, cc, ip1, k, j, ido, l1);
+                          Value t3 = C1(b3, loc, cc, i, k, jc, ido, l1);
+                          Value t4 = C1(b3, loc, cc, ip1, k, jc, ido, l1);
+
+                          Value waidij =
+                              b3.create<memref::LoadOp>(loc, wa, idij);
+                          Value waidijp1 =
+                              b3.create<memref::LoadOp>(loc, wa, idijp1);
+                          Value waidij2 =
+                              b3.create<memref::LoadOp>(loc, wa, idij2);
+                          Value waidij2p1 =
+                              b3.create<memref::LoadOp>(loc, wa, idij2p1);
+
+                          Value tmp1_x1 =
+                              b3.create<arith::MulFOp>(loc, waidij, t1);
+                          Value tmp2_x1 =
+                              b3.create<arith::MulFOp>(loc, waidijp1, t2);
+                          Value x1 =
+                              b3.create<arith::AddFOp>(loc, tmp1_x1, tmp2_x1);
+
+                          Value tmp1_x2 =
+                              b3.create<arith::MulFOp>(loc, waidij, t2);
+                          Value tmp2_x2 =
+                              b3.create<arith::MulFOp>(loc, waidijp1, t1);
+                          Value x2 =
+                              b3.create<arith::SubFOp>(loc, tmp1_x2, tmp2_x2);
+
+                          Value tmp1_x3 =
+                              b3.create<arith::MulFOp>(loc, waidij2, t3);
+                          Value tmp2_x3 =
+                              b3.create<arith::MulFOp>(loc, waidij2p1, t4);
+                          Value x3 =
+                              b3.create<arith::AddFOp>(loc, tmp1_x3, tmp2_x3);
+
+                          Value tmp1_x4 =
+                              b3.create<arith::MulFOp>(loc, waidij2, t4);
+                          Value tmp2_x4 =
+                              b3.create<arith::MulFOp>(loc, waidij2p1, t3);
+                          Value x4 =
+                              b3.create<arith::SubFOp>(loc, tmp1_x4, tmp2_x4);
+
+                          Value tmp3 = b3.create<arith::AddFOp>(loc, x1, x3);
+                          Value tmp4 = b3.create<arith::SubFOp>(loc, x2, x4);
+                          Value tmp5 = b3.create<arith::AddFOp>(loc, x2, x4);
+                          Value tmp6 = b3.create<arith::SubFOp>(loc, x3, x1);
+
+                          C1w(b3, loc, cc, i, k, j, ido, l1, tmp3);
+                          C1w(b3, loc, cc, i, k, jc, ido, l1, tmp4);
+                          C1w(b3, loc, cc, ip1, k, j, ido, l1, tmp5);
+                          C1w(b3, loc, cc, ip1, k, jc, ido, l1, tmp6);
+
+                          Value idij_next =
+                              b3.create<arith::AddIOp>(loc, idij, c2);
+                          Value idij2_next =
+                              b3.create<arith::AddIOp>(loc, idij2, c2);
+
+                          b3.create<scf::YieldOp>(
+                              loc, std::vector<Value>{idij_next, idij2_next});
+                        });
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  }
+
+              );
+
+              Value jc_next = b.create<arith::SubIOp>(loc, jc, c1);
+              b.create<scf::YieldOp>(loc, jc_next);
+            });
+
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  Value jc_a_start = opBuilder.create<arith::SubIOp>(loc, ip, c1);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c1, ipph, c1, ValueRange{jc_a_start},
+      [&](OpBuilder &builder, Location loc, Value j_a, ValueRange j_a_args) {
+        Value jc_a = j_a_args[0];
+
+        builder.create<scf::ForOp>(
+            loc, c0, l1, c1, std::nullopt,
+            [&](OpBuilder &b, Location loc, Value k_a, ValueRange k_a_args) {
+              Value t1_a = C1(b, loc, cc, c0, k_a, j_a, ido, l1);
+              Value t2_a = C1(b, loc, cc, c0, k_a, jc_a, ido, l1);
+
+              Value tmp_a = b.create<arith::AddFOp>(loc, t1_a, t2_a);
+              Value tmp1_a = b.create<arith::SubFOp>(loc, t2_a, t1_a);
+
+              C1w(b, loc, cc, c0, k_a, j_a, ido, l1, tmp_a);
+              C1w(b, loc, cc, c0, k_a, jc_a, ido, l1, tmp1_a);
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+
+        Value jc_a_next = builder.create<arith::SubIOp>(loc, jc_a, c1);
+        builder.create<scf::YieldOp>(loc, jc_a_next);
+      });
+
+  Value lc_b_start = opBuilder.create<arith::SubIOp>(loc, ip, c1);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c1, ipph, c1, ValueRange{lc_b_start},
+      [&](OpBuilder &builder, Location loc, Value l_b, ValueRange l_b_args) {
+        Value lc_b = l_b_args[0];
+
+        builder.create<scf::ForOp>(
+            loc, c0, idl1, c1, std::nullopt,
+            [&](OpBuilder &b, Location loc, Value ik_b, ValueRange ik_b_args) {
+              Value m2l = b.create<arith::MulIOp>(loc, l_b, c2);
+              Value m4l = b.create<arith::MulIOp>(loc, l_b, c4);
+              Value m2lp1 = b.create<arith::AddIOp>(loc, m2l, c1);
+              Value m4lp1 = b.create<arith::AddIOp>(loc, m4l, c1);
+
+              Value csarr2l = CSARR(b, loc, csarr, m2l);
+              Value csarr4l = CSARR(b, loc, csarr, m4l);
+              Value csarr2lp1 = CSARR(b, loc, csarr, m2lp1);
+              Value csarr4lp1 = CSARR(b, loc, csarr, m4lp1);
+
+              Value c2ik0 = C2(b, loc, cc, ik_b, c0, idl1);
+              Value c2ik1 = C2(b, loc, cc, ik_b, c1, idl1);
+              Value c2ik2 = C2(b, loc, cc, ik_b, c2, idl1);
+
+              Value c2ikipm1 = C2(b, loc, cc, ik_b, ipm1, idl1);
+              Value c2ikipm2 = C2(b, loc, cc, ik_b, ipm2, idl1);
+
+              Value tmp_b = b.create<arith::MulFOp>(loc, csarr2l, c2ik1);
+              Value tmp1_b = b.create<arith::MulFOp>(loc, csarr4l, c2ik2);
+              Value tmp2_b = b.create<arith::AddFOp>(loc, tmp_b, tmp1_b);
+              Value tmp3_b = b.create<arith::AddFOp>(loc, c2ik0, tmp2_b);
+
+              CH2w(b, loc, ch, ik_b, l_b, idl1, tmp3_b);
+
+              Value tmp4_b = b.create<arith::MulFOp>(loc, csarr2lp1, c2ikipm1);
+              Value tmp5_b = b.create<arith::MulFOp>(loc, csarr4lp1, c2ikipm2);
+              Value tmp6_b = b.create<arith::AddFOp>(loc, tmp4_b, tmp5_b);
+
+              CH2w(b, loc, ch, ik_b, lc_b, idl1, tmp6_b);
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+
+        Value iang_start_c = builder.create<arith::MulIOp>(loc, c2, l_b);
+        Value j_start_c = builder.create<ConstantIndexOp>(loc, 3);
+        Value jc_start_c = builder.create<arith::SubIOp>(loc, ip, c3);
+        Value ipphm1 = builder.create<arith::SubIOp>(loc, ipph, c1);
+        Value ipphm3 = builder.create<arith::SubIOp>(loc, ipph, c3);
+
+        auto loop1 = builder.create<scf::ForOp>(
+            loc, j_start_c, ipphm3, c4,
+            ValueRange{j_start_c, jc_start_c, iang_start_c},
+            [&](OpBuilder &b, Location loc, Value j_loop,
+                ValueRange j_loop_args) {
+              Value j = j_loop_args[0];
+              Value jc = j_loop_args[1];
+              Value iang = j_loop_args[2];
+
+              Value iang_1_c = IANG(b, loc, iang, l_b, ip);
+              Value ar1 = AR(b, loc, csarr, iang_1_c);
+              Value ai1 = AI(b, loc, csarr, iang_1_c);
+
+              Value iang_2_c = IANG(b, loc, iang_1_c, l_b, ip);
+              Value ar2 = AR(b, loc, csarr, iang_2_c);
+              Value ai2 = AI(b, loc, csarr, iang_2_c);
+
+              Value iang_3_c = IANG(b, loc, iang_2_c, l_b, ip);
+              Value ar3 = AR(b, loc, csarr, iang_3_c);
+              Value ai3 = AI(b, loc, csarr, iang_3_c);
+
+              Value iang_4_c = IANG(b, loc, iang_3_c, l_b, ip);
+              Value ar4 = AR(b, loc, csarr, iang_4_c);
+              Value ai4 = AI(b, loc, csarr, iang_4_c);
+
+              b.create<scf::ForOp>(
+                  loc, c0, idl1, c1, std::nullopt,
+                  [&](OpBuilder &b2, Location loc, Value ik_c,
+                      ValueRange ik_c_args) {
+                    Value jp1 = b2.create<arith::AddIOp>(loc, j, c1);
+                    Value jp2 = b2.create<arith::AddIOp>(loc, j, c2);
+                    Value jp3 = b2.create<arith::AddIOp>(loc, j, c3);
+                    // TODO: remove the following values?
+                    // Value jm1 = b2.create<arith::SubIOp>(loc, j, c1);
+                    // Value jm2 = b2.create<arith::SubIOp>(loc, j, c2);
+                    // Value jm3 = b2.create<arith::SubIOp>(loc, j, c3);
+
+                    Value c2ikj = C2(b2, loc, cc, ik_c, j, idl1);
+                    Value c2ikjp1 = C2(b2, loc, cc, ik_c, jp1, idl1);
+                    Value c2ikjp2 = C2(b2, loc, cc, ik_c, jp2, idl1);
+                    Value c2ikjp3 = C2(b2, loc, cc, ik_c, jp3, idl1);
+
+                    Value tmp_c = b2.create<arith::MulFOp>(loc, ar1, c2ikj);
+                    Value tmp1_c = b2.create<arith::MulFOp>(loc, ar2, c2ikjp1);
+                    Value tmp2_c = b2.create<arith::MulFOp>(loc, ar3, c2ikjp2);
+                    Value tmp3_c = b2.create<arith::MulFOp>(loc, ar4, c2ikjp3);
+
+                    Value tmp4_c = b2.create<arith::AddFOp>(loc, tmp_c, tmp1_c);
+                    Value tmp5_c =
+                        b2.create<arith::AddFOp>(loc, tmp4_c, tmp2_c);
+                    Value tmp6_c =
+                        b2.create<arith::AddFOp>(loc, tmp5_c, tmp3_c);
+
+                    Value ch2ikl = CH2(b2, loc, ch, ik_c, l_b, idl1);
+                    Value tmp7_c =
+                        b2.create<arith::AddFOp>(loc, tmp6_c, ch2ikl);
+                    CH2w(b2, loc, ch, ik_c, l_b, idl1, tmp7_c);
+
+                    Value jcm1 = b2.create<arith::SubIOp>(loc, jc, c1);
+                    Value jcm2 = b2.create<arith::SubIOp>(loc, jc, c2);
+                    Value jcm3 = b2.create<arith::SubIOp>(loc, jc, c3);
+
+                    Value c2ikjc = C2(b2, loc, cc, ik_c, jc, idl1);
+                    Value c2ikjcm1 = C2(b2, loc, cc, ik_c, jcm1, idl1);
+                    Value c2ikjcm2 = C2(b2, loc, cc, ik_c, jcm2, idl1);
+                    Value c2ikjcm3 = C2(b2, loc, cc, ik_c, jcm3, idl1);
+
+                    Value tmp_ai1 = b2.create<arith::MulFOp>(loc, ai1, c2ikjc);
+                    Value tmp_ai2 =
+                        b2.create<arith::MulFOp>(loc, ai2, c2ikjcm1);
+                    Value tmp_ai3 =
+                        b2.create<arith::MulFOp>(loc, ai3, c2ikjcm2);
+                    Value tmp_ai4 =
+                        b2.create<arith::MulFOp>(loc, ai4, c2ikjcm3);
+
+                    Value tmp_ai5 =
+                        b2.create<arith::AddFOp>(loc, tmp_ai1, tmp_ai2);
+                    Value tmp_ai6 =
+                        b2.create<arith::AddFOp>(loc, tmp_ai5, tmp_ai3);
+                    Value tmp_ai7 =
+                        b2.create<arith::AddFOp>(loc, tmp_ai6, tmp_ai4);
+
+                    Value ch2iklc = CH2(b2, loc, ch, ik_c, lc_b, idl1);
+                    Value tmp_ai8 =
+                        b2.create<arith::AddFOp>(loc, tmp_ai7, ch2iklc);
+                    CH2w(b2, loc, ch, ik_c, lc_b, idl1, tmp_ai8);
+
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  });
+
+              Value j_next = b.create<arith::AddIOp>(loc, j, c4);
+              Value jc_next = b.create<arith::SubIOp>(loc, jc, c4);
+              builder.create<scf::YieldOp>(
+                  loc, std::vector<Value>{j_next, jc_next, iang_4_c});
+            });
+
+        Value j_1_c = loop1.getResults()[0];
+        Value jc_1_c = loop1.getResults()[1];
+        Value iang1_c = loop1.getResults()[2];
+
+        auto loop2 = builder.create<scf::ForOp>(
+            loc, j_1_c, ipphm1, c2, ValueRange{j_1_c, jc_1_c, iang1_c},
+            [&](OpBuilder &b, Location loc, Value j_loop,
+                ValueRange j_loop_args) {
+              Value j = j_loop_args[0];
+              Value jc = j_loop_args[1];
+              Value iang = j_loop_args[2];
+
+              Value iang_1_d = IANG(b, loc, iang, l_b, ip);
+              Value ar1 = AR(b, loc, csarr, iang_1_d);
+              Value ai1 = AI(b, loc, csarr, iang_1_d);
+
+              Value iang_2_d = IANG(b, loc, iang_1_d, l_b, ip);
+              Value ar2 = AR(b, loc, csarr, iang_2_d);
+              Value ai2 = AI(b, loc, csarr, iang_2_d);
+
+              b.create<scf::ForOp>(
+                  loc, c0, idl1, c1, std::nullopt,
+                  [&](OpBuilder &b2, Location loc, Value ik_d,
+                      ValueRange ik_d_args) {
+                    Value jp1 = b2.create<arith::AddIOp>(loc, j, c1);
+                    // TODO: remove jm1?
+                    // Value jm1 = b2.create<arith::SubIOp>(loc, j, c1);
+
+                    Value c2ikj = C2(b2, loc, cc, ik_d, j, idl1);
+                    Value c2ikjp1 = C2(b2, loc, cc, ik_d, jp1, idl1);
+
+                    Value tmp_c = b2.create<arith::MulFOp>(loc, ar1, c2ikj);
+                    Value tmp1_c = b2.create<arith::MulFOp>(loc, ar2, c2ikjp1);
+                    Value tmp2_c = b2.create<arith::AddFOp>(loc, tmp_c, tmp1_c);
+
+                    Value ch2ikl = CH2(b2, loc, ch, ik_d, l_b, idl1);
+                    Value tmp3_c =
+                        b2.create<arith::AddFOp>(loc, tmp2_c, ch2ikl);
+                    CH2w(b2, loc, ch, ik_d, l_b, idl1, tmp3_c);
+
+                    Value jcm1 = b2.create<arith::SubIOp>(loc, jc, c1);
+                    Value c2ikjc = C2(b2, loc, cc, ik_d, jc, idl1);
+                    Value c2ikjcm1 = C2(b2, loc, cc, ik_d, jcm1, idl1);
+
+                    Value tmp_ai1 = b2.create<arith::MulFOp>(loc, ai1, c2ikjc);
+                    Value tmp_ai2 =
+                        b2.create<arith::MulFOp>(loc, ai2, c2ikjcm1);
+                    Value tmp_ai3 =
+                        b2.create<arith::AddFOp>(loc, tmp_ai1, tmp_ai2);
+
+                    Value ch2iklc = CH2(b2, loc, ch, ik_d, lc_b, idl1);
+                    Value tmp_ai4 =
+                        b2.create<arith::AddFOp>(loc, tmp_ai3, ch2iklc);
+                    CH2w(b2, loc, ch, ik_d, lc_b, idl1, tmp_ai4);
+
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  });
+
+              Value j_next = b.create<arith::AddIOp>(loc, j, c2);
+              Value jc_next = b.create<arith::SubIOp>(loc, jc, c2);
+              builder.create<scf::YieldOp>(
+                  loc, std::vector<Value>{j_next, jc_next, iang_2_d});
+            });
+
+        Value j_2_c = loop2.getResults()[0];
+        Value jc_2_c = loop2.getResults()[1];
+        Value iang2_c = loop2.getResults()[2];
+
+        builder.create<scf::ForOp>(
+            loc, j_2_c, ipph, c1, ValueRange{j_2_c, jc_2_c, iang2_c},
+            [&](OpBuilder &b, Location loc, Value j_loop,
+                ValueRange j_loop_args) {
+              Value j = j_loop_args[0];
+              Value jc = j_loop_args[1];
+              Value iang = j_loop_args[2];
+
+              Value iang_1_e = IANG(b, loc, iang, l_b, ip);
+              Value ar = AR(b, loc, csarr, iang_1_e);
+              Value ai = AI(b, loc, csarr, iang_1_e);
+
+              b.create<scf::ForOp>(
+                  loc, c0, idl1, c1, std::nullopt,
+                  [&](OpBuilder &b2, Location loc, Value ik_e,
+                      ValueRange ik_e_args) {
+                    Value c2ikj = C2(b2, loc, cc, ik_e, j, idl1);
+                    Value tmp_c = b2.create<arith::MulFOp>(loc, ar, c2ikj);
+                    Value ch2ikl = CH2(b2, loc, ch, ik_e, l_b, idl1);
+                    Value tmp2_c = b2.create<arith::AddFOp>(loc, tmp_c, ch2ikl);
+                    CH2w(b2, loc, ch, ik_e, l_b, idl1, tmp2_c);
+
+                    Value c2ikjc = C2(b2, loc, cc, ik_e, jc, idl1);
+                    Value tmp_ai = b2.create<arith::MulFOp>(loc, ai, c2ikjc);
+                    Value ch2iklc = CH2(b2, loc, ch, ik_e, lc_b, idl1);
+                    Value tmp2_ai =
+                        b2.create<arith::AddFOp>(loc, tmp_ai, ch2iklc);
+                    CH2w(b2, loc, ch, ik_e, lc_b, idl1, tmp2_ai);
+
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  });
+
+              Value j_next = b.create<arith::AddIOp>(loc, j, c2);
+              Value jc_next = b.create<arith::SubIOp>(loc, jc, c2);
+              builder.create<scf::YieldOp>(
+                  loc, std::vector<Value>{j_next, jc_next, iang_1_e});
+            });
+
+        Value lc_b_next = builder.create<arith::SubIOp>(loc, lc_b, c1);
+        builder.create<scf::YieldOp>(loc, lc_b_next);
+      });
+
+  radfgExtend(opBuilder, loc, cc, ch, wa, csarr, ido, ip, l1);
+}
+
+void radf2Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
+                 Value wa, Value ido, Value l1, Value cdim) {
+  // TODO: remove f64Ty?
+  // FloatType f64Ty = opBuilder.getF64Type();
+
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // TODO: remove the following values?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c20 = opBuilder.create<ConstantIndexOp>(loc, 20);
+
+  // Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c0, l1, c1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, Value k, ValueRange k_args) {
+        builder.create<scf::ForOp>(
+            loc, c2, ido, c2, std::nullopt,
+            [&](OpBuilder &b, Location loc, Value i, ValueRange i_args) {
+              Value ic = b.create<arith::SubIOp>(loc, ido, i);
+              Value icm1 = b.create<arith::SubIOp>(loc, ic, c1);
+              Value im1 = b.create<arith::SubIOp>(loc, i, c1);
+              Value im2 = b.create<arith::SubIOp>(loc, i, c2);
+
+              Value wa0im2 = WA(b, loc, wa, c0, im2, ido, c1);
+              Value wa0im1 = WA(b, loc, wa, c0, im1, ido, c1);
+              Value ccim1k1 = CC(b, loc, cc, im1, k, c1, ido, l1);
+              Value ccik1 = CC(b, loc, cc, i, k, c1, ido, l1);
+              std::vector<Value> tr2_ti2 =
+                  MULPM(b, loc, wa0im2, wa0im1, ccim1k1, ccik1);
+
+              Value ccim1k0 = CC(b, loc, cc, im1, k, c0, ido, l1);
+              Value ccik0 = CC(b, loc, cc, i, k, c0, ido, l1);
+              std::vector<Value> ccim1k0_tr2 = PM(b, loc, ccim1k0, tr2_ti2[0]);
+              std::vector<Value> ti2_ccik0 = PM(b, loc, tr2_ti2[1], ccik0);
+
+              CH(b, loc, ch, im1, c0, k, ido, cdim, ccim1k0_tr2[0]);
+              CH(b, loc, ch, icm1, c1, k, ido, cdim, ccim1k0_tr2[1]);
+
+              CH(b, loc, ch, i, c0, k, ido, cdim, ti2_ccik0[0]);
+              CH(b, loc, ch, ic, c1, k, ido, cdim, ti2_ccik0[1]);
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+}
+
+// Handle radix-2 FFT computation
+void radf2(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
+           Value ido, Value l1) {
+  // TODO: remove the f64Ty?
+  // FloatType f64Ty = opBuilder.getF64Type();
+  Value cdim = opBuilder.create<ConstantIndexOp>(loc, 2);
+
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // TODO: remove the following values?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c20 = opBuilder.create<ConstantIndexOp>(loc, 20);
+
+  Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c0, l1, c1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, Value iv, ValueRange iv_args) {
+        Value cc0k0 = CC(builder, loc, cc, c0, iv, c0, ido, l1);
+        Value cc0k1 = CC(builder, loc, cc, c0, iv, c1, ido, l1);
+        std::vector<Value> cc0k0_cc0k1 = PM(builder, loc, cc0k0, cc0k1);
+        CH(builder, loc, ch, c0, c0, iv, ido, cdim, cc0k0_cc0k1[0]);
+        CH(builder, loc, ch, idom1, c1, iv, ido, cdim, cc0k0_cc0k1[1]);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  Value flag = opBuilder.create<arith::RemSIOp>(loc, ido, c2);
+  Value condition =
+      opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, flag, c0);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition, [&](OpBuilder &builder, Location loc) {
+        builder.create<scf::ForOp>(
+            loc, c0, l1, c1, std::nullopt,
+            [&](OpBuilder &b, Location loc, Value k, ValueRange k_args) {
+              Value ccidom1k1 = CC(b, loc, cc, idom1, k, c1, ido, l1);
+              Value tmp = b.create<arith::NegFOp>(loc, ccidom1k1);
+              CH(b, loc, ch, c0, c1, k, ido, cdim, tmp);
+              Value ccidom1k0 = CC(b, loc, cc, idom1, k, c0, ido, l1);
+              CH(b, loc, ch, idom1, c0, k, ido, cdim, ccidom1k0);
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  Value condition1 =
+      opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, ido, c2);
+  opBuilder.create<scf::IfOp>(
+      loc, condition1, [&](OpBuilder &builder, Location loc) {
+        radf2Extend(builder, loc, cc, ch, wa, ido, l1, cdim);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+}
+
+void radf3Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
+                 Value wa, Value ido, Value l1, Value cdim) {
+
+  FloatType f64Ty = opBuilder.getF64Type();
+  Value taur =
+      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(-0.5)), f64Ty);
+  Value taui = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(0.86602540378443864676)), f64Ty);
+
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // TODO: remove c3 and c4?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c0, l1, c1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, Value k, ValueRange k_args) {
+        builder.create<scf::ForOp>(
+            loc, c2, ido, c2, std::nullopt,
+            [&](OpBuilder &b, Location loc, Value i, ValueRange i_args) {
+              Value ic = b.create<arith::SubIOp>(loc, ido, i);
+              Value icm1 = b.create<arith::SubIOp>(loc, ic, c1);
+              Value im1 = b.create<arith::SubIOp>(loc, i, c1);
+              Value im2 = b.create<arith::SubIOp>(loc, i, c2);
+
+              Value wa0im2 = WA(b, loc, wa, c0, im2, ido, c1);
+              Value wa0im1 = WA(b, loc, wa, c0, im1, ido, c1);
+              Value ccim1k1 = CC(b, loc, cc, im1, k, c1, ido, l1);
+              Value ccik1 = CC(b, loc, cc, i, k, c1, ido, l1);
+              std::vector<Value> dr2_di2 =
+                  MULPM(b, loc, wa0im2, wa0im1, ccim1k1, ccik1);
+
+              Value wa1im2 = WA(b, loc, wa, c1, im2, ido, c1);
+              Value wa1im1 = WA(b, loc, wa, c1, im1, ido, c1);
+              Value ccim1k2 = CC(b, loc, cc, im1, k, c2, ido, l1);
+              Value ccik2 = CC(b, loc, cc, i, k, c2, ido, l1);
+              std::vector<Value> dr3_di3 =
+                  MULPM(b, loc, wa1im2, wa1im1, ccim1k2, ccik2);
+
+              Value cr2 = b.create<arith::AddFOp>(loc, dr2_di2[0], dr3_di3[0]);
+              Value ci2 = b.create<arith::AddFOp>(loc, dr2_di2[1], dr3_di3[1]);
+
+              Value ccim1k0 = CC(b, loc, cc, im1, k, c0, ido, l1);
+              Value tmp5 = b.create<arith::AddFOp>(loc, ccim1k0, cr2);
+              CH(builder, loc, ch, im1, c0, k, ido, cdim, tmp5);
+
+              Value ccik0 = CC(b, loc, cc, i, k, c0, ido, l1);
+              Value tmp6 = b.create<arith::AddFOp>(loc, ccik0, ci2);
+              CH(builder, loc, ch, i, c0, k, ido, cdim, tmp6);
+
+              Value tmp7 = b.create<arith::MulFOp>(loc, taur, cr2);
+              Value tr2 = b.create<arith::AddFOp>(loc, ccim1k0, tmp7);
+
+              Value tmp8 = b.create<arith::MulFOp>(loc, taur, ci2);
+              Value ti2 = b.create<arith::AddFOp>(loc, ccik0, tmp8);
+
+              Value tmp9 = b.create<arith::SubFOp>(loc, dr2_di2[1], dr3_di3[1]);
+              Value tr3 = b.create<arith::MulFOp>(loc, taui, tmp9);
+
+              Value tmp10 =
+                  b.create<arith::SubFOp>(loc, dr3_di3[0], dr2_di2[0]);
+              Value ti3 = b.create<arith::MulFOp>(loc, taui, tmp10);
+
+              std::vector<Value> tr2_tr3 = PM(b, loc, tr2, tr3);
+              std::vector<Value> ti3_ti2 = PM(b, loc, ti3, ti2);
+
+              CH(builder, loc, ch, im1, c2, k, ido, cdim, tr2_tr3[0]);
+              CH(builder, loc, ch, icm1, c1, k, ido, cdim, tr2_tr3[1]);
+
+              CH(builder, loc, ch, i, c2, k, ido, cdim, ti3_ti2[0]);
+              CH(builder, loc, ch, ic, c1, k, ido, cdim, ti3_ti2[1]);
+
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+}
+
+// Handle radix-3 FFT computation
+void radf3(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
+           Value ido, Value l1) {
+
+  FloatType f64Ty = opBuilder.getF64Type();
+  Value cdim = opBuilder.create<ConstantIndexOp>(loc, 3);
+  Value taur =
+      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(-0.5)), f64Ty);
+  Value taui = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(0.86602540378443864676)), f64Ty);
+
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // TODO: remove c3 and c4?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+
+  Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c0, l1, c1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, Value iv, ValueRange iv_args) {
+        Value cc0k1 = CC(builder, loc, cc, c0, iv, c1, ido, l1);
+        Value cc0k2 = CC(builder, loc, cc, c0, iv, c2, ido, l1);
+        Value cr2 = builder.create<arith::AddFOp>(loc, cc0k1, cc0k2);
+
+        Value cc0k0 = CC(builder, loc, cc, c0, iv, c0, ido, l1);
+        Value tmp0 = builder.create<arith::AddFOp>(loc, cc0k0, cr2);
+        CH(builder, loc, ch, c0, c0, iv, ido, cdim, tmp0);
+
+        Value tmp1 = builder.create<arith::SubFOp>(loc, cc0k2, cc0k1);
+        Value tmp2 = builder.create<arith::MulFOp>(loc, tmp1, taui);
+        CH(builder, loc, ch, c0, c2, iv, ido, cdim, tmp2);
+
+        Value tmp3 = builder.create<arith::MulFOp>(loc, taur, cr2);
+        Value tmp4 = builder.create<arith::AddFOp>(loc, tmp3, cc0k0);
+        CH(builder, loc, ch, idom1, c1, iv, ido, cdim, tmp4);
+
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  Value condition =
+      opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, ido, c1);
+  opBuilder.create<scf::IfOp>(
+      loc, condition, [&](OpBuilder &builder, Location loc) {
+        radf3Extend(builder, loc, cc, ch, wa, ido, l1, cdim);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
 }
 
 void radf4Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
@@ -866,6 +1801,7 @@ void radf4Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
   return;
 }
 
+// Handle radix-4 FFT computation
 void radf4(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
            Value ido, Value l1, Value c0, Value c1, Value c2, Value c3) {
   FloatType f64Ty = opBuilder.getF64Type();
@@ -1049,9 +1985,11 @@ void radf5Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
   return;
 }
 
+// Handle radix-5 FFT computation
 void radf5(OpBuilder &builder, Location loc, Value cc, Value ch, Value wa,
            Value ido, Value l1, Value c0, Value c1, Value c2, Value c3,
            Value c4) {
+
   FloatType f64Ty = builder.getF64Type();
   Value cdim = builder.create<ConstantIndexOp>(loc, 5);
   Value tr11 = builder.create<ConstantFloatOp>(
@@ -1116,116 +2054,1447 @@ void radf5(OpBuilder &builder, Location loc, Value cc, Value ch, Value wa,
   return;
 }
 
-// in-place computaion for bufferMem, represent both the input and the
-// output
-void rfft400(OpBuilder &builder, Location loc, Value bufferMem, Value f0,
-             Value c0, Value c1, Value c2, Value c3, Value c4, Value c5) {
-  FloatType f64Ty = builder.getF64Type();
-  int64_t inputLength = 400;
+// function to implement ++ operation
+void index_increment(OpBuilder &opBuilder, Location loc, Value target) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value a = opBuilder.create<memref::LoadOp>(loc, target, c0);
+  Value b = opBuilder.create<arith::AddIOp>(loc, a, c1);
+  opBuilder.create<memref::StoreOp>(loc, b, target, c0);
+}
 
-  // Generate ch MemRef
-  RankedTensorType tensorTy = RankedTensorType::get({inputLength}, f64Ty);
-  MemRefType m25Ty = MemRefType::get({inputLength}, f64Ty);
-  Value chTensor = builder.create<tensor::SplatOp>(loc, tensorTy, f0);
-  Value ch = builder.create<bufferization::ToMemrefOp>(loc, m25Ty, chTensor);
+// switch 2 element in an array
+void index_SWAP(OpBuilder &opBuilder, Location loc, Value array, Value target1,
+                Value target2) {
+  Value a = opBuilder.create<memref::LoadOp>(loc, array, target1);
+  Value b = opBuilder.create<memref::LoadOp>(loc, array, target2);
 
-  // Generate wa MemRefs
-  std::vector<double> tw0Vec{
-      0.999877,  0.015707, 0.999507,  0.031411, 0.998890,  0.047106,
-      0.998027,  0.062791, 0.996917,  0.078459, 0.995562,  0.094108,
-      0.993961,  0.109734, 0.992115,  0.125333, 0.990024,  0.140901,
-      0.987688,  0.156434, 0.985109,  0.171929, 0.982287,  0.187381,
-      0.979223,  0.202787, 0.975917,  0.218143, 0.972370,  0.233445,
-      0.968583,  0.248690, 0.964557,  0.263873, 0.960294,  0.278991,
-      0.955793,  0.294040, 0.951057,  0.309017, 0.946085,  0.323917,
-      0.940881,  0.338738, 0.935444,  0.353475, 0.929776,  0.368125,
-      0.923880,  0.382683, 0.917755,  0.397148, 0.911403,  0.411514,
-      0.904827,  0.425779, 0.898028,  0.439939, 0.891007,  0.453990,
-      0.883766,  0.467930, 0.876307,  0.481754, 0.868632,  0.495459,
-      0.860742,  0.509041, 0.852640,  0.522499, 0.844328,  0.535827,
-      0.835807,  0.549023, 0.827081,  0.562083, 0.818150,  0.575005,
-      0.809017,  0.587785, 0.799685,  0.600420, 0.790155,  0.612907,
-      0.780430,  0.625243, 0.770513,  0.637424, 0.760406,  0.649448,
-      0.750111,  0.661312, 0.739631,  0.673013, 0.728969,  0.684547,
-      0.718126,  0.695913, 0.000000,  0.999507, 0.031411,  0.998027,
-      0.062791,  0.995562, 0.094108,  0.992115, 0.125333,  0.987688,
-      0.156434,  0.982287, 0.187381,  0.975917, 0.218143,  0.968583,
-      0.248690,  0.960294, 0.278991,  0.951057, 0.309017,  0.940881,
-      0.338738,  0.929776, 0.368125,  0.917755, 0.397148,  0.904827,
-      0.425779,  0.891007, 0.453990,  0.876307, 0.481754,  0.860742,
-      0.509041,  0.844328, 0.535827,  0.827081, 0.562083,  0.809017,
-      0.587785,  0.790155, 0.612907,  0.770513, 0.637424,  0.750111,
-      0.661312,  0.728969, 0.684547,  0.707107, 0.707107,  0.684547,
-      0.728969,  0.661312, 0.750111,  0.637424, 0.770513,  0.612907,
-      0.790155,  0.587785, 0.809017,  0.562083, 0.827081,  0.535827,
-      0.844328,  0.509041, 0.860742,  0.481754, 0.876307,  0.453990,
-      0.891007,  0.425779, 0.904827,  0.397148, 0.917755,  0.368125,
-      0.929776,  0.338738, 0.940881,  0.309017, 0.951057,  0.278991,
-      0.960294,  0.248690, 0.968583,  0.218143, 0.975917,  0.187381,
-      0.982287,  0.156434, 0.987688,  0.125333, 0.992115,  0.094108,
-      0.995562,  0.062791, 0.998027,  0.031411, 0.999507,  0.000000,
-      0.998890,  0.047106, 0.995562,  0.094108, 0.990024,  0.140901,
-      0.982287,  0.187381, 0.972370,  0.233445, 0.960294,  0.278991,
-      0.946085,  0.323917, 0.929776,  0.368125, 0.911403,  0.411514,
-      0.891007,  0.453990, 0.868632,  0.495459, 0.844328,  0.535827,
-      0.818150,  0.575005, 0.790155,  0.612907, 0.760406,  0.649448,
-      0.728969,  0.684547, 0.695913,  0.718126, 0.661312,  0.750111,
-      0.625243,  0.780430, 0.587785,  0.809017, 0.549023,  0.835807,
-      0.509041,  0.860742, 0.467930,  0.883766, 0.425779,  0.904827,
-      0.382683,  0.923880, 0.338738,  0.940881, 0.294040,  0.955793,
-      0.248690,  0.968583, 0.202787,  0.979223, 0.156434,  0.987688,
-      0.109734,  0.993961, 0.062791,  0.998027, 0.015707,  0.999877,
-      -0.031411, 0.999507, -0.078459, 0.996917, -0.125333, 0.992115,
-      -0.171929, 0.985109, -0.218143, 0.975917, -0.263873, 0.964557,
-      -0.309017, 0.951057, -0.353475, 0.935444, -0.397148, 0.917755,
-      -0.439939, 0.898028, -0.481754, 0.876307, -0.522499, 0.852640,
-      -0.562083, 0.827081, -0.600420, 0.799685, -0.637424, 0.770513,
-      -0.673013, 0.739631, 0.000000};
-  Value wa0Tensor = builder.create<arith::ConstantOp>(
-      loc, DenseFPElementsAttr::get(RankedTensorType::get({297}, f64Ty),
-                                    ArrayRef<double>(tw0Vec)));
-  Value wa0 = builder.create<bufferization::ToMemrefOp>(
-      loc, MemRefType::get({297}, f64Ty), wa0Tensor);
+  opBuilder.create<memref::StoreOp>(loc, a, array, target2);
+  opBuilder.create<memref::StoreOp>(loc, b, array, target1);
+}
 
-  std::vector<double> tw1Vec{
-      0.998027,  0.062791,  0.992115, 0.125333,  0.982287, 0.187381,  0.968583,
-      0.248690,  0.951057,  0.309017, 0.929776,  0.368125, 0.904827,  0.425779,
-      0.876307,  0.481754,  0.844328, 0.535827,  0.809017, 0.587785,  0.770513,
-      0.637424,  0.728969,  0.684547, 0.992115,  0.125333, 0.968583,  0.248690,
-      0.929776,  0.368125,  0.876307, 0.481754,  0.809017, 0.587785,  0.728969,
-      0.684547,  0.637424,  0.770513, 0.535827,  0.844328, 0.425779,  0.904827,
-      0.309017,  0.951057,  0.187381, 0.982287,  0.062791, 0.998027,  0.982287,
-      0.187381,  0.929776,  0.368125, 0.844328,  0.535827, 0.728969,  0.684547,
-      0.587785,  0.809017,  0.425779, 0.904827,  0.248690, 0.968583,  0.062791,
-      0.998027,  -0.125333, 0.992115, -0.309017, 0.951057, -0.481754, 0.876307,
-      -0.637424, 0.770513};
-  Value wa1Tensor = builder.create<arith::ConstantOp>(
-      loc, DenseFPElementsAttr::get(RankedTensorType::get({72}, f64Ty),
-                                    ArrayRef<double>(tw1Vec)));
-  Value wa1 = builder.create<bufferization::ToMemrefOp>(
-      loc, MemRefType::get({72}, f64Ty), wa1Tensor);
+// factorize the input length ans store factors in Rfftp_fctdata_fct
+Value rfftp_factorize(OpBuilder &opBuilder, Location loc,
+                      Value Rfftp_fctdata_fct, Value Rfftp_fctdata_tw,
+                      Value Rfftp_fctdata_tws, Value Rfftp_plan_length,
+                      Value Rfftp_plan_nfct, Value Rfftp_plan_mem) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // TODO: remove the following values?
+  // Value c_neg1 = opBuilder.create<ConstantIndexOp>(loc, -1);
+  // Value NFCT = opBuilder.create<ConstantIndexOp>(loc, 25);
 
-  std::vector<double> tw2Vec{0.968583, 0.248690, 0.876307,  0.481754,
-                             0.876307, 0.481754, 0.535827,  0.844328,
-                             0.728969, 0.684547, 0.062791,  0.998027,
-                             0.535827, 0.844328, -0.425779, 0.904827};
-  Value wa2Tensor = builder.create<arith::ConstantOp>(
-      loc, DenseFPElementsAttr::get(RankedTensorType::get({16}, f64Ty),
-                                    ArrayRef<double>(tw2Vec)));
-  Value wa2 = builder.create<bufferization::ToMemrefOp>(
-      loc, MemRefType::get({16}, f64Ty), wa2Tensor);
+  // FloatType f64Ty = opBuilder.getF64Type();
+  IndexType indexTy = opBuilder.getIndexType();
 
-  Value c16 = builder.create<ConstantIndexOp>(loc, 16);
-  Value c25 = builder.create<ConstantIndexOp>(loc, 25);
-  Value c80 = builder.create<ConstantIndexOp>(loc, 80);
-  Value c100 = builder.create<ConstantIndexOp>(loc, 100);
+  Value length =
+      opBuilder.create<memref::AllocOp>(loc, MemRefType::get(1, indexTy));
+  Value length_1 = opBuilder.create<memref::LoadOp>(loc, Rfftp_plan_length, c0);
+  opBuilder.create<memref::StoreOp>(loc, length_1, length, c0);
 
-  radf5(builder, loc, bufferMem, ch, wa2, c1, c80, c0, c1, c2, c3, c4);
-  radf5(builder, loc, ch, bufferMem, wa2, c5, c16, c0, c1, c2, c3, c4);
-  radf4(builder, loc, bufferMem, ch, wa1, c25, c4, c0, c1, c2, c3);
-  radf4(builder, loc, ch, bufferMem, wa0, c100, c1, c0, c1, c2, c3);
+  Value nfct =
+      opBuilder.create<memref::AllocOp>(loc, MemRefType::get(1, indexTy));
+
+  opBuilder.create<memref::StoreOp>(loc, c0, nfct, c0);
+
+  opBuilder.create<scf::WhileOp>(
+      loc, TypeRange{indexTy}, ValueRange{length_1},
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value length_while = args[0];
+
+        Value length_mod_4 =
+            builder.create<arith::RemSIOp>(loc, length_while, c4);
+        Value condition = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::eq, length_mod_4, c0);
+        builder.create<scf::ConditionOp>(loc, condition,
+                                         ValueRange{length_while});
+      },
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value length_while = args[0];
+
+        Value currnet_nfct = builder.create<memref::LoadOp>(loc, nfct, c0);
+        builder.create<memref::StoreOp>(loc, c4, Rfftp_fctdata_fct,
+                                        currnet_nfct);
+        index_increment(builder, loc, nfct);
+        Value length_next =
+            builder.create<arith::ShRSIOp>(loc, length_while, c2);
+        builder.create<memref::StoreOp>(loc, length_next, length, c0);
+
+        builder.create<scf::YieldOp>(loc, std::vector<Value>{length_next});
+      });
+
+  Value length_if = opBuilder.create<memref::LoadOp>(loc, length, c0);
+  Value length_if_mod_2 = opBuilder.create<arith::RemSIOp>(loc, length_if, c2);
+  Value condition = opBuilder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::eq, length_if_mod_2, c0);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition, [&](OpBuilder &builder, Location loc) {
+        Value length_next = builder.create<arith::ShRSIOp>(loc, length_if, c1);
+        builder.create<memref::StoreOp>(loc, length_next, length, c0);
+
+        Value currnet_nfct = builder.create<memref::LoadOp>(loc, nfct, c0);
+        builder.create<memref::StoreOp>(loc, c2, Rfftp_fctdata_fct,
+                                        currnet_nfct);
+        index_increment(builder, loc, nfct);
+
+        Value currnet_nfct_1 = builder.create<memref::LoadOp>(loc, nfct, c0);
+        Value nfctm1 = builder.create<arith::SubIOp>(loc, currnet_nfct_1, c1);
+        index_SWAP(builder, loc, Rfftp_fctdata_fct, nfctm1, c0);
+
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  // TODO: remove type1 and type2?
+  // TypeRange type1 = TypeRange{f64Ty};
+  // TypeRange type2 = TypeRange{indexTy};
+
+  Value maxl =
+      opBuilder.create<memref::AllocOp>(loc, MemRefType::get(1, indexTy));
+  Value current_length2 = opBuilder.create<memref::LoadOp>(loc, length, c0);
+  Value current_length2_i32 = opBuilder.create<arith::IndexCastOp>(
+      loc, opBuilder.getI32Type(), current_length2);
+  Value length_f64 = opBuilder.create<arith::SIToFPOp>(
+      loc, opBuilder.getF64Type(), current_length2_i32);
+  Value sqrt_length = opBuilder.create<math::SqrtOp>(loc, length_f64);
+  Value maxl_index = opBuilder.create<arith::FPToSIOp>(
+      loc, opBuilder.getI32Type(), sqrt_length);
+  Value maxl_index_index = opBuilder.create<arith::IndexCastOp>(
+      loc, opBuilder.getIndexType(), maxl_index);
+  Value maxl_final = opBuilder.create<arith::AddIOp>(loc, maxl_index_index, c1);
+  opBuilder.create<memref::StoreOp>(loc, maxl_final, maxl, c0);
+
+  opBuilder.create<scf::WhileOp>(
+      loc, TypeRange{indexTy}, ValueRange{c3},
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value divisor = args[0];
+        Value length_while = builder.create<memref::LoadOp>(loc, length, c0);
+        Value current_maxl = builder.create<memref::LoadOp>(loc, maxl, c0);
+
+        Value condition1 = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::sgt, length_while, c1);
+        Value condition2 = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::slt, divisor, current_maxl);
+        Value and_cond =
+            builder.create<arith::AndIOp>(loc, condition1, condition2);
+        builder.create<scf::ConditionOp>(loc, and_cond, ValueRange{divisor});
+      },
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value divisor = args[0];
+
+        Value length_while = builder.create<memref::LoadOp>(loc, length, c0);
+        Value length_mod_divisor =
+            builder.create<arith::RemSIOp>(loc, length_while, divisor);
+        Value condition1 = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::eq, length_mod_divisor, c0);
+        builder.create<scf::IfOp>(
+            loc, condition1, [&](OpBuilder &b, Location loc) {
+              b.create<scf::WhileOp>(
+                  loc, TypeRange{indexTy}, ValueRange{c1},
+                  [&](OpBuilder &b2, Location loc, ValueRange args) {
+                    Value x = args[0];
+
+                    Value length_while_1 =
+                        b2.create<memref::LoadOp>(loc, length, c0);
+                    Value length_mod_divisor_1 =
+                        b2.create<arith::RemSIOp>(loc, length_while_1, divisor);
+
+                    Value condition2 =
+                        b2.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                                 length_mod_divisor_1, c0);
+                    b2.create<scf::ConditionOp>(loc, condition2, ValueRange{x});
+                  },
+                  [&](OpBuilder &b2, Location loc, ValueRange args) {
+                    Value x = args[0];
+
+                    Value currnet_nfct =
+                        b2.create<memref::LoadOp>(loc, nfct, c0);
+                    b2.create<memref::StoreOp>(loc, divisor, Rfftp_fctdata_fct,
+                                               currnet_nfct);
+                    index_increment(b2, loc, nfct);
+
+                    Value length_while_1 =
+                        b2.create<memref::LoadOp>(loc, length, c0);
+                    Value length_new =
+                        b2.create<arith::DivSIOp>(loc, length_while_1, divisor);
+                    b2.create<memref::StoreOp>(loc, length_new, length, c0);
+
+                    b2.create<scf::YieldOp>(loc, std::vector<Value>{x});
+                  });
+
+              Value current_length2_1 =
+                  b.create<memref::LoadOp>(loc, length, c0);
+              Value currnet_length2_i32_1 = b.create<arith::IndexCastOp>(
+                  loc, opBuilder.getI32Type(), current_length2_1);
+              Value length_f64_1 = b.create<arith::SIToFPOp>(
+                  loc, opBuilder.getF64Type(), currnet_length2_i32_1);
+              Value sqrt_length_1 = b.create<math::SqrtOp>(loc, length_f64_1);
+              Value maxl_index_1 =
+                  b.create<arith::FPToSIOp>(loc, b.getI32Type(), sqrt_length_1);
+              Value maxl_index_index_1 = b.create<arith::IndexCastOp>(
+                  loc, opBuilder.getIndexType(), maxl_index_1);
+              Value maxl_final_1 =
+                  b.create<arith::AddIOp>(loc, maxl_index_index_1, c1);
+              b.create<memref::StoreOp>(loc, maxl_final_1, maxl, c0);
+
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+
+        Value divisor_next = builder.create<arith::AddIOp>(loc, divisor, c2);
+        builder.create<scf::YieldOp>(loc, std::vector<Value>{divisor_next});
+      });
+
+  Value current_length1 = opBuilder.create<memref::LoadOp>(loc, length, c0);
+  Value condition1 = opBuilder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::sgt, current_length1, c1);
+  opBuilder.create<scf::IfOp>(
+      loc, condition1, [&](OpBuilder &builder, Location loc) {
+        Value current_nfct = builder.create<memref::LoadOp>(loc, nfct, c0);
+        builder.create<memref::StoreOp>(loc, current_length1, Rfftp_fctdata_fct,
+                                        current_nfct);
+        index_increment(builder, loc, nfct);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  Value current_nfct1 = opBuilder.create<memref::LoadOp>(loc, nfct, c0);
+  opBuilder.create<memref::StoreOp>(loc, current_nfct1, Rfftp_plan_nfct, c0);
+
+  return c0;
+}
+
+Value index_to_f64(OpBuilder &opBuilder, Location loc, Value n) {
+  // TODO: remove the following values?
+  // TypeRange type = TypeRange{opBuilder.getF64Type()};
+  Value n_i32 =
+      opBuilder.create<arith::IndexCastOp>(loc, opBuilder.getI32Type(), n);
+  Value n_f64 =
+      opBuilder.create<arith::SIToFPOp>(loc, opBuilder.getF64Type(), n_i32);
+  return n_f64;
+}
+
+Value f64_to_index(OpBuilder &opBuilder, Location loc, Value n_f64) {
+  // TODO: remove type?
+  // TypeRange type = TypeRange{opBuilder.getI32Type()};
+  Value n_i32 =
+      opBuilder.create<arith::FPToSIOp>(loc, opBuilder.getI32Type(), n_f64);
+  Value n_index = opBuilder.create<arith::IndexCastOp>(
+      loc, opBuilder.getIndexType(), n_i32);
+  return n_index;
+}
+
+void my_sincosm1pi(OpBuilder &opBuilder, Location loc, Value a, Value res,
+                   Value bias) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+
+  FloatType f64Ty = opBuilder.getF64Type();
+
+  FailureOr<StridedLayoutAttr> computelayout =
+      StridedLayoutAttr::get(opBuilder.getContext(),
+                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  MemRefType resultType =
+      MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
+
+  // memref<?xf64, strided<[1], offset: ?>>
+
+  Value res_raw = opBuilder.create<memref::SubViewOp>(
+      loc, resultType, res, SmallVector<OpFoldResult>{bias},
+      SmallVector<OpFoldResult>{c2}, SmallVector<OpFoldResult>{c1});
+
+  Value s = opBuilder.create<arith::MulFOp>(loc, a, a);
+
+  Value r1 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(-1.0369917389758117e-4)), f64Ty);
+  Value r2 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(1.9294935641298806e-3)), f64Ty);
+  Value r3 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(-2.5806887942825395e-2)), f64Ty);
+  Value r4 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(2.3533063028328211e-1)), f64Ty);
+  Value r5 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(-1.3352627688538006e+0)), f64Ty);
+  Value r6 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(4.0587121264167623e+0)), f64Ty);
+  Value r7 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(-4.9348022005446790e+0)), f64Ty);
+
+  Value fma1 = opBuilder.create<math::FmaOp>(loc, r1, s, r2);
+  Value fma2 = opBuilder.create<math::FmaOp>(loc, fma1, s, r3);
+  Value fma3 = opBuilder.create<math::FmaOp>(loc, fma2, s, r4);
+  Value fma4 = opBuilder.create<math::FmaOp>(loc, fma3, s, r5);
+  Value fma5 = opBuilder.create<math::FmaOp>(loc, fma4, s, r6);
+  Value fma6 = opBuilder.create<math::FmaOp>(loc, fma5, s, r7);
+
+  Value c = opBuilder.create<arith::MulFOp>(loc, fma6, s);
+
+  Value r8 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(4.6151442520157035e-4)), f64Ty);
+  Value r9 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(-7.3700183130883555e-3)), f64Ty);
+  Value r10 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(8.2145868949323936e-2)), f64Ty);
+  Value r11 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(-5.9926452893214921e-1)), f64Ty);
+  Value r12 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(2.5501640398732688e+0)), f64Ty);
+  Value r13 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(-5.1677127800499516e+0)), f64Ty);
+
+  Value fma7 = opBuilder.create<math::FmaOp>(loc, r8, s, r9);
+  Value fma8 = opBuilder.create<math::FmaOp>(loc, fma7, s, r10);
+  Value fma9 = opBuilder.create<math::FmaOp>(loc, fma8, s, r11);
+  Value fma10 = opBuilder.create<math::FmaOp>(loc, fma9, s, r12);
+  Value fma11 = opBuilder.create<math::FmaOp>(loc, fma10, s, r13);
+
+  Value s_new = opBuilder.create<arith::MulFOp>(loc, s, a);
+  Value r = opBuilder.create<arith::MulFOp>(loc, fma11, s_new);
+
+  Value pi = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(3.1415926535897931e+0)), f64Ty);
+  Value s_final = opBuilder.create<math::FmaOp>(loc, a, pi, r);
+
+  opBuilder.create<memref::StoreOp>(loc, c, res_raw, c0);
+  opBuilder.create<memref::StoreOp>(loc, s_final, res_raw, c1);
 
   return;
+}
+
+void calc_first_octant_extend2(OpBuilder &opBuilder, Location loc, Value den,
+                               Value res, Value bias) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // TODO: remove c5 and c50?
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // Value c50 = opBuilder.create<ConstantIndexOp>(loc, 50);
+
+  Value den_plus_4 = opBuilder.create<arith::AddIOp>(loc, den, c4);
+  Value n = opBuilder.create<arith::ShRUIOp>(loc, den_plus_4, c3);
+
+  Value size = opBuilder.create<memref::DimOp>(loc, res, c0);
+  Value remaining_size = opBuilder.create<arith::SubIOp>(loc, size, bias);
+
+  FloatType f64Ty = opBuilder.getF64Type();
+
+  FailureOr<StridedLayoutAttr> computelayout =
+      StridedLayoutAttr::get(opBuilder.getContext(),
+                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  MemRefType resultType =
+      MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
+
+  // memref<?xf64, strided<[1], offset: ?>>
+
+  Value res_raw = opBuilder.create<memref::SubViewOp>(
+      loc, resultType, res, SmallVector<OpFoldResult>{bias},
+      SmallVector<OpFoldResult>{remaining_size}, SmallVector<OpFoldResult>{c1});
+
+  Value f2 =
+      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(2.0)), f64Ty);
+  Value f1 =
+      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+  // TODO: remove f0?
+  // Value f0 =
+  //     opBuilder.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+
+  Value n_f64 = index_to_f64(opBuilder, loc, n);
+  Value l1_f64 = opBuilder.create<math::SqrtOp>(loc, n_f64);
+  Value l1 = f64_to_index(opBuilder, loc, l1_f64);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c1, l1, c1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, Value i, ValueRange iargs) {
+        Value i_f64 = index_to_f64(builder, loc, i);
+        Value den_f64 = index_to_f64(builder, loc, den);
+        Value arg = builder.create<arith::DivFOp>(loc, i_f64, den_f64);
+        Value arg_scaled = builder.create<arith::MulFOp>(loc, arg, f2);
+
+        Value im2 = builder.create<arith::MulIOp>(loc, i, c2);
+        Value im2_bias = builder.create<arith::AddIOp>(loc, im2, bias);
+
+        my_sincosm1pi(builder, loc, arg_scaled, res, im2_bias);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  Value start_start = opBuilder.create<arith::AddIOp>(loc, l1, c0);
+
+  opBuilder.create<scf::ForOp>(
+      loc, start_start, n, l1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, Value start_loop,
+          ValueRange start_loop_args) {
+        Value start_f64 = index_to_f64(builder, loc, start_loop);
+        Value den_f64 = index_to_f64(builder, loc, den);
+        Value arg = builder.create<arith::DivFOp>(loc, start_f64, den_f64);
+        Value arg_scaled = builder.create<arith::MulFOp>(loc, arg, f2);
+
+        Value cs =
+            builder.create<memref::AllocOp>(loc, MemRefType::get(2, f64Ty));
+        my_sincosm1pi(builder, loc, arg_scaled, cs, c0);
+
+        Value cs0 = builder.create<memref::LoadOp>(loc, cs, c0);
+        Value cs1 = builder.create<memref::LoadOp>(loc, cs, c1);
+
+        Value cs0_plus_1 = builder.create<arith::AddFOp>(loc, cs0, f1);
+
+        Value start_2 = builder.create<arith::MulIOp>(loc, start_loop, c2);
+        builder.create<memref::StoreOp>(loc, cs0_plus_1, res_raw, start_2);
+        Value start_2_plus_1 = builder.create<arith::AddIOp>(loc, start_2, c1);
+        builder.create<memref::StoreOp>(loc, cs1, res_raw, start_2_plus_1);
+
+        Value n_minus_start = builder.create<arith::SubIOp>(loc, n, start_loop);
+        Value end_1 = builder.create<arith::AddIOp>(loc, l1, c0);
+        Value sum = builder.create<arith::AddIOp>(loc, start_loop, end_1);
+        Value condition = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::sgt, sum, n);
+        Value end = builder.create<arith::SelectOp>(loc, condition,
+                                                    n_minus_start, end_1);
+
+        builder.create<scf::ForOp>(
+            loc, c1, end, c1, std::nullopt,
+            [&](OpBuilder &b, Location loc, Value i, ValueRange i_args) {
+              Value i_2 = b.create<arith::MulIOp>(loc, i, c2);
+              Value csx0 = b.create<memref::LoadOp>(loc, res_raw, i_2);
+              Value i_2_plus_1 = b.create<arith::AddIOp>(loc, i_2, c1);
+              Value csx1 = b.create<memref::LoadOp>(loc, res_raw, i_2_plus_1);
+
+              Value tmp1 = b.create<arith::MulFOp>(loc, cs0, csx0);
+              Value tmp2 = b.create<arith::MulFOp>(loc, cs1, csx1);
+              Value tmp3 = b.create<arith::SubFOp>(loc, tmp1, tmp2);
+              Value tmp4 = b.create<arith::AddFOp>(loc, tmp3, cs0);
+              Value tmp5 = b.create<arith::AddFOp>(loc, tmp4, csx0);
+              Value res_real = b.create<arith::AddFOp>(loc, tmp5, f1);
+
+              Value tmp6 = b.create<arith::MulFOp>(loc, cs0, csx1);
+              Value tmp7 = b.create<arith::MulFOp>(loc, cs1, csx0);
+              Value tmp8 = b.create<arith::AddFOp>(loc, tmp6, tmp7);
+              Value tmp9 = b.create<arith::AddFOp>(loc, tmp8, cs1);
+              Value res_imag = b.create<arith::AddFOp>(loc, tmp9, csx1);
+
+              Value start_plus_i = b.create<arith::AddIOp>(loc, start_loop, i);
+              Value start_plus_i_2 =
+                  b.create<arith::MulIOp>(loc, start_plus_i, c2);
+              Value start_plus_i_2_plus_1 =
+                  b.create<arith::AddIOp>(loc, start_plus_i_2, c1);
+              b.create<memref::StoreOp>(loc, res_real, res_raw, start_plus_i_2);
+              b.create<memref::StoreOp>(loc, res_imag, res_raw,
+                                        start_plus_i_2_plus_1);
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+
+        builder.create<memref::DeallocOp>(loc, cs);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  opBuilder.create<scf::ForOp>(
+      loc, c1, l1, c1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, Value i, ValueRange i_args) {
+        Value i_2 = builder.create<arith::MulIOp>(loc, i, c2);
+        Value val = builder.create<memref::LoadOp>(loc, res_raw, i_2);
+        Value val_plus_1 = builder.create<arith::AddFOp>(loc, val, f1);
+        builder.create<memref::StoreOp>(loc, val_plus_1, res_raw, i_2);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  return;
+}
+
+void calc_first_octant_extend1(OpBuilder &opBuilder, Location loc, Value den,
+                               Value res, Value bias) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  // TODO: remove c2 and c5?
+  // Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+
+  Value den_plus_4 = opBuilder.create<arith::AddIOp>(loc, den, c4);
+  Value n = opBuilder.create<arith::ShRUIOp>(loc, den_plus_4, c3);
+
+  Value size = opBuilder.create<memref::DimOp>(loc, res, c0);
+  Value remaining_size = opBuilder.create<arith::SubIOp>(loc, size, bias);
+
+  FloatType f64Ty = opBuilder.getF64Type();
+
+  FailureOr<StridedLayoutAttr> computelayout =
+      StridedLayoutAttr::get(opBuilder.getContext(),
+                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  MemRefType resultType =
+      MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
+
+  // memref<?xf64, strided<[1], offset: ?>>
+
+  Value res_raw = opBuilder.create<memref::SubViewOp>(
+      loc, resultType, res, SmallVector<OpFoldResult>{bias},
+      SmallVector<OpFoldResult>{remaining_size}, SmallVector<OpFoldResult>{c1});
+
+  Value f1 =
+      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+  Value f0 =
+      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+
+  opBuilder.create<memref::StoreOp>(loc, f1, res_raw, c0);
+  opBuilder.create<memref::StoreOp>(loc, f0, res_raw, c1);
+
+  Value condition =
+      opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, n, c1);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition, [&](OpBuilder &builder, Location loc) {
+        calc_first_octant_extend2(builder, loc, den, res, bias);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+}
+
+void calc_first_octant(OpBuilder &opBuilder, Location loc, Value den, Value res,
+                       Value bias) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  // TODO: remove c1, c2, and c5?
+  // Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  // Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+
+  Value den_plus_4 = opBuilder.create<arith::AddIOp>(loc, den, c4);
+  Value n = opBuilder.create<arith::ShRUIOp>(loc, den_plus_4, c3);
+
+  Value condition =
+      opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, n, c0);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition, [&](OpBuilder &builder, Location loc) {
+        calc_first_octant_extend1(builder, loc, den, res, bias);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+}
+
+void calc_first_quadrant(OpBuilder &opBuilder, Location loc, Value n,
+                         Value res) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // TODO: remove c4 and c5?
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+
+  Value size = opBuilder.create<memref::DimOp>(loc, res, c0);
+  Value remaining_size = opBuilder.create<arith::SubIOp>(loc, size, n);
+
+  FloatType f64Ty = opBuilder.getF64Type();
+
+  FailureOr<StridedLayoutAttr> computelayout =
+      StridedLayoutAttr::get(opBuilder.getContext(),
+                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  MemRefType resultType =
+      MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
+
+  // memref<?xf64, strided<[1], offset: ?>>
+
+  Value p_raw = opBuilder.create<memref::SubViewOp>(
+      loc, resultType, res, SmallVector<OpFoldResult>{n},
+      SmallVector<OpFoldResult>{remaining_size}, SmallVector<OpFoldResult>{c1});
+
+  Value n_times_2 = opBuilder.create<arith::ShLIOp>(loc, n, c1);
+  calc_first_octant(opBuilder, loc, n_times_2, res, n);
+
+  Value n_plus_2 = opBuilder.create<arith::AddIOp>(loc, n, c2);
+  Value ndone = opBuilder.create<arith::ShRUIOp>(loc, n_plus_2, c2);
+  Value ndonem1 = opBuilder.create<arith::SubIOp>(loc, ndone, c1);
+  Value ndone2 = opBuilder.create<arith::MulIOp>(loc, ndone, c2);
+  Value idx2_start = opBuilder.create<arith::SubIOp>(loc, ndone2, c2);
+
+  Value i_start = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value idx1_start = opBuilder.create<ConstantIndexOp>(loc, 0);
+
+  auto loop = opBuilder.create<scf::ForOp>(
+      loc, i_start, ndonem1, c2, ValueRange{i_start, idx1_start, idx2_start},
+      [&](OpBuilder &builder, Location loc, Value i_loop,
+          ValueRange i_loop_args) {
+        Value i_loop1 = i_loop_args[0];
+        Value idx1 = i_loop_args[1];
+        Value idx2 = i_loop_args[2];
+
+        Value p_2i = builder.create<arith::MulIOp>(loc, i_loop1, c2);
+        Value p_val = builder.create<memref::LoadOp>(loc, p_raw, p_2i);
+        builder.create<memref::StoreOp>(loc, p_val, res, idx1);
+
+        Value p_2i_plus_1 = builder.create<arith::AddIOp>(loc, p_2i, c1);
+        Value p_val_1 = builder.create<memref::LoadOp>(loc, p_raw, p_2i_plus_1);
+        Value idx1_plus_1 = builder.create<arith::AddIOp>(loc, idx1, c1);
+        builder.create<memref::StoreOp>(loc, p_val_1, res, idx1_plus_1);
+
+        Value p_2i_plus_3 = builder.create<arith::AddIOp>(loc, p_2i, c3);
+        Value p_val_3 = builder.create<memref::LoadOp>(loc, p_raw, p_2i_plus_3);
+        builder.create<memref::StoreOp>(loc, p_val_3, res, idx2);
+
+        Value p_2i_plus_2 = builder.create<arith::AddIOp>(loc, p_2i, c2);
+        Value p_val_2 = builder.create<memref::LoadOp>(loc, p_raw, p_2i_plus_2);
+        Value idx2_plus_1 = builder.create<arith::AddIOp>(loc, idx2, c1);
+        builder.create<memref::StoreOp>(loc, p_val_2, res, idx2_plus_1);
+
+        Value i_loop1_next = builder.create<arith::AddIOp>(loc, i_loop1, c2);
+        Value idx1_next = builder.create<arith::AddIOp>(loc, idx1, c2);
+        Value idx2_next = builder.create<arith::SubIOp>(loc, idx2, c2);
+        builder.create<scf::YieldOp>(
+            loc, std::vector<Value>{i_loop1_next, idx1_next, idx2_next});
+      });
+
+  Value i_v = loop.getResults()[0];
+  Value idx1_v = loop.getResults()[1];
+  // TODO: remove idx2_v?
+  // Value idx2_v = loop.getResults()[2];
+
+  Value condition = opBuilder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::ne, i_v, ndone);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition, [&](OpBuilder &builder, Location loc) {
+        Value p_2i = builder.create<arith::MulIOp>(loc, i_v, c2);
+        Value p_val = builder.create<memref::LoadOp>(loc, p_raw, p_2i);
+        builder.create<memref::StoreOp>(loc, p_val, res, idx1_v);
+
+        Value p_2i_plus_1 = builder.create<arith::AddIOp>(loc, p_2i, c1);
+        Value p_val_1 = builder.create<memref::LoadOp>(loc, p_raw, p_2i_plus_1);
+        Value idx1_plus_1 = builder.create<arith::AddIOp>(loc, idx1_v, c1);
+        builder.create<memref::StoreOp>(loc, p_val_1, res, idx1_plus_1);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  return;
+}
+
+void calc_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // TODO: remove c5?
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+
+  IndexType indexTy = opBuilder.getIndexType();
+  FloatType f64Ty = opBuilder.getF64Type();
+
+  Value f0 =
+      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+  // TODO: remove f1?
+  // Value f1 =
+  //     opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+
+  Value n_plus_1 = opBuilder.create<arith::AddIOp>(loc, n, c1);
+  Value ndone = opBuilder.create<arith::ShRUIOp>(loc, n_plus_1, c1);
+
+  Value size = opBuilder.create<memref::DimOp>(loc, res, c0);
+  Value remaining_size = opBuilder.create<arith::SubIOp>(loc, size, n);
+  Value remaining_size_p1 =
+      opBuilder.create<arith::AddIOp>(loc, remaining_size, c1);
+
+  Value nm1 = opBuilder.create<arith::SubIOp>(loc, n, c1);
+
+  FailureOr<StridedLayoutAttr> computelayout =
+      StridedLayoutAttr::get(opBuilder.getContext(),
+                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  MemRefType resultType =
+      MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
+
+  // memref<?xf64, strided<[1], offset: ?>>
+
+  Value p_raw = opBuilder.create<memref::SubViewOp>(
+      loc, resultType, res, SmallVector<OpFoldResult>{nm1},
+      SmallVector<OpFoldResult>{remaining_size_p1},
+      SmallVector<OpFoldResult>{c1});
+
+  Value n_times_4 = opBuilder.create<arith::ShLIOp>(loc, n, c2);
+  calc_first_octant(opBuilder, loc, n_times_4, res, nm1);
+
+  Value i4_start = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value i_start = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value in = opBuilder.create<arith::AddIOp>(loc, n, c0);
+
+  auto loop = opBuilder.create<scf::WhileOp>(
+      loc, TypeRange{indexTy, indexTy}, ValueRange{i4_start, i_start},
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value i4 = args[0];
+        Value i = args[1];
+
+        Value in_minus_i4 = builder.create<arith::SubIOp>(loc, in, i4);
+        Value condition = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::sle, i4, in_minus_i4);
+        builder.create<scf::ConditionOp>(loc, condition, ValueRange{i4, i});
+      },
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value i4 = args[0];
+        Value i = args[1];
+
+        Value i4_2 = builder.create<arith::MulIOp>(loc, i4, c2);
+        Value i_2 = builder.create<arith::MulIOp>(loc, i, c2);
+        Value i4_2_p1 = builder.create<arith::AddIOp>(loc, i4_2, c1);
+        Value i_2_p1 = builder.create<arith::AddIOp>(loc, i_2, c1);
+
+        Value p_i4_2 = builder.create<memref::LoadOp>(loc, p_raw, i4_2);
+        Value p_i4_2_p1 = builder.create<memref::LoadOp>(loc, p_raw, i4_2_p1);
+
+        builder.create<memref::StoreOp>(loc, p_i4_2, res, i_2);
+        builder.create<memref::StoreOp>(loc, p_i4_2_p1, res, i_2_p1);
+
+        Value i4_next = builder.create<arith::AddIOp>(loc, i4, c4);
+        Value i_next = builder.create<arith::AddIOp>(loc, i, c1);
+        builder.create<scf::YieldOp>(loc, std::vector<Value>{i4_next, i_next});
+      });
+
+  Value final_i4_0 = loop.getResults()[0];
+  Value final_i_0 = loop.getResults()[1];
+
+  auto loop1 = opBuilder.create<scf::WhileOp>(
+      loc, TypeRange{indexTy, indexTy}, ValueRange{final_i4_0, final_i_0},
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value i4 = args[0];
+        Value i = args[1];
+
+        Value i4_minus_in = builder.create<arith::SubIOp>(loc, i4, in);
+        Value condition = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::sle, i4_minus_in, c0);
+        builder.create<scf::ConditionOp>(loc, condition, ValueRange{i4, i});
+      },
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value i4 = args[0];
+        Value i = args[1];
+
+        Value xm = builder.create<arith::SubIOp>(loc, in, i4);
+        Value xm_2 = builder.create<arith::MulIOp>(loc, xm, c2);
+        Value i_2 = builder.create<arith::MulIOp>(loc, i, c2);
+        Value xm_2_p1 = builder.create<arith::AddIOp>(loc, xm_2, c1);
+        Value i_2_p1 = builder.create<arith::AddIOp>(loc, i_2, c1);
+
+        Value p_xm_2_p1 = builder.create<memref::LoadOp>(loc, p_raw, xm_2_p1);
+        Value p_xm_2 = builder.create<memref::LoadOp>(loc, p_raw, xm_2);
+
+        builder.create<memref::StoreOp>(loc, p_xm_2_p1, res, i_2);
+        builder.create<memref::StoreOp>(loc, p_xm_2, res, i_2_p1);
+
+        Value i4_next = builder.create<arith::AddIOp>(loc, i4, c4);
+        Value i_next = builder.create<arith::AddIOp>(loc, i, c1);
+        builder.create<scf::YieldOp>(loc, std::vector<Value>{i4_next, i_next});
+      });
+
+  Value final_i4_1 = loop1.getResults()[0];
+  Value final_i_1 = loop1.getResults()[1];
+
+  auto loop2 = opBuilder.create<scf::WhileOp>(
+      loc, TypeRange{indexTy, indexTy}, ValueRange{final_i4_1, final_i_1},
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value i4 = args[0];
+        Value i = args[1];
+
+        Value in_3 = builder.create<arith::MulIOp>(loc, in, c3);
+        Value in_3_m_i4 = builder.create<arith::SubIOp>(loc, in_3, i4);
+        Value condition = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::sle, i4, in_3_m_i4);
+        builder.create<scf::ConditionOp>(loc, condition, ValueRange{i4, i});
+      },
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value i4 = args[0];
+        Value i = args[1];
+
+        Value xm = builder.create<arith::SubIOp>(loc, i4, in);
+        Value xm_2 = builder.create<arith::MulIOp>(loc, xm, c2);
+        Value i_2 = builder.create<arith::MulIOp>(loc, i, c2);
+        Value xm_2_p1 = builder.create<arith::AddIOp>(loc, xm_2, c1);
+        Value i_2_p1 = builder.create<arith::AddIOp>(loc, i_2, c1);
+
+        Value p_xm_2_p1 = builder.create<memref::LoadOp>(loc, p_raw, xm_2_p1);
+        Value p_xm_2 = builder.create<memref::LoadOp>(loc, p_raw, xm_2);
+
+        Value m_p_xm_2_p1 = builder.create<arith::SubFOp>(loc, f0, p_xm_2_p1);
+
+        builder.create<memref::StoreOp>(loc, m_p_xm_2_p1, res, i_2);
+        builder.create<memref::StoreOp>(loc, p_xm_2, res, i_2_p1);
+
+        Value i4_next = builder.create<arith::AddIOp>(loc, i4, c4);
+        Value i_next = builder.create<arith::AddIOp>(loc, i, c1);
+        builder.create<scf::YieldOp>(loc, std::vector<Value>{i4_next, i_next});
+      });
+
+  Value final_i4_2 = loop2.getResults()[0];
+  Value final_i_2 = loop2.getResults()[1];
+
+  opBuilder.create<scf::WhileOp>(
+      loc, TypeRange{indexTy, indexTy}, ValueRange{final_i4_2, final_i_2},
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value i4 = args[0];
+        Value i = args[1];
+
+        Value condition = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::slt, i, ndone);
+        builder.create<scf::ConditionOp>(loc, condition, ValueRange{i4, i});
+      },
+      [&](OpBuilder &builder, Location loc, ValueRange args) {
+        Value i4 = args[0];
+        Value i = args[1];
+
+        Value in_2 = builder.create<arith::MulIOp>(loc, in, c2);
+
+        Value xm = builder.create<arith::SubIOp>(loc, in_2, i4);
+        Value xm_2 = builder.create<arith::MulIOp>(loc, xm, c2);
+        Value i_2 = builder.create<arith::MulIOp>(loc, i, c2);
+        Value xm_2_p1 = builder.create<arith::AddIOp>(loc, xm_2, c1);
+        Value i_2_p1 = builder.create<arith::AddIOp>(loc, i_2, c1);
+
+        Value p_xm_2_p1 = builder.create<memref::LoadOp>(loc, p_raw, xm_2_p1);
+        Value p_xm_2 = builder.create<memref::LoadOp>(loc, p_raw, xm_2);
+
+        Value m_p_xm_2 = builder.create<arith::SubFOp>(loc, f0, p_xm_2);
+
+        builder.create<memref::StoreOp>(loc, m_p_xm_2, res, i_2);
+        builder.create<memref::StoreOp>(loc, p_xm_2_p1, res, i_2_p1);
+
+        Value i4_next = builder.create<arith::AddIOp>(loc, i4, c4);
+        Value i_next = builder.create<arith::AddIOp>(loc, i, c1);
+
+        builder.create<scf::YieldOp>(loc, std::vector<Value>{i4_next, i_next});
+      });
+
+  return;
+}
+
+void fill_first_quadrant(OpBuilder &opBuilder, Location loc, Value n,
+                         Value res) {
+
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // TODO: remove c3, c4, and c5?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  Value c8 = opBuilder.create<ConstantIndexOp>(loc, 8);
+
+  FloatType f64Ty = opBuilder.getF64Type();
+
+  Value hsqt2 = opBuilder.create<ConstantFloatOp>(
+      loc, APFloat(double(0.707106781186547524400844362104849)), f64Ty);
+
+  Value quart = opBuilder.create<arith::ShRUIOp>(loc, n, c2);
+  Value n_mod_8 = opBuilder.create<arith::RemUIOp>(loc, n, c8);
+
+  Value condition = opBuilder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::eq, n_mod_8, c0);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition, [&](OpBuilder &builder, Location loc) {
+        Value quart_plus_1 = builder.create<arith::AddIOp>(loc, quart, c1);
+        builder.create<memref::StoreOp>(loc, hsqt2, res, quart);
+        builder.create<memref::StoreOp>(loc, hsqt2, res, quart_plus_1);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  Value two_quart = opBuilder.create<arith::MulIOp>(loc, quart, c2);
+  Value two_quart_minus_2 = opBuilder.create<arith::SubIOp>(loc, two_quart, c2);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c2, quart, c2, ValueRange{two_quart_minus_2},
+      [&](OpBuilder &builder, Location loc, Value i, ValueRange i_args) {
+        Value j = i_args[0];
+
+        Value i_plus_1 = builder.create<arith::AddIOp>(loc, i, c1);
+        Value j_plus_1 = builder.create<arith::AddIOp>(loc, j, c1);
+
+        Value val_i = builder.create<memref::LoadOp>(loc, res, i);
+        Value val_i_plus_1 = builder.create<memref::LoadOp>(loc, res, i_plus_1);
+
+        builder.create<memref::StoreOp>(loc, val_i_plus_1, res, j);
+        builder.create<memref::StoreOp>(loc, val_i, res, j_plus_1);
+
+        Value j_next = builder.create<arith::SubIOp>(loc, j, c2);
+        builder.create<scf::YieldOp>(loc, j_next);
+      });
+
+  return;
+}
+
+void fill_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // TODO: remove c3 and c5?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+
+  FloatType f64Ty = opBuilder.getF64Type();
+  Value c_1 =
+      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(-1.0)), f64Ty);
+
+  Value half = opBuilder.create<arith::ShRUIOp>(loc, n, c1);
+  Value n_mod_4 = opBuilder.create<arith::RemUIOp>(loc, n, c4);
+
+  Value condition = opBuilder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::eq, n_mod_4, c0);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition,
+      [&](OpBuilder &builder, Location loc) {
+        builder.create<scf::ForOp>(
+            loc, c0, half, c2, std::nullopt,
+            [&](OpBuilder &b, Location loc, Value i, ValueRange i_args) {
+              Value i_plus_1 = b.create<arith::AddIOp>(loc, i, c1);
+              Value i_plus_half = b.create<arith::AddIOp>(loc, i, half);
+              Value i_plus_half_plus_1 =
+                  b.create<arith::AddIOp>(loc, i_plus_half, c1);
+
+              Value val_i = b.create<memref::LoadOp>(loc, res, i);
+              Value val_i_plus_1 = b.create<memref::LoadOp>(loc, res, i_plus_1);
+
+              Value neg_val_i_plus_1 =
+                  b.create<arith::MulFOp>(loc, val_i_plus_1, c_1);
+              b.create<memref::StoreOp>(loc, neg_val_i_plus_1, res,
+                                        i_plus_half);
+              b.create<memref::StoreOp>(loc, val_i, res, i_plus_half_plus_1);
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      },
+      [&](OpBuilder &builder, Location loc) {
+        Value two_half_minus_2 = builder.create<arith::SubIOp>(loc, half, c1);
+        Value two_half_minus_2_mul_2 =
+            builder.create<arith::MulIOp>(loc, two_half_minus_2, c2);
+
+        builder.create<scf::ForOp>(
+            loc, c2, half, c2, ValueRange{two_half_minus_2_mul_2},
+            [&](OpBuilder &b, Location loc, Value i, ValueRange i_args) {
+              Value j = i_args[0];
+              Value i_plus_1 = builder.create<arith::AddIOp>(loc, i, c1);
+              Value j_plus_1 = builder.create<arith::AddIOp>(loc, j, c1);
+              Value val_i = b.create<memref::LoadOp>(loc, res, i);
+              Value val_i_plus_1 = b.create<memref::LoadOp>(loc, res, i_plus_1);
+              Value neg_val_i = b.create<arith::MulFOp>(loc, val_i, c_1);
+              b.create<memref::StoreOp>(loc, neg_val_i, res, j);
+              b.create<memref::StoreOp>(loc, val_i_plus_1, res, j_plus_1);
+
+              Value j_next = builder.create<arith::SubIOp>(loc, j, c2);
+              b.create<scf::YieldOp>(loc, j_next);
+            });
+
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  return;
+}
+
+void sincos_2pibyn_half(OpBuilder &opBuilder, Location loc, Value n,
+                        Value res) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  // TODO: remove the following values?
+  // Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  // Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // Value c50 = opBuilder.create<ConstantIndexOp>(loc, 50);
+
+  Value n_mod_4 = opBuilder.create<arith::RemUIOp>(loc, n, c4);
+
+  Value condition = opBuilder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::eq, n_mod_4, c0);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition,
+      [&](OpBuilder &builder, Location loc) {
+        calc_first_octant(builder, loc, n, res, c0);
+
+        fill_first_quadrant(builder, loc, n, res);
+        fill_first_half(builder, loc, n, res);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      },
+      [&](OpBuilder &builder, Location loc) {
+        // TODO: remove the following values?
+        // Value n_mod_2 = builder.create<arith::RemUIOp>(loc, n, c2);
+        
+        // TODO: remove condition1?
+        // Value condition1 = builder.create<arith::CmpIOp>(
+        //     loc, arith::CmpIPredicate::eq, n_mod_2, c0);
+
+        opBuilder.create<scf::IfOp>(
+            loc, condition,
+            [&](OpBuilder &b, Location loc) {
+              calc_first_quadrant(b, loc, n, res);
+              fill_first_half(b, loc, n, res);
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            },
+            [&](OpBuilder &b, Location loc) {
+              calc_first_half(b, loc, n, res);
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+}
+
+// calcuate the twiddle factors for the input length
+Value rfftp_comp_twiddle(OpBuilder &opBuilder, Location loc, Value length,
+                         Value Rfftp_fctdata_fct, Value Rfftp_fctdata_tw,
+                         Value Rfftp_fctdata_tws, Value Rfftp_plan_length,
+                         Value Rfftp_plan_nfct, Value Rfftp_plan_mem) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  // TODO: remove the following values?
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // Value c50 = opBuilder.create<ConstantIndexOp>(loc, 50);
+
+  Value length_2 = opBuilder.create<arith::MulIOp>(loc, length, c2);
+  FloatType f64Ty = opBuilder.getF64Type();
+
+  Value twid = opBuilder.create<memref::AllocOp>(
+      loc, MemRefType::get(ShapedType::kDynamic, f64Ty),
+      /*dynamicOperands=*/length_2);
+
+  Value plan_nfct = opBuilder.create<memref::LoadOp>(loc, Rfftp_plan_nfct, c0);
+
+  sincos_2pibyn_half(opBuilder, loc, length, twid);
+
+  Value l1_start = opBuilder.create<ConstantIndexOp>(loc, 1);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c0, plan_nfct, c1, ValueRange{l1_start},
+      [&](OpBuilder &builder, Location loc, Value k, ValueRange k_args) {
+        Value l1 = k_args[0];
+
+        Value ip = builder.create<memref::LoadOp>(loc, Rfftp_fctdata_fct, k);
+
+        Value l1_m_ip = builder.create<arith::MulIOp>(loc, l1, ip);
+        Value ido = builder.create<arith::DivSIOp>(loc, length, l1_m_ip);
+        Value plan_nfct_m1 = builder.create<arith::SubIOp>(loc, plan_nfct, c1);
+
+        Value condition1 = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::slt, k, plan_nfct_m1);
+
+        builder.create<scf::IfOp>(
+            loc, condition1, [&](OpBuilder &b, Location loc) {
+              Value ido_m1 = b.create<arith::SubIOp>(loc, ido, c1);
+              Value ido_m1_d2 = b.create<arith::DivSIOp>(loc, ido_m1, c2);
+              Value ido_m1_d2_p1 = b.create<arith::AddIOp>(loc, ido_m1_d2, c1);
+
+              b.create<scf::ForOp>(
+                  loc, c1, ip, c1, std::nullopt,
+                  [&](OpBuilder &b2, Location loc, Value j, ValueRange j_args) {
+                    b2.create<scf::ForOp>(
+                        loc, c1, ido_m1_d2_p1, c1, std::nullopt,
+                        [&](OpBuilder &b3, Location loc, Value i,
+                            ValueRange i_args) {
+                          Value j2 = b3.create<arith::MulIOp>(loc, j, c2);
+                          Value j2_l1 = b3.create<arith::MulIOp>(loc, j2, l1);
+                          Value j2_l1_i =
+                              b3.create<arith::MulIOp>(loc, j2_l1, i);
+                          Value j2_l1_i_p1 =
+                              b3.create<arith::AddIOp>(loc, j2_l1_i, c1);
+
+                          Value j_m1 = b3.create<arith::SubIOp>(loc, j, c1);
+                          Value ido_m1_j_m1 =
+                              b3.create<arith::MulIOp>(loc, ido_m1, j_m1);
+
+                          Value i2 = b3.create<arith::MulIOp>(loc, i, c2);
+                          Value i2_m1 = b3.create<arith::SubIOp>(loc, i2, c1);
+                          Value i2_m2 = b3.create<arith::SubIOp>(loc, i2, c2);
+
+                          Value tw_a =
+                              b3.create<arith::AddIOp>(loc, ido_m1_j_m1, i2_m2);
+                          Value tw_b =
+                              b3.create<arith::AddIOp>(loc, ido_m1_j_m1, i2_m1);
+
+                          Value twid_a =
+                              b3.create<memref::LoadOp>(loc, twid, j2_l1_i);
+                          Value twid_b =
+                              b3.create<memref::LoadOp>(loc, twid, j2_l1_i_p1);
+
+                          Value fct_k = b3.create<memref::LoadOp>(
+                              loc, Rfftp_fctdata_tw, k);
+
+                          b3.create<memref::StoreOp>(loc, twid_a, fct_k, tw_a);
+                          b3.create<memref::StoreOp>(loc, twid_b, fct_k, tw_b);
+
+                          b3.create<scf::YieldOp>(loc, std::nullopt);
+                        });
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  });
+
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+
+        Value condition2 = builder.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::sgt, ip, c5);
+
+        builder.create<scf::IfOp>(
+            loc, condition2, [&](OpBuilder &b, Location loc) {
+              Value fct_k = b.create<memref::LoadOp>(loc, Rfftp_fctdata_tws, k);
+              Value c_f0 =
+                  b.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+              Value c_f1 =
+                  b.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+
+              b.create<memref::StoreOp>(loc, c_f1, fct_k, c0);
+              b.create<memref::StoreOp>(loc, c_f0, fct_k, c1);
+
+              Value ip_div_2 = b.create<arith::ShRSIOp>(loc, ip, c1);
+              Value ip_div_2_p1 = b.create<arith::AddIOp>(loc, ip_div_2, c1);
+
+              b.create<scf::ForOp>(
+                  loc, c1, ip_div_2_p1, c1, std::nullopt,
+                  [&](OpBuilder &b2, Location loc, Value i, ValueRange i_args) {
+                    Value i2 = b2.create<arith::MulIOp>(loc, i, c2);
+                    Value i2_p1 = b2.create<arith::AddIOp>(loc, i2, c1);
+                    Value ip_m_i = b2.create<arith::SubIOp>(loc, ip, i);
+                    Value ip_m_i_2 = b2.create<arith::MulIOp>(loc, ip_m_i, c2);
+                    Value ip_m_i_2_p1 =
+                        b2.create<arith::AddIOp>(loc, ip_m_i_2, c1);
+
+                    Value length_div_ip =
+                        b2.create<arith::DivSIOp>(loc, length, ip);
+                    Value i2_length_div_ip =
+                        b2.create<arith::MulIOp>(loc, i2, length_div_ip);
+                    Value i2_length_div_ip_p1 =
+                        b2.create<arith::AddIOp>(loc, i2_length_div_ip, c1);
+
+                    Value twid_a =
+                        b2.create<memref::LoadOp>(loc, twid, i2_length_div_ip);
+                    Value twid_b = b2.create<memref::LoadOp>(
+                        loc, twid, i2_length_div_ip_p1);
+                    Value twid_c = b2.create<arith::AddFOp>(loc, c_f0, twid_a);
+                    Value twid_d = b2.create<arith::SubFOp>(loc, c_f0, twid_b);
+
+                    b2.create<memref::StoreOp>(loc, twid_a, fct_k, i2);
+                    b2.create<memref::StoreOp>(loc, twid_b, fct_k, i2_p1);
+                    b2.create<memref::StoreOp>(loc, twid_c, fct_k, ip_m_i_2);
+                    b2.create<memref::StoreOp>(loc, twid_d, fct_k, ip_m_i_2_p1);
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  });
+
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+
+        Value l1_next = builder.create<arith::MulIOp>(loc, l1, ip);
+        builder.create<scf::YieldOp>(loc, l1_next);
+      });
+
+  opBuilder.create<memref::DeallocOp>(loc, twid);
+
+  return c0;
+}
+
+// calculate the twiddle factors and generates the computation order of
+// butterfly operators
+std::vector<Value> make_rfftp_plan(OpBuilder &opBuilder, Location loc,
+                                   Value length) {
+
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // TODO: remove the following values?
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+
+  int64_t NFCT_num = 25;
+  Value NFCT = opBuilder.create<ConstantIndexOp>(loc, NFCT_num);
+
+  FloatType f64Ty = opBuilder.getF64Type();
+  IndexType indexTy = opBuilder.getIndexType();
+
+  Value length_2 = opBuilder.create<arith::MulIOp>(loc, length, c2);
+
+  MemRefType type = MemRefType::get(NFCT_num, indexTy);
+  //   MemRefType type1 = MemRefType::get(length_num2, f64Ty);
+  MemRefType type1 = MemRefType::get(ShapedType::kDynamic, f64Ty);
+  MemRefType type2 = MemRefType::get(NFCT_num, type1);
+  MemRefType type3 = MemRefType::get(1, indexTy);
+  MemRefType type4 = MemRefType::get(1, f64Ty);
+
+  Value Rfftp_fctdata_fct = opBuilder.create<memref::AllocOp>(loc, type);
+  Value Rfftp_fctdata_tw = opBuilder.create<memref::AllocOp>(loc, type2);
+  Value Rfftp_fctdata_tws = opBuilder.create<memref::AllocOp>(loc, type2);
+  Value Rfftp_plan_length = opBuilder.create<memref::AllocOp>(loc, type3);
+  Value Rfftp_plan_nfct = opBuilder.create<memref::AllocOp>(loc, type3);
+  Value Rfftp_plan_mem = opBuilder.create<memref::AllocOp>(loc, type4);
+
+  opBuilder.create<memref::StoreOp>(loc, length, Rfftp_plan_length, c0);
+  opBuilder.create<memref::StoreOp>(loc, c0, Rfftp_plan_nfct, c0);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c0, NFCT, c1, std::nullopt,
+      [&](OpBuilder &builder, Location loc, Value i, ValueRange iargs) {
+        builder.create<memref::StoreOp>(loc, c0, Rfftp_fctdata_fct, i);
+
+        Value tw_i = builder.create<memref::AllocOp>(
+            loc, type1, /*dynamicOperands=*/length_2);
+        builder.create<memref::StoreOp>(loc, tw_i, Rfftp_fctdata_tw, i);
+        Value tws_i = builder.create<memref::AllocOp>(
+            loc, type1, /*dynamicOperands=*/length_2);
+        builder.create<memref::StoreOp>(loc, tws_i, Rfftp_fctdata_tws, i);
+
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  Value condition = opBuilder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::ne, length, c1);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition, [&](OpBuilder &builder, Location loc) {
+        // TODO: remove xxx?
+        // Value xxx = builder.create<ConstantIndexOp>(loc, 1);
+        rfftp_factorize(builder, loc, Rfftp_fctdata_fct, Rfftp_fctdata_tw,
+                        Rfftp_fctdata_tws, Rfftp_plan_length, Rfftp_plan_nfct,
+                        Rfftp_plan_mem);
+        rfftp_comp_twiddle(builder, loc, length, Rfftp_fctdata_fct,
+                           Rfftp_fctdata_tw, Rfftp_fctdata_tws,
+                           Rfftp_plan_length, Rfftp_plan_nfct, Rfftp_plan_mem);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+
+  return {Rfftp_fctdata_fct, Rfftp_fctdata_tw, Rfftp_fctdata_tws,
+          Rfftp_plan_length, Rfftp_plan_nfct,  Rfftp_plan_mem};
+}
+
+void memref_SWAP(OpBuilder &opBuilder, Location loc, Value p, Value p1) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  // TODO: remove the following values?
+  // Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  // Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+
+  Value length = opBuilder.create<memref::DimOp>(loc, p, c0);
+
+  opBuilder.create<scf::ForOp>(
+      loc, c0, length, c1, std::nullopt,
+      [&](OpBuilder builder, Location loc, Value i, ValueRange i_args) {
+        Value val_p = builder.create<memref::LoadOp>(loc, p, i);
+        Value val_p1 = builder.create<memref::LoadOp>(loc, p1, i);
+
+        builder.create<memref::StoreOp>(loc, val_p, p1, i);
+        builder.create<memref::StoreOp>(loc, val_p1, p, i);
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+}
+
+void flag_SWAP(OpBuilder &opBuilder, Location loc, Value flag) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+
+  Value val = opBuilder.create<memref::LoadOp>(loc, flag, c0);
+  Value condition =
+      opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, val, c0);
+
+  Value x = opBuilder.create<arith::SelectOp>(loc, condition, c1, c0);
+
+  opBuilder.create<memref::StoreOp>(loc, x, flag, c0);
+}
+
+void copy_and_norm(OpBuilder &opBuilder, Location loc, Value c, Value p1,
+                   Value n, Value fct, Value flag) {
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  // TODO: remove the following values?
+  // Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  FloatType f64Ty = opBuilder.getF64Type();
+  Value f1 =
+      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+
+  Value flag_val = opBuilder.create<memref::LoadOp>(loc, flag, c0);
+  Value condition = opBuilder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::eq, flag_val, c0);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition,
+      [&](OpBuilder &builder, Location loc) {
+        Value condition1 = builder.create<arith::CmpFOp>(
+            loc, arith::CmpFPredicate::ONE, fct, f1);
+        builder.create<scf::IfOp>(
+            loc, condition1,
+            [&](OpBuilder &b, Location loc) {
+              b.create<scf::ForOp>(
+                  loc, c0, n, c1, std::nullopt,
+                  [&](OpBuilder b2, Location loc, Value i, ValueRange i_args) {
+                    Value p1_i = b2.create<memref::LoadOp>(loc, p1, i);
+                    Value v = b2.create<arith::MulFOp>(loc, fct, p1_i);
+                    b2.create<memref::StoreOp>(loc, v, c, i);
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  });
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            },
+            [&](OpBuilder &b, Location loc) {
+              b.create<scf::ForOp>(
+                  loc, c0, n, c1, std::nullopt,
+                  [&](OpBuilder b2, Location loc, Value i, ValueRange i_args) {
+                    Value val = b2.create<memref::LoadOp>(loc, p1, i);
+                    b2.create<memref::StoreOp>(loc, val, c, i);
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  });
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      },
+      [&](OpBuilder &builder, Location loc) {
+        Value condition2 = builder.create<arith::CmpFOp>(
+            loc, arith::CmpFPredicate::ONE, fct, f1);
+        builder.create<scf::IfOp>(
+            loc, condition2, [&](OpBuilder &b, Location loc) {
+              b.create<scf::ForOp>(
+                  loc, c0, n, c1, std::nullopt,
+                  [&](OpBuilder &b2, Location loc, Value i, ValueRange i_args) {
+                    Value c_i = b2.create<memref::LoadOp>(loc, c, i);
+                    Value newC = b2.create<arith::MulFOp>(loc, fct, c_i);
+                    b2.create<memref::StoreOp>(loc, newC, c, i);
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  });
+              b.create<scf::YieldOp>(loc, std::nullopt);
+            });
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
+}
+
+// FFT forward function for real number
+void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
+                   Value Rfftp_fctdata_tw, Value Rfftp_fctdata_tws,
+                   Value Rfftp_plan_length, Value Rfftp_plan_nfct,
+                   Value Rfftp_plan_mem, Value c, Value fct) {
+
+  Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
+  Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
+  Value c2 = opBuilder.create<ConstantIndexOp>(loc, 2);
+  Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
+  Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
+  Value c5 = opBuilder.create<ConstantIndexOp>(loc, 5);
+  // TODO: remove the following values?
+  // Value c20 = opBuilder.create<ConstantIndexOp>(loc, 20);
+  FloatType f64Ty = opBuilder.getF64Type();
+
+  Value n = opBuilder.create<memref::LoadOp>(loc, Rfftp_plan_length, c0);
+
+  Value condition =
+      opBuilder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, n, c1);
+
+  opBuilder.create<scf::IfOp>(
+      loc, condition, [&](OpBuilder &builder, Location loc) {
+        Value flag = builder.create<memref::AllocOp>(
+            loc, MemRefType::get(1, builder.getIndexType()));
+        builder.create<memref::StoreOp>(loc, c1, flag, c0);
+        Value l1_raw = builder.create<arith::AddIOp>(loc, n, c0);
+        Value nf = builder.create<memref::LoadOp>(loc, Rfftp_plan_nfct, c0);
+
+        MemRefType cType = dyn_cast<MemRefType>(c.getType());
+        Value dimSize = builder.create<memref::DimOp>(loc, c, 0);
+        Value ch = builder.create<memref::AllocOp>(loc, cType,
+                                                   /*dynamicOperands=*/dimSize);
+
+        // Value ch = builder.create<memref::AllocOp>(
+        //     loc, MemRefType::get(cType.getShape(), f64Ty));
+
+        FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
+            opBuilder.getContext(),
+            /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+        MemRefType resultType =
+            MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
+
+        // memref<?xf64, strided<[1], offset: ?>>
+
+        Value p1_raw = builder.create<memref::SubViewOp>(
+            loc, resultType, c, SmallVector<OpFoldResult>{c0},
+            SmallVector<OpFoldResult>{n}, SmallVector<OpFoldResult>{c1});
+
+        Value p2_raw = builder.create<memref::SubViewOp>(
+            loc, resultType, ch, SmallVector<OpFoldResult>{c0},
+            SmallVector<OpFoldResult>{n}, SmallVector<OpFoldResult>{c1});
+
+        builder.create<scf::ForOp>(
+            loc, c0, nf, c1, ValueRange{l1_raw},
+            [&](OpBuilder b, Location loc, Value k1, ValueRange k1_args) {
+              Value l1_old = k1_args[0];
+
+              Value nf_m_k1 = b.create<arith::SubIOp>(loc, nf, k1);
+              Value k = b.create<arith::SubIOp>(loc, nf_m_k1, c1);
+              Value ip = b.create<memref::LoadOp>(loc, Rfftp_fctdata_fct, k);
+              Value ido = b.create<arith::DivSIOp>(loc, n, l1_old);
+              Value l1 = b.create<arith::DivSIOp>(loc, l1_old, ip);
+
+              Value tw = b.create<memref::LoadOp>(loc, Rfftp_fctdata_tw, k);
+
+              Value condition1 = b.create<arith::CmpIOp>(
+                  loc, arith::CmpIPredicate::eq, ip, c4);
+
+              b.create<scf::IfOp>(
+                  loc, condition1,
+                  [&](OpBuilder &b2, Location loc) {
+                    radf4(b2, loc, p1_raw, p2_raw, tw, ido, l1, c0, c1, c2, c3);
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  },
+                  [&](OpBuilder &b2, Location loc) {
+                    Value condition2 = b2.create<arith::CmpIOp>(
+                        loc, arith::CmpIPredicate::eq, ip, c2);
+                    b2.create<scf::IfOp>(
+                        loc, condition2,
+                        [&](OpBuilder &b3, Location loc) {
+                          radf2(b3, loc, p1_raw, p2_raw, tw, ido, l1);
+                          b3.create<scf::YieldOp>(loc, std::nullopt);
+                        },
+                        [&](OpBuilder &b3, Location loc) {
+                          Value condition3 = b3.create<arith::CmpIOp>(
+                              loc, arith::CmpIPredicate::eq, ip, c3);
+                          b3.create<scf::IfOp>(
+                              loc, condition3,
+                              [&](OpBuilder &b4, Location loc) {
+                                radf3(b4, loc, p1_raw, p2_raw, tw, ido, l1);
+                                b4.create<scf::YieldOp>(loc, std::nullopt);
+                              },
+                              [&](OpBuilder &b4, Location loc) {
+                                Value condition4 = b4.create<arith::CmpIOp>(
+                                    loc, arith::CmpIPredicate::eq, ip, c5);
+                                b4.create<scf::IfOp>(
+                                    loc, condition4,
+                                    [&](OpBuilder &b5, Location loc) {
+                                      radf5(b5, loc, p1_raw, p2_raw, tw, ido,
+                                            l1, c0, c1, c2, c3, c4);
+                                      b5.create<scf::YieldOp>(loc,
+                                                              std::nullopt);
+                                    },
+                                    [&](OpBuilder &b5, Location loc) {
+                                      Value tws = b5.create<memref::LoadOp>(
+                                          loc, Rfftp_fctdata_tws, k);
+                                      radfg(b5, loc, p1_raw, p2_raw, tw, tws,
+                                            ido, ip, l1);
+                                      memref_SWAP(b5, loc, p1_raw, p2_raw);
+                                      flag_SWAP(b5, loc, flag);
+                                      b5.create<scf::YieldOp>(loc,
+                                                              std::nullopt);
+                                    });
+                                b4.create<scf::YieldOp>(loc, std::nullopt);
+                              });
+                          b3.create<scf::YieldOp>(loc, std::nullopt);
+                        }
+
+                    );
+                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                  });
+
+              memref_SWAP(b, loc, p1_raw, p2_raw);
+              flag_SWAP(b, loc, flag);
+
+              b.create<scf::YieldOp>(loc, l1);
+            });
+
+        copy_and_norm(builder, loc, c, p1_raw, n, fct, flag);
+
+        builder.create<scf::YieldOp>(loc, std::nullopt);
+      });
 }
 
 // Calculate abspower of bufferMem and store result to a specific line in the
@@ -1283,7 +3552,7 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
   RankedTensorType tensorTy0 = RankedTensorType::get({400}, f64Ty);
   MemRefType mTp = MemRefType::get({400}, f64Ty);
 
-  // mulf_trait for linalg generic operation
+  // #mulf_trait for 'linalg.generic' operation.
   AffineMap mulFIdMap =
       AffineMap::getMultiDimIdentityMap(1, rewriter.getContext());
   SmallVector<AffineMap> mulFIndexingMaps = {mulFIdMap, mulFIdMap, mulFIdMap};
@@ -1299,7 +3568,7 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
         Value buffer =
             rewriter.create<tensor::CastOp>(loc, tensorTy0, buffer400);
 
-        // linalg.generic operation use mulf_trait
+        // 'linalg.generic' operation use #mulf_trait.
         auto mulfOp = rewriter.create<linalg::GenericOp>(
             loc, /*resultTensorTypes=*/tensorTy0,
             /*inputs=*/ValueRange{buffer, window},
@@ -1310,13 +3579,22 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
             });
         Value multiplied = mulfOp.getResult(0);
 
-        Value bufferMem =
+        Value bufferMem_raw =
             builder.create<bufferization::ToMemrefOp>(loc, mTp, multiplied);
 
-        // Calculate rfft, result stores in bufferMem
-        rfft400(builder, loc, bufferMem, f0, c0, c1, c2, c3, c4, c5);
+        MemRefType type0 = MemRefType::get({400}, f64Ty);
+        MemRefType type1 = MemRefType::get(ShapedType::kDynamic, f64Ty);
 
-        // Result store in one line of spectorgram, line specified by iv
+        Value bufferMem_rfft =
+            builder.create<memref::CastOp>(loc, type1, bufferMem_raw);
+
+        // Compute 'dap.rfft' operation, result stores in `bufferMem`.
+        builder.create<dap::RFFTOp>(loc, bufferMem_rfft);
+
+        Value bufferMem =
+            builder.create<memref::CastOp>(loc, type0, bufferMem_rfft);
+
+        // Store the result in a single line specified by `iv`.
         absPower(builder, loc, bufferMem, spectrogram, iv, c0, c1, c2);
 
         Value timestepNext =
@@ -1357,7 +3635,7 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
       /*outputs=*/ValueRange{init2});
   Value matMulResult = matmulOp.getResultTensors()[0];
 
-  // Initialize a tensor with constant 1e-10
+  // Initialize a tensor with constant `1e-10`.
   RankedTensorType tensorTy1 = RankedTensorType::get({80, 3001}, f64Ty);
   Value cMelFloor = rewriter.create<ConstantFloatOp>(
       loc, APFloat(double(0.0000000001)), f64Ty);
@@ -1368,14 +3646,14 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
       /*outputs=*/ValueRange{melFloor});
   Value spectrogramMax = linalgMaxOp.getResultTensors()[0];
 
-  // log10_trait for linalg generic operation
+  // #log10_trait for 'linalg.generic' operation.
   AffineMap log10IdMap =
       AffineMap::getMultiDimIdentityMap(2, rewriter.getContext());
   SmallVector<AffineMap> log10IndexingMaps = {log10IdMap, log10IdMap};
   SmallVector<utils::IteratorType> log10IteratorTypes = {
       utils::IteratorType::parallel, utils::IteratorType::parallel};
 
-  // linalg.generic operation use log10_trait
+  // 'linalg.generic' operation use #log10_trait.
   auto log10Op = rewriter.create<linalg::GenericOp>(
       loc, /*resultTensorTypes=*/tensorTy1,
       /*inputs=*/ValueRange{spectrogramMax},
@@ -1390,6 +3668,63 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
 }
 
 namespace {
+class DAPRFFTLowering : public OpRewritePattern<dap::RFFTOp> {
+public:
+  using OpRewritePattern<dap::RFFTOp>::OpRewritePattern;
+
+  explicit DAPRFFTLowering(MLIRContext *context)
+      : OpRewritePattern(context) {}
+
+  LogicalResult matchAndRewrite(dap::RFFTOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    // TODO: remove the following values?
+    // auto ctx = op->getContext();
+    Value bufferMem = op->getOperand(0);
+
+    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
+    // TODO: remove the following values?
+    // Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    // Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
+    // Value c3 = rewriter.create<ConstantIndexOp>(loc, 3);
+    // Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
+    // Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
+    // Value c9 = rewriter.create<ConstantIndexOp>(loc, 9);
+    // Value c24 = rewriter.create<ConstantIndexOp>(loc, 24);
+    // Value c25 = rewriter.create<ConstantIndexOp>(loc, 25);
+    // Value c50 = rewriter.create<ConstantIndexOp>(loc, 50);
+
+    Value inputFeatures = rewriter.create<bufferization::ToTensorOp>(
+        loc, bufferMem, /*restrict=*/true, /*writable=*/true);
+    Value inputFeaturesSize =
+        rewriter.create<tensor::DimOp>(loc, inputFeatures, c0);
+
+    FloatType f64Ty = rewriter.getF64Type();
+
+    // TODO: remove the following values?
+    // Value f0 =
+    //     rewriter.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+    Value f1 =
+        rewriter.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+
+    std::vector<Value> plan = make_rfftp_plan(rewriter, loc, inputFeaturesSize);
+
+    Value Rfftp_fctdata_fct = plan[0];
+    Value Rfftp_fctdata_tw = plan[1];
+    Value Rfftp_fctdata_tws = plan[2];
+    Value Rfftp_plan_length = plan[3];
+    Value Rfftp_plan_nfct = plan[4];
+    Value Rfftp_plan_mem = plan[5];
+
+    rfftp_forward(rewriter, loc, Rfftp_fctdata_fct, Rfftp_fctdata_tw,
+                  Rfftp_fctdata_tws, Rfftp_plan_length, Rfftp_plan_nfct,
+                  Rfftp_plan_mem, bufferMem, f1);
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 class DAPWhisperPreprocessLowering
     : public OpRewritePattern<dap::WhisperPreprocessOp> {
 public:
@@ -1402,9 +3737,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     auto ctx = op->getContext();
-
     Value input = op->getOperand(0);
-    Value output = op->getOperand(1);
 
     Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
@@ -1498,14 +3831,14 @@ public:
     Value InputFeaturesF32 =
         rewriter.create<tensor::SplatOp>(loc, resultTy, f0F32);
 
-    // tail_processing_trait for linalg generic operation
+    // #tail_processing_trait for 'linalg.generic' operation.
     AffineMap IdMap =
         AffineMap::getMultiDimIdentityMap(2, rewriter.getContext());
     SmallVector<AffineMap> IndexingMaps = {IdMap, IdMap};
     SmallVector<utils::IteratorType> IteratorTypes = {
         utils::IteratorType::parallel, utils::IteratorType::parallel};
 
-    // linalg.generic operation use tail_processing_trait
+    // 'linalg.generic' operation use #tail_processing_trait.
     auto tailProcessOp = rewriter.create<linalg::GenericOp>(
         loc, /*resultTensorTypes=*/resultTy,
         /*inputs=*/ValueRange{logSpecMax},
@@ -1538,9 +3871,9 @@ public:
     Value resultMemRef = rewriter.create<bufferization::ToMemrefOp>(
         loc, resultMemTp, resultExpand);
 
-    rewriter.create<memref::CopyOp>(loc, resultMemRef, output);
-
-    rewriter.eraseOp(op);
+    // Replace 'dap.whisper_preprocess' operation with the generated result. The
+    // replaced op is erased.
+    rewriter.replaceOp(op, resultMemRef);
     return success();
   }
 };
@@ -1549,6 +3882,7 @@ public:
 
 void populateExtendDAPConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<DAPWhisperPreprocessLowering>(patterns.getContext());
+  patterns.add<DAPRFFTLowering>(patterns.getContext());
   // TODO : extract operators
 }
 
@@ -1570,8 +3904,8 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<arith::ArithDialect>();
     registry.insert<affine::AffineDialect>();
+    registry.insert<arith::ArithDialect>();
     registry.insert<bufferization::BufferizationDialect>();
     registry.insert<func::FuncDialect>();
     registry.insert<linalg::LinalgDialect>();
@@ -1579,6 +3913,7 @@ public:
     registry.insert<memref::MemRefDialect>();
     registry.insert<scf::SCFDialect>();
     registry.insert<tensor::TensorDialect>();
+    registry.insert<vector::VectorDialect>();
     // Buddy Compiler designed dialect
     registry.insert<buddy::dap::DAPDialect>();
   }
@@ -1590,11 +3925,18 @@ void ExtendDAPPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target.addLegalDialect<affine::AffineDialect, scf::SCFDialect,
-                         func::FuncDialect, math::MathDialect,
-                         memref::MemRefDialect, arith::ArithDialect,
-                         linalg::LinalgDialect, tensor::TensorDialect,
-                         bufferization::BufferizationDialect>();
+  // Add legal dialects.
+  target.addLegalDialect<affine::AffineDialect>();
+  target.addLegalDialect<arith::ArithDialect>();
+  target.addLegalDialect<bufferization::BufferizationDialect>();
+  target.addLegalDialect<func::FuncDialect>();
+  target.addLegalDialect<linalg::LinalgDialect>();
+  target.addLegalDialect<math::MathDialect>();
+  target.addLegalDialect<memref::MemRefDialect>();
+  target.addLegalDialect<scf::SCFDialect>();
+  target.addLegalDialect<tensor::TensorDialect>();
+  target.addLegalDialect<vector::VectorDialect>();
+  // Add legal operations.
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(context);

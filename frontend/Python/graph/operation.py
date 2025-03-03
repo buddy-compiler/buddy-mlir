@@ -86,8 +86,9 @@ class Op:
         self._op_type: OpType = None
         self._children: List[str] = []
         self._parents: List[str] = []
+        self._args_index = []
 
-    def add_argument(self, arg):
+    def add_argument(self, arg, arg_index=0):
         """
         Add an input argument to the operation node.
 
@@ -96,6 +97,7 @@ class Op:
             The input argument to be added.
         """
         self._arguments.append(arg)
+        self._args_index.append(arg_index)
 
     def add_parent(self, parent: str):
         """
@@ -128,6 +130,7 @@ class Op:
     @property
     def name(self):
         return self._name
+
     @name.setter
     def name(self, new_name):
         self._name = new_name
@@ -148,6 +151,12 @@ class PlaceholderOp(Op):
 
 
 class MatmulOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class TransposeMatmulFusedOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReduceType
@@ -404,36 +413,43 @@ class ErfOp(Op):
         super().__init__()
         self._op_type = OpType.ElementwiseType
 
+
 class Conv2dOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReduceType
         self._layout = "NCHW_FCHW"
 
+
 class ReluOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
+
 
 class SigmoidOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
 
+
 class IotaOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.PlaceholderType
+
 
 class ScalarTensorOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.PlaceholderType
 
+
 class WhereOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
+
 
 class MaxPool2dWithIndicesOp(Op):
     def __init__(self) -> None:
@@ -448,16 +464,19 @@ class MaxPool2dOp(Op):
         self._op_type = OpType.ReduceType
         self._layout = "NCHW"
 
+
 class CallOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self.call_func_name = ""
         self._op_type = OpType.Unfusable
 
+
 class FuncOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.Unfusable
+
 
 class ReciprocalOp(Op):
     def __init__(self) -> None:
@@ -470,12 +489,99 @@ class SqrtOp(Op):
         super().__init__()
         self._op_type = OpType.ElementwiseType
 
+
 class ClampMinOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
 
+
 class ClampMaxOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
+
+
+class RandIntLowOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.PlaceholderType
+
+
+class CosOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SinOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class ArgMaxOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class SplitOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class MaxOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class GtOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class ScaledDotProductFlashAttentionForCpuOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class GeOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class GreaterThanOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.BroadcastType
+
+
+class UnsafeIndexOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class EqualOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SliceScatterOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class CopyOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+

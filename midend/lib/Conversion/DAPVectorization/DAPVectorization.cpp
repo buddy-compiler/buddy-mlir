@@ -43,6 +43,153 @@ using namespace mlir::linalg;
 //===----------------------------------------------------------------------===//
 
 namespace {
+
+class DAPFIRVectorization : public OpRewritePattern<dap::FirOp> {
+public:
+  using OpRewritePattern<dap::FirOp>::OpRewritePattern;
+
+  explicit DAPFIRVectorization(MLIRContext *context)
+      : OpRewritePattern(context) {}
+
+  LogicalResult matchAndRewrite(dap::FirOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto ctx = op->getContext();
+
+    Value input = op->getOperand(0);
+    Value kernel = op->getOperand(1);
+    Value output = op->getOperand(2);
+
+    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
+    Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
+
+    // 1. Get the total length of the workload.
+    Value inputSize = rewriter.create<memref::DimOp>(loc, input, c0);
+    Value kernelSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
+
+    // 2. Set the iteration step (tile size and vector size).
+    Value tileStep = rewriter.create<ConstantIndexOp>(loc, 2048);
+    Value vlStep = rewriter.create<ConstantIndexOp>(loc, 16);
+    Value vlStepMinusOne = rewriter.create<arith::SubIOp>(loc, vlStep, c1);
+    FloatType f32 = FloatType::getF32(ctx);
+    VectorType vecTy = VectorType::get(16, f32);
+
+    // 3. Calculate full vectorization part.
+
+    // 3.1 Calculate upbound for outer loop(tile input).
+    // `lastKernelElementUsedInputSize` = `inputSize` - `kernelSize` + 1
+    // `inputUpbound` = `lastKernelElementUsedInputSize` - `tileStep` + 1
+    Value lastKernelElementUsedInputSize_ =
+        rewriter.create<arith::SubIOp>(loc, inputSize, kernelSize);
+    Value inputUpbound_ = rewriter.create<arith::SubIOp>(
+        loc, lastKernelElementUsedInputSize_, tileStep);
+    Value inputUpbound = rewriter.create<arith::AddIOp>(loc, inputUpbound_, c2);
+
+    Value inputOffset =
+        rewriter
+            .create<scf::ForOp>(
+                loc, c0, inputUpbound, tileStep, ValueRange{c0},
+                [&](OpBuilder &builder, Location loc, Value address,
+                    ValueRange iargs) {
+                  Value upbound =
+                      builder.create<arith::AddIOp>(loc, address, tileStep);
+                  // 3.2 Broadcast each kernel element to a vector.
+                  builder.create<scf::ForOp>(
+                      loc, c0, kernelSize, c1, ValueRange{std::nullopt},
+                      [&](OpBuilder &b, Location loc, Value iv_n,
+                          ValueRange iargs) {
+                        Value kElem =
+                            b.create<memref::LoadOp>(loc, kernel, iv_n);
+                        Value kVec =
+                            b.create<vector::SplatOp>(loc, vecTy, kElem);
+                        // 3.3 Vectorized computation.
+                        b.create<scf::ForOp>(
+                            loc, address, upbound, vlStep,
+                            ValueRange{std::nullopt},
+                            [&](OpBuilder &b, Location loc, Value iv_i,
+                                ValueRange iargs) {
+                              Value inVec = b.create<vector::LoadOp>(
+                                  loc, vecTy, input, ValueRange{iv_i});
+                              Value outOffset =
+                                  b.create<arith::AddIOp>(loc, iv_i, iv_n);
+                              Value outVec = b.create<vector::LoadOp>(
+                                  loc, vecTy, output, ValueRange{outOffset});
+                              Value fmaVec = b.create<vector::FMAOp>(
+                                  loc, kVec, inVec, outVec);
+                              b.create<vector::StoreOp>(loc, fmaVec, output,
+                                                        ValueRange{outOffset});
+                              b.create<scf::YieldOp>(loc);
+                            });
+
+                        b.create<scf::YieldOp>(loc);
+                      });
+                  builder.create<scf::YieldOp>(loc, ValueRange{upbound});
+                })
+            .getResult(0);
+
+    // 4. Calculate tail processing part.
+    // 4.1 Calculate upbound for tail processing
+    Value tailUpbound_ = rewriter.create<arith::SubIOp>(loc, inputSize, vlStep);
+    Value tailUpboundInit =
+        rewriter.create<arith::AddIOp>(loc, tailUpbound_, c1);
+
+    // 4.2 Loop through each kernel element.
+    rewriter.create<scf::ForOp>(
+        loc, c0, kernelSize, c1, ValueRange{tailUpboundInit},
+        [&](OpBuilder &builder, Location loc, Value iv_n, ValueRange iargs) {
+          Value kElem = builder.create<memref::LoadOp>(loc, kernel, iv_n);
+          Value kVec = builder.create<vector::SplatOp>(loc, vecTy, kElem);
+
+          // 4.3 Perform the vectorization body (for tail process).
+          Value iterIdx =
+              builder
+                  .create<scf::ForOp>(
+                      loc, inputOffset, iargs[0], vlStep,
+                      ValueRange{inputOffset},
+                      [&](OpBuilder &b, Location loc, Value iv_i,
+                          ValueRange iargs) {
+                        Value inVec = b.create<vector::LoadOp>(
+                            loc, vecTy, input, ValueRange{iv_i});
+                        Value outOffset =
+                            b.create<arith::AddIOp>(loc, iv_i, iv_n);
+                        Value outVec = b.create<vector::LoadOp>(
+                            loc, vecTy, output, ValueRange{outOffset});
+                        Value fmaVec =
+                            b.create<vector::FMAOp>(loc, kVec, inVec, outVec);
+                        b.create<vector::StoreOp>(loc, fmaVec, output,
+                                                  ValueRange{outOffset});
+                        Value iNext =
+                            b.create<arith::AddIOp>(loc, iv_i, vlStep);
+                        b.create<scf::YieldOp>(loc, ValueRange{iNext});
+                      })
+                  .getResult(0);
+
+          // 4.4 Process the remainder of tail process with scalar operations.
+          Value tailUpboundScalar =
+              builder.create<arith::AddIOp>(loc, iargs[0], vlStepMinusOne);
+          builder.create<scf::ForOp>(
+              loc, iterIdx, tailUpboundScalar, c1, ValueRange{std::nullopt},
+              [&](OpBuilder &b, Location loc, Value iv_i, ValueRange iargs) {
+                Value inElem = b.create<memref::LoadOp>(loc, input, iv_i);
+                Value outOffset = b.create<arith::AddIOp>(loc, iv_i, iv_n);
+                Value outElem =
+                    b.create<memref::LoadOp>(loc, output, outOffset);
+                Value mulElem = b.create<arith::MulFOp>(loc, inElem, kElem);
+                Value addElem = b.create<arith::AddFOp>(loc, mulElem, outElem);
+                b.create<memref::StoreOp>(loc, addElem, output, outOffset);
+                b.create<scf::YieldOp>(loc);
+              });
+          Value tailUpboundNext =
+              builder.create<arith::SubIOp>(loc, iargs[0], c1);
+          builder.create<scf::YieldOp>(loc, ValueRange{tailUpboundNext});
+        });
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 class DAPIirVectorization : public OpRewritePattern<dap::IirOp> {
 public:
   using OpRewritePattern<dap::IirOp>::OpRewritePattern;
@@ -162,6 +309,7 @@ public:
 } // end anonymous namespace
 
 void populateVectorizeDAPConversionPatterns(RewritePatternSet &patterns) {
+  patterns.add<DAPFIRVectorization>(patterns.getContext());
   patterns.add<DAPIirVectorization>(patterns.getContext());
 }
 

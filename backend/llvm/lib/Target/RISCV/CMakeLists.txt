@@ -21,7 +21,7 @@ macro(buddy_add_llvm_target target_name)
   set( CURRENT_LLVM_TARGET LLVM${target_name} )
 endmacro(buddy_add_llvm_target)
 
-set(LLVM_TARGET_RISCV_DIR ${LLVM_PROJECT_SOURCE_DIR}/llvm/lib/Target/RISCV)
+set(LLVM_TARGET_RISCV_DIR ${LLVM_MAIN_SRC_DIR}/lib/Target/RISCV)
 
 # ------------------------------------------------------------------------------
 # Configure RISC-V Buddy Extension.

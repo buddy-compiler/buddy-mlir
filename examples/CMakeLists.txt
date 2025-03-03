@@ -8,6 +8,10 @@ if(BUDDY_LLAMA_EXAMPLES)
   add_subdirectory(BuddyLlama)
 endif()
 
+if(BUDDY_DEEPSEEKR1_EXAMPLES)
+  add_subdirectory(BuddyDeepSeekR1)
+endif()
+
 if (BUDDY_BERT_EXAMPLES)
   add_subdirectory(BuddyBert)
 endif()
@@ -22,6 +26,14 @@ endif()
 
 if (BUDDY_MOBILENETV3_EXAMPLES)
   add_subdirectory(BuddyMobileNetV3)
+endif()
+
+if (BUDDY_RESNET_EXAMPLES)
+  add_subdirectory(BuddyResNet18)
+endif()
+
+if (BUDDY_STABLE_DIFFUSION_EXAMPLES)
+  add_subdirectory(BuddyStableDiffusion)
 endif()
 
 if(BUDDY_DSL_EXAMPLES)

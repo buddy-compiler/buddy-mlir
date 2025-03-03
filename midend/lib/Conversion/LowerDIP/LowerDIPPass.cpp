@@ -191,8 +191,6 @@ public:
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
-    Value c1F32 = indexToF32(rewriter, loc, c1);
-
     // Get input image dimensions.
     Value inputRow = rewriter.create<memref::DimOp>(loc, input, c0);
     Value inputCol = rewriter.create<memref::DimOp>(loc, input, c1);
@@ -201,38 +199,84 @@ public:
     Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
     Value outputCol = rewriter.create<memref::DimOp>(loc, output, c1);
 
-    // let alpha = scale * cos(angle), beta = scale * sin(angle)
-    // the affine matrix would be as follow:
-    // [[alpha, beta, (1 - alpha) * centerx - beta * centery],
-    //  [-beta, alpha, beta * centerx + (1 - alpha) * centery]]
-    Value centerX = rewriter.create<arith::ShRSIOp>(loc, inputCol, c1);
-    Value centerY = rewriter.create<arith::ShRSIOp>(loc, inputRow, c1);
-    Value centerXF32 = indexToF32(rewriter, loc, centerX);
-    Value centerYF32 = indexToF32(rewriter, loc, centerY);
-
-    auto affineMatrix = dip::getRotationMatrix(rewriter, loc, centerXF32,
-                                               centerYF32, angleVal, c1F32);
-
-    Value deltaXI = rewriter.create<arith::SubIOp>(loc, outputCol, inputCol);
-    Value deltaYI = rewriter.create<arith::SubIOp>(loc, outputRow, inputRow);
-    Value deltaXIDiv2 = rewriter.create<arith::ShRSIOp>(loc, deltaXI, c1);
-    Value deltaYIDiv2 = rewriter.create<arith::ShRSIOp>(loc, deltaYI, c1);
-    Value deltaXFDiv2 = indexToF32(rewriter, loc, deltaXIDiv2);
-    Value deltaYFDiv2 = indexToF32(rewriter, loc, deltaYIDiv2);
-
-    affineMatrix[2] =
-        rewriter.create<arith::AddFOp>(loc, affineMatrix[2], deltaXFDiv2);
-    affineMatrix[5] =
-        rewriter.create<arith::AddFOp>(loc, affineMatrix[5], deltaYFDiv2);
+    auto rotationMatrix = dip::calculateRotationMatrix(
+        rewriter, loc, inputCol, inputRow, outputCol, outputRow, angleVal);
 
     dip::affineTransformController(rewriter, loc, ctx, input, output,
-                                   affineMatrix, stride);
+                                   rotationMatrix, stride,
+                                   dip::ImageFormat::HW);
 
     // Remove the origin rotation operation.
     rewriter.eraseOp(op);
     return success();
   }
 
+  int64_t stride;
+};
+
+class DIPRotate4DOpLowering : public OpRewritePattern<dip::Rotate4DOp> {
+public:
+  using OpRewritePattern<dip::Rotate4DOp>::OpRewritePattern;
+
+  explicit DIPRotate4DOpLowering(MLIRContext *context, int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
+
+  LogicalResult matchAndRewrite(dip::Rotate4DOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto ctx = op->getContext();
+
+    //  Register operand values.
+    Value input = op->getOperand(0);
+    Value angleValue = op->getOperand(1);
+    Value output = op->getOperand(2);
+    auto imageFormatAttr = op.getImageFormat();
+
+    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    dip::DIP_ERROR error =
+        dip::checkDIPCommonTypes<dip::Rotate4DOp>(op, {input, output});
+
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
+      return op->emitOpError()
+             << "input, and output must have the same element type";
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
+      return op->emitOpError() << "supports only f32, f64 and integer types. "
+                               << inElemTy << "is passed";
+    }
+
+    // Create constant indices.
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value c2 = rewriter.create<arith::ConstantIndexOp>(loc, 2);
+    Value c3 = rewriter.create<arith::ConstantIndexOp>(loc, 3);
+
+    // Get image dimensions.
+    Value inputRow, inputCol, outputRow, outputCol;
+    if (imageFormatAttr == dip::ImageFormat::NHWC) {
+      inputRow = rewriter.create<memref::DimOp>(loc, input, c1);
+      inputCol = rewriter.create<memref::DimOp>(loc, input, c2);
+      outputRow = rewriter.create<memref::DimOp>(loc, output, c1);
+      outputCol = rewriter.create<memref::DimOp>(loc, output, c2);
+    } else if (imageFormatAttr == dip::ImageFormat::NCHW) {
+      inputRow = rewriter.create<memref::DimOp>(loc, input, c2);
+      inputCol = rewriter.create<memref::DimOp>(loc, input, c3);
+      outputRow = rewriter.create<memref::DimOp>(loc, output, c2);
+      outputCol = rewriter.create<memref::DimOp>(loc, output, c3);
+    }
+
+    auto rotationMatrix = dip::calculateRotationMatrix(
+        rewriter, loc, inputCol, inputRow, outputCol, outputRow, angleValue);
+
+    dip::affineTransformController(rewriter, loc, ctx, input, output,
+                                   rotationMatrix, stride, imageFormatAttr);
+
+    // Remove the origin rotation operation.
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
   int64_t stride;
 };
 
@@ -349,6 +393,288 @@ public:
           input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
           outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
           inputColLastElemF32, vectorTy32, stride, c0, c0F32, c1F32);
+    }
+
+    // Remove the original resize operation.
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  int64_t stride;
+};
+
+class DIPResize4D_NHWCOpLowering
+    : public OpRewritePattern<dip::Resize4D_NHWCOp> {
+public:
+  using OpRewritePattern<dip::Resize4D_NHWCOp>::OpRewritePattern;
+
+  explicit DIPResize4D_NHWCOpLowering(MLIRContext *context, int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
+
+  LogicalResult matchAndRewrite(dip::Resize4D_NHWCOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto ctx = op->getContext();
+
+    // Register operand values.
+    Value input = op->getOperand(0);
+    Value horizontalScalingFactor = op->getOperand(1);
+    Value verticalScalingFactor = op->getOperand(2);
+    Value output = op->getOperand(3);
+    auto interpolationAttr = op.getInterpolationType();
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
+
+    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    dip::DIP_ERROR error =
+        dip::checkDIPCommonTypes<dip::Resize4D_NHWCOp>(op, {input, output});
+
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
+      return op->emitOpError()
+             << "input, and output must have the same element type";
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
+      return op->emitOpError() << "supports only f32, f64 and integer types. "
+                               << inElemTy << "is passed";
+    }
+
+    // true: NHWC, false: NCHW
+    Value dataCondition = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI1Type(), rewriter.getBoolAttr(true));
+
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value c2 = rewriter.create<arith::ConstantIndexOp>(loc, 2);
+    Value c3 = rewriter.create<arith::ConstantIndexOp>(loc, 3);
+
+    Value c0F32 = indexToF32(rewriter, loc, c0);
+
+    // Value inputBatch = rewriter.create<memref::DimOp>(loc, input, c0);
+    Value inputRow = rewriter.create<memref::DimOp>(loc, input, c1);
+    Value inputCol = rewriter.create<memref::DimOp>(loc, input, c2);
+    // TODO: remove inputColor?
+    // Value inputColor = rewriter.create<memref::DimOp>(loc, input, c3);
+
+    Value outputBatch = rewriter.create<memref::DimOp>(loc, output, c0);
+    Value outputRow = rewriter.create<memref::DimOp>(loc, output, c1);
+    Value outputCol = rewriter.create<memref::DimOp>(loc, output, c2);
+    Value outputColor = rewriter.create<memref::DimOp>(loc, output, c3);
+
+    // Determine lower bound for second call of resize function (this is done
+    // for efficient tail processing).
+    Value outputColStrideRatio =
+        rewriter.create<arith::DivUIOp>(loc, outputCol, strideVal);
+    Value outputColMultiple =
+        rewriter.create<arith::MulIOp>(loc, strideVal, outputColStrideRatio);
+
+    SmallVector<Value, 8> lowerBounds1{c0, c0, c0, c0};
+    SmallVector<Value, 8> upperBounds1{outputBatch, outputColor, outputRow,
+                                       outputColMultiple};
+
+    SmallVector<int64_t, 8> steps{1, 1, 1, stride};
+    Value strideTailVal =
+        rewriter.create<arith::SubIOp>(loc, outputCol, outputColMultiple);
+
+    SmallVector<Value, 8> lowerBounds2{c0, c0, c0, outputColMultiple};
+    SmallVector<Value, 8> upperBounds2{outputBatch, outputColor, outputRow,
+                                       outputCol};
+
+    FloatType f32 = FloatType::getF32(ctx);
+    VectorType vectorTy32 = VectorType::get({stride}, f32);
+
+    Value horizontalScalingFactorVec = rewriter.create<vector::SplatOp>(
+        loc, vectorTy32, horizontalScalingFactor);
+    Value verticalScalingFactorVec = rewriter.create<vector::SplatOp>(
+        loc, vectorTy32, verticalScalingFactor);
+
+    // Obtain extreme allocatable value(s) in input and output for bounding
+    // purpose.
+    Value inputRowLastElem = rewriter.create<arith::SubIOp>(loc, inputRow, c1);
+    Value inputRowLastElemF32 = indexToF32(rewriter, loc, inputRowLastElem);
+
+    Value inputColLastElem = rewriter.create<arith::SubIOp>(loc, inputCol, c1);
+    Value inputColLastElemF32 = indexToF32(rewriter, loc, inputColLastElem);
+
+    Value outputRowLastElem =
+        rewriter.create<arith::SubIOp>(loc, outputRow, c1);
+    Value outputRowLastElemF32 = indexToF32(rewriter, loc, outputRowLastElem);
+
+    Value outputColLastElem =
+        rewriter.create<arith::SubIOp>(loc, outputCol, c1);
+    Value outputColLastElemF32 = indexToF32(rewriter, loc, outputColLastElem);
+
+    if (interpolationAttr ==
+        dip::InterpolationType::NearestNeighbourInterpolation) {
+      dip::NearestNeighbourInterpolationResizing4D(
+          rewriter, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32, dataCondition);
+
+      dip::NearestNeighbourInterpolationResizing4D(
+          rewriter, loc, ctx, lowerBounds2, upperBounds2, steps, strideTailVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32, dataCondition);
+    } else if (interpolationAttr ==
+               dip::InterpolationType::BilinearInterpolation) {
+      Value c1F32 = indexToF32(rewriter, loc, c1);
+
+      dip::BilinearInterpolationResizing4D(
+          rewriter, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32, c1F32,
+          dataCondition);
+
+      dip::BilinearInterpolationResizing4D(
+          rewriter, loc, ctx, lowerBounds2, upperBounds2, steps, strideTailVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32, c1F32,
+          dataCondition);
+    }
+
+    // Remove the original resize operation.
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  int64_t stride;
+};
+
+class DIPResize4D_NCHWOpLowering
+    : public OpRewritePattern<dip::Resize4D_NCHWOp> {
+public:
+  using OpRewritePattern<dip::Resize4D_NCHWOp>::OpRewritePattern;
+
+  explicit DIPResize4D_NCHWOpLowering(MLIRContext *context, int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
+
+  LogicalResult matchAndRewrite(dip::Resize4D_NCHWOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto ctx = op->getContext();
+
+    // Register operand values.
+    Value input = op->getOperand(0);
+    Value horizontalScalingFactor = op->getOperand(1);
+    Value verticalScalingFactor = op->getOperand(2);
+    Value output = op->getOperand(3);
+    auto interpolationAttr = op.getInterpolationType();
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
+
+    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    dip::DIP_ERROR error =
+        dip::checkDIPCommonTypes<dip::Resize4D_NCHWOp>(op, {input, output});
+
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
+      return op->emitOpError()
+             << "input, and output must have the same element type";
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
+      return op->emitOpError() << "supports only f32, f64 and integer types. "
+                               << inElemTy << "is passed";
+    }
+
+    // true: NHWC, false: NCHW
+    Value dataCondition = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI1Type(), rewriter.getBoolAttr(false));
+
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value c2 = rewriter.create<arith::ConstantIndexOp>(loc, 2);
+    Value c3 = rewriter.create<arith::ConstantIndexOp>(loc, 3);
+
+    Value c0F32 = indexToF32(rewriter, loc, c0);
+
+    // Value inputBatch = rewriter.create<memref::DimOp>(loc, input, c0);
+    // TODO: remove inputColor?
+    // Value inputColor = rewriter.create<memref::DimOp>(loc, input, c1);
+    Value inputRow = rewriter.create<memref::DimOp>(loc, input, c2);
+    Value inputCol = rewriter.create<memref::DimOp>(loc, input, c3);
+
+    Value outputBatch = rewriter.create<memref::DimOp>(loc, output, c0);
+    Value outputColor = rewriter.create<memref::DimOp>(loc, output, c1);
+    Value outputRow = rewriter.create<memref::DimOp>(loc, output, c2);
+    Value outputCol = rewriter.create<memref::DimOp>(loc, output, c3);
+
+    // Determine lower bound for second call of resize function (this is done
+    // for efficient tail processing).
+    Value outputColStrideRatio =
+        rewriter.create<arith::DivUIOp>(loc, outputCol, strideVal);
+    Value outputColMultiple =
+        rewriter.create<arith::MulIOp>(loc, strideVal, outputColStrideRatio);
+
+    SmallVector<Value, 8> lowerBounds1{c0, c0, c0, c0};
+    SmallVector<Value, 8> upperBounds1{outputBatch, outputColor, outputRow,
+                                       outputColMultiple};
+
+    SmallVector<int64_t, 8> steps{1, 1, 1, stride};
+    Value strideTailVal =
+        rewriter.create<arith::SubIOp>(loc, outputCol, outputColMultiple);
+
+    SmallVector<Value, 8> lowerBounds2{c0, c0, c0, outputColMultiple};
+    SmallVector<Value, 8> upperBounds2{outputBatch, outputColor, outputRow,
+                                       outputCol};
+
+    FloatType f32 = FloatType::getF32(ctx);
+    VectorType vectorTy32 = VectorType::get({stride}, f32);
+
+    Value horizontalScalingFactorVec = rewriter.create<vector::SplatOp>(
+        loc, vectorTy32, horizontalScalingFactor);
+    Value verticalScalingFactorVec = rewriter.create<vector::SplatOp>(
+        loc, vectorTy32, verticalScalingFactor);
+
+    // Obtain extreme allocatable value(s) in input and output for bounding
+    // purpose.
+    Value inputRowLastElem = rewriter.create<arith::SubIOp>(loc, inputRow, c1);
+    Value inputRowLastElemF32 = indexToF32(rewriter, loc, inputRowLastElem);
+
+    Value inputColLastElem = rewriter.create<arith::SubIOp>(loc, inputCol, c1);
+    Value inputColLastElemF32 = indexToF32(rewriter, loc, inputColLastElem);
+
+    Value outputRowLastElem =
+        rewriter.create<arith::SubIOp>(loc, outputRow, c1);
+    Value outputRowLastElemF32 = indexToF32(rewriter, loc, outputRowLastElem);
+
+    Value outputColLastElem =
+        rewriter.create<arith::SubIOp>(loc, outputCol, c1);
+    Value outputColLastElemF32 = indexToF32(rewriter, loc, outputColLastElem);
+
+    if (interpolationAttr ==
+        dip::InterpolationType::NearestNeighbourInterpolation) {
+      dip::NearestNeighbourInterpolationResizing4D(
+          rewriter, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32, dataCondition);
+
+      dip::NearestNeighbourInterpolationResizing4D(
+          rewriter, loc, ctx, lowerBounds2, upperBounds2, steps, strideTailVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32, dataCondition);
+    } else if (interpolationAttr ==
+               dip::InterpolationType::BilinearInterpolation) {
+      Value c1F32 = indexToF32(rewriter, loc, c1);
+
+      dip::BilinearInterpolationResizing4D(
+          rewriter, loc, ctx, lowerBounds1, upperBounds1, steps, strideVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32, c1F32,
+          dataCondition);
+
+      dip::BilinearInterpolationResizing4D(
+          rewriter, loc, ctx, lowerBounds2, upperBounds2, steps, strideTailVal,
+          input, output, horizontalScalingFactorVec, verticalScalingFactorVec,
+          outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
+          inputColLastElemF32, vectorTy32, stride, c0, c0F32, c1F32,
+          dataCondition);
     }
 
     // Remove the original resize operation.
@@ -1307,7 +1633,10 @@ void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
   patterns.add<DIPCorr2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPCorrFFT2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPRotate2DOpLowering>(patterns.getContext(), stride);
+  patterns.add<DIPRotate4DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPResize2DOpLowering>(patterns.getContext(), stride);
+  patterns.add<DIPResize4D_NHWCOpLowering>(patterns.getContext(), stride);
+  patterns.add<DIPResize4D_NCHWOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPErosion2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPDilation2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPOpening2DOpLowering>(patterns.getContext(), stride);

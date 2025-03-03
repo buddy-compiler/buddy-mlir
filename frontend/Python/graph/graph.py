@@ -105,6 +105,8 @@ class Graph:
         fake_params: List[TensorMeta],
         ops_registry: dict,
         func_name: str,
+        device: DeviceType = DeviceType.CPU,
+        verbose=False,
     ) -> None:
         """
         Initializes the Graph.
@@ -123,8 +125,9 @@ class Graph:
         self._inputs = inputs
         self.node_table: Dict[str, Op] = {}
         self._fake_params = fake_params
-        self.device = "cpu"
+        self.device = device
         self._imported_module = None
+        self._verbose = verbose
         self._ops_registry = ops_registry
         self._func_name = func_name
         self._ctx = ir.Context()
@@ -162,6 +165,78 @@ class Graph:
         self._body.append(node)
         self.node_table[node.name] = node
 
+    def check_delete_node(self, node: Op) -> bool:
+        """
+        Determines if a node exists in the graph and has no child nodes.
+
+        Args:
+            node (Op): The operation node to check for deletion eligibility.
+
+        Returns:
+            bool: True if the node exists in the graph and has no children.
+        """
+        if not (node.name in self.node_table):
+            raise KeyError("node{0} not in graph".format(node.name))
+
+        if len(node._children) == 0:
+            return True
+        return False
+
+    def delete_node(self, node: Op, parents: List[Op]):
+        """
+        Removes a node from the graph and updates its parent nodes accordingly.
+
+        Args:
+            node (Op): The operation node to be deleted from the graph.
+            parents (List[Op]): A list of parent operation nodes that reference the node to be deleted.
+
+        Returns:
+            None
+        """
+        for i in parents:
+            i._children.remove(node.name)
+        node.args.clear()
+        node.kwargs.clear()
+        node._children.clear()
+        self._body.remove(node)
+        self.node_table.pop(node.name)
+
+    def displace_node(self, node: Op, newnode: Op):
+        """
+        Replaces an existing node with a new node in the graph.
+
+        Args:
+            node (Op): The operation node to be replaced.
+            newnode (Op): The new operation node that will replace the existing node.
+
+        Returns:
+            None
+        """
+        newnode._arguments = node.args
+        newnode._keyword_arguments = node.kwargs
+        newnode._tensor_meta = node.tensor_meta
+        newnode._op_type = node._op_type
+
+        for i in node._children:
+            newnode.add_children(i)
+        users = [self.node_table[i] for i in node._children]
+        for user in users:
+            if node.name in user._parents:
+                user._parents[user._parents.index(node.name)] = newnode.name
+            user.args[user.args.index(node.name)] = newnode.name
+        node._children.clear()
+        # deal with parents+args
+        for i in node._parents:
+            newnode.add_parent(i)
+        parents = [self.node_table[i] for i in node._parents]
+        for parent in parents:
+            parent._children[parent._children.index(node.name)] = newnode.name
+        node._parents.clear()
+        # update node table
+        self._body[self._body.index(node)] = newnode
+        self.node_table.pop(node.name)
+        self.node_table[newnode.name] = newnode
+
     def init_op_group(self):
         """
         Initializes operation groups within the graph.
@@ -170,11 +245,11 @@ class Graph:
         - None
         """
         for i, op in enumerate(self._body):
-            if isinstance(op, PlaceholderOp):
+            if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp):
                 continue
             group = [op]
             subgraph_name = "subgraph{}".format(i)
-            self.group_map_device[subgraph_name] = DeviceType.UNKNOW
+            self.group_map_device[subgraph_name] = DeviceType.CPU
             self.op_groups[subgraph_name] = group
 
     def fuse_ops(self, pattern_list: List[FunctionType]):
@@ -191,9 +266,6 @@ class Graph:
         # TODO: discuss two fuse strategy
         # 1. fuse ops adapt for DSA(hardware dependent)
         # 2. common fuse strategy(hardware independent)
-
-        # Initialize operation groups
-        self.init_op_group()
 
         # Apply fusion patterns
         for pattern_func in pattern_list:
@@ -237,6 +309,9 @@ class Graph:
                 self._inputs,
                 self._func_name,
                 self._ops_registry,
+                False,
+                self.device,
+                verbose=self._verbose,
             )
             self._imported_module = fx_importer.import_graph()
             outputs = fx_importer.get_output_nodes()
@@ -250,6 +325,8 @@ class Graph:
             match str(dtype):
                 case "i1":
                     np_type = np.dtype(np.bool_)
+                case "i8":
+                    np_type = np.dtype(np.int8)
                 case "i32":
                     np_type = np.dtype(np.int32)
                 case "i64":
@@ -349,6 +426,8 @@ class GraphImporter:
         func_name: str,
         ops_registry: dict,
         do_param_pack: bool = False,
+        device: DeviceType = DeviceType.CPU,
+        verbose=False,
     ):
         """
         Initializes the buddy Graph importer.
@@ -363,9 +442,11 @@ class GraphImporter:
             ops_registry = {}
         self._symbol_table = {}
         self._body = body
+        self._device = device
         self._func_name = func_name
         self._params = params
         self._inputs = inputs
+        self._verbose = verbose
         self._do_param_pack = do_param_pack
         self._param_packs = []
         self._num_input_visited = 0
@@ -387,6 +468,8 @@ class GraphImporter:
             NotImplementedError: If the given dtype is not supported.
         """
         match dtype:
+            case TensorDType.Int8:
+                return ir.IntegerType.get_signless(8)
             case TensorDType.Int32:
                 return ir.IntegerType.get_signless(32)
             case TensorDType.Int64:
@@ -455,9 +538,11 @@ class GraphImporter:
             @func.FuncOp.from_py_func(*arguments, name=self._func_name)
             def generated_func(*args):
                 args_list = list(args)
+                func_op = self._module.body.operations[0]
                 for node in self._body:
                     if node in extern_func:
                         continue
+                    old_ops = [op for op in func_op.body.blocks[0].operations]
                     if isinstance(node, OutputOp):
                         output_node_args = node.args
                         returns = [
@@ -468,13 +553,26 @@ class GraphImporter:
                     elif isinstance(node, PlaceholderOp):
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
-                        self._symbol_table[
-                            (str(node.name), 0)
-                        ] = self._symbol_table[
-                            (str(node.args[0]), node.args[1])
-                        ]
+                        self._symbol_table[(str(node.name), 0)] = (
+                            self._symbol_table[
+                                (str(node.args[0]), node.args[1])
+                            ]
+                        )
                     else:
                         self._import_op(node)
+                    new_ops = [op for op in func_op.body.blocks[0].operations]
+                    if self._verbose:
+                        print("=" * 20 + "Graph Node" + "=" * 20)
+                        print("Node: " + node.name)
+                        print("Type: " + str(node._op_type))
+                        print("Arguments: " + str(node.args))
+                        print("Parents: " + str(node._parents))
+                        print("Children: " + str(node._children))
+                        print("-" * 20 + "MLIR OPS" + "-" * 20)
+                        for op in new_ops:
+                            if op not in old_ops:
+                                print(op)
+                        print("")
 
                 return self._symbol_table.get(("output", 0))
 
@@ -524,11 +622,11 @@ class GraphImporter:
                     elif isinstance(node, PlaceholderOp):
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
-                        self._symbol_table[
-                            (str(node.name), 0)
-                        ] = self._symbol_table[
-                            (str(node.args[0]), node.args[1])
-                        ]
+                        self._symbol_table[(str(node.name), 0)] = (
+                            self._symbol_table[
+                                (str(node.args[0]), node.args[1])
+                            ]
+                        )
                     else:
                         self._import_op(node)
 

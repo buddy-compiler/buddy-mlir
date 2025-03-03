@@ -96,13 +96,37 @@ $ cmake -G Ninja .. \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
     -DPython3_EXECUTABLE=$(which python3)
+$ ninja
+$ ninja check-buddy
+$ export BUDDY_MLIR_BUILD_DIR=$PWD
+$ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
+$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
-If you want to add domain-specific framework support, please add the following cmake options:
+To configure the build environment for using image processing libraries, follow these steps:
 
-| Framework  | Enable Option | Other Options |
-| -------------- | ------------- | ------------- |
-| OpenCV  | `-DBUDDY_ENABLE_OPENCV=ON`  | Add `-DOpenCV_DIR=</PATH/TO/OPENCV/BUILD/>` or install OpenCV release version on your local device. |
+```
+$ cmake -G Ninja .. \
+    -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
+    -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DBUDDY_MLIR_ENABLE_DIP_LIB=ON \
+    -DBUDDY_ENABLE_PNG=ON
+$ ninja
+$ ninja check-buddy
+```
+
+To build buddy-mlir with custom LLVM sources:
+
+```
+$ cmake -G Ninja .. \
+    -DMLIR_DIR=PATH/TO/LLVM/lib/cmake/mlir \
+    -DLLVM_DIR=PATH/TO/LLVM/lib/cmake/llvm \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DLLVM_MAIN_SRC_DIR=PATH/TO/LLVM_SOURCE
+```
 
 <h3 id="one-step">One-step building strategy</h3>
 
@@ -134,7 +158,7 @@ This repository have nix flake support. You can follow the [nix installation ins
 nix develop .
 ```
 
-This will setup a bash shell with `clang`, `clangd`, `cmake`, `ninja`, and other necessary dependencies to build buddy-mlir from source.
+This will setup a bash shell with `clang`, `ccls`, `cmake`, `ninja`, and other necessary dependencies to build buddy-mlir from source.
 
 - If you want to use the buddy-mlir bintools
 
@@ -170,6 +194,12 @@ This program should be a drop-in replacement for `mlir-lsp-server`, supporting n
 ```
 
 After modification, your editor should have correct completion and error prompts for new dialects such as `rvv` and `gemmini`.
+
+### pre-commit checks
+
+The .pre-commit-config.yaml file checks code format and style on each commit, using tools such as clang-format, black, and flake8. You can also run these checks without committing by using "pre-commit run --all-files". This ensures consistent coding standards and prevents common errors before pushing changes.
+
+To get started, you should install pre-commit (e.g., pip install pre-commit) and verify that clang-format, black, and flake8 are available. On Linux, you can use your package manager for clang-format, and pip for Python tools. If you need to revert any unwanted formatting changes, you can use "git stash" or "git restore ." (for all files) or "git restore <file>" (for a specific file), or revert the commit through your Git history.
 
 ## Examples
 
