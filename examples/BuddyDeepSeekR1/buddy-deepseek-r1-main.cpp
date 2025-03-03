@@ -176,7 +176,6 @@ int main() {
       break;
     }
     // Append the generated token into the input and output container.
-    // inputContainer.appendTokenIdx(maxIndex);
     inputContainer.appendTokenIdx(maxIndex);
     attention_mask.getData()[MaxTokenLength - generateLen + i] = 1;
     outputContainer.appendTokenIdx(maxIndex);
