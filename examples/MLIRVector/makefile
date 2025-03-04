@@ -92,6 +92,18 @@ vector-broadcast-asm-rv:
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
+vector-broadcast-asm-rvv:
+	@${MLIR_OPT} ./vector-broadcast.mlir \
+		--convert-vector-to-scf  --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
+
 run-targets += vector-broadcast-run
 vector-broadcast-run:
 	@${MLIR_OPT} ./vector-broadcast.mlir \
@@ -132,6 +144,18 @@ vector-fma-asm-rv:
 	${LLC} ${OPT_FLAG} -mtriple riscv64 -target-abi lp64d \
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
+
+vector-fma-asm-rvv:
+	@${MLIR_OPT} ./vector-fma.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
 
 run-targets += vector-fma-run
 vector-fma-run:
@@ -174,6 +198,18 @@ vector-long-asm-rv:
 		-mattr=+m,+d,+v -riscv-v-vector-bits-min=128 \
 		--filetype=asm -o log.s
 
+vector-long-asm-rvv:
+	@${MLIR_OPT} ./vector-long.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
+
 run-targets += vector-long-run
 vector-long-run:
 	@${MLIR_OPT} ./vector-long.mlir \
@@ -196,6 +232,18 @@ vector-transpose-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-transpose-asm-rvv:
+	@${MLIR_OPT} ./vector-transpose.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O3 -S \
+		-o log.s
+
 run-targets += vector-transpose-run
 vector-transpose-run:
 	@${MLIR_OPT} ./vector-transpose.mlir \
@@ -217,6 +265,18 @@ vector-shape-cast-translate:
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-shape-cast-asm-rvv:
+	@${MLIR_OPT} ./vector-shape-cast.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
 
 run-targets += vector-shape-cast-run
 vector-shape-cast-run:
@@ -241,6 +301,18 @@ vector-type-cast-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-type-cast-asm-rvv:
+	@${MLIR_OPT} ./vector-type-cast.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
+
 run-targets += vector-type-cast-run
 vector-type-cast-run:
 	@${MLIR_OPT} ./vector-type-cast.mlir \
@@ -264,6 +336,18 @@ vector-bitcast-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-bitcast-asm-rvv:
+	@${MLIR_OPT} ./vector-bitcast.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
+
 run-targets += vector-bitcast-run
 vector-bitcast-run:
 	@${MLIR_OPT} ./vector-bitcast.mlir \
@@ -285,6 +369,18 @@ vector-shuffle-translate:
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-shuffle-asm-rvv:
+	@${MLIR_OPT} ./vector-shuffle.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
 
 run-targets += vector-shuffle-run
 vector-shuffle-run:
@@ -309,6 +405,18 @@ vector-splat-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-splat-asm-rvv:
+	@${MLIR_OPT} ./vector-splat.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
+
 run-targets += vector-splat-run
 vector-splat-run:
 	@${MLIR_OPT} ./vector-splat.mlir \
@@ -331,6 +439,18 @@ vector-insert-translate:
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-insert-asm-rvv:
+	@${MLIR_OPT} ./vector-insert.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
 
 run-targets += vector-insert-run
 vector-insert-run:
@@ -355,6 +475,18 @@ vector-reduction-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-reduction-asm-rvv:
+	@${MLIR_OPT} ./vector-reduction.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O3 -S \
+		-o log.s
+
 run-targets += vector-reduction-run
 vector-reduction-run:
 	@${MLIR_OPT} ./vector-reduction.mlir \
@@ -377,6 +509,18 @@ vector-outerproduct-translate:
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-outerproduct-asm-rvv:
+	@${MLIR_OPT} ./vector-outerproduct.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
 
 run-targets += vector-outerproduct-run
 vector-outerproduct-run:
@@ -401,6 +545,18 @@ vector-create-mask-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-create-mask-asm-rvv:
+	@${MLIR_OPT} ./vector-create-mask.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
+
 run-targets += vector-create-mask-run
 vector-create-mask-run:
 	@${MLIR_OPT} ./vector-create-mask.mlir \
@@ -423,6 +579,18 @@ vector-extract-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-extract-asm-rvv:
+	@${MLIR_OPT} ./vector-extract.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
+
 run-targets += vector-extract-run
 vector-extract-run:
 	@${MLIR_OPT} ./vector-extract.mlir \
@@ -444,6 +612,18 @@ vector-maskedload-translate:
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-maskedload-asm-rvv:
+	@${MLIR_OPT} ./vector-maskedload.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O3 -S \
+		-o log.s
 
 run-targets += vector-maskedload-run
 vector-maskedload-run:
@@ -468,6 +648,18 @@ vector-maskedstore-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-maskedstore-asm-rvv:
+	@${MLIR_OPT} ./vector-maskedstore.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O3 -S \
+		-o log.s
+
 run-targets += vector-maskedstore-run
 vector-maskedstore-run:
 	@${MLIR_OPT} ./vector-maskedstore.mlir \
@@ -491,6 +683,18 @@ vector-extract-strided-slice-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-extract-strided-slice-asm-rvv:
+	@${MLIR_OPT} ./vector-maskedstore.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O3 -S \
+		-o log.s
+
 run-targets += vector-extract-strided-slice-run
 vector-extract-strided-slice-run:
 	@${MLIR_OPT} ./vector-extract-strided-slice.mlir \
@@ -512,6 +716,18 @@ vector-constant-mask-translate:
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-constant-mask-asm-rvv:
+	@${MLIR_OPT} ./vector-constant-mask.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
 
 run-targets += vector-constant-mask-run
 vector-constant-mask-run:
@@ -535,6 +751,18 @@ vector-expandload-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-expandload-asm-rvv:
+	@${MLIR_OPT} ./vector-expandload.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O3 -S \
+		-o log.s
+
 run-targets += vector-expandload-run
 vector-expandload-run:
 	@${MLIR_OPT} ./vector-expandload.mlir \
@@ -556,6 +784,18 @@ vector-compressstore-translate:
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-compressstore-asm-rvv:
+	@${MLIR_OPT} ./vector-compressstore.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O3 -S \
+		-o log.s
 
 run-targets += vector-compressstore-run
 vector-compressstore-run:
@@ -579,6 +819,18 @@ vector-insert-strided-slice-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-insert-strided-slice-asm-rvv:
+	@${MLIR_OPT} ./vector-insert-strided-slice.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
+
 run-targets += vector-insert-strided-slice-run
 vector-insert-strided-slice-run:
 	@${MLIR_OPT} ./vector-insert-strided-slice.mlir \
@@ -600,6 +852,18 @@ vector-scatter-translate:
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-scatter-asm-rvv:
+	@${MLIR_OPT} ./vector-scatter.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O3 -S \
+		-o log.s
 
 run-targets += vector-scatter-run
 vector-scatter-run:
@@ -624,6 +888,18 @@ vector-gather-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-gather-asm-rvv:
+	@${MLIR_OPT} ./vector-gather.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
+
 run-targets += vector-gather-run
 vector-gather-run:
 	@${MLIR_OPT} ./vector-gather.mlir \
@@ -647,6 +923,18 @@ vector-transfer-read-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-transfer-read-asm-rvv:
+	@${MLIR_OPT} ./vector-transfer-read.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
+
 run-targets += vector-transfer-read-run
 vector-transfer-read-run:
 	@${MLIR_OPT} ./vector-transfer-read.mlir \
@@ -668,6 +956,18 @@ vector-transfer-write-translate:
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-transfer-write-asm-rvv:
+	@${MLIR_OPT} ./vector-transfer-write.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O3 -S \
+		-o log.s
 
 run-targets += vector-load-run
 vector-transfer-write-run:
@@ -691,6 +991,18 @@ vector-contract-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-contract-asm-rvv:
+	@${MLIR_OPT} ./vector-contract.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O0 -S \
+		-o log.s
+
 run-targets += vector-load-run
 vector-contract-run:
 	@${MLIR_OPT} ./vector-contract.mlir \
@@ -712,6 +1024,18 @@ vector-store-translate:
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-store-asm-rvv:
+	@${MLIR_OPT} ./vector-store.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O3 -S \
+		-o log.s
 
 run-targets += vector-store-run
 vector-store-run:
@@ -737,8 +1061,44 @@ vector-iteration-translate:
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
+vector-iteration-asm-rvv:
+	@${MLIR_OPT} ./vector-iteration.mlir \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu \
+		--sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT} --gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -O3 -S \
+		-o log.s
+
 vector-iteration-run:
 	@${MLIR_OPT} ./vector-iteration.mlir \
+		--lower-affine \
+		-convert-vector-to-scf -convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+vector-index-cast-lower:
+	@${MLIR_OPT} ./vector-index-cast.mlir \
+		--lower-affine \
+		-convert-vector-to-scf -convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts -o ./log.mlir
+
+vector-index-cast-translate:
+	@${MLIR_OPT} ./vector-index-cast.mlir \
+		--lower-affine \
+		-convert-vector-to-scf -convert-scf-to-cf \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+vector-index-cast-run:
+	@${MLIR_OPT} ./vector-index-cast.mlir \
 		--lower-affine \
 		-convert-vector-to-scf -convert-scf-to-cf \
 		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \

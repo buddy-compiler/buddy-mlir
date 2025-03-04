@@ -23,6 +23,9 @@ endif()
 add_executable(rotation2D rotation2D.cpp)
 target_link_libraries(rotation2D ${DIP_LIBS})
 
+add_executable(rotation4D rotation4D.cpp)
+target_link_libraries(rotation4D ${DIP_LIBS})
+
 add_executable(resize2D resize2D.cpp)
 target_link_libraries(resize2D ${DIP_LIBS})
 
