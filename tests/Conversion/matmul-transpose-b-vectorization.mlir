@@ -1,5 +1,5 @@
 // RUN: buddy-opt %s \
-// RUN:     -matmul-transpose-b-vectorization="vf=8 scalable=true" \
+// RUN:     -matmul-transpose-b-vectorization="vf=8 scalable=false" \
 // RUN:     -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 // RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
