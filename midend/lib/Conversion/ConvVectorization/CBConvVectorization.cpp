@@ -43,7 +43,7 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
   auto ctx = op->getContext();
   // Currently use f32 as the element type.
   // TODO: replace f32 with input type.
-  FloatType f32 = mlir::FloatType::getF32(ctx);
+  FloatType f32 = Float32Type::get(ctx);
   // Get i1 as the element type for mask vector.
   IntegerType i1 = IntegerType::get(ctx, 1);
   // Define `*Type`.
@@ -182,7 +182,7 @@ void populateCBTilingPattern(Operation *op, ArrayRef<int64_t> tileSizes,
   auto ctx = op->getContext();
   // Currently use f32 as the element type.
   // TODO: replace f32 with input type.
-  FloatType f32 = mlir::FloatType::getF32(ctx);
+  FloatType f32 = Float32Type::get(ctx);
   // Define `*Type`.
   VectorType vectorTy1 = mlir::VectorType::get({1}, f32);
   // 2D vector type.

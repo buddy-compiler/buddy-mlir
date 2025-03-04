@@ -131,7 +131,7 @@ public:
     Value kernelRow = rewriter.create<memref::DimOp>(loc, kernelReal, c0);
     Value kernelCol = rewriter.create<memref::DimOp>(loc, kernelReal, c1);
 
-    FloatType f32 = FloatType::getF32(ctx);
+    FloatType f32 = Float32Type::get(ctx);
     VectorType vectorTy32 = VectorType::get({stride}, f32);
 
     dft2D(rewriter, loc, inputReal, inputImag, inputRow, inputCol,
@@ -297,7 +297,7 @@ public:
     SmallVector<Value, 8> lowerBounds2{c0, outputColMultiple};
     SmallVector<Value, 8> upperBounds2{outputRow, outputCol};
 
-    FloatType f32 = FloatType::getF32(ctx);
+    FloatType f32 = Float32Type::get(ctx);
     VectorType vectorTy32 = VectorType::get({stride}, f32);
 
     Value horizontalScalingFactorVec = rewriter.create<vector::SplatOp>(
@@ -436,7 +436,7 @@ public:
     SmallVector<Value, 8> upperBounds2{outputBatch, outputColor, outputRow,
                                        outputCol};
 
-    FloatType f32 = FloatType::getF32(ctx);
+    FloatType f32 = Float32Type::get(ctx);
     VectorType vectorTy32 = VectorType::get({stride}, f32);
 
     Value horizontalScalingFactorVec = rewriter.create<vector::SplatOp>(
@@ -577,7 +577,7 @@ public:
     SmallVector<Value, 8> upperBounds2{outputBatch, outputColor, outputRow,
                                        outputCol};
 
-    FloatType f32 = FloatType::getF32(ctx);
+    FloatType f32 = Float32Type::get(ctx);
     VectorType vectorTy32 = VectorType::get({stride}, f32);
 
     Value horizontalScalingFactorVec = rewriter.create<vector::SplatOp>(
