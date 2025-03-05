@@ -61,7 +61,9 @@ jobs:
       - name: Configure and Build LLVM
         run: |
           source ~/miniconda3/bin/activate buddy
+          pwd
           cd llvm
+          git log
           rm -rf build
           mkdir build
           cd build
