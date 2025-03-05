@@ -44,7 +44,9 @@ jobs:
 
       # 5. If the cache is not found, pull the LLVM submodule.
       - name: Checkout LLVM submodule
-        run: git submodule update --init --recursive llvm
+        run: |
+          rm -rf llvm
+          git submodule update --init --recursive llvm
         if: steps.cache-llvm-source.outputs.cache-hit != 'true'
 
       # 6. Cache the LLVM build directory.
