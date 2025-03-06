@@ -104,7 +104,7 @@ DiagnosedSilenceableFailure buddy::gpu::HoistStaticAllocOp::applyToOne(
 
 void buddy::gpu::HoistStaticAllocOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
-  mlir::transform::onlyReadsHandle(getTarget(), effects);
+  mlir::transform::onlyReadsHandle(getTargetMutable(), effects);
   mlir::transform::modifiesPayload(effects);
 }
 
@@ -137,12 +137,11 @@ void buddy::gpu::ApplyUnrollVectorsGpuMmaSyncPatternsOp::populatePatterns(
 
 void buddy::gpu::VectorToMMAConversionOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
-  mlir::transform::onlyReadsHandle(getTarget(), effects);
+  mlir::transform::onlyReadsHandle(getTargetMutable(), effects);
   mlir::transform::modifiesPayload(effects);
 }
 
-DiagnosedSilenceableFailure
-buddy::gpu::VectorToMMAConversionOp::applyToOne(
+DiagnosedSilenceableFailure buddy::gpu::VectorToMMAConversionOp::applyToOne(
     mlir::transform::TransformRewriter &rewriter, Operation *target,
     mlir::transform::ApplyToEachResultList &results,
     mlir::transform::TransformState &state) {

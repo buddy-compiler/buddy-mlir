@@ -51,7 +51,7 @@ set(BUDDY_EXAMPLES_DEPENDS
   FileCheck count not
   buddy-opt
   buddy-translate
-  mlir-cpu-runner
+  mlir-runner
   )
 
 add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."

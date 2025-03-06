@@ -32,6 +32,7 @@
 #include "mlir/Analysis/Liveness.h"
 #include "mlir/Analysis/Presburger/IntegerRelation.h"
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/Analysis/TopologicalSortUtils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -45,7 +46,6 @@
 #include "mlir/IR/Visitors.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/ValueBoundsOpInterface.h"
-#include "mlir/Transforms/TopologicalSortUtils.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
@@ -398,11 +398,8 @@ hoistOneStaticallyBoundAllocation(func::FuncOp funcOp, OpBuilder &builder,
     }
     Value dynamicSize = dynamicSizes[index++];
     auto ub = ValueBoundsConstraintSet::computeConstantBound(
-        presburger::BoundType::UB, dynamicSize, /*dim=*/std::nullopt,
+        presburger::BoundType::UB, dynamicSize,
         /*stopCondition=*/nullptr, /*closedUB=*/true);
-    if (failed(ub)) {
-      return std::nullopt;
-    }
     staticShape.push_back(ub.value());
     subviewSizes.push_back(dynamicSize);
   }
