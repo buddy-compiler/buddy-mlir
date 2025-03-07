@@ -1,4 +1,5 @@
-set(DIP_LIBS ${JPEG_LIBRARY} ${PNG_LIBRARIES} BuddyLibDIP)
+set(DIP_LIBS ${JPEG_LIBRARY} ${PNG_LIBRARIES} BuddyLibDIP omp)
+link_directories(${LLVM_LIBS})
 
 if(BUDDY_ENABLE_OPENCV)
   find_package(OpenCV REQUIRED CONFIG)
