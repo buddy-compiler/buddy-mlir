@@ -1056,89 +1056,123 @@ void NearestNeighbourInterpolationResizingNew(OpBuilder &builder, Location loc,
 
 void processScaling(OpBuilder &builder, Location loc, Value output,
                     Value scalingFactor, Value input, Value xOffset,
-                    Value iAlpha) {
+                    Value iAlpha, int64_t stride) {
   static const int SHIFT = 11;
   static const int INTER_RESIZE_COEF_SCALE = 1 << SHIFT;
   static const int HALF = 1 << (SHIFT - 1);
 
+  VectorType vectorTyIndex = VectorType::get({stride}, builder.getIndexType());
+  VectorType vectorTyI1 = VectorType::get({stride}, builder.getI1Type());
+  VectorType vectorTyI16 =
+      VectorType::get({stride}, IntegerType::get(builder.getContext(), 16));
+  VectorType vectorTyI32 =
+      VectorType::get({stride}, IntegerType::get(builder.getContext(), 32));
+  VectorType vectorTyF32 =
+      VectorType::get({stride}, FloatType::getF32(builder.getContext()));
+
   Value c0 = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
   Value c2 = builder.create<arith::ConstantIndexOp>(loc, 2);
-  Value c0I32 =
-      builder.create<arith::IndexCastUIOp>(loc, builder.getI32Type(), c0);
-  Value c0F = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)0.0f,
-                                                     builder.getF32Type());
-  Value cDot5F = builder.create<arith::ConstantFloatOp>(
-      loc, (llvm::APFloat)0.5f, builder.getF32Type());
+  Value c0I32Vec = builder.create<vector::SplatOp>(
+      loc, vectorTyI32,
+      builder.create<arith::IndexCastUIOp>(loc, builder.getI32Type(), c0));
+  Value c0FVec = builder.create<vector::SplatOp>(
+      loc, vectorTyF32,
+      builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)0.0f,
+                                             builder.getF32Type()));
+  Value cDot5FVec = builder.create<vector::SplatOp>(
+      loc, vectorTyF32,
+      builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)0.5f,
+                                             builder.getF32Type()));
+  Value scalingFactorVec =
+      builder.create<vector::SplatOp>(loc, vectorTyF32, scalingFactor);
   Value c1F = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)1.0f,
                                                      builder.getF32Type());
+  Value c1FVec = builder.create<vector::SplatOp>(loc, vectorTyF32, c1F);
   Value inputMinus1 = builder.create<arith::IndexCastUIOp>(
       loc, builder.getI32Type(), builder.create<arith::SubIOp>(loc, input, c1));
+  Value inputMinus1Vec =
+      builder.create<vector::SplatOp>(loc, vectorTyI32, inputMinus1);
   Value inputMinus2 = builder.create<arith::IndexCastUIOp>(
       loc, builder.getI32Type(), builder.create<arith::SubIOp>(loc, input, c2));
+  Value inputMinus2Vec =
+      builder.create<vector::SplatOp>(loc, vectorTyI32, inputMinus2);
+  Value stepVec = iotaVec0F32(builder, loc, stride);
+  Value strideVal = builder.create<arith::ConstantIndexOp>(loc, stride);
+  Value scaleCoefVec = builder.create<vector::SplatOp>(
+      loc, vectorTyF32,
+      builder.create<arith::ConstantFloatOp>(
+          loc, (llvm::APFloat)(float)INTER_RESIZE_COEF_SCALE,
+          builder.getF32Type()));
   builder.create<scf::ForOp>(
-      loc, c0, output, c1, std::nullopt,
+      loc, c0, output, strideVal, std::nullopt,
       [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
         //  float fx = (float)((dx + 0.5) * scale_x - 0.5);
-        Value xivF = indexToF32(xBuilder, xLoc, xiv);
-        Value temp1 = xBuilder.create<arith::AddFOp>(xLoc, xivF, cDot5F);
+        Value xivFVec = xBuilder.create<vector::SplatOp>(
+            xLoc, vectorTyF32, indexToF32(xBuilder, xLoc, xiv));
+        xivFVec = xBuilder.create<arith::AddFOp>(xLoc, xivFVec, stepVec);
+        Value temp1 = xBuilder.create<arith::AddFOp>(xLoc, xivFVec, cDot5FVec);
         Value temp2 =
-            xBuilder.create<arith::MulFOp>(xLoc, temp1, scalingFactor);
-        Value fx = xBuilder.create<arith::SubFOp>(xLoc, temp2, cDot5F);
-        Value sx =
-            xBuilder.create<arith::FPToSIOp>(xLoc, xBuilder.getI32Type(), fx);
+            xBuilder.create<arith::MulFOp>(xLoc, temp1, scalingFactorVec);
+        Value fx = xBuilder.create<arith::SubFOp>(xLoc, temp2, cDot5FVec);
+        Value sx = xBuilder.create<arith::FPToSIOp>(xLoc, vectorTyI32, fx);
         fx = xBuilder.create<arith::SubFOp>(
-            xLoc, fx,
-            xBuilder.create<arith::SIToFPOp>(xLoc, xBuilder.getF32Type(), sx));
+            xLoc, fx, xBuilder.create<arith::SIToFPOp>(xLoc, vectorTyF32, sx));
         Value lowerThanZero = xBuilder.create<arith::CmpIOp>(
-            xLoc, arith::CmpIPredicate::slt, sx, c0I32);
+            xLoc, arith::CmpIPredicate::slt, sx, c0I32Vec);
         Value greaterThan = xBuilder.create<arith::CmpIOp>(
-            xLoc, arith::CmpIPredicate::sge, sx, inputMinus1);
-        sx = xBuilder.create<arith::SelectOp>(xLoc, lowerThanZero, c0I32, sx);
-        fx = xBuilder.create<arith::SelectOp>(xLoc, lowerThanZero, c0F, fx);
-        sx = xBuilder.create<arith::SelectOp>(xLoc, greaterThan, inputMinus2,
+            xLoc, arith::CmpIPredicate::sge, sx, inputMinus1Vec);
+        sx =
+            xBuilder.create<arith::SelectOp>(xLoc, lowerThanZero, c0I32Vec, sx);
+        fx = xBuilder.create<arith::SelectOp>(xLoc, lowerThanZero, c0FVec, fx);
+        sx = xBuilder.create<arith::SelectOp>(xLoc, greaterThan, inputMinus2Vec,
                                               sx);
-        fx = xBuilder.create<arith::SelectOp>(xLoc, greaterThan, c0F, fx);
-        xBuilder.create<memref::StoreOp>(xLoc, sx, xOffset, ValueRange{xiv});
+        fx = xBuilder.create<arith::SelectOp>(xLoc, greaterThan, c0FVec, fx);
+        Value maskVal = xBuilder.create<arith::SubIOp>(xLoc, output, xiv);
+        Value maskVec =
+            xBuilder.create<vector::CreateMaskOp>(xLoc, vectorTyI1, maskVal);
+        xBuilder.create<vector::MaskedStoreOp>(xLoc, xOffset, ValueRange{xiv},
+                                               maskVec, sx);
 
         //  ialpha[dx * 2]     = (short)((1.f - fx) * INTER_RESIZE_COEF_SCALE);
         //  ialpha[dx * 2 + 1] = (short)(fx * INTER_RESIZE_COEF_SCALE);
-        Value fxScale = xBuilder.create<arith::MulFOp>(
-            xLoc, fx,
-            xBuilder.create<arith::ConstantFloatOp>(
-                xLoc, (llvm::APFloat)(float)INTER_RESIZE_COEF_SCALE,
-                xBuilder.getF32Type()));
-        Value oneMinusFx = xBuilder.create<arith::SubFOp>(xLoc, c1F, fx);
-        Value oneMinusFxScale = xBuilder.create<arith::MulFOp>(
-            xLoc, oneMinusFx,
-            xBuilder.create<arith::ConstantFloatOp>(
-                xLoc, (llvm::APFloat)(float)INTER_RESIZE_COEF_SCALE,
-                xBuilder.getF32Type()));
+        Value fxScale = xBuilder.create<arith::MulFOp>(xLoc, fx, scaleCoefVec);
+        Value oneMinusFx = xBuilder.create<arith::SubFOp>(xLoc, c1FVec, fx);
+        Value oneMinusFxScale =
+            xBuilder.create<arith::MulFOp>(xLoc, oneMinusFx, scaleCoefVec);
 
         Value index0 = xBuilder.create<arith::MulIOp>(xLoc, xiv, c2);
         Value index1 = xBuilder.create<arith::AddIOp>(xLoc, index0, c1);
 
-        Value val0 = xBuilder.create<arith::FPToSIOp>(
-            xLoc, xBuilder.getI16Type(), oneMinusFxScale);
-        Value val1 = xBuilder.create<arith::FPToSIOp>(
-            xLoc, xBuilder.getI16Type(), fxScale);
+        Value val0 = xBuilder.create<arith::FPToSIOp>(xLoc, vectorTyI16,
+                                                      oneMinusFxScale);
+        Value val1 =
+            xBuilder.create<arith::FPToSIOp>(xLoc, vectorTyI16, fxScale);
 
-        xBuilder.create<memref::StoreOp>(xLoc, val0, iAlpha,
+        SmallVector<int64_t> maskVec1;
+        for (int i = 0; i < stride; i++) {
+          maskVec1.push_back(i);
+          maskVec1.push_back(i + stride);
+        }
+        Value storeBack =
+            xBuilder.create<vector::ShuffleOp>(xLoc, val0, val1, maskVec1);
+        xBuilder.create<vector::StoreOp>(xLoc, storeBack, iAlpha,
                                          ValueRange{index0});
-        xBuilder.create<memref::StoreOp>(xLoc, val1, iAlpha,
-                                         ValueRange{index1});
         xBuilder.create<scf::YieldOp>(xLoc);
       });
 }
 
 void calcInterpolation(OpBuilder &builder, Location loc, Value &sy,
                        Value &syPrev, Value offset, Value input,
-                       Value outputWidth, Value iAlpha, Value buffer) {
+                       Value outputWidth, Value iAlpha, Value buffer,
+                       int64_t stride) {
   static const int SHIFT = 11;
   static const int HALF = 1 << (SHIFT - 1);
   auto inElemTy = input.getType().cast<MemRefType>().getElementType();
   Value c0 = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
+  Value c1I1 =
+      builder.create<arith::ConstantIntOp>(loc, 1, builder.getI1Type());
   Value c0I =
       builder.create<arith::ConstantIntOp>(loc, 0, builder.getI32Type());
   Value c1I =
@@ -1146,93 +1180,149 @@ void calcInterpolation(OpBuilder &builder, Location loc, Value &sy,
   Value c2 = builder.create<arith::ConstantIndexOp>(loc, 2);
   Value c2I =
       builder.create<arith::ConstantIntOp>(loc, 2, builder.getI32Type());
+
+  Value strideVal = builder.create<arith::ConstantIndexOp>(loc, stride);
+  Value strideInt =
+      builder.create<arith::IndexCastOp>(loc, builder.getI32Type(), strideVal);
+  Value outputStrideRatio =
+      builder.create<arith::DivUIOp>(loc, outputWidth, strideVal);
+  Value outputMultiple = builder.create<arith::MulIOp>(
+      loc, builder.create<arith::AddIOp>(loc, outputStrideRatio, c1),
+      strideVal);
+  VectorType vectorTyIndex = VectorType::get({stride}, builder.getIndexType());
+  VectorType vectorTyI1 = VectorType::get({stride}, builder.getI1Type());
+  VectorType vectorTyI16 =
+      VectorType::get({stride}, IntegerType::get(builder.getContext(), 16));
+  VectorType vectorTyI32 =
+      VectorType::get({stride}, IntegerType::get(builder.getContext(), 32));
+  VectorType vectorTyF32 =
+      VectorType::get({stride}, FloatType::getF32(builder.getContext()));
+
+  Value c1I1Vec = builder.create<vector::SplatOp>(loc, vectorTyI1, c1I1);
+  Value c1IVec = builder.create<vector::SplatOp>(loc, vectorTyI32, c1I);
+  Value c2IVec = builder.create<vector::SplatOp>(loc, vectorTyI32, c2I);
+  Value half =
+      builder.create<arith::ConstantIntOp>(loc, HALF, builder.getI32Type());
+  Value halfVec = builder.create<vector::SplatOp>(loc, vectorTyI32, half);
+  Value shift =
+      builder.create<arith::ConstantIntOp>(loc, SHIFT, builder.getI32Type());
+  Value shiftVec = builder.create<vector::SplatOp>(loc, vectorTyI32, shift);
+
+  auto passThruConstantOp =
+      builder.create<arith::ConstantOp>(loc, builder.getZeroAttr(vectorTyF32));
+  auto passThruConstantOpI32 =
+      builder.create<arith::ConstantOp>(loc, builder.getZeroAttr(vectorTyI32));
+  auto passThruConstantOpI16 =
+      builder.create<arith::ConstantOp>(loc, builder.getZeroAttr(vectorTyI16));
   Value notEqual =
       builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, sy, syPrev);
-  builder.create<scf::IfOp>(
-      loc, notEqual, [&](OpBuilder &tBuilder, Location tLoc) {
-        tBuilder.create<scf::ForOp>(
-            tLoc, c0, outputWidth, c1, std::nullopt,
-            [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
-              Value sx = xBuilder.create<memref::LoadOp>(xLoc, offset,
-                                                         ValueRange{xiv});
-              Value sxPlus1 = xBuilder.create<arith::AddIOp>(xLoc, sx, c1I);
-              Value xMul2 = xBuilder.create<arith::MulIOp>(xLoc, xiv, c2);
-              xMul2 = xBuilder.create<arith::IndexCastOp>(
-                  xLoc, xBuilder.getI32Type(), xMul2);
-              Value xMul2Plus1 =
-                  xBuilder.create<arith::AddIOp>(xLoc, xMul2, c1I);
-              Value index0 = xBuilder.create<arith::IndexCastOp>(
-                  xLoc, xBuilder.getIndexType(), xMul2);
-              Value index1 = xBuilder.create<arith::IndexCastOp>(
-                  xLoc, xBuilder.getIndexType(), xMul2Plus1);
-              Value a0 = xBuilder.create<memref::LoadOp>(xLoc, iAlpha,
-                                                         ValueRange{index0});
-              Value a1 = xBuilder.create<memref::LoadOp>(xLoc, iAlpha,
-                                                         ValueRange{index1});
-              Value sxIndex = xBuilder.create<arith::IndexCastOp>(
-                  xLoc, xBuilder.getIndexType(), sx);
-              Value sxPlus1Index = xBuilder.create<arith::IndexCastOp>(
-                  xLoc, xBuilder.getIndexType(), sxPlus1);
-              Value syIndex = xBuilder.create<arith::IndexCastOp>(
-                  xLoc, xBuilder.getIndexType(), sy);
-              Value v0 = xBuilder.create<memref::LoadOp>(
-                  xLoc, input, ValueRange{syIndex, sxIndex});
-              v0 = xBuilder.create<arith::FPToSIOp>(xLoc, xBuilder.getI32Type(),
-                                                    v0);
-              Value v1 = xBuilder.create<memref::LoadOp>(
-                  xLoc, input, ValueRange{syIndex, sxPlus1Index});
-              v1 = xBuilder.create<arith::FPToSIOp>(xLoc, xBuilder.getI32Type(),
-                                                    v1);
-              Value a0I32 = xBuilder.create<arith::ExtSIOp>(
-                  xLoc, xBuilder.getI32Type(), a0);
-              Value a1I32 = xBuilder.create<arith::ExtSIOp>(
-                  xLoc, xBuilder.getI32Type(), a1);
-              Value v0MulA0 = xBuilder.create<arith::MulIOp>(xLoc, v0, a0I32);
-              Value v1MulA1 = xBuilder.create<arith::MulIOp>(xLoc, v1, a1I32);
-              Value add1 =
-                  xBuilder.create<arith::AddIOp>(xLoc, v0MulA0, v1MulA1);
-              Value half = xBuilder.create<arith::ConstantIntOp>(
-                  xLoc, HALF, xBuilder.getI32Type());
-              Value add2 = xBuilder.create<arith::AddIOp>(xLoc, add1, half);
-              Value shift = xBuilder.create<arith::ConstantIntOp>(
-                  xLoc, SHIFT, xBuilder.getI32Type());
-              Value resShifted =
-                  xBuilder.create<arith::ShRSIOp>(xLoc, add2, shift);
-              xBuilder.create<memref::StoreOp>(xLoc, resShifted, buffer,
-                                               ValueRange{xiv});
-              xBuilder.create<scf::YieldOp>(xLoc);
-            });
-        // syPrev = sy;
-        tBuilder.create<scf::YieldOp>(tLoc);
-      });
+  builder.create<
+      scf::IfOp>(loc, notEqual, [&](OpBuilder &tBuilder, Location tLoc) {
+    tBuilder.create<scf::ForOp>(
+        tLoc, c0, outputMultiple, strideVal, std::nullopt,
+        [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
+          Value maskVal =
+              xBuilder.create<arith::SubIOp>(xLoc, outputWidth, xiv);
+          Value maskVec =
+              xBuilder.create<vector::CreateMaskOp>(xLoc, vectorTyI1, maskVal);
+          Value sxVec = xBuilder.create<vector::MaskedLoadOp>(
+              xLoc, vectorTyI32, offset, ValueRange{xiv}, maskVec,
+              passThruConstantOpI32);
+          Value sxPlus1Vec =
+              xBuilder.create<arith::AddIOp>(xLoc, sxVec, c1IVec);
+          Value index0 = xBuilder.create<arith::MulIOp>(xLoc, xiv, c2);
+          Value index1 =
+              xBuilder.create<arith::AddIOp>(xLoc, index0, strideVal);
+          Value a0Vec = xBuilder.create<vector::LoadOp>(xLoc, vectorTyI16,
+                                                        iAlpha, index0);
+          Value a1Vec = xBuilder.create<vector::LoadOp>(xLoc, vectorTyI16,
+                                                        iAlpha, index1);
+          Value sxVecIndex =
+              xBuilder.create<arith::IndexCastOp>(xLoc, vectorTyIndex, sxVec);
+          Value sxPlus1VecIndex = xBuilder.create<arith::IndexCastOp>(
+              xLoc, vectorTyIndex, sxPlus1Vec);
+          Value syIndex = xBuilder.create<arith::IndexCastOp>(
+              xLoc, xBuilder.getIndexType(), sy);
+          Value v0Vec = xBuilder.create<vector::GatherOp>(
+              xLoc, vectorTyF32, input, ValueRange{syIndex, c0}, sxVecIndex,
+              c1I1Vec, passThruConstantOp);
+          v0Vec = xBuilder.create<arith::FPToSIOp>(xLoc, vectorTyI32, v0Vec);
+          Value v1Vec = xBuilder.create<vector::GatherOp>(
+              xLoc, vectorTyF32, input, ValueRange{syIndex, c0},
+              sxPlus1VecIndex, c1I1Vec, passThruConstantOp);
+          v1Vec = xBuilder.create<arith::FPToSIOp>(xLoc, vectorTyI32, v1Vec);
+
+          a0Vec = xBuilder.create<arith::ExtSIOp>(xLoc, vectorTyI32, a0Vec);
+          a1Vec = xBuilder.create<arith::ExtSIOp>(xLoc, vectorTyI32, a1Vec);
+          SmallVector<int64_t> maskVec1, maskVec2;
+          for (int i = 0; i < stride; i++) {
+            maskVec1.push_back(i * 2);
+            maskVec2.push_back(i * 2 + 1);
+          }
+          Value adder1 =
+              xBuilder.create<vector::ShuffleOp>(xLoc, a0Vec, a1Vec, maskVec1);
+          Value adder2 =
+              xBuilder.create<vector::ShuffleOp>(xLoc, a0Vec, a1Vec, maskVec2);
+          Value aMulv0 = xBuilder.create<arith::MulIOp>(xLoc, adder1, v0Vec);
+          Value aMulv1 = xBuilder.create<arith::MulIOp>(xLoc, adder2, v1Vec);
+          Value adder = xBuilder.create<arith::AddIOp>(xLoc, aMulv0, aMulv1);
+          adder = builder.create<arith::AddIOp>(loc, adder, halfVec);
+          Value resShifted =
+              xBuilder.create<arith::ShRSIOp>(xLoc, adder, shiftVec);
+          xBuilder.create<vector::MaskedStoreOp>(xLoc, buffer, ValueRange{xiv},
+                                                 maskVec, resShifted);
+          xBuilder.create<scf::YieldOp>(xLoc);
+        });
+    tBuilder.create<scf::YieldOp>(tLoc);
+  });
   syPrev = builder.create<arith::SelectOp>(loc, notEqual, sy, syPrev);
 }
 
 void BilinearInterpolationResizingNew(OpBuilder &builder, Location loc,
                                       MLIRContext *ctx, Value input,
-                                      Value output,
+                                      Value output, int64_t stride,
                                       Value horizontalScalingFactor,
                                       Value verticalScalingFactor) {
   static const int SHIFT = 11;
   static const int INTER_RESIZE_COEF_SCALE = 1 << SHIFT;
   static const int HALF = 1 << (SHIFT - 1);
   auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+  VectorType vectorTyIndex = VectorType::get({stride}, builder.getIndexType());
+  VectorType vectorTyI1 = VectorType::get({stride}, builder.getI1Type());
+  VectorType vectorTyI32 =
+      VectorType::get({stride}, IntegerType::get(builder.getContext(), 32));
+  VectorType vectorTyF = VectorType::get(
+      {stride}, inElemTy.isF32() ? FloatType::getF32(builder.getContext())
+                                 : FloatType::getF64(builder.getContext()));
+  auto passThruConstantOpI32 =
+      builder.create<arith::ConstantOp>(loc, builder.getZeroAttr(vectorTyI32));
   Value cMinus1 = builder.create<arith::ConstantIndexOp>(loc, -1);
   Value c0 = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
-  Value c1I =
+  Value c1I32 =
       builder.create<arith::ConstantIntOp>(loc, 1, builder.getI32Type());
   Value c2 = builder.create<arith::ConstantIndexOp>(loc, 2);
-  Value c2I =
-      builder.create<arith::ConstantIntOp>(loc, 2, builder.getI32Type());
-  Value c1F = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)1.0f,
-                                                     builder.getF32Type());
-
   Value inputRow = builder.create<memref::DimOp>(loc, input, c0);
   Value inputCol = builder.create<memref::DimOp>(loc, input, c1);
 
   Value outputRow = builder.create<memref::DimOp>(loc, output, c0);
   Value outputCol = builder.create<memref::DimOp>(loc, output, c1);
+
+  Value strideVal = builder.create<arith::ConstantIndexOp>(loc, stride);
+  Value outputColStrideRatio =
+      builder.create<arith::DivUIOp>(loc, outputCol, strideVal);
+  Value outputColMultiple = builder.create<arith::MulIOp>(
+      loc, builder.create<arith::AddIOp>(loc, outputColStrideRatio, c1),
+      strideVal);
+  Value outputColMultiple2 =
+      builder.create<arith::MulIOp>(loc, outputColMultiple, c2);
+  Value outputRowStrideRatio =
+      builder.create<arith::DivUIOp>(loc, outputRow, strideVal);
+  Value outputRowMultiple = builder.create<arith::MulIOp>(
+      loc, builder.create<arith::AddIOp>(loc, outputRowStrideRatio, c1),
+      strideVal);
+  Value outputRowMultiple2 =
+      builder.create<arith::MulIOp>(loc, outputRowMultiple, c2);
 
   MemRefType dynamicTypeI32 =
       MemRefType::get(ShapedType::kDynamic, IntegerType::get(ctx, 32));
@@ -1240,21 +1330,19 @@ void BilinearInterpolationResizingNew(OpBuilder &builder, Location loc,
       builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputCol);
   MemRefType dynamicTypeI16 =
       MemRefType::get(ShapedType::kDynamic, IntegerType::get(ctx, 16));
-  Value outputColMul2 = builder.create<arith::MulIOp>(loc, outputCol, c2);
   Value iAlpha =
-      builder.create<memref::AllocOp>(loc, dynamicTypeI16, outputColMul2);
+      builder.create<memref::AllocOp>(loc, dynamicTypeI16, outputColMultiple2);
 
   processScaling(builder, loc, outputCol, horizontalScalingFactor, inputCol,
-                 xOffset, iAlpha);
+                 xOffset, iAlpha, stride);
 
   Value yOffset =
       builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputRow);
-  Value outputRowMul2 = builder.create<arith::MulIOp>(loc, outputRow, c2);
   Value iBeta =
-      builder.create<memref::AllocOp>(loc, dynamicTypeI16, outputRowMul2);
+      builder.create<memref::AllocOp>(loc, dynamicTypeI16, outputRowMultiple2);
 
   processScaling(builder, loc, outputRow, verticalScalingFactor, inputRow,
-                 yOffset, iBeta);
+                 yOffset, iBeta, stride);
 
   Value bufferWidth = outputCol;
   Value buffer0 =
@@ -1265,6 +1353,19 @@ void BilinearInterpolationResizingNew(OpBuilder &builder, Location loc,
       builder.create<arith::IndexCastOp>(loc, builder.getI32Type(), cMinus1);
   Value prevSy1 =
       builder.create<arith::IndexCastOp>(loc, builder.getI32Type(), cMinus1);
+
+  Value halfVec = builder.create<vector::SplatOp>(
+      loc, vectorTyI32,
+      builder.create<arith::ConstantIntOp>(loc, HALF, builder.getI32Type()));
+  Value shiftVec = builder.create<vector::SplatOp>(
+      loc, vectorTyI32,
+      builder.create<arith::ConstantIntOp>(loc, SHIFT, builder.getI32Type()));
+  Value zeroVec = builder.create<vector::SplatOp>(
+      loc, vectorTyI32,
+      builder.create<arith::ConstantIntOp>(loc, 0, builder.getI32Type()));
+  Value twoFiftyFiveVec = builder.create<vector::SplatOp>(
+      loc, vectorTyI32,
+      builder.create<arith::ConstantIntOp>(loc, 255, builder.getI32Type()));
 
   // builder.create<scf::ParallelOp>(
   //   loc, ValueRange{c0}, ValueRange{outputRow}, ValueRange{c1},
@@ -1277,67 +1378,59 @@ void BilinearInterpolationResizingNew(OpBuilder &builder, Location loc,
       [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
         Value sy =
             yBuilder.create<memref::LoadOp>(yLoc, yOffset, ValueRange{yiv});
-        Value syNext = yBuilder.create<arith::AddIOp>(yLoc, sy, c1I);
+        Value syNext = yBuilder.create<arith::AddIOp>(yLoc, sy, c1I32);
         calcInterpolation(yBuilder, yLoc, sy, prevSy0, xOffset, input,
-                          outputCol, iAlpha, buffer0);
+                          outputCol, iAlpha, buffer0, stride);
         calcInterpolation(yBuilder, yLoc, syNext, prevSy1, xOffset, input,
-                          outputCol, iAlpha, buffer1);
+                          outputCol, iAlpha, buffer1, stride);
 
+        //  calc index
         Value yMul2 = yBuilder.create<arith::MulIOp>(yLoc, yiv, c2);
         yMul2 = yBuilder.create<arith::IndexCastOp>(yLoc, yBuilder.getI32Type(),
                                                     yMul2);
-        Value yMul2Plus1 = yBuilder.create<arith::AddIOp>(yLoc, yMul2, c1I);
+        Value yMul2Plus1 = yBuilder.create<arith::AddIOp>(yLoc, yMul2, c1I32);
         Value index0 = yBuilder.create<arith::IndexCastOp>(
             yLoc, yBuilder.getIndexType(), yMul2);
         Value index1 = yBuilder.create<arith::IndexCastOp>(
             yLoc, yBuilder.getIndexType(), yMul2Plus1);
-        Value b0 =
-            yBuilder.create<memref::LoadOp>(yLoc, iBeta, ValueRange{index0});
+        Value b0 = yBuilder.create<memref::LoadOp>(yLoc, iBeta, index0);
         b0 = yBuilder.create<arith::ExtSIOp>(yLoc, yBuilder.getI32Type(), b0);
-        Value b1 =
-            yBuilder.create<memref::LoadOp>(yLoc, iBeta, ValueRange{index1});
+        Value b0Vec = yBuilder.create<vector::SplatOp>(yLoc, vectorTyI32, b0);
+        Value b1 = yBuilder.create<memref::LoadOp>(yLoc, iBeta, index1);
         b1 = yBuilder.create<arith::ExtSIOp>(yLoc, yBuilder.getI32Type(), b1);
-        // Value b0 = yBuilder.create<memref::LoadOp>(yLoc, iBeta,
-        // ValueRange{yiv}); b0 = yBuilder.create<arith::ExtSIOp>(yLoc,
-        // yBuilder.getI32Type(), b0); Value yPlus1 =
-        // builder.create<arith::AddIOp>(yLoc, yiv, c1); Value b1 =
-        // yBuilder.create<memref::LoadOp>(yLoc, iBeta, ValueRange{yPlus1}); b1
-        // = yBuilder.create<arith::ExtSIOp>(yLoc, yBuilder.getI32Type(), b1);
+        Value b1Vec = yBuilder.create<vector::SplatOp>(yLoc, vectorTyI32, b1);
+
         yBuilder.create<scf::ForOp>(
-            yLoc, c0, bufferWidth, c1, std::nullopt,
+            yLoc, c0, bufferWidth, strideVal, std::nullopt,
             [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
-              Value buffer0X = xBuilder.create<memref::LoadOp>(xLoc, buffer0,
-                                                               ValueRange{xiv});
-              Value buffer1X = xBuilder.create<memref::LoadOp>(xLoc, buffer1,
-                                                               ValueRange{xiv});
+              Value maskVal =
+                  xBuilder.create<arith::SubIOp>(xLoc, bufferWidth, xiv);
+              Value maskVec = xBuilder.create<vector::CreateMaskOp>(
+                  xLoc, vectorTyI1, maskVal);
+              Value buffer0X = xBuilder.create<vector::MaskedLoadOp>(
+                  xLoc, vectorTyI32, buffer0, ValueRange{xiv}, maskVec,
+                  passThruConstantOpI32);
+              Value buffer1X = xBuilder.create<vector::MaskedLoadOp>(
+                  xLoc, vectorTyI32, buffer1, ValueRange{xiv}, maskVec,
+                  passThruConstantOpI32);
               Value b0MulBuffer0 =
-                  xBuilder.create<arith::MulIOp>(xLoc, b0, buffer0X);
+                  xBuilder.create<arith::MulIOp>(xLoc, b0Vec, buffer0X);
               Value b1MulBuffer1 =
-                  xBuilder.create<arith::MulIOp>(xLoc, b1, buffer1X);
+                  xBuilder.create<arith::MulIOp>(xLoc, b1Vec, buffer1X);
               Value add = xBuilder.create<arith::AddIOp>(xLoc, b0MulBuffer0,
                                                          b1MulBuffer1);
-              Value half = xBuilder.create<arith::ConstantIntOp>(
-                  xLoc, HALF, xBuilder.getI32Type());
-              Value addHalf = xBuilder.create<arith::AddIOp>(xLoc, add, half);
-              Value shift = xBuilder.create<arith::ConstantIntOp>(
-                  xLoc, SHIFT, xBuilder.getI32Type());
+              Value addHalf =
+                  xBuilder.create<arith::AddIOp>(xLoc, add, halfVec);
               Value resShifted =
-                  xBuilder.create<arith::ShRSIOp>(xLoc, addHalf, shift);
-              Value zero = xBuilder.create<arith::ConstantIntOp>(
-                  xLoc, 0, xBuilder.getI32Type());
-              Value twoFiftyFive = xBuilder.create<arith::ConstantIntOp>(
-                  xLoc, 255, xBuilder.getI32Type());
+                  xBuilder.create<arith::ShRSIOp>(xLoc, addHalf, shiftVec);
               Value maxVal =
-                  xBuilder.create<arith::MaxSIOp>(xLoc, resShifted, zero);
-              Value clampedVal =
-                  xBuilder.create<arith::MinSIOp>(xLoc, maxVal, twoFiftyFive);
-              FloatType type = inElemTy.isF32()
-                                   ? FloatType::getF32(xBuilder.getContext())
-                                   : FloatType::getF64(xBuilder.getContext());
+                  xBuilder.create<arith::MaxSIOp>(xLoc, resShifted, zeroVec);
+              Value clampedVal = xBuilder.create<arith::MinSIOp>(
+                  xLoc, maxVal, twoFiftyFiveVec);
               Value clampedValF =
-                  xBuilder.create<arith::SIToFPOp>(xLoc, type, clampedVal);
-              xBuilder.create<memref::StoreOp>(xLoc, clampedValF, output,
-                                               ValueRange{yiv, xiv});
+                  xBuilder.create<arith::SIToFPOp>(xLoc, vectorTyF, clampedVal);
+              xBuilder.create<vector::MaskedStoreOp>(
+                  xLoc, output, ValueRange{yiv, xiv}, maskVec, clampedValF);
               xBuilder.create<scf::YieldOp>(xLoc);
             });
         yBuilder.create<scf::YieldOp>(yLoc);
