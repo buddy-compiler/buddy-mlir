@@ -987,18 +987,30 @@ void fillPixelsBilinearInterpolate4D(
       });
 }
 
-void NearestNeighbourInterpolationResizingNew(OpBuilder &builder, Location loc,
-                                              MLIRContext *ctx, Value input,
-                                              Value output,
-                                              Value horizontalScalingFactor,
-                                              Value verticalScalingFactor) {
+void NearestNeighbourInterpolationResizingNew(
+    OpBuilder &builder, Location loc, MLIRContext *ctx, Value input,
+    Value output, int64_t stride, Value horizontalScalingFactor,
+    Value verticalScalingFactor, VectorType vectorResTy, VectorType vectorTyI16,
+    VectorType vectorTyIndex, VectorType vectorTyF32, VectorType vectorTyI1) {
   Value c0 = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
+  Value strideVal = builder.create<arith::ConstantIndexOp>(loc, stride);
+  Value stepVec = iotaVec0F32(builder, loc, stride);
+  Value horizontalVec = builder.create<vector::SplatOp>(
+      loc, vectorTyF32, horizontalScalingFactor);
+  Value verticalVec =
+      builder.create<vector::SplatOp>(loc, vectorTyF32, verticalScalingFactor);
+  auto passThruRes =
+      builder.create<arith::ConstantOp>(loc, builder.getZeroAttr(vectorResTy));
+  auto passThruI16 =
+      builder.create<arith::ConstantOp>(loc, builder.getZeroAttr(vectorTyI16));
 
   Value inputRow = builder.create<memref::DimOp>(loc, input, c0);
   Value inputRowMinus1 = builder.create<arith::IndexCastUIOp>(
       loc, builder.getI16Type(),
       builder.create<arith::SubIOp>(loc, inputRow, c1));
+  Value inputRowMinus1Vec =
+      builder.create<vector::SplatOp>(loc, vectorTyI16, inputRowMinus1);
   Value inputCol = builder.create<memref::DimOp>(loc, input, c1);
   Value inputColMinus1 = builder.create<arith::IndexCastUIOp>(
       loc, builder.getI16Type(),
@@ -1006,22 +1018,33 @@ void NearestNeighbourInterpolationResizingNew(OpBuilder &builder, Location loc,
 
   Value outputRow = builder.create<memref::DimOp>(loc, output, c0);
   Value outputCol = builder.create<memref::DimOp>(loc, output, c1);
+  Value outputColStrideRatio =
+      builder.create<arith::DivUIOp>(loc, outputCol, strideVal);
+  Value outputColMultiple = builder.create<arith::MulIOp>(
+      loc, builder.create<arith::AddIOp>(loc, outputColStrideRatio, c1),
+      strideVal);
 
   MemRefType dynamicTypeI16 =
       MemRefType::get(ShapedType::kDynamic, IntegerType::get(ctx, 16));
   Value srcXPosVec =
-      builder.create<memref::AllocOp>(loc, dynamicTypeI16, outputCol);
+      builder.create<memref::AllocOp>(loc, dynamicTypeI16, outputColMultiple);
   builder.create<scf::ForOp>(
-      loc, c0, outputCol, c1, std::nullopt,
+      loc, c0, outputColMultiple, strideVal, std::nullopt,
       [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
+        // Value maskVal = xBuilder.create<arith::SubIOp>(xLoc, outputCol, xiv);
+        Value xivFVec = xBuilder.create<vector::SplatOp>(
+            xLoc, vectorTyF32, indexToF32(xBuilder, xLoc, xiv));
+        xivFVec = xBuilder.create<arith::AddFOp>(xLoc, xivFVec, stepVec);
         Value srcXPos = xBuilder.create<arith::FPToUIOp>(
-            xLoc, xBuilder.getI16Type(),
-            xBuilder.create<arith::MulFOp>(xLoc,
-                                           indexToF32(xBuilder, xLoc, xiv),
-                                           horizontalScalingFactor));
+            xLoc, vectorTyI16,
+            xBuilder.create<arith::MulFOp>(xLoc, xivFVec, horizontalVec));
         srcXPos =
-            xBuilder.create<arith::MinSIOp>(xLoc, srcXPos, inputRowMinus1);
-        xBuilder.create<memref::StoreOp>(xLoc, srcXPos, srcXPosVec,
+            xBuilder.create<arith::MinSIOp>(xLoc, srcXPos, inputRowMinus1Vec);
+        // xBuilder.create<vector::MaskedStoreOp>(
+        //       xLoc, srcXPosVec, ValueRange{xiv},
+        //       xBuilder.create<vector::CreateMaskOp>(xLoc, vectorTyI1,
+        //       maskVal), srcXPos);
+        xBuilder.create<vector::StoreOp>(xLoc, srcXPos, srcXPosVec,
                                          ValueRange{xiv});
         xBuilder.create<scf::YieldOp>(xLoc);
       });
@@ -1038,16 +1061,24 @@ void NearestNeighbourInterpolationResizingNew(OpBuilder &builder, Location loc,
         srcYPos = yBuilder.create<arith::IndexCastOp>(
             yLoc, yBuilder.getIndexType(), srcYPos);
         yBuilder.create<scf::ForOp>(
-            loc, c0, outputCol, c1, std::nullopt,
+            loc, c0, outputCol, strideVal, std::nullopt,
             [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
-              Value srcXPos = xBuilder.create<memref::LoadOp>(xLoc, srcXPosVec,
-                                                              ValueRange{xiv});
-              srcXPos = xBuilder.create<arith::IndexCastOp>(
-                  xLoc, xBuilder.getIndexType(), srcXPos);
-              Value srcPixel = xBuilder.create<memref::LoadOp>(
-                  xLoc, input, ValueRange{srcYPos, srcXPos});
-              xBuilder.create<memref::StoreOp>(xLoc, srcPixel, output,
-                                               ValueRange{yiv, xiv});
+              Value maskVal =
+                  xBuilder.create<arith::SubIOp>(xLoc, outputCol, xiv);
+              Value maskVec = xBuilder.create<vector::CreateMaskOp>(
+                  xLoc, vectorTyI1, maskVal);
+              Value srcXPos = xBuilder.create<vector::MaskedLoadOp>(
+                  xLoc, vectorTyI16, srcXPosVec, ValueRange{xiv}, maskVec,
+                  passThruI16);
+              // Value srcXPos = xBuilder.create<vector::LoadOp>(
+              //     xLoc, vectorTyI16, srcXPosVec, ValueRange{xiv});
+              srcXPos = xBuilder.create<arith::IndexCastOp>(xLoc, vectorTyIndex,
+                                                            srcXPos);
+              Value srcPixel = xBuilder.create<vector::GatherOp>(
+                  xLoc, vectorResTy, input, ValueRange{srcYPos, c0}, srcXPos,
+                  maskVec, passThruRes);
+              xBuilder.create<vector::MaskedStoreOp>(
+                  xLoc, output, ValueRange{yiv, xiv}, maskVec, srcPixel);
               xBuilder.create<scf::YieldOp>(xLoc);
             });
         yBuilder.create<scf::YieldOp>(yLoc);

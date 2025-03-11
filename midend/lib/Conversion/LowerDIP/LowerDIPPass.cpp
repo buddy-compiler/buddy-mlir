@@ -345,8 +345,9 @@ public:
     if (interpolationAttr ==
         dip::InterpolationType::NearestNeighbourInterpolation) {
       dip::NearestNeighbourInterpolationResizingNew(
-          rewriter, loc, ctx, input, output, horizontalScalingFactor,
-          verticalScalingFactor);
+          rewriter, loc, ctx, input, output, stride, horizontalScalingFactor,
+          verticalScalingFactor, vectorResTy, vectorTyI16, vectorTyIndex,
+          vectorTyF32, vectorTyI1);
     } else if (interpolationAttr ==
                dip::InterpolationType::BilinearInterpolation) {
       dip::BilinearInterpolationResizingNew(

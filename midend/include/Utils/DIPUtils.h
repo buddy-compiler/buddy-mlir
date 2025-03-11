@@ -176,11 +176,11 @@ void fillPixelsBilinearInterpolate4D(
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
     Value c1F32, Value dataCondition);
 
-void NearestNeighbourInterpolationResizingNew(OpBuilder &builder, Location loc,
-                                              MLIRContext *ctx, Value input,
-                                              Value output,
-                                              Value horizontalScalingFactor,
-                                              Value verticalScalingFactor);
+void NearestNeighbourInterpolationResizingNew(
+    OpBuilder &builder, Location loc, MLIRContext *ctx, Value input,
+    Value output, int64_t stride, Value horizontalScalingFactor,
+    Value verticalScalingFactor, VectorType vectorResTy, VectorType vectorTyI16,
+    VectorType vectorTyIndex, VectorType vectorTyF32, VectorType vectorTyI1);
 
 void BilinearInterpolationResizingNew(
     OpBuilder &builder, Location loc, MLIRContext *ctx, Value input,
