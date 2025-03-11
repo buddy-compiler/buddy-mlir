@@ -300,7 +300,6 @@ public:
     Value verticalScalingFactor = op->getOperand(2);
     Value output = op->getOperand(3);
     auto interpolationAttr = op.getInterpolationType();
-    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
     auto inElemTy = input.getType().cast<MemRefType>().getElementType();
     dip::DIP_ERROR error =
@@ -346,8 +345,7 @@ public:
         dip::InterpolationType::NearestNeighbourInterpolation) {
       dip::NearestNeighbourInterpolationResizingNew(
           rewriter, loc, ctx, input, output, stride, horizontalScalingFactor,
-          verticalScalingFactor, vectorResTy, vectorTyI16, vectorTyIndex,
-          vectorTyF32, vectorTyI1);
+          verticalScalingFactor);
     } else if (interpolationAttr ==
                dip::InterpolationType::BilinearInterpolation) {
       dip::BilinearInterpolationResizingNew(
