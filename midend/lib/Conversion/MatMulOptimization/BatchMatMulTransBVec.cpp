@@ -57,8 +57,8 @@ class BatchMatMulTransVecPattern : public ConversionPattern {
 public:
   explicit BatchMatMulTransVecPattern(MLIRContext *context,
                                       int64_t vecSizeParam)
-      : ConversionPattern(linalg::BatchMatmulTransposeBOp::getOperationName(), 1,
-                          context) {
+      : ConversionPattern(linalg::BatchMatmulTransposeBOp::getOperationName(),
+                          1, context) {
     vecSize = vecSizeParam;
   }
 
@@ -107,64 +107,60 @@ public:
     affine::buildAffineLoopNest(
         rewriter, loc, {c0, c0, c0}, {batch, aRow, bCol}, /*Step=*/{1, 1, 1},
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-
-      // Get a vector of the output memref.
-      Value val = builder.create<memref::LoadOp>(loc, elementType, C,
-                                                 ValueRange{ivs[0], ivs[1], ivs[2]});
-      auto iterValues = builder.create<scf::ForOp>(
-          loc, c0, upperBound, /*Step=*/vlStep, ValueRange{c0, val},
-          [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
-          ValueRange itrArgs) {
-        Value aVec = builder.create<vector::LoadOp>(
-            loc, vectorTy, A, ValueRange{ivs[0], ivs[1], iv});
-        Value bVec = builder.create<vector::LoadOp>(
-            loc, vectorTy, B, ValueRange{ivs[0], ivs[2], iv});
-        // Compute the result vector either through integer
-        // multiplication and addition or fused multiply-add
-        // based on the element type.
-        Value tmpVec;
-        if (isa<IntegerType>(elementType)) {
-          tmpVec = builder.create<arith::MulIOp>(
-              loc, aVec, bVec);
-        } else {
-          tmpVec = builder.create<arith::MulFOp>(
-            loc, aVec, bVec);
-        }
-        Value tmpVal = builder.create<vector::ReductionOp>(
-            loc, vector::CombiningKind::ADD, tmpVec, itrArgs[1],
-            ::mlir::arith::FastMathFlags::reassoc);
-        Value idx = nestedBuilder.create<arith::AddIOp>(
-            nestedLoc, iv, vlStep);
-        builder.create<scf::YieldOp>(loc, ValueRange{idx, tmpVal});
-      });
-      // Compute the tail size and Process the remaining elements
-      // using masked vector operations.
-      Value idx = iterValues.getResult(0);
-      Value tailSize = builder.create<arith::SubIOp>(loc, bRow, idx);
-      Value tailMask = builder.create<CreateMaskOp>(loc, vectorMaskTy, tailSize);
-      Value maskedAVec = builder.create<MaskedLoadOp>(
-          loc, vectorTy, A, ValueRange{ivs[0], ivs[1], idx},
-          tailMask, passThroughVec);
-      Value maskedBVec = builder.create<MaskedLoadOp>(
-          loc, vectorTy, B, ValueRange{ivs[0], ivs[2], idx},
-          tailMask, passThroughVec);
-      // Compute the result vector either through integer
-      // multiplication and addition or fused multiply-add
-      // based on the element type.
-      Value tmpVec;
-      if (isa<IntegerType>(elementType)) {
-        tmpVec = builder.create<arith::MulIOp>(
-            loc, maskedAVec, maskedBVec);
-      } else {
-        tmpVec = builder.create<arith::MulFOp>(
-          loc, maskedAVec, maskedBVec);
-      }
-      Value tmpVal = builder.create<vector::ReductionOp>(
-          loc, vector::CombiningKind::ADD, tmpVec, iterValues.getResult(1),
-          ::mlir::arith::FastMathFlags::reassoc);
-      builder.create<affine::AffineStoreOp>(
-        loc, tmpVal, C, ValueRange{ivs[0], ivs[1], ivs[2]});
-    });
+          // Get a vector of the output memref.
+          Value val = builder.create<memref::LoadOp>(
+              loc, elementType, C, ValueRange{ivs[0], ivs[1], ivs[2]});
+          auto iterValues = builder.create<scf::ForOp>(
+              loc, c0, upperBound, /*Step=*/vlStep, ValueRange{c0, val},
+              [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
+                  ValueRange itrArgs) {
+                Value aVec = builder.create<vector::LoadOp>(
+                    loc, vectorTy, A, ValueRange{ivs[0], ivs[1], iv});
+                Value bVec = builder.create<vector::LoadOp>(
+                    loc, vectorTy, B, ValueRange{ivs[0], ivs[2], iv});
+                // Compute the result vector either through integer
+                // multiplication and addition or fused multiply-add
+                // based on the element type.
+                Value tmpVec;
+                if (isa<IntegerType>(elementType)) {
+                  tmpVec = builder.create<arith::MulIOp>(loc, aVec, bVec);
+                } else {
+                  tmpVec = builder.create<arith::MulFOp>(loc, aVec, bVec);
+                }
+                Value tmpVal = builder.create<vector::ReductionOp>(
+                    loc, vector::CombiningKind::ADD, tmpVec, itrArgs[1],
+                    ::mlir::arith::FastMathFlags::reassoc);
+                Value idx =
+                    nestedBuilder.create<arith::AddIOp>(nestedLoc, iv, vlStep);
+                builder.create<scf::YieldOp>(loc, ValueRange{idx, tmpVal});
+              });
+          // Compute the tail size and Process the remaining elements
+          // using masked vector operations.
+          Value idx = iterValues.getResult(0);
+          Value tailSize = builder.create<arith::SubIOp>(loc, bRow, idx);
+          Value tailMask =
+              builder.create<CreateMaskOp>(loc, vectorMaskTy, tailSize);
+          Value maskedAVec = builder.create<MaskedLoadOp>(
+              loc, vectorTy, A, ValueRange{ivs[0], ivs[1], idx}, tailMask,
+              passThroughVec);
+          Value maskedBVec = builder.create<MaskedLoadOp>(
+              loc, vectorTy, B, ValueRange{ivs[0], ivs[2], idx}, tailMask,
+              passThroughVec);
+          // Compute the result vector either through integer
+          // multiplication and addition or fused multiply-add
+          // based on the element type.
+          Value tmpVec;
+          if (isa<IntegerType>(elementType)) {
+            tmpVec = builder.create<arith::MulIOp>(loc, maskedAVec, maskedBVec);
+          } else {
+            tmpVec = builder.create<arith::MulFOp>(loc, maskedAVec, maskedBVec);
+          }
+          Value tmpVal = builder.create<vector::ReductionOp>(
+              loc, vector::CombiningKind::ADD, tmpVec, iterValues.getResult(1),
+              ::mlir::arith::FastMathFlags::reassoc);
+          builder.create<affine::AffineStoreOp>(
+              loc, tmpVal, C, ValueRange{ivs[0], ivs[1], ivs[2]});
+        });
     rewriter.eraseOp(op);
     return success();
   }
@@ -185,8 +181,12 @@ class BatchMatMulTransVecPass
     : public PassWrapper<BatchMatMulTransVecPass, OperationPass<ModuleOp>> {
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(BatchMatMulTransVecPass)
-  StringRef getArgument() const final { return "batchmatmul-transpose-b-vectorization"; }
-  StringRef getDescription() const final { return "BatchMatMulTransposeBOp vectorization."; }
+  StringRef getArgument() const final {
+    return "batchmatmul-transpose-b-vectorization";
+  }
+  StringRef getDescription() const final {
+    return "BatchMatMulTransposeBOp vectorization.";
+  }
   BatchMatMulTransVecPass() = default;
   BatchMatMulTransVecPass(const BatchMatMulTransVecPass &) {}
   explicit BatchMatMulTransVecPass(int64_t vecSizeParam) {
