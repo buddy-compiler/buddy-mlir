@@ -176,29 +176,13 @@ void fillPixelsBilinearInterpolate4D(
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
     Value c1F32, Value dataCondition);
 
-void NearestNeighbourInterpolationResizingNew(OpBuilder &builder, Location loc,
-                                              MLIRContext *ctx, Value input,
-                                              Value output, int64_t stride,
-                                              Value horizontalScalingFactor,
-                                              Value verticalScalingFactor);
-
-void BilinearInterpolationResizingNew(
-    OpBuilder &builder, Location loc, MLIRContext *ctx, Value input,
-    Value output, int64_t stride, Value horizontalScalingFactor,
-    Value verticalScalingFactor, Value halfVec, Value shiftVec, Value scaleVec,
-    VectorType vectorResTy, VectorType vectorTyI32, VectorType vectorTyI16,
-    VectorType vectorTyIndex, VectorType vectorTyF32, VectorType vectorTyI1);
-
 // Helper function for resizing an image using nearest neighbour interpolation
 // mechanism.
-void NearestNeighbourInterpolationResizing(
-    OpBuilder &builder, Location loc, MLIRContext *ctx,
-    SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
-    SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
-    Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
-    Value outputRowLastElemF32, Value outputColLastElemF32,
-    Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
-    int64_t stride, Value c0, Value c0F32);
+void NearestNeighbourInterpolationResizing(OpBuilder &builder, Location loc,
+                                           MLIRContext *ctx, Value input,
+                                           Value output, int64_t stride,
+                                           Value horizontalScalingFactor,
+                                           Value verticalScalingFactor);
 
 // Helper function for resizing 4D an image using nearest neighbour
 // interpolation mechanism.
@@ -213,13 +197,11 @@ void NearestNeighbourInterpolationResizing4D(
 
 // Helper function for resizing an image using bilinear interpolation mechanism.
 void BilinearInterpolationResizing(
-    OpBuilder &builder, Location loc, MLIRContext *ctx,
-    SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
-    SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
-    Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
-    Value outputRowLastElemF32, Value outputColLastElemF32,
-    Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
-    int64_t stride, Value c0, Value c0F32, Value c1F32);
+    OpBuilder &builder, Location loc, MLIRContext *ctx, Value input,
+    Value output, int64_t stride, Value horizontalScalingFactor,
+    Value verticalScalingFactor, Value halfVec, Value shiftVec, Value scaleVec,
+    VectorType vectorResTy, VectorType vectorTyI32, VectorType vectorTyI16,
+    VectorType vectorTyIndex, VectorType vectorTyF32, VectorType vectorTyI1);
 
 // Helper function for resizing 4D an image using bilinear interpolation
 // mechanism.

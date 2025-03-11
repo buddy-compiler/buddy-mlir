@@ -343,12 +343,12 @@ public:
 
     if (interpolationAttr ==
         dip::InterpolationType::NearestNeighbourInterpolation) {
-      dip::NearestNeighbourInterpolationResizingNew(
+      dip::NearestNeighbourInterpolationResizing(
           rewriter, loc, ctx, input, output, stride, horizontalScalingFactor,
           verticalScalingFactor);
     } else if (interpolationAttr ==
                dip::InterpolationType::BilinearInterpolation) {
-      dip::BilinearInterpolationResizingNew(
+      dip::BilinearInterpolationResizing(
           rewriter, loc, ctx, input, output, stride, horizontalScalingFactor,
           verticalScalingFactor, halfVec, shiftVec, scaleVec, vectorResTy,
           vectorTyI32, vectorTyI16, vectorTyIndex, vectorTyF32, vectorTyI1);

@@ -987,11 +987,13 @@ void fillPixelsBilinearInterpolate4D(
       });
 }
 
-void NearestNeighbourInterpolationResizingNew(OpBuilder &builder, Location loc,
-                                              MLIRContext *ctx, Value input,
-                                              Value output, int64_t stride,
-                                              Value horizontalScalingFactor,
-                                              Value verticalScalingFactor) {
+// Helper function for resizing an image using nearest neighbour interpolation
+// mechanism.
+void NearestNeighbourInterpolationResizing(OpBuilder &builder, Location loc,
+                                           MLIRContext *ctx, Value input,
+                                           Value output, int64_t stride,
+                                           Value horizontalScalingFactor,
+                                           Value verticalScalingFactor) {
   Value c0 = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
 
@@ -1240,7 +1242,8 @@ void calcInterpolation(OpBuilder &builder, Location loc, Value &sy,
   syPrev = builder.create<arith::SelectOp>(loc, notEqual, sy, syPrev);
 }
 
-void BilinearInterpolationResizingNew(
+// Helper function for resizing an image using bilinear interpolation mechanism.
+void BilinearInterpolationResizing(
     OpBuilder &builder, Location loc, MLIRContext *ctx, Value input,
     Value output, int64_t stride, Value horizontalScalingFactor,
     Value verticalScalingFactor, Value halfVec, Value shiftVec, Value scaleVec,
@@ -1396,38 +1399,6 @@ void BilinearInterpolationResizingNew(
   builder.create<memref::DeallocOp>(loc, iBeta);
 }
 
-// Helper function for resizing an image using nearest neighbour interpolation
-// mechanism.
-void NearestNeighbourInterpolationResizing(
-    OpBuilder &builder, Location loc, MLIRContext *ctx,
-    SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
-    SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
-    Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
-    Value outputRowLastElemF32, Value outputColLastElemF32,
-    Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
-    int64_t stride, Value c0, Value c0F32) {
-  affine::buildAffineLoopNest(
-      builder, loc, lowerBounds, upperBounds, steps,
-      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-        Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
-        Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
-        Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
-                             c0, stride);
-
-        Value resXVecInterm = builder.create<arith::MulFOp>(
-            loc, xVec, horizontalScalingFactorVec);
-        Value resYVecInterm =
-            builder.create<arith::MulFOp>(loc, yVec, verticalScalingFactorVec);
-
-        Value resXVec = roundOff(builder, loc, resXVecInterm);
-        Value resYVec = roundOff(builder, loc, resYVecInterm);
-
-        fillPixels(builder, loc, xVec, yVec, resXVec, resYVec, input, output,
-                   c0, strideVal, outputRowLastElemF32, outputColLastElemF32,
-                   inputRowLastElemF32, inputColLastElemF32, c0F32);
-      });
-}
-
 // Helper function for resizing 4D an image using nearest neighbour
 // interpolation mechanism.
 void NearestNeighbourInterpolationResizing4D(
@@ -1458,47 +1429,6 @@ void NearestNeighbourInterpolationResizing4D(
             builder, loc, ivs[0], ivs[1], xVec, yVec, resXVec, resYVec, input,
             output, c0, strideVal, outputRowLastElemF32, outputColLastElemF32,
             inputRowLastElemF32, inputColLastElemF32, c0F32, dataCondition);
-      });
-}
-
-// Helper function for resizing an image using bilinear interpolation mechanism.
-void BilinearInterpolationResizing(
-    OpBuilder &builder, Location loc, MLIRContext *ctx,
-    SmallVector<Value, 8> lowerBounds, SmallVector<Value, 8> upperBounds,
-    SmallVector<int64_t, 8> steps, Value strideVal, Value input, Value output,
-    Value horizontalScalingFactorVec, Value verticalScalingFactorVec,
-    Value outputRowLastElemF32, Value outputColLastElemF32,
-    Value inputRowLastElemF32, Value inputColLastElemF32, VectorType vectorTy32,
-    int64_t stride, Value c0, Value c0F32, Value c1F32) {
-  affine::buildAffineLoopNest(
-      builder, loc, lowerBounds, upperBounds, steps,
-      [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-        Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
-        Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
-        Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
-                             c0, stride);
-
-        Value xVecInterm = builder.create<arith::MulFOp>(
-            loc, xVec, horizontalScalingFactorVec);
-        Value yVecInterm =
-            builder.create<arith::MulFOp>(loc, yVec, verticalScalingFactorVec);
-
-        Value xVecInterm_L = builder.create<math::FloorOp>(loc, xVecInterm);
-        Value xVecInterm_H = builder.create<math::CeilOp>(loc, xVecInterm);
-
-        Value yVecInterm_L = builder.create<math::FloorOp>(loc, yVecInterm);
-        Value yVecInterm_H = builder.create<math::CeilOp>(loc, yVecInterm);
-
-        Value xVecWeight =
-            builder.create<arith::SubFOp>(loc, xVecInterm, xVecInterm_L);
-        Value yVecWeight =
-            builder.create<arith::SubFOp>(loc, yVecInterm, yVecInterm_L);
-
-        fillPixelsBilinearInterpolate(
-            builder, loc, xVec, yVec, xVecInterm_L, yVecInterm_L, xVecInterm_H,
-            yVecInterm_H, input, output, c0, strideVal, xVecWeight, yVecWeight,
-            outputRowLastElemF32, outputColLastElemF32, inputRowLastElemF32,
-            inputColLastElemF32, c0F32, c1F32);
       });
 }
 
