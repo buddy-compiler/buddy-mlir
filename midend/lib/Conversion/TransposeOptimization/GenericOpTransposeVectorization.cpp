@@ -158,7 +158,7 @@ public:
                                   0})),
                       rewriter.getNamedAttr(
                           "permutation_map",
-                          AffineMapAttr::get(AffineMap::getMultiDimIdentity(
+                          AffineMapAttr::get(AffineMap::getMultiDimIdentityMap(
                               inputIndices.size(), rewriter.getContext())))});
               // 写入输出张量
               // 构造写入操作的操作数：首先是待写入的向量值，然后是目标张量，后面跟随每个维度的索引。
@@ -193,7 +193,7 @@ public:
                       // 属性：使用多维度恒等映射，确保索引顺序与操作数顺序一致
                       rewriter.getNamedAttr(
                           "permutation_map",
-                          AffineMapAttr::get(AffineMap::getMultiDimIdentity(
+                          AffineMapAttr::get(AffineMap::getMultiDimIdentityMap(
                               outputIndices.size(), rewriter.getContext())))});
 
               // 插入 affine::AffineYieldOp
@@ -213,8 +213,18 @@ public:
             });
       }
     }
+
+    // 尾部数据处理
+    if (input.getType().cast<TensorType>().isDynamicDim(0) or
+        input.getType().cast<TensorType>().getDimSize(0) % affineVectorSize !=
+            0) {
+              
+    }
+
+    // 删除原始操作
+    rewriter.eraseOp(genericOp);
+    return success();
   }
-  return success();
 
 private:
   int64_t affineVectorSize;
