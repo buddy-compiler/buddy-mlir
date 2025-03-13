@@ -1,5 +1,9 @@
+// #SparseVector = #sparse_tensor.encoding<{
+  // dimLevelType = ["compressed"]
+// }>
+
 #SparseVector = #sparse_tensor.encoding<{
-  dimLevelType = ["compressed"]
+  map = (d0) -> (d0 : compressed)
 }>
 
 #trait_mul = {

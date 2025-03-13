@@ -1,7 +1,7 @@
 !Filename = !llvm.ptr<i8>
 
 #SparseMatrix = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ]
+  map = (d0, d1) -> (d0 : compressed, d1 : compressed)
 }>
 
 // Get tensor filename from env $TENSOR+index

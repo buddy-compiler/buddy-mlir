@@ -1,5 +1,6 @@
 #SV = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed" ]
+  // dimLevelType = [ "compressed" ]
+  map = (d0) -> (d0 : compressed)
 }>
 
 #trait = {
