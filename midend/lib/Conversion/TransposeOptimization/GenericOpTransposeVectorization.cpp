@@ -77,9 +77,9 @@ public:
     Value output = genericOp.getOutputs()[0];
     auto loc = genericOp.getLoc();
     // 输入类型确定为TensorType
-    Type elementType = input.getType().cast<TensorType>().getElementType();
+    Type elementType = input.getType().cast<MemRefType>().getElementType();
     // 获取输入张量的维度
-    int rank = input.getType().cast<TensorType>().getRank();
+    int rank = input.getType().cast<MemRefType>().getRank();
 
     // 获取各维度大小（使用 memref::DimOp）。
     llvm::SmallVector<Value, 4> dims;
@@ -91,8 +91,8 @@ public:
     const Value index0 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
 
-    const Value indexVecSize = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIndexAttr(affineVectorSize));
+    // const Value indexVecSize = rewriter.create<arith::ConstantOp>(
+    //     loc, rewriter.getIndexAttr(affineVectorSize));
 
     const Value zeroElementType = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getZeroAttr(elementType));
@@ -114,9 +114,36 @@ public:
     llvm::SmallVector<Value> inputIndices(rank, nullptr);
     llvm::SmallVector<Value> outputIndices(rank, nullptr);
 
+    // 创建读写掩码
+    llvm::SmallVector<int64_t> readShape(rank, 1);
+    readShape.back() = affineVectorSize;
+
+    llvm::SmallVector<int64_t> writeShape = readShape;
+    writeShape[swapDims.first] = readShape[swapDims.second];
+    writeShape[swapDims.second] = readShape[swapDims.first];
+
+
+    llvm::SmallVector<Value, 4> readMaskOperands;
+    for (int i = 0; i < rank - 1; i++) {
+      readMaskOperands.push_back(rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1)));
+    }
+    readMaskOperands.push_back(innerUnalignedLength);
+    llvm::SmallVector<Value, 4> writeMaskOperands = readMaskOperands;
+    writeMaskOperands[swapDims.first] = readMaskOperands[swapDims.second];
+    writeMaskOperands[swapDims.second] = readMaskOperands[swapDims.first];
+
+    Value readMask = rewriter.create<vector::CreateMaskOp>(
+        loc, VectorType::get(readShape, rewriter.getI1Type()),
+        ValueRange(readMaskOperands));
+
+    Value writeMask = rewriter.create<vector::CreateMaskOp>(
+        loc, VectorType::get(writeShape, rewriter.getI1Type()),
+        ValueRange(writeMaskOperands));
+
+    // ForOp嵌套循环的Yield位置应该有bugs，需要修复。用递归！！！
     for (int i = 0; i < rank; i++) {
       AffineMap lbMap = AffineMap::get(
-          0, 0, {rewriter.getAffineConstantExpr(0)}, rewriter.getContext());
+          1, 0, {rewriter.getAffineConstantExpr(0)}, rewriter.getContext());
       AffineMap ubMap = AffineMap::get(1, 0, {rewriter.getAffineDimExpr(0)},
                                        rewriter.getContext());
       // 最内层循环进行向量化
@@ -143,13 +170,13 @@ public:
               // 读取输入张量
               auto readValue = rewriter.create<vector::TransferReadOp>(
                   loc,
-                  TypeRange{VectorType::get({affineVectorSize}, elementType)},
+                  TypeRange{VectorType::get(readShape, elementType)},
                   transferOperands,
                   ArrayRef<NamedAttribute>{
                       rewriter.getNamedAttr(
                           "in_bounds",
                           rewriter.getBoolArrayAttr(llvm::SmallVector<bool, 4>(
-                              inputIndices.size() + 1, true))),
+                              inputIndices.size(), true))),
                       rewriter.getNamedAttr(
                           "operand_segment_sizes",
                           rewriter.getDenseI32ArrayAttr(
@@ -179,7 +206,7 @@ public:
                       rewriter.getNamedAttr(
                           "in_bounds",
                           rewriter.getBoolArrayAttr(llvm::SmallVector<bool, 4>(
-                              inputIndices.size() + 1, true))),
+                              inputIndices.size(), true))),
                       // operand_segment_sizes 属性：指定操作数分段，1
                       // 个向量数据，1 个目标张量，
                       // 后续 inputIndices.size() 个索引，最后 0 个额外操作数。
@@ -195,13 +222,121 @@ public:
                           "permutation_map",
                           AffineMapAttr::get(AffineMap::getMultiDimIdentityMap(
                               outputIndices.size(), rewriter.getContext())))});
+              // 尾部数据处理
+              if (input.getType().cast<MemRefType>().isDynamicDim(rank - 1) or
+                  input.getType().cast<MemRefType>().getDimSize(rank - 1) %
+                          affineVectorSize !=
+                      0) {
+                affine::AffineIfOp tailIfOp =
+                    rewriter.create<affine::AffineIfOp>(
+                        loc,
+                        IntegerSet::get(
+                            1, 0,
+                            {rewriter.getAffineDimExpr(0) % affineVectorSize -
+                             1},
+                            {false}),
+                        ValueRange{innerDim}, false);
+                OpBuilder tailBranchBuilder = tailIfOp.getThenBodyBuilder();
+
+                // 构造尾部数据各维索引（tailIndices），其中除最内层维度外，其它维度采用当前循环中已有的索引，最内层维度使用
+                llvm::SmallVector<Value> intailIndices(rank, nullptr);
+                for (int i = 0; i < rank - 1; i++) {
+                  // 假设 outer 维度的索引存储在 outputIndices 或 inputIndices
+                  // 中（根据实际情况选用）
+                  intailIndices[i] = inputIndices[i];
+                }
+                // 最内层维度使用 innerUpperBound 作为尾部起始索引
+                intailIndices[rank - 1] = innerUpperBound;
+
+                llvm::SmallVector<Value> outtailIndices = intailIndices;
+                // 交换输入输出维度Indices
+                outtailIndices[swapDims.first] = intailIndices[swapDims.second];
+                outtailIndices[swapDims.second] = intailIndices[swapDims.first];
+
+                // 构造 TransferReadOp 的操作数：
+                // 第一个操作数为输入张量，后续依次为各个维度的索引，再附加一个填充值和尾部掩码
+                llvm::SmallVector<Value, 4> tailReadOperands;
+                tailReadOperands.push_back(input);
+                for (Value idx : intailIndices)
+                  tailReadOperands.push_back(idx);
+                tailReadOperands.push_back(zeroElementType); // 填充值
+                tailReadOperands.push_back(readMask);        // 尾部掩码
+
+                auto tailReadValue =
+                    tailBranchBuilder.create<vector::TransferReadOp>(
+                        loc,
+                        TypeRange{
+                            VectorType::get(readShape, elementType)},
+                        tailReadOperands,
+                        ArrayRef<NamedAttribute>{
+                            tailBranchBuilder.getNamedAttr(
+                                "in_bounds",
+                                tailBranchBuilder.getBoolArrayAttr(
+                                    llvm::SmallVector<bool, 4>(
+                                        intailIndices.size() + 2, true))),
+                            tailBranchBuilder.getNamedAttr(
+                                "operand_segment_sizes",
+                                tailBranchBuilder.getDenseI32ArrayAttr(
+                                    llvm::SmallVector<int, 4>{
+                                        1,
+                                        static_cast<int>(intailIndices.size()),
+                                        1, 1})),
+                            tailBranchBuilder.getNamedAttr(
+                                "permutation_map",
+                                AffineMapAttr::get(
+                                    AffineMap::getMultiDimIdentityMap(
+                                        intailIndices.size(),
+                                        rewriter.getContext())))});
+
+                // 构造 TransferWriteOp 的操作数：
+                // 第一个操作数为待写入的向量数据（tailRead），第二个为输出张量，其余依次为各个维度的索引
+                llvm::SmallVector<Value, 4> tailWriteOperands;
+                tailWriteOperands.push_back(tailReadValue);
+                tailWriteOperands.push_back(output);
+                for (Value idx : outtailIndices)
+                  tailWriteOperands.push_back(idx);
+                tailWriteOperands.push_back(writeMask); // 尾部掩码cd bi
+
+                // 创建 TransferWriteOp 操作，注意此操作没有返回值，所以
+                // TypeRange 为空。
+                tailBranchBuilder.create<vector::TransferWriteOp>(
+                    loc, TypeRange{}, // TransferWriteOp 不产生结果
+                    tailWriteOperands,
+                    ArrayRef<NamedAttribute>{
+                        // in_bounds 属性：对所有维度（包括 memref
+                        // 之后的索引）都执行边界检查
+                        tailBranchBuilder.getNamedAttr(
+                            "in_bounds",
+                            tailBranchBuilder.getBoolArrayAttr(
+                                llvm::SmallVector<bool, 4>(
+                                    outtailIndices.size(), true))),
+                        // operand_segment_sizes 属性：指定操作数分段，1
+                        // 个向量数据，1 个目标张量，
+                        // 后续 outtailIndices.size() 个索引，最后 0
+                        // 个额外操作数。
+                        tailBranchBuilder.getNamedAttr(
+                            "operand_segment_sizes",
+                            tailBranchBuilder.getDenseI32ArrayAttr(
+                                llvm::SmallVector<int, 4>{
+                                    1, 1,
+                                    static_cast<int>(outtailIndices.size()),
+                                    1})),
+                        // permutation_map
+                        // 属性：使用多维度恒等映射，确保索引顺序与操作数顺序一致
+                        tailBranchBuilder.getNamedAttr(
+                            "permutation_map",
+                            AffineMapAttr::get(
+                                AffineMap::getMultiDimIdentityMap(
+                                    outtailIndices.size(),
+                                    rewriter.getContext())))});
+              }
 
               // 插入 affine::AffineYieldOp
               nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);
             });
       } else {
         rewriter.create<affine::AffineForOp>(
-            loc, ValueRange{index0}, lbMap, ValueRange{innerUpperBound}, ubMap,
+            loc, ValueRange{index0}, lbMap, ValueRange{dims[i]}, ubMap,
             affineVectorSize, ValueRange{},
             [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
                 ValueRange iterArgs) {
@@ -212,13 +347,6 @@ public:
               nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);
             });
       }
-    }
-
-    // 尾部数据处理
-    if (input.getType().cast<TensorType>().isDynamicDim(0) or
-        input.getType().cast<TensorType>().getDimSize(0) % affineVectorSize !=
-            0) {
-              
     }
 
     // 删除原始操作
@@ -271,6 +399,10 @@ private:
   }
 };
 } // namespace
+
+//===----------------------------------------------------------------------===//
+// GenericOpTransposeVectorizationPass
+//===----------------------------------------------------------------------===//
 
 namespace {
 class GenericOpTransposeVectorizationPass
