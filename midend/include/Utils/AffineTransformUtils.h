@@ -34,14 +34,10 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
                          dip::ImageFormat format);
 
 // remap using nearest neighbor interpolation
-void remapNearest2D(OpBuilder &builder, Location loc, MLIRContext *ctx,
-                    Value input, Value output, Value mapInt, Value yStart,
-                    Value xStart, Value rows, Value cols);
-
-void remapNearest3D(OpBuilder &builder, Location loc, MLIRContext *ctx,
-                    Value input, Value output, Value mapInt, Value yStart,
-                    Value xStart, Value rows, Value cols,
-                    dip::ImageFormat format, Value niv);
+void remapNearest(OpBuilder &builder, Location loc, MLIRContext *ctx,
+                  Value input, Value output, Value mapInt, Value yStart,
+                  Value xStart, Value rows, Value cols, dip::ImageFormat format,
+                  Value niv);
 
 // remap using bilinear interpolation
 void remapBilinear(OpBuilder &builder, Location loc, Value input, Value output,
