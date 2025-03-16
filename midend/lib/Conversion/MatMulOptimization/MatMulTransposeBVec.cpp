@@ -43,11 +43,12 @@ using namespace vector;
 namespace {
 class MatMulTransposeBVecPattern : public ConversionPattern {
 public:
-  explicit MatMulTransposeBVecPattern(MLIRContext *context,
-                                      int64_t vecSizeparam)
+  explicit MatMulTransposeBVecPattern(MLIRContext *context, int64_t vfParam,
+                                      bool scalableParam)
       : ConversionPattern(linalg::MatmulTransposeBOp::getOperationName(), 1,
                           context) {
-    vecSize = vecSizeparam;
+    vf = vfParam;
+    scalable = scalableParam;
   }
 
   LogicalResult
@@ -67,14 +68,18 @@ public:
     // the element type for mask vector.
     IntegerType i1 = IntegerType::get(ctx, 1);
 
-    VectorType vectorTy = mlir::VectorType::get({vecSize}, eleTy);
-    VectorType vectorMaskTy = VectorType::get({vecSize}, i1);
+    VectorType vectorTy = mlir::VectorType::get({vf}, eleTy, {scalable});
+    VectorType vectorMaskTy = VectorType::get({vf}, i1, {scalable});
 
     const Value c0 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
     const Value c1 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-    const Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+    Value step = rewriter.create<arith::ConstantIndexOp>(loc, vf);
+    if (scalable) {
+      Value vscale = rewriter.create<vector::VectorScaleOp>(loc);
+      step = rewriter.create<arith::MulIOp>(loc, step, vscale);
+    }
 
     const Value c0Ele = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
     Value passthruVec = rewriter.create<SplatOp>(loc, vectorTy, c0Ele);
@@ -83,9 +88,20 @@ public:
     const Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);
     const Value bCol = rewriter.create<memref::DimOp>(loc, B, c1);
 
+    AffineMap vecTailMap;
     AffineExpr d0;
     bindDims(ctx, d0);
-    AffineMap vecTailMap = AffineMap::get(1, 0, {d0.ceilDiv(vecSize)}, ctx);
+    if (scalable) {
+      auto s0 = getAffineSymbolExpr(0, ctx);
+      vecTailMap = AffineMap::get(1, 1, {d0.ceilDiv(s0)}, ctx);
+    } else {
+      vecTailMap = AffineMap::get(1, 0, {d0.ceilDiv(vf)}, ctx);
+    }
+    SmallVector<Value> innerUpperBoundOperands{bCol};
+    if (scalable) {
+      innerUpperBoundOperands.push_back(step);
+    }
+
     SmallVector<Value, 8> lowerBounds(2, c0);
     SmallVector<Value, 8> uperBounds{aRow, bRow};
     SmallVector<int64_t, 8> steps(2, 1);
@@ -96,21 +112,34 @@ public:
           // Create loop based on vector size.
           auto innerLoop = builder.create<affine::AffineForOp>(
               loc, ValueRange{c0}, builder.getDimIdentityMap(),
-              ValueRange{bCol}, vecTailMap, 1, ValueRange{passthruVec},
+              innerUpperBoundOperands, vecTailMap, 1, ValueRange{passthruVec},
               [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
                   ValueRange itrArgs) {
                 Value acc = itrArgs[0];
 
-                AffineExpr a, b, c;
-                bindDims(ctx, a, b, c);
-                AffineMap AVectorMap = AffineMap::get(
-                    /*dimCount=*/3, /*symbolCount=*/0, {a, c * vecSize}, ctx);
+                AffineExpr a, b;
+                bindDims(ctx, a, b);
+                AffineMap AVectorMap;
+                if (scalable) {
+                  auto s0 = getAffineSymbolExpr(0, ctx);
+                  AVectorMap = AffineMap::get(
+                      /*dimCount=*/2, /*symbolCount=*/1, {a, b * s0}, ctx);
+                } else {
+                  AVectorMap = AffineMap::get(
+                      /*dimCount=*/2, /*symbolCount=*/0, {a, b * vf}, ctx);
+                }
                 // Check tail.
-                AffineExpr m, n, k;
-                bindDims(ctx, m, n, k);
-                AffineMap BVectorMap = AffineMap::get(
-                    /*dimCount=*/3, /*symbolCount=*/0, {m, k * vecSize}, ctx);
-
+                AffineExpr m, k;
+                bindDims(ctx, m, k);
+                AffineMap BVectorMap;
+                if (scalable) {
+                  auto s0 = getAffineSymbolExpr(0, ctx);
+                  BVectorMap = AffineMap::get(
+                      /*dimCount=*/2, /*symbolCount=*/1, {m, k * s0}, ctx);
+                } else {
+                  BVectorMap = AffineMap::get(
+                      /*dimCount=*/2, /*symbolCount=*/0, {m, k * vf}, ctx);
+                }
                 // Calculate the tail.
                 Value bColCur = builder.create<arith::MulIOp>(loc, iv, step);
                 Value tailLen =
@@ -121,12 +150,16 @@ public:
                 auto ifOp = builder.create<scf::IfOp>(
                     loc, tailFlag,
                     [&](OpBuilder &builder, Location loc) {
+                      SmallVector<Value> aVecMapOperands{ivs[0], iv};
+                      SmallVector<Value> bVecMapOperands{ivs[1], iv};
+                      if (scalable) {
+                        aVecMapOperands.push_back(step);
+                        bVecMapOperands.push_back(step);
+                      }
                       Value aVec = builder.create<affine::AffineVectorLoadOp>(
-                          loc, vectorTy, A, AVectorMap,
-                          ValueRange{ivs[0], ivs[1], iv});
+                          loc, vectorTy, A, AVectorMap, aVecMapOperands);
                       Value bVec = builder.create<affine::AffineVectorLoadOp>(
-                          loc, vectorTy, B, BVectorMap,
-                          ValueRange{ivs[1], ivs[1], iv});
+                          loc, vectorTy, B, BVectorMap, bVecMapOperands);
                       Value resvec =
                           builder.create<arith::MulFOp>(loc, aVec, bVec);
                       Value newAcc =
@@ -172,7 +205,11 @@ public:
   }
 
 private:
-  int64_t vecSize;
+  /// Vectorization factor. This is the vector length when not scalable, and
+  /// the minimum vector length when scalable.
+  int64_t vf;
+  /// If use scalable vector.
+  bool scalable;
 };
 } // end anonymous namespace
 
@@ -198,9 +235,13 @@ public:
     registry.insert<linalg::LinalgDialect, scf::SCFDialect,
                     affine::AffineDialect, VectorDialect>();
   }
-  Option<int64_t> vecSize{*this, "vec-size",
-                          llvm::cl::desc("The size of vectorization"),
-                          llvm::cl::init(32)};
+  Option<int64_t> vf{*this, "vf",
+                     llvm::cl::desc("Specify vectorization factor."),
+                     llvm::cl::init(32)};
+  Option<bool> scalable{
+      *this, "scalable",
+      llvm::cl::desc("Specify whether the vectorization factor is scalable."),
+      llvm::cl::init(false)};
 };
 } // namespace
 
@@ -216,7 +257,7 @@ void MatMulTransposeBVecPass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<MatMulTransposeBVecPattern>(context, vecSize);
+  patterns.add<MatMulTransposeBVecPattern>(context, vf, scalable);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
