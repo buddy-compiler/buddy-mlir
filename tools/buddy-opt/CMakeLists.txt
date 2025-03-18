@@ -45,10 +45,4 @@ target_link_libraries(buddy-opt
   MLIRTransforms
   MLIRTransformUtils
   MatMulTransposeBVec
-  MLIRGPUPasses
-  BuddyGPUTransformOPs
-  MLIRTestTransforms
-  MLIRTestTransformDialect
-  MLIRTransforms
-  MLIRTransformUtils
   )

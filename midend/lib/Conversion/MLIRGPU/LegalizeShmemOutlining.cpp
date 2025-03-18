@@ -158,12 +158,11 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
   // because multiple launches with the same body are not deduplicated.
   if (auto blockBounds =
           maybeConstantDimsAttr(launchOp.getBlockSizeOperandValues()))
-    outlinedFunc->setAttr(gpu::GPUFuncOp::getKnownBlockSizeAttrName(),
+    outlinedFunc->setAttr(outlinedFunc.getKnownBlockSizeAttrName(),
                           blockBounds);
   if (auto gridBounds =
           maybeConstantDimsAttr(launchOp.getGridSizeOperandValues()))
-    outlinedFunc->setAttr(gpu::GPUFuncOp::getKnownGridSizeAttrName(),
-                          gridBounds);
+    outlinedFunc->setAttr(outlinedFunc.getKnownGridSizeAttrName(), gridBounds);
 
   IRMapping map;
 

@@ -4,8 +4,8 @@ add_llvm_component_library(LLVMBuddyIPO
   ${LLVM_IPO_DIR}/AlwaysInliner.cpp
   ${LLVM_IPO_DIR}/Annotation2Metadata.cpp
   ${LLVM_IPO_DIR}/ArgumentPromotion.cpp
-  ${LLVM_IPO_DIR}/AttributorAttributes.cpp
   ${LLVM_IPO_DIR}/Attributor.cpp
+  ${LLVM_IPO_DIR}/AttributorAttributes.cpp
   ${LLVM_IPO_DIR}/BarrierNoopPass.cpp
   ${LLVM_IPO_DIR}/BlockExtractor.cpp
   ${LLVM_IPO_DIR}/CalledValuePropagation.cpp
@@ -15,21 +15,23 @@ add_llvm_component_library(LLVMBuddyIPO
   ${LLVM_IPO_DIR}/ElimAvailExtern.cpp
   ${LLVM_IPO_DIR}/EmbedBitcodePass.cpp
   ${LLVM_IPO_DIR}/ExpandVariadics.cpp
+  ${LLVM_IPO_DIR}/ExtractGV.cpp
   ${LLVM_IPO_DIR}/ForceFunctionAttrs.cpp
   ${LLVM_IPO_DIR}/FunctionAttrs.cpp
   ${LLVM_IPO_DIR}/FunctionImport.cpp
   ${LLVM_IPO_DIR}/FunctionSpecialization.cpp
-  ${LLVM_IPO_DIR}/Inliner.cpp
-  ${LLVM_IPO_DIR}/InferFunctionAttrs.cpp
-  ${LLVM_IPO_DIR}/Internalize.cpp
-  ${LLVM_IPO_DIR}/IPO.cpp
+  ${LLVM_IPO_DIR}/GlobalDCE.cpp
   ${LLVM_IPO_DIR}/GlobalOpt.cpp
   ${LLVM_IPO_DIR}/GlobalSplit.cpp
   ${LLVM_IPO_DIR}/HotColdSplitting.cpp
-  ${LLVM_IPO_DIR}/Inliner.cpp
+  ${LLVM_IPO_DIR}/IPO.cpp
   ${LLVM_IPO_DIR}/IROutliner.cpp
+  ${LLVM_IPO_DIR}/InferFunctionAttrs.cpp
+  ${LLVM_IPO_DIR}/Inliner.cpp
+  ${LLVM_IPO_DIR}/Internalize.cpp
   ${LLVM_IPO_DIR}/LoopExtractor.cpp
   ${LLVM_IPO_DIR}/LowerTypeTests.cpp
+  ${LLVM_IPO_DIR}/MemProfContextDisambiguation.cpp
   ${LLVM_IPO_DIR}/MergeFunctions.cpp
   ${LLVM_IPO_DIR}/ModuleInliner.cpp
   ${LLVM_IPO_DIR}/OpenMPOpt.cpp

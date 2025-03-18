@@ -1,11 +1,7 @@
 // RUN: buddy-opt %s \
 // RUN:     -affine-loop-fusion \
 // RUN:     -lower-affine \
-// RUN:     -func-bufferize \
-// RUN:     -arith-bufferize \
-// RUN:     -tensor-bufferize \
-// RUN:     -buffer-deallocation \
-// RUN:     -finalizing-bufferize \
+// RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -expand-strided-metadata \
 // RUN:     -convert-vector-to-llvm \
@@ -14,6 +10,7 @@
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-openmp-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-math-to-llvm \
@@ -43,7 +40,7 @@ module {
     %1 = bufferization.to_memref %arg2 : memref<1x1x40x40xf32, strided<[?, ?, ?, ?], offset: ?>>
     %2 = bufferization.to_memref %arg1 : memref<32x128x40xf32, strided<[?, ?, ?], offset: ?>>
     %3 = bufferization.to_memref %arg0 : memref<32x40x128xf32, strided<[?, ?, ?], offset: ?>>
-    
+
     // MatMul
     // %0 = tosa.matmul %t0, %t1 : (tensor<32x40x128xf32>, tensor<32x128x40xf32>) -> tensor<32x40x40xf32>
     // Initialize MatMul Output.

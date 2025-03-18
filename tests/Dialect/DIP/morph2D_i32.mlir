@@ -3,7 +3,7 @@
 //
 // RUN: buddy-opt %s -lower-dip="DIP-strip-mining=64" -arith-expand --convert-vector-to-scf --lower-affine --convert-scf-to-cf --convert-vector-to-llvm \
 // RUN: --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts  \
-// RUN: | mlir-cpu-runner -O0 -e main -entry-point-result=i32 \
+// RUN: | mlir-runner -O0 -e main -entry-point-result=i32 \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 

@@ -3,7 +3,7 @@
 // RUN:     -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 // RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -13,14 +13,14 @@ module{
   func.func private @printMemrefF64(memref<*xf64>)
 
   func.func @matmul_f32(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
-    linalg.matmul 
+    linalg.matmul
       ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
       outs(%c:memref<?x?xf32>)
     return
   }
 
   func.func @matmul_f64(%a : memref<?x?xf64>, %b : memref<?x?xf64>, %c : memref<?x?xf64>) {
-    linalg.matmul 
+    linalg.matmul
       ins(%a, %b: memref<?x?xf64>, memref<?x?xf64>)
       outs(%c:memref<?x?xf64>)
     return
@@ -96,6 +96,6 @@ module{
     memref.dealloc %B_f64 : memref<?x?xf64>
     memref.dealloc %A_f64 : memref<?x?xf64>
 
-    return 
+    return
   }
 }

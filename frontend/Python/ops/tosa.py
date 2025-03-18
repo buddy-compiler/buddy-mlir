@@ -1134,6 +1134,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     dtype = node.tensor_meta["dtype"]
     result_element_type = mlir_element_type_get(dtype)
     out_shape = node.tensor_meta["shape"]
+    acc_type = ir.TypeAttr.get(result_element_type)
 
     # Prepare Depthwise Conv2D information
     is_grouped = (list(weight_shape)[1] == 1) and (groups != 1)
@@ -1280,6 +1281,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                     input_padding_attr,
                     stride_attr,
                     dilation_attr,
+                    acc_type,
                 )
         # Output transpose
         if node._layout.find("NCHW") != -1:
@@ -1743,7 +1745,8 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     softmax_output_shape = list(add_op.result.type.shape)
     softmax_dim = len(softmax_output_shape) - 1
 
-    # Subtract the maximum value along the dimension where softmax is applied to prevent overflow during the exp operation.
+    # Subtract the maximum value along the dimension where softmax is applied to
+    # prevent overflow during the exp operation.
     max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
     sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
     exp_op = math.ExpOp(sub_op)

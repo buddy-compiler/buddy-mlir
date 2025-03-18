@@ -1,8 +1,8 @@
 // RUN: buddy-opt %s \
-// RUN:     -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+// RUN:     -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 // RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -11,7 +11,7 @@ module{
     func.func private @printMemrefF32(memref<*xf32>)
 
     func.func @matmul(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
-      linalg.matmul 
+      linalg.matmul
         ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
        outs(%c:memref<?x?xf32>)
       return
@@ -58,6 +58,6 @@ module{
       memref.dealloc %C : memref<?x?xf32>
       memref.dealloc %B : memref<?x?xf32>
       memref.dealloc %A : memref<?x?xf32>
-      return 
+      return
     }
 }

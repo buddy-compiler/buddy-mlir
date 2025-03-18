@@ -4,15 +4,11 @@
 // RUN:     -arith-expand \
 // RUN:     -eliminate-empty-tensors \
 // RUN:     -empty-tensor-to-alloc-tensor \
-// RUN:     -one-shot-bufferize \
+// RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -affine-loop-fusion \
+// RUN:     -affine-parallelize \
 // RUN:     -lower-affine \
-// RUN:     -func-bufferize \
-// RUN:     -arith-bufferize \
-// RUN:     -tensor-bufferize \
-// RUN:     -buffer-deallocation \
-// RUN:     -finalizing-bufferize \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -expand-strided-metadata \
 // RUN:     -convert-vector-to-llvm \
@@ -21,13 +17,14 @@
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-openmp-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-math-to-llvm \
 // RUN:     -convert-math-to-libm  \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -49,15 +46,15 @@ func.func @kernel(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, 
   %57 = tosa.reshape %arg0 {new_shape = array<i64: 1, 40, 32, 128>} : (tensor<1x40x4096xf32>) -> tensor<1x40x32x128xf32>
   %58 = "tosa.const"() <{value = dense<[0, 2, 1, 3]> : tensor<4xi32>}> : () -> tensor<4xi32>
   %59 = tosa.transpose %57, %58 : (tensor<1x40x32x128xf32>, tensor<4xi32>) -> tensor<1x32x40x128xf32>
-  
+
   %60 = tosa.reshape %arg1 {new_shape = array<i64: 1, 40, 32, 128>} : (tensor<1x40x4096xf32>) -> tensor<1x40x32x128xf32>
   %61 = "tosa.const"() <{value = dense<[0, 2, 1, 3]> : tensor<4xi32>}> : () -> tensor<4xi32>
   %62 = tosa.transpose %60, %61 : (tensor<1x40x32x128xf32>, tensor<4xi32>) -> tensor<1x32x40x128xf32>
-  
+
   %63 = tosa.reshape %arg2 {new_shape = array<i64: 1, 40, 32, 128>} : (tensor<1x40x4096xf32>) -> tensor<1x40x32x128xf32>
   %64 = "tosa.const"() <{value = dense<[0, 2, 1, 3]> : tensor<4xi32>}> : () -> tensor<4xi32>
   %65 = tosa.transpose %63, %64 : (tensor<1x40x32x128xf32>, tensor<4xi32>) -> tensor<1x32x40x128xf32>
-  
+
   %extracted_slice_9 = tensor.extract_slice %arg3[0, 0, 0, 0] [1, 1, 2048, 128] [1, 1, 1, 1] : tensor<1x1x2048x128xf32> to tensor<1x1x2048x128xf32>
   %extracted_slice_10 = tensor.extract_slice %extracted_slice_9[0, 0, 0, 0] [1, 1, 2048, 128] [1, 1, 1, 1] : tensor<1x1x2048x128xf32> to tensor<1x1x2048x128xf32>
   %extracted_slice_11 = tensor.extract_slice %extracted_slice_10[0, 0, 0, 0] [1, 1, 40, 128] [1, 1, 1, 1] : tensor<1x1x2048x128xf32> to tensor<1x1x40x128xf32>
