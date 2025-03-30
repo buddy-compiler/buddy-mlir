@@ -7,11 +7,12 @@ add_custom_command(
   COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files"
 )
 
+
 add_custom_command(
   OUTPUT forward.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir 
-            -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg, arith-bufferize, func.func(linalg-bufferize, tensor-bufferize), func-bufferize)" |
-          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
+            -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg)" |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
             -pass-pipeline "builtin.module(func.func(buffer-deallocation-simplification, convert-linalg-to-loops), eliminate-empty-tensors, func.func(llvm-request-c-wrappers),convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
@@ -22,30 +23,27 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT subgraph0.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -convert-tensor-to-linalg
-            -linalg-bufferize
+            -one-shot-bufferize="bufferize-function-boundaries"
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -lower-affine
             -func-bufferize-dynamic-offset
-            -arith-bufferize
-            -tensor-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
             -convert-vector-to-scf
             -expand-strided-metadata
             -convert-vector-to-llvm
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
+            -convert-cf-to-llvm
             -llvm-request-c-wrappers
             -convert-arith-to-llvm
             -convert-func-to-llvm
-            -reconcile-unrealized-casts | 
+            -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
@@ -70,8 +68,8 @@ set(BUDDY_LENET_LIBS LENET mlir_c_runner_utils mlir_async_runtime mlir_runner_ut
 
 target_link_libraries(buddy-lenet-run ${BUDDY_LENET_LIBS})
 
-target_compile_definitions(buddy-lenet-run PRIVATE 
-    LENET_EXAMPLE_PATH="${LENET_EXAMPLE_PATH}" 
+target_compile_definitions(buddy-lenet-run PRIVATE
+    LENET_EXAMPLE_PATH="${LENET_EXAMPLE_PATH}"
     LENET_EXAMPLE_BUILD_PATH="${LENET_EXAMPLE_BUILD_PATH}"
 )
 
@@ -82,7 +80,7 @@ set(CONVERT_MEMCPY_TO_GPU_OPTION_DISABLE_PROCESS_ARG "process-args=0")
 
 add_custom_command(
   OUTPUT forward_gpu.o
-  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir 
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
           -buffer-deallocation
           -canonicalize -cse -expand-strided-metadata -convert-memcpy-to-gpu -gpu-async-region |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-opt -llvm-request-c-wrappers --gpu-to-llvm |
@@ -95,7 +93,7 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT subgraph0_gpu.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
           -one-shot-bufferize
@@ -128,7 +126,7 @@ set(BUDDY_LENET_LIBS_GPU LENET_GPU mlir_c_runner_utils mlir_async_runtime mlir_r
 
 target_link_libraries(buddy-lenet-run-gpu ${BUDDY_LENET_LIBS_GPU})
 
-target_compile_definitions(buddy-lenet-run-gpu PRIVATE 
-    LENET_EXAMPLE_PATH="${LENET_EXAMPLE_PATH}" 
+target_compile_definitions(buddy-lenet-run-gpu PRIVATE
+    LENET_EXAMPLE_PATH="${LENET_EXAMPLE_PATH}"
     LENET_EXAMPLE_BUILD_PATH="${LENET_EXAMPLE_BUILD_PATH}"
 )
