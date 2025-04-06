@@ -31,10 +31,10 @@ add_custom_command(
             -one-shot-bufferize="bufferize-function-boundaries"
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
-            -lower-affine
             -func-bufferize-dynamic-offset
             -convert-vector-to-scf
             -expand-strided-metadata
+            -lower-affine
             -convert-vector-to-llvm
             -convert-arith-to-llvm
             -finalize-memref-to-llvm

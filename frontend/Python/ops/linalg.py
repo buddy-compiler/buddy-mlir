@@ -1585,7 +1585,6 @@ def div_op(
         div_result_tensor_type,
         input1,
         tosa.ReciprocalOp(input2.type, input2).result,
-        ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
     )
     return op.result
 

@@ -14,6 +14,7 @@
 // RUN:     -convert-vector-to-llvm \
 // RUN:     -memref-expand \
 // RUN:     -arith-expand \
+// RUN:     -lower-affine \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-scf-to-cf \
@@ -54,7 +55,9 @@ func.func @kernel(%t0: tensor<1x40x4096xf32>, %t1: tensor<4096xf32>, %t2: tensor
   %130 = tosa.reduce_sum %129 {axis = 2 : i32} : (tensor<1x40x4096xf32>) -> tensor<1x40x1xf32>
   %131 = "tosa.const"() <{value = dense<4.096000e+03> : tensor<1xf32>}> : () -> tensor<1xf32>
   %132 = tosa.reciprocal %131 : (tensor<1xf32>) -> tensor<1xf32>
-  %133 = tosa.mul %132, %130 {shift = 0 : i8} : (tensor<1xf32>, tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
+  %shift = "tosa.const"() <{value = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+  %temp = tosa.reshape %132 {new_shape = array<i64: 1, 1, 1>} : (tensor<1xf32>) -> tensor<1x1x1xf32>
+  %133 = tosa.mul %temp, %130 {shift = 0 : i8} : (tensor<1x1x1xf32>, tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
   %134 = "tosa.const"() <{value = dense<9.99999974E-6> : tensor<1x40x1xf32>}> : () -> tensor<1x40x1xf32>
   %135 = tosa.add %133, %134 : (tensor<1x40x1xf32>, tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
   %136 = tosa.rsqrt %135 : (tensor<1x40x1xf32>) -> tensor<1x40x1xf32>

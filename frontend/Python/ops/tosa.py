@@ -292,7 +292,7 @@ def mul_op(node: MulOp, symbol_table):
             result_type,
             input1,
             input2,
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
     output_shape = list(node.tensor_meta["shape"])
@@ -352,7 +352,7 @@ def div_op(node: DivOp, symbol_table):
             result_type,
             input1,
             tosa.ReciprocalOp(input2.type, input2).result,
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -1232,6 +1232,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 input_padding_attr,
                 stride_attr,
                 dilation_attr,
+                acc_type,
             )
         else:
             # Transpose Conv2D Operation.
@@ -1495,7 +1496,7 @@ def mean_op(node: MeanOp, symbol_table):
         reduce_sum_op.results[0].type,
         reciprocal_op.results[0],
         reduce_sum_op.results[0],
-        ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
     )
 
     if not keepdim:

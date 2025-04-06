@@ -7,11 +7,13 @@
 // RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -affine-loop-fusion \
+// RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -expand-strided-metadata \
 // RUN:     -convert-vector-to-llvm \
 // RUN:     -memref-expand \
 // RUN:     -arith-expand \
+// RUN:     -lower-affine \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-scf-to-cf \
@@ -52,7 +54,8 @@ func.func @kernel(%t0: tensor<1x40x4096xf32>, %t1: tensor<4096xf32>) {
   %32 = tosa.reduce_sum %31 {axis = 2 : i32} : (tensor<1x40x4096xf32>) -> tensor<1x40x1xf32>
   %33 = "tosa.const"() <{value = dense<4.096000e+03> : tensor<1xf32>}> : () -> tensor<1xf32>
   %34 = tosa.reciprocal %33 : (tensor<1xf32>) -> tensor<1xf32>
-  %35 = tosa.mul %34, %32 {shift = 0 : i8} : (tensor<1xf32>, tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
+  %temp = tosa.reshape %34 {new_shape = array<i64: 1, 1, 1>} : (tensor<1xf32>) -> tensor<1x1x1xf32>
+  %35 = tosa.mul %temp, %32 {shift = 0 : i8} : (tensor<1x1x1xf32>, tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
   %36 = "tosa.const"() <{value = dense<9.99999974E-6> : tensor<1x40x1xf32>}> : () -> tensor<1x40x1xf32>
   %37 = tosa.add %35, %36 : (tensor<1x40x1xf32>, tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
   %38 = tosa.rsqrt %37 : (tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
