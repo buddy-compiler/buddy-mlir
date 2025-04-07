@@ -24,7 +24,7 @@ add_custom_command(
             convert-func-to-llvm, reconcile-unrealized-casts)" |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O3 
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/forward.o
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
   COMMENT "Building forward.o"
@@ -33,31 +33,43 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT subgraph0.o
-  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir 
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
             -pass-pipeline
             "builtin.module(func.func(tosa-to-linalg-named, tosa-to-arith, tosa-to-linalg, tosa-to-tensor))" |
-          ${BUDDY_BINARY_DIR}/buddy-opt  
+          ${BUDDY_BINARY_DIR}/buddy-opt
             -convert-elementwise-to-linalg
+            -arith-expand
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -one-shot-bufferize
             -func-bufferize-dynamic-offset
-            -arith-bufferize
-            -func-bufferize
             -tensor-bufferize
-            -linalg-bufferize
+            -arith-bufferize
+            -buffer-deallocation
             -finalizing-bufferize
-            -convert-linalg-to-loops
+            -conv-nhwc-fhwc-optimize
+            -batchmatmul-optimize
+            -convert-linalg-to-affine-loops
+            -affine-loop-fusion
             -lower-affine
+            -convert-vector-to-scf
+            -expand-strided-metadata
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -memref-expand
+            -arith-expand
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
             -convert-scf-to-cf
             -llvm-request-c-wrappers
             -convert-math-to-llvm
             -convert-math-to-libm
-            -convert-arith-to-llvm
             -convert-func-to-llvm
-            -expand-strided-metadata
-            -finalize-memref-to-llvm
-            -reconcile-unrealized-casts | 
+            -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3 
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
           buddy-opt
@@ -73,8 +85,8 @@ add_executable(buddy-resnet-run buddy-resnet-main.cpp)
 set(RESNET_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 set(RESNET_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
 
-target_compile_definitions(buddy-resnet-run PRIVATE 
-  RESNET_EXAMPLE_PATH="${RESNET_EXAMPLE_PATH}" 
+target_compile_definitions(buddy-resnet-run PRIVATE
+  RESNET_EXAMPLE_PATH="${RESNET_EXAMPLE_PATH}"
   RESNET_EXAMPLE_BUILD_PATH="${RESNET_EXAMPLE_BUILD_PATH}"
 )
 
