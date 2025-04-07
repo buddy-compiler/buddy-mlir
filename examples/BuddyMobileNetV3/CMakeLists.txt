@@ -37,18 +37,18 @@ add_custom_command(
             "builtin.module(func.func(tosa-to-linalg-named, tosa-to-arith, tosa-to-linalg, tosa-to-tensor))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -convert-elementwise-to-linalg
+            -one-shot-bufferize="bufferize-function-boundaries"
             -func-bufferize-dynamic-offset
-            -one-shot-bufferize
             -convert-linalg-to-loops
-            -lower-affine
             -convert-scf-to-cf
             -convert-cf-to-llvm
+            -expand-strided-metadata
+            -lower-affine
             -llvm-request-c-wrappers
+            -convert-arith-to-llvm
             -convert-math-to-llvm
             -convert-math-to-libm
-            -convert-arith-to-llvm
             -convert-func-to-llvm
-            -expand-strided-metadata
             -finalize-memref-to-llvm
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
