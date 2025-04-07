@@ -44,7 +44,9 @@ jobs:
 
       # 5. If the cache is not found, pull the LLVM submodule.
       - name: Checkout LLVM submodule
-        run: git submodule update --init --recursive llvm
+        run: |
+          rm -rf llvm
+          git submodule update --init --recursive llvm
         if: steps.cache-llvm-source.outputs.cache-hit != 'true'
 
       # 6. Cache the LLVM build directory.
@@ -76,7 +78,7 @@ jobs:
         if: steps.cache-llvm-build-dir.outputs.cache-hit != 'true'
 
       # 8. Check the build process of buddy-mlir repository.
-      - name: Check budddy-mlir build
+      - name: Check buddy-mlir build
         run: |
           source ~/miniconda3/bin/activate buddy
           pip install -r requirements.txt

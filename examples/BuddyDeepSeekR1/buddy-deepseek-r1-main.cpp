@@ -50,7 +50,7 @@ void getUserInput(std::string &inputStr) {
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
 /// Print information for each iteration.
-void printIterInfo2(size_t iterIdx, std::string str, double time) {
+void printIterInfo(size_t iterIdx, std::string str, double time) {
   std::cout << "\033[32;1m[Iteration " << iterIdx << "] \033[0m";
   std::cout << "Token: " << str << " | "
             << "Time: " << time << "s" << std::endl;
@@ -169,14 +169,13 @@ int main() {
     int maxIndex = findMaxIndex(startPtr, endPtr);
     std::string tok = inputContainer.getStr(maxIndex);
     // Print the generated token and inference time.
-    printIterInfo2(i, tok, inferenceTime.count() / 1000);
+    printIterInfo(i, tok, inferenceTime.count() / 1000);
 
     // Stop if a <|end▁of▁sentence|> token is generated.
     if (maxIndex == 151643) {
       break;
     }
     // Append the generated token into the input and output container.
-    // inputContainer.appendTokenIdx(maxIndex);
     inputContainer.appendTokenIdx(maxIndex);
     attention_mask.getData()[MaxTokenLength - generateLen + i] = 1;
     outputContainer.appendTokenIdx(maxIndex);
