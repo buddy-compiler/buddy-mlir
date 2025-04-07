@@ -96,7 +96,7 @@ add_custom_command(
   COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
-          -one-shot-bufferize
+          -one-shot-bufferize="bufferize-function-boundaries"
           -func-bufferize-dynamic-offset
           -convert-linalg-to-parallel-loops
           -canonicalize
@@ -107,7 +107,7 @@ add_custom_command(
           -canonicalize
           -cse |
           ${BUDDY_BINARY_DIR}/buddy-opt -convert-memcpy-to-gpu=${CONVERT_MEMCPY_TO_GPU_OPTION_DISABLE_PROCESS_ARG} -gpu-async-region -canonicalize |
-          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt -llvm-request-c-wrappers --test-lower-to-nvvm=${LOWER_TO_NVVM_OPTION} |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt -llvm-request-c-wrappers -gpu-lower-to-nvvm-pipeline=${LOWER_TO_NVVM_OPTION} |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_gpu.o

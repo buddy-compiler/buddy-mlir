@@ -84,7 +84,6 @@ void registerFuncBufferizeDynamicOffsetPass();
 void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
-void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 } // namespace buddy
 } // namespace mlir

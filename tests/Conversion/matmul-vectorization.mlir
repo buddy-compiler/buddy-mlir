@@ -1,7 +1,7 @@
 // RUN: buddy-opt %s \
 // RUN:     -matmul-vectorization="vector-size=64" \
 // RUN:     -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
-// RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
+// RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm -convert-cf-to-llvm \
 // RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
 // RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \

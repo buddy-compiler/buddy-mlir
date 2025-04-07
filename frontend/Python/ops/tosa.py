@@ -694,6 +694,14 @@ def var_mean_op(node: VarMeanOp, symbol_table):
 
     """
 
+    def _inner_op(result_type, input1, input2):
+        return tosa.MulOp(
+            result_type,
+            input1,
+            input2,
+            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        )
+
     def mean_dim_op(_input_tensor: ir.Value, _dim) -> ir.Operation:
         if isinstance(_dim, int):
             _dim = [_dim]
@@ -727,12 +735,8 @@ def var_mean_op(node: VarMeanOp, symbol_table):
             denominator_const_op.results[0].type,
             denominator_const_op.results[0],
         )
-
-        return tosa.MulOp(
-            reduce_sum_op.results[0].type,
-            reciprocal_op.results[0],
-            reduce_sum_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        return _gen_arith_binary_op(
+            reciprocal_op.results[0], reduce_sum_op.results[0], _inner_op
         )
 
     def var_dim_op(
@@ -750,7 +754,6 @@ def var_mean_op(node: VarMeanOp, symbol_table):
             _input_tensor.type,
             sub_op.results[0],
             sub_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
         # the result of `mul_op` is the first tensor we need to reduce
@@ -777,12 +780,8 @@ def var_mean_op(node: VarMeanOp, symbol_table):
             biased_denominator_const_op.results[0].type,
             biased_denominator_const_op.results[0],
         )
-
-        return tosa.MulOp(
-            reduce_sum_op.results[0].type,
-            reciprocal_op.results[0],
-            reduce_sum_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        return _gen_arith_binary_op(
+            reciprocal_op.results[0], reduce_sum_op.results[0], _inner_op
         )
 
     mean_input_tensor = symbol_table.get((str(node.args[0]), 0))
@@ -1459,6 +1458,15 @@ def mean_op(node: MeanOp, symbol_table):
     Import the buddy MeanOp.
     From Buddy MeanOp to MLIR TOSA operation.
     """
+
+    def _inner_op(result_type, input1, input2):
+        return tosa.MulOp(
+            result_type,
+            input1,
+            input2,
+            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        )
+
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     keepdim = node.args[2]
     dims = [x for x in node.args[1]]
@@ -1491,12 +1499,8 @@ def mean_op(node: MeanOp, symbol_table):
     reciprocal_op = tosa.ReciprocalOp(
         denominator_const_op.results[0].type, denominator_const_op
     )
-
-    ret = tosa.MulOp(
-        reduce_sum_op.results[0].type,
-        reciprocal_op.results[0],
-        reduce_sum_op.results[0],
-        # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+    ret = _gen_arith_binary_op(
+        reciprocal_op.results[0], reduce_sum_op.results[0], _inner_op
     )
 
     if not keepdim:
