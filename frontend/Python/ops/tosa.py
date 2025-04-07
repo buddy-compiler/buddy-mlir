@@ -292,7 +292,7 @@ def mul_op(node: MulOp, symbol_table):
             result_type,
             input1,
             input2,
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
     output_shape = list(node.tensor_meta["shape"])
@@ -352,7 +352,7 @@ def div_op(node: DivOp, symbol_table):
             result_type,
             input1,
             tosa.ReciprocalOp(input2.type, input2).result,
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -694,6 +694,14 @@ def var_mean_op(node: VarMeanOp, symbol_table):
 
     """
 
+    def _inner_op(result_type, input1, input2):
+        return tosa.MulOp(
+            result_type,
+            input1,
+            input2,
+            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        )
+
     def mean_dim_op(_input_tensor: ir.Value, _dim) -> ir.Operation:
         if isinstance(_dim, int):
             _dim = [_dim]
@@ -727,12 +735,8 @@ def var_mean_op(node: VarMeanOp, symbol_table):
             denominator_const_op.results[0].type,
             denominator_const_op.results[0],
         )
-
-        return tosa.MulOp(
-            reduce_sum_op.results[0].type,
-            reciprocal_op.results[0],
-            reduce_sum_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        return _gen_arith_binary_op(
+            reciprocal_op.results[0], reduce_sum_op.results[0], _inner_op
         )
 
     def var_dim_op(
@@ -750,7 +754,6 @@ def var_mean_op(node: VarMeanOp, symbol_table):
             _input_tensor.type,
             sub_op.results[0],
             sub_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
         )
 
         # the result of `mul_op` is the first tensor we need to reduce
@@ -777,12 +780,8 @@ def var_mean_op(node: VarMeanOp, symbol_table):
             biased_denominator_const_op.results[0].type,
             biased_denominator_const_op.results[0],
         )
-
-        return tosa.MulOp(
-            reduce_sum_op.results[0].type,
-            reciprocal_op.results[0],
-            reduce_sum_op.results[0],
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        return _gen_arith_binary_op(
+            reciprocal_op.results[0], reduce_sum_op.results[0], _inner_op
         )
 
     mean_input_tensor = symbol_table.get((str(node.args[0]), 0))
@@ -1134,6 +1133,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
     dtype = node.tensor_meta["dtype"]
     result_element_type = mlir_element_type_get(dtype)
     out_shape = node.tensor_meta["shape"]
+    acc_type = ir.TypeAttr.get(result_element_type)
 
     # Prepare Depthwise Conv2D information
     is_grouped = (list(weight_shape)[1] == 1) and (groups != 1)
@@ -1231,6 +1231,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 input_padding_attr,
                 stride_attr,
                 dilation_attr,
+                acc_type,
             )
         else:
             # Transpose Conv2D Operation.
@@ -1280,6 +1281,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                     input_padding_attr,
                     stride_attr,
                     dilation_attr,
+                    acc_type,
                 )
         # Output transpose
         if node._layout.find("NCHW") != -1:
@@ -1456,6 +1458,15 @@ def mean_op(node: MeanOp, symbol_table):
     Import the buddy MeanOp.
     From Buddy MeanOp to MLIR TOSA operation.
     """
+
+    def _inner_op(result_type, input1, input2):
+        return tosa.MulOp(
+            result_type,
+            input1,
+            input2,
+            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        )
+
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     keepdim = node.args[2]
     dims = [x for x in node.args[1]]
@@ -1488,12 +1499,8 @@ def mean_op(node: MeanOp, symbol_table):
     reciprocal_op = tosa.ReciprocalOp(
         denominator_const_op.results[0].type, denominator_const_op
     )
-
-    ret = tosa.MulOp(
-        reduce_sum_op.results[0].type,
-        reciprocal_op.results[0],
-        reduce_sum_op.results[0],
-        ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+    ret = _gen_arith_binary_op(
+        reciprocal_op.results[0], reduce_sum_op.results[0], _inner_op
     )
 
     if not keepdim:
@@ -1743,7 +1750,8 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     softmax_output_shape = list(add_op.result.type.shape)
     softmax_dim = len(softmax_output_shape) - 1
 
-    # Subtract the maximum value along the dimension where softmax is applied to prevent overflow during the exp operation.
+    # Subtract the maximum value along the dimension where softmax is applied to
+    # prevent overflow during the exp operation.
     max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
     sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
     exp_op = math.ExpOp(sub_op)

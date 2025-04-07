@@ -1,5 +1,5 @@
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-runner
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so

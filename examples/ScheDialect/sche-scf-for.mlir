@@ -6,7 +6,7 @@
 // RUN:	| buddy-opt -gpu-async-region -gpu-to-llvm \
 // RUN:	-async-to-async-runtime -async-runtime-ref-counting \
 // RUN:	-convert-async-to-llvm -convert-func-to-llvm \
-// RUN: | mlir-cpu-runner  -entry-point-result=void \
+// RUN: | mlir-runner  -entry-point-result=void \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_cuda_runtime%shlibext \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_async_runtime%shlibext \
@@ -27,7 +27,7 @@ func.func @main() {
   scf.for %iv = %lb to %ub step %c1 {
     memref.store %c0, %A[%iv] : memref<100xf32>
   }
-  
+
   scf.for %iv = %lb to %ub step %c1 {
     %0 = arith.muli %iv, %c8 : index
     %1 = arith.addi %iv, %0  : index

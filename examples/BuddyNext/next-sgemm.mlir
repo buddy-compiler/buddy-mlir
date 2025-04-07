@@ -4,12 +4,13 @@
 // RUN:   -lower-affine \
 // RUN:   -convert-vector-to-scf \
 // RUN:   -convert-scf-to-cf \
+// RUN:   -convert-cf-to-llvm \
 // RUN:   -convert-vector-to-llvm \
 // RUN:   -finalize-memref-to-llvm \
 // RUN:   -convert-arith-to-llvm \
 // RUN:   -convert-func-to-llvm \
 // RUN:   -reconcile-unrealized-casts | \
-// RUN: mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: mlir-runner -e main -entry-point-result=void \
 // RUN:   -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -59,7 +60,7 @@ module {
                       %sum_vec_5 = %sum_init,
                       %sum_vec_6 = %sum_init,
                       %sum_vec_7 = %sum_init
-                      ) 
+                      )
           -> (vector<48xf32>, vector<48xf32>, vector<48xf32>, vector<48xf32>,
               vector<48xf32>, vector<48xf32>, vector<48xf32>, vector<48xf32>) {
           %a_ele_0 = memref.load %a[%m_idx, %k_idx] : memref<?x?xf32>
@@ -106,7 +107,7 @@ module {
       // TODO: Add tail processing for both horizontal and vertical.
       scf.for %n_idx = %n_iter_idx to %n step %c1 {
         %sum_init = arith.constant 0. : f32
-        %sum_iter_0, %sum_iter_1, %sum_iter_2, %sum_iter_3, 
+        %sum_iter_0, %sum_iter_1, %sum_iter_2, %sum_iter_3,
         %sum_iter_4, %sum_iter_5, %sum_iter_6, %sum_iter_7
             = affine.for %k_idx = 0 to %k
             iter_args(%sum_0 = %sum_init,
@@ -155,7 +156,7 @@ module {
                        %res_sum_5,
                        %res_sum_6,
                        %res_sum_7 : f32, f32, f32, f32, f32, f32, f32, f32
-        } 
+        }
         memref.store %sum_iter_0, %c[%m_idx, %n_idx] : memref<?x?xf32>
         memref.store %sum_iter_1, %c[%m_idx_1, %n_idx] : memref<?x?xf32>
         memref.store %sum_iter_2, %c[%m_idx_2, %n_idx] : memref<?x?xf32>
@@ -204,7 +205,7 @@ module {
     memref.dealloc %C : memref<?x?xf32>
     memref.dealloc %B : memref<?x?xf32>
     memref.dealloc %A : memref<?x?xf32>
-    return 
+    return
   }
 }
 

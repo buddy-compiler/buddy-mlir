@@ -64,6 +64,7 @@ print(graphs[0]._imported_module)
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.reciprocal
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.reshape
@@ -85,6 +86,7 @@ print(graphs[1]._imported_module)
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.reciprocal
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
 # CHECK: return %{{.*}} : tensor<1x1x1xf32>, tensor<1x1x1xf32>
 # CHECK: }

@@ -124,6 +124,7 @@ add_mlir_python_common_capi_library(BuddyMLIRPythonCAPI
 ################################################################################
 # Instantiation of all Python modules
 ################################################################################
+link_directories(${LLVM_BINARY_DIR}/tools/mlir/python_packages/mlir_core/mlir/_mlir_libs/)
 
 add_mlir_python_modules(BuddyMLIRPythonModules
   ROOT_PREFIX "${BUDDY_BUILD_DIR}/python_packages/buddy_mlir"

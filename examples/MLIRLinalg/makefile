@@ -2,7 +2,7 @@
 BUDDY_OPT := ../../build/bin/buddy-opt
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-runner
 LLC := ../../llvm/build/bin/llc
 OPT_FLAG := -O0
 
@@ -73,7 +73,7 @@ linalg-conv2d_nhwc_fhwc-optimize-run:
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-		
+
 linalg-conv2d_nhwc_fhwc-tile-optimize-lower:
 	@${BUDDY_OPT} linalg-conv2d_nhwc_fhwc.mlir \
 		-conv-nhwc-fhwc-tile-optimize="vec-size=16 tiling-height=2 tiling-width=3" \
@@ -224,11 +224,11 @@ linalg-batch-matmul-tile-optimize-lower:
 
 linalg-batch-matmul-tile-optimize-run:
 	@${BUDDY_OPT} linalg-batch-matmul-dync.mlir ${MLIR_OPT_OPTIONS} \
-		-batchmatmul-tile-optimize="vec-size=64 kernel-m=4 kernel-n=2" \
 		-convert-linalg-to-loops \
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \

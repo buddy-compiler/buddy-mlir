@@ -3,11 +3,13 @@
 // RUN:   -convert-vector-to-scf \
 // RUN:   -lower-affine \
 // RUN:   -convert-scf-to-cf \
+// RUN:   -convert-cf-to-llvm \
 // RUN:   -convert-vector-to-llvm \
 // RUN:   -finalize-memref-to-llvm \
+// RUN:   -convert-arith-to-llvm \
 // RUN:   -convert-func-to-llvm \
 // RUN:   -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:   -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:   -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -35,7 +37,7 @@ module {
 
     // Calculate the upper bound for vectorized processing
     // - Subtract `vl_step` is to avoid overflow at the vectorization tail.
-    // - Add 1 to ensure the final loop runs when the workload length 
+    // - Add 1 to ensure the final loop runs when the workload length
     //   is divisible by the vector size.
     %dim_4_upbound_tmp = arith.subi %dim_4, %vl_step : index
     %dim_4_upbound = arith.addi %dim_4_upbound_tmp, %c1 : index
@@ -45,7 +47,7 @@ module {
       affine.for %arg4 = #map(%c0) to #map(%dim_2) {
         affine.for %arg5 = #map(%c0) to #map(%dim_3) {
           // Perform the vectorization body.
-          %iter_idx = scf.for %arg6 = %c0 to %dim_4_upbound 
+          %iter_idx = scf.for %arg6 = %c0 to %dim_4_upbound
               step %vl_step iter_args(%iter_init = %c0) -> (index) {      // N
             %4 = vector.load %arg2[%arg3, %arg4, %arg5, %arg6] : memref<?x?x?x?xf32>, vector<32xf32>
             %5 = affine.for %arg7 = #map(%c0) to #map(%dim) iter_args(%arg8 = %4) -> (vector<32xf32>) {
@@ -61,8 +63,8 @@ module {
            vector.store %5, %arg2[%arg3, %arg4, %arg5, %arg6] : memref<?x?x?x?xf32>, vector<32xf32>
             %dim_4_next = arith.addi %dim_4, %vl_step : index
             scf.yield %dim_4_next : index
-          } 
-          // Compute the tail size and Process the remaining elements 
+          }
+          // Compute the tail size and Process the remaining elements
           // using masked vector operations.
           %tail_size = arith.subi %dim_4, %iter_idx : index
           %3 = arith.cmpi sgt, %tail_size, %c0 : index
@@ -127,6 +129,6 @@ module {
     memref.dealloc %b : memref<?x?xf32>
     memref.dealloc %a : memref<?x?x?x?xf32>
 
-    return 
+    return
   }
 }
