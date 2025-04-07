@@ -129,7 +129,9 @@ int main() {
   //  - Output container.
   //  - Parameters container.
   Text<size_t, 2> outputContainer;
-  MemRef<float, 3> resultContainer({1, MaxTokenLength, MaxVocabSize}, false, 0);
+  MemRef<float, 3> resultContainer[2] = {
+      MemRef<float, 3>({1, MaxTokenLength, HiddenSize}, false, 0),
+      MemRef<float, 3>({1, MaxTokenLength, MaxVocabSize}, false, 0)};
   Text<size_t, 2> inputContainer(inputStr);
   MemRef<float, 1> paramsContainer({ParamsSize});
 
@@ -149,7 +151,7 @@ int main() {
   for (int i = 0; i < generateLen; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
     // Execute the forward pass of the model.
-    _mlir_ciface_forward(&resultContainer, &paramsContainer, &inputContainer);
+    _mlir_ciface_forward(resultContainer, &paramsContainer, &inputContainer);
 
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =
@@ -158,7 +160,7 @@ int main() {
     // Determine the generated token.
     int tokenIndex = inputContainer.getTokenCnt() - 1;
     const float *startPtr =
-        resultContainer.getData() + tokenIndex * MaxVocabSize;
+        resultContainer[1].getData() + tokenIndex * MaxVocabSize;
     const float *endPtr = startPtr + MaxVocabSize;
     int maxIndex = findMaxIndex(startPtr, endPtr);
     std::string tok = inputContainer.getStr(maxIndex);
@@ -173,7 +175,8 @@ int main() {
     // Append the generated token into the input and output container.
     inputContainer.appendTokenIdx(maxIndex);
     outputContainer.appendTokenIdx(maxIndex);
-    free(resultContainer.release());
+    free(resultContainer[0].release());
+    free(resultContainer[1].release());
   }
 
   /// Print the final result
