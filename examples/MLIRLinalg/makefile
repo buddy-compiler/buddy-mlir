@@ -407,9 +407,9 @@ linalg-transpose-optimize-run:
 		-convert-func-to-llvm \
 		-lower-affine \
 		-convert-arith-to-llvm \
-		-reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_transpose_f32 -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+		# -reconcile-unrealized-casts | \
+	  # ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_transpose_f32 -entry-point-result=void \
+		# -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 linalg-transpose-lower:
 	@${MLIR_OPT} linalg-transpose-f32.mlir ${MLIR_OPT_OPTIONS} \
@@ -533,3 +533,42 @@ linalg-pooling-nhwc-max-vectorization-run:
 		-entry-point-result=void \
 	 	-shared-libs=${MLIR_RUNNER_UTILS} \
 	 	-shared-libs=${MLIR_C_RUNNER_UTILS}
+
+
+linalg-reduce-lower:
+	@${MLIR_OPT} linalg-reduce-f32.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts \
+		-o ./log.mlir
+
+linalg-reduce-run:
+	@${MLIR_OPT} linalg-reduce-f32.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_reduce_f32 -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+linalg-reduce-manual-run:
+	@${MLIR_OPT} ./linalg-reduce-manual.mlir \
+        -convert-linalg-to-affine-loops \
+        -affine-loop-fusion \
+        -lower-affine \
+		-convert-scf-to-openmp \
+        -convert-vector-to-scf \
+        -expand-strided-metadata \
+        -convert-vector-to-llvm \
+        -memref-expand \
+        -arith-expand \
+        -convert-arith-to-llvm \
+        -finalize-memref-to-llvm \
+        -convert-scf-to-cf \
+        -convert-openmp-to-llvm \
+        -convert-arith-to-llvm \
+        -convert-math-to-llvm \
+        -convert-math-to-libm  \
+        -convert-func-to-llvm \
+        -reconcile-unrealized-casts | \
+    ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+        -shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS}

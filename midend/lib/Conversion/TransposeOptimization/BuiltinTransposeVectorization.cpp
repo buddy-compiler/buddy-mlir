@@ -179,6 +179,7 @@ public:
                   rewriter.getNamedAttr(
                       "in_bounds",
                       rewriter.getBoolArrayAttr(ArrayRef<bool>{false, true})),
+                      // 确定输入的操作数分别时什么含义
                   rewriter.getNamedAttr(
                       "operand_segment_sizes",
                       rewriter.getDenseI32ArrayAttr(ArrayRef<int>{1, 2, 1, 0})),
