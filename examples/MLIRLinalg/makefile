@@ -39,6 +39,13 @@ linalg-conv2d-run:
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
+linalg-conv2d-f16-run:
+	@${MLIR_OPT} linalg-conv2d-f16.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
 linalg-conv2d-tiling-lower:
 	@${MLIR_OPT} ./linalg-conv2d.mlir \
 		-test-transform-dialect-interpreter \
@@ -73,7 +80,7 @@ linalg-conv2d_nhwc_fhwc-optimize-run:
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-		
+
 linalg-conv2d_nhwc_fhwc-tile-optimize-lower:
 	@${BUDDY_OPT} linalg-conv2d_nhwc_fhwc.mlir \
 		-conv-nhwc-fhwc-tile-optimize="vec-size=16 tiling-height=2 tiling-width=3" \
@@ -137,6 +144,13 @@ linalg-matmul-translate:
 
 linalg-matmul-run:
 	@${MLIR_OPT} linalg-matmul.mlir ${MLIR_OPT_OPTIONS} \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
+		-convert-func-to-llvm -reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+linalg-matmul-f16-run:
+	@${MLIR_OPT} linalg-matmul-f16.mlir ${MLIR_OPT_OPTIONS} \
 		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
