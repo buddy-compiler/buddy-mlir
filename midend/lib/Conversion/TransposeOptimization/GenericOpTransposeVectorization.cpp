@@ -333,28 +333,25 @@ private:
               tailReadOperands.push_back(zeroElementType); // 填充值
               tailReadOperands.push_back(readMask);        // 尾部掩码
 
-              auto tailReadValue =
-                  tailBranchBuilder.create<vector::TransferReadOp>(
-                      loc, TypeRange{VectorType::get(readShape, elementType)},
-                      tailReadOperands,
-                      ArrayRef<NamedAttribute>{
-                          tailBranchBuilder.getNamedAttr(
-                              "in_bounds",
-                              tailBranchBuilder.getBoolArrayAttr(
-                                  llvm::SmallVector<bool, 4>(
-                                      intailIndices.size(), true))),
-                          tailBranchBuilder.getNamedAttr(
-                              "operand_segment_sizes",
-                              tailBranchBuilder.getDenseI32ArrayAttr(
-                                  llvm::SmallVector<int, 4>{
-                                      1, static_cast<int>(intailIndices.size()),
-                                      1, 1})),
-                          tailBranchBuilder.getNamedAttr(
-                              "permutation_map",
-                              AffineMapAttr::get(
-                                  AffineMap::getMultiDimIdentityMap(
-                                      intailIndices.size(),
-                                      rewriter.getContext())))});
+              auto tailReadValue = tailBranchBuilder.create<
+                  vector::TransferReadOp>(
+                  loc, TypeRange{VectorType::get(readShape, elementType)},
+                  tailReadOperands,
+                  ArrayRef<NamedAttribute>{
+                      tailBranchBuilder.getNamedAttr(
+                          "in_bounds", tailBranchBuilder.getBoolArrayAttr(
+                                           llvm::SmallVector<bool, 4>(
+                                               intailIndices.size(), true))),
+                      tailBranchBuilder.getNamedAttr(
+                          "operand_segment_sizes",
+                          tailBranchBuilder.getDenseI32ArrayAttr(
+                              llvm::SmallVector<int, 4>{
+                                  1, static_cast<int>(intailIndices.size()), 1,
+                                  1})),
+                      tailBranchBuilder.getNamedAttr(
+                          "permutation_map",
+                          AffineMapAttr::get(AffineMap::getMultiDimIdentityMap(
+                              intailIndices.size(), rewriter.getContext())))});
 
               // 构造 TransferWriteOp 的操作数：
               // 第一个操作数为待写入的向量数据（tailRead），第二个为输出张量，其余依次为各个维度的索引

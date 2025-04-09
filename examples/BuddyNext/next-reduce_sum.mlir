@@ -35,36 +35,39 @@
 func.func private @rtclock() -> f64
 func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 
-func.func @kernel(%t0 : tensor<1x32x40x120xf32>) {
+func.func @kernel(%t0 : tensor<12x40x40xf32>) {
   %t_start = call @rtclock() : () -> f64
 
-  %idx = "tosa.const"() <{value = dense<[0, 2, 1, 3]> : tensor<4xi32>}> : () -> tensor<4xi32>
-  %t1 = tosa.transpose %t0, %idx : (tensor<1x32x40x120xf32>, tensor<4xi32>) -> tensor<1x40x32x120xf32>
+  // Perform reduce_sum along axis=2
+  %t1 = tosa.reduce_sum %t0 {axis = 2 : i32} : (tensor<12x40x40xf32>) -> tensor<12x40x1xf32>
 
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64
 
-  %tensor_unranked = tensor.cast %t1 : tensor<1x40x32x120xf32> to tensor<*xf32>
+  %tensor_unranked = tensor.cast %t1 : tensor<12x40x1xf32> to tensor<*xf32>
 
-  // All the elements of the MemRef are the same,
-  // only check the first line to verify the correctness.
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 40, 32, 120] strides = [163840, 4096, 120, 1] data =
+  // Verify the output shape and some sample values
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [12, 40, 1] strides = [40, 1, 1] data =
   // CHECK-NEXT: [
   // CHECK-SAME: [
-  // CHECK-SAME: [
-  // CHECK-SAME: [3{{(, 3)*}}],
+  // CHECK-SAME: [120]
+  // CHECK-SAME: [120]
+  // CHECK-SAME: ...
+  // CHECK-SAME: [120]
+  // CHECK-SAME: ]
 
-  // Print results.
+  // Print results
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
-  // Print timings.
+  // Print timings
   vector.print %time : f64
 
   return
 }
 
 func.func @main() {
-  %c0 = arith.constant dense<3.0> : tensor<1x32x40x120xf32>
-  call @kernel(%c0) : (tensor<1x32x40x120xf32>) -> ()
+  // Create a tensor filled with 3.0
+  %c0 = arith.constant dense<3.0> : tensor<12x40x40xf32>
+  call @kernel(%c0) : (tensor<12x40x40xf32>) -> ()
 
   return
 }
