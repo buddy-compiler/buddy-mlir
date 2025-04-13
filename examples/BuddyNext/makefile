@@ -381,6 +381,31 @@ next-transpose-vec-manual-run:
         -shared-libs=${MLIR_RUNNER_UTILS} \
 		-shared-libs=${MLIR_C_RUNNER_UTILS}
 
+next-transpose-vec-autoopt-run:
+	@${MLIR_OPT} ./log-transpose-optimized.mlir \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm  \
+		-convert-func-to-llvm \
+		-lower-affine \
+		-convert-arith-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS}
+
 next-transpose-vec-auto-run:
 	@${BUDDY_OPT} next-transpose.mlir \
         -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \

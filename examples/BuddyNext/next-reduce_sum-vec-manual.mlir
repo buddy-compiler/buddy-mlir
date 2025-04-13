@@ -1,4 +1,4 @@
-// RUN: buddy-opt -reduce-vectorize="vector-size=16" -verify-diagnostics -lower-affine -expand-strided-metadata -convert-vector-to-scf -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf -convert-arith-to-llvm -convert-func-to-llvm -lower-affine -llvm-request-c-wrappers -convert-arith-to-llvm -reconcile-unrealized-casts %s \
+// RUN: buddy-opt -reduce-vectorize="vector-size=16" -verify-diagnostics -lower-affine -expand-strided-metadata -convert-vector-to-scf -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf -convert-arith-to-llvm -convert-func-to-llvm -lower-affine -llvm-request-c_wrappers -convert-arith-to-llvm -reconcile-unrealized-casts %s \
 // RUN: | mlir-cpu-runner -O0 -e main -entry-point-result=void \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -17,40 +17,57 @@ func.func @kernel(%a : memref<12x40x40xf32>) {
   // 初始化常量
   %c0 = arith.constant 0.0 : f32
   %c16 = arith.constant 16 : index
+  %c12 = arith.constant 12 : index
   %c40 = arith.constant 40 : index
   %c0_idx = arith.constant 0 : index
-  %c32_idx = arith.constant 32 : index
   %c1 = arith.constant 1 : index
+  %c8 = arith.constant 8 : index
 
-  // 外层循环遍历 (i, j)
-  affine.for %i = 0 to 12 {
-    affine.for %j = 0 to 40 {
-      // 初始化累加器
-      %acc = arith.constant 0.0 : f32
+  // 使用8x8分块和向量化
+  affine.for %i0 = 0 to 12 step 8 {
+    affine.for %j0 = 0 to 40 step 8 {
+      // 并行处理8x8分块
+      affine.parallel (%i1, %j1) = (0, 0) to (8, 8) {
+        %i = affine.apply affine_map<(d0, d1) -> (d0 + d1)> (%i0, %i1)
+        %j = affine.apply affine_map<(d0, d1) -> (d0 + d1)> (%j0, %j1)
+        
+        // 检查是否在有效范围内
+        %i_in_range = arith.cmpi slt, %i, %c12 : index
+        %j_in_range = arith.cmpi slt, %j, %c40 : index
+        %in_range = arith.andi %i_in_range, %j_in_range : i1
+        
+        // 只在有效范围内进行计算
+        scf.if %in_range {
+          // 初始化累加器
+          %init_acc = arith.constant 0.0 : f32
+          
+          // 在k维度上使用16元素向量化
+          %result_acc = affine.for %k = 0 to 40 step 16 iter_args(%acc = %init_acc) -> f32 {
+            // 预取下一个数据块
+            %next_k = arith.addi %k, %c16 : index
+            %next_valid = arith.cmpi slt, %next_k, %c40 : index
+            scf.if %next_valid {
+              memref.prefetch %a[%i, %j, %next_k], read, locality<3>, data : memref<12x40x40xf32>
+            }
+            
+            // 计算当前块大小和掩码
+            %remaining = arith.subi %c40, %k : index
+            %vl = arith.minsi %remaining, %c16 : index
+            %mask = vector.create_mask %vl : vector<16xi1>
+            
+            // 使用向量化读取数据
+            %vec = vector.transfer_read %a[%i, %j, %k], %c0, %mask : memref<12x40x40xf32>, vector<16xf32>
+            
+            // 向量规约求和
+            %block_sum = vector.reduction <add>, %vec : vector<16xf32> into f32
+            %next_acc = arith.addf %acc, %block_sum : f32
+            affine.yield %next_acc : f32
+          }
 
-      // 第一块：0 到 15
-      %vec0 = vector.transfer_read %a[%i, %j, %c0_idx], %c0 {in_bounds = [true]} 
-              : memref<12x40x40xf32>, vector<16xf32>
-      %sum0 = vector.reduction <add>, %vec0, %c0 
-              : vector<16xf32> into f32
-      %acc1 = arith.addf %acc, %sum0 : f32
-
-      // 第二块：16 到 31
-      %vec1 = vector.transfer_read %a[%i, %j, %c16], %c0 {in_bounds = [true]} 
-              : memref<12x40x40xf32>, vector<16xf32>
-      %sum1 = vector.reduction <add>, %vec1, %c0 
-              : vector<16xf32> into f32
-      %acc2 = arith.addf %acc1, %sum1 : f32
-
-      // 剩余块：32 到 39 (8 个元素)
-      %vec2 = vector.transfer_read %a[%i, %j, %c32_idx], %c0 {in_bounds = [true]} 
-              : memref<12x40x40xf32>, vector<8xf32>
-      %sum2 = vector.reduction <add>, %vec2, %c0 
-              : vector<8xf32> into f32
-      %acc_final = arith.addf %acc2, %sum2 : f32
-
-      // 写入结果
-      affine.store %acc_final, %b[%i, %j] : memref<12x40xf32>
+          // 写入结果
+          affine.store %result_acc, %b[%i, %j] : memref<12x40xf32>
+        }
+      }
     }
   }
 
