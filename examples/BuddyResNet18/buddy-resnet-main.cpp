@@ -69,7 +69,6 @@ void loadParameters(const std::string &paramFilePath,
             << std::endl;
 }
 
-
 // Softmax function.
 void softmax(float *input, size_t size) {
   size_t i;
@@ -127,8 +126,14 @@ int main() {
   std::string paramsDir = resnetBuildDir + "/arg0.data";
   MemRef<float, 1> paramsContainer({ParamsSize});
   loadParameters(paramsDir, paramsContainer);
+
+  const auto inferStart = std::chrono::high_resolution_clock::now();
   // Call the forward function of the model.
   _mlir_ciface_forward(&output, &paramsContainer, &inputResize);
+  const auto inferEnd = std::chrono::high_resolution_clock::now();
+
+  const std::chrono::duration<double, std::milli> inferTime =
+      inferEnd - inferStart;
 
   auto out = output.getData();
   softmax(out, 1000);
@@ -144,6 +149,9 @@ int main() {
   std::cout << "Classification Index: " << maxIdx << std::endl;
   std::cout << "Classification: " << getLabel(maxIdx) << std::endl;
   std::cout << "Probability: " << maxVal << std::endl;
+
+  printLogLabel();
+  std::cout << "Inference time: " << inferTime.count() / 1000 << std::endl;
 
   return 0;
 }
