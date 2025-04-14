@@ -15,3 +15,5 @@
 
 # Clangd configurations
 .clangd
+
+.cursor
