@@ -493,7 +493,40 @@ next-reduce-sum-run:
         -eliminate-empty-tensors \
         -empty-tensor-to-alloc-tensor \
         -one-shot-bufferize \
-		-func-bufferize \
+				-func-bufferize \
+        -arith-bufferize \
+        -convert-linalg-to-affine-loops \
+        -affine-loop-fusion \
+        -lower-affine \
+        -convert-vector-to-scf \
+        -expand-strided-metadata \
+        -convert-vector-to-llvm \
+        -memref-expand \
+        -arith-expand \
+        -convert-arith-to-llvm \
+        -finalize-memref-to-llvm \
+        -convert-scf-to-cf \
+        -convert-openmp-to-llvm \
+        -convert-arith-to-llvm \
+        -convert-math-to-llvm \
+        -convert-math-to-libm  \
+        -convert-func-to-llvm \
+        -reconcile-unrealized-casts | \
+    ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+        -shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS}
+
+next-reduce-sum-vec-auto-run:
+	@${MLIR_OPT} ./next-reduce_sum.mlir \
+        -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+    ${MLIR_OPT} \
+        -arith-expand \
+        -eliminate-empty-tensors \
+        -empty-tensor-to-alloc-tensor \
+        -one-shot-bufferize | \
+		${BUDDY_OPT} \
+				-reduce-sum-vectorize="vector-size=16" \
+				-func-bufferize \
         -arith-bufferize \
         -convert-linalg-to-affine-loops \
         -affine-loop-fusion \
