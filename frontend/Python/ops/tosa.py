@@ -63,6 +63,7 @@ from ..graph import (
     RandIntLowOp,
     ArgMaxOp,
     ScaledDotProductFlashAttentionForCpuOp,
+    MatmulOp,
 )
 from .utils import *
 
@@ -1315,17 +1316,19 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 ],
                 result_element_type,
             )
-            pad_values_type = ir.RankedTensorType.get(
-                [3, 2], ir.IntegerType.get_signless(32)
-            )
+
             pad_values = ir.DenseElementsAttr.get(
                 numpy.array(
-                    [[0, 0], [0, 0], [input_padding[0], input_padding[0]]],
-                    dtype=numpy.int32,
-                ),
-                type=pad_values_type,
+                    [0, 0, 0, 0, input_padding[0], input_padding[0]],
+                    dtype=numpy.int64,
+                )
             )
-            pad_constant = arith.ConstantOp(pad_values_type, pad_values).result
+            pad_tensor_type = ir.RankedTensorType.get([6], ir.IndexType.get())
+            pad_values_attr = ir.DenseElementsAttr.get(
+                pad_values, type=pad_tensor_type
+            )
+            shape_type = ir.Type.parse("!tosa.shape<6>")
+            pad_constant = tosa.const_shape(shape_type, pad_values_attr)
             input_val = tosa.PadOp(padded_type, input_val, pad_constant)
         output_type = ir.RankedTensorType.get(out_shape, result_element_type)
         output_conv = tensor.EmptyOp(list(out_shape), result_element_type)
@@ -1656,7 +1659,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     mlir_dtype = mlir_element_type_get(dtype)
     attn_bias_type = ir.RankedTensorType.get(attn_bias_shape, mlir_dtype)
     zero_constant = arith.ConstantOp(mlir_dtype, 0.0)
-    attn_bias = tensor.SplatOp(attn_bias_type, zero_constant)
+    attn_bias = tensor.SplatOp(attn_bias_type, zero_constant, [])
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
         if attn_mask.type.element_type == ir.IntegerType.get_signless(1):
@@ -1736,16 +1739,16 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     )
     # Multiply result by scale factor
     scale_factor_constant = arith.ConstantOp(mlir_dtype, scale_factor)
-    scale_factor = tensor.SplatOp(matmul_result_type, scale_factor_constant)
+    scale_factor = tensor.SplatOp(matmul_result_type, scale_factor_constant, [])
     mul_op = tosa.MulOp(
         matmul_result_type,
         matmul_op,
         scale_factor,
-        ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
     )
 
     # Add attention bias to the result
-    add_op = tosa.AddOp(matmul_result_type, mul_op.result, attn_bias)
+    add_op = _gen_arith_binary_op(mul_op.result, attn_bias.result, tosa.AddOp)
+    # add_op = tosa.AddOp(matmul_result_type, mul_op.result, attn_bias)
     # Apply softmax to the result
     softmax_output_shape = list(add_op.result.type.shape)
     softmax_dim = len(softmax_output_shape) - 1
@@ -1754,12 +1757,12 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     # prevent overflow during the exp operation.
     max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
     sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
-    exp_op = math.ExpOp(sub_op)
+    exp_op = math.ExpOp(sub_op.result)
     reduce_sum_op = tosa.ReduceSumOp(exp_op, softmax_dim)
     log_op = tosa.LogOp(reduce_sum_op.result.type, reduce_sum_op)
     log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
     log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
-    softmax_result = math.ExpOp(log_weights)
+    softmax_result = math.ExpOp(log_weights.result)
     log_sumexp = tosa.ReshapeOp(
         log_sumexp,
         memoryview(
@@ -1804,6 +1807,53 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     return result_reshape_op, log_sumexp
 
 
+def matmul_op(
+    node: MatmulOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    #     """
+    #     Import the tensor matmul operation.
+    #     From Buddy MatmulOp to MLIR TOSA `matmul` operation.
+
+    #     Note: This op, compute input node's matrix multiplication result.
+    #     Args:
+    #         node: Containing information from the input graph node.
+    #         symbol_table: A dictionary mapping symbols to their corresponding
+    #         operations.
+
+    #     Returns:
+    #         op: The operation return the tosa.matmul op.
+    #     """
+
+    assert len(node.args) == 2
+    mat1 = symbol_table.get((str(node.args[0]), 0))
+    mat2 = symbol_table.get((str(node.args[1]), 0))
+    # get input shape
+    mat1_shp = ir.RankedTensorType(mat1.type).shape
+    mat2_shp = ir.RankedTensorType(mat2.type).shape
+    # append index because tosa.MatMulOp doesn't accept 2D tensor
+    mat1_reshape_op = tosa.ReshapeOp(
+        mat1, memoryview(array.array("i", [1, *mat1_shp]))
+    )
+    mat2_reshape_op = tosa.ReshapeOp(
+        mat2, memoryview(array.array("i", [1, *mat2_shp]))
+    )
+    # do matmul
+    result_element_type = ir.RankedTensorType(mat1.type).element_type
+    matmul_result_shp = [1, mat1_shp[0], mat2_shp[1]]
+    matmul_result_type = ir.RankedTensorType.get(
+        matmul_result_shp, result_element_type
+    )
+    matmul_op = tosa.MatMulOp(
+        matmul_result_type, mat1_reshape_op.result, mat2_reshape_op.result
+    )
+    final_result_shape = [mat1_shp[0], mat2_shp[1]]
+    op = tosa.ReshapeOp(
+        matmul_op.c, memoryview(array.array("i", final_result_shape))
+    )
+    return op
+
+
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,
@@ -1841,4 +1891,5 @@ ops_registry = {
     "RandIntLowOp": randint_low_op,
     "ArgMaxOp": argmax_op,
     "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
+    "MatmulOp": matmul_op,
 }

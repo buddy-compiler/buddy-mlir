@@ -57,13 +57,6 @@ declare_mlir_dialect_python_bindings(
     dialects/rvv.py
   DIALECT_NAME rvv)
 
-declare_mlir_dialect_python_bindings(
-  ADD_TO_PARENT BuddyMLIRPythonSources.Dialects
-  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/buddy_mlir"
-  TD_FILE dialects/ScheBinding.td
-  SOURCES
-    dialects/sche.py
-  DIALECT_NAME sche)
 
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects

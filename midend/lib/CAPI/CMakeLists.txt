@@ -28,7 +28,6 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   BuddyGemminiTransforms
   BuddyRVV
   BuddyRVVTransforms
-  BuddySche
   VectorExp
   BuddyMLIRInitAll
   BuddyToLLVMIRTranslationRegistration
