@@ -72,7 +72,7 @@ public:
     Value tileStep = rewriter.create<ConstantIndexOp>(loc, 2048);
     Value vlStep = rewriter.create<ConstantIndexOp>(loc, 16);
     Value vlStepMinusOne = rewriter.create<arith::SubIOp>(loc, vlStep, c1);
-    FloatType f32 = FloatType::getF32(ctx);
+    FloatType f32 = Float32Type::get(ctx);
     VectorType vecTy = VectorType::get(16, f32);
 
     // 3. Calculate full vectorization part.
@@ -218,7 +218,7 @@ public:
     Value N = rewriter.create<memref::DimOp>(loc, input, c0);
     Value filterSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
 
-    FloatType f32 = FloatType::getF32(ctx);
+    FloatType f32 = Float32Type::get(ctx);
     Value f0 = rewriter.create<ConstantFloatOp>(loc, APFloat(0.0f), f32);
     Value f1 = rewriter.create<ConstantFloatOp>(loc, APFloat(1.0f), f32);
 
@@ -238,7 +238,7 @@ public:
         dap::iirVectorizationProcess(builder, loc, 4, f32, f0, f1, c0, c1, c2, c4, c5,
                                      filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2},
                                      N, input, output);
-        
+
         builder.create<scf::YieldOp>(loc);
     },
     /*elseBuilder=*/
@@ -247,10 +247,10 @@ public:
         /*thenBuilder=*/
         [&](OpBuilder &builder, Location loc){
             dap::iirVectorizationProcess(builder, loc, 8, f32, f0, f1, c0, c1, c2, c4, c5,
-                                         filterSize, kernel, 
-                                         ArrayRef<int64_t>{0, 0, 1, 2, 3, 4, 5, 6}, N, 
+                                         filterSize, kernel,
+                                         ArrayRef<int64_t>{0, 0, 1, 2, 3, 4, 5, 6}, N,
                                          input, output);
-            
+
             builder.create<scf::YieldOp>(loc);
         },
         /*elseBuilder=*/
@@ -259,10 +259,10 @@ public:
             /*thenBuilder=*/
             [&](OpBuilder &builder, Location loc){
                 dap::iirVectorizationProcess(builder, loc, 16, f32, f0, f1, c0, c1, c2, c4, c5,
-                                             filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2, 
-                                             3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}, N, 
+                                             filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2,
+                                             3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}, N,
                                              input, output);
-                
+
                 builder.create<scf::YieldOp>(loc);
             },
             /*elseBuilder=*/
@@ -271,23 +271,23 @@ public:
                 /*thenBuilder=*/
                 [&](OpBuilder &builder, Location loc){
                     dap::iirVectorizationProcess(builder, loc, 32, f32, f0, f1, c0, c1, c2, c4, c5,
-                                                 filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2, 
-                                                 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 
+                                                 filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2,
+                                                 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
                                                  17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
                                                  30}, N, input, output);
-                    
+
                     builder.create<scf::YieldOp>(loc);
                 },
                 /*elseBuilder=*/
                 [&](OpBuilder &builder, Location loc) {
                     dap::iirVectorizationProcess(builder, loc, 64, f32, f0, f1, c0, c1, c2, c4, c5,
                                                  filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2, 3, 4,
-                                                 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 
-                                                 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 
-                                                 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 
+                                                 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+                                                 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+                                                 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
                                                  48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
                                                  62}, N, input, output);
-                    
+
                     builder.create<scf::YieldOp>(loc);
                 }
                 );

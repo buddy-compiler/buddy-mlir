@@ -29,7 +29,7 @@ include "mlir/IR/PatternBase.td"
 // Scalable Vector Type
 //===----------------------------------------------------------------------===//
 
-class ScalableVector_Type<Dialect dialect,string name> 
+class ScalableVector_Type<Dialect dialect,string name>
     : TypeDef<dialect, name> {
   let mnemonic = "vector";
 
@@ -47,10 +47,10 @@ def RVV_Dialect : Dialect {
   let description = [{
     RISC-V vector extension (RVV) is the vector instruction set with scalable
     vector types, and the RVV instructions are vector length agnostic (VLA).
-    For more details about RVV, please see the 
+    For more details about RVV, please see the
     [RVV specification](https://github.com/riscv/riscv-v-spec).
-    This dialect contains the definitions of RVV operations and RVV 
-    intrinsic operations. The former is used to interoperate with higher-level 
+    This dialect contains the definitions of RVV operations and RVV
+    intrinsic operations. The former is used to interoperate with higher-level
     dialects, and the latter is responsible for mapping to LLVM IR intrinsic.
   }];
 }
@@ -83,7 +83,7 @@ def RVVSetVlOp :
 def RVVLoadOp : RVV_Op<"load">,
     Arguments<(ins Arg<AnyMemRef, "", [MemRead]>:$base, Index:$index,
                        AnySignlessIntegerOrIndex:$length)>,
-    Results<(outs ScalableVectorOf<[AnyType]>:$result)> {
+    Results<(outs ScalableVectorOfAnyRank<[AnyType]>:$result)> {
   let summary = "Load scalable vector from memory";
   let description = [{
     Load a slice of memory into scalable vector with the given element length.
@@ -98,7 +98,7 @@ def RVVLoadOp : RVV_Op<"load">,
 }
 
 def RVVStoreOp : RVV_Op<"store">,
-    Arguments<(ins ScalableVectorOf<[AnyType]>:$value, Arg<AnyMemRef, "",
+    Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>:$value, Arg<AnyMemRef, "",
                    [MemWrite]>:$base, Index:$index, AnySignlessIntegerOrIndex:$length)> {
   let summary = "Store scalable vector into memory";
   let description = [{
@@ -114,8 +114,8 @@ def RVVStoreOp : RVV_Op<"store">,
 }
 
 def RsqrtOp : RVV_Op<"rsqrt", [Pure, AllTypesMatch<["src", "dst"]>]>,
-    Arguments<(ins ScalableVectorOf<[AnyType]>:$src, AnySignlessIntegerOrIndex:$length)>,
-    Results<(outs ScalableVectorOf<[AnyType]>:$dst)> {
+    Arguments<(ins ScalableVectorOfAnyRank<[AnyType]>:$src, AnySignlessIntegerOrIndex:$length)>,
+    Results<(outs ScalableVectorOfAnyRank<[AnyType]>:$dst)> {
   let summary = "Reciprocal of the square-root";
   let description = "Floating-point reciprocal square-root estimated to 7 bits.";
   let assemblyFormat = "$src `,` $length attr-dict `:` type($dst) `,`  type($length)";
@@ -125,16 +125,16 @@ class RVV_BinaryAAXNoMask_Op<string mnemonic, string op_description,
                              list<Trait> traits = []> :
   RVV_Op<mnemonic, !listconcat(traits, [AllTypesMatch<["src1", "dst"]>])> {
   let summary = op_description # "for RVV scalable vectors";
-  let description = [{ The `rvv.}] # mnemonic # [{` operation can be of 
-    vector-vector form or vector-scalar form. It also takes the vector length 
+  let description = [{ The `rvv.}] # mnemonic # [{` operation can be of
+    vector-vector form or vector-scalar form. It also takes the vector length
     value and returns a scalable vector with the result of the }]
     # op_description # [{.}];
-  let arguments = (ins 
-    ScalableVectorOf<[AnyInteger]>:$src1,
+  let arguments = (ins
+    ScalableVectorOfAnyRank<[AnyInteger]>:$src1,
     AnyType:$src2,
     AnySignlessIntegerOrIndex:$length
   );
-  let results = (outs ScalableVectorOf<[AnyInteger]>:$dst);
+  let results = (outs ScalableVectorOfAnyRank<[AnyInteger]>:$dst);
   let assemblyFormat = "$src1 `,` $src2 `,` $length attr-dict `:` type($src1) "
     "`,` type($src2) `,` type($length)";
 }
@@ -147,63 +147,63 @@ def RVVMulOp : RVV_BinaryAAXNoMask_Op<"mul", "multiplication">;
 //===----------------------------------------------------------------------===//
 
 class RVV_VSetVlI_IntrOp<string mnemonic, list<Trait> traits = []> :
-  LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect, 
+  LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect,
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
-                  /*list<int> overloadedResults=*/[0], 
-                  /*list<int> overloadedOperands=*/[], 
-                  /*list<Trait> traits=*/traits, 
+                  /*list<int> overloadedResults=*/[0],
+                  /*list<int> overloadedOperands=*/[],
+                  /*list<Trait> traits=*/traits,
                   /*int numResults=*/1>;
 
 class RVV_USLoad_IntrOp<string mnemonic, list<Trait> traits = []> :
-  LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect, 
+  LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect,
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
-                  /*list<int> overloadedResults=*/[0], 
-                  /*list<int> overloadedOperands=*/[2], 
-                  /*list<Trait> traits=*/traits, 
+                  /*list<int> overloadedResults=*/[0],
+                  /*list<int> overloadedOperands=*/[2],
+                  /*list<Trait> traits=*/traits,
                   /*int numResults=*/1>;
 
 class RVV_USStore_IntrOp<string mnemonic, list<Trait> traits = []> :
-  LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect, 
+  LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect,
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
-                  /*list<int> overloadedResults=*/[], 
-                  /*list<int> overloadedOperands=*/[0, 2], 
-                  /*list<Trait> traits=*/traits, 
+                  /*list<int> overloadedResults=*/[],
+                  /*list<int> overloadedOperands=*/[0, 2],
+                  /*list<Trait> traits=*/traits,
                   /*int numResults=*/0>;
 
 class RVV_UnaryNoMask_IntrOp<string mnemonic, list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect,
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
-                  /*list<int> overloadedResults=*/[0], 
-                  /*list<int> overloadedOperands=*/[2], 
-                  /*list<Trait> traits=*/traits, 
+                  /*list<int> overloadedResults=*/[0],
+                  /*list<int> overloadedOperands=*/[2],
+                  /*list<Trait> traits=*/traits,
                   /*int numResults=*/1>;
 
 class RVV_BinaryAAXNoMask_IntrOp<string mnemonic,
                                  list<Trait> traits = []> :
-  LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect, 
+  LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect,
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
-                  /*list<int> overloadedResults=*/[0], 
-                  /*list<int> overloadedOperands=*/[2, 3], 
-                  /*list<Trait> traits=*/traits, 
+                  /*list<int> overloadedResults=*/[0],
+                  /*list<int> overloadedOperands=*/[2, 3],
+                  /*list<Trait> traits=*/traits,
                   /*int numResults=*/1>;
 
 def RVVIntrSetVlIOp : RVV_VSetVlI_IntrOp<"vsetvli">,
   Arguments<(ins AnyInteger, AnyInteger, AnyInteger)>;
 def RVVIntrLoadEleOp : RVV_USLoad_IntrOp<"vle">,
-  Arguments<(ins AnyScalableVector, LLVM_AnyPointer, AnyInteger)>;
+  Arguments<(ins AnyScalableVectorOfAnyRank, LLVM_AnyPointer, AnyInteger)>;
 def RVVIntrStoreEleOp : RVV_USStore_IntrOp<"vse">,
-  Arguments<(ins AnyScalableVector, LLVM_AnyPointer, AnyInteger)>;
+  Arguments<(ins AnyScalableVectorOfAnyRank, LLVM_AnyPointer, AnyInteger)>;
 def IntrFrsqrt7Op : RVV_UnaryNoMask_IntrOp<"vfrsqrt7">,
-  Arguments<(ins AnyScalableVector, AnyScalableVector, AnyInteger)>;
+  Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank, AnyInteger)>;
 
-def RVVIntrAddOp : RVV_BinaryAAXNoMask_IntrOp<"vadd">, 
-  Arguments<(ins AnyScalableVector, AnyScalableVector, AnyType, AnyInteger)>;
-def RVVIntrMulOp : RVV_BinaryAAXNoMask_IntrOp<"vmul">, 
-  Arguments<(ins AnyScalableVector, AnyScalableVector, AnyType, AnyInteger)>;
+def RVVIntrAddOp : RVV_BinaryAAXNoMask_IntrOp<"vadd">,
+  Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank, AnyType, AnyInteger)>;
+def RVVIntrMulOp : RVV_BinaryAAXNoMask_IntrOp<"vmul">,
+  Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank, AnyType, AnyInteger)>;
 
 #endif // RVV_OPS

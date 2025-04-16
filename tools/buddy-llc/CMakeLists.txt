@@ -8,7 +8,7 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsCodeGens
   AllTargetsDescs
   AllTargetsInfos
-  
+
   BuddyAnalysis
   BuddyAsmParser
   BuddyAsmPrinter
@@ -26,10 +26,12 @@ set(LLVM_LINK_COMPONENTS
   BuddyVectorize
   TargetParser
   BuddyTransformUtils
+  Passes
 )
 
 add_llvm_tool(buddy-llc
   ${LLVM_MAIN_SRC_DIR}/tools/llc/llc.cpp
+  ${LLVM_MAIN_SRC_DIR}/tools/llc/NewPMDriver.cpp
 
   DEPENDS
   buddy_intrinsics_gen

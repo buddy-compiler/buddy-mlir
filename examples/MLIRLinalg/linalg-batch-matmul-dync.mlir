@@ -1,8 +1,7 @@
-// RUN: buddy-opt  %s -batchmatmul-tile-optimize="vec-size=64 kernel-m=4 kernel-n=2" \
-// RUN:   -convert-linalg-to-loops -expand-strided-metadata -lower-affine \
-// RUN:   -convert-scf-to-cf -convert-vector-to-llvm -finalize-memref-to-llvm \
+// RUN: buddy-opt  %s -convert-linalg-to-loops -expand-strided-metadata -lower-affine \
+// RUN:   -convert-scf-to-cf -convert-cf-to-llvm -convert-vector-to-llvm -finalize-memref-to-llvm \
 // RUN:   -convert-arith-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | \
-// RUN: mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: mlir-runner -e main -entry-point-result=void \
 // RUN:   -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -12,7 +11,7 @@ module {
 
   // Definition for the batch matrix multiplication function
   func.func @buddy_batchmatmul_f32(%A: memref<?x?x?xf32>, %B: memref<?x?x?xf32>, %C: memref<?x?x?xf32>) {
-    linalg.batch_matmul 
+    linalg.batch_matmul
       ins(%A, %B: memref<?x?x?xf32>, memref<?x?x?xf32>)
       outs(%C: memref<?x?x?xf32>)
     return
@@ -54,7 +53,7 @@ module {
       memref.dealloc %C : memref<?x?x?xf32>
       memref.dealloc %B : memref<?x?x?xf32>
       memref.dealloc %A : memref<?x?x?xf32>
-      return 
+      return
   }
 }
 

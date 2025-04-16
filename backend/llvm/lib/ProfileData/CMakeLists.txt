@@ -8,8 +8,10 @@ add_llvm_component_library(LLVMBuddyProfileData
   ${LLVM_ProfileData_DIR}/InstrProfWriter.cpp
   ${LLVM_ProfileData_DIR}/ItaniumManglingCanonicalizer.cpp
   ${LLVM_ProfileData_DIR}/MemProf.cpp
+  ${LLVM_ProfileData_DIR}/MemProfReader.cpp
+  ${LLVM_ProfileData_DIR}/PGOCtxProfReader.cpp
+  ${LLVM_ProfileData_DIR}/PGOCtxProfWriter.cpp
   ${LLVM_ProfileData_DIR}/ProfileSummaryBuilder.cpp
-  ${LLVM_ProfileData_DIR}/RawMemProfReader.cpp
   ${LLVM_ProfileData_DIR}/SampleProf.cpp
   ${LLVM_ProfileData_DIR}/SampleProfReader.cpp
   ${LLVM_ProfileData_DIR}/SampleProfWriter.cpp
@@ -31,4 +33,3 @@ add_llvm_component_library(LLVMBuddyProfileData
   DebugInfoDWARF
   TargetParser
   )
-

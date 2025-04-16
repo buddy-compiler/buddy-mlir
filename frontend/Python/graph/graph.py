@@ -686,7 +686,7 @@ class GraphImporter:
         op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)
         )
-        if isinstance(op_ret, tuple | List):
+        if isinstance(op_ret, tuple | List | ir.OpResultList):
             for i, operation in enumerate(op_ret):
                 if isinstance(operation, ir.Operation) or isinstance(
                     operation, ir.OpView

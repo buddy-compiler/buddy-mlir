@@ -1,16 +1,18 @@
 // RUN: buddy-opt %s \
 // RUN:     -convert-vector-to-scf -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-arith-to-llvm \
 // RUN:     -split-input-file -verify-diagnostics \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
+// RUN: | mlir-runner -e main -entry-point-result=i32 \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
 func.func @main() -> i32 {
   %0 = arith.constant dense<[12, 13, 14, 15, 16, 90]> : vector<6xi32>
-  // CHECK: ( 12, 13, 14, 15, 16, 90 ) 
+  // CHECK: ( 12, 13, 14, 15, 16, 90 )
   vector.print %0 : vector<6xi32>
 
   %sum = vector.reduction <add>, %0 : vector<6xi32> into i32

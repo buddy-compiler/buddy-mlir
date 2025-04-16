@@ -14,7 +14,6 @@ target_link_libraries(buddy-opt
   MLIROptLib
   CBConvVectorization
   BuddyBud
-  BuddySche
   LowerBudPass
   BuddyDIP
   LowerDIPPass
@@ -35,8 +34,6 @@ target_link_libraries(buddy-opt
   BuddyGemmini
   LowerGemminiPass
   LowerLinalgToGemminiPass
-  SchedulingOnDevices
-  LowerSche
   FuncBufferizeDynamicOffset
   MLIRGPUPasses
   BuddyGPUTransformOPs
@@ -45,10 +42,4 @@ target_link_libraries(buddy-opt
   MLIRTransforms
   MLIRTransformUtils
   MatMulTransposeBVec
-  MLIRGPUPasses
-  BuddyGPUTransformOPs
-  MLIRTestTransforms
-  MLIRTestTransformDialect
-  MLIRTransforms
-  MLIRTransformUtils
   )

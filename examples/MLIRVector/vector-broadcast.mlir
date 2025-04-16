@@ -1,8 +1,10 @@
 // RUN: buddy-opt %s \
 // RUN:     -convert-vector-to-scf -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-arith-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
+// RUN: | mlir-runner -e main -entry-point-result=i32 \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -25,7 +27,7 @@ func.func @main() -> i32 {
   // CHECK: ( 11, 11, 11, 11 )
   vector.print %broadcast_vec : vector<4xf32>
 
-  // Broadcast 1-D vector to 2-D vector. 
+  // Broadcast 1-D vector to 2-D vector.
   %load_vec = vector.load %mem[%c0, %c0] : memref<4x4xf32>, vector<4xf32>
   %broadcast_vec_2d = vector.broadcast %load_vec : vector<4xf32> to vector<4x4xf32>
   // CHECK: ( ( 0, 1, 2, 3 ), ( 0, 1, 2, 3 ), ( 0, 1, 2, 3 ), ( 0, 1, 2, 3 ) )
@@ -39,7 +41,7 @@ func.func @main() -> i32 {
   // CHECK-NEXT: ( ( 1 ), ( 1 ), ( 1 ) )
   func.call @broadcast_scalar_to_vector(%f1) : (f32) -> vector<3x1xf32>
   // CHECK:    ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
-  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ), 
+  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
   // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
   // CHECk-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ) )
   // CHECK-NEXT: ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
@@ -47,7 +49,7 @@ func.func @main() -> i32 {
   // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
   // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ) )
   // CHECK-NEXT:    ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
-  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ), 
+  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
   // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
   // CHECk-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ) )
   // CHECK-NEXT: ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
@@ -56,7 +58,7 @@ func.func @main() -> i32 {
   // CHECK-SAME:   ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ) )
   func.call @broadcast_low_dim_to_high_dim(%v1) : (vector<3x1xf32>) -> vector<4x3x2xf32>
   // CHECK:    ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
-  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ), 
+  // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
   // CHECK-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
   // CHECk-SAME: ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ) )
   // CHECK-NEXT: ( ( ( 1, 1 ), ( 2, 2 ), ( 3, 3 ) ),
@@ -88,18 +90,18 @@ func.func @broadcast_scalar_to_vector(%src: f32) -> vector<3x1xf32> {
 }
 
 func.func @broadcast_low_dim_to_high_dim(%src: vector<3x1xf32>) -> vector<4x3x2xf32> {
-  // broadcasting vector with smaller rank to larger one can be transformed into 
+  // broadcasting vector with smaller rank to larger one can be transformed into
   // broadcasting two vectors with the same rank
   %result = vector.broadcast %src : vector<3x1xf32> to vector<4x3x2xf32>
 
-  // We can extend a vector to any higher dimension by adding dimensions with 
-  // length "1" in front of it. For example, extend vector<3x1xf32> to 
+  // We can extend a vector to any higher dimension by adding dimensions with
+  // length "1" in front of it. For example, extend vector<3x1xf32> to
   // vector<1x3x1xf32>, or vector<1x1x1x1x3x1xf32> if we need.
   %zero = arith.constant 0.0 : f32
   %t0 = vector.broadcast %zero : f32 to vector<1x3x1xf32>
   %t1 = vector.insert %src, %t0[0] : vector<3x1xf32> into vector<1x3x1xf32>
 
-  // Then we need to broadcast two rank-equal vectors, which can be done 
+  // Then we need to broadcast two rank-equal vectors, which can be done
   // recursively on each dimension. Please check @broadcast_1_to_n_cast for details.
   %t2 = func.call @broadcast_1_to_n_case(%t1) : (vector<1x3x1xf32>) -> vector<4x3x2xf32>
 
@@ -111,22 +113,22 @@ func.func @broadcast_low_dim_to_high_dim(%src: vector<3x1xf32>) -> vector<4x3x2x
 }
 
 func.func @broadcast_1_to_n_case(%src: vector<1x3x1xf32>) -> vector<4x3x2xf32> {
-  // Case 1, "1->n" kind. 
-  //    broadcast %src: vector<1 x ... x T> to vector<n x ... x T> 
+  // Case 1, "1->n" kind.
+  //    broadcast %src: vector<1 x ... x T> to vector<n x ... x T>
   %result = vector.broadcast %src : vector<1x3x1xf32> to vector<4x3x2xf32>
 
   // let %src == [%e0], then the new vector will be:
   //    [broadcast %sub : vector<... x T>, ..., broadcast %sub : vector<... x T>]
 
   // for example, here we get %src = [%e0], n = 4
-  %e0 = vector.extract %src[0] : vector<3x1xf32> from vector<1x3x1xf32>  
-  
+  %e0 = vector.extract %src[0] : vector<3x1xf32> from vector<1x3x1xf32>
+
   // then make %t0, %t1, %t2, %t3 to be broadcast %e0 : vector<... x T>
   %t0 = vector.broadcast %e0 : vector<3x1xf32> to vector<3x2xf32>
   %t1 = vector.broadcast %e0 : vector<3x1xf32> to vector<3x2xf32>
   %t2 = vector.broadcast %e0 : vector<3x1xf32> to vector<3x2xf32>
   %t3 = vector.broadcast %e0 : vector<3x1xf32> to vector<3x2xf32>
-  
+
   // then create vector as [%t0, %t1, %t2, %t3]
   %zero = arith.constant 0.0 : f32
   %w_ = vector.broadcast %zero : f32 to vector<4x3x2xf32>
@@ -138,24 +140,24 @@ func.func @broadcast_1_to_n_case(%src: vector<1x3x1xf32>) -> vector<4x3x2xf32> {
   // now the final result %w3 will equal to %result
   vector.print %result : vector<4x3x2xf32>
   vector.print %w3 : vector<4x3x2xf32>
-  
+
   return %result : vector<4x3x2xf32>
 }
 
 func.func @broadcast_n_to_n_case(%src: vector<3x1xf32>) -> vector<3x2xf32> {
   // Case 2, "n->n" kind.
-  //    broadcast %src: vector<n x ... x T> to vector<n x ... x T> 
+  //    broadcast %src: vector<n x ... x T> to vector<n x ... x T>
   %result = vector.broadcast %src : vector<3x1xf32> to vector<3x2xf32>
 
   // let %src == [%e0, %e1, ..., %e_{n-1}], then the new vector will be:
   //  [
-  //     broadcast %e0 : vector<... x T>, 
-  //     broadcast %e1 : vector<... x T>, 
-  //     ..., 
+  //     broadcast %e0 : vector<... x T>,
+  //     broadcast %e1 : vector<... x T>,
+  //     ...,
   //     broadcast %e_{n-1} : vector<... x T>
   //  ]
 
-  // get elements 
+  // get elements
   %e0 = vector.extract %src[0] : vector<1xf32> from vector<3x1xf32>
   %e1 = vector.extract %src[1] : vector<1xf32> from vector<3x1xf32>
   %e2 = vector.extract %src[2] : vector<1xf32> from vector<3x1xf32>

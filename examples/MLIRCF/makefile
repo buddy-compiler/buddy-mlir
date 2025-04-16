@@ -2,7 +2,7 @@
 BUDDY_OPT := ../../build/bin/buddy-opt
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-runner
 LLC := ../../llvm/build/bin/llc
 OPT_FLAG := -O0
 CLANG := ../../llvm/build//bin/clang

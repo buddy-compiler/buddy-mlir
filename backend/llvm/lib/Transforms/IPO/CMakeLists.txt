@@ -13,6 +13,8 @@ add_llvm_component_library(LLVMBuddyIPO
   ${LLVM_IPO_DIR}/CrossDSOCFI.cpp
   ${LLVM_IPO_DIR}/DeadArgumentElimination.cpp
   ${LLVM_IPO_DIR}/ElimAvailExtern.cpp
+  ${LLVM_IPO_DIR}/EmbedBitcodePass.cpp
+  ${LLVM_IPO_DIR}/ExpandVariadics.cpp
   ${LLVM_IPO_DIR}/ExtractGV.cpp
   ${LLVM_IPO_DIR}/ForceFunctionAttrs.cpp
   ${LLVM_IPO_DIR}/FunctionAttrs.cpp
@@ -36,13 +38,14 @@ add_llvm_component_library(LLVMBuddyIPO
   ${LLVM_IPO_DIR}/PartialInlining.cpp
   ${LLVM_IPO_DIR}/SampleContextTracker.cpp
   ${LLVM_IPO_DIR}/SampleProfile.cpp
+  ${LLVM_IPO_DIR}/SampleProfileMatcher.cpp
   ${LLVM_IPO_DIR}/SampleProfileProbe.cpp
   ${LLVM_IPO_DIR}/SCCP.cpp
   ${LLVM_IPO_DIR}/StripDeadPrototypes.cpp
   ${LLVM_IPO_DIR}/StripSymbols.cpp
-  ${LLVM_IPO_DIR}/SyntheticCountsPropagation.cpp
   ${LLVM_IPO_DIR}/ThinLTOBitcodeWriter.cpp
   ${LLVM_IPO_DIR}/WholeProgramDevirt.cpp
+
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms

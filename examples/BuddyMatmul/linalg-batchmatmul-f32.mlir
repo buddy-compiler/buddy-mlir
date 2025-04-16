@@ -4,6 +4,7 @@
 // RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm \
 // RUN:     -convert-math-to-llvm \
 // RUN:     -convert-math-to-libm \
@@ -12,7 +13,7 @@
 // RUN:     -expand-strided-metadata \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -23,8 +24,8 @@ func.func private @rtclock() -> f64
 func.func @batch_matmul(%arg0: memref<?x?x?xf32>, %arg1: memref<?x?x?xf32>, %arg2: memref<?x?x?xf32>) {
   %t_start = call @rtclock() : () -> f64
 
-  linalg.batch_matmul 
-    ins(%arg0, %arg1 : memref<?x?x?xf32>, memref<?x?x?xf32>) 
+  linalg.batch_matmul
+    ins(%arg0, %arg1 : memref<?x?x?xf32>, memref<?x?x?xf32>)
     outs(%arg2 : memref<?x?x?xf32>)
 
   %t_end = call @rtclock() : () -> f64
@@ -67,7 +68,7 @@ func.func @main(){
   %m1 = call @alloc_f32(%c1, %c576, %c1024, %f3) : (index, index, index, f32) -> memref<?x?x?xf32>
   %m2 = call @alloc_f32(%c1, %c1, %c1024, %f0) : (index, index, index, f32) -> memref<?x?x?xf32>
 
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 1, 1024] strides = [1024, 1024, 1] data = 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 1, 1024] strides = [1024, 1024, 1] data =
   // CHECK-NEXT: [
   // CHECK: [
   // CHECK: [3456{{(, 3456)*}}]

@@ -3016,7 +3016,7 @@ void sincos_2pibyn_half(OpBuilder &opBuilder, Location loc, Value n,
       [&](OpBuilder &builder, Location loc) {
         // TODO: remove the following values?
         // Value n_mod_2 = builder.create<arith::RemUIOp>(loc, n, c2);
-        
+
         // TODO: remove condition1?
         // Value condition1 = builder.create<arith::CmpIOp>(
         //     loc, arith::CmpIPredicate::eq, n_mod_2, c0);
@@ -3672,8 +3672,7 @@ class DAPRFFTLowering : public OpRewritePattern<dap::RFFTOp> {
 public:
   using OpRewritePattern<dap::RFFTOp>::OpRewritePattern;
 
-  explicit DAPRFFTLowering(MLIRContext *context)
-      : OpRewritePattern(context) {}
+  explicit DAPRFFTLowering(MLIRContext *context) : OpRewritePattern(context) {}
 
   LogicalResult matchAndRewrite(dap::RFFTOp op,
                                 PatternRewriter &rewriter) const override {
@@ -3749,8 +3748,8 @@ public:
     Value c3000 = rewriter.create<ConstantIndexOp>(loc, 3000);
     Value c480000 = rewriter.create<ConstantIndexOp>(loc, 480000);
 
-    FloatType f32 = FloatType::getF32(ctx);
-    FloatType f64 = FloatType::getF64(ctx);
+    FloatType f32 = Float32Type::get(ctx);
+    FloatType f64 = Float64Type::get(ctx);
 
     Value inputFeatures = rewriter.create<bufferization::ToTensorOp>(
         loc, input, /*restrict=*/true, /*writable=*/false);
