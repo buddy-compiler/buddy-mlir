@@ -17,21 +17,25 @@ endif()
 #-------------------------------------------------------------------------------
 # Project setup and globals
 #-------------------------------------------------------------------------------
-
+#指定项目名称和语言
 project(buddy-mlir LANGUAGES CXX C)
 
+
+#指定C++标准
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
+#允许使用外部项目
 include(ExternalProject)
 
 #-------------------------------------------------------------------------------
 # Options and settings
 #-------------------------------------------------------------------------------
-
+#用户自定义配置选项
 option(LLVM_INCLUDE_TOOLS "Generate build targets for the LLVM tools." ON)
 option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targets." ON)
 option(BUDDY_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 
+#两次构建，适用于MLIR和LLVM在外部的构建
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_BUILD)
     message(STATUS "buddy-mlir two-step build.")
     # Two-step build
@@ -62,6 +66,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
     include(AddLLVM)
     include(AddMLIR)
     include(HandleLLVMOptions)
+#
 else()
     message(STATUS "buddy-mlir one-step build.")
     # one-step build with LLVM_EXTERNAL_PROJECTS=buddy-mlir

@@ -1,0 +1,168 @@
+.
+├── CMakeLists.txt
+├── include
+│  ├── CMakeLists.txt
+│  ├── Dialect
+│  │  ├── Bud
+│  │  │  ├── BudDialect.h
+│  │  │  ├── BudDialect.td
+│  │  │  ├── BudOps.h
+│  │  │  ├── BudOps.td
+│  │  │  └── CMakeLists.txt
+│  │  ├── CMakeLists.txt
+│  │  ├── DAP
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── DAPDialect.h
+│  │  │  ├── DAPDialect.td
+│  │  │  ├── DAPOps.h
+│  │  │  └── DAPOps.td
+│  │  ├── DIP
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── DIPDialect.h
+│  │  │  ├── DIPDialect.td
+│  │  │  ├── DIPOps.h
+│  │  │  └── DIPOps.td
+│  │  ├── Gemmini
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── Gemmini.td
+│  │  │  ├── GemminiDialect.h
+│  │  │  ├── GemminiOps.h
+│  │  │  └── Transform.h
+│  │  ├── RVV
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── RVV.td
+│  │  │  ├── RVVDialect.h
+│  │  │  └── Transforms.h
+│  │  ├── Sche
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── ScheDialect.h
+│  │  │  ├── ScheDialect.td
+│  │  │  ├── ScheOps.h
+│  │  │  └── ScheOps.td
+│  │  └── VectorExp
+│  │     ├── CMakeLists.txt
+│  │     ├── VectorExpDialect.h
+│  │     ├── VectorExpDialect.td
+│  │     ├── VectorExpOps.h
+│  │     └── VectorExpOps.td
+│  ├── Target
+│  │  └── LLVMIR
+│  │     └── Dialect
+│  │        ├── Gemmini
+│  │        └── RVV
+│  └── Utils
+│     ├── AffineTransformUtils.h
+│     ├── DAPUtils.h
+│     ├── DIPUtils.h
+│     └── Utils.h
+├── lib
+│  ├── CMakeLists.txt
+│  ├── Conversion
+│  │  ├── CMakeLists.txt
+│  │  ├── ConvOptimization
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── ConvOptimize.cpp
+│  │  ├── ConvVectorization
+│  │  │  ├── CBConvVectorization.cpp
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── GEMMPointwiseConv2DNhwcHwcf.cpp
+│  │  │  └── PoolingVectorization.cpp
+│  │  ├── DAPVectorization
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── DAPVectorization.cpp
+│  │  ├── ExtendDAP
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── ExtendDAPPass.cpp
+│  │  ├── FuncBufferize
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── FuncBufferizePass.cpp
+│  │  ├── LowerBud
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── LowerBudPass.cpp
+│  │  ├── LowerDAP
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── LowerDAPPass.cpp
+│  │  ├── LowerDIP
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── LowerDIPPass.cpp
+│  │  ├── LowerGemmini
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── LowerGemminiPass.cpp
+│  │  ├── LowerLinalgToGemmini
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── LowerLinalgToGemmini.cpp
+│  │  ├── LowerRVV
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── LowerRVVPass.cpp
+│  │  ├── LowerSche
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── LowerSchePass.cpp
+│  │  ├── LowerVectorExp
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── LowerVectorExpPass.cpp
+│  │  ├── MatMulOptimization
+│  │  │  ├── BatchMatMulOptimize.cpp
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── MatMulOptimize.cpp
+│  │  │  ├── MatMulParallelVectorization.cpp
+│  │  │  └── MatMulVectorization.cpp
+│  │  ├── SchedulingOnDevices
+│  │  │  ├── CMakeLists.txt
+│  │  │  └── DeviceSchedule.cpp
+│  │  └── TransposeOptimization
+│  │     ├── BuiltinTransposeVectorization.cpp
+│  │     └── CMakeLists.txt
+│  ├── Dialect
+│  │  ├── Bud
+│  │  │  ├── BudDialect.cpp
+│  │  │  ├── BudOps.cpp
+│  │  │  └── CMakeLists.txt
+│  │  ├── CMakeLists.txt
+│  │  ├── DAP
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── DAPDialect.cpp
+│  │  │  └── DAPOps.cpp
+│  │  ├── DIP
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── DIPDialect.cpp
+│  │  │  └── DIPOps.cpp
+│  │  ├── Gemmini
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── IR
+│  │  │  │  ├── CMakeLists.txt
+│  │  │  │  └── GemminiDialect.cpp
+│  │  │  └── Transforms
+│  │  │     ├── CMakeLists.txt
+│  │  │     └── LegalizeForLLVMExport.cpp
+│  │  ├── RVV
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── IR
+│  │  │  │  ├── CMakeLists.txt
+│  │  │  │  └── RVVDialect.cpp
+│  │  │  └── Transforms
+│  │  │     ├── CMakeLists.txt
+│  │  │     └── LegalizeForLLVMExport.cpp
+│  │  ├── Sche
+│  │  │  ├── CMakeLists.txt
+│  │  │  ├── ScheDialect.cpp
+│  │  │  └── ScheOps.cpp
+│  │  └── VectorExp
+│  │     ├── CMakeLists.txt
+│  │     ├── VectorExpDialect.cpp
+│  │     └── VectorExpOps.cpp
+│  ├── Target
+│  │  ├── CMakeLists.txt
+│  │  └── LLVMIR
+│  │     ├── CMakeLists.txt
+│  │     ├── ConvertBuddyToLLVMIR.cpp
+│  │     └── Dialect
+│  │        ├── CMakeLists.txt
+│  │        ├── Gemmini
+│  │        └── RVV
+│  └── Utils
+│     ├── AffineTransformUtils.cpp
+│     ├── CMakeLists.txt
+│     ├── DAPUtils.cpp
+│     ├── DIPUtils.cpp
+│     └── Utils.cpp
+└── txt.txt
