@@ -1,4 +1,21 @@
-// RUN: buddy-opt -reduce-vectorize="vector-size=16" -verify-diagnostics -lower-affine -expand-strided-metadata -convert-vector-to-scf -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf -convert-arith-to-llvm -convert-func-to-llvm -lower-affine -llvm-request-c_wrappers -convert-arith-to-llvm -reconcile-unrealized-casts %s \
+// RUN: buddy-opt %s \
+// RUN:     -convert-linalg-to-affine-loops \
+// RUN:     -affine-loop-fusion \
+// RUN:     -lower-affine \
+// RUN:     -convert-vector-to-scf \
+// RUN:     -expand-strided-metadata \
+// RUN:     -convert-vector-to-llvm \
+// RUN:     -memref-expand \
+// RUN:     -arith-expand \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -finalize-memref-to-llvm \
+// RUN:     -convert-scf-to-cf \
+// RUN:     -convert-openmp-to-llvm \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -convert-math-to-llvm \
+// RUN:     -convert-math-to-libm \
+// RUN:     -convert-func-to-llvm \
+// RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -O0 -e main -entry-point-result=void \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -76,9 +93,16 @@ func.func @kernel(%a : memref<12x40x40xf32>) {
 
   // 打印结果
   %printed_b = memref.cast %b : memref<12x40xf32> to memref<*xf32>
+  
+  // All the elements of the MemRef are the same,
+  // only check the first line to verify the correctness.
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [12, 40] strides = [40, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [120{{(, 120)*}}]
+  
   call @printMemrefF32(%printed_b) : (memref<*xf32>) -> ()
   
-  // 打印时间
+  // Print timings
   vector.print %time : f64
   
   memref.dealloc %b : memref<12x40xf32>

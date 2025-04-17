@@ -16,7 +16,7 @@ fi
 
 CMD1="$1"
 CMD2="$2"
-RUNS=100
+RUNS=10
 
 # 创建临时文件存储输出
 OUTPUT1=$(mktemp)

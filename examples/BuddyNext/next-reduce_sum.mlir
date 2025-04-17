@@ -5,14 +5,13 @@
 // RUN:     -eliminate-empty-tensors \
 // RUN:     -empty-tensor-to-alloc-tensor \
 // RUN:     -one-shot-bufferize \
+// RUN: | buddy-opt \
+// RUN:     -reduce-sum-vectorization-3d="vector-size=16" \
+// RUN:     -func-bufferize \
+// RUN:     -arith-bufferize \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -affine-loop-fusion \
 // RUN:     -lower-affine \
-// RUN:     -func-bufferize \
-// RUN:     -arith-bufferize \
-// RUN:     -tensor-bufferize \
-// RUN:     -buffer-deallocation \
-// RUN:     -finalizing-bufferize \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -expand-strided-metadata \
 // RUN:     -convert-vector-to-llvm \
@@ -24,7 +23,7 @@
 // RUN:     -convert-openmp-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-math-to-llvm \
-// RUN:     -convert-math-to-libm  \
+// RUN:     -convert-math-to-libm \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \
@@ -46,15 +45,12 @@ func.func @kernel(%t0 : tensor<12x40x40xf32>) {
 
   %tensor_unranked = tensor.cast %t1 : tensor<12x40x1xf32> to tensor<*xf32>
 
-  // Verify the output shape and some sample values
+  // All the elements of the MemRef are the same,
+  // only check the first line to verify the correctness.
   // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [12, 40, 1] strides = [40, 1, 1] data =
   // CHECK-NEXT: [
   // CHECK-SAME: [
-  // CHECK-SAME: [120]
-  // CHECK-SAME: [120]
-  // CHECK-SAME: ...
-  // CHECK-SAME: [120]
-  // CHECK-SAME: ]
+  // CHECK-SAME: [120{{(, 120)*}}],
 
   // Print results
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
