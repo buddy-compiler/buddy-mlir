@@ -334,7 +334,7 @@ next-transpose-run:
         -eliminate-empty-tensors \
         -empty-tensor-to-alloc-tensor \
         -one-shot-bufferize \
-		-func-bufferize \
+				-func-bufferize \
         -arith-bufferize \
         -convert-linalg-to-affine-loops \
         -affine-loop-fusion \
@@ -811,3 +811,69 @@ next-compass-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} \
 		-shared-libs=${MLIR_C_RUNNER_UTILS}
+
+next-tosa-mul-transpose-lower:
+	@${MLIR_OPT} ./next-tosa-mul-transpose.mlir \
+        -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+    ${MLIR_OPT} \
+			-arith-expand \
+			-eliminate-empty-tensors \
+			-empty-tensor-to-alloc-tensor \
+			-one-shot-bufferize \
+			-func-bufferize \
+			-arith-bufferize \
+			-o log.mlir
+
+next-tosa-mul-transpose-run:
+	@${MLIR_OPT} ./next-tosa-mul-transpose.mlir \
+        -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+    ${MLIR_OPT} \
+			-arith-expand \
+			-eliminate-empty-tensors \
+			-empty-tensor-to-alloc-tensor \
+			-one-shot-bufferize \
+			-func-bufferize \
+			-arith-bufferize \
+			-convert-linalg-to-affine-loops \
+			-affine-loop-fusion \
+			-lower-affine \
+			-convert-vector-to-scf \
+			-expand-strided-metadata \
+			-convert-vector-to-llvm \
+			-memref-expand \
+			-arith-expand \
+			-convert-arith-to-llvm \
+			-finalize-memref-to-llvm \
+			-convert-scf-to-cf \
+			-convert-openmp-to-llvm \
+			-convert-arith-to-llvm \
+			-convert-math-to-llvm \
+			-convert-math-to-libm  \
+			-convert-func-to-llvm \
+			-reconcile-unrealized-casts | \
+    ${MLIR_CPU_RUNNER} -O3 -e main -entry-point-result=void \
+        -shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS}
+
+next-mul-transpose-vec-run:
+	@${MLIR_OPT} ./next-mul-transpose-vec.mlir \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm  \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} -O3 -e main -entry-point-result=void \
+			-shared-libs=${MLIR_RUNNER_UTILS} \
+	-shared-libs=${MLIR_C_RUNNER_UTILS}
