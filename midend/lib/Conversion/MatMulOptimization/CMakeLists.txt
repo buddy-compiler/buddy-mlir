@@ -9,6 +9,7 @@ add_mlir_library(MatMulOptimization
   BatchMatMulOptimize.cpp
   BatchMatMulTileOptimize.cpp
   BatchMatMulSCFOptimize.cpp
+  BatchMatMulTransBVec.cpp
   LINK_LIBS PUBLIC
   BuddyUtils
 )
