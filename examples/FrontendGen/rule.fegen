@@ -1,0 +1,14 @@
+fegen toy
+
+module
+    : structDefine* funDefine+
+    ;
+
+structDefine
+    : Struct Identifier BracketOpen (varDecl Semicolon)* BracketClose
+    ;
+
+expression
+    : Number
+    | Identifier
+    ;
