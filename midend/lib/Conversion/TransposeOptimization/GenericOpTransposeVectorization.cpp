@@ -433,15 +433,11 @@ public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
       GenericOpTransposeVectorizationPass)
 
-  StringRef getArgument() const
-
-      final {
+  StringRef getArgument() const final {
     return "genericOp-transpose-vectorization";
   }
 
-  StringRef getDescription() const
-
-      final {
+  StringRef getDescription() const final {
     return "Transpose Optimization for any rank tensor.";
   }
 
@@ -460,31 +456,23 @@ public:
     MLIRContext *context = &getContext();
     ModuleOp module = getOperation();
     ConversionTarget target(*context);
-    target.
+    target.addLegalDialect<arith::ArithDialect, affine::AffineDialect,
+                           memref::MemRefDialect, VectorDialect,
+                           bufferization::BufferizationDialect>();
 
-        addLegalDialect<arith::ArithDialect, affine::AffineDialect,
-                        memref::MemRefDialect, VectorDialect,
-                        bufferization::BufferizationDialect>();
-
-    target.
-
-        addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp, linalg::FillOp>();
+    target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp, linalg::FillOp>();
 
     RewritePatternSet patterns(context);
     patterns.add<GenericOpTransposeVectorizationPattern>(context,
                                                          affineVectorSize);
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
-
       signalPassFailure();
   }
 
-  void getDependentDialects(DialectRegistry &registry) const
-
-      override {
-    registry.
-
-        insert<linalg::LinalgDialect, affine::AffineDialect, VectorDialect,
-               memref::MemRefDialect, bufferization::BufferizationDialect>();
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry
+        .insert<linalg::LinalgDialect, affine::AffineDialect, VectorDialect,
+                memref::MemRefDialect, bufferization::BufferizationDialect>();
   }
 
   Option<int64_t> affineVectorSize{*this, "vector-size",
