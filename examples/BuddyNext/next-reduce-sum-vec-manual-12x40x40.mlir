@@ -23,15 +23,15 @@
 func.func private @rtclock() -> f64
 func.func private @printMemrefF32(memref<*xf32>) attributes { llvm.emit_c_interface }
 
-// 创建一个12x40x40的输入张量
+// Create a 12x40x40 input tensor
 memref.global "private" @A : memref<12x40x40xf32> = dense<3.0>
 
 func.func @kernel(%a : memref<12x40x40xf32>) {
   %t_start = call @rtclock() : () -> f64
   
-  %b = memref.alloc() : memref<12x40xf32>  // 输出张量
+  %b = memref.alloc() : memref<12x40xf32>  // Output tensor
 
-  // 初始化常量
+  // Initialize constants
   %c0 = arith.constant 0.0 : f32
   %c16 = arith.constant 16 : index
   %c12 = arith.constant 12 : index
@@ -40,48 +40,48 @@ func.func @kernel(%a : memref<12x40x40xf32>) {
   %c1 = arith.constant 1 : index
   %c8 = arith.constant 8 : index
 
-  // 使用step 1的外层循环和8x8分块
+  // Use outer loop with step 1 and 8x8 blocking
   affine.for %i0 = 0 to 12 step 1 {
     affine.for %j0 = 0 to 40 step 8 {
-      // 使用1维并行处理
+      // Use 1D parallel processing
       affine.parallel (%idx) = (0) to (8) {
-        // 计算j1
+        // Compute j1
         %j1 = arith.remui %idx, %c8 : index
         
         %j = affine.apply affine_map<(d0, d1) -> (d0 + d1)> (%j0, %j1)
         
-        // 检查是否在有效范围内
+        // Check if within valid range
         %j_in_range = arith.cmpi slt, %j, %c40 : index
         
-        // 只在有效范围内进行计算
+        // Only compute within valid range
         scf.if %j_in_range {
-          // 初始化累加器
+          // Initialize accumulator
           %init_acc = arith.constant 0.0 : f32
           
-          // 在k维度上使用16元素向量化
+          // Vectorize along k dimension with 16 elements
           %result_acc = affine.for %k = 0 to 40 step 16 iter_args(%acc = %init_acc) -> f32 {
-            // 预取下一个数据块
+            // Prefetch next data block
             %next_k = arith.addi %k, %c16 : index
             %next_valid = arith.cmpi slt, %next_k, %c40 : index
             scf.if %next_valid {
               memref.prefetch %a[%i0, %j, %next_k], read, locality<3>, data : memref<12x40x40xf32>
             }
             
-            // 计算当前块大小和掩码
+            // Compute current block size and mask
             %remaining = arith.subi %c40, %k : index
             %vl = arith.minsi %remaining, %c16 : index
             %mask = vector.create_mask %vl : vector<16xi1>
             
-            // 使用向量化读取数据
+            // Vectorized data read
             %vec = vector.transfer_read %a[%i0, %j, %k], %c0, %mask : memref<12x40x40xf32>, vector<16xf32>
             
-            // 向量规约求和
+            // Vector reduction sum
             %block_sum = vector.reduction <add>, %vec : vector<16xf32> into f32
             %next_acc = arith.addf %acc, %block_sum : f32
             affine.yield %next_acc : f32
           }
 
-          // 写入结果
+          // Write result
           memref.store %result_acc, %b[%i0, %j] : memref<12x40xf32>
         }
       }
@@ -91,7 +91,7 @@ func.func @kernel(%a : memref<12x40x40xf32>) {
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64
 
-  // 打印结果
+  // Print result
   %printed_b = memref.cast %b : memref<12x40xf32> to memref<*xf32>
   
   // All the elements of the MemRef are the same,
