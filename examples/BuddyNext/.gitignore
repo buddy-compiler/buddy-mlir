@@ -1,2 +1,2 @@
 log.*
-*.sh
+compare_outputs.sh
