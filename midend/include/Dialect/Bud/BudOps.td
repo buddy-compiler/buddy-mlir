@@ -21,7 +21,7 @@
 #ifndef BUD_BUDOPS_TD
 #define BUD_BUDOPS_TD
 
-include "BudDialect.td"
+include "Bud/BudDialect.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/EnumAttr.td"

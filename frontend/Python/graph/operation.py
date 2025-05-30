@@ -86,8 +86,9 @@ class Op:
         self._op_type: OpType = None
         self._children: List[str] = []
         self._parents: List[str] = []
+        self._args_index = []
 
-    def add_argument(self, arg):
+    def add_argument(self, arg, arg_index=0):
         """
         Add an input argument to the operation node.
 
@@ -96,6 +97,7 @@ class Op:
             The input argument to be added.
         """
         self._arguments.append(arg)
+        self._args_index.append(arg_index)
 
     def add_parent(self, parent: str):
         """
@@ -149,6 +151,12 @@ class PlaceholderOp(Op):
 
 
 class MatmulOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class TransposeMatmulFusedOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReduceType
@@ -558,3 +566,22 @@ class UnsafeIndexOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
+
+
+class EqualOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SliceScatterOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class CopyOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+

@@ -28,6 +28,10 @@ if(BUDDY_MLIR_ENABLE_DIP_LIB)
   endif()
 endif()
 
+if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
+  list(APPEND BUDDY_TEST_DEPENDS BuddyMLIRPythonModules)
+endif()
+
 add_lit_testsuite(check-tests "Running the buddy regression tests..."
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${BUDDY_TEST_DEPENDS}

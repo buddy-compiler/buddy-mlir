@@ -22,6 +22,7 @@
 #ifndef UTILS_UTILS_DEF
 #define UTILS_UTILS_DEF
 
+#include "mlir/IR/BuiltinTypes.h"
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Affine/IR/AffineValueMap.h>
 #include <mlir/Dialect/Arith/IR/Arith.h>
@@ -45,11 +46,9 @@ Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
                            Type elemTy) {
   Value op = {};
   auto bitWidth = elemTy.getIntOrFloatBitWidth();
-  if (elemTy.isF32() || elemTy.isF64()) {
-    FloatType type =
-        elemTy.isF32() ? FloatType::getF32(ctx) : FloatType::getF64(ctx);
-    auto zero = APFloat::getZero(type.getFloatSemantics());
-    op = builder.create<arith::ConstantFloatOp>(loc, zero, type);
+  if (auto floatType = dyn_cast<FloatType>(elemTy)) {
+    auto zero = APFloat::getZero(floatType.getFloatSemantics());
+    op = builder.create<arith::ConstantFloatOp>(loc, zero, floatType);
   } else if (elemTy.isInteger(bitWidth)) {
     IntegerType type = IntegerType::get(ctx, bitWidth);
     op = builder.create<arith::ConstantIntOp>(loc, 0, type);

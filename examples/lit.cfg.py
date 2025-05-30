@@ -43,6 +43,7 @@ config.excludes = [
     'BuddyBert',
     'BuddyMobileNetV3',
     'BuddyStableDiffusion',
+    'BuddyDeepSeekR1'
     'BuddyResNet18',
     'BuddyGPU',
     'ConvOpt',
@@ -58,6 +59,7 @@ config.excludes = [
     'MLIRSparseTensor',
     'MLIRTOSA',
     'MLIRTransform',
+    'MLIRVectorGPU',
     'Pooling',
     'RISCVBuddyExt',
     'RVVDialect',
