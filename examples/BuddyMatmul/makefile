@@ -84,7 +84,7 @@ linalg-batchmatmul-f32-omp-run:
 		-shared-libs=${LIB_OMP}
 
 linalg-matmul-transpose-b-f32-run:
-	@${BUDDY_OPT} ./linalg-transposematmulb-f32.mlir\
+	@${BUDDY_OPT} ./linalg-transpose-matmul-b-f32.mlir\
 		-matmul-transpose-b-vectorization \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
@@ -101,13 +101,8 @@ linalg-matmul-transpose-b-f32-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-linalg-batchmatmul-transpose-b-vec-lower:
-	@${BUDDY_OPT} ./linalg-transposebatchmatmulb.mlir\
-		-batchmatmul-transpose-b-vectorization \
-		-o log.mlir
-
 linalg-batchmatmul-transpose-b-f32-run:
-	@${BUDDY_OPT} ./linalg-transposebatchmatmulb.mlir\
+	@${BUDDY_OPT} ./linalg-transpose-batchmatmul-b.mlir\
 		-batchmatmul-transpose-b-vectorization \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
@@ -125,7 +120,7 @@ linalg-batchmatmul-transpose-b-f32-run:
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 batchmatmul-transpose-b-vec-run:
-	@${BUDDY_OPT} ./transposebatchmatmulb-vec.mlir\
+	@${BUDDY_OPT} ./transpose-batchmatmul-b-vec.mlir\
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
 		-convert-vector-to-scf \
