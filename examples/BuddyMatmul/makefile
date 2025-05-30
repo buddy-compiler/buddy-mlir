@@ -84,7 +84,7 @@ linalg-batchmatmul-f32-omp-run:
 		-shared-libs=${LIB_OMP}
 
 linalg-matmul-transpose-b-f32-run:
-	@${BUDDY_OPT} ./linalg-transposematmulb-f32.mlir\
+	@${BUDDY_OPT} ./linalg-transpose-matmul-b-f32.mlir\
 		-matmul-transpose-b-vectorization \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
