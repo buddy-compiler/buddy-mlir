@@ -9,14 +9,14 @@ add_custom_command(
          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_unet.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/forward_vae.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_vae.mlir
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-stable-diffusion.py 
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-stable-diffusion.py
   --output-dir ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files"
 )
 
 add_custom_command(
   OUTPUT forward_text_encoder.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_text_encoder.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_text_encoder.mlir
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -arith-expand
@@ -47,7 +47,7 @@ add_custom_command(
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
-            -convert-math-to-libm 
+            -convert-math-to-libm
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
@@ -60,7 +60,7 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT subgraph0_text_encoder.o
-    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_text_encoder.mlir 
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_text_encoder.mlir
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -convert-elementwise-to-linalg
@@ -73,7 +73,6 @@ add_custom_command(
             -arith-bufferize
             -buffer-deallocation
             -finalizing-bufferize
-            -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -107,7 +106,7 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT forward_unet.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_unet.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_unet.mlir
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -arith-expand
@@ -138,7 +137,7 @@ add_custom_command(
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
-            -convert-math-to-libm 
+            -convert-math-to-libm
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
@@ -151,7 +150,7 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT subgraph0_unet.o
-    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_unet.mlir 
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_unet.mlir
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -convert-elementwise-to-linalg
@@ -164,7 +163,7 @@ add_custom_command(
             -arith-bufferize
             -buffer-deallocation
             -finalizing-bufferize
-            -conv-nhwc-fhwc-optimize
+            "-conv-nhwc-fhwc-tile-optimize=vec-size=16 tiling-height=4 tiling-width=4 tiling-channel=16"
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -198,7 +197,7 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT forward_vae.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_vae.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_vae.mlir
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -arith-expand
@@ -229,7 +228,7 @@ add_custom_command(
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
-            -convert-math-to-libm 
+            -convert-math-to-libm
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
@@ -242,7 +241,7 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT subgraph0_vae.o
-    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_vae.mlir 
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_vae.mlir
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -convert-elementwise-to-linalg
@@ -255,7 +254,7 @@ add_custom_command(
             -arith-bufferize
             -buffer-deallocation
             -finalizing-bufferize
-            -conv-nhwc-fhwc-optimize
+            "-conv-nhwc-fhwc-tile-optimize=vec-size=16 tiling-height=4 tiling-width=4 tiling-channel=16"
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -301,8 +300,8 @@ add_executable(buddy-stable-diffusion-run buddy-stable-diffusion-main.cpp)
 set(STABLE_DIFFUSION_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 set(STABLE_DIFFUSION_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
 
-target_compile_definitions(buddy-stable-diffusion-run PRIVATE 
-  STABLE_DIFFUSION_EXAMPLE_PATH="${STABLE_DIFFUSION_EXAMPLE_PATH}" 
+target_compile_definitions(buddy-stable-diffusion-run PRIVATE
+  STABLE_DIFFUSION_EXAMPLE_PATH="${STABLE_DIFFUSION_EXAMPLE_PATH}"
   STABLE_DIFFUSION_EXAMPLE_BUILD_PATH="${STABLE_DIFFUSION_EXAMPLE_BUILD_PATH}"
 )
 
@@ -315,4 +314,3 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 target_link_libraries(buddy-stable-diffusion-run ${BUDDY_STABLE_DIFFUSION_LIBS})
-
