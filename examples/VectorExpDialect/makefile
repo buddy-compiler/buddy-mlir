@@ -14,7 +14,7 @@ BUDDY_TRANSLATE := ${BUDDY_MLIR_BUILD_DIR}/bin/buddy-translate
 # Core LLVM/MLIR Tools
 MLIR_OPT := ${MLIR_BUILD_DIR}/bin/mlir-opt
 MLIR_TRANSLATE := ${MLIR_BUILD_DIR}/bin/mlir-translate
-MLIR_CPU_RUNNER := ${MLIR_BUILD_DIR}/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ${MLIR_BUILD_DIR}/bin/mlir-runner
 LLC := ${MLIR_BUILD_DIR}/bin/llc
 LOCAL_CLANG := ${MLIR_BUILD_DIR}/bin/clang
 
@@ -26,7 +26,7 @@ QEMU := ${RISCV_GNU_TOOLCHAIN}/bin/qemu-riscv64
 # Cross Compiled Toolchain
 CROSS_BUDDY_MLIR_LIB := ${CROSS_BUDDY_MLIR_BUILD_DIR}/lib/
 CROSS_LLI := ${CROSS_LLVM_BUILD_DIR}/bin/lli
-CROSS_MLIR_CPU_RUNNER := ${CROSS_MLIR_BUILD_DIR}/bin/mlir-cpu-runner
+CROSS_MLIR_CPU_RUNNER := ${CROSS_MLIR_BUILD_DIR}/bin/mlir-runner
 CROSS_MLIR_C_RUNNER_UTILS := ${CROSS_MLIR_BUILD_DIR}/lib/libmlir_c_runner_utils.so
 CROSS_MLIR_RUNNER_UTILS := ${CROSS_MLIR_BUILD_DIR}/lib/libmlir_runner_utils.so
 CROSS_MLIR_LIB := ${CROSS_MLIR_BUILD_DIR}/lib
@@ -109,7 +109,7 @@ vector-exp-config-run:
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
-	
+
 vector-exp-predication-memory-lower:
 	@${BUDDY_OPT} ./vector-exp-predication-memory.mlir \
 		-lower-vector-exp \
@@ -339,4 +339,3 @@ vector-exp-iteration-aot:
 		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
 		-o a.out
-

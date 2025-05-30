@@ -4,6 +4,7 @@
 // RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm \
 // RUN:     -convert-math-to-llvm \
 // RUN:     -convert-math-to-libm \
@@ -12,7 +13,7 @@
 // RUN:     -expand-strided-metadata \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -20,7 +21,7 @@
 func.func private @printMemrefF32(memref<*xf32>)
 
 func.func @test(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
-    linalg.matmul_transpose_b 
+    linalg.matmul_transpose_b
       ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
       outs(%c: memref<?x?xf32>)
     return
@@ -53,7 +54,7 @@ func.func @main(){
 
   %printed_m2 = memref.cast %m2 : memref<?x?xf32> to memref<*xf32>
 
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [32, 32] strides = [32, 1] data = 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [32, 32] strides = [32, 1] data =
   // CHECK-NEXT: [
   // CHECK: [1024{{(, 1024)*}}]
   call @printMemrefF32(%printed_m2) : (memref<*xf32>) -> ()

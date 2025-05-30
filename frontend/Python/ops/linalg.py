@@ -1100,7 +1100,6 @@ def mul_op(
         mul_result_tensor_type,
         input1,
         input2,
-        ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
     )
     return op.result
 
@@ -1135,40 +1134,6 @@ def t_op(
     op = linalg.transpose(input=input1, outs=[output], permutation=perm)
 
     return op.result[0]
-
-
-def matmul_op(
-    node: MatmulOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
-):
-    """
-    Import the tensor matmul operation.
-    From Buddy MatmulOp to MLIR linalg `matmul` operation.
-
-    Note: This op, compute input node's matrix multiplication result.
-    Args:
-        node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding
-        operations.
-
-    Returns:
-        op: The operation return the linalg.matmul op.
-    """
-    assert len(node.args) == 2
-    input1 = symbol_table.get((str(node.args[0]), 0))
-    input2 = symbol_table.get((str(node.args[1]), 0))
-    if input1 is None or input2 is None:
-        return
-
-    output_shape = list(node.tensor_meta["shape"])
-    dtype = node.tensor_meta["dtype"]
-    mlir_dtype = mlir_element_type_get(dtype)
-    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-    element = mlir_element_attr_get(dtype, 0.0)
-    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
-    matmul_result_buffer = arith.ConstantOp(tensor_type, attr).result
-    op = linalg.matmul(input1, input2, outs=[matmul_result_buffer])
-    return op
 
 
 def matmul_transpose_b_op(
@@ -1585,7 +1550,6 @@ def div_op(
         div_result_tensor_type,
         input1,
         tosa.ReciprocalOp(input2.type, input2).result,
-        ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
     )
     return op.result
 
@@ -1856,9 +1820,9 @@ def where_op(
     output = tensor.EmptyOp(output_shape, mlir_dtype)
 
     if not isinstance(input2.type, ir.RankedTensorType):
-        input2 = tensor.SplatOp(tensor_type, input2).result
+        input2 = tensor.SplatOp(tensor_type, input2, []).result
     if not isinstance(input3.type, ir.RankedTensorType):
-        input3 = tensor.SplatOp(tensor_type, input3).result
+        input3 = tensor.SplatOp(tensor_type, input3, []).result
 
     generic_map = ir.AffineMap.get_permutation(
         [i for i in range(len(output_shape))]
@@ -2040,7 +2004,7 @@ def gt_op(node: GtOp, symbol_table):
     input_shape = ir.RankedTensorType(input_tensor.type).shape
     tensor_type = ir.RankedTensorType.get(input_shape, input_dtype)
     scalar = arith.ConstantOp(input_dtype, node.args[1])
-    rhs = tensor.SplatOp(tensor_type, scalar)
+    rhs = tensor.SplatOp(tensor_type, scalar, [])
     if str(input_dtype).find("i") != -1:
         cmp_op = arith.CmpIOp(4, input_tensor, rhs)
     else:
@@ -2071,7 +2035,7 @@ def ge_op(
     tensor_type = ir.RankedTensorType.get(input_shape, input_dtype)
 
     scalar = arith.ConstantOp(input_dtype, node.args[1])
-    rhs = tensor.SplatOp(tensor_type, scalar)
+    rhs = tensor.SplatOp(tensor_type, scalar, [])
 
     if str(input_dtype).find("i") != -1:
         cmp_op = arith.CmpIOp(5, input_tensor, rhs)
@@ -2392,7 +2356,7 @@ def equal_op(
         scalar = arith.ConstantOp(input_dtype, float(node.args[1]))
     else:
         scalar = arith.ConstantOp(input_dtype, node.args[1])
-    rhs = tensor.SplatOp(tensor_type, scalar)
+    rhs = tensor.SplatOp(tensor_type, scalar, [])
     if str(input_dtype).find("i") != -1:
         cmp_op = arith.CmpIOp(0, input_tensor, rhs)
     else:
@@ -2534,7 +2498,6 @@ def slice_scatter_op(node: SliceScatterOp, symbol_table):
 
 
 ops_registry = {
-    "MatmulOp": matmul_op,
     "TransposeMatmulFusedOp": matmul_transpose_b_op,
     "ArangeOp": arange_op,
     "UnsqueezeOp": unsqueeze_op,

@@ -58,7 +58,7 @@ public:
 
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    FloatType f32 = FloatType::getF32(ctx);
+    FloatType f32 = Float32Type::get(ctx);
     Value f0 =
         rewriter.create<arith::ConstantFloatOp>(loc, APFloat(float(0.0)), f32);
 
@@ -153,7 +153,7 @@ public:
 
     Value strideVal = rewriter.create<ConstantIndexOp>(loc, stride);
 
-    FloatType f32 = FloatType::getF32(ctx);
+    FloatType f32 = Float32Type::get(ctx);
 
     Value z1 = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
     Value z2 = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
@@ -249,7 +249,7 @@ public:
     Value N = rewriter.create<memref::DimOp>(loc, input, c0);
     Value filterSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
 
-    FloatType f32 = FloatType::getF32(ctx);
+    FloatType f32 = Float32Type::get(ctx);
 
     // loop over every row in SOS matrix
     rewriter.create<scf::ForOp>(

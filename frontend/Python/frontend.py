@@ -401,7 +401,6 @@ class DynamoCompiler:
                         node_dtype,
                         node_kwargs=gm_node.kwargs,
                     )
-
                 graph.add_node(buddy_node)
             transform_list = [maxpool2d_simplify]
             graph.perform(transform_list)

@@ -19,10 +19,12 @@ add_llvm_component_library(LLVMBuddyTransformUtils
   ${LLVM_Utils_DIR}/CodeExtractor.cpp
   ${LLVM_Utils_DIR}/CodeLayout.cpp
   ${LLVM_Utils_DIR}/CodeMoverUtils.cpp
+  ${LLVM_Utils_DIR}/ControlFlowUtils.cpp
   ${LLVM_Utils_DIR}/CtorUtils.cpp
   ${LLVM_Utils_DIR}/CountVisits.cpp
   ${LLVM_Utils_DIR}/Debugify.cpp
   ${LLVM_Utils_DIR}/DemoteRegToStack.cpp
+  ${LLVM_Utils_DIR}/DXILUpgrade.cpp
   ${LLVM_Utils_DIR}/EntryExitInstrumenter.cpp
   ${LLVM_Utils_DIR}/EscapeEnumerator.cpp
   ${LLVM_Utils_DIR}/Evaluator.cpp
@@ -36,10 +38,13 @@ add_llvm_component_library(LLVMBuddyTransformUtils
   ${LLVM_Utils_DIR}/InlineFunction.cpp
   ${LLVM_Utils_DIR}/InjectTLIMappings.cpp
   ${LLVM_Utils_DIR}/InstructionNamer.cpp
+  ${LLVM_Utils_DIR}/Instrumentation.cpp
   ${LLVM_Utils_DIR}/IntegerDivision.cpp
+  ${LLVM_Utils_DIR}/IRNormalizer.cpp
   ${LLVM_Utils_DIR}/LCSSA.cpp
   ${LLVM_Utils_DIR}/LibCallsShrinkWrap.cpp
   ${LLVM_Utils_DIR}/Local.cpp
+  ${LLVM_Utils_DIR}/LoopConstrainer.cpp
   ${LLVM_Utils_DIR}/LoopPeel.cpp
   ${LLVM_Utils_DIR}/LoopRotationUtils.cpp
   ${LLVM_Utils_DIR}/LoopSimplify.cpp
@@ -54,6 +59,7 @@ add_llvm_component_library(LLVMBuddyTransformUtils
   ${LLVM_Utils_DIR}/LowerInvoke.cpp
   ${LLVM_Utils_DIR}/LowerMemIntrinsics.cpp
   ${LLVM_Utils_DIR}/LowerSwitch.cpp
+  ${LLVM_Utils_DIR}/LowerVectorIntrinsics.cpp
   ${LLVM_Utils_DIR}/MatrixUtils.cpp
   ${LLVM_Utils_DIR}/MemoryOpRemark.cpp
   ${LLVM_Utils_DIR}/MemoryTaggingSupport.cpp

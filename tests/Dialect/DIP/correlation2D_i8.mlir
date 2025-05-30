@@ -2,8 +2,9 @@
 // x86
 //
 // RUN: buddy-opt %s -lower-dip="DIP-strip-mining=64" -arith-expand --convert-vector-to-scf --lower-affine --convert-scf-to-cf --convert-vector-to-llvm \
+// RUN: --convert-cf-to-llvm --convert-arith-to-llvm \
 // RUN: --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts  \
-// RUN: | mlir-cpu-runner -O0 -e main -entry-point-result=i32 \
+// RUN: | mlir-runner -O0 -e main -entry-point-result=i32 \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
@@ -28,9 +29,9 @@ func.func @main() -> i32 {
 
   %kernelAnchorX = arith.constant 1 : index
   %kernelAnchorY = arith.constant 1 : index
-  %c = arith.constant 0 : i8 
+  %c = arith.constant 0 : i8
   dip.corr_2d <CONSTANT_PADDING> %input, %identity, %output, %kernelAnchorX, %kernelAnchorY, %c : memref<3x3xi8>, memref<3x3xi8>, memref<3x3xi8>, index, index, i8
-  
+
   %printed_output = memref.cast %output : memref<3x3xi8> to memref<*xi8>
   call @printMemrefI8(%printed_output) : (memref<*xi8>) -> ()
   // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 2 offset = 0 sizes = \[3, 3\] strides = \[3, 1\] data =}}
@@ -38,6 +39,6 @@ func.func @main() -> i32 {
   // CHECK{LITERAL}: [[a, a, a],
   // CHECK{LITERAL}: [a, a, a],
   // CHECK{LITERAL}: [a, a, a]]
-  %ret = arith.constant 0 : i32 
+  %ret = arith.constant 0 : i32
   return %ret : i32
 }

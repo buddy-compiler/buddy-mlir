@@ -1,7 +1,7 @@
 #!/bin/bash
 BUDDY_OPT := ../../build/bin/buddy-opt
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-runner
 OPT_FLAG := -O0
 
 ifeq ($(shell uname),Linux)
