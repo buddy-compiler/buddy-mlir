@@ -13,6 +13,7 @@ add_mlir_library(MatMulOptimization
   BatchMatMulTransBVec.cpp
   MatMulTransposeBUnrollVec.cpp
   MatmulAMX.cpp
+  MatMulVec.cpp
   LINK_LIBS PUBLIC
   BuddyUtils
 )
