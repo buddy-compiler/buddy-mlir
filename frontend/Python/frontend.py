@@ -448,6 +448,15 @@ class DynamoCompiler:
         model_opt(*args, **kwargs)
         return self._imported_graphs
 
+
+    def importer_by_export(self, module: torch.nn.Module, *args) -> List[Graph]:
+        exported_program = torch.export.export(module, args)
+
+        self._compile_fx(exported_program.graph_module, list(args))
+
+        return self._imported_graphs
+
+
     def dynamo_run(self):
         """
         A callable method that wraps around the `exec_buddy_graph` method.
