@@ -2,10 +2,6 @@ import time
 
 import torch
 from torch._inductor.decomposition import decompositions as inductor_decomp
-from mlir.passmanager import *
-from mlir.execution_engine import *
-from mlir import runtime as rt
-from mlir.ir import *
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
