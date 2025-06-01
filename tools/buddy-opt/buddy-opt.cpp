@@ -71,7 +71,11 @@ void registerLowerRVVPass();
 void registerMatMulOptimizePass();
 void registerMatMulVectorizationPass();
 void registerMatMulParallelVectorizationPass();
+<<<<<<< HEAD
 void registerMatMulTransposeBUnrollVecPass();
+=======
+void registerMatMulVecPass();
+>>>>>>> 323fe0f (pretask: Add next-matmul.mlir, next-matmul-manual.mlir and integrate the vectorization pass into the compilation pipeline.)
 void registerTransposeOptimizationPass();
 void registerConvOptimizePass();
 void registerConvNhwcFhwcOptimizePass();
@@ -120,6 +124,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
   mlir::buddy::registerMatMulTransposeBUnrollVecPass();
+  mlir::buddy::registerMatMulVecPass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerConvOptimizePass();
   mlir::buddy::registerConvNhwcFhwcOptimizePass();
