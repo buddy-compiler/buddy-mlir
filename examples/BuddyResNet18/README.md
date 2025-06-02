@@ -58,12 +58,6 @@ $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
 $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
-4.Set the `RESNET_EXAMPLE_PATH` environment variable.
-
-```bash
-$ export RESNET_EXAMPLE_PATH=${BUDDY_MLIR_BUILD_DIR}/../examples/BuddyResNet18/
-```
-
 4. Build and run the ResNet example
 
 ```bash

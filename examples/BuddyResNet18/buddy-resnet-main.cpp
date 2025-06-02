@@ -69,7 +69,6 @@ void loadParameters(const std::string &paramFilePath,
             << std::endl;
 }
 
-
 // Softmax function.
 void softmax(float *input, size_t size) {
   size_t i;
@@ -93,8 +92,8 @@ void softmax(float *input, size_t size) {
 }
 
 std::string getLabel(int idx) {
-  std::string resnetDir = getenv("RESNET_EXAMPLE_PATH");
-  std::ifstream in(resnetDir + "Labels.txt");
+  std::string resnetDir = RESNET_EXAMPLE_PATH;
+  std::ifstream in(resnetDir + "/Labels.txt");
   assert(in.is_open() && "Could not read the label file.");
   std::string label;
   for (int i = 0; i < idx; ++i)
@@ -113,7 +112,8 @@ int main() {
   intptr_t sizesOutput[2] = {1, 1000};
 
   // Create input and output containers for the image and model output.
-  std::string resnetDir = getenv("RESNET_EXAMPLE_PATH");
+  std::string resnetDir = RESNET_EXAMPLE_PATH;
+  std::string resnetBuildDir = RESNET_EXAMPLE_BUILD_PATH;
   std::string imgPath = resnetDir + "/images/" + ImgName;
   dip::Image<float, 4> input(imgPath, dip::DIP_RGB, true /* norm */);
   MemRef<float, 4> inputResize = dip::Resize4D_NCHW(
@@ -123,11 +123,17 @@ int main() {
   MemRef<float, 2> output(sizesOutput);
 
   // Load model parameters from the specified file.
-  std::string paramsDir = resnetDir + "/arg0.data";
+  std::string paramsDir = resnetBuildDir + "/arg0.data";
   MemRef<float, 1> paramsContainer({ParamsSize});
   loadParameters(paramsDir, paramsContainer);
+
+  const auto inferStart = std::chrono::high_resolution_clock::now();
   // Call the forward function of the model.
   _mlir_ciface_forward(&output, &paramsContainer, &inputResize);
+  const auto inferEnd = std::chrono::high_resolution_clock::now();
+
+  const std::chrono::duration<double, std::milli> inferTime =
+      inferEnd - inferStart;
 
   auto out = output.getData();
   softmax(out, 1000);
@@ -143,6 +149,9 @@ int main() {
   std::cout << "Classification Index: " << maxIdx << std::endl;
   std::cout << "Classification: " << getLabel(maxIdx) << std::endl;
   std::cout << "Probability: " << maxVal << std::endl;
+
+  printLogLabel();
+  std::cout << "Inference time: " << inferTime.count() / 1000 << std::endl;
 
   return 0;
 }

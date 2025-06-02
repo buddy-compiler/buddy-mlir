@@ -74,8 +74,12 @@ public:
   // mark — thick underline.
   void tokenizeLlama(const std::string &vocab, size_t length);
   // Stable Diffusion Tokenizer
-  // This function is designed for tokenizing input text for Stable Diffusion models.
+  // This function is designed for tokenizing input text for Stable Diffusion
+  // models.
   void tokenizeStableDiffusion(const std::string &vocab, size_t length);
+  // DeepSeekR1 Tokenizer
+  // This function is designed for tokenizing input text for DeepSeekR1 models.
+  void tokenizeDeepSeekR1(const std::string &vocab, size_t length);
 
   // Revert the ids into tokens.
   // This function initializes the conversion from Text memref to a string.
@@ -83,6 +87,7 @@ public:
   // whitespaces.
   std::string revertLlama();
   std::string revertWhisper();
+  std::string revertDeepSeekR1();
 
   // Get sequence length
   size_t getTokenCnt() { return this->tokenCnt; }
@@ -327,7 +332,8 @@ void Text<T, N>::tokenizeBert(const std::string &vocab, size_t length,
 
 // StableDiffusion Tokenizer
 template <typename T, size_t N>
-void Text<T, N>::tokenizeStableDiffusion(const std::string &vocab, size_t length) {
+void Text<T, N>::tokenizeStableDiffusion(const std::string &vocab,
+                                         size_t length) {
   // Initialize MemRef container members.
   this->offset = 0;
   this->sizes[0] = 1;
@@ -348,58 +354,147 @@ void Text<T, N>::tokenizeStableDiffusion(const std::string &vocab, size_t length
   std::string token;
 
   for (size_t i = 0; i < str.size(); ++i) {
-      char c = tolower(str[i]);
-      // Special match cases
-      if (str.substr(i, 15) == "<|startoftext|>" || str.substr(i, 13) == "<|endoftext|>") {
-          if (!token.empty()) {
-              assignTokenIdSD(token, tokenCnt);
-              token.clear();
-          }
-          size_t len = (str.substr(i, 15) == "<|startoftext|>") ? 15 : 13;
-          assignTokenIdSD(str.substr(i, len), tokenCnt);
-          i += len - 1;
+    char c = tolower(str[i]);
+    // Special match cases
+    if (str.substr(i, 15) == "<|startoftext|>" ||
+        str.substr(i, 13) == "<|endoftext|>") {
+      if (!token.empty()) {
+        assignTokenIdSD(token, tokenCnt);
+        token.clear();
       }
-      // Handle contractions
-      else if (c == '\'' && (str.substr(i, 2) == "'s" || str.substr(i, 2) == "'t" ||
-                              str.substr(i, 3) == "'re" || str.substr(i, 3) == "'ve" ||
-                              str.substr(i, 2) == "'m" || str.substr(i, 3) == "'ll" ||
-                              str.substr(i, 2) == "'d")) {
-          if (!token.empty()) {
-              assignTokenIdSD(token, tokenCnt);
-              token.clear();
-          }
-          size_t len = (str.substr(i, 3) == "'re" || str.substr(i, 3) == "'ve" || 
-                        str.substr(i, 3) == "'ll") ? 3 : 2;
-          assignTokenIdSD(str.substr(i, len), tokenCnt);
-          i += len - 1;
+      size_t len = (str.substr(i, 15) == "<|startoftext|>") ? 15 : 13;
+      assignTokenIdSD(str.substr(i, len), tokenCnt);
+      i += len - 1;
+    }
+    // Handle contractions
+    else if (c == '\'' &&
+             (str.substr(i, 2) == "'s" || str.substr(i, 2) == "'t" ||
+              str.substr(i, 3) == "'re" || str.substr(i, 3) == "'ve" ||
+              str.substr(i, 2) == "'m" || str.substr(i, 3) == "'ll" ||
+              str.substr(i, 2) == "'d")) {
+      if (!token.empty()) {
+        assignTokenIdSD(token, tokenCnt);
+        token.clear();
       }
-      // Handle letters
-      else if (std::isalpha(static_cast<unsigned char>(c))) {
-          token += c;
+      size_t len = (str.substr(i, 3) == "'re" || str.substr(i, 3) == "'ve" ||
+                    str.substr(i, 3) == "'ll")
+                       ? 3
+                       : 2;
+      assignTokenIdSD(str.substr(i, len), tokenCnt);
+      i += len - 1;
+    }
+    // Handle letters
+    else if (std::isalpha(static_cast<unsigned char>(c))) {
+      token += c;
+    }
+    // Handle digits
+    else if (std::isdigit(static_cast<unsigned char>(c))) {
+      token += c;
+    }
+    // Handle other characters
+    else {
+      if (!token.empty()) {
+        assignTokenIdSD(token, tokenCnt);
+        token.clear();
       }
-      // Handle digits
-      else if (std::isdigit(static_cast<unsigned char>(c))) {
-          token += c;
-      }
-      // Handle other characters
-      else {
-          if (!token.empty()) {
-              assignTokenIdSD(token, tokenCnt);
-              token.clear();
-          }
-          token += c;
-          if (token != " ") assignTokenIdSD(token, tokenCnt);
-          token.clear();
-      }
+      token += c;
+      if (token != " ")
+        assignTokenIdSD(token, tokenCnt);
+      token.clear();
+    }
   }
   // Parse the last token if exists.
   if (!token.empty()) {
-      assignTokenIdSD(token, tokenCnt);
+    assignTokenIdSD(token, tokenCnt);
   }
 
   // Mark the end of token stream.
   this->aligned[tokenCnt++] = eos;
   // Padding the rest text container.
+  for (size_t i = tokenCnt; i < length; i++) {
+    this->aligned[i] = pad;
+  }
+}
+
+// DeepSeekR1 Tokenizer
+template <typename T, size_t N>
+void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
+  // Initialize MemRef container members.
+  this->offset = 0;
+  this->sizes[0] = 1;
+  this->sizes[1] = length;
+  this->setStrides();
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
+  this->aligned = this->allocated;
+  this->bos = 151646;
+  this->eos = 151643;
+  this->pad = 151643;
+  const int userToken = 151644;
+  const int assistantToken = 151645;
+  const int thinkToken = 151648;
+  
+  tokenCnt = 0;
+  this->aligned[tokenCnt++] = bos;
+  this->aligned[tokenCnt++] = bos;
+  this->aligned[tokenCnt++] = userToken;
+
+  // Load Vocab
+  loadVocab(vocab);
+
+  // Replace space with Ġ.
+  std::string strWithoutSpace;
+  std::string replace = "Ġ";
+  for (int i = 0; i < (int)str.size(); i++) {
+    if (str[i] != ' ')
+      strWithoutSpace.push_back(str[i]);
+    if (str[i] == ' ' && str[i - 1] != ' ')
+      strWithoutSpace.append(replace);
+  }
+
+  int len = strWithoutSpace.length();
+  std::vector<size_t> res;
+  std::vector<float> score(len + 1, 0);
+  std::vector<size_t> prev(len + 1, 0);
+  // Reserve space for the results.
+  res.reserve(len);
+
+  // Forward pass
+  // Use dynamic programming as the main algorithm to adapt the longest
+  // charactors.
+  for (int i = 0; i < len; i++) {
+    for (int sub_len = 1; sub_len <= len - i; sub_len++) {
+      auto iter_start = strWithoutSpace.begin() + i;
+      auto iter_end = iter_start + sub_len;
+      auto token = tokenToIdMap.find(std::string(iter_start, iter_end));
+      if (token != tokenToIdMap.end()) {
+        int token_score = sub_len * sub_len;
+        int local_score = score[i] + token_score;
+        int next = i + sub_len;
+        if (score[next] < local_score) {
+          score[next] = local_score;
+          prev[next] = token->second;
+        }
+      }
+    }
+  }
+  // Backward pass
+  int i = len;
+  while (i > 0) {
+    size_t token_id = prev[i];
+    res.push_back(token_id);
+    i -= idToTokenVec[token_id].length();
+  }
+
+  // Directly fill this->aligned in reverse order.
+  for (auto it = res.rbegin(); it != res.rend(); ++it) {
+    this->aligned[tokenCnt++] = *it;
+  }
+
+  this->aligned[tokenCnt++] = assistantToken;
+  this->aligned[tokenCnt++] = thinkToken;
+  this->aligned[tokenCnt++] = 198;
+
   for (size_t i = tokenCnt; i < length; i++) {
     this->aligned[i] = pad;
   }
@@ -448,8 +543,7 @@ template <typename T, size_t N> std::string Text<T, N>::revertWhisper() {
     int id = this->aligned[i];
     // pad / start / type timestamps / language
     if (id == PAD_ID || id == CLS_ID || id == TRAN_ID ||
-        id == NOTIMESTAMPS_ID ||
-        (id >= 50259 && id <= 50357))
+        id == NOTIMESTAMPS_ID || (id >= 50259 && id <= 50357))
       continue;
     if (id == SEP_ID)
       break;
@@ -460,6 +554,37 @@ template <typename T, size_t N> std::string Text<T, N>::revertWhisper() {
       token.replace(pos, 2, " ");
       pos = token.find("Ġ", pos + 1);
     }
+    dst.append(token);
+  }
+  if (dst[0] == ' ') {
+    dst.erase(0, 1);
+  }
+  return dst;
+}
+
+template <typename T, size_t N> std::string Text<T, N>::revertDeepSeekR1() {
+  std::string dst;
+
+  const int EOS_ID = 151643;
+
+  for (size_t i = 0; i < this->tokenCnt; i++) {
+    int id = this->aligned[i];
+    if (id == EOS_ID)
+      break;
+    // Replace each "Ġ" with a space.
+    std::string token = this->idToTokenVec[id];
+    size_t pos = token.find("Ġ");
+    while (pos != std::string::npos) {
+      token.replace(pos, 2, " ");
+      pos = token.find("Ġ", pos + 1);
+    }
+    // Replace each "Ċ" with \n.
+    pos = token.find("Ċ");
+    while (pos != std::string::npos) {
+      token.replace(pos, 2, "\n");
+      pos = token.find("Ċ", pos + 1);
+    }
+
     dst.append(token);
   }
   if (dst[0] == ' ') {
@@ -548,7 +673,7 @@ void Text<T, N>::assignTokenIdSD(const std::string &token, size_t &tokenCnt) {
   if (tokenToIdMap.count(token_suffixed)) {
     this->aligned[tokenCnt++] = tokenToIdMap[token_suffixed];
   } else {
-    //The BPE encoding needs to be implemented here.
+    // The BPE encoding needs to be implemented here.
     this->aligned[tokenCnt++] = unk;
   }
 }

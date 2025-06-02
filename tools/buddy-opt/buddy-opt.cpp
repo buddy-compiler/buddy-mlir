@@ -46,6 +46,8 @@
 #include "RVV/RVVDialect.h"
 #include "Sche/ScheDialect.h"
 #include "Sche/ScheOps.h"
+#include "VIR/VIRDialect.h"
+#include "VIR/VIROps.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
 
@@ -62,6 +64,7 @@ void registerLowerDIPPass();
 void registerBatchMatMulOptimizePass();
 void registerBatchMatMulTileOptimizePass();
 void registerBatchMatMuSCFOptimize();
+void registerBatchMatMulTransVecPass();
 void registerLowerDAPPass();
 void registerExtendDAPPass();
 void registerDAPVectorizePass();
@@ -116,6 +119,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerBatchMatMulTileOptimizePass();
   mlir::buddy::registerBatchMatMuSCFOptimize();
+  mlir::buddy::registerBatchMatMulTransVecPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
   mlir::buddy::registerTransposeOptimizationPass();
@@ -144,6 +148,7 @@ int main(int argc, char **argv) {
                   buddy::dap::DAPDialect,
                   buddy::rvv::RVVDialect,
                   buddy::vector_exp::VectorExpDialect,
+                  buddy::vir::VIRDialect,
                   buddy::gemmini::GemminiDialect,
                   buddy::sche::ScheDialect>();
   // clang-format on

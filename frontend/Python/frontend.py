@@ -173,6 +173,9 @@ class DynamoCompiler:
             "ge.Scalar": GeOp,
             "gt.Tensor": GreaterThanOp,
             "_unsafe_index.Tensor": UnsafeIndexOp,
+            "eq.Scalar": EqualOp,
+            "copy.default": CopyOp,
+            "slice_scatter.default": SliceScatterOp,
         }
 
     @property
