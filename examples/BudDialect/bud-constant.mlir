@@ -4,4 +4,5 @@
 module {
   // CHECK: %{{.*}} = arith.constant 0 : i32
   %i0 = bud.test_constant : i32
+	%1 = bud.test_constant : i64
 }

@@ -51,8 +51,7 @@ model_path = os.environ.get("DEEPSEEKR1_MODEL_PATH")
 if model_path is None:
     model_path = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
-# Initialize the tokenizer and model from the specified model path.
-tokenizer = AutoTokenizer.from_pretrained(model_path)
+# Initialize the model from the specified model path.
 model = AutoModelForCausalLM.from_pretrained(
     model_path, torchscript=True
 ).eval()
