@@ -22,8 +22,8 @@ func.func @main() {
   vector.print %dim1 : index
   // CHECK: 2
   vector.print %dim2 : index
-  // CHECK: 3 
-  vector.print %dim3 : index  
+  // CHECK: 3
+  vector.print %dim3 : index
   memref.dealloc %mem0 : memref<2x3xf32>
   return
 }
