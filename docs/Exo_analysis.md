@@ -519,6 +519,8 @@ We've divided the analysis based on different code sections to illustrate the co
    ```
 
 ### Process Illustration
+Stage 0: Original loops, traversing the matrix directly by rows and columns has poor cache hit rate and parallelism.
+![](/docs/Images/exo-matmul_0.png)
 
 Stage 3.1: Splitting 'i': This divides matrix A into 748 * (16x64) blocks, avoiding loading 12,544 rows at once. This reduces bandwidth pressure and cache miss rates.
 ![](/docs/Images/exo-matmul_3.1.png)
