@@ -6,6 +6,9 @@ MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
 LLC := ../../llvm/build/bin/llc
 OPT_FLAG := -O0
 
+# 添加可配置的OpenMP路径变量
+OPENMP_PATH ?= /usr/lib/x86_64-linux-gnu
+
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
 MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.so
@@ -199,6 +202,32 @@ next-sigmoid-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
+next-sigmoid-manual-run:
+	@${BUDDY_OPT} ./next-sigmoid-manual.mlir \
+	     -pass-pipeline="builtin.module(func.func(scf-parallel-loop-fusion))" | \
+	${BUDDY_OPT} \
+  	-lower-affine \
+  	-convert-scf-to-openmp\
+  	-buffer-deallocation \
+  	-finalizing-bufferize \
+  	-expand-strided-metadata \
+  	-convert-vector-to-llvm \
+  	-memref-expand \
+  	-arith-expand \
+  	-convert-arith-to-llvm \
+  	-finalize-memref-to-llvm \
+  	-convert-scf-to-cf \
+  	-convert-openmp-to-llvm \
+  	-convert-arith-to-llvm \
+  	-convert-math-to-llvm \
+  	-convert-math-to-libm \
+  	-convert-func-to-llvm \
+  	-reconcile-unrealized-casts| \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void\
+		-shared-libs=${OPENMP_PATH}/libomp.so\
+	    -shared-libs=${MLIR_RUNNER_UTILS} \
+	    -shared-libs=${MLIR_C_RUNNER_UTILS}\
+		
 next-eliminate-add-zero-run:
 	@${MLIR_OPT} ./next-eliminate-add-zero.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
