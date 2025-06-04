@@ -35,7 +35,7 @@ func.func @batch_matmul(%arg0: memref<?x?x?xf32>, %arg1: memref<?x?x?xf32>, %arg
 
   // Print timings.
   vector.print %time : f64
-
+  
   return
 }
 
