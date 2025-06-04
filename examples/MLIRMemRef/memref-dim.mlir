@@ -8,13 +8,9 @@
 // RUN: | FileCheck %s
 
 func.func @main() {
-	//%c0 define the constant value c0
-	//arith.constant is an operation in arith Dialect
-	%c0 = arith.constant 0 : index
+  %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
-  //memref.alloc memory allocatio operation 
-	//
-	%mem0 = memref.alloc() : memref<2x3xf32>
+  %mem0 = memref.alloc() : memref<2x3xf32>
   %mem1 = memref.cast %mem0 : memref<2x3xf32> to memref<?x?xf32>
   %dim0 = memref.dim %mem0, %c0 : memref<2x3xf32>
   %dim1 = memref.dim %mem0, %c1 : memref<2x3xf32>
@@ -26,8 +22,8 @@ func.func @main() {
   vector.print %dim1 : index
   // CHECK: 2
   vector.print %dim2 : index
-  // CHECK: 3 
-  vector.print %dim3 : index  
+  // CHECK: 3
+  vector.print %dim3 : index
   memref.dealloc %mem0 : memref<2x3xf32>
   return
 }
