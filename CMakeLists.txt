@@ -17,8 +17,8 @@ endif()
 #-------------------------------------------------------------------------------
 # Project setup and globals
 #-------------------------------------------------------------------------------
-project(buddy-mlir LANGUAGES CXX C)
 
+project(buddy-mlir LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
@@ -27,6 +27,7 @@ include(ExternalProject)
 #-------------------------------------------------------------------------------
 # Options and settings
 #-------------------------------------------------------------------------------
+
 option(LLVM_INCLUDE_TOOLS "Generate build targets for the LLVM tools." ON)
 option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targets." ON)
 option(BUDDY_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
@@ -61,7 +62,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
     include(AddLLVM)
     include(AddMLIR)
     include(HandleLLVMOptions)
-
 else()
     message(STATUS "buddy-mlir one-step build.")
     # one-step build with LLVM_EXTERNAL_PROJECTS=buddy-mlir
