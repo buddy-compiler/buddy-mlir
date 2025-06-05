@@ -34,19 +34,19 @@
 
 func.func private @rtclock() -> f64
 
-func.func @kenerl(%arg0 : tensor<1x40x11008xf32>) {
+func.func @kenerl(%arg0 : tensor<1x40x151936xf32>) {
   %t_start = call @rtclock() : () -> f64
 
-  %sigmoid = tosa.sigmoid %arg0 : (tensor<1x40x11008xf32>) -> tensor<1x40x11008xf32>
+  %sigmoid = tosa.sigmoid %arg0 : (tensor<1x40x151936xf32>) -> tensor<1x40x151936xf32>
 
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64
 
-  %tensor_unranked = tensor.cast %sigmoid : tensor<1x40x11008xf32> to tensor<*xf32>
+  %tensor_unranked = tensor.cast %sigmoid : tensor<1x40x151936xf32> to tensor<*xf32>
 
   // All the elements of the MemRef are the same,
   // only check the first line to verify the correctness.
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 11008] strides = [440320, 11008, 1] data =
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 151936] strides = [440320, 151936, 1] data =
   // CHECK-NEXT: [
   // CHECK-SAME: [
   // CHECK-SAME: [0.952574{{(, 0.952574)*}}],
@@ -61,9 +61,9 @@ func.func @kenerl(%arg0 : tensor<1x40x11008xf32>) {
 
 func.func @main() {
 
-  %c3 = arith.constant dense<3.0> : tensor<1x40x11008xf32>
+  %c3 = arith.constant dense<3.0> : tensor<1x40x151936xf32>
 
-  call @kenerl(%c3) : (tensor<1x40x11008xf32>) -> ()
+  call @kenerl(%c3) : (tensor<1x40x151936xf32>) -> ()
 
   return
 }
