@@ -181,6 +181,13 @@ func.func @kernel(%t0: tensor<1x40x1536xf32>, %t1: tensor<1536xf32>) {
   %time = arith.subf %t_end, %t_start : f64
   %print_result = memref.cast %result_memref : memref<1x40x1536xf32> to memref<*xf32>
 
+  // All the elements of the MemRef are the same,
+  // only check the first line to verify the correctness.
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 1536] strides = [61440, 1536, 1] data =
+  // CHECK-NEXT: [
+  // CHECK-SAME: [
+  // CHECK-SAME: [2{{(, 2)*}}],
+
   // Print results.
   call @printMemrefF32(%print_result) : (memref<*xf32>) -> ()
   // Print timings.
