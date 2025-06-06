@@ -871,7 +871,6 @@ next-softmax-run:
 	${BUDDY_OPT} \
 		-arith-expand \
 		-eliminate-empty-tensors \
-		-empty-tensor-to-alloc-tensor \
 		-one-shot-bufferize \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
@@ -904,7 +903,6 @@ next-softmax-lower:
 	${BUDDY_OPT} \
 		-arith-expand \
 		-eliminate-empty-tensors \
-		-empty-tensor-to-alloc-tensor \
 		-one-shot-bufferize \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
@@ -918,7 +916,7 @@ next-softmax-lower:
 		-expand-strided-metadata \
 		-reconcile-unrealized-casts -o next-softmax-lower.mlir
 
-next-softmax-vec-manual-run:
+next-softmax-manual-run:
 	@${BUDDY_OPT} ./next-softmax-manual.mlir \
 		-convert-vector-to-llvm \
 		-memref-expand \
