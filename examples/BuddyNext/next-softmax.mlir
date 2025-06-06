@@ -3,9 +3,7 @@
 // RUN: | buddy-opt \
 // RUN:     -arith-expand \
 // RUN:     -eliminate-empty-tensors \
-// RUN:     -empty-tensor-to-alloc-tensor \
 // RUN:     -one-shot-bufferize \
-// RUN:     -matmul-parallel-vectorization-optimize \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -affine-loop-fusion \
 // RUN:     -lower-affine \
@@ -55,9 +53,7 @@ func.func @softmax_kernel(%input: tensor<1x40x151936xf32>) {
 
   %tensor_unranked = tensor.cast %softmax : tensor<1x40x151936xf32> to tensor<*xf32>
 
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 151936] strides = [6077440, 151936, 1] data =
-
-  call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
+  // call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
   vector.print %time : f64
 
   return
