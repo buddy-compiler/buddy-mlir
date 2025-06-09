@@ -1,16 +1,24 @@
 // RUN: buddy-opt %s \
-// RUN:     -batchmatmul-transpose-b-vectorization \
+// RUN:     -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" \
+// RUN: | buddy-opt \
+// RUN:     -eliminate-empty-tensors \
+// RUN:     -convert-tensor-to-linalg \
+// RUN:     -linalg-bufferize \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -lower-affine \
+// RUN:     -func-bufferize \
+// RUN:     -arith-bufferize \
+// RUN:     -tensor-bufferize \
+// RUN:     -buffer-deallocation \
+// RUN:     -finalizing-bufferize \
 // RUN:     -convert-vector-to-scf \
-// RUN:     -convert-scf-to-cf \
+// RUN:     -expand-strided-metadata \
 // RUN:     -convert-vector-to-llvm \
-// RUN:     -convert-math-to-llvm \
-// RUN:     -convert-math-to-libm \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -finalize-memref-to-llvm \
+// RUN:     -convert-scf-to-cf \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-func-to-llvm \
-// RUN:     -expand-strided-metadata \
-// RUN:     -finalize-memref-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
@@ -47,11 +55,12 @@ func.func @main(){
 
   %printed_m2 = tensor.cast %m2 : tensor<1x40x32x128xf32> to tensor<*xf32>
 
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [32, 64, 64] strides = [4096, 64, 1] data = 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 40, 32, 128] strides = [163840, 4096, 128, 1] data =
   // CHECK-NEXT: [
   // CHECK: [
-  // CHECK: [64{{(, 64)*}}]
-  // call @printMemrefF32(%printed_m2) : (tensor<*xf32>) -> ()
+  // CHECK: [
+  // CHECK: [240{{(, 240)*}}]
+  call @printMemrefF32(%printed_m2) : (tensor<*xf32>) -> ()
 
   return
 }

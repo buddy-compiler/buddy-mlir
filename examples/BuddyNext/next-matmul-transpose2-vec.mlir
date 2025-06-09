@@ -1,5 +1,4 @@
 // RUN: buddy-opt %s \
-// RUN:     -matmul-transpose-b-vectorization \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf \
@@ -111,10 +110,10 @@ func.func @main(){
 
   %printed_m2 = memref.cast %m2 : memref<?x?x?xf32> to memref<*xf32>
 
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [32, 32] strides = [32, 1] data = 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [40, 32, 128] strides = [4096, 128, 1] data = 
   // CHECK-NEXT: [
-  // CHECK: [1024{{(, 1024)*}}]
-  // call @printMemrefF32(%printed_m2) : (memref<*xf32>) -> ()
+  // CHECK: [240{{(, 240)*}}]
+  call @printMemrefF32(%printed_m2) : (memref<*xf32>) -> ()
 
   return
 }
