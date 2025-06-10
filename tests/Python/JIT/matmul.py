@@ -12,13 +12,13 @@ def run(f):
     return f
 
 
-class MatrixMultiplex(torch.nn.Module):
+class MatrixMultiply(torch.nn.Module):
     def forward(self, a, b):
         return torch.matmul(a, b)
 
 
 @run
-def test_matrix_multiplex():
+def test_matrix_multiply():
     # Initialize the dynamo compiler.
     dynamo_compiler = DynamoCompiler(
         primary_registry=tosa.ops_registry,
@@ -28,11 +28,11 @@ def test_matrix_multiplex():
     a = torch.rand([2048, 2048], dtype=torch.float32)
     b = torch.rand([2048, 2048], dtype=torch.float32)
 
-    dynamo_compiler.importer_by_export(MatrixMultiplex(), a, b)
+    dynamo_compiler.importer_by_export(MatrixMultiply(), a, b)
     exec_func = dynamo_compiler.dynamo_run()
 
     actual = exec_func(a, b)[0]
-    expect = MatrixMultiplex().forward(a, b)
+    expect = MatrixMultiply().forward(a, b)
 
     # CHECK: Is MLIR equal to Torch? True
     print(f"Is MLIR equal to Torch? {torch.allclose(actual, expect, atol=1e-05, rtol=1e-05)}")
