@@ -5,7 +5,7 @@ and run it use the `ExecutionEngine`.
 
 ## Prerequisites
 
-To run this example, you should build `bully-compiler` with MLIR Pythin Binding.
+To run this example, you should build `bully-compiler` with MLIR Python Binding.
 
 ```bash
 cd llvm
