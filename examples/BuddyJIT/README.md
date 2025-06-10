@@ -18,13 +18,20 @@ cmake -G Ninja ../llvm \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE=$(which python3)
-ninja check-mlir
+ninja check-buddy
 ```
 
 And then set the `PYTHONPATH` to where the packages are built.
 
 ```bash
-export PYTHONPATH=$(pwd)/llvm/build/tools/mlir/python_packages/mlir_core:$(pwd)/build/python_packages
+export PYTHONPATH=/path-to-buddy-mlir/llvm/build/tools/mlir/python_packages/mlir_core:/path-to-buddy-mlir/build/python_packages:${PYTHONPATH}
+
+# For example:
+# Navigate to your buddy-mlir/build directory
+cd buddy-mlir/build
+export BUDDY_MLIR_BUILD_DIR=$PWD
+export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
+export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
 ## Matrix Multiply Demo
