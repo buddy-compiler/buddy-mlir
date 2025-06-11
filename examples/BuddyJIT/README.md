@@ -7,17 +7,44 @@ and run it use the `ExecutionEngine`.
 
 To run this example, you should build `bully-compiler` with MLIR Python Binding.
 
+Firstly, create a python environment (optional) and install the necessary package.
+
 ```bash
-cd llvm
-python3 -m pip install -r mlir/python/requirements.txt
-cd build
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Secondly, build the llvm with LLVM, MLIR and OpenMP.
+
+```bash
+cd buddy-mlir
+mkdir llvm/build
 cmake -G Ninja ../llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
-    -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+  -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+  -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
+  -DCMAKE_BUILD_TYPE=RELEASE \
+  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+  -DPython3_EXECUTABLE=$(which python3)
+ninja check-clang check-mlir omp
+```
+
+Then build the buddy mlir with the python binding.
+
+```bash
+cd buddy-mlir
+mkdir build
+cd build
+cmake -G Ninja .. \
+    -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
+    -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
-    -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+    -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
     -DPython3_EXECUTABLE=$(which python3)
+ninja
 ninja check-buddy
 ```
 
