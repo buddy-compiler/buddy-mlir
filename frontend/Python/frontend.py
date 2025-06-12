@@ -60,11 +60,11 @@ class DynamoCompiler:
     """
 
     def __init__(
-            self,
-            func_name: str = "forward",
-            primary_registry: Optional[dict] = None,
-            aot_autograd_decomposition: Optional[dict] = None,
-            verbose=False,
+        self,
+        func_name: str = "forward",
+        primary_registry: Optional[dict] = None,
+        aot_autograd_decomposition: Optional[dict] = None,
+        verbose=False,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -208,14 +208,14 @@ class DynamoCompiler:
                 raise NotImplementedError(f"Unsupported dtype: {dtype}")
 
     def _create_node(
-            self,
-            gm_node_name: str,
-            node_name: str,
-            node_input: Tuple,
-            node_users: List[str],
-            node_output_shape: list = [],
-            node_output_dtype: TensorDType = None,
-            node_kwargs: Optional[Dict] = None,
+        self,
+        gm_node_name: str,
+        node_name: str,
+        node_input: Tuple,
+        node_users: List[str],
+        node_output_shape: list = [],
+        node_output_dtype: TensorDType = None,
+        node_kwargs: Optional[Dict] = None,
     ):
         """
         Create buddy op node from torch aten op.
@@ -256,7 +256,7 @@ class DynamoCompiler:
         return buddy_node
 
     def _compile_fx(
-            self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
+        self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
     ) -> Any:
         """
         Compiles the provided FX Graph to Buddy Graph.
@@ -417,7 +417,7 @@ class DynamoCompiler:
         )
 
     def __call__(
-            self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
+        self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
     ) -> Any:
         """
         A callable method that wraps around the `_compile_fx` method.
