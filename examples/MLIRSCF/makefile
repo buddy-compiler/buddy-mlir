@@ -151,3 +151,80 @@ scf-if-run:
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}	
+
+scf-reduce-lower:
+	@${MLIR_OPT} ./scf-reduce.mlir \
+	    -async-parallel-for \
+		-o ./log.mlir
+
+scf-reduce-translate:
+	@${MLIR_OPT} ./scf-reduce.mlir \
+	    -async-parallel-for \
+        -async-to-async-runtime \
+		-async-runtime-ref-counting \
+        -async-runtime-ref-counting-opt \
+		-arith-expand \
+        -convert-async-to-llvm \
+        -convert-scf-to-cf \
+        -finalize-memref-to-llvm \
+        -convert-func-to-llvm \
+        -reconcile-unrealized-casts |\
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+scf-reduce-run:
+	@${MLIR_OPT} ./scf-reduce.mlir \
+	    -async-parallel-for \
+        -async-to-async-runtime \
+		-async-runtime-ref-counting \
+        -async-runtime-ref-counting-opt \
+		-arith-expand \
+        -convert-async-to-llvm \
+		-convert-vector-to-llvm \
+        -convert-scf-to-cf \
+        -finalize-memref-to-llvm \
+        -convert-func-to-llvm \
+        -reconcile-unrealized-casts |\
+    ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+	    -shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS} \
+		-shared-libs=${MLIR_ASYNC_RUNTIME}
+
+scf-reduce-aot:
+	@${MLIR_OPT} ./scf-reduce.mlir \
+	    -async-parallel-for \
+        -async-to-async-runtime \
+		-async-runtime-ref-counting \
+        -async-runtime-ref-counting-opt \
+		-arith-expand \
+        -convert-async-to-llvm \
+		-convert-vector-to-llvm \
+        -convert-scf-to-cf \
+        -finalize-memref-to-llvm \
+        -convert-func-to-llvm \
+        -reconcile-unrealized-casts |\
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${CLANG} ${OPT_FLAG} log.ll \
+		-L ${MLIR_LIB} \
+		-L ${BUDDY_LIB} \
+		-lmlir_runner_utils -lmlir_c_runner_utils \
+		-lstatic_mlir_async_runtime \
+		-lLLVMSupport -lLLVMDemangle\
+		-lstdc++ -lpthread -ltinfo -lm \
+		-o a.out
+	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out
+
+scf-reduce-single-aot:
+	@${MLIR_OPT} ./scf-reduce.mlir \
+		-arith-expand \
+		-convert-vector-to-llvm \
+        -convert-scf-to-cf \
+        -finalize-memref-to-llvm \
+        -convert-func-to-llvm \
+        -reconcile-unrealized-casts |\
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${CLANG} ${OPT_FLAG} log.ll \
+		-L ${MLIR_LIB} \
+		-L ${BUDDY_LIB} \
+		-lmlir_runner_utils -lmlir_c_runner_utils \
+		-o a.out
+	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out
