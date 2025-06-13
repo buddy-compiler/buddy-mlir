@@ -21,6 +21,7 @@ set(LinkedLibs
   LowerLinalgToGemminiPass
   LowerRVVPass
   LowerSche
+  TosaSigmoidToVector
   LowerVectorExpPass
   MatMulOptimization
   BatchMatMulOptimization
