@@ -16,6 +16,53 @@ MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.dylib
 MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
+next-silu-run:
+	@${MLIR_OPT} ./next-silu.mlir \
+		-pass-pipeline="builtin.module(func.func(tosa-to-linalg-named,tosa-to-linalg,tosa-to-tensor,tosa-to-arith))" | \
+	${MLIR_OPT} \
+		-arith-expand \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-lower-affine \
+		-func-bufferize \
+		-arith-bufferize \
+		-tensor-bufferize \
+		-buffer-deallocation \
+		-finalizing-bufferize \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+next-silu-silu-run:
+	@${MLIR_OPT} ./next-silu-silu.mlir \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-math-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 next-attention-lower:
 	@${MLIR_OPT} ./next-attention.mlir \
