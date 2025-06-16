@@ -167,6 +167,7 @@ class DynamoCompiler:
             "sin.default": SinOp,
             "argmax.default": ArgMaxOp,
             "split.Tensor": SplitOp,
+            "split_with_sizes.default": SplitOp,
             "max.default": MaxOp,
             "gt.Scalar": GtOp,
             "_scaled_dot_product_flash_attention_for_cpu.default": ScaledDotProductFlashAttentionForCpuOp,
@@ -302,9 +303,11 @@ class DynamoCompiler:
             for i in inputs_pos:
                 # for inp in _inputs[len(params_flat) :]:
                 inp = _inputs[i]
-                inp_shape = inp.shape
-                inp_dtype = self._torch_dtype_translate(str(inp.dtype))
-                func_inputs.append(TensorMeta(inp_shape, inp_dtype))
+                if hasattr(inp, "shape"):
+                    # The shape can contain SymInts, convert them to concrete integers.
+                    inp_shape = tuple(int(s) for s in inp.shape)
+                    inp_dtype = self._torch_dtype_translate(str(inp.dtype))
+                    func_inputs.append(TensorMeta(inp_shape, inp_dtype))
             fake_params = []
             for param in params_flat:
                 param_dtype = self._torch_dtype_translate(str(param.dtype))
@@ -337,15 +340,18 @@ class DynamoCompiler:
                 for user in gm_node.users.keys():
                     node_users.append(str(user))
                 if gm_node.op == "placeholder":
+                    tensor_meta = gm_node.meta.get("tensor_meta")
+                    if tensor_meta is None:
+                        continue
                     node_dtype = self._torch_dtype_translate(
-                        str(gm_node.meta["tensor_meta"].dtype)
+                        str(tensor_meta.dtype)
                     )
                     buddy_node = self._create_node(
                         gm_node.op,
                         gm_node.name,
                         gm_node.args,
                         node_users,
-                        gm_node.meta["tensor_meta"].shape,
+                        tuple(int(s) for s in tensor_meta.shape),
                         node_dtype,
                     )
 
@@ -369,26 +375,37 @@ class DynamoCompiler:
 
                 else:
                     tensor_meta = gm_node.meta.get("tensor_meta")
-                    val = gm_node.meta.get("val")
-                    # num_returns = len(gm_node.target._schema.returns)
+                    # For some nodes, the tensor metadata is in the 'val' field.
+                    if tensor_meta is None:
+                        tensor_meta = gm_node.meta.get("val")
+                    
+                    # Skip nodes that do not have tensor metadata.
+                    if tensor_meta is None:
+                        continue
+                        
+                    # Determine number of returns robustly.
                     num_returns = (
-                        len(val)
-                        if isinstance(val, list)
-                        else len(gm_node.target._schema.returns)
+                        len(tensor_meta)
+                        if isinstance(tensor_meta, (list, tuple))
+                        else 1
                     )
                     if num_returns == 1:
+                        # Skip non-tensor single return values like SymInt.
+                        if not hasattr(tensor_meta, 'dtype'):
+                            continue
                         node_dtype = self._torch_dtype_translate(
                             str(tensor_meta.dtype)
                         )
-                        node_shape = tensor_meta.shape
+                        node_shape = tuple(int(s) for s in tensor_meta.shape)
                     elif num_returns > 1:
+                        # Filter for tensor-like objects when extracting dtype and shape.
                         node_dtype = tuple(
                             [
                                 self._torch_dtype_translate(str(val_item.dtype))
-                                for val_item in val
+                                for val_item in tensor_meta if hasattr(val_item, 'dtype')
                             ]
                         )
-                        node_shape = tuple([val_item.shape for val_item in val])
+                        node_shape = tuple([tuple(int(s) for s in val_item.shape) for val_item in tensor_meta if hasattr(val_item, 'shape')])
                     else:
                         raise RuntimeError("Zero returns is not supported.")
 
