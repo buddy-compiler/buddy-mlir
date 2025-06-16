@@ -167,6 +167,7 @@ class DynamoCompiler:
             "sin.default": SinOp,
             "argmax.default": ArgMaxOp,
             "split.Tensor": SplitOp,
+            "split_with_sizes.default": SplitOp,
             "max.default": MaxOp,
             "gt.Scalar": GtOp,
             "_scaled_dot_product_flash_attention_for_cpu.default": ScaledDotProductFlashAttentionForCpuOp,
@@ -300,11 +301,12 @@ class DynamoCompiler:
             nonlocal params_flat
             func_inputs = []
             for i in inputs_pos:
-                # for inp in _inputs[len(params_flat) :]:
                 inp = _inputs[i]
-                inp_shape = inp.shape
-                inp_dtype = self._torch_dtype_translate(str(inp.dtype))
-                func_inputs.append(TensorMeta(inp_shape, inp_dtype))
+                if hasattr(inp, "shape"):
+                    # The shape can contain SymInts, convert them to concrete integers.
+                    inp_shape = tuple(int(s) for s in inp.shape)
+                    inp_dtype = self._torch_dtype_translate(str(inp.dtype))
+                    func_inputs.append(TensorMeta(inp_shape, inp_dtype))
             fake_params = []
             for param in params_flat:
                 param_dtype = self._torch_dtype_translate(str(param.dtype))
@@ -337,15 +339,18 @@ class DynamoCompiler:
                 for user in gm_node.users.keys():
                     node_users.append(str(user))
                 if gm_node.op == "placeholder":
+                    tensor_meta = gm_node.meta.get("tensor_meta")
+                    if tensor_meta is None:
+                        continue
                     node_dtype = self._torch_dtype_translate(
-                        str(gm_node.meta["tensor_meta"].dtype)
+                        str(tensor_meta.dtype)
                     )
                     buddy_node = self._create_node(
                         gm_node.op,
                         gm_node.name,
                         gm_node.args,
                         node_users,
-                        gm_node.meta["tensor_meta"].shape,
+                        tuple(int(s) for s in tensor_meta.shape),
                         node_dtype,
                     )
 
@@ -369,26 +374,36 @@ class DynamoCompiler:
 
                 else:
                     tensor_meta = gm_node.meta.get("tensor_meta")
-                    val = gm_node.meta.get("val")
+                    # For some nodes, the tensor metadata is in the 'val' field.
+                    if tensor_meta is None:
+                        tensor_meta = gm_node.meta.get("val")
+                    
+                    # Skip nodes that do not have tensor metadata.
+                    if tensor_meta is None:
+                        continue
+                        
                     # num_returns = len(gm_node.target._schema.returns)
                     num_returns = (
-                        len(val)
-                        if isinstance(val, list)
-                        else len(gm_node.target._schema.returns)
+                        len(tensor_meta)
+                        if isinstance(tensor_meta, (list, tuple))
+                        else 1
                     )
                     if num_returns == 1:
+                        # Skip non-tensor single return values like SymInt.
+                        if not hasattr(tensor_meta, 'dtype'):
+                            continue
                         node_dtype = self._torch_dtype_translate(
                             str(tensor_meta.dtype)
                         )
-                        node_shape = tensor_meta.shape
+                        node_shape = tuple(int(s) for s in tensor_meta.shape)
                     elif num_returns > 1:
                         node_dtype = tuple(
                             [
                                 self._torch_dtype_translate(str(val_item.dtype))
-                                for val_item in val
+                                for val_item in tensor_meta if hasattr(val_item, 'dtype')
                             ]
                         )
-                        node_shape = tuple([val_item.shape for val_item in val])
+                        node_shape = tuple([tuple(int(s) for s in val_item.shape) for val_item in tensor_meta if hasattr(val_item, 'shape')])
                     else:
                         raise RuntimeError("Zero returns is not supported.")
 
@@ -446,27 +461,6 @@ class DynamoCompiler:
         """
         model_opt = dynamo.optimize(self._compile_fx)(model)
         model_opt(*args, **kwargs)
-        return self._imported_graphs
-
-    def importer_by_export(self, module: torch.nn.Module, *args, **kwargs) -> List[Graph]:
-        """
-        Imports the provided model as MLIR module and flat parameters by `torch.export.export`.
-        The previous `importer` method use the dynamo API, which may cause the imported FX graph
-        have input arguments in a different order from the original PyTorch model. See also:
-
-        -  [PyTorch Export API](https://docs.pytorch.org/docs/stable/export.html)
-        -  [PyTorch Issue #128334](https://github.com/pytorch/pytorch/issues/128334)
-
-        Args:
-            module: `torch.nn.Module` The model to be imported.
-            args: Arguments for the model.
-            kwargs: Keyword arguments for the model.
-
-        Returns:
-            imported_graphs: The imported buddy graphs.
-        """
-        exported_program = torch.export.export(module, args, kwargs)
-        self._compile_fx(exported_program.graph_module, list(args))
         return self._imported_graphs
 
     def dynamo_run(self):
