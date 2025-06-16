@@ -38,7 +38,7 @@ repos:
     hooks:
       - id: flake8
         args: 
-          - --max-line-length=88  # Adjust as per your style guide
+          - --max-line-length=120  # Adjust as per your style guide
           - --ignore=F821,F403,F405,F401,W503,E203,E402,E401,W605,E712,E711,F841
           # W503: Line break before binary operator
           # E203: Whitespace before colon
