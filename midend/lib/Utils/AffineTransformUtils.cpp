@@ -91,15 +91,12 @@ void affineTransformCoreTiled(OpBuilder &builder, Location loc,
               Value srcYVecInt = xBuilder.create<arith::TruncIOp>(
                   xLoc, vectorTyI16, srcYVecShifted);
 
-              SmallVector<int64_t> maskVec;
-              for (int i = 0; i < stride; i++) {
-                maskVec.push_back(i);
-                maskVec.push_back(i + stride);
-              }
-              Value res2Store = xBuilder.create<vector::ShuffleOp>(
-                  loc, srcXVecInt, srcYVecInt, maskVec);
               xBuilder.create<vector::StoreOp>(
-                  loc, res2Store, resIntPart, ValueRange{yOffset, xOffset, c0});
+                  loc, srcXVecInt, resIntPart,
+                  ValueRange{c0, yOffset, xOffset});
+              xBuilder.create<vector::StoreOp>(
+                  loc, srcYVecInt, resIntPart,
+                  ValueRange{c1, yOffset, xOffset});
 
               xBuilder.create<scf::YieldOp>(xLoc);
             });
@@ -128,29 +125,33 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
   // create memref to store compute result for remap use
   // TODO: auto config BLOCK_SZ by input type. float->32, uchar->64
 #define BLOCK_SZ 32
-  MemRefType resIntPartType =
-      MemRefType::get({BLOCK_SZ / 2, BLOCK_SZ * 2, 2},
-                      IntegerType::get(builder.getContext(), 16));
-
-  Value resIntPart = builder.create<memref::AllocOp>(loc, resIntPartType);
-  Value rowStride = builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ / 2);
-  Value colStride = builder.create<arith::ConstantIndexOp>(loc, BLOCK_SZ * 2);
+  const int rowStride = BLOCK_SZ / 2;
+  const int colStride = BLOCK_SZ * 2;
+  MemRefType resIntPartType = MemRefType::get(
+      {2, rowStride, colStride}, IntegerType::get(builder.getContext(), 16));
+  Value rowStrideVal = builder.create<arith::ConstantIndexOp>(loc, rowStride);
+  Value colStrideVal = builder.create<arith::ConstantIndexOp>(loc, colStride);
 #undef BLOCK_SZ
 
   if (format == dip::ImageFormat::HW) {
-    builder.create<scf::ForOp>(
-        loc, yStart, yEnd, rowStride, std::nullopt,
-        [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
+    builder.create<scf::ParallelOp>(
+        loc, ValueRange{yStart}, ValueRange{yEnd}, ValueRange{rowStrideVal},
+        [&](OpBuilder &yBuilder, Location yLoc, ValueRange ivs) {
+          Value yiv = ivs[0];
+          Value resIntPart =
+              yBuilder.create<memref::AllocOp>(yLoc, resIntPartType);
+
           Value realYEnd = yBuilder.create<arith::MinUIOp>(
-              yLoc, yEnd, yBuilder.create<arith::AddIOp>(yLoc, yiv, rowStride));
+              yLoc, yEnd,
+              yBuilder.create<arith::AddIOp>(yLoc, yiv, rowStrideVal));
           Value rows = yBuilder.create<arith::SubIOp>(yLoc, realYEnd, yiv);
 
           yBuilder.create<scf::ForOp>(
-              yLoc, xStart, xEnd, colStride, std::nullopt,
+              yLoc, xStart, xEnd, colStrideVal, std::nullopt,
               [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
                 Value realXEnd = xBuilder.create<arith::MinUIOp>(
                     xLoc, xEnd,
-                    xBuilder.create<arith::AddIOp>(xLoc, xiv, colStride));
+                    xBuilder.create<arith::AddIOp>(xLoc, xiv, colStrideVal));
                 Value cols =
                     xBuilder.create<arith::SubIOp>(xLoc, realXEnd, xiv);
 
@@ -159,11 +160,12 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
                                          xAddr1, xAddr2, rsvValVec, strideVal,
                                          c0, c1, c_rsv, stride);
                 // remap
-                remapNearest2D(xBuilder, xLoc, ctx, input, output, resIntPart,
-                               yiv, xiv, rows, cols);
+                remapNearest(xBuilder, xLoc, ctx, input, output, resIntPart,
+                             yiv, xiv, rows, cols, format, c0);
 
                 xBuilder.create<scf::YieldOp>(xLoc);
               });
+          yBuilder.create<memref::DeallocOp>(yLoc, resIntPart);
           yBuilder.create<scf::YieldOp>(yLoc);
         });
 
@@ -173,22 +175,28 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
     builder.create<scf::ForOp>(
         loc, c0, inputBatch, c1, std::nullopt,
         [&](OpBuilder &nBuilder, Location nLoc, Value niv, ValueRange) {
-          nBuilder.create<scf::ForOp>(
-              loc, yStart, yEnd, rowStride, std::nullopt,
-              [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
+          nBuilder.create<scf::ParallelOp>(
+              loc, ValueRange{yStart}, ValueRange{yEnd},
+              ValueRange{rowStrideVal},
+              [&](OpBuilder &yBuilder, Location yLoc, ValueRange ivs) {
+                Value yiv = ivs[0];
+                Value resIntPart =
+                    yBuilder.create<memref::AllocOp>(yLoc, resIntPartType);
+
                 Value realYEnd = yBuilder.create<arith::MinUIOp>(
                     yLoc, yEnd,
-                    yBuilder.create<arith::AddIOp>(yLoc, yiv, rowStride));
+                    yBuilder.create<arith::AddIOp>(yLoc, yiv, rowStrideVal));
                 Value rows =
                     yBuilder.create<arith::SubIOp>(yLoc, realYEnd, yiv);
 
                 yBuilder.create<scf::ForOp>(
-                    yLoc, xStart, xEnd, colStride, std::nullopt,
+                    yLoc, xStart, xEnd, colStrideVal, std::nullopt,
                     [&](OpBuilder &xBuilder, Location xLoc, Value xiv,
                         ValueRange) {
                       Value realXEnd = xBuilder.create<arith::MinUIOp>(
                           xLoc, xEnd,
-                          xBuilder.create<arith::AddIOp>(xLoc, xiv, colStride));
+                          xBuilder.create<arith::AddIOp>(xLoc, xiv,
+                                                         colStrideVal));
                       Value cols =
                           xBuilder.create<arith::SubIOp>(xLoc, realXEnd, xiv);
 
@@ -197,28 +205,52 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
                           realXEnd, m1, m4, xAddr1, xAddr2, rsvValVec,
                           strideVal, c0, c1, c_rsv, stride);
                       // remap
-                      remapNearest3D(xBuilder, xLoc, ctx, input, output,
-                                     resIntPart, yiv, xiv, rows, cols, format,
-                                     niv);
+                      remapNearest(xBuilder, xLoc, ctx, input, output,
+                                   resIntPart, yiv, xiv, rows, cols, format,
+                                   niv);
 
                       xBuilder.create<scf::YieldOp>(xLoc);
                     });
+                yBuilder.create<memref::DeallocOp>(yLoc, resIntPart);
                 yBuilder.create<scf::YieldOp>(yLoc);
               });
           nBuilder.create<scf::YieldOp>(nLoc);
         });
   }
-
-  builder.create<memref::DeallocOp>(loc, resIntPart);
 }
 
-void remapNearest2D(OpBuilder &builder, Location loc, MLIRContext *ctx,
-                    Value input, Value output, Value mapInt, Value yStart,
-                    Value xStart, Value rows, Value cols) {
+void remapNearest(OpBuilder &builder, Location loc, MLIRContext *ctx,
+                  Value input, Value output, Value mapInt, Value yStart,
+                  Value xStart, Value rows, Value cols, dip::ImageFormat format,
+                  Value niv) {
   Value c0 = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
-  Value inputRow = builder.create<memref::DimOp>(loc, input, c0);
-  Value inputCol = builder.create<memref::DimOp>(loc, input, c1);
+  Value c2 = builder.create<arith::ConstantIndexOp>(loc, 2);
+  Value c3 = builder.create<arith::ConstantIndexOp>(loc, 3);
+
+  Value inputRow, inputCol, inputChannel;
+  if (format == dip::ImageFormat::HW) {
+    inputRow = builder.create<memref::DimOp>(loc, input, c0);
+    inputCol = builder.create<memref::DimOp>(loc, input, c1);
+  } else if (format == dip::ImageFormat::NHWC) {
+    inputRow = builder.create<memref::DimOp>(loc, input, c1);
+    inputCol = builder.create<memref::DimOp>(loc, input, c2);
+    inputChannel = builder.create<memref::DimOp>(loc, input, c3);
+  } else if (format == dip::ImageFormat::NCHW) {
+    inputRow = builder.create<memref::DimOp>(loc, input, c2);
+    inputCol = builder.create<memref::DimOp>(loc, input, c3);
+    inputChannel = builder.create<memref::DimOp>(loc, input, c1);
+  }
+
+  auto loadPixel = [&](OpBuilder &builder, Location loc, Value input, Value niv,
+                       ValueRange indices) {
+    Value src = builder.create<memref::LoadOp>(loc, input, indices);
+    return src;
+  };
+  auto storePixel = [&](OpBuilder &builder, Location loc, Value output,
+                        Value niv, ValueRange indices, Value pixel) {
+    builder.create<memref::StoreOp>(loc, pixel, output, indices);
+  };
   builder.create<scf::ForOp>(
       loc, c0, rows, c1, std::nullopt,
       [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
@@ -229,9 +261,9 @@ void remapNearest2D(OpBuilder &builder, Location loc, MLIRContext *ctx,
             [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
               Value dstX = xBuilder.create<arith::AddIOp>(xLoc, xiv, xStart);
               Value srcXI16 = xBuilder.create<memref::LoadOp>(
-                  xLoc, mapInt, ValueRange{yiv, xiv, c0});
+                  xLoc, mapInt, ValueRange{c0, yiv, xiv});
               Value srcYI16 = xBuilder.create<memref::LoadOp>(
-                  xLoc, mapInt, ValueRange{yiv, xiv, c1});
+                  xLoc, mapInt, ValueRange{c1, yiv, xiv});
 
               Value srcX = xBuilder.create<arith::IndexCastOp>(
                   xLoc, IndexType::get(xBuilder.getContext()), srcXI16);
@@ -244,10 +276,31 @@ void remapNearest2D(OpBuilder &builder, Location loc, MLIRContext *ctx,
               xBuilder.create<scf::IfOp>(
                   xLoc, pixelInBound,
                   [&](OpBuilder &thenBuilder, Location thenLoc) {
-                    Value pixel = thenBuilder.create<memref::LoadOp>(
-                        thenLoc, input, ValueRange{srcY, srcX});
-                    thenBuilder.create<memref::StoreOp>(thenLoc, pixel, output,
-                                                        ValueRange{dstY, dstX});
+                    if (format == dip::ImageFormat::HW) {
+                      Value pixel = loadPixel(thenBuilder, thenLoc, input, niv,
+                                              ValueRange{srcY, srcX});
+                      storePixel(thenBuilder, thenLoc, output, niv,
+                                 ValueRange{dstY, dstX}, pixel);
+                    } else {
+                      //  format == dip::ImageFormat::NCHW ||
+                      //  format == dip::ImageFormat::NHWC
+                      thenBuilder.create<scf::ForOp>(
+                          thenLoc, c0, inputChannel, c1, std::nullopt,
+                          [&](OpBuilder &cBuilder, Location cLoc, Value civ,
+                              ValueRange) {
+                            Value pixel = loadPixel(
+                                cBuilder, cLoc, input, niv,
+                                format == dip::ImageFormat::NCHW
+                                    ? ValueRange{niv, civ, srcY, srcX}
+                                    : ValueRange{niv, srcY, srcX, civ});
+                            storePixel(cBuilder, cLoc, output, niv,
+                                       format == dip::ImageFormat::NCHW
+                                           ? ValueRange{niv, civ, dstY, dstX}
+                                           : ValueRange{niv, dstY, dstX, civ},
+                                       pixel);
+                            cBuilder.create<scf::YieldOp>(cLoc);
+                          });
+                    }
                     thenBuilder.create<scf::YieldOp>(thenLoc);
                   },
                   [&](OpBuilder &elseBuilder, Location elseLoc) {
@@ -255,223 +308,28 @@ void remapNearest2D(OpBuilder &builder, Location loc, MLIRContext *ctx,
                         input.getType().cast<MemRefType>().getElementType();
                     Value pixel = insertZeroConstantOp(ctx, elseBuilder,
                                                        elseLoc, inElemTy);
-                    elseBuilder.create<memref::StoreOp>(elseLoc, pixel, output,
-                                                        ValueRange{dstY, dstX});
+                    if (format == dip::ImageFormat::HW) {
+                      storePixel(elseBuilder, elseLoc, output, niv,
+                                 ValueRange{dstY, dstX}, pixel);
+                    } else {
+                      //  format == dip::ImageFormat::NCHW ||
+                      //  format == dip::ImageFormat::NHWC
+                      elseBuilder.create<scf::ForOp>(
+                          elseLoc, c0, inputChannel, c1, std::nullopt,
+                          [&](OpBuilder &cBuilder, Location cLoc, Value civ,
+                              ValueRange) {
+                            storePixel(cBuilder, cLoc, output, niv,
+                                       format == dip::ImageFormat::NCHW
+                                           ? ValueRange{niv, civ, dstY, dstX}
+                                           : ValueRange{niv, dstY, dstX, civ},
+                                       pixel);
+                            cBuilder.create<scf::YieldOp>(cLoc);
+                          });
+                    }
                     elseBuilder.create<scf::YieldOp>(elseLoc);
                   });
-
               xBuilder.create<scf::YieldOp>(xLoc);
             });
-
-        yBuilder.create<scf::YieldOp>(yLoc);
-      });
-}
-
-void remapNearest3D(OpBuilder &builder, Location loc, MLIRContext *ctx,
-                    Value input, Value output, Value mapInt, Value yStart,
-                    Value xStart, Value rows, Value cols,
-                    dip::ImageFormat format, Value niv) {
-  Value c0 = builder.create<arith::ConstantIndexOp>(loc, 0);
-  Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
-  Value c2 = builder.create<arith::ConstantIndexOp>(loc, 2);
-  Value c3 = builder.create<arith::ConstantIndexOp>(loc, 3);
-
-  Value inputRow, inputCol, inputChannel;
-  if (format == dip::ImageFormat::NHWC) {
-    inputRow = builder.create<memref::DimOp>(loc, input, c1);
-    inputCol = builder.create<memref::DimOp>(loc, input, c2);
-    inputChannel = builder.create<memref::DimOp>(loc, input, c3);
-  } else if (format == dip::ImageFormat::NCHW) {
-    inputRow = builder.create<memref::DimOp>(loc, input, c2);
-    inputCol = builder.create<memref::DimOp>(loc, input, c3);
-    inputChannel = builder.create<memref::DimOp>(loc, input, c1);
-  }
-  Value is3Channel = builder.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::eq, inputChannel, c3);
-
-  builder.create<scf::ForOp>(
-      loc, c0, rows, c1, std::nullopt,
-      [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
-        Value dstY = yBuilder.create<arith::AddIOp>(yLoc, yiv, yStart);
-
-        yBuilder.create<scf::IfOp>(
-            yLoc, is3Channel,
-            [&](OpBuilder &thenBuilder, Location thenLoc) {
-              //  3 channels, make common case fast
-              thenBuilder.create<scf::ForOp>(
-                  thenLoc, c0, cols, c1, std::nullopt,
-                  [&](OpBuilder &xBuilder, Location xLoc, Value xiv,
-                      ValueRange) {
-                    Value dstX =
-                        xBuilder.create<arith::AddIOp>(xLoc, xiv, xStart);
-                    Value srcXI16 = xBuilder.create<memref::LoadOp>(
-                        xLoc, mapInt, ValueRange{yiv, xiv, c0});
-                    Value srcYI16 = xBuilder.create<memref::LoadOp>(
-                        xLoc, mapInt, ValueRange{yiv, xiv, c1});
-
-                    Value srcX = xBuilder.create<arith::IndexCastOp>(
-                        xLoc, IndexType::get(xBuilder.getContext()), srcXI16);
-                    Value srcY = xBuilder.create<arith::IndexCastOp>(
-                        xLoc, IndexType::get(xBuilder.getContext()), srcYI16);
-                    Value xInBound =
-                        inBound(xBuilder, xLoc, srcX, c0, inputCol);
-                    Value yInBound =
-                        inBound(xBuilder, xLoc, srcY, c0, inputRow);
-                    Value pixelInBound = xBuilder.create<arith::AndIOp>(
-                        xLoc, xInBound, yInBound);
-                    xBuilder.create<scf::IfOp>(
-                        xLoc, pixelInBound,
-                        [&](OpBuilder &thenBuilder, Location thenLoc) {
-                          if (format == dip::ImageFormat::NCHW) {
-                            Value srcC0 = thenBuilder.create<memref::LoadOp>(
-                                thenLoc, input,
-                                ValueRange{niv, c0, srcY, srcX});
-                            Value srcC1 = thenBuilder.create<memref::LoadOp>(
-                                thenLoc, input,
-                                ValueRange{niv, c1, srcY, srcX});
-                            Value srcC2 = thenBuilder.create<memref::LoadOp>(
-                                thenLoc, input,
-                                ValueRange{niv, c2, srcY, srcX});
-                            thenBuilder.create<memref::StoreOp>(
-                                thenLoc, srcC0, output,
-                                ValueRange{niv, c0, dstY, dstX});
-                            thenBuilder.create<memref::StoreOp>(
-                                thenLoc, srcC1, output,
-                                ValueRange{niv, c1, dstY, dstX});
-                            thenBuilder.create<memref::StoreOp>(
-                                thenLoc, srcC2, output,
-                                ValueRange{niv, c2, dstY, dstX});
-                          } else if (format == dip::ImageFormat::NHWC) {
-                            Value srcC0 = thenBuilder.create<memref::LoadOp>(
-                                thenLoc, input,
-                                ValueRange{niv, srcY, srcX, c0});
-                            Value srcC1 = thenBuilder.create<memref::LoadOp>(
-                                thenLoc, input,
-                                ValueRange{niv, srcY, srcX, c1});
-                            Value srcC2 = thenBuilder.create<memref::LoadOp>(
-                                thenLoc, input,
-                                ValueRange{niv, srcY, srcX, c2});
-                            thenBuilder.create<memref::StoreOp>(
-                                thenLoc, srcC0, output,
-                                ValueRange{niv, dstY, dstX, c0});
-                            thenBuilder.create<memref::StoreOp>(
-                                thenLoc, srcC1, output,
-                                ValueRange{niv, dstY, dstX, c1});
-                            thenBuilder.create<memref::StoreOp>(
-                                thenLoc, srcC2, output,
-                                ValueRange{niv, dstY, dstX, c2});
-                          }
-                          thenBuilder.create<scf::YieldOp>(thenLoc);
-                        },
-                        [&](OpBuilder &elseBuilder, Location elseLoc) {
-                          auto inElemTy = input.getType()
-                                              .cast<MemRefType>()
-                                              .getElementType();
-                          Value pixel = insertZeroConstantOp(ctx, elseBuilder,
-                                                             elseLoc, inElemTy);
-                          if (format == dip::ImageFormat::NCHW) {
-                            elseBuilder.create<memref::StoreOp>(
-                                elseLoc, pixel, output,
-                                ValueRange{niv, c0, dstY, dstX});
-                            elseBuilder.create<memref::StoreOp>(
-                                elseLoc, pixel, output,
-                                ValueRange{niv, c1, dstY, dstX});
-                            elseBuilder.create<memref::StoreOp>(
-                                elseLoc, pixel, output,
-                                ValueRange{niv, c2, dstY, dstX});
-                          } else if (format == dip::ImageFormat::NHWC) {
-                            elseBuilder.create<memref::StoreOp>(
-                                elseLoc, pixel, output,
-                                ValueRange{niv, dstY, dstX, c0});
-                            elseBuilder.create<memref::StoreOp>(
-                                elseLoc, pixel, output,
-                                ValueRange{niv, dstY, dstX, c1});
-                            elseBuilder.create<memref::StoreOp>(
-                                elseLoc, pixel, output,
-                                ValueRange{niv, dstY, dstX, c2});
-                          }
-                          elseBuilder.create<scf::YieldOp>(elseLoc);
-                        });
-                    thenBuilder.create<scf::YieldOp>(thenLoc);
-                  });
-              thenBuilder.create<scf::YieldOp>(thenLoc);
-            },
-            [&](OpBuilder &elseBuilder, Location elseLoc) {
-              elseBuilder.create<scf::ForOp>(
-                  elseLoc, c0, cols, c1, std::nullopt,
-                  [&](OpBuilder &xBuilder, Location xLoc, Value xiv,
-                      ValueRange) {
-                    Value dstX =
-                        xBuilder.create<arith::AddIOp>(xLoc, xiv, xStart);
-                    Value srcXI16 = xBuilder.create<memref::LoadOp>(
-                        xLoc, mapInt, ValueRange{yiv, xiv, c0});
-                    Value srcYI16 = xBuilder.create<memref::LoadOp>(
-                        xLoc, mapInt, ValueRange{yiv, xiv, c1});
-
-                    Value srcX = xBuilder.create<arith::IndexCastOp>(
-                        xLoc, IndexType::get(xBuilder.getContext()), srcXI16);
-                    Value srcY = xBuilder.create<arith::IndexCastOp>(
-                        xLoc, IndexType::get(xBuilder.getContext()), srcYI16);
-                    Value xInBound =
-                        inBound(xBuilder, xLoc, srcX, c0, inputCol);
-                    Value yInBound =
-                        inBound(xBuilder, xLoc, srcY, c0, inputRow);
-                    Value pixelInBound = xBuilder.create<arith::AndIOp>(
-                        xLoc, xInBound, yInBound);
-                    xBuilder.create<scf::IfOp>(
-                        xLoc, pixelInBound,
-                        [&](OpBuilder &thenBuilder, Location thenLoc) {
-                          thenBuilder.create<scf::ForOp>(
-                              thenLoc, c0, inputChannel, c1, std::nullopt,
-                              [&](OpBuilder &cBuilder, Location cLoc, Value civ,
-                                  ValueRange) {
-                                if (format == dip::ImageFormat::NCHW) {
-                                  Value srcC = cBuilder.create<memref::LoadOp>(
-                                      cLoc, input,
-                                      ValueRange{niv, civ, srcY, srcX});
-                                  cBuilder.create<memref::StoreOp>(
-                                      cLoc, srcC, output,
-                                      ValueRange{niv, civ, dstY, dstX});
-                                } else if (format == dip::ImageFormat::NHWC) {
-                                  Value srcC = cBuilder.create<memref::LoadOp>(
-                                      cLoc, input,
-                                      ValueRange{niv, srcY, srcX, civ});
-                                  cBuilder.create<memref::StoreOp>(
-                                      cLoc, srcC, output,
-                                      ValueRange{niv, dstY, dstX, civ});
-                                }
-                                cBuilder.create<scf::YieldOp>(cLoc);
-                              });
-                          thenBuilder.create<scf::YieldOp>(elseLoc);
-                        },
-                        [&](OpBuilder &elseBuilder, Location elseLoc) {
-                          auto inElemTy = input.getType()
-                                              .cast<MemRefType>()
-                                              .getElementType();
-                          Value pixel = insertZeroConstantOp(ctx, elseBuilder,
-                                                             elseLoc, inElemTy);
-                          elseBuilder.create<scf::ForOp>(
-                              elseLoc, c0, inputChannel, c1, std::nullopt,
-                              [&](OpBuilder &cBuilder, Location cLoc, Value civ,
-                                  ValueRange) {
-                                if (format == dip::ImageFormat::NCHW) {
-                                  cBuilder.create<memref::StoreOp>(
-                                      cLoc, pixel, output,
-                                      ValueRange{niv, civ, dstY, dstX});
-                                } else if (format == dip::ImageFormat::NHWC) {
-                                  cBuilder.create<memref::StoreOp>(
-                                      cLoc, pixel, output,
-                                      ValueRange{niv, dstY, dstX, civ});
-                                }
-                                cBuilder.create<scf::YieldOp>(cLoc);
-                              });
-                          elseBuilder.create<scf::YieldOp>(elseLoc);
-                        });
-                    xBuilder.create<scf::YieldOp>(xLoc);
-                  });
-              elseBuilder.create<scf::YieldOp>(elseLoc);
-            });
-
         yBuilder.create<scf::YieldOp>(yLoc);
       });
 }
