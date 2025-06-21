@@ -11,8 +11,9 @@ config.llvm_lib_dir = "@LLVM_LIBS_DIR@"
 config.llvm_shlib_dir = "@SHLIBDIR@"
 config.llvm_shlib_ext = "@SHLIBEXT@"
 config.llvm_exe_ext = "@EXEEXT@"
+config.llvm_build_dir = "@LLVM_BINARY_DIR@"
 config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
-config.python_executable = "@PYTHON_EXECUTABLE@"
+config.python_executable = "@Python3_EXECUTABLE@"
 config.gold_executable = "@GOLD_EXECUTABLE@"
 config.ld64_executable = "@LD64_EXECUTABLE@"
 config.enable_shared = @ENABLE_SHARED@
@@ -33,6 +34,8 @@ config.buddy_src_root = "@CMAKE_SOURCE_DIR@"
 config.buddy_obj_root = "@CMAKE_BINARY_DIR@"
 config.buddy_enable_opencv = "@BUDDY_ENABLE_OPENCV@"
 config.mlir_runner_utils_dir = "@LLVM_LIBS_DIR@"
+config.buddy_mlir_enable_python_packages = "@BUDDY_MLIR_ENABLE_PYTHON_PACKAGES@"
+config.buddy_python_packages_dir = "@BUDDY_MLIR_PYTHON_PACKAGES_DIR@"
 
 # Support substitution of the tools_dir with user parameters. This is
 # used when we can't determine the tool dir at configuration time.
