@@ -27,6 +27,7 @@ set(LinkedLibs
   MatMulParallelVectorization
   SchedulingOnDevices
   TransposeOptimization
+  SiluOptimization
 )
 
 
