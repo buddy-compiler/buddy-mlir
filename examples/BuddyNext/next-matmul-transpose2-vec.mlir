@@ -112,6 +112,7 @@ func.func @main(){
 
   // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [40, 32, 128] strides = [4096, 128, 1] data = 
   // CHECK-NEXT: [
+  // CHECK: [
   // CHECK: [240{{(, 240)*}}]
   call @printMemrefF32(%printed_m2) : (memref<*xf32>) -> ()
 

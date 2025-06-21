@@ -48,8 +48,6 @@ func.func @main(){
 
   %v2 = arith.constant dense<2.0> : tensor<32x40x40xf32>
   %v3 = arith.constant dense<3.0> : tensor<1x40x32x128xf32>
-  // %m0 = tensor.cast %v2 : tensor<32x40x40xf32> to tensor<?x?x?xf32>
-  // %m1 = tensor.cast %v3 : tensor<40x32x128xf32> to tensor<?x?x?xf32>
 
   %m2 = call @test(%v3, %v2) : (tensor<1x40x32x128xf32>, tensor<32x40x40xf32>) -> (tensor<1x40x32x128xf32>)
 
