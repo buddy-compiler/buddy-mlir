@@ -4,6 +4,7 @@ add_mlir_library(BuddyUtils
   DAPUtils.cpp
   GPUUtils.cpp
   AffineTransformUtils.cpp
+  TileSizeSelection.cpp
   )
 
 add_mlir_library(BuddyDIPUtils
