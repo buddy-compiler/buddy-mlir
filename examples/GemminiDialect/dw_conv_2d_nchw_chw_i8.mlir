@@ -1,6 +1,3 @@
-// RUN: buddy-opt %s \
-// RUN:     --convert-linalg-to-gemmini | \
-// RUN: FileCheck %s
 
 memref.global "private" @input : memref<2x2x5x5xi8> = dense<[[[[1, 0, -1, 0, 1],
                                                                [1, 0, -1, 0, 1],

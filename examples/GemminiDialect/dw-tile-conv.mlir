@@ -61,10 +61,26 @@ func.func @main() -> i64 {
   //gemmini.print %subview0 : memref<1x5x5x1xi8>
   //gemmini.print %subview1 : memref<1x5x5x1xi8>
   
+  // CHECK: "gemmini.intr.loop_conv_ws_config1"
+  // CHECK: "gemmini.intr.loop_conv_ws_config2"
+  // CHECK: "gemmini.intr.loop_conv_ws_config3"
+  // CHECK: "gemmini.intr.loop_conv_ws_config4"
+  // CHECK: "gemmini.intr.loop_conv_ws_config5"
+  // CHECK: "gemmini.intr.loop_conv_ws_config6"
+  // CHECK: "gemmini.intr.loop_conv_ws"
+  // CHECK: "gemmini.intr.flush"
   gemmini.tile_conv %subview0 %weight %bias %output0 %3 %3 %3 {stride = 1}:
      memref<1x5x5x1xi8> memref<9x1xi8> memref<1xi32> memref<9x1xi8> i64 i64 i64
   // gemmini.print %output0 : memref<9x1xi8>
 
+  // CHECK: "gemmini.intr.loop_conv_ws_config1"
+  // CHECK: "gemmini.intr.loop_conv_ws_config2"
+  // CHECK: "gemmini.intr.loop_conv_ws_config3"
+  // CHECK: "gemmini.intr.loop_conv_ws_config4"
+  // CHECK: "gemmini.intr.loop_conv_ws_config5"
+  // CHECK: "gemmini.intr.loop_conv_ws_config6"
+  // CHECK: "gemmini.intr.loop_conv_ws"
+  // CHECK: "gemmini.intr.flush"
   gemmini.tile_conv %subview1 %weight %bias %output1 %3 %3 %3 {stride = 1}:
      memref<1x5x5x1xi8> memref<9x1xi8> memref<1xi32> memref<9x1xi8> i64 i64 i64
   // gemmini.print %output1 : memref<9x1xi8>
