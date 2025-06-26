@@ -592,12 +592,12 @@ class DynamoCompiler:
             args_memref = output_memref + input_memref
             # Invoke the graph's function using the provided execution engine
             # and memory references
-            start_time = time.time()
+            kernel_start_time = time.time()
             ee.invoke(graph._func_name, *args_memref)
-            end_time = time.time()
+            kernel_end_time = time.time()
 
             if self._verbose:
-                print(f"Kernel running time is {(end_time - start_time) * 1000:.2f}ms.")
+                print(f"Kernel running time is {(kernel_end_time - kernel_start_time) * 1000:.2f}ms.")
 
             output_tensor = []
             outdata_ptr = args_memref[0][0]
