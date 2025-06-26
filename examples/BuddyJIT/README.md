@@ -20,6 +20,7 @@ Secondly, build the llvm with LLVM, MLIR and OpenMP.
 ```bash
 cd buddy-mlir
 mkdir llvm/build
+cd llvm/build
 cmake -G Ninja ../llvm \
   -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
   -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
