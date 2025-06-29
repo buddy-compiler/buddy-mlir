@@ -2293,13 +2293,13 @@ void my_sincosm1pi(OpBuilder &opBuilder, Location loc, Value a, Value res,
 
   FloatType f64Ty = opBuilder.getF64Type();
 
-  FailureOr<StridedLayoutAttr> computelayout =
-      StridedLayoutAttr::get(opBuilder.getContext(),
-                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
+      opBuilder.getContext(),
+      /*offset=*/ShapedType::kDynamic, /*strides=*/{ShapedType::kDynamic});
   MemRefType resultType =
       MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-  // memref<?xf64, strided<[1], offset: ?>>
+  // memref<?xf64, strided<[?], offset: ?>>
 
   Value res_raw = opBuilder.create<memref::SubViewOp>(
       loc, resultType, res, SmallVector<OpFoldResult>{bias},
@@ -2382,13 +2382,13 @@ void calc_first_octant_extend2(OpBuilder &opBuilder, Location loc, Value den,
 
   FloatType f64Ty = opBuilder.getF64Type();
 
-  FailureOr<StridedLayoutAttr> computelayout =
-      StridedLayoutAttr::get(opBuilder.getContext(),
-                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
+      opBuilder.getContext(),
+      /*offset=*/ShapedType::kDynamic, /*strides=*/{ShapedType::kDynamic});
   MemRefType resultType =
       MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-  // memref<?xf64, strided<[1], offset: ?>>
+  // memref<?xf64, strided<[?], offset: ?>>
 
   Value res_raw = opBuilder.create<memref::SubViewOp>(
       loc, resultType, res, SmallVector<OpFoldResult>{bias},
@@ -2521,13 +2521,13 @@ void calc_first_octant_extend1(OpBuilder &opBuilder, Location loc, Value den,
 
   FloatType f64Ty = opBuilder.getF64Type();
 
-  FailureOr<StridedLayoutAttr> computelayout =
-      StridedLayoutAttr::get(opBuilder.getContext(),
-                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
+      opBuilder.getContext(),
+      /*offset=*/ShapedType::kDynamic, /*strides=*/{ShapedType::kDynamic});
   MemRefType resultType =
       MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-  // memref<?xf64, strided<[1], offset: ?>>
+  // memref<?xf64, strided<[?], offset: ?>>
 
   Value res_raw = opBuilder.create<memref::SubViewOp>(
       loc, resultType, res, SmallVector<OpFoldResult>{bias},
@@ -2589,13 +2589,13 @@ void calc_first_quadrant(OpBuilder &opBuilder, Location loc, Value n,
 
   FloatType f64Ty = opBuilder.getF64Type();
 
-  FailureOr<StridedLayoutAttr> computelayout =
-      StridedLayoutAttr::get(opBuilder.getContext(),
-                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
+      opBuilder.getContext(),
+      /*offset=*/ShapedType::kDynamic, /*strides=*/{ShapedType::kDynamic});
   MemRefType resultType =
       MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-  // memref<?xf64, strided<[1], offset: ?>>
+  // memref<?xf64, strided<[?], offset: ?>>
 
   Value p_raw = opBuilder.create<memref::SubViewOp>(
       loc, resultType, res, SmallVector<OpFoldResult>{n},
@@ -2698,13 +2698,13 @@ void calc_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
 
   Value nm1 = opBuilder.create<arith::SubIOp>(loc, n, c1);
 
-  FailureOr<StridedLayoutAttr> computelayout =
-      StridedLayoutAttr::get(opBuilder.getContext(),
-                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
+      opBuilder.getContext(),
+      /*offset=*/ShapedType::kDynamic, /*strides=*/{ShapedType::kDynamic});
   MemRefType resultType =
       MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-  // memref<?xf64, strided<[1], offset: ?>>
+  // memref<?xf64, strided<[?], offset: ?>>
 
   Value p_raw = opBuilder.create<memref::SubViewOp>(
       loc, resultType, res, SmallVector<OpFoldResult>{nm1},
@@ -3399,13 +3399,14 @@ void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
         // Value ch = builder.create<memref::AllocOp>(
         //     loc, MemRefType::get(cType.getShape(), f64Ty));
 
-        FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
-            opBuilder.getContext(),
-            /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+        FailureOr<StridedLayoutAttr> computelayout =
+            StridedLayoutAttr::get(opBuilder.getContext(),
+                                   /*offset=*/ShapedType::kDynamic,
+                                   /*strides=*/{ShapedType::kDynamic});
         MemRefType resultType =
             MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-        // memref<?xf64, strided<[1], offset: ?>>
+        // memref<?xf64, strided<[?], offset: ?>>
 
         Value p1_raw = builder.create<memref::SubViewOp>(
             loc, resultType, c, SmallVector<OpFoldResult>{c0},
