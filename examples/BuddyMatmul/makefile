@@ -26,6 +26,7 @@ linalg-batchmatmul-f32-run:
 		-lower-affine \
 		-convert-vector-to-scf \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm \
@@ -52,6 +53,7 @@ linalg-batchmatmul-f32-omp-lower:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm  \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm  \
@@ -74,6 +76,7 @@ linalg-batchmatmul-f32-omp-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm  \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm  \
@@ -90,6 +93,7 @@ linalg-matmul-transpose-b-f32-run:
 		-lower-affine \
 		-convert-vector-to-scf \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm \
