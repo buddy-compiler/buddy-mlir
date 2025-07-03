@@ -361,6 +361,16 @@ add_custom_command(
     OUTPUT subgraph-bf16.o
     COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+=======
+          -o ${CMAKE_CURRENT_BINARY_DIR}/forward-qkv-f16.o
+  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-qkv-f16.mlir
+  COMMENT "Building forward-qkv-f16.o "
+  VERBATIM)
+
+add_custom_command(
+    OUTPUT subgraph-bf16.o
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
+              -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
