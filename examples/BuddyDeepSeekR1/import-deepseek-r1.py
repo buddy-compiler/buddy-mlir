@@ -30,7 +30,7 @@ import numpy
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.graph.transform import simply_fuse, apply_classic_fusion
 
 # Add argument parser to allow custom output directory.
 parser = argparse.ArgumentParser(description="DeepSeekR1 Model AOT Importer")
@@ -92,6 +92,14 @@ with torch.no_grad():
 assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
+
+# Apply operator fusion
+print("Applying operator fusion...")
+print(f"Nodes before fusion: {len(graph.body)}")
+apply_classic_fusion(graph)
+print(f"Nodes after fusion: {len(graph.body)}")
+
+# Continue with the original simple fusion for subgraph organization
 pattern_list = [simply_fuse]
 graphs[0].fuse_ops(pattern_list)
 driver = GraphDriver(graphs[0])
