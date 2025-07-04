@@ -46,7 +46,6 @@ AOTAutograd (Ahead-of-Time Autograd) is a module for capturing backward graphs i
 
 TorchInductor is the default backend in PyTorch 2.0’s compiler stack. It compiles intermediate representation (IR) into high-performance code for both CPU and GPU.
 
----
 
 ### Compilation Pipeline Overview
 
@@ -78,7 +77,6 @@ Backend Codegen (Triton or C++)
 | Wrapper Codegen | Emits code to call optimized kernels         |
 | Backend Codegen | Generates C++ (CPU) or Triton (GPU) kernels  |
 
----
 
 ### Core Optimization Phases
 
@@ -104,7 +102,6 @@ Backend Codegen (Triton or C++)
 
 Triton is a Python-based DSL for writing GPU kernels with block-level scheduling. PyTorch schedules and converts IR into Triton kernels automatically.
 
----
 
 ## Introduction to the Triton Runtime
 
@@ -117,7 +114,6 @@ Triton is a GPU compiler framework built for ML workloads:
 * Supports static memory scheduling, block/thread management, shared memory
 * Deeply integrated with PyTorch's TorchInductor backend
 
----
 
 ### Triton’s Role in PyTorch
 
@@ -132,7 +128,6 @@ Triton is a GPU compiler framework built for ML workloads:
 
 This section uses a minimal PyTorch example to demonstrate every stage in the PyTorch 2.0 compilation pipeline. Starting from a basic Python function, the compilation process proceeds through FX graph capture, Aten graph lowering, automatic differentiation, graph-level scheduling and fusion, and ultimately produces the corresponding Triton kernel and wrapper code for efficient execution on the GPU.
 
----
 
 ### 1. Input Code: User-defined Original PyTorch Program
 
@@ -153,7 +148,6 @@ output = compiled_f(x)
 
 Calling `torch.compile` triggers the full compilation pipeline and automatically lowers `toy_example` into low-level GPU execution code.
 
----
 
 ### 2. FX Graph IR: Intermediate Representation Captured by FX
 
@@ -168,7 +162,6 @@ def forward(self, l_x_: "f32[1000]"):
 
 As shown above, variable lifetimes are clearly annotated in the graph (e.g., `l_x_ = None` indicates resource deallocation), and `sin()` and `cos()` are graph nodes.
 
----
 
 ### 3. ATen FX Graph IR: Mapping the FX Graph to ATen Ops
 
@@ -198,7 +191,6 @@ def forward(self, primals_1: "f32[1000][1]cuda:0", tangents_1: "f32[1000][1]cuda
 
 A key feature of this stage is that all operations are raw ATen ops, and the forward and backward paths are already separated, enabling later fusion and optimization.
 
----
 
 ### 4. Define-by-run IR & Scheduling/Fusion
 
@@ -211,7 +203,6 @@ The define-by-run IR is dynamically inferred at runtime based on input shapes an
 
 This step determines how the kernel is ultimately structured.
 
----
 
 ### 5. Output Triton: Triton Kernel Code Generation
 
@@ -233,7 +224,6 @@ def triton_(in_ptr0, out_ptr0, xnumel, XBLOCK: tl.constexpr):
 
 As shown, this kernel code is fully statically generated and uses Triton's block-level parallelism. It is compiled into a PTX kernel for GPU execution.
 
----
 
 ### 6. Output Wrapper: Kernel Wrapper and Scheduling Code
 
