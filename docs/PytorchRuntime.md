@@ -9,7 +9,7 @@
 `torch.compile(model, ...)` is a new API introduced in PyTorch 2.0 that converts dynamic PyTorch models into high-performance static graphs. It retains the dynamic eager-mode experience while delivering better performance for both training and inference.
 
 ---
-![PyTorch 2.0 Compilation Workflow](/buddy-mlir/docs/Images/PyTorchRuntime1.png)
+![PyTorch 2.0 Compilation Workflow](./Images/PyTorchRuntime1.png)
 
 ### Key Components in the PyTorch Compilation Stack
 
