@@ -8,7 +8,6 @@
 
 `torch.compile(model, ...)` is a new API introduced in PyTorch 2.0 that converts dynamic PyTorch models into high-performance static graphs. It retains the dynamic eager-mode experience while delivering better performance for both training and inference.
 
----
 ![PyTorch 2.0 Compilation Workflow](./Images/PyTorchRuntime1.png)
 
 ### Key Components in the PyTorch Compilation Stack
@@ -40,7 +39,6 @@ AOTAutograd (Ahead-of-Time Autograd) is a module for capturing backward graphs i
 * Performs graph-level fusion and buffer reuse
 * Enables cross-operator fusion to accelerate backpropagation
 
----
 
 ## TorchInductor Compiler Backend (Runtime)
 
@@ -122,7 +120,6 @@ Triton is a GPU compiler framework built for ML workloads:
 * Triton runtime handles kernel execution, scheduling, and tuning
 * In `max-autotune` mode, kernel variants are benchmarked and the best configuration is selected
 
----
 
 ## Compilation Flow Example: From Input Code to Triton Kernel Generation
 
