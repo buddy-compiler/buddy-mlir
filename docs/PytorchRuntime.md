@@ -91,7 +91,6 @@ Backend Codegen (Triton or C++)
   * Manages memory and in-place ops
   * Autotunes to find best-performing kernels
 
----
 
 ### Backend Codegen
 
