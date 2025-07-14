@@ -63,6 +63,7 @@ config.excludes = [
     'MLIRTransform',
     'MLIRVectorGPU',
     'Pooling',
+    'PyTorchTriton',
     'RISCVBuddyExt',
     'RVVDialect',
     'RVVExperiment',
