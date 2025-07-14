@@ -14,6 +14,7 @@ MTRIPLE := x86_64-unknown-linux-gnu
 else ifeq ($(shell uname),Darwin)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.dylib
 MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
+LIB_OMP := ../../llvm/build/lib/libomp.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
 
@@ -198,6 +199,30 @@ next-sigmoid-run:
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+next-sigmoid-manual-run:
+	@${BUDDY_OPT} ./next-sigmoid-manual.mlir \
+	     -pass-pipeline="builtin.module(func.func(scf-parallel-loop-fusion))" | \
+	${BUDDY_OPT} \
+  	-lower-affine \
+  	-convert-scf-to-openmp\
+  	-buffer-deallocation \
+  	-finalizing-bufferize \
+  	-expand-strided-metadata \
+  	-convert-vector-to-llvm \
+  	-memref-expand \
+  	-arith-expand \
+  	-convert-arith-to-llvm \
+  	-finalize-memref-to-llvm \
+  	-convert-scf-to-cf \
+  	-convert-openmp-to-llvm \
+  	-convert-arith-to-llvm \
+  	-convert-math-to-llvm \
+  	-convert-math-to-libm \
+  	-convert-func-to-llvm \
+  	-reconcile-unrealized-casts| \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void\
+		-shared-libs=${LIB_OMP} -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 next-eliminate-add-zero-run:
 	@${MLIR_OPT} ./next-eliminate-add-zero.mlir \
