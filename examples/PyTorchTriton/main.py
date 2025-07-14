@@ -64,5 +64,7 @@ def infer_by_triton() -> torch.Tensor:
 
 
 if __name__ == "__main__":
-    infer_by_cpu()
-    infer_by_triton()
+    cpu_probabilities = infer_by_cpu()
+    triton_probabilities = infer_by_triton()
+
+    print(f"Is CPU result equal to GPU: {torch.allclose(cpu_probabilities, triton_probabilities)}")
