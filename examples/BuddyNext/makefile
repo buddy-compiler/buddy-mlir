@@ -215,7 +215,6 @@ next-rope-run:
 		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-affine-parallelize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
