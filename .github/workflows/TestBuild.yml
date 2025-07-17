@@ -14,11 +14,10 @@ jobs:
       - name: Set up ninja
         uses: seanmiddleditch/gha-setup-ninja@master
 
-      # 1. Install Python 3.10 environment.
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+      # 1. Set up Python 3.10 with dev headers via Conda
+      - name: Set up Conda Python environment
+        run: |
+          echo "conda activate buddy" >> $GITHUB_ENV
 
       # 2. Checkout the main repository without fetching submodules initially
       - name: Checkout main repository
