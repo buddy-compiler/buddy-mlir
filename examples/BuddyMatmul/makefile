@@ -21,6 +21,28 @@ endif
 
 linalg-batchmatmul-f32-run:
 	@${BUDDY_OPT} ./linalg-batchmatmul-f32.mlir \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-expand-strided-metadata \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+linalg-batchmatmul-vectorization-lower:
+	@${BUDDY_OPT} ./linalg-batchmatmul-f32.mlir \
+		-batchmatmul-optimize \
+		-o ./log.mlir
+
+linalg-batchmatmul-f32-vectorization-run:
+	@${BUDDY_OPT} ./linalg-batchmatmul-f32.mlir \
 		-batchmatmul-optimize \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
@@ -87,13 +109,65 @@ linalg-batchmatmul-f32-omp-run:
 		-shared-libs=${LIB_OMP}
 
 linalg-matmul-transpose-b-f32-run:
-	@${BUDDY_OPT} ./linalg-transposematmulb-f32.mlir\
+	@${BUDDY_OPT} ./linalg-transpose-matmul-b-f32.mlir\
 		-matmul-transpose-b-vectorization \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
 		-convert-vector-to-scf \
 		-convert-scf-to-cf \
 		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-expand-strided-metadata \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+linalg-batchmatmul-transpose-b-f32-run:
+	@${BUDDY_OPT} ./linalg-transpose-batchmatmul-b.mlir\
+		-batchmatmul-transpose-b-vectorization \
+		-convert-linalg-to-affine-loops \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-expand-strided-metadata \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+batchmatmul-transpose-b-vec-run:
+	@${BUDDY_OPT} ./transpose-batchmatmul-b-vec.mlir\
+		-convert-linalg-to-affine-loops \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-expand-strided-metadata \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+batchmatmul-vectorization-run:
+	@${BUDDY_OPT} ./batchmatmul-vectorization.mlir \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
 		-convert-vector-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm \

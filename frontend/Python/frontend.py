@@ -447,6 +447,29 @@ class DynamoCompiler:
         model_opt(*args, **kwargs)
         return self._imported_graphs
 
+    def importer_by_export(
+        self, module: torch.nn.Module, *args, **kwargs
+    ) -> List[Graph]:
+        """
+        Imports the provided model as MLIR module and flat parameters by `torch.export.export`.
+        The previous `importer` method use the dynamo API, which may cause the imported FX graph
+        have input arguments in a different order from the original PyTorch model. See also:
+
+        -  [PyTorch Export API](https://docs.pytorch.org/docs/stable/export.html)
+        -  [PyTorch Issue #128334](https://github.com/pytorch/pytorch/issues/128334)
+
+        Args:
+            module: `torch.nn.Module` The model to be imported.
+            args: Arguments for the model.
+            kwargs: Keyword arguments for the model.
+
+        Returns:
+            imported_graphs: The imported buddy graphs.
+        """
+        exported_program = torch.export.export(module, args, kwargs)
+        self._compile_fx(exported_program.graph_module, list(args))
+        return self._imported_graphs
+
     def dynamo_run(self):
         """
         A callable method that wraps around the `exec_buddy_graph` method.

@@ -22,6 +22,7 @@
 #ifndef UTILS_UTILS_DEF
 #define UTILS_UTILS_DEF
 
+#include "mlir/IR/BuiltinTypes.h"
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Affine/IR/AffineValueMap.h>
 #include <mlir/Dialect/Arith/IR/Arith.h>

@@ -22,6 +22,8 @@ config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = [".mlir"]
+if config.buddy_mlir_enable_python_packages:
+    config.suffixes.append(".py")
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
@@ -63,16 +65,39 @@ config.excludes = [
     "RISCVBuddyExt",
     "RVVDialect",
     "RVVExperiment",
+    "ScheDialect",
     "SIMDExperiment",
     "ToyDSL",
     "VectorExpDialect",
     "log.mlir",
+    "lit.cfg.py",
+    "BuddyPython",
+    "BuddyResNet18",
+    "BuddyGraph",
+    "BuddyDeepSeekR1",
 ]
 
 config.buddy_tools_dir = os.path.join(config.buddy_obj_root, "bin")
 
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
+
+# Add the python path for both upstream MLIR and Buddy Compiler python packages.
+if config.buddy_mlir_enable_python_packages:
+    llvm_config.with_environment(
+        "PYTHONPATH",
+        [
+            os.path.join(
+                config.llvm_build_dir,
+                "tools",
+                "mlir",
+                "python_packages",
+                "mlir_core",
+            ),
+            config.buddy_python_packages_dir,
+        ],
+        append_path=True,
+    )
 
 tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
@@ -87,6 +112,13 @@ tools.extend(
             config.mlir_runner_utils_dir,
             unresolved="ignore",
         ),
+    ]
+)
+
+python_executable = config.python_executable
+tools.extend(
+    [
+        ToolSubst("%PYTHON", python_executable, unresolved="ignore"),
     ]
 )
 
