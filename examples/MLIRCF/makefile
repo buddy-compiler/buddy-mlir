@@ -24,21 +24,27 @@ endif
 cf-iteration-exit-lower:
 	@${MLIR_OPT} ./cf-iteration-exit.mlir \
 		-convert-vector-to-llvm \
+    	-convert-cf-to-llvm \
 		-convert-func-to-llvm \
+		-convert-arith-to-llvm \
 		-reconcile-unrealized-casts \
 		-o ./log.mlir
 
 cf-iteration-exit-translate:
 	@${MLIR_OPT} ./cf-iteration-exit.mlir \
 		-convert-vector-to-llvm \
+    	-convert-cf-to-llvm \
 		-convert-func-to-llvm \
+		-convert-arith-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 cf-iteration-exit-run:
 	@${MLIR_OPT} ./cf-iteration-exit.mlir \
 		-convert-vector-to-llvm \
+    	-convert-cf-to-llvm \
 		-convert-func-to-llvm \
+		-convert-arith-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}

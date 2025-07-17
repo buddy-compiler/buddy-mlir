@@ -20,105 +20,105 @@ endif
 
 affine-load-lower:
 	@${MLIR_OPT} ./affine-load.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--finalize-memref-to-llvm --convert-vector-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--finalize-memref-to-llvm --convert-vector-to-llvm --convert-func-to-llvm  -convert-arith-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 affine-load-translate:
 	@${MLIR_OPT} ./affine-load.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 affine-load-run:
 	@${MLIR_OPT} ./affine-load.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 affine-store-lower:
 	@${MLIR_OPT} ./affine-store.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--finalize-memref-to-llvm --convert-vector-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--finalize-memref-to-llvm --convert-vector-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 affine-store-translate:
 	@${MLIR_OPT} ./affine-store.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 affine-store-run:
 	@${MLIR_OPT} ./affine-store.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 affine-max-lower:
 	@${MLIR_OPT} ./affine-max.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--convert-vector-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--convert-vector-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 affine-max-translate:
 	@${MLIR_OPT} ./affine-max.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--convert-vector-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--convert-vector-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 affine-max-run:
 	@${MLIR_OPT} ./affine-max.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--convert-vector-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--convert-vector-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 affine-parallel-lower:
 	@${MLIR_OPT} ./affine-parallel.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--finalize-memref-to-llvm  --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--finalize-memref-to-llvm --convert-vector-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 affine-parallel-translate:
 	@${MLIR_OPT} ./affine-parallel.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--finalize-memref-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--finalize-memref-to-llvm --convert-vector-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 affine-parallel-run:
 	@${MLIR_OPT} ./affine-parallel.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--finalize-memref-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--finalize-memref-to-llvm --convert-vector-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 affine-vector-lower:
 	@${MLIR_OPT} ./affine-vector.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--finalize-memref-to-llvm --convert-vector-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--finalize-memref-to-llvm --convert-vector-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts -o ./log.mlir
 
 affine-vector-translate:
 	@${MLIR_OPT} ./affine-vector.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 affine-vector-run:
 	@${MLIR_OPT} ./affine-vector.mlir \
-		--convert-vector-to-scf --lower-affine --convert-scf-to-cf \
-		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
+		--convert-vector-to-scf --lower-affine --convert-scf-to-cf -convert-cf-to-llvm \
+		--convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm -convert-arith-to-llvm \
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
