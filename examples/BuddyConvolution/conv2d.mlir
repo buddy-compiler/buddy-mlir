@@ -2,15 +2,16 @@
 // RUN: 	-conv-vectorization \
 // RUN: 	-convert-linalg-to-loops \
 // RUN: 	-lower-affine \
-// RUN: 	-arith-bufferize \
+// RUN: 	--one-shot-bufferize="bufferize-function-boundaries" \
 // RUN: 	-convert-scf-to-cf \
+// RUN: 	-convert-cf-to-llvm \
 // RUN: 	-convert-vector-to-llvm \
 // RUN: 	-convert-arith-to-llvm \
 // RUN: 	-finalize-memref-to-llvm \
 // RUN: 	-llvm-request-c-wrappers \
 // RUN: 	-convert-func-to-llvm \
 // RUN: 	-reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -43,11 +44,11 @@ module {
     %c1 = arith.constant 1.000000e+00 : f32
     %c2 = arith.constant 2 : index
     %c3 = arith.constant 3 : index
-    
+
     %current_v1 = arith.constant 3 : index
     %current_v2 = arith.constant 8 : index
     %current_v0 = affine.apply #map0(%current_v2, %current_v1)
-    
+
     %v0 = call @alloc_f32(%current_v0, %current_v0, %c1) : (index, index, f32) -> memref<?x?xf32>
     %v1 = call @alloc_f32(%current_v1, %current_v1, %c1) : (index, index, f32) -> memref<?x?xf32>
     %v2 = call @alloc_f32(%current_v2, %current_v2, %c0) : (index, index, f32) -> memref<?x?xf32>

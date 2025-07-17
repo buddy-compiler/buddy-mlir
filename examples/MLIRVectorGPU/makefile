@@ -4,7 +4,7 @@ LLVM_BUILD_DIR := ../../llvm/build/
 BUDDY_OPT := ${BUDDY_BUILD_DIR}/bin/buddy-opt
 MLIR_OPT := ${LLVM_BUILD_DIR}/bin/mlir-opt
 MLIR_TRANSLATE := ${LLVM_BUILD_DIR}/bin/mlir-translate
-MLIR_CPU_RUNNER := ${LLVM_BUILD_DIR}/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ${LLVM_BUILD_DIR}/bin/mlir-runner
 LLC := ${LLVM_BUILD_DIR}/bin/llc
 OPT_FLAG := -O0
 CUDA_COMPUTE_CAPACITY ?= $(shell nvidia-smi --query-gpu=compute_cap --format=csv,noheader | awk 'NR==1{printf "sm_%.0f", $$0*10}')

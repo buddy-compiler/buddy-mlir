@@ -24,6 +24,7 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/CostModel.cpp
   ${LLVM_Analysis_DIR}/CodeMetrics.cpp
   ${LLVM_Analysis_DIR}/ConstantFolding.cpp
+  ${LLVM_Analysis_DIR}/CtxProfAnalysis.cpp
   ${LLVM_Analysis_DIR}/CycleAnalysis.cpp
   ${LLVM_Analysis_DIR}/DDG.cpp
   ${LLVM_Analysis_DIR}/DDGPrinter.cpp
@@ -33,9 +34,12 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/DependenceAnalysis.cpp
   ${LLVM_Analysis_DIR}/DependenceGraphBuilder.cpp
   ${LLVM_Analysis_DIR}/DevelopmentModeInlineAdvisor.cpp
+  ${LLVM_Analysis_DIR}/DomConditionCache.cpp
   ${LLVM_Analysis_DIR}/DomPrinter.cpp
   ${LLVM_Analysis_DIR}/DomTreeUpdater.cpp
   ${LLVM_Analysis_DIR}/DominanceFrontier.cpp
+  ${LLVM_Analysis_DIR}/DXILResource.cpp
+  ${LLVM_Analysis_DIR}/DXILMetadataAnalysis.cpp
   ${LLVM_Analysis_DIR}/FunctionPropertiesAnalysis.cpp
   ${LLVM_Analysis_DIR}/GlobalsModRef.cpp
   ${LLVM_Analysis_DIR}/GuardUtils.cpp
@@ -53,8 +57,7 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/InstructionPrecedenceTracking.cpp
   ${LLVM_Analysis_DIR}/InstructionSimplify.cpp
   ${LLVM_Analysis_DIR}/InteractiveModelRunner.cpp
-  ${LLVM_Analysis_DIR}/Interval.cpp
-  ${LLVM_Analysis_DIR}/IntervalPartition.cpp
+  ${LLVM_Analysis_DIR}/LastRunTrackingAnalysis.cpp
   ${LLVM_Analysis_DIR}/LazyBranchProbabilityInfo.cpp
   ${LLVM_Analysis_DIR}/LazyBlockFrequencyInfo.cpp
   ${LLVM_Analysis_DIR}/LazyCallGraph.cpp
@@ -118,7 +121,7 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/ValueLatticeUtils.cpp
   ${LLVM_Analysis_DIR}/ValueTracking.cpp
   ${LLVM_Analysis_DIR}/VectorUtils.cpp
-  ${LLVM_Analysis_DIR}/VFABIDemangling.cpp
+
 
   ${GeneratedMLSources}
 

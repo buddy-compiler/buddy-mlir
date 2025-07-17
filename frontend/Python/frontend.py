@@ -401,7 +401,6 @@ class DynamoCompiler:
                         node_dtype,
                         node_kwargs=gm_node.kwargs,
                     )
-
                 graph.add_node(buddy_node)
             transform_list = [maxpool2d_simplify]
             graph.perform(transform_list)
@@ -448,7 +447,9 @@ class DynamoCompiler:
         model_opt(*args, **kwargs)
         return self._imported_graphs
 
-    def importer_by_export(self, module: torch.nn.Module, *args, **kwargs) -> List[Graph]:
+    def importer_by_export(
+        self, module: torch.nn.Module, *args, **kwargs
+    ) -> List[Graph]:
         """
         Imports the provided model as MLIR module and flat parameters by `torch.export.export`.
         The previous `importer` method use the dynamo API, which may cause the imported FX graph

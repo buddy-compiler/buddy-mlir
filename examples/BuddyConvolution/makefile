@@ -3,7 +3,7 @@ BUDDY_OPT := ../../build/bin/buddy-opt
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
 CLANG := ../../llvm/build/bin/clang
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-runner
 LLC := ../../llvm/build/bin/llc
 OPT_FLAG := -O3
 MLIR_LIB := ../../llvm/build/lib/
@@ -23,8 +23,9 @@ conv2d-lower:
 		-conv-vectorization \
 		-convert-linalg-to-loops \
 		-lower-affine \
-		-arith-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
@@ -38,8 +39,9 @@ conv2d-translate:
 		-conv-vectorization \
 		-convert-linalg-to-loops \
 		-lower-affine \
-		-arith-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
@@ -53,8 +55,9 @@ conv2d-run:
 		-conv-vectorization \
 		-convert-linalg-to-loops \
 		-lower-affine \
-		-arith-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
@@ -68,8 +71,9 @@ conv2d-nhwc-fhwc-run:
 	@${BUDDY_OPT} ./conv2d-nhwc-fhwc.mlir \
 		-convert-linalg-to-loops \
 		-lower-affine \
-		-arith-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
@@ -82,8 +86,9 @@ conv2d-nhwc-fhwc-aot:
 	@${BUDDY_OPT} ./conv2d-nhwc-fhwc.mlir \
 		-convert-linalg-to-loops \
 		-lower-affine \
-		-arith-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
@@ -99,8 +104,9 @@ conv2d-nhwc-fhwc-opt-run:
 	@${BUDDY_OPT} ./conv2d-nhwc-fhwc-opt.mlir \
 		-convert-vector-to-scf \
 		-lower-affine \
-		-arith-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
@@ -113,8 +119,9 @@ conv2d-nhwc-fhwc-opt-aot:
 	@${BUDDY_OPT} ./conv2d-nhwc-fhwc-opt.mlir \
 		-convert-vector-to-scf \
 		-lower-affine \
-		-arith-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \

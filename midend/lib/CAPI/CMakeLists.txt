@@ -3,6 +3,8 @@ get_property(translation_libs GLOBAL PROPERTY MLIR_TRANSLATION_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 
+link_directories(${LLVM_BINARY_DIR}/tools/mlir/python_packages/mlir_core/mlir/_mlir_libs/)
+
 add_mlir_public_c_api_library(BuddyMLIRCAPI
   Dialects.cpp
   RegisterEverything.cpp
@@ -26,7 +28,6 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   BuddyGemminiTransforms
   BuddyRVV
   BuddyRVVTransforms
-  BuddySche
   VectorExp
   BuddyMLIRInitAll
   BuddyToLLVMIRTranslationRegistration

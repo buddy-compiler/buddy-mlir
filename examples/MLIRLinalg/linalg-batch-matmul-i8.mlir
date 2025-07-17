@@ -1,7 +1,7 @@
 // RUN: buddy-opt -batchmatmul-optimize -verify-diagnostics -expand-strided-metadata -lower-affine \
-// RUN:   -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf -convert-linalg-to-loops -convert-scf-to-cf \
+// RUN:   -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf -convert-linalg-to-loops -convert-scf-to-cf -convert-cf-to-llvm -convert-arith-to-llvm \
 // RUN:   -llvm-request-c-wrappers -convert-func-to-llvm -reconcile-unrealized-casts %s \
-// RUN: | mlir-cpu-runner -O0 -e buddy_batchmatmul_i8 -entry-point-result=void \
+// RUN: | mlir-runner -O0 -e buddy_batchmatmul_i8 -entry-point-result=void \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
@@ -16,10 +16,10 @@ func.func @buddy_batchmatmul_i8(){
   %b = memref.get_global @B : memref<2x3x4xi8>
   %c = memref.get_global @C : memref<2x2x4xi8>
 
-  linalg.batch_matmul 
+  linalg.batch_matmul
       ins(%a, %b: memref<2x2x3xi8>, memref<2x3x4xi8>)
       outs(%c: memref<2x2x4xi8>)
-  
+
   %cst_0 = arith.constant 0 : index
   %cst_1 = arith.constant 1 : index
   %cst_2 = arith.constant 2 : index
@@ -39,9 +39,9 @@ func.func @buddy_batchmatmul_i8(){
   %printed_c = memref.cast %c_f32 : memref<2x2x4xf32> to memref<*xf32>
   call @printMemrefF32(%printed_c) : (memref<*xf32>) -> ()
   // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 3 offset = 0 sizes = \[2, 2, 4\] strides = \[8, 4, 1\] data =}}
-  // CHECK{LITERAL}: [[[98,    125,    -96,    -92], 
-  // CHECK{LITERAL}:   [12,    76,    96,    56]], 
-  // CHECK{LITERAL}:  [[48,    -94,    72,    -100], 
+  // CHECK{LITERAL}: [[[98,    125,    -96,    -92],
+  // CHECK{LITERAL}:   [12,    76,    96,    56]],
+  // CHECK{LITERAL}:  [[48,    -94,    72,    -100],
   // CHECK{LITERAL}:   [16,    112,    0,    104]]]
   return
 }

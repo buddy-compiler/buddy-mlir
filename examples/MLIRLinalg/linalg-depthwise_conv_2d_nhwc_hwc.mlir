@@ -1,8 +1,8 @@
 // RUN: buddy-opt %s \
-// RUN:     -depthwise-conv-nhwc-hwc-optimize -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+// RUN:     -depthwise-conv-nhwc-hwc-optimize -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 // RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -11,9 +11,9 @@ module {
   func.func private @printMemrefF32(memref<*xf32>)
 
   func.func @depthwise_conv_2d_nhwc_hwc(%arg0: memref<?x?x?x?xf32>, %arg1: memref<?x?x?xf32>, %arg2: memref<?x?x?x?xf32>) {
-    linalg.depthwise_conv_2d_nhwc_hwc 
-      {dilations = dense<[1,1]> : tensor<2xi64>, strides = dense<[1,1]> : tensor<2xi64>} 
-      ins(%arg0, %arg1 : memref<?x?x?x?xf32>, memref<?x?x?xf32>) 
+    linalg.depthwise_conv_2d_nhwc_hwc
+      {dilations = dense<[1,1]> : tensor<2xi64>, strides = dense<[1,1]> : tensor<2xi64>}
+      ins(%arg0, %arg1 : memref<?x?x?x?xf32>, memref<?x?x?xf32>)
       outs(%arg2 : memref<?x?x?x?xf32>)
     return
   }
@@ -70,13 +70,13 @@ module {
   }
 }
 
-// CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 3, 3, 2] strides = [18, 6, 2, 1] data = 
-// CHECK{LITERAL}: [[[[3,     3], 
-// CHECK{LITERAL}:        [3,     3], 
-// CHECK{LITERAL}:        [3,     3]], 
-// CHECK{LITERAL}:       [[3,     3], 
-// CHECK{LITERAL}:        [3,     3], 
-// CHECK{LITERAL}:        [3,     3]], 
-// CHECK{LITERAL}:       [[3,     3], 
-// CHECK{LITERAL}:        [3,     3], 
+// CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 3, 3, 2] strides = [18, 6, 2, 1] data =
+// CHECK{LITERAL}: [[[[3,     3],
+// CHECK{LITERAL}:        [3,     3],
+// CHECK{LITERAL}:        [3,     3]],
+// CHECK{LITERAL}:       [[3,     3],
+// CHECK{LITERAL}:        [3,     3],
+// CHECK{LITERAL}:        [3,     3]],
+// CHECK{LITERAL}:       [[3,     3],
+// CHECK{LITERAL}:        [3,     3],
 // CHECK{LITERAL}:        [3,     3]]]]

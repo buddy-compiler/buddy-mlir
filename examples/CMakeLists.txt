@@ -51,7 +51,7 @@ set(BUDDY_EXAMPLES_DEPENDS
   FileCheck count not
   buddy-opt
   buddy-translate
-  mlir-cpu-runner
+  mlir-runner
   )
 
 if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)

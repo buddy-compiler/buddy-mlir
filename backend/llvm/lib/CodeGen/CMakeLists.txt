@@ -21,7 +21,6 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/CFIInstrInserter.cpp
   ${LLVM_CodeGen_DIR}/CodeGen.cpp
   ${LLVM_CodeGen_DIR}/CodeGenCommonISel.cpp
-  ${LLVM_CodeGen_DIR}/CodeGenPassBuilder.cpp
   ${LLVM_CodeGen_DIR}/CodeGenPrepare.cpp
   ${LLVM_CodeGen_DIR}/CommandFlags.cpp
   ${LLVM_CodeGen_DIR}/ComplexDeinterleavingPass.cpp
@@ -45,14 +44,17 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/FinalizeISel.cpp
   ${LLVM_CodeGen_DIR}/FixupStatepointCallerSaved.cpp
   ${LLVM_CodeGen_DIR}/FuncletLayout.cpp
+  ${LLVM_CodeGen_DIR}/MachineFunctionAnalysis.cpp
   ${LLVM_CodeGen_DIR}/GCMetadata.cpp
   ${LLVM_CodeGen_DIR}/GCMetadataPrinter.cpp
   ${LLVM_CodeGen_DIR}/GCRootLowering.cpp
   ${LLVM_CodeGen_DIR}/GlobalMerge.cpp
+  ${LLVM_CodeGen_DIR}/GlobalMergeFunctions.cpp
   ${LLVM_CodeGen_DIR}/HardwareLoops.cpp
   ${LLVM_CodeGen_DIR}/IfConversion.cpp
   ${LLVM_CodeGen_DIR}/ImplicitNullChecks.cpp
   ${LLVM_CodeGen_DIR}/IndirectBrExpandPass.cpp
+  ${LLVM_CodeGen_DIR}/InitUndef.cpp
   ${LLVM_CodeGen_DIR}/InlineSpiller.cpp
   ${LLVM_CodeGen_DIR}/InterferenceCache.cpp
   ${LLVM_CodeGen_DIR}/InterleavedAccessPass.cpp
@@ -76,7 +78,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/LiveRegUnits.cpp
   ${LLVM_CodeGen_DIR}/LiveStacks.cpp
   ${LLVM_CodeGen_DIR}/LiveVariables.cpp
-  ${LLVM_CodeGen_DIR}/LLVMTargetMachine.cpp
+  ${LLVM_CodeGen_DIR}/CodeGenTargetMachineImpl.cpp
   ${LLVM_CodeGen_DIR}/LocalStackSlotAllocation.cpp
   ${LLVM_CodeGen_DIR}/LoopTraversal.cpp
   ${LLVM_CodeGen_DIR}/LowLevelTypeUtils.cpp
@@ -87,11 +89,13 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/MachineBranchProbabilityInfo.cpp
   ${LLVM_CodeGen_DIR}/MachineCFGPrinter.cpp
   ${LLVM_CodeGen_DIR}/MachineCombiner.cpp
+  ${LLVM_CodeGen_DIR}/MachineConvergenceVerifier.cpp
   ${LLVM_CodeGen_DIR}/MachineCopyPropagation.cpp
   ${LLVM_CodeGen_DIR}/MachineCSE.cpp
   ${LLVM_CodeGen_DIR}/MachineCheckDebugify.cpp
   ${LLVM_CodeGen_DIR}/MachineCycleAnalysis.cpp
   ${LLVM_CodeGen_DIR}/MachineDebugify.cpp
+  ${LLVM_CodeGen_DIR}/MachineDomTreeUpdater.cpp
   ${LLVM_CodeGen_DIR}/MachineDominanceFrontier.cpp
   ${LLVM_CodeGen_DIR}/MachineDominators.cpp
   ${LLVM_CodeGen_DIR}/MachineFrameInfo.cpp
@@ -139,7 +143,6 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/MacroFusion.cpp
   ${LLVM_CodeGen_DIR}/NonRelocatableStringpool.cpp
   ${LLVM_CodeGen_DIR}/OptimizePHIs.cpp
-  ${LLVM_CodeGen_DIR}/ParallelCG.cpp
   ${LLVM_CodeGen_DIR}/PeepholeOptimizer.cpp
   ${LLVM_CodeGen_DIR}/PHIElimination.cpp
   ${LLVM_CodeGen_DIR}/PHIEliminationUtils.cpp
@@ -176,6 +179,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/RegisterUsageInfo.cpp
   ${LLVM_CodeGen_DIR}/RegUsageInfoCollector.cpp
   ${LLVM_CodeGen_DIR}/RegUsageInfoPropagate.cpp
+  ${LLVM_CodeGen_DIR}/RemoveLoadsIntoFakeUses.cpp
   ${LLVM_CodeGen_DIR}/ReplaceWithVeclib.cpp
   ${LLVM_CodeGen_DIR}/ResetMachineFunctionPass.cpp
   ${LLVM_CodeGen_DIR}/RegisterBank.cpp
@@ -200,6 +204,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/StackMaps.cpp
   ${LLVM_CodeGen_DIR}/StackProtector.cpp
   ${LLVM_CodeGen_DIR}/StackSlotColoring.cpp
+  ${LLVM_CodeGen_DIR}/StaticDataSplitter.cpp
   ${LLVM_CodeGen_DIR}/SwiftErrorValueTracking.cpp
   ${LLVM_CodeGen_DIR}/SwitchLoweringUtils.cpp
   ${LLVM_CodeGen_DIR}/TailDuplication.cpp
@@ -220,8 +225,11 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/VLIWMachineScheduler.cpp
   ${LLVM_CodeGen_DIR}/VirtRegMap.cpp
   ${LLVM_CodeGen_DIR}/WasmEHPrepare.cpp
+  ${LLVM_CodeGen_DIR}/WindowScheduler.cpp
   ${LLVM_CodeGen_DIR}/WinEHPrepare.cpp
   ${LLVM_CodeGen_DIR}/XRayInstrumentation.cpp
+
+
 
   ${GeneratedMLSources}
 
@@ -251,7 +259,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   Support
   BuddyTarget
   BuddyTransformUtils
-  
+
   )
 
 add_subdirectory(SelectionDAG)

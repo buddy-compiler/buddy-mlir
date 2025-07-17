@@ -63,7 +63,7 @@ public:
     Value passthru = rewriter.create<LLVM::UndefOp>(loc, resultType[0]);
     operandsVector.insert(operandsVector.begin(), passthru);
 
-    const LLVMTypeConverter* typeConverter = this->getTypeConverter();
+    const LLVMTypeConverter *typeConverter = this->getTypeConverter();
     if (numResults != 0) {
       packedType = typeConverter->packFunctionResults(op->getResultTypes());
       if (!packedType)
@@ -89,8 +89,8 @@ class ForwardOperands : public OpConversionPattern<OpTy> {
     if (adaptor.getOperands().getTypes() == op->getOperands().getTypes())
       return rewriter.notifyMatchFailure(op, "operand types already match");
 
-    rewriter.updateRootInPlace(
-        op, [&]() { op->setOperands(adaptor.getOperands()); });
+    rewriter.modifyOpInPlace(op,
+                             [&]() { op->setOperands(adaptor.getOperands()); });
     return success();
   }
 };
@@ -102,8 +102,8 @@ public:
   LogicalResult
   matchAndRewrite(func::ReturnOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    rewriter.updateRootInPlace(
-        op, [&]() { op->setOperands(adaptor.getOperands()); });
+    rewriter.modifyOpInPlace(op,
+                             [&]() { op->setOperands(adaptor.getOperands()); });
     return success();
   }
 };
@@ -155,10 +155,10 @@ struct RVVLoadOpLowering : public ConvertOpToLLVMPattern<RVVLoadOp> {
     LLVMTypeConverter converter(loadOp.getContext());
 
     auto resultType = loadOp.getResult().getType();
+    auto context = loadOp.getContext();
     Value passthru =
         rewriter.create<LLVM::UndefOp>(loadOp.getLoc(), resultType);
-    LLVM::LLVMPointerType llvmDataTypePtr =
-        LLVM::LLVMPointerType::get(resultType);
+    LLVM::LLVMPointerType llvmDataTypePtr = LLVM::LLVMPointerType::get(context);
     Value dataPtr = getStridedElementPtr(
         loadOp.getLoc(), type, adaptor.getBase(), adaptor.getIndex(), rewriter);
     Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
@@ -188,8 +188,8 @@ struct RVVStoreOpLowering : public ConvertOpToLLVMPattern<RVVStoreOp> {
     LLVMTypeConverter converter(storeOp.getContext());
 
     auto resultType = storeOp.getValue().getType();
-    LLVM::LLVMPointerType llvmDataTypePtr =
-        LLVM::LLVMPointerType::get(resultType);
+    auto context = storeOp.getContext();
+    LLVM::LLVMPointerType llvmDataTypePtr = LLVM::LLVMPointerType::get(context);
     Value dataPtr =
         getStridedElementPtr(storeOp.getLoc(), type, adaptor.getBase(),
                              adaptor.getIndex(), rewriter);
