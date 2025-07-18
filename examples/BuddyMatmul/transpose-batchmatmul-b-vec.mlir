@@ -3,6 +3,7 @@
 // RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm \
 // RUN:     -convert-math-to-llvm \
 // RUN:     -convert-math-to-libm \
@@ -11,7 +12,7 @@
 // RUN:     -expand-strided-metadata \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -34,7 +35,7 @@ func.func @test(%arg0 : memref<?x?x?xf32>, %arg1 : memref<?x?x?xf32>, %arg2 : me
 
   // Calculate the upper bound for vectorized processing
   // - Subtract `vl_step` is to avoid overflow at the vectorization tail.
-  // - Add 1 to ensure the final loop runs when the workload length 
+  // - Add 1 to ensure the final loop runs when the workload length
   //   is divisible by the vector size.
   %dim_1_upbound_tmp = arith.subi %dim_1, %vl_step : index
   %dim_1_upbound = arith.addi %dim_1_upbound_tmp, %c1 : index
@@ -43,7 +44,7 @@ func.func @test(%arg0 : memref<?x?x?xf32>, %arg1 : memref<?x?x?xf32>, %arg2 : me
     affine.for %arg4 = %c0 to %dim_0 {
       affine.for %arg5 = %c0 to %dim_2 {
         %2 = affine.load %arg2[%arg3, %arg4, %arg5] : memref<?x?x?xf32>
-        %iter_idx, %iter_value = scf.for %arg6 = %c0 to %dim_1_upbound 
+        %iter_idx, %iter_value = scf.for %arg6 = %c0 to %dim_1_upbound
             step %vl_step iter_args(%iter_init = %c0, %iter_value0 = %2) -> (index, f32){
           %0 =vector.load %arg0[%arg3, %arg4, %arg6] : memref<?x?x?xf32>, vector<32xf32>
           %1 = vector.load %arg1[%arg3, %arg5, %arg6] : memref<?x?x?xf32>, vector<32xf32>
@@ -52,7 +53,7 @@ func.func @test(%arg0 : memref<?x?x?xf32>, %arg1 : memref<?x?x?xf32>, %arg2 : me
           %dim_1_next = arith.addi %arg6, %vl_step : index
           scf.yield %dim_1_next, %4 : index, f32
         }
-        // Compute the tail size and Process the remaining elements 
+        // Compute the tail size and Process the remaining elements
         // using masked vector operations.
         %tail_size = arith.subi %dim_1, %iter_idx : index
         %mask = vector.create_mask %tail_size : vector<32xi1>
@@ -101,7 +102,7 @@ func.func @main(){
 
   %printed_m2 = memref.cast %m2 : memref<?x?x?xf32> to memref<*xf32>
 
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [32, 64, 64] strides = [4096, 64, 1] data = 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [32, 64, 64] strides = [4096, 64, 1] data =
   // CHECK-NEXT: [
   // CHECK: [
   // CHECK: [64{{(, 64)*}}]

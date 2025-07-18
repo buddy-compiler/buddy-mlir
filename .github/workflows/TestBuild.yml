@@ -14,25 +14,19 @@ jobs:
       - name: Set up ninja
         uses: seanmiddleditch/gha-setup-ninja@master
 
-      # 1. Install Python 3.10 environment.
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      # 2. Checkout the main repository without fetching submodules initially
+      # 1. Checkout the main repository without fetching submodules initially
       - name: Checkout main repository
         uses: actions/checkout@v4
         with:
           submodules: 'false'
 
-      # 3. Retrieve the commit ID of the LLVM submodule.
+      # 2. Retrieve the commit ID of the LLVM submodule.
       - name: Get LLVM submodule commit
         id: llvm-submodule-commit
         run: |
           echo "commit=$(git submodule status llvm | awk '{print $1;}')" >> $GITHUB_OUTPUT
 
-      # 4. Cache the LLVM submodule source code.
+      # 3. Cache the LLVM submodule source code.
       - name: Cache LLVM source
         id: cache-llvm-source
         uses: actions/cache@v4
@@ -42,14 +36,14 @@ jobs:
           restore-keys: |
             llvm-source-
 
-      # 5. If the cache is not found, pull the LLVM submodule.
+      # 4. If the cache is not found, pull the LLVM submodule.
       - name: Checkout LLVM submodule
         run: |
           rm -rf llvm
           git submodule update --init --recursive llvm
         if: steps.cache-llvm-source.outputs.cache-hit != 'true'
 
-      # 6. Cache the LLVM build directory.
+      # 5. Cache the LLVM build directory.
       - name: Cache LLVM build directory
         id: cache-llvm-build-dir
         uses: actions/cache@v4
@@ -59,10 +53,13 @@ jobs:
           restore-keys: |
             llvm-build-
 
-      # 7. If the cache is not found, configure and build LLVM.
+      # 6. If the cache is not found, configure and build LLVM.
       - name: Configure and Build LLVM
         run: |
           source ~/miniconda3/bin/activate buddy
+          test -f $(python3 -c "from sysconfig import get_paths; print(get_paths()['include'])")/Python.h
+          test -f $(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")/libpython3.10.so
+          echo "Python dev headers OK"
           cd llvm
           rm -rf build
           mkdir build
@@ -77,7 +74,7 @@ jobs:
           ninja check-clang check-mlir omp
         if: steps.cache-llvm-build-dir.outputs.cache-hit != 'true'
 
-      # 8. Check the build process of buddy-mlir repository.
+      # 7. Check the build process of buddy-mlir repository.
       - name: Check buddy-mlir build
         run: |
           source ~/miniconda3/bin/activate buddy

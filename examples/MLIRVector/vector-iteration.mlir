@@ -1,9 +1,11 @@
 // RUN: buddy-opt %s \
 // RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-arith-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
+// RUN: | mlir-runner -e main -entry-point-result=i32 \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -37,7 +39,7 @@ func.func @main() -> i32 {
   // Iteration Pattern 1
   // Main Vector Loop + Scalar Remainder + Fixed Vector Type
   // ---------------------------------------------------------------------------
-  
+
   // 1. Get the total length of the workload.
   %mem_pat_1 = memref.get_global @gv_pat_1 : memref<10xf32>
   %print_mem_pat_1 = memref.cast %mem_pat_1 : memref<10xf32> to memref<*xf32>

@@ -3,24 +3,20 @@
 // RUN: | buddy-opt \
 // RUN:     -eliminate-empty-tensors \
 // RUN:     -convert-tensor-to-linalg \
-// RUN:     -linalg-bufferize \
+// RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -lower-affine \
-// RUN:     -func-bufferize \
-// RUN:     -arith-bufferize \
-// RUN:     -tensor-bufferize \
-// RUN:     -buffer-deallocation \
-// RUN:     -finalizing-bufferize \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -expand-strided-metadata \
 // RUN:     -convert-vector-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -36,7 +32,7 @@ func.func @test(%a : tensor<1x40x32x128xf32>, %b : tensor<32x40x40xf32>) -> (ten
     %3 = tosa.matmul %b, %2 : (tensor<32x40x40xf32>, tensor<32x40x128xf32>) -> tensor<32x40x128xf32>
     %4 = tosa.reshape %3 {new_shape = array<i64: 1, 32, 40, 128>} : (tensor<32x40x128xf32>) -> tensor<1x32x40x128xf32>
     %5 = "tosa.const"() <{value = dense<[0, 2, 1, 3]> : tensor<4xi32>}> : () -> tensor<4xi32>
-    %6 = tosa.transpose %4, %5 : (tensor<1x32x40x128xf32>, tensor<4xi32>) -> tensor<1x40x32x128xf32> 
+    %6 = tosa.transpose %4, %5 : (tensor<1x32x40x128xf32>, tensor<4xi32>) -> tensor<1x40x32x128xf32>
     %t_end = call @rtclock() : () -> f64
     %time = arith.subf %t_end, %t_start : f64
     // Print timings.

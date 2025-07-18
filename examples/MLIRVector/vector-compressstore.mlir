@@ -1,7 +1,8 @@
 // RUN: buddy-opt %s \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-arith-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
+// RUN: | mlir-runner -e main -entry-point-result=i32 \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -27,7 +28,7 @@ func.func @main() -> i32 {
   // store 1-D vector into n-D memref with a mask.
 
   // Unlike maskedstore, if a bit of vector is masked off, it will NOT occupy
-  // a position in the memory. 
+  // a position in the memory.
 
   // preparation for examples
   %c0 = arith.constant 0 : index
@@ -42,21 +43,21 @@ func.func @main() -> i32 {
   %base3 = memref.get_global @gv3 : memref<8xi32>
 
   %gv0_for_print = memref.cast %base0 : memref<8xi32> to memref<*xi32>
-  %gv1_for_print = memref.cast %base1 : memref<4x4xi32> to memref<*xi32> 
+  %gv1_for_print = memref.cast %base1 : memref<4x4xi32> to memref<*xi32>
   %gv2_for_print = memref.cast %base2 : memref<4x4xi32> to memref<*xi32>
   %gv3_for_print = memref.cast %base3 : memref<8xi32> to memref<*xi32>
 
   // compressstore normal usage
   // Notice that the %value0[1] is masked off, so only [100, 102] are stored
   // into %base0[0], %base[1]
-  // If we use maskedstore here, the [100, 102] will be stored into %base0[0], 
-  // %base[2], the masked-off lane %value0[1] will also occupy a position for %base0[1] 
+  // If we use maskedstore here, the [100, 102] will be stored into %base0[0],
+  // %base[2], the masked-off lane %value0[1] will also occupy a position for %base0[1]
   %mask0 = arith.constant dense<[1, 0, 1]> : vector<3xi1>
   %value0 = arith.constant dense<[100, 101, 102]> : vector<3xi32>
 
   vector.compressstore %base0[%c0], %mask0, %value0
     : memref<8xi32> , vector<3xi1>,vector<3xi32>
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 1 offset = 0 sizes = [8] strides = [1] data = 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 1 offset = 0 sizes = [8] strides = [1] data =
   // CHECK: [100,  102,  2,  3,  4,  5,  6,  7]
   func.call @printMemrefI32(%gv0_for_print) : (memref<*xi32>) -> ()
 
@@ -66,13 +67,13 @@ func.func @main() -> i32 {
   %mask1 = arith.constant dense<[1, 0, 0, 1]> : vector<4xi1>
   %value1 = arith.constant dense<[200, 201, 202, 203]> : vector<4xi32>
 
-  vector.compressstore %base1[%c0, %c1], %mask1, %value1 
+  vector.compressstore %base1[%c0, %c1], %mask1, %value1
     : memref<4x4xi32>, vector<4xi1>, vector<4xi32>
   // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data =
   // CHECK-NEXT: [
-  // CHECK-SAME: [0,   200,   203,   3], 
-  // CHECK-NEXT: [4,   5,   6,   7], 
-  // CHECK-NEXT: [8,   9,   10,   11], 
+  // CHECK-SAME: [0,   200,   203,   3],
+  // CHECK-NEXT: [4,   5,   6,   7],
+  // CHECK-NEXT: [8,   9,   10,   11],
   // CHECK-NEXT: [12,   13,   14,   15]
   // CHECK-SAME: ]
   func.call @printMemrefI32(%gv1_for_print) : (memref<*xi32>) -> ()
@@ -84,15 +85,15 @@ func.func @main() -> i32 {
   %mask2 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
   %value2 = arith.constant dense<[300, 301, 302, 303, 304, 305, 306, 307]> : vector<8xi32>
 
-  vector.compressstore %base1[%c1, %c1], %mask2, %value2 
+  vector.compressstore %base1[%c1, %c1], %mask2, %value2
     : memref<4x4xi32> , vector<8xi1>,vector<8xi32>
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data = 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data =
   // CHECK-NEXT: [
   // CHECK-SAME: [0,   200,   203,   3],
-  // CHECK-NEXT: [4,   300,   302,   303], 
+  // CHECK-NEXT: [4,   300,   302,   303],
   // CHECK-NEXT: [304,   305,   10,   11],
   // CHECK-NEXT: [12,   13,   14,   15]
-  // CHECK-SAME: ] 
+  // CHECK-SAME: ]
   func.call @printMemrefI32(%gv1_for_print) : (memref<*xi32>) -> ()
 
 
@@ -101,8 +102,8 @@ func.func @main() -> i32 {
   // "3" is reserved for this example
 
   //============================================================================
-  // Tips: because keep using the same memory region for all examples will make 
-  // the changes of memref look very messed up, we change to another clean 
+  // Tips: because keep using the same memory region for all examples will make
+  // the changes of memref look very messed up, we change to another clean
   // memref as our "base ptr" below. (%gv2)
   //============================================================================
 
@@ -117,9 +118,9 @@ func.func @main() -> i32 {
 
   // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data =
   // CHECK-NEXT: [
-  // CHECK-SAME: [0,   1,   2,   3], 
-  // CHECK-NEXT: [4,   400,   402,   403], 
-  // CHECK-NEXT: [404,   405,   10,   11], 
+  // CHECK-SAME: [0,   1,   2,   3],
+  // CHECK-NEXT: [4,   400,   402,   403],
+  // CHECK-NEXT: [404,   405,   10,   11],
   // CHECK-NEXT: [12,   13,   14,   15]
   // CHECK-SAME: ]
   func.call @printMemrefI32(%gv2_for_print) : (memref<*xi32>) -> ()
@@ -133,19 +134,19 @@ func.func @main() -> i32 {
 
   vector.compressstore %base5[%c3, %c1], %mask5, %value5
     : memref<?x?xi32>, vector<8xi1>, vector<8xi32>
-  
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data = 
+
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data =
   // CHECK-NEXT: [
-  // CHECK-SAME: [0,   1,   2,   3], 
+  // CHECK-SAME: [0,   1,   2,   3],
   // CHECK-NEXT: [4,   400,   402,   403],
-  // CHECK-NEXT: [404,   405,   10,   11], 
+  // CHECK-NEXT: [404,   405,   10,   11],
   // CHECK-NEXT: [12,   500,   502,   503]
   // CHECK-SAME: ]
 
   // the @gv2 looks good
   func.call @printMemrefI32(%gv2_for_print) : (memref<*xi32>) -> ()
 
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 1 offset = 0 sizes = [8] strides = [1] data = 
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 1 offset = 0 sizes = [8] strides = [1] data =
   // CHECK: [504,  505,  2,  3,  4,  5,  6,  7]
   // oops, we write the rest part to @gv3
   func.call @printMemrefI32(%gv3_for_print) : (memref<*xi32>) -> ()

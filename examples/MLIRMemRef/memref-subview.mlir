@@ -5,7 +5,7 @@
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -30,15 +30,15 @@ module {
 
     %result_reduce = memref.subview %mem[0, 0][1, 3][1, 1]: memref<5x5xf32> to memref<3xf32, strided<[1]>>
     %print_output = memref.cast %result : memref<?x?xf32, #map0> to memref<*xf32>
-    // CHECK: Unranked Memref {{.*}} rank = 2 offset = 0 sizes = [3, 3] strides = [10, 2] data = 
+    // CHECK: Unranked Memref {{.*}} rank = 2 offset = 0 sizes = [3, 3] strides = [10, 2] data =
     // CHECK-NEXT: [
-    // CHECK-SAME: [0,   2,   4], 
-    // CHECK-NEXT: [20,   22,   24], 
+    // CHECK-SAME: [0,   2,   4],
+    // CHECK-NEXT: [20,   22,   24],
     // CHECK-NEXT: [40,   42,   44]
     // CHECK-SAME: ]
     call @printMemrefF32(%print_output) : (memref<*xf32>) -> ()
     %print_output_reduce = memref.cast %result_reduce : memref<3xf32, strided<[1]>> to memref<*xf32>
-    // CHECK: Unranked Memref base@ = {{.*}} rank = 1 offset = 0 sizes = [3] strides = [1] data = 
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 1 offset = 0 sizes = [3] strides = [1] data =
     // CHECK-NEXT: [0,  1,  2]
     call @printMemrefF32(%print_output_reduce) : (memref<*xf32>) -> ()
     return

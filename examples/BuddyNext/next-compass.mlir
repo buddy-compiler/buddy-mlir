@@ -2,15 +2,10 @@
 // RUN:     -arith-expand \
 // RUN:     -eliminate-empty-tensors \
 // RUN:     -empty-tensor-to-alloc-tensor \
-// RUN:     -one-shot-bufferize \
+// RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -affine-loop-fusion \
 // RUN:     -lower-affine \
-// RUN:     -func-bufferize \
-// RUN:     -arith-bufferize \
-// RUN:     -tensor-bufferize \
-// RUN:     -buffer-deallocation \
-// RUN:     -finalizing-bufferize \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -expand-strided-metadata \
 // RUN:     -convert-vector-to-llvm \
@@ -25,7 +20,7 @@
 // RUN:     -convert-math-to-libm  \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -37,7 +32,7 @@ func.func @kernel(%arg0: tensor<40x4096xf32>, %arg1: tensor<4096x4096xf32>)
   %cst = arith.constant dense<0.0> : tensor<40x4096xf32>
   %0 = linalg.matmul ins(%arg0, %arg1 : tensor<40x4096xf32>, tensor<4096x4096xf32>)
                      outs(%cst : tensor<40x4096xf32>) -> tensor<40x4096xf32>
-  %expanded = tensor.expand_shape %0 [[0, 1], [2]] : tensor<40x4096xf32>
+  %expanded = tensor.expand_shape %0 [[0, 1], [2]] output_shape [1, 40, 4096] : tensor<40x4096xf32>
       into tensor<1x40x4096xf32>
   %1 = tensor.empty() : tensor<1x40x4096xf32>
   %c2_i32 = arith.constant 2 : i32

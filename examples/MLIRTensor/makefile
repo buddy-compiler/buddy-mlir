@@ -2,7 +2,7 @@
 BUDDY_OPT := ../../build/bin/buddy-opt
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-runner
 LLC := ../../llvm/build/bin/llc
 OPT_FLAG := -O0
 
@@ -59,10 +59,9 @@ tensor-collapse-shape-translate:
 
 tensor-collapse-shape-run:
 	@${MLIR_OPT} ./tensor-collapse-shape.mlir \
-		-arith-bufferize -tensor-bufferize -func-bufferize \
-		-finalizing-bufferize -buffer-deallocation  \
+		--one-shot-bufferize="bufferize-function-boundaries"  \
 		-expand-strided-metadata -lower-affine \
-		-finalize-memref-to-llvm -convert-func-to-llvm \
+		-finalize-memref-to-llvm -convert-func-to-llvm -convert-arith-to-llvm\
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -84,9 +83,9 @@ tensor-extract-translate:
 
 tensor-extract-run:
 	@${MLIR_OPT} ./tensor-extract.mlir \
-		-arith-bufferize  -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
-		 -finalize-memref-to-llvm -convert-func-to-llvm \
+		--one-shot-bufferize="bufferize-function-boundaries" -convert-vector-to-llvm \
+		-buffer-deallocation -convert-linalg-to-loops \
+		 -finalize-memref-to-llvm -convert-func-to-llvm -convert-arith-to-llvm\
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -108,9 +107,9 @@ tensor-extract-slice-translate:
 
 tensor-extract-slice-run:
 	@${MLIR_OPT} ./tensor-extract-slice.mlir \
-		-arith-bufferize  -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops -expand-strided-metadata \
-		 -finalize-memref-to-llvm -convert-func-to-llvm \
+		--one-shot-bufferize="bufferize-function-boundaries" -convert-vector-to-llvm \
+		 -convert-linalg-to-loops -convert-scf-to-cf -expand-strided-metadata  \
+		 -finalize-memref-to-llvm -convert-func-to-llvm -convert-arith-to-llvm\
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -132,9 +131,9 @@ tensor-from-elements-translate:
 
 tensor-from-elements-run:
 	@${MLIR_OPT} ./tensor-from-elements.mlir \
-		-arith-bufferize  -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops \
-		 -finalize-memref-to-llvm -convert-func-to-llvm \
+		--one-shot-bufferize="bufferize-function-boundaries" -convert-vector-to-llvm \
+		-convert-linalg-to-loops \
+		 -finalize-memref-to-llvm -convert-func-to-llvm -convert-arith-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
