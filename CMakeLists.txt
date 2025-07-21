@@ -11,9 +11,12 @@ if(POLICY CMP0077)
 endif()
 
 if(POLICY CMP0116)
-  cmake_policy(SET CMP0116 OLD)
+  cmake_policy(SET CMP0116 NEW)
 endif()
 
+if(POLICY CMP0174)
+  cmake_policy(SET CMP0174 NEW)
+endif()
 #-------------------------------------------------------------------------------
 # Project setup and globals
 #-------------------------------------------------------------------------------
@@ -240,7 +243,6 @@ add_subdirectory(backend)
 add_subdirectory(tools)
 add_subdirectory(examples)
 add_subdirectory(tests)
-
 #-------------------------------------------------------------------------------
 # Target check-buddy
 #-------------------------------------------------------------------------------

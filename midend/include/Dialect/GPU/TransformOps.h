@@ -30,7 +30,7 @@
 
 #include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
-#include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
+#include "mlir/Dialect/Transform/Interfaces/TransformInterfaces.h"
 
 namespace mlir {
 class DialectRegistry;
@@ -59,8 +59,7 @@ void registerBuddyGPUTransformOps(mlir::DialectRegistry &registry);
 namespace gpu {
 
 class TransformExtensions
-    : public mlir::transform::TransformDialectExtension<
-          TransformExtensions> {
+    : public mlir::transform::TransformDialectExtension<TransformExtensions> {
 public:
   TransformExtensions();
 };

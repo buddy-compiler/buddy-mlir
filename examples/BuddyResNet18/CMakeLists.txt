@@ -13,13 +13,12 @@ add_custom_command(
   COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
             -pass-pipeline
             "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), \
-            empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg, arith-bufferize, \
-            func.func(linalg-bufferize, tensor-bufferize), func-bufferize)" |
+            empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg)" |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
             -pass-pipeline
             "builtin.module(func.func(buffer-deallocation-simplification, convert-linalg-to-loops), \
             eliminate-empty-tensors, func.func(llvm-request-c-wrappers), \
-            convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf, \
+            convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf, convert-cf-to-llvm, \
             convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, \
             convert-func-to-llvm, reconcile-unrealized-casts)" |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
@@ -37,36 +36,21 @@ add_custom_command(
             -pass-pipeline
             "builtin.module(func.func(tosa-to-linalg-named, tosa-to-arith, tosa-to-linalg, tosa-to-tensor))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
-            -convert-elementwise-to-linalg
-            -arith-expand
-            -eliminate-empty-tensors
-            -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize
-            -func-bufferize-dynamic-offset
-            -tensor-bufferize
-            -arith-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
-            -conv-nhwc-fhwc-optimize
-            -batchmatmul-optimize
-            -convert-linalg-to-affine-loops
-            -affine-loop-fusion
-            -lower-affine
-            -convert-vector-to-scf
-            -expand-strided-metadata
-            -memref-expand
-            -arith-expand
-            -convert-vector-to-llvm
-            -memref-expand
-            -arith-expand
-            -convert-arith-to-llvm
-            -finalize-memref-to-llvm
-            -convert-scf-to-cf
-            -llvm-request-c-wrappers
-            -convert-math-to-llvm
-            -convert-math-to-libm
-            -convert-func-to-llvm
-            -reconcile-unrealized-casts |
+          -convert-elementwise-to-linalg
+          -one-shot-bufferize="bufferize-function-boundaries"
+          -func-bufferize-dynamic-offset
+          -convert-linalg-to-loops
+          -convert-scf-to-cf
+          -convert-cf-to-llvm
+          -expand-strided-metadata
+          -lower-affine
+          -llvm-request-c-wrappers
+          -convert-arith-to-llvm
+          -convert-math-to-llvm
+          -convert-math-to-libm
+          -convert-func-to-llvm
+          -finalize-memref-to-llvm
+          -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3

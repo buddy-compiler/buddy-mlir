@@ -46,7 +46,10 @@ Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
                            Type elemTy) {
   Value op = {};
   auto bitWidth = elemTy.getIntOrFloatBitWidth();
-  if (auto floatType = dyn_cast<FloatType>(elemTy)) {
+  if (elemTy.isF32() || elemTy.isF64()) {
+    FloatType floatType = elemTy.isF32()
+                              ? static_cast<FloatType>(Float32Type::get(ctx))
+                              : static_cast<FloatType>(Float64Type::get(ctx));
     auto zero = APFloat::getZero(floatType.getFloatSemantics());
     op = builder.create<arith::ConstantFloatOp>(loc, zero, floatType);
   } else if (elemTy.isInteger(bitWidth)) {
@@ -158,7 +161,7 @@ Value iotaVec0F32(OpBuilder &builder, Location loc, int64_t length) {
   std::iota(vec.begin(), vec.end(), .0);
   Value res = builder.create<arith::ConstantOp>(
       loc,
-      DenseFPElementsAttr::get(VectorType::get(length, FloatType::getF32(ctx)),
+      DenseFPElementsAttr::get(VectorType::get(length, Float32Type::get(ctx)),
                                ArrayRef<float>(vec)));
   return res;
 }

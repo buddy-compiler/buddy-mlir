@@ -3,6 +3,7 @@
 // RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm \
 // RUN:     -convert-math-to-llvm \
 // RUN:     -convert-math-to-libm \
@@ -11,7 +12,7 @@
 // RUN:     -expand-strided-metadata \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -19,7 +20,7 @@
 module {
   func.func private @printMemrefF32(memref<*xf32>)
   func.func private @rtclock() -> f64
-  
+
   // CMK * CKN -> CMN
   func.func @batch_matmul(%arg0: memref<?x?x?xf32>, %arg1: memref<?x?x?xf32>, %arg2: memref<?x?x?xf32>) {
     %c0 = arith.constant 0 : index
@@ -35,7 +36,7 @@ module {
 
     // Calculate the upper bound for vectorized processing
     // - Subtract `vl_step` is to avoid overflow at the vectorization tail.
-    // - Add 1 to ensure the final loop runs when the workload length 
+    // - Add 1 to ensure the final loop runs when the workload length
     //   is divisible by the vector size.
     %dim_3_upbound_tmp = arith.subi %dim_3, %vl_step : index
     %dim_3_upbound = arith.addi %dim_3_upbound_tmp, %c1 : index
@@ -45,11 +46,11 @@ module {
       affine.prefetch %arg0[%arg3, %dim_1, %dim_2], read, locality<3>, data : memref<?x?x?xf32>
       affine.for %arg4 = %c0 to %dim_1 {                                  // M
         // Perform the vectorization body.
-        %iter_idx = scf.for %arg5 = %c0 to %dim_3_upbound 
+        %iter_idx = scf.for %arg5 = %c0 to %dim_3_upbound
               step %vl_step iter_args(%iter_init = %c0) -> (index) {      // N
           %1 = vector.load %arg2[%arg3, %arg4, %arg5] : memref<?x?x?xf32>, vector<32xf32>
           %iter_vec = scf.for %arg6 = %c0 to %dim_2 step %c1
-              iter_args(%iter_vec0 = %1) -> (vector<32xf32>) {            // K 
+              iter_args(%iter_vec0 = %1) -> (vector<32xf32>) {            // K
             %5 = memref.load %arg0[%arg3, %arg4, %arg6] : memref<?x?x?xf32>
             %6 = vector.broadcast %5 : f32 to vector<32xf32>
             %4 = vector.load %arg1[%arg3, %arg6, %arg5] : memref<?x?x?xf32>, vector<32xf32>
@@ -60,7 +61,7 @@ module {
           %arg5_next = arith.addi %arg5, %vl_step : index
           scf.yield %arg5_next : index
         }
-        // Compute the tail size and Process the remaining elements 
+        // Compute the tail size and Process the remaining elements
         // using masked vector operations.
         %tail_size = arith.subi %dim_3, %iter_idx : index
         %3 = arith.cmpi sgt, %tail_size, %c0 : index
@@ -68,7 +69,7 @@ module {
           %mask = vector.create_mask %tail_size : vector<32xi1>
           %1 = vector.maskedload %arg2[%arg3, %arg4, %iter_idx], %mask, %0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
           %iter_vec = scf.for %arg6 = %c0 to %dim_2 step %c1
-              iter_args(%iter_vec0 = %1) -> (vector<32xf32>) {             // K 
+              iter_args(%iter_vec0 = %1) -> (vector<32xf32>) {             // K
             %5 = vector.maskedload %arg1[%arg3, %arg6, %iter_idx], %mask, %0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
             %6 = memref.load %arg0[%arg3, %arg4, %arg6] : memref<?x?x?xf32>
             %7 = vector.broadcast %6 : f32 to vector<32xf32>
@@ -114,7 +115,7 @@ module {
     %m1 = call @alloc_f32(%c1, %c576, %c1024, %f3) : (index, index, index, f32) -> memref<?x?x?xf32>
     %m2 = call @alloc_f32(%c1, %c1, %c1024, %f0) : (index, index, index, f32) -> memref<?x?x?xf32>
 
-    // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 1, 1024] strides = [1024, 1024, 1] data = 
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 1, 1024] strides = [1024, 1024, 1] data =
     // CHECK-NEXT: [
     // CHECK: [
     // CHECK: [3456{{(, 3456)*}}]

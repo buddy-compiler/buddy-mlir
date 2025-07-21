@@ -2,7 +2,7 @@
 BUDDY_OPT := ../../build/bin/buddy-opt
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-runner
 LLC := ../../llvm/build/bin/llc
 OPT_FLAG := -O0
 
@@ -20,21 +20,21 @@ endif
 
 linalg-conv2d-lower:
 	@${MLIR_OPT} ./linalg-conv2d.mlir \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts \
 		-o ./log.mlir
 
 linalg-conv2d-translate:
 	@${MLIR_OPT} ./linalg-conv2d.mlir \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 linalg-conv2d-run:
 	@${MLIR_OPT} linalg-conv2d.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -47,15 +47,15 @@ linalg-conv2d-tiling-lower:
 linalg-conv2d-tiling-translate:
 	@${MLIR_OPT} ./linalg-conv2d.mlir \
 		-test-transform-dialect-interpreter \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 linalg-conv2d-tiling-run:
 	@${MLIR_OPT} linalg-conv2d.mlir ${MLIR_OPT_OPTIONS} \
-		-test-transform-dialect-interpreter \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-test-transform-dialect-erase-schedule \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -68,12 +68,12 @@ linalg-conv2d_nhwc_fhwc-optimize-lower:
 linalg-conv2d_nhwc_fhwc-optimize-run:
 	@${BUDDY_OPT} linalg-conv2d_nhwc_fhwc.mlir ${MLIR_OPT_OPTIONS} \
 		-conv-nhwc-fhwc-optimize="vec-size=16" \
-		-lower-affine -convert-scf-to-cf \
+		-lower-affine -convert-scf-to-cf -convert-cf-to-llvm\
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-		
+
 linalg-conv2d_nhwc_fhwc-tile-optimize-lower:
 	@${BUDDY_OPT} linalg-conv2d_nhwc_fhwc.mlir \
 		-conv-nhwc-fhwc-tile-optimize="vec-size=16 tiling-height=2 tiling-width=3" \
@@ -82,7 +82,7 @@ linalg-conv2d_nhwc_fhwc-tile-optimize-lower:
 linalg-conv2d_nhwc_fhwc-tile-optimize-run:
 	@${BUDDY_OPT} linalg-conv2d_nhwc_fhwc.mlir ${MLIR_OPT_OPTIONS} \
 		-conv-nhwc-fhwc-tile-optimize="vec-size=16 tiling-height=2 tiling-width=3" \
-		-lower-affine -convert-scf-to-cf \
+		-lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -95,49 +95,49 @@ linalg-depthwise_conv_2d_nhwc_hwc-optimize-lower:
 linalg-depthwise_conv_2d_nhwc_hwc-optimize-run:
 	@${BUDDY_OPT} linalg-depthwise_conv_2d_nhwc_hwc.mlir \
 		-depthwise-conv-nhwc-hwc-optimize="vec-size=16" \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts  | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 linalg-generic-lower:
 	@${MLIR_OPT} ./linalg-generic.mlir \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts \
 		-o ./log.mlir
 
 linalg-generic-translate:
 	@${MLIR_OPT} ./linalg-generic.mlir \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 linalg-generic-run:
 	@${MLIR_OPT} linalg-generic.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 linalg-matmul-lower:
 	@${MLIR_OPT} linalg-matmul.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts \
 		-o ./log.mlir
 
 linalg-matmul-translate:
 	@${MLIR_OPT} linalg-matmul.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 linalg-matmul-run:
 	@${MLIR_OPT} linalg-matmul.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -154,6 +154,7 @@ linalg-matmul-optimize-translate:
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -167,8 +168,10 @@ linalg-matmul-optimize-run:
 		-convert-linalg-to-loops \
 		-expand-strided-metadata \
 		-lower-affine \
-		-convert-scf-to-cf \
+		-convert-vector-to-scf \
 		-convert-vector-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-func-to-llvm \
@@ -183,6 +186,7 @@ linalg-batch-matmul-optimize-run:
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -193,21 +197,21 @@ linalg-batch-matmul-optimize-run:
 
 linalg-batch-matmul-lower:
 	@${MLIR_OPT} linalg-batch-matmul-f32.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts \
 		-o ./log.mlir
 
 linalg-batch-matmul-translate:
 	@${MLIR_OPT} linalg-batch-matmul-f32.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 linalg-batch-matmul-run:
 	@${MLIR_OPT} linalg-batch-matmul-f32.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_batchmatmul_f32 -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -224,11 +228,11 @@ linalg-batch-matmul-tile-optimize-lower:
 
 linalg-batch-matmul-tile-optimize-run:
 	@${BUDDY_OPT} linalg-batch-matmul-dync.mlir ${MLIR_OPT_OPTIONS} \
-		-batchmatmul-tile-optimize="vec-size=64 kernel-m=4 kernel-n=2" \
 		-convert-linalg-to-loops \
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -249,6 +253,7 @@ linalg-batch-matmul-scf-optimize-run:
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -264,6 +269,7 @@ linalg-batch-matmul-optimize-translate:
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -278,6 +284,7 @@ linalg-batch-matmul-i8-optimize-run:
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -288,21 +295,21 @@ linalg-batch-matmul-i8-optimize-run:
 
 linalg-batch-matmul-i8-lower:
 	@${MLIR_OPT} linalg-batch-matmul-i8.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts \
 		-o ./log.mlir
 
 linalg-batch-matmul-i8-translate:
 	@${MLIR_OPT} linalg-batch-matmul-i8.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 linalg-batch-matmul-i8-run:
 	@${MLIR_OPT} linalg-batch-matmul-i8.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_batchmatmul_i8 -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -319,6 +326,7 @@ linalg-batch-matmul-i8-optimize-translate:
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -333,6 +341,7 @@ linalg-matmul-parallized-vectorized-optmize-run:
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -353,6 +362,7 @@ linalg-matmul-parallized-vectorized-optmize-translate:
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -367,6 +377,7 @@ linalg-matmul-i8-parallized-vectorized-optmize-run:
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -387,6 +398,7 @@ linalg-matmul-i8-parallized-vectorized-optmize-translate:
 		-expand-strided-metadata \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -402,6 +414,7 @@ linalg-transpose-optimize-run:
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-arith-to-llvm \
 		-llvm-request-c-wrappers \
 		-convert-func-to-llvm \
@@ -413,21 +426,21 @@ linalg-transpose-optimize-run:
 
 linalg-transpose-lower:
 	@${MLIR_OPT} linalg-transpose-f32.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts \
 		-o ./log.mlir
 
 linalg-transpose-translate:
 	@${MLIR_OPT} linalg-transpose-f32.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 linalg-transpose-run:
 	@${MLIR_OPT} linalg-transpose-f32.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e buddy_transpose_f32 -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -445,6 +458,7 @@ linalg-transpose-optimize-translate:
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-arith-to-llvm \
 		-llvm-request-c-wrappers \
 		-convert-func-to-llvm \
@@ -460,14 +474,14 @@ linalg-conv2d_nchw_fchw-lower:
 
 linalg-conv2d_nchw_fchw-translate:
 	@${MLIR_OPT} ./linalg-conv2d_nchw_fchw.mlir \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
 
 linalg-conv2d_nchw_fchw-run:
 	@${MLIR_OPT} linalg-conv2d_nchw_fchw.mlir ${MLIR_OPT_OPTIONS} \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -480,7 +494,7 @@ linalg-conv2d_nchw_fchw-optimize-lower:
 linalg-conv2d_nchw_fchw-optimize-translate:
 	@${BUDDY_OPT} ./linalg-conv2d_nchw_fchw.mlir \
 		--conv-optimize="kernel-m=2 kernel-n=3 vec-size=16" \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
@@ -488,7 +502,7 @@ linalg-conv2d_nchw_fchw-optimize-translate:
 linalg-conv2d_nchw_fchw-optimize-run:
 	@${BUDDY_OPT} ./linalg-conv2d_nchw_fchw.mlir ${MLIR_OPT_OPTIONS} \
 		--conv-optimize="kernel-m=2 kernel-n=3 vec-size=16" \
-		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+		-convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 		-convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 		-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
@@ -503,6 +517,7 @@ linalg-pooling-nhwc-max-run:
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -524,6 +539,7 @@ linalg-pooling-nhwc-max-vectorization-run:
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \

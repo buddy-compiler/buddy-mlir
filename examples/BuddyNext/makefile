@@ -2,7 +2,7 @@
 BUDDY_OPT := ../../build/bin/buddy-opt
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-runner
 LLC := ../../llvm/build/bin/llc
 OPT_FLAG := -O0
 
@@ -25,15 +25,10 @@ next-attention-lower:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
@@ -42,6 +37,7 @@ next-attention-lower:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -57,15 +53,9 @@ next-attention-translate:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
@@ -74,6 +64,7 @@ next-attention-translate:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -89,15 +80,10 @@ next-attention-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
@@ -106,6 +92,7 @@ next-attention-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -119,11 +106,7 @@ next-attention-loop-run:
 	@${MLIR_OPT} ./next-attention-loop.mlir \
 		-affine-loop-fusion \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
@@ -132,6 +115,7 @@ next-attention-loop-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -145,11 +129,7 @@ next-attention-fusion-run:
 	@${MLIR_OPT} ./next-attention-fusion.mlir \
 		-affine-loop-fusion \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
@@ -158,6 +138,7 @@ next-attention-fusion-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -174,15 +155,10 @@ next-sigmoid-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
@@ -191,6 +167,7 @@ next-sigmoid-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -231,15 +208,10 @@ next-eliminate-add-zero-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
@@ -248,6 +220,7 @@ next-eliminate-add-zero-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -264,23 +237,19 @@ next-rope-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
 		-memref-expand \
 		-arith-expand \
+		-lower-affine \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -298,15 +267,10 @@ next-eliminate-identity-run:
         -arith-expand \
         -eliminate-empty-tensors \
         -empty-tensor-to-alloc-tensor \
-        -one-shot-bufferize \
+        -one-shot-bufferize="bufferize-function-boundaries" \
         -convert-linalg-to-affine-loops \
         -affine-loop-fusion \
         -lower-affine \
-        -func-bufferize \
-        -arith-bufferize \
-        -tensor-bufferize \
-        -buffer-deallocation \
-        -finalizing-bufferize \
         -convert-vector-to-scf \
         -expand-strided-metadata \
         -convert-vector-to-llvm \
@@ -315,6 +279,7 @@ next-eliminate-identity-run:
         -convert-arith-to-llvm \
         -finalize-memref-to-llvm \
         -convert-scf-to-cf \
+		-convert-cf-to-llvm \
         -convert-openmp-to-llvm \
         -convert-arith-to-llvm \
         -convert-math-to-llvm \
@@ -331,6 +296,7 @@ next-sgemm-run:
         -lower-affine \
 		-convert-vector-to-scf \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -346,9 +312,7 @@ next-transpose-lower:
         -arith-expand \
         -eliminate-empty-tensors \
         -empty-tensor-to-alloc-tensor \
-        -one-shot-bufferize \
-		-func-bufferize \
-        -arith-bufferize \
+        -one-shot-bufferize="bufferize-function-boundaries" \
         -o log.mlir
 
 next-transpose-run:
@@ -358,9 +322,7 @@ next-transpose-run:
         -arith-expand \
         -eliminate-empty-tensors \
         -empty-tensor-to-alloc-tensor \
-        -one-shot-bufferize \
-		-func-bufferize \
-        -arith-bufferize \
+        -one-shot-bufferize="bufferize-function-boundaries" \
         -convert-linalg-to-affine-loops \
         -affine-loop-fusion \
         -lower-affine \
@@ -372,6 +334,7 @@ next-transpose-run:
         -convert-arith-to-llvm \
         -finalize-memref-to-llvm \
         -convert-scf-to-cf \
+		-convert-cf-to-llvm \
         -convert-openmp-to-llvm \
         -convert-arith-to-llvm \
         -convert-math-to-llvm \
@@ -396,6 +359,7 @@ next-transpose-vec-manual-run:
         -convert-arith-to-llvm \
         -finalize-memref-to-llvm \
         -convert-scf-to-cf \
+		-convert-cf-to-llvm \
         -convert-openmp-to-llvm \
         -convert-arith-to-llvm \
         -convert-math-to-llvm \
@@ -413,7 +377,7 @@ next-embedding-lower:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-o log.mlir
 
@@ -424,23 +388,19 @@ next-embedding-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
 		-memref-expand \
 		-arith-expand \
+		-lower-affine \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -457,15 +417,10 @@ next-mask-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
@@ -474,6 +429,7 @@ next-mask-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -490,23 +446,19 @@ next-norm-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
 		-memref-expand \
 		-arith-expand \
+		-lower-affine \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -523,23 +475,19 @@ next-mhsa-qkv-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
 		-memref-expand \
 		-arith-expand \
+		-lower-affine \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -556,24 +504,20 @@ next-mhsa-qkv-parallel-vec-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-matmul-parallel-vectorization-optimize \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
 		-memref-expand \
 		-arith-expand \
+		-lower-affine \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -601,23 +545,19 @@ next-mhsa-qkv-fusion-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
 		-memref-expand \
 		-arith-expand \
+		-lower-affine \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -639,11 +579,6 @@ next-mhsa-qkv-fusion-vec-run:
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
@@ -652,6 +587,7 @@ next-mhsa-qkv-fusion-vec-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -668,23 +604,19 @@ next-mhsa-core-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
 		-memref-expand \
 		-arith-expand \
+		-lower-affine \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -701,23 +633,19 @@ next-mhsa-context-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
 		-memref-expand \
 		-arith-expand \
+		-lower-affine \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -734,23 +662,19 @@ next-ffn-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
 		-memref-expand \
 		-arith-expand \
+		-lower-affine \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -767,25 +691,21 @@ next-ffn-parallel-vec-run:
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-matmul-parallel-vectorization-optimize \
 		-batchmatmul-optimize \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
 		-memref-expand \
 		-arith-expand \
+		-lower-affine \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -800,6 +720,7 @@ pooling-nhwc-max-vec-run:
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-arith-to-llvm \
@@ -808,14 +729,12 @@ pooling-nhwc-max-vec-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-next-compass-run:
+next-compass-lower:
 	@${MLIR_OPT} ./next-compass.mlir \
 		-arith-expand \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
-		-func-bufferize \
-		-arith-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-lower-affine \
@@ -832,7 +751,32 @@ next-compass-run:
 		-convert-math-to-llvm \
 		-convert-math-to-libm  \
 		-convert-func-to-llvm \
-		-reconcile-unrealized-casts | \
+		-reconcile-unrealized-casts  \
+		-o log.mlir
+
+next-compass-run:
+	@${MLIR_OPT} ./next-compass.mlir \
+    -arith-expand \
+    -eliminate-empty-tensors \
+    -empty-tensor-to-alloc-tensor \
+    -one-shot-bufferize="bufferize-function-boundaries" \
+    -convert-linalg-to-affine-loops \
+    -affine-loop-fusion \
+    -lower-affine \
+    -convert-vector-to-scf \
+    -expand-strided-metadata \
+    -convert-vector-to-llvm \
+    -memref-expand \
+    -arith-expand \
+    -convert-arith-to-llvm \
+    -finalize-memref-to-llvm \
+    -convert-scf-to-cf \
+    -convert-openmp-to-llvm \
+    -convert-arith-to-llvm \
+    -convert-math-to-llvm \
+    -convert-math-to-libm  \
+    -convert-func-to-llvm \
+    -reconcile-unrealized-casts  | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} \
 		-shared-libs=${MLIR_C_RUNNER_UTILS}

@@ -34,13 +34,13 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/LogicalResult.h"
-#include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/MathExtras.h"
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -119,8 +119,9 @@ void FuncBufferizeDynamicOffsetPass::runOnOperation() {
       auto rankedDestType = dyn_cast<MemRefType>(type);
       if (!rankedDestType)
         return nullptr;
+      mlir::bufferization::BufferizationOptions bufferizationOptions;
       FailureOr<Value> replacement = bufferization::castOrReallocMemRefValue(
-          builder, inputs[0], rankedDestType);
+          builder, inputs[0], rankedDestType, bufferizationOptions);
       if (failed(replacement))
         return nullptr;
       return *replacement;
