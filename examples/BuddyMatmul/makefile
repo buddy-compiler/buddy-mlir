@@ -25,6 +25,7 @@ linalg-batchmatmul-f32-run:
 		-lower-affine \
 		-convert-vector-to-scf \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm \
