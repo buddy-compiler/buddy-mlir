@@ -368,13 +368,13 @@ class Graph:
             pm.add("eliminate-empty-tensors")
             pm.add("empty-tensor-to-alloc-tensor")
             pm.add("convert-elementwise-to-linalg")
-            pm.add("one-shot-bufferize")
+            pm.add("one-shot-bufferize{bufferize-function-boundaries}")
             pm.add("func.func(convert-linalg-to-affine-loops)")
             pm.add("affine-loop-fusion")
             pm.add("func.func(affine-parallelize)")
-            pm.add("convert-scf-to-openmp")
             pm.add("expand-strided-metadata")
             pm.add("lower-affine")
+            pm.add("convert-scf-to-openmp")
             pm.add("convert-vector-to-llvm")
             pm.add("memref-expand")
             pm.add("arith-expand")
@@ -388,7 +388,9 @@ class Graph:
             pm.add("convert-math-to-libm")
             pm.add("convert-func-to-llvm")
             pm.add("reconcile-unrealized-casts")
+            print(self._imported_module.operation)
             pm.run(self._imported_module.operation)
+            print(self._imported_module.operation)
 
     def compile(self):
         """
