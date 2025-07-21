@@ -388,9 +388,7 @@ class Graph:
             pm.add("convert-math-to-libm")
             pm.add("convert-func-to-llvm")
             pm.add("reconcile-unrealized-casts")
-            print(self._imported_module.operation)
             pm.run(self._imported_module.operation)
-            print(self._imported_module.operation)
 
     def compile(self):
         """
