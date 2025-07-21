@@ -44,8 +44,6 @@
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
 #include "RVV/RVVDialect.h"
-#include "Sche/ScheDialect.h"
-#include "Sche/ScheOps.h"
 #include "VIR/VIRDialect.h"
 #include "VIR/VIROps.h"
 #include "VectorExp/VectorExpDialect.h"
@@ -79,13 +77,10 @@ void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
-void registerDeviceSchedulePass();
-void registerLowerSchePass();
 void registerFuncBufferizeDynamicOffsetPass();
 void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
-void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 } // namespace buddy
 } // namespace mlir
@@ -124,8 +119,6 @@ int main(int argc, char **argv) {
   mlir::buddy::registerConvNhwcFhwcOptimizePass();
   mlir::buddy::registerConvNhwcFhwcTileOptimizePass();
   mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
-  mlir::buddy::registerDeviceSchedulePass();
-  mlir::buddy::registerLowerSchePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
 
@@ -145,8 +138,7 @@ int main(int argc, char **argv) {
                   buddy::rvv::RVVDialect,
                   buddy::vector_exp::VectorExpDialect,
                   buddy::vir::VIRDialect,
-                  buddy::gemmini::GemminiDialect,
-                  buddy::sche::ScheDialect>();
+                  buddy::gemmini::GemminiDialect>();
   // clang-format on
 
   mlir::buddy::registerBuddyGPUTransformOps(registry);

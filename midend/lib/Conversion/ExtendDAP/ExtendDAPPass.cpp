@@ -2293,13 +2293,13 @@ void my_sincosm1pi(OpBuilder &opBuilder, Location loc, Value a, Value res,
 
   FloatType f64Ty = opBuilder.getF64Type();
 
-  FailureOr<StridedLayoutAttr> computelayout =
-      StridedLayoutAttr::get(opBuilder.getContext(),
-                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
+      opBuilder.getContext(),
+      /*offset=*/ShapedType::kDynamic, /*strides=*/{ShapedType::kDynamic});
   MemRefType resultType =
       MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-  // memref<?xf64, strided<[1], offset: ?>>
+  // memref<?xf64, strided<[?], offset: ?>>
 
   Value res_raw = opBuilder.create<memref::SubViewOp>(
       loc, resultType, res, SmallVector<OpFoldResult>{bias},
@@ -2382,13 +2382,13 @@ void calc_first_octant_extend2(OpBuilder &opBuilder, Location loc, Value den,
 
   FloatType f64Ty = opBuilder.getF64Type();
 
-  FailureOr<StridedLayoutAttr> computelayout =
-      StridedLayoutAttr::get(opBuilder.getContext(),
-                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
+      opBuilder.getContext(),
+      /*offset=*/ShapedType::kDynamic, /*strides=*/{ShapedType::kDynamic});
   MemRefType resultType =
       MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-  // memref<?xf64, strided<[1], offset: ?>>
+  // memref<?xf64, strided<[?], offset: ?>>
 
   Value res_raw = opBuilder.create<memref::SubViewOp>(
       loc, resultType, res, SmallVector<OpFoldResult>{bias},
@@ -2521,13 +2521,13 @@ void calc_first_octant_extend1(OpBuilder &opBuilder, Location loc, Value den,
 
   FloatType f64Ty = opBuilder.getF64Type();
 
-  FailureOr<StridedLayoutAttr> computelayout =
-      StridedLayoutAttr::get(opBuilder.getContext(),
-                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
+      opBuilder.getContext(),
+      /*offset=*/ShapedType::kDynamic, /*strides=*/{ShapedType::kDynamic});
   MemRefType resultType =
       MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-  // memref<?xf64, strided<[1], offset: ?>>
+  // memref<?xf64, strided<[?], offset: ?>>
 
   Value res_raw = opBuilder.create<memref::SubViewOp>(
       loc, resultType, res, SmallVector<OpFoldResult>{bias},
@@ -2589,13 +2589,13 @@ void calc_first_quadrant(OpBuilder &opBuilder, Location loc, Value n,
 
   FloatType f64Ty = opBuilder.getF64Type();
 
-  FailureOr<StridedLayoutAttr> computelayout =
-      StridedLayoutAttr::get(opBuilder.getContext(),
-                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
+      opBuilder.getContext(),
+      /*offset=*/ShapedType::kDynamic, /*strides=*/{ShapedType::kDynamic});
   MemRefType resultType =
       MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-  // memref<?xf64, strided<[1], offset: ?>>
+  // memref<?xf64, strided<[?], offset: ?>>
 
   Value p_raw = opBuilder.create<memref::SubViewOp>(
       loc, resultType, res, SmallVector<OpFoldResult>{n},
@@ -2698,13 +2698,13 @@ void calc_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
 
   Value nm1 = opBuilder.create<arith::SubIOp>(loc, n, c1);
 
-  FailureOr<StridedLayoutAttr> computelayout =
-      StridedLayoutAttr::get(opBuilder.getContext(),
-                             /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+  FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
+      opBuilder.getContext(),
+      /*offset=*/ShapedType::kDynamic, /*strides=*/{ShapedType::kDynamic});
   MemRefType resultType =
       MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-  // memref<?xf64, strided<[1], offset: ?>>
+  // memref<?xf64, strided<[?], offset: ?>>
 
   Value p_raw = opBuilder.create<memref::SubViewOp>(
       loc, resultType, res, SmallVector<OpFoldResult>{nm1},
@@ -3016,7 +3016,7 @@ void sincos_2pibyn_half(OpBuilder &opBuilder, Location loc, Value n,
       [&](OpBuilder &builder, Location loc) {
         // TODO: remove the following values?
         // Value n_mod_2 = builder.create<arith::RemUIOp>(loc, n, c2);
-        
+
         // TODO: remove condition1?
         // Value condition1 = builder.create<arith::CmpIOp>(
         //     loc, arith::CmpIPredicate::eq, n_mod_2, c0);
@@ -3399,13 +3399,14 @@ void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
         // Value ch = builder.create<memref::AllocOp>(
         //     loc, MemRefType::get(cType.getShape(), f64Ty));
 
-        FailureOr<StridedLayoutAttr> computelayout = StridedLayoutAttr::get(
-            opBuilder.getContext(),
-            /*offset=*/ShapedType::kDynamic, /*strides=*/{1});
+        FailureOr<StridedLayoutAttr> computelayout =
+            StridedLayoutAttr::get(opBuilder.getContext(),
+                                   /*offset=*/ShapedType::kDynamic,
+                                   /*strides=*/{ShapedType::kDynamic});
         MemRefType resultType =
             MemRefType::get(ShapedType::kDynamic, f64Ty, *computelayout);
 
-        // memref<?xf64, strided<[1], offset: ?>>
+        // memref<?xf64, strided<[?], offset: ?>>
 
         Value p1_raw = builder.create<memref::SubViewOp>(
             loc, resultType, c, SmallVector<OpFoldResult>{c0},
@@ -3672,8 +3673,7 @@ class DAPRFFTLowering : public OpRewritePattern<dap::RFFTOp> {
 public:
   using OpRewritePattern<dap::RFFTOp>::OpRewritePattern;
 
-  explicit DAPRFFTLowering(MLIRContext *context)
-      : OpRewritePattern(context) {}
+  explicit DAPRFFTLowering(MLIRContext *context) : OpRewritePattern(context) {}
 
   LogicalResult matchAndRewrite(dap::RFFTOp op,
                                 PatternRewriter &rewriter) const override {
@@ -3749,8 +3749,8 @@ public:
     Value c3000 = rewriter.create<ConstantIndexOp>(loc, 3000);
     Value c480000 = rewriter.create<ConstantIndexOp>(loc, 480000);
 
-    FloatType f32 = FloatType::getF32(ctx);
-    FloatType f64 = FloatType::getF64(ctx);
+    FloatType f32 = Float32Type::get(ctx);
+    FloatType f64 = Float64Type::get(ctx);
 
     Value inputFeatures = rewriter.create<bufferization::ToTensorOp>(
         loc, input, /*restrict=*/true, /*writable=*/false);
