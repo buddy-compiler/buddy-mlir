@@ -1,53 +1,64 @@
-// next-silu.mlir
-//
-// Implements the SiLU (Sigmoid Linear Unit) activation function.
-// SiLU(x) = x * sigmoid(x)
-// This is realized by composing a tosa.sigmoid and a tosa.mul operation.
-//
-module {
-  // Declare external utility functions for timing and printing.
+// RUN: buddy-opt %s \
+// RUN:     -pass-pipeline="builtin.module(func.func(tosa-to-linalg-named,tosa-to-linalg,tosa-to-tensor,tosa-to-arith))" \
+// RUN: | buddy-opt \
+// RUN:     -arith-expand \
+// RUN:     -eliminate-empty-tensors \
+// RUN:     -empty-tensor-to-alloc-tensor \
+// RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
+// RUN:     -convert-linalg-to-affine-loops \
+// RUN:     -affine-loop-fusion \
+// RUN:     -lower-affine \
+// RUN:     -convert-vector-to-scf \
+// RUN:     -expand-strided-metadata \
+// RUN:     -convert-vector-to-llvm \
+// RUN:     -memref-expand \
+// RUN:     -arith-expand \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -finalize-memref-to-llvm \
+// RUN:     -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
+// RUN:     -convert-openmp-to-llvm \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -convert-math-to-llvm \
+// RUN:     -convert-math-to-libm  \
+// RUN:     -convert-func-to-llvm \
+// RUN:     -reconcile-unrealized-casts \
+// RUN: | mlir-runner -e main -entry-point-result=void \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
   func.func private @rtclock() -> f64
-  func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 
-  //
-  // The kernel function that performs the SiLU calculation.
-  //
-  func.func @kernel_silu(%arg0: tensor<1x40x8960xf32>) {
+  func.func @kenerl(%arg0: tensor<1x40x8960xf32>) {
     %t_start = call @rtclock() : () -> f64
 
-    // Step 1: Calculate the sigmoid of the input.
     %sigmoid_x = tosa.sigmoid %arg0 : (tensor<1x40x8960xf32>) -> tensor<1x40x8960xf32>
 
-    // Step 2: Multiply the original input with its sigmoid.
-    // This is the SiLU operation. {shift=0} is standard for float multiplication.
     %silu_result = tosa.mul %arg0, %sigmoid_x {shift = 0 : i8} : (tensor<1x40x8960xf32>, tensor<1x40x8960xf32>) -> tensor<1x40x8960xf32>
 
     %t_end = call @rtclock() : () -> f64
     %time = arith.subf %t_end, %t_start : f64
 
-    // Cast the result to an unranked tensor for the print function.
     %unranked_result = tensor.cast %silu_result : tensor<1x40x8960xf32> to tensor<*xf32>
-    
-    // Print the result tensor to verify correctness.
+
+    // All the elements of the MemRef are the same,
+    // only check the first line to verify the correctness.
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 40, 8960] strides = [358400, 8960, 1] data =
+    // CHECK-NEXT: [
+    // CHECK-SAME: [2.85772{{(, 2.85772)*}}],
+
+    // print results.
     call @printMemrefF32(%unranked_result) : (tensor<*xf32>) -> ()
-    
-    // Print the execution time.
+    // print timings.
     vector.print %time : f64
 
     return
   }
 
-  //
-  // Main function to drive the test.
-  //
   func.func @main() {
-    // Initialize input with a constant value (e.g., 3.0).
-    // The SiLU of 3.0 is 3.0 * sigmoid(3.0) = 3.0 * 0.952574 = 2.857722
     %input_tensor = arith.constant dense<3.0> : tensor<1x40x8960xf32>
-
-    // Call the SiLU kernel.
-    call @kernel_silu(%input_tensor) : (tensor<1x40x8960xf32>) -> ()
+    call @kenerl(%input_tensor) : (tensor<1x40x8960xf32>) -> ()
 
     return
   }
-} 
+  func.func private @printMemrefF32(%ptr : tensor<*xf32>)
