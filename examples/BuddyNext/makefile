@@ -15,7 +15,7 @@ else ifeq ($(shell uname),Darwin)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.dylib
 MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
 LIB_OMP := ../../llvm/build/lib/libomp.dylib
-MTRIPLE := x86_64-apple-darwin
+MTRIPLE := arm64-apple-darwin
 endif
 
 next-attention-lower:
@@ -183,8 +183,8 @@ next-sigmoid-manual-run:
 	${BUDDY_OPT} \
   	-lower-affine \
   	-convert-scf-to-openmp\
-  	-buffer-deallocation \
-  	-finalizing-bufferize \
+  	-one-shot-bufferize \
+	-buffer-deallocation \
   	-expand-strided-metadata \
   	-convert-vector-to-llvm \
   	-memref-expand \
