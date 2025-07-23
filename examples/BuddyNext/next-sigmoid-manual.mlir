@@ -1,24 +1,24 @@
 // RUN: buddy-opt %s \
 // RUN:     -pass-pipeline="builtin.module(func.func(scf-parallel-loop-fusion))" \
 // RUN: | buddy-opt \
-// RUN:     -lower-affine \
-// RUN:     -convert-scf-to-openmp\
-// RUN:     -buffer-deallocation \
-// RUN:     -finalizing-bufferize \
-// RUN:     -expand-strided-metadata \
-// RUN:     -convert-vector-to-llvm \
-// RUN:  	-memref-expand \
-// RUN:  	-arith-expand \
-// RUN:  	-convert-arith-to-llvm \
-// RUN:  	-finalize-memref-to-llvm \
-// RUN:  	-convert-scf-to-cf \
-// RUN:  	-convert-openmp-to-llvm \
-// RUN:  	-convert-arith-to-llvm \
-// RUN:  	-convert-math-to-llvm \
-// RUN:  	-convert-math-to-libm \
-// RUN: 	-convert-func-to-llvm \
-// RUN:  	-reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN:   -lower-affine \
+// RUN:   -convert-scf-to-openmp\
+// RUN:   -one-shot-bufferize \
+// RUN:   -buffer-deallocation \
+// RUN:   -expand-strided-metadata \
+// RUN:   -convert-vector-to-llvm \
+// RUN:   -memref-expand \
+// RUN:   -arith-expand \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-openmp-to-llvm \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-math-to-llvm \
+// RUN:   -convert-math-to-libm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -reconcile-unrealized-casts \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libomp%shlibext \
@@ -28,8 +28,8 @@ module{
   memref.global "private" constant @input_1x40x151936xf32 : memref<1x40x151936xf32> = dense<3.000000e+00> {alignment = 64 : i64}
   func.func private @rtclock() -> f64
   func.func private @printMemrefF32(memref<*xf32>)
-  // LLVM预取函数声明
-  llvm.func @llvm.prefetch(!llvm.ptr<i8>, i32, i32, i32) -> ()
+
+  llvm.func @llvm.prefetch(!llvm.ptr, i32, i32, i32) -> ()
 
   func.func @kenerl(%arg0: memref<1x40x151936xf32>) {
 
@@ -45,8 +45,6 @@ module{
     %ss_32 = arith.constant 32:index
     %ss_40 = arith.constant 40:index
     %ss_151936 = arith.constant 151936:index
-
-    // 预取参数（read=0, locality=0, cache_type=0）
     %cst_i32_0 = arith.constant 0 : i32
 
     %t_start = call @rtclock() : () -> f64
@@ -70,7 +68,7 @@ module{
 
           vector.store %result,%sigmoid[%ss_0,%j,%k] : memref<1x40x151936xf32>,vector<8xf32>
 
-          scf.yield
+          "scf.reduce"() :()->()
         }
 
     // All the elements of the MemRef are the same,
@@ -96,3 +94,4 @@ module{
     return
   }
 }
+

@@ -25,6 +25,7 @@ set(LinkedLibs
   BatchMatMulOptimization
   MatMulParallelVectorization
   TransposeOptimization
+  SigmoidVectorization
 )
 
 
