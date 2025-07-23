@@ -7,17 +7,17 @@
 // RUN:   -buffer-deallocation \
 // RUN:   -expand-strided-metadata \
 // RUN:   -convert-vector-to-llvm \
-// RUN:  	-memref-expand \
-// RUN:  	-arith-expand \
-// RUN:  	-convert-arith-to-llvm \
-// RUN:  	-finalize-memref-to-llvm \
-// RUN:  	-convert-scf-to-cf \
-// RUN:  	-convert-openmp-to-llvm \
-// RUN:  	-convert-arith-to-llvm \
-// RUN:  	-convert-math-to-llvm \
-// RUN:  	-convert-math-to-libm \
-// RUN: 	-convert-func-to-llvm \
-// RUN:  	-reconcile-unrealized-casts \
+// RUN:   -memref-expand \
+// RUN:   -arith-expand \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-openmp-to-llvm \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-math-to-llvm \
+// RUN:   -convert-math-to-libm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -reconcile-unrealized-casts \
 // RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
@@ -94,3 +94,4 @@ module{
     return
   }
 }
+
