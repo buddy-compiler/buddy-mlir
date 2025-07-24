@@ -336,6 +336,16 @@ class AddMMOp(Op):
         self._op_type = OpType.ReduceType
 
 
+class QKVFusedOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+        # Store the original Q, K, V dimensions for splitting
+        self.q_dim = None
+        self.k_dim = None
+        self.v_dim = None
+
+
 class AmaxOp(Op):
     def __init__(self) -> None:
         super().__init__()
