@@ -31,6 +31,9 @@ from ..graph import (
     AddOp,
     PermuteOp,
     AddMMOp,
+    QKVFusedOp,
+    ViewOp,
+    CatOp,
     BatchMatmulOp,
     SubOp,
     MulOp,
@@ -221,6 +224,194 @@ def addmm_op(
     op = _gen_arith_binary_op(
         input_, matmul_result_reshape_op.result, tosa.AddOp
     )
+    return op
+
+
+def qkv_fused_op(
+    node: QKVFusedOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
+) -> ir.Operation:
+    """
+    Import QKV fused operation.
+    From buddy graph ir's `QKVFusedOp` operator to MLIR TOSA operations.
+
+    This performs: input @ W_combined + b_combined, then splits the result.
+
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation representing the QKV fused computation result.
+    """
+    # Get inputs: [bias_combined, input, weight_combined]
+    bias_combined = symbol_table.get((str(node.args[0]), 0))
+    input_tensor = symbol_table.get((str(node.args[1]), 0))
+    weight_combined = symbol_table.get((str(node.args[2]), 0))
+
+    if bias_combined is None:
+        raise ValueError(f"QKVFusedOp {node.name}: bias_combined '{node.args[0]}' not found in symbol_table")
+    if input_tensor is None:
+        raise ValueError(f"QKVFusedOp {node.name}: input_tensor '{node.args[1]}' not found in symbol_table")
+    if weight_combined is None:
+        raise ValueError(f"QKVFusedOp {node.name}: weight_combined '{node.args[2]}' not found in symbol_table")
+
+    # Get input shapes
+    input_shape = ir.RankedTensorType(input_tensor.type).shape
+    weight_shape = ir.RankedTensorType(weight_combined.type).shape
+
+    # Validate input dimensions - support 2D and 3D input
+    if len(input_shape) not in [2, 3]:
+        raise ValueError(f"QKVFusedOp expects 2D or 3D input, got {len(input_shape)}D: {input_shape}")
+
+    if len(weight_shape) != 2:
+        raise ValueError(f"QKVFusedOp expects 2D weight, got {len(weight_shape)}D: {weight_shape}")
+
+    # Handle 2D and 3D input cases
+    if len(input_shape) == 2:
+        # 2D input: [seq_len, hidden_dim]
+        seq_len = input_shape[0]
+        hidden_dim = input_shape[1]
+        batch_size = 1
+        is_2d_input = True
+    else:
+        # 3D input: [batch, seq_len, hidden_dim]
+        batch_size = input_shape[0]
+        seq_len = input_shape[1]
+        hidden_dim = input_shape[2]
+        is_2d_input = False
+
+    weight_hidden_dim = weight_shape[0]
+    combined_dim = weight_shape[1]
+
+    if hidden_dim != weight_hidden_dim:
+        raise ValueError(f"QKVFusedOp dimension mismatch: input hidden_dim={hidden_dim}, weight hidden_dim={weight_hidden_dim}")
+
+    # Prepare matrix multiplication input
+    if is_2d_input:
+        # 2D input can be used directly for matrix multiplication
+        matmul_input = input_tensor
+        matmul_result_shape = [seq_len, combined_dim]
+    else:
+        # 3D input needs to be reshaped to 2D
+        input_2d_shape = [batch_size * seq_len, hidden_dim]
+        matmul_input = tosa.ReshapeOp(
+            input_tensor, memoryview(array.array("i", input_2d_shape))
+        ).result
+        matmul_result_shape = [batch_size * seq_len, combined_dim]
+
+    # Execute matrix multiplication
+    result_element_type = ir.RankedTensorType(input_tensor.type).element_type
+
+    # Add batch dimension for TOSA MatMul (requires 3D)
+    if is_2d_input:
+        # Add batch dimension to both input and weight
+        matmul_input_3d = tosa.ReshapeOp(
+            matmul_input, memoryview(array.array("i", [1, seq_len, hidden_dim]))
+        ).result
+        weight_3d = tosa.ReshapeOp(
+            weight_combined, memoryview(array.array("i", [1, weight_hidden_dim, combined_dim]))
+        ).result
+        matmul_3d_result_shape = [1, seq_len, combined_dim]
+        matmul_3d_result_type = ir.RankedTensorType.get(matmul_3d_result_shape, result_element_type)
+
+        matmul_op = tosa.MatMulOp(
+            matmul_3d_result_type, matmul_input_3d, weight_3d
+        )
+
+        # Reshape result back to 2D
+        matmul_result_reshape_op = tosa.ReshapeOp(
+            matmul_op.c, memoryview(array.array("i", matmul_result_shape))
+        )
+    else:
+        # 3D case processing
+        matmul_input_3d = tosa.ReshapeOp(
+            matmul_input, memoryview(array.array("i", [1, batch_size * seq_len, hidden_dim]))
+        ).result
+        weight_3d = tosa.ReshapeOp(
+            weight_combined, memoryview(array.array("i", [1, weight_hidden_dim, combined_dim]))
+        ).result
+        matmul_3d_result_shape = [1, batch_size * seq_len, combined_dim]
+        matmul_3d_result_type = ir.RankedTensorType.get(matmul_3d_result_shape, result_element_type)
+
+        matmul_op = tosa.MatMulOp(
+            matmul_3d_result_type, matmul_input_3d, weight_3d
+        )
+
+        # Reshape result back to original shape
+        final_result_shape = [batch_size, seq_len, combined_dim]
+        matmul_result_reshape_op = tosa.ReshapeOp(
+            matmul_op.c, memoryview(array.array("i", final_result_shape))
+        )
+
+    # Add bias
+    op = _gen_arith_binary_op(
+        bias_combined, matmul_result_reshape_op.result, tosa.AddOp
+    )
+
+    return op
+
+
+def cat_op(
+    node: CatOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
+) -> ir.Operation:
+    """
+    Import concatenation operation.
+    From buddy graph ir's `CatOp` operator to MLIR TOSA `concat` operation.
+
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding operations.
+
+    Returns:
+        op: The operation representing the concatenation result.
+    """
+    # Get inputs: [tensor_list, axis]
+    tensor_list = node.args[0] if len(node.args) > 0 else []
+    axis = node.args[1] if len(node.args) > 1 else 0
+
+    # Get tensor operations from symbol table or function args (for PlaceholderOp)
+    tensor_ops = []
+    missing_tensors = []
+    args_context = symbol_table.get("__func_args__", None)
+    placeholder_map = symbol_table.get("__placeholder_map__", {})
+
+    for tensor_name in tensor_list:
+        tensor_op = symbol_table.get((str(tensor_name), 0))
+        if tensor_op is not None:
+            tensor_ops.append(tensor_op)
+        else:
+            # Try to find PlaceholderOp in args_context/placeholder_map
+            if args_context and tensor_name in placeholder_map:
+                idx = placeholder_map[tensor_name]
+                tensor_op = args_context[idx]
+                tensor_ops.append(tensor_op)
+                symbol_table[(str(tensor_name), 0)] = tensor_op
+            else:
+                # Check graph.node_table for PlaceholderOp
+                node_ref = symbol_table.get("graph_node_table", {}).get(tensor_name, None)
+                if node_ref is not None and hasattr(node_ref, "__class__") and node_ref.__class__.__name__ == "PlaceholderOp":
+                    # PlaceholderOp found but no MLIR Value available
+                    pass
+                else:
+                    missing_tensors.append(tensor_name)
+
+    if len(tensor_ops) < 2:
+        # Try to recover from function arguments for QKV fusion
+        if args_context and len(missing_tensors) > 0:
+            for missing_tensor in missing_tensors:
+                if missing_tensor in placeholder_map:
+                    idx = placeholder_map[missing_tensor]
+                    if idx < len(args_context):
+                        tensor_op = args_context[idx]
+                        tensor_ops.append(tensor_op)
+                        symbol_table[(str(missing_tensor), 0)] = tensor_op
+
+        # If still insufficient tensors, raise error
+        if len(tensor_ops) < 2:
+            raise ValueError(f"CatOp {getattr(node, 'name', str(node))} requires at least 2 tensors, got {len(tensor_ops)}. Missing: {missing_tensors}")
+
+    # Perform concatenation using TOSA concat operation
+    op = tosa.ConcatOp(tensor_ops, axis)
     return op
 
 
@@ -429,6 +620,8 @@ def reshape_op(node: ReshapeOp, symbol_table):
     shape will be inferred automatically.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
+    if input1 is None:
+        raise ValueError(f"ReshapeOp {node.name} input tensor {node.args[0]} not found in symbol_table")
     new_shape = []
     for i in node.args[1]:
         new_shape.append(i)
@@ -517,12 +710,21 @@ def slice_op(node: SliceOp, symbol_table):
     operation.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
+    if input_tensor is None:
+        raise ValueError(f"SliceOp {node.name} input tensor {node.args[0]} not found in symbol_table")
+
     dim = node.args[1]
     start_idx = node.args[2]
     end_idx = node.args[3]
 
     sizes = ir.RankedTensorType(input_tensor.type).shape
+    tensor_rank = len(sizes)
 
+    # Validate dimension index
+    if dim < 0 or dim >= tensor_rank:
+        raise ValueError(f"SliceOp {node.name}: dimension {dim} is out of range for tensor with rank {tensor_rank}")
+
+    # Handle negative indices
     if start_idx < 0:
         start_idx += sizes[dim]
 
@@ -541,6 +743,17 @@ def slice_op(node: SliceOp, symbol_table):
 
     new_sizes = [x for x in sizes]
     new_sizes[dim] = end_idx - start_idx
+
+    # Validate new_sizes
+    if any(s < 0 for s in new_sizes):
+        raise ValueError(f"SliceOp {node.name}: negative size in new_sizes {new_sizes}")
+
+    if any(s > 2**31 - 1 for s in new_sizes):
+        # For very large sizes, use original sizes
+        for i, s in enumerate(new_sizes):
+            if s > 2**31 - 1:
+                new_sizes[i] = sizes[i]
+
     new_sizes_attr = ir._denseI64ArrayAttr(new_sizes, None)
 
     offsets = [0] * len(sizes)
@@ -554,6 +767,7 @@ def slice_op(node: SliceOp, symbol_table):
     extract_slice_result_type = ir.RankedTensorType.get(
         new_sizes, result_element_type
     )
+
     op = tensor.ExtractSliceOp(
         extract_slice_result_type,
         input_tensor,
@@ -564,7 +778,6 @@ def slice_op(node: SliceOp, symbol_table):
         new_sizes_attr,
         strides_attr,
     )
-
     return op
 
 
@@ -683,10 +896,10 @@ def var_mean_op(node: VarMeanOp, symbol_table):
           2. In the second part, we calculate the variance value. We follow the
           formula in this link:
           https://pytorch.org/docs/stable/generated/torch.var_mean.html. We
-          first calculate (\bar{x} - x_i), where \bar{x} is the mean value we
+          first calculate (\\bar{x} - x_i), where \\bar{x} is the mean value we
           calculated in the first step. By applying tosa's `mul` operation, we
-          get (\bar{x} - x_i) ^ 2. Then we reduce the multiplication result to
-          get \sum_{i=0}^{N}(\bar{x} - x_i) ^ 2. Finally, we divide the
+          get (\\bar{x} - x_i) ^ 2. Then we reduce the multiplication result to
+          get \\sum_{i=0}^{N}(\\bar{x} - x_i) ^ 2. Finally, we divide the
           reduction sum result by the total size of the reduced dimension(s)
           minus the correction.
 
@@ -1891,6 +2104,8 @@ ops_registry = {
     "ExpandOp": expand_op,
     "VarMeanOp": var_mean_op,
     "AddMMOp": addmm_op,
+    "QKVFusedOp": qkv_fused_op,
+    "CatOp": cat_op,
     "ReshapeOp": reshape_op,
     "ViewOp": reshape_op,
     "SelectOp": select_op,
