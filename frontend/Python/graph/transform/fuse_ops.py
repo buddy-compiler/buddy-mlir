@@ -23,7 +23,10 @@ from ..operation import *
 from .. import DeviceType
 from torch.fx.immutable_collections import immutable_list
 
-classicfuse_register = {"transpose_matmul_fusion": TransposeMatmulFusedOp}
+classicfuse_register = {
+    "transpose_matmul_fusion": TransposeMatmulFusedOp,
+    "qkv_fusion": QKVFusedOp
+}
 
 # TODO: classify op type for op fusion
 # OP_TYPE_FUSABLE = [OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType]
@@ -91,6 +94,452 @@ def transpose_matmul_fusion(
         graph.delete_node(target, targets_parent)
 
 
+
+def qkv_fuse_check(graph: Graph):
+    """
+    Function to identify and fuse QKV linear transformation patterns.
+
+    Identifies three AddMMOp operations that:
+    1. Use the same input tensor (through different view operations)
+    2. Have output dimensions matching Q(1536), K(256), V(256) pattern
+    3. Are positioned close to each other in the computation graph
+
+    Args:
+        graph (Graph): The computation graph to analyze and optimize.
+
+    Returns:
+        None
+    """
+    fusion_count = 0
+    max_fusions = 100  # 限制最大融合次数，避免无限循环
+
+    while fusion_count < max_fusions:
+        nodes = graph.body
+        addmm_nodes = [node for node in nodes if isinstance(node, AddMMOp)]
+
+        found_pattern = False
+
+        # Look for QKV patterns in groups of 3 AddMMOp nodes
+        for i in range(len(addmm_nodes) - 2):
+            q_node = addmm_nodes[i]
+            k_node = addmm_nodes[i+1]
+            v_node = addmm_nodes[i+2]
+
+            # Extract shapes - handle both torch.Size and list formats
+            q_shape = _extract_shape(q_node)
+            k_shape = _extract_shape(k_node)
+            v_shape = _extract_shape(v_node)
+
+            # Check for QKV pattern: Q[40,1536], K[40,256], V[40,256]
+            if (q_shape and k_shape and v_shape and
+                len(q_shape) == 2 and len(k_shape) == 2 and len(v_shape) == 2 and
+                q_shape[1] == 1536 and k_shape[1] == 256 and v_shape[1] == 256 and
+                q_shape[0] == k_shape[0] == v_shape[0]):  # Same batch/sequence dimension
+
+                # Check if they use the same input (through view operations)
+                shared_input = _find_shared_input(graph, q_node, k_node, v_node)
+                if shared_input:
+                    qkv_fusion(graph, q_node, k_node, v_node, shared_input)
+                    fusion_count += 1
+                    found_pattern = True
+                    break  # 重新开始搜索，因为图结构已经改变
+
+        if not found_pattern:
+            break  # 没有找到更多模式，退出循环
+
+
+def _extract_shape(node):
+    """Extract shape from tensor_meta, handling different formats"""
+    if not hasattr(node, 'tensor_meta') or not node.tensor_meta:
+        return None
+
+    shape = node.tensor_meta.get('shape', None)
+    if shape is None:
+        return None
+
+    # Handle torch.Size objects
+    if hasattr(shape, 'size'):
+        return list(shape.size())
+    elif hasattr(shape, '__iter__'):
+        return list(shape)
+    else:
+        return None
+
+
+def _find_shared_input(graph: Graph, q_node, k_node, v_node):
+    """
+    Find the shared input tensor used by Q, K, V computations.
+
+    Args:
+        graph: The computation graph
+        q_node, k_node, v_node: The three AddMMOp nodes
+
+    Returns:
+        str: Name of the shared input tensor, or None if not found
+    """
+    # AddMMOp args format: [bias, input, weight]
+    q_input = q_node.args[1] if len(q_node.args) > 1 else None
+    k_input = k_node.args[1] if len(k_node.args) > 1 else None
+    v_input = v_node.args[1] if len(v_node.args) > 1 else None
+
+    if not (q_input and k_input and v_input):
+        return None
+
+    # Check if they are view operations of the same tensor
+    q_parent = graph.node_table.get(q_input)
+    k_parent = graph.node_table.get(k_input)
+    v_parent = graph.node_table.get(v_input)
+
+    if (q_parent and k_parent and v_parent and
+        isinstance(q_parent, ViewOp) and isinstance(k_parent, ViewOp) and isinstance(v_parent, ViewOp)):
+        # Check if all view operations have the same input
+        q_source = q_parent.args[0] if q_parent.args else None
+        k_source = k_parent.args[0] if k_parent.args else None
+        v_source = v_parent.args[0] if v_parent.args else None
+
+        if q_source == k_source == v_source:
+            return q_source
+
+    # Alternative: check if they directly use the same input (without view operations)
+    if q_input == k_input == v_input:
+        return q_input
+
+    return None
+
+
+def qkv_fusion(graph: Graph, q_node, k_node, v_node, shared_input):
+    """
+    Fuse three QKV AddMMOp operations into a single QKVFusedOp.
+
+    Args:
+        graph: The computation graph
+        q_node, k_node, v_node: The three AddMMOp nodes to fuse
+        shared_input: The shared input tensor name
+    """
+    # Verify that all bias PlaceholderOp nodes exist
+    bias_names = [q_node.args[0], k_node.args[0], v_node.args[0]]
+    for bias_name in bias_names:
+        if bias_name not in graph.node_table:
+            raise ValueError(f"Bias PlaceholderOp {bias_name} not found in graph.node_table")
+        bias_node = graph.node_table[bias_name]
+        if not hasattr(bias_node, '__class__') or bias_node.__class__.__name__ != 'PlaceholderOp':
+            raise ValueError(f"Bias node {bias_name} is not a PlaceholderOp, got {bias_node.__class__.__name__}")
+
+    # Create the fused operation
+    fused_op = QKVFusedOp()
+    fused_op.name = f"qkv_fused_{q_node.name}_{k_node.name}_{v_node.name}"
+
+    # Store original dimensions for later splitting
+    q_shape = _extract_shape(q_node)
+    k_shape = _extract_shape(k_node)
+    v_shape = _extract_shape(v_node)
+
+    fused_op.q_dim = q_shape[1] if q_shape and len(q_shape) > 1 else 1536
+    fused_op.k_dim = k_shape[1] if k_shape and len(k_shape) > 1 else 256
+    fused_op.v_dim = v_shape[1] if v_shape and len(v_shape) > 1 else 256
+
+    # Extract original weights and biases from Q, K, V nodes
+    # AddMMOp args: [bias, input, weight]
+    q_bias = q_node.args[0] if len(q_node.args) > 0 else None
+    q_weight = q_node.args[2] if len(q_node.args) > 2 else None
+
+    k_bias = k_node.args[0] if len(k_node.args) > 0 else None
+    k_weight = k_node.args[2] if len(k_node.args) > 2 else None
+
+    v_bias = v_node.args[0] if len(v_node.args) > 0 else None
+    v_weight = v_node.args[2] if len(v_node.args) > 2 else None
+
+    # Verify that all required nodes exist
+    for name, node_name in [("Q weight", q_weight), ("K weight", k_weight), ("V weight", v_weight),
+                           ("Q bias", q_bias), ("K bias", k_bias), ("V bias", v_bias)]:
+        if node_name not in graph.node_table:
+            raise ValueError(f"{name}: {node_name} not found in graph.node_table")
+
+    # Get original node dtype
+    original_dtype = q_node.tensor_meta.get('dtype') if hasattr(q_node, 'tensor_meta') and q_node.tensor_meta else None
+
+    # Create concatenation operations for weights and biases
+    weight_concat_op = CatOp()
+    weight_concat_op.name = f"{fused_op.name}_weight_concat"
+    weight_concat_op._arguments = [[q_weight, k_weight, v_weight], 1]  # concat along dim 1
+    weight_concat_op.tensor_meta = {
+        'shape': [1536, fused_op.q_dim + fused_op.k_dim + fused_op.v_dim],
+        'dtype': original_dtype
+    }
+    weight_concat_op._parents = [q_weight, k_weight, v_weight]
+
+    bias_concat_op = CatOp()
+    bias_concat_op.name = f"{fused_op.name}_bias_concat"
+    bias_concat_op._arguments = [[q_bias, k_bias, v_bias], 0]  # concat along dim 0
+    bias_concat_op.tensor_meta = {
+        'shape': [fused_op.q_dim + fused_op.k_dim + fused_op.v_dim],
+        'dtype': original_dtype
+    }
+    bias_concat_op._parents = [q_bias, k_bias, v_bias]
+
+    # Find the earliest position where we can insert concat operations
+    # This should be after all referenced PlaceholderOp and weight nodes
+    min_insert_index = 0
+
+    # Check PlaceholderOp positions - they should come first in the graph
+    for bias_name in bias_names:
+        if bias_name in graph.node_table:
+            bias_node = graph.node_table[bias_name]
+            if hasattr(bias_node, '__class__') and bias_node.__class__.__name__ == 'PlaceholderOp':
+                if bias_node in graph.body:
+                    placeholder_index = graph.body.index(bias_node)
+                    min_insert_index = max(min_insert_index, placeholder_index + 1)
+
+    # Check weight node positions
+    weight_nodes = [q_weight, k_weight, v_weight]
+    for weight_name in weight_nodes:
+        if weight_name in graph.node_table:
+            weight_node = graph.node_table[weight_name]
+            if weight_node in graph.body:
+                weight_index = graph.body.index(weight_node)
+                min_insert_index = max(min_insert_index, weight_index + 1)
+
+    # Insert concat operations at the safe position
+    if min_insert_index > 0:
+        graph.body.insert(min_insert_index, weight_concat_op)
+        graph.body.insert(min_insert_index + 1, bias_concat_op)
+    else:
+        # Fallback: insert before Q node
+        q_node_index = graph.body.index(q_node)
+        graph.body.insert(q_node_index, weight_concat_op)
+        graph.body.insert(q_node_index + 1, bias_concat_op)
+
+    graph.node_table[weight_concat_op.name] = weight_concat_op
+    graph.node_table[bias_concat_op.name] = bias_concat_op
+
+    # Set up fused operation arguments using concat operations
+    fused_op._arguments = [
+        bias_concat_op.name,    # Combined bias [2048]
+        shared_input,           # Shared input [40, 1536]
+        weight_concat_op.name   # Combined weight [1536, 2048]
+    ]
+
+    # Set tensor metadata for the fused output
+    combined_dim = fused_op.q_dim + fused_op.k_dim + fused_op.v_dim
+
+    if q_shape and len(q_shape) == 2:
+        # 2D输入: [seq_len, hidden_dim] -> [seq_len, combined_dim]
+        output_shape = [q_shape[0], combined_dim]
+    elif q_shape and len(q_shape) == 3:
+        # 3D输入: [batch, seq_len, hidden_dim] -> [batch, seq_len, combined_dim]
+        output_shape = [q_shape[0], q_shape[1], combined_dim]
+    else:
+        # 默认情况，假设是2D
+        batch_size = q_shape[0] if q_shape and len(q_shape) > 0 else 40
+        output_shape = [batch_size, combined_dim]
+
+    fused_op.tensor_meta = {
+        'shape': output_shape,
+        'dtype': original_dtype
+    }
+
+    # Create slice operations to extract Q, K, V from the fused output
+    # Determine slice dimension and shapes based on output shape
+    if len(output_shape) == 2:
+        # 2D情况: [seq_len, combined_dim] -> [seq_len, q_dim/k_dim/v_dim]
+        q_slice_shape = [output_shape[0], fused_op.q_dim]
+        k_slice_shape = [output_shape[0], fused_op.k_dim]
+        v_slice_shape = [output_shape[0], fused_op.v_dim]
+        slice_dim = 1  # 在第1维度上slice
+    else:
+        # 3D情况: [batch, seq_len, combined_dim] -> [batch, seq_len, q_dim/k_dim/v_dim]
+        q_slice_shape = [output_shape[0], output_shape[1], fused_op.q_dim]
+        k_slice_shape = [output_shape[0], output_shape[1], fused_op.k_dim]
+        v_slice_shape = [output_shape[0], output_shape[1], fused_op.v_dim]
+        slice_dim = 2  # 在第2维度上slice (最后一个维度)
+
+    q_slice_op = SliceOp()
+    q_slice_op.name = f"{fused_op.name}_q_slice"
+    q_slice_op._arguments = [
+        fused_op.name,  # input tensor
+        slice_dim,      # dimension to slice
+        0,              # start index
+        fused_op.q_dim  # end index (Q的维度大小)
+    ]
+    q_slice_op.tensor_meta = {
+        'shape': q_slice_shape,
+        'dtype': original_dtype
+    }
+
+    k_slice_op = SliceOp()
+    k_slice_op.name = f"{fused_op.name}_k_slice"
+    k_slice_op._arguments = [
+        fused_op.name,                    # input tensor
+        slice_dim,                        # dimension to slice
+        fused_op.q_dim,                   # start index (Q维度之后)
+        fused_op.q_dim + fused_op.k_dim   # end index (Q+K维度)
+    ]
+    k_slice_op.tensor_meta = {
+        'shape': k_slice_shape,
+        'dtype': original_dtype
+    }
+
+    v_slice_op = SliceOp()
+    v_slice_op.name = f"{fused_op.name}_v_slice"
+    v_slice_op._arguments = [
+        fused_op.name,                                      # input tensor
+        slice_dim,                                          # dimension to slice
+        fused_op.q_dim + fused_op.k_dim,                    # start index (Q+K维度之后)
+        fused_op.q_dim + fused_op.k_dim + fused_op.v_dim    # end index (Q+K+V维度)
+    ]
+    v_slice_op.tensor_meta = {
+        'shape': v_slice_shape,
+        'dtype': original_dtype
+    }
+
+    # Validate slice operations
+    for slice_op in [q_slice_op, k_slice_op, v_slice_op]:
+        if len(slice_op._arguments) != 4:
+            raise ValueError(f"SliceOp {slice_op.name} should have 4 arguments, got {len(slice_op._arguments)}")
+
+        start_idx = slice_op._arguments[2]
+        end_idx = slice_op._arguments[3]
+
+        if start_idx < 0 or end_idx <= start_idx:
+            raise ValueError(f"SliceOp {slice_op.name} has invalid slice range [{start_idx}, {end_idx}]")
+
+        if end_idx > combined_dim:
+            raise ValueError(f"SliceOp {slice_op.name} end index {end_idx} exceeds combined dimension {combined_dim}")
+
+    # Replace the original Q node with fused operation
+    bias_concat_index = graph.body.index(bias_concat_op)
+    q_node_index = graph.body.index(q_node)
+    graph.body.remove(q_node)
+
+    # Insert QKVFused operation after bias_concat
+    insert_index = bias_concat_index + 1
+    graph.body.insert(insert_index, fused_op)
+
+    # Update node_table
+    del graph.node_table[q_node.name]
+    graph.node_table[fused_op.name] = fused_op
+
+    # Ensure tensor_meta and arguments are properly set
+    fused_op.tensor_meta = {
+        'shape': output_shape,
+        'dtype': original_dtype
+    }
+    fused_op._arguments = [
+        bias_concat_op.name,    # Combined bias [2048]
+        shared_input,           # Shared input [40, 1536]
+        weight_concat_op.name   # Combined weight [1536, 2048]
+    ]
+
+    # Insert slice operations immediately after the fused operation
+    fused_index = graph.body.index(fused_op)
+
+    # Set up slice operations with proper attributes and relationships
+    for slice_op in [q_slice_op, k_slice_op, v_slice_op]:
+        slice_op._name = slice_op.name
+        slice_op._op_type = OpType.ReshapeType
+        slice_op._parents = [fused_op.name]
+        fused_op.add_children(slice_op.name)
+
+    # Add slice operations to node table and graph body
+    graph.node_table[q_slice_op.name] = q_slice_op
+    graph.node_table[k_slice_op.name] = k_slice_op
+    graph.node_table[v_slice_op.name] = v_slice_op
+
+    graph.body.insert(fused_index + 1, q_slice_op)
+    graph.body.insert(fused_index + 2, k_slice_op)
+    graph.body.insert(fused_index + 3, v_slice_op)
+
+    # Move any operations that depend on the original Q, K, V nodes to after slice operations
+    dependent_nodes = []
+    for node in graph.body:
+        if hasattr(node, 'args') and node.args:
+            for arg in node.args:
+                if isinstance(arg, str) and arg in [q_node.name, k_node.name, v_node.name]:
+                    if node not in dependent_nodes and node not in [q_slice_op, k_slice_op, v_slice_op, fused_op]:
+                        dependent_nodes.append(node)
+                elif isinstance(arg, list):
+                    for sub_arg in arg:
+                        if isinstance(sub_arg, str) and sub_arg in [q_node.name, k_node.name, v_node.name]:
+                            if node not in dependent_nodes and node not in [q_slice_op, k_slice_op, v_slice_op, fused_op]:
+                                dependent_nodes.append(node)
+
+    # Move dependent nodes to after slice operations
+    slice_end_index = fused_index + 3  # After all slice operations
+    nodes_moved = 0
+
+    for dep_node in dependent_nodes:
+        if dep_node in graph.body:
+            current_index = graph.body.index(dep_node)
+            if current_index <= slice_end_index:  # Only move if it's before slice operations
+                graph.body.remove(dep_node)
+                new_index = slice_end_index + nodes_moved + 1
+                graph.body.insert(new_index, dep_node)
+                nodes_moved += 1
+
+    # Update references to point to slice operations
+    _update_node_references(graph, k_node.name, k_slice_op.name)
+    _update_node_references(graph, v_node.name, v_slice_op.name)
+    _update_node_references(graph, q_node.name, q_slice_op.name)
+
+    # Set up parent-child relationships
+    shared_input_node = graph.node_table.get(shared_input)
+    if shared_input_node:
+        fused_op._parents = [shared_input, bias_concat_op.name, weight_concat_op.name]
+        shared_input_node.add_children(fused_op.name)
+        bias_concat_op.add_children(fused_op.name)
+        weight_concat_op.add_children(fused_op.name)
+
+        # Set up slice operation relationships
+        q_slice_op._parents = [fused_op.name]
+        k_slice_op._parents = [fused_op.name]
+        v_slice_op._parents = [fused_op.name]
+        fused_op.add_children(q_slice_op.name)
+        fused_op.add_children(k_slice_op.name)
+        fused_op.add_children(v_slice_op.name)
+
+    # Remove K and V nodes from the graph
+    if k_node in graph.body:
+        graph.body.remove(k_node)
+    if k_node.name in graph.node_table:
+        del graph.node_table[k_node.name]
+
+    if v_node in graph.body:
+        graph.body.remove(v_node)
+    if v_node.name in graph.node_table:
+        del graph.node_table[v_node.name]
+
+    return [q_slice_op, k_slice_op, v_slice_op]
+
+
+def _update_node_references(graph: Graph, old_name: str, new_name: str):
+    """Update all references to old_name with new_name in the graph"""
+    for node in graph.body:
+        # Update arguments list
+        if hasattr(node, '_arguments') and node._arguments:
+            for i, arg in enumerate(node._arguments):
+                if isinstance(arg, str) and arg == old_name:
+                    node._arguments[i] = new_name
+                elif isinstance(arg, list):
+                    # Handle nested lists in arguments
+                    for j, sub_arg in enumerate(arg):
+                        if isinstance(sub_arg, str) and sub_arg == old_name:
+                            arg[j] = new_name
+
+        # Update args attribute (for compatibility)
+        if hasattr(node, 'args') and node.args:
+            for i, arg in enumerate(node.args):
+                if isinstance(arg, str) and arg == old_name:
+                    node.args[i] = new_name
+                elif isinstance(arg, list):
+                    for j, sub_arg in enumerate(arg):
+                        if isinstance(sub_arg, str) and sub_arg == old_name:
+                            arg[j] = new_name
+
+        # Update parent relationships
+        if hasattr(node, '_parents') and old_name in node._parents:
+            node._parents = [new_name if p == old_name else p for p in node._parents]
+
+
 def apply_classic_fusion(graph: Graph):
     """
     Function to fuse some typical operations into one operation and fuse
@@ -106,6 +555,8 @@ def apply_classic_fusion(graph: Graph):
     device = DeviceType.CPU
     # Run the first round of op fusion
     classic_fuse_check(graph)
+    # Run QKV fusion
+    qkv_fuse_check(graph)
     for op in graph.body:
         if isinstance(op, PlaceholderOp):
             continue
@@ -113,6 +564,24 @@ def apply_classic_fusion(graph: Graph):
     graph.op_groups = {}
     graph.op_groups["subgraph0"] = new_op_group
     graph.group_map_device = {"subgraph0": device}
+
+    # Ensure proper dependencies between PlaceholderOp and Cat operations
+    cat_referenced_placeholders = set()
+    for op in graph.body:
+        if isinstance(op, CatOp):
+            for tensor_name in op.args[0]:
+                node = graph.node_table.get(tensor_name, None)
+                if node and isinstance(node, PlaceholderOp):
+                    cat_referenced_placeholders.add(node)
+
+    # Set up parent-child relationships for proper dependency tracking
+    for placeholder_node in cat_referenced_placeholders:
+        for op in graph.op_groups["subgraph0"]:
+            if isinstance(op, CatOp) and placeholder_node.name in op.args[0]:
+                if placeholder_node.name not in op._parents:
+                    op.add_parent(placeholder_node.name)
+                if op.name not in placeholder_node._children:
+                    placeholder_node.add_children(op.name)
 
 
 def simply_fuse(graph: Graph):

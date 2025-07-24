@@ -79,15 +79,9 @@ assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
 
-# Apply operator fusion
-print("Applying operator fusion...")
-print(f"Nodes before fusion: {len(graph.body)}")
+# Apply operator fusion (includes QKV fusion and subgraph organization)
 apply_classic_fusion(graph)
-print(f"Nodes after fusion: {len(graph.body)}")
 
-# Continue with the original simple fusion for subgraph organization
-pattern_list = [simply_fuse]
-graphs[0].fuse_ops(pattern_list)
 driver = GraphDriver(graphs[0])
 driver.subgraphs[0].lower_to_top_level_ir()
 

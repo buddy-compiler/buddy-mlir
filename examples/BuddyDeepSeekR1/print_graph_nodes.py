@@ -85,24 +85,91 @@ assert len(graphs) == 1
 graph = graphs[0]
 
 def print_graph_nodes(graph, title):
-    """打印图节点信息的通用函数"""
+    """打印图节点信息的通用函数 - 包含输入输出信息"""
     content = []
-    content.append("=" * 60)
+    content.append("=" * 80)
     content.append(title)
-    content.append("=" * 60)
+    content.append("=" * 80)
     content.append(f"Total nodes: {len(graph.body)}")
+
+    # 统计QKV融合节点
+    qkv_count = sum(1 for node in graph.body if type(node).__name__ == 'QKVFusedOp')
+    addmm_count = sum(1 for node in graph.body if type(node).__name__ == 'AddMMOp')
+    content.append(f"AddMMOp nodes: {addmm_count}, QKVFusedOp nodes: {qkv_count}")
     content.append("")
-    
+
     for i, node in enumerate(graph.body, 1):
-        content.append(f"{i:3d}. Node Name: {node.name}")
-        content.append(f"     Op Type: {type(node).__name__}")
-        if hasattr(node, 'args') and node.args:
-            content.append(f"     Args: {node.args}")
-        if hasattr(node, 'tensor_meta') and node.tensor_meta:
-            content.append(f"     Tensor Meta: {node.tensor_meta}")
-        content.append("")
-    
+        # 简化操作类型名称
+        op_type = type(node).__name__.replace('Op', '')
+
+        # 获取输出shape信息
+        output_shape = _extract_shape_info(node)
+
+        # 获取输入信息
+        input_info = _get_input_info(graph, node)
+
+        # 特殊处理QKV融合节点
+        if type(node).__name__ == 'QKVFusedOp':
+            q_dim = getattr(node, 'q_dim', '?')
+            k_dim = getattr(node, 'k_dim', '?')
+            v_dim = getattr(node, 'v_dim', '?')
+            if input_info:
+                content.append(f"{i:3d}. {node.name} | {op_type} | In:{input_info} → Out:{output_shape} | Q:{q_dim},K:{k_dim},V:{v_dim}")
+            else:
+                content.append(f"{i:3d}. {node.name} | {op_type} | Out:{output_shape} | Q:{q_dim},K:{k_dim},V:{v_dim}")
+        else:
+            # 普通节点
+            if input_info:
+                content.append(f"{i:3d}. {node.name} | {op_type} | In:{input_info} → Out:{output_shape}")
+            else:
+                content.append(f"{i:3d}. {node.name} | {op_type} | Out:{output_shape}")
+
+    content.append("")
     return content
+
+
+def _extract_shape_info(node):
+    """提取节点的shape信息"""
+    if hasattr(node, 'tensor_meta') and node.tensor_meta:
+        meta = node.tensor_meta
+        if isinstance(meta, dict) and 'shape' in meta:
+            shape = meta['shape']
+            if hasattr(shape, 'size'):
+                return list(shape.size())
+            elif isinstance(shape, (list, tuple)):
+                return list(shape)
+    return "Unknown"
+
+
+def _get_input_info(graph, node):
+    """获取节点的输入信息"""
+    if not hasattr(node, 'args') or not node.args:
+        return None
+
+    input_shapes = []
+    for arg in node.args:
+        if isinstance(arg, str) and arg in graph.node_table:
+            input_node = graph.node_table[arg]
+            input_shape = _extract_shape_info(input_node)
+            input_shapes.append(f"{input_shape}")
+        elif isinstance(arg, list):
+            # 处理参数列表（如concat的输入列表）
+            list_shapes = []
+            for sub_arg in arg:
+                if isinstance(sub_arg, str) and sub_arg in graph.node_table:
+                    input_node = graph.node_table[sub_arg]
+                    input_shape = _extract_shape_info(input_node)
+                    list_shapes.append(f"{input_shape}")
+            if list_shapes:
+                input_shapes.append(f"[{','.join(list_shapes)}]")
+        elif isinstance(arg, (int, float)):
+            # 处理数值参数
+            input_shapes.append(f"val:{arg}")
+
+    # 只显示前3个输入，避免过长
+    if len(input_shapes) > 3:
+        return ",".join(input_shapes[:3]) + "..."
+    return ",".join(input_shapes) if input_shapes else None
 
 def analyze_fusable_patterns(graph):
     """分析图中可融合的模式"""
@@ -196,7 +263,7 @@ with open(before_fusion_file, "w", encoding="utf-8") as f:
     f.write(before_fusion_text)
 
 # Save after fusion
-after_fusion_file = "graph_after_fusion.log"
+after_fusion_file = "graph_after_fusion_qkv.log"
 after_fusion_text = "\n".join(after_fusion_content + ["=" * 60, "Analysis completed."])
 with open(after_fusion_file, "w", encoding="utf-8") as f:
     f.write(after_fusion_text)
