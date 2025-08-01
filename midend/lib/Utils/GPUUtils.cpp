@@ -81,7 +81,7 @@ gpuMmaUnrollOrder(vector::ContractionOp contract) {
 
   llvm::SmallDenseSet<int64_t> dims;
   for (AffineExpr expr : contract.getIndexingMapsArray()[0].getResults()) {
-    dims.insert(expr.cast<AffineDimExpr>().getPosition());
+    dims.insert(llvm::cast<AffineDimExpr>(expr).getPosition());
   }
   // Then parallel dimensions that are part of Lhs as we want to re-use Lhs.
   for (auto [index, iter] : llvm::enumerate(contract.getIteratorTypes())) {
@@ -115,7 +115,7 @@ static Value promoteElementToVector(Location loc, OpBuilder &builder,
 Value packVectorToSupportedWidth(Location loc, OpBuilder &builder,
                                  Value input) {
   LLVM_DEBUG({
-    auto vecType = input.getType().cast<VectorType>();
+    auto vecType = llvm::cast<VectorType>(input.getType());
     Type elementType = vecType.getElementType();
     assert(vecType.getDimSize(0) * elementType.getIntOrFloatBitWidth() ==
                kShuffleBitWidth &&

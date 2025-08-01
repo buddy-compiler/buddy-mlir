@@ -96,7 +96,7 @@ DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args) {
   const auto getType = [&](int argIndex) { return args[argIndex].getType(); };
 
   const auto getElementType = [&](int argIndex) {
-    return getType(argIndex).template cast<MemRefType>().getElementType();
+    return llvm::cast<MemRefType>(getType(argIndex)).getElementType();
   };
 
   // NB: we can infer element type for all related memrefs to be the same as
@@ -330,10 +330,10 @@ std::vector<Value> standardRotate(OpBuilder &builder, Location loc,
 // Get center co-ordinates w.r.t given dimension.
 Value getCenter(OpBuilder &builder, Location loc, MLIRContext *ctx, Value dim) {
   Value dimF32 = indexToF32(builder, loc, dim);
-  Value c1f = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)1.0f,
-                                                     builder.getF32Type());
-  Value c2f = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)2.0f,
-                                                     builder.getF32Type());
+  Value c1f = builder.create<arith::ConstantFloatOp>(loc, builder.getF32Type(),
+                                                     (llvm::APFloat)1.0f);
+  Value c2f = builder.create<arith::ConstantFloatOp>(loc, builder.getF32Type(),
+                                                     (llvm::APFloat)2.0f);
 
   Value temp1 = builder.create<arith::AddFOp>(loc, dimF32, c1f);
   Value temp2 = builder.create<arith::DivFOp>(loc, temp1, c2f);
@@ -455,8 +455,8 @@ void fillPixelsNearestNeighbour4D(
 
 // Calculate tan(angle / 2) where angle is a function parameter.
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal) {
-  Value c2F32 = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)2.0f,
-                                                       builder.getF32Type());
+  Value c2F32 = builder.create<arith::ConstantFloatOp>(loc, builder.getF32Type(),
+                                                       (llvm::APFloat)2.0f);
   Value angleVal_2 = builder.create<arith::DivFOp>(loc, angleVal, c2F32);
 
   Value sinVal = builder.create<math::SinOp>(loc, angleVal_2);

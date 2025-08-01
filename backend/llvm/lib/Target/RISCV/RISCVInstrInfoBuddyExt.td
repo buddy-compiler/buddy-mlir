@@ -17,6 +17,22 @@
 // This is the instruction information file of RISC-V buddy extension.
 //
 //===----------------------------------------------------------------------===//
+//
+// IMPORTANT: Instruction Encoding Fix (LLVM 21.0.0 RC1 Upgrade)
+// ------------------------------------------------------------
+// The CONFIG_* instructions originally had identical encodings (func7=0b0000000),
+// which caused decoding conflicts in LLVM's TableGen disassembler.
+// 
+// Fixed encodings:
+// - CONFIG_LD:   func7 = 0b0010110 (was 0b0000000)
+// - CONFIG_ST:   func7 = 0b0010111 (was 0b0000000)
+// - CONFIG_EX:   func7 = 0b0011000 (was 0b0000000)
+// - CONFIG_NORM: func7 = 0b0011001 (was 0b0000000)
+//
+// All instructions retain func3=0b011 and use OPC_CUSTOM_3.
+// This ensures each instruction has a unique bit pattern for proper decoding.
+//
+//===----------------------------------------------------------------------===//
 
 include "llvm/IR/IntrinsicsRISCVBuddyExt.td"
 
@@ -60,25 +76,25 @@ def FLUSH : RVInstR<0b0000111, 0b011, OPC_CUSTOM_3, (outs),
 }
 
 let Predicates = [HasBuddyExt] in 
-def CONFIG_LD : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3, (outs),
+def CONFIG_LD : RVInstR<0b0010110, 0b011, OPC_CUSTOM_3, (outs),
                     (ins GPR:$rs1, GPR:$rs2), "config_ld", "$rs1, $rs2"> {
   let rd = 0;
 }
 
 let Predicates = [HasBuddyExt] in 
-def CONFIG_ST : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3, (outs),
+def CONFIG_ST : RVInstR<0b0010111, 0b011, OPC_CUSTOM_3, (outs),
                     (ins GPR:$rs1, GPR:$rs2), "config_st", "$rs1, $rs2"> {
   let rd = 0;
 }
 
 let Predicates = [HasBuddyExt] in 
-def CONFIG_EX : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3,(outs),
+def CONFIG_EX : RVInstR<0b0011000, 0b011, OPC_CUSTOM_3,(outs),
                     (ins GPR:$rs1, GPR:$rs2), "config_ex", "$rs1, $rs2"> {
   let rd = 0;
 }
 
 let Predicates = [HasBuddyExt] in 
-def CONFIG_NORM : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3,(outs),
+def CONFIG_NORM : RVInstR<0b0011001, 0b011, OPC_CUSTOM_3,(outs),
                     (ins GPR:$rs1, GPR:$rs2), "config_norm", "$rs1, $rs2"> {
   let rd = 0;
 }

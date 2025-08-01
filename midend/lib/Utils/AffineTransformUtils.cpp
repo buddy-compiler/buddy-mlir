@@ -252,7 +252,7 @@ void remapNearest2D(OpBuilder &builder, Location loc, MLIRContext *ctx,
                   },
                   [&](OpBuilder &elseBuilder, Location elseLoc) {
                     auto inElemTy =
-                        input.getType().cast<MemRefType>().getElementType();
+                        llvm::cast<MemRefType>(input.getType()).getElementType();
                     Value pixel = insertZeroConstantOp(ctx, elseBuilder,
                                                        elseLoc, inElemTy);
                     elseBuilder.create<memref::StoreOp>(elseLoc, pixel, output,
@@ -364,8 +364,7 @@ void remapNearest3D(OpBuilder &builder, Location loc, MLIRContext *ctx,
                           thenBuilder.create<scf::YieldOp>(thenLoc);
                         },
                         [&](OpBuilder &elseBuilder, Location elseLoc) {
-                          auto inElemTy = input.getType()
-                                              .cast<MemRefType>()
+                          auto inElemTy = llvm::cast<MemRefType>(input.getType())
                                               .getElementType();
                           Value pixel = insertZeroConstantOp(ctx, elseBuilder,
                                                              elseLoc, inElemTy);
@@ -445,8 +444,7 @@ void remapNearest3D(OpBuilder &builder, Location loc, MLIRContext *ctx,
                           thenBuilder.create<scf::YieldOp>(elseLoc);
                         },
                         [&](OpBuilder &elseBuilder, Location elseLoc) {
-                          auto inElemTy = input.getType()
-                                              .cast<MemRefType>()
+                          auto inElemTy = llvm::cast<MemRefType>(input.getType())
                                               .getElementType();
                           Value pixel = insertZeroConstantOp(ctx, elseBuilder,
                                                              elseLoc, inElemTy);

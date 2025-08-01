@@ -49,6 +49,7 @@ tablegen(LLVM RISCVGenRegisterInfo.inc -gen-register-info)
 tablegen(LLVM RISCVGenSearchableTables.inc -gen-searchable-tables)
 tablegen(LLVM RISCVGenSubtargetInfo.inc -gen-subtarget)
 tablegen(LLVM RISCVGenExegesis.inc -gen-exegesis)
+tablegen(LLVM RISCVGenSDNodeInfo.inc -gen-sd-node-info)
 
 set(LLVM_TARGET_DEFINITIONS ${LLVM_TARGET_RISCV_DIR}/RISCVGISel.td)
 tablegen(LLVM RISCVGenGlobalISel.inc -gen-global-isel)

@@ -1894,7 +1894,7 @@ public:
     Value output = tileConvOp.getOutput();
     Value weights = tileConvOp.getWeights();
     Value bias = tileConvOp.getBias();
-    MemRefType inputType = dyn_cast<MemRefType>(input.getType());
+    MemRefType inputType = dyn_cast<MemRefType>(llvm::cast<MemRefType>(input.getType()));
     MemRefType biasType = dyn_cast<MemRefType>(bias.getType());
     ArrayRef<int64_t> inputShape = inputType.getShape();
     ArrayRef<int64_t> biasShape = biasType.getShape();

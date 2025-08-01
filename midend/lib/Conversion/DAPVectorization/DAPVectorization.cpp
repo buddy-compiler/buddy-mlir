@@ -219,8 +219,8 @@ public:
     Value filterSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
 
     FloatType f32 = Float32Type::get(ctx);
-    Value f0 = rewriter.create<ConstantFloatOp>(loc, APFloat(0.0f), f32);
-    Value f1 = rewriter.create<ConstantFloatOp>(loc, APFloat(1.0f), f32);
+    Value f0 = rewriter.create<ConstantFloatOp>(loc, f32, APFloat(0.0f));
+    Value f1 = rewriter.create<ConstantFloatOp>(loc, f32, APFloat(1.0f));
 
     Value cond4 =
         rewriter.create<CmpIOp>(loc, CmpIPredicate::ule, filterSize, c4);

@@ -233,7 +233,7 @@ public:
     Value kernel = convOp.getInputs()[1];
     Value output = convOp.getOutputs()[0];
     Location loc = convOp.getLoc();
-    MemRefType inputType =  dyn_cast<MemRefType>(input.getType());
+    MemRefType inputType = llvm::cast<MemRefType>(input.getType());
     MemRefType kernelType =  dyn_cast<MemRefType>(kernel.getType());
     MemRefType outputType =  dyn_cast<MemRefType>(output.getType());
     Type kernelElemType = kernelType.getElementType();
