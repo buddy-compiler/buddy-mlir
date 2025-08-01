@@ -1,7 +1,7 @@
 [submodule "llvm"]
 	path = llvm
 	url = https://github.com/llvm/llvm-project.git
-	branch = main
+	branch = llvmorg-21.1.0-rc1
 	shallow = true
 [submodule "thirdparty/mimalloc"]
 	path = thirdparty/mimalloc
