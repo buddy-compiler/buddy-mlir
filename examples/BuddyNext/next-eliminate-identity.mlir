@@ -36,7 +36,8 @@ module {
 
         %119 = arith.constant dense<1.0> : tensor<1x40x32x128xf32>
         %120 = tosa.identity %119 : (tensor<1x40x32x128xf32>) -> tensor<1x40x32x128xf32>
-        %121 = tosa.reshape %120 {new_shape = array<i64: 1, 40, 4096>} : (tensor<1x40x32x128xf32>) -> tensor<1x40x4096xf32>
+          %shape_121 = tosa.const_shape {values = dense<[1, 40, 4096]> : tensor<3xindex>} : () -> !tosa.shape<3>
+  %121 = tosa.reshape %120, %shape_121 : (tensor<1x40x32x128xf32>, !tosa.shape<3>) -> tensor<1x40x4096xf32>
         %t1_original = call @rtclock() : () -> f64
 
         %tensor_unranked = tensor.cast %121 : tensor<1x40x4096xf32> to tensor<*xf32>
@@ -61,7 +62,8 @@ module {
         %t0_optimized = call @rtclock() : () -> f64
 
         %119 = arith.constant dense<1.0> : tensor<1x40x32x128xf32>
-        %121 = tosa.reshape %119 {new_shape = array<i64: 1, 40, 4096>} : (tensor<1x40x32x128xf32>) -> tensor<1x40x4096xf32>
+          %shape_121 = tosa.const_shape {values = dense<[1, 40, 4096]> : tensor<3xindex>} : () -> !tosa.shape<3>
+  %121 = tosa.reshape %119, %shape_121 : (tensor<1x40x32x128xf32>, !tosa.shape<3>) -> tensor<1x40x4096xf32>
         %t1_optimized = call @rtclock() : () -> f64
 
         %tensor_unranked = tensor.cast %121 : tensor<1x40x4096xf32> to tensor<*xf32>
