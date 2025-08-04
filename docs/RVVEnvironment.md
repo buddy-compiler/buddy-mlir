@@ -107,6 +107,7 @@ $ cmake -G Ninja ../../llvm/llvm \
     -DCMAKE_CXX_FLAGS="--target=riscv64-unknown-linux-gnu --sysroot=${RISCV_GNU_TOOLCHAIN_SYSROOT_DIR} --gcc-toolchain=${BUILD_RISCV_GNU_TOOLCHAIN_DIR}" \
     -DMLIR_TABLEGEN=${BUILD_LOCAL_LLVM_DIR}/bin/mlir-tblgen \
     -DLLVM_TABLEGEN=${BUILD_LOCAL_LLVM_DIR}/bin/llvm-tblgen \
+    -DMLIR_SRC_SHARDER_TABLEGEN_EXE=${BUILD_LOCAL_LLVM_DIR}/bin/mlir-src-sharder \
     -DMLIR_LINALG_ODS_YAML_GEN=${BUILD_LOCAL_LLVM_DIR}/bin/mlir-linalg-ods-yaml-gen \
     -DMLIR_PDLL_TABLEGEN=${BUILD_LOCAL_LLVM_DIR}/bin/mlir-pdll \
     -DLLVM_ENABLE_ZSTD=Off
@@ -146,7 +147,7 @@ $ cd examples/RVVDialect/
 $ make rvv-mul-add-run
 
 // Expected Output:
-Unranked Memref base@ = 0x55555729aaa0 rank = 1 offset = 0 sizes = [20] strides = [1] data = 
+Unranked Memref base@ = 0x55555729aaa0 rank = 1 offset = 0 sizes = [20] strides = [1] data =
 [0,  12,  26,  42,  60,  80,  102,  126,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0]
 ```
 
