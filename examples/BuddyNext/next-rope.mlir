@@ -43,16 +43,16 @@ func.func private @rtclock() -> f64
 func.func @kernel(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, %arg2 : tensor<1x40x4096xf32>, %arg3 : tensor<1x1x2048x128xf32>, %arg4 : tensor<1x1x2048x128xf32>, %arg5 : tensor<1x40xi64>) {
   %t_start = call @rtclock() : () -> f64
 
-    %shape_57 = tosa.const_shape {values = dense<[1, 40, 32, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
-  %57 = tosa.reshape %arg0, %shape_57 : (tensor<1x40x4096xf32>, !tosa.shape<4>) -> tensor<1x40x32x128xf32>
+  %1 = tosa.const_shape {values = dense<[1, 40, 32, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %57 = tosa.reshape %arg0, %1 : (tensor<1x40x4096xf32>, !tosa.shape<4>) -> tensor<1x40x32x128xf32>
   %59 = tosa.transpose %57 {perms = array<i32: 0, 2, 1, 3>} : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
 
-    %shape_60 = tosa.const_shape {values = dense<[1, 40, 32, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
-  %60 = tosa.reshape %arg1, %shape_60 : (tensor<1x40x4096xf32>, !tosa.shape<4>) -> tensor<1x40x32x128xf32>
+  %4 = tosa.const_shape  {values = dense<[1, 40, 32, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %60 = tosa.reshape %arg1, %4 : (tensor<1x40x4096xf32>, !tosa.shape<4>) -> tensor<1x40x32x128xf32>
   %62 = tosa.transpose %60 {perms = array<i32: 0, 2, 1, 3>} : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
 
-    %shape_63 = tosa.const_shape {values = dense<[1, 40, 32, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
-  %63 = tosa.reshape %arg2, %shape_63 : (tensor<1x40x4096xf32>, !tosa.shape<4>) -> tensor<1x40x32x128xf32>
+  %7 = tosa.const_shape  {values = dense<[1, 40, 32, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %63 = tosa.reshape %arg2, %7 : (tensor<1x40x4096xf32>, !tosa.shape<4>) -> tensor<1x40x32x128xf32>
   %65 = tosa.transpose %63 {perms = array<i32: 0, 2, 1, 3>} : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
 
   %extracted_slice_9 = tensor.extract_slice %arg3[0, 0, 0, 0] [1, 1, 2048, 128] [1, 1, 1, 1] : tensor<1x1x2048x128xf32> to tensor<1x1x2048x128xf32>
@@ -90,8 +90,9 @@ func.func @kernel(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, 
     %extracted = tensor.extract %69[%4175, %4176] : tensor<40x128xf32>
     linalg.yield %extracted : f32
   } -> tensor<1x40x128xf32>
-    %shape_76 = tosa.const_shape {values = dense<[1, 1, 40, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
-  %76 = tosa.reshape %75, %shape_76 : (tensor<1x40x128xf32>, !tosa.shape<4>) -> tensor<1x1x40x128xf32>
+
+  %20 = tosa.const_shape  {values = dense<[1, 1, 40, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %76 = tosa.reshape %75, %20 : (tensor<1x40x128xf32>, !tosa.shape<4>) -> tensor<1x1x40x128xf32>
   %77 = tensor.empty() : tensor<1x40x128xf32>
   %78 = linalg.generic {indexing_maps = [#map2, #map5], iterator_types = ["parallel", "parallel", "parallel"]} ins(%arg5 : tensor<1x40xi64>) outs(%77 : tensor<1x40x128xf32>) {
   ^bb0(%in: i64, %out: f32):
@@ -100,28 +101,26 @@ func.func @kernel(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, 
     %extracted = tensor.extract %73[%4175, %4176] : tensor<40x128xf32>
     linalg.yield %extracted : f32
   } -> tensor<1x40x128xf32>
-    %shape_79 = tosa.const_shape {values = dense<[1, 1, 40, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
-  %79 = tosa.reshape %78, %shape_79 : (tensor<1x40x128xf32>, !tosa.shape<4>) -> tensor<1x1x40x128xf32>
-    %shift_80 = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
-  %80 = tosa.mul %59, %76, %shift_80 : (tensor<1x32x40x128xf32>, tensor<1x1x40x128xf32>, tensor<1xi8>) -> tensor<1x32x40x128xf32>
+  %24 = tosa.const_shape  {values = dense<[1, 1, 40, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %79 = tosa.reshape %78, %24 : (tensor<1x40x128xf32>, !tosa.shape<4>) -> tensor<1x1x40x128xf32>
+
+  %26 = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+  %80 = tosa.mul %59, %76, %26 : (tensor<1x32x40x128xf32>, tensor<1x1x40x128xf32>, tensor<1xi8>) -> tensor<1x32x40x128xf32>
   %extracted_slice_15 = tensor.extract_slice %59[0, 0, 0, 0] [1, 32, 40, 64] [1, 1, 1, 1] : tensor<1x32x40x128xf32> to tensor<1x32x40x64xf32>
   %extracted_slice_16 = tensor.extract_slice %59[0, 0, 0, 64] [1, 32, 40, 64] [1, 1, 1, 1] : tensor<1x32x40x128xf32> to tensor<1x32x40x64xf32>
-  %in_zp_81 = "tosa.const"() <{values = dense<0.0> : tensor<1xf32>}> : () -> tensor<1xf32>
-  %out_zp_81 = "tosa.const"() <{values = dense<0.0> : tensor<1xf32>}> : () -> tensor<1xf32>
-  %81 = tosa.negate %extracted_slice_16, %in_zp_81, %out_zp_81 : (tensor<1x32x40x64xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x32x40x64xf32>
+  %37 = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+  %38 = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+  %81 = tosa.negate %extracted_slice_16, %37, %38 : (tensor<1x32x40x64xf32>,tensor<1xf32>, tensor<1xf32>) -> tensor<1x32x40x64xf32>
   %82 = tensor.empty() : tensor<1x32x40x128xf32>
   %inserted_slice = tensor.insert_slice %81 into %82[0, 0, 0, 0] [1, 32, 40, 64] [1, 1, 1, 1] : tensor<1x32x40x64xf32> into tensor<1x32x40x128xf32>
   %inserted_slice_17 = tensor.insert_slice %extracted_slice_15 into %inserted_slice[0, 0, 0, 64] [1, 32, 40, 64] [1, 1, 1, 1] : tensor<1x32x40x64xf32> into tensor<1x32x40x128xf32>
-    %shift_83 = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
-  %83 = tosa.mul %inserted_slice_17, %79, %shift_83 : (tensor<1x32x40x128xf32>, tensor<1x1x40x128xf32>, tensor<1xi8>) -> tensor<1x32x40x128xf32>
+  %32 = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+  %83 = tosa.mul %inserted_slice_17, %79, %32 : (tensor<1x32x40x128xf32>, tensor<1x1x40x128xf32>, tensor<1xi8>) -> tensor<1x32x40x128xf32>
   %84 = tosa.add %80, %83 : (tensor<1x32x40x128xf32>, tensor<1x32x40x128xf32>) -> tensor<1x32x40x128xf32>
-    %shift_85 = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
-  %85 = tosa.mul %62, %76, %shift_85 : (tensor<1x32x40x128xf32>, tensor<1x1x40x128xf32>, tensor<1xi8>) -> tensor<1x32x40x128xf32>
+  %85 = tosa.mul %62, %76, %32 : (tensor<1x32x40x128xf32>, tensor<1x1x40x128xf32>, tensor<1xi8>) -> tensor<1x32x40x128xf32>
   %extracted_slice_18 = tensor.extract_slice %62[0, 0, 0, 0] [1, 32, 40, 64] [1, 1, 1, 1] : tensor<1x32x40x128xf32> to tensor<1x32x40x64xf32>
   %extracted_slice_19 = tensor.extract_slice %62[0, 0, 0, 64] [1, 32, 40, 64] [1, 1, 1, 1] : tensor<1x32x40x128xf32> to tensor<1x32x40x64xf32>
-  %in_zp_86 = "tosa.const"() <{values = dense<0.0> : tensor<1xf32>}> : () -> tensor<1xf32>
-  %out_zp_86 = "tosa.const"() <{values = dense<0.0> : tensor<1xf32>}> : () -> tensor<1xf32>
-  %86 = tosa.negate %extracted_slice_19, %in_zp_86, %out_zp_86 : (tensor<1x32x40x64xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x32x40x64xf32>
+  %86 = tosa.negate %extracted_slice_19, %37, %38 : (tensor<1x32x40x64xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x32x40x64xf32>
   %87 = tensor.empty() : tensor<1x32x40x128xf32>
   %inserted_slice_20 = tensor.insert_slice %86 into %87[0, 0, 0, 0] [1, 32, 40, 64] [1, 1, 1, 1] : tensor<1x32x40x64xf32> into tensor<1x32x40x128xf32>
   %inserted_slice_21 = tensor.insert_slice %extracted_slice_18 into %inserted_slice_20[0, 0, 0, 64] [1, 32, 40, 64] [1, 1, 1, 1] : tensor<1x32x40x64xf32> into tensor<1x32x40x128xf32>
