@@ -28,7 +28,7 @@ repos:
       - id: black
         language_version: python3.10
 
-  # a comprehensive tool for checking the style and quality of Python code. 
+  # a comprehensive tool for checking the style and quality of Python code.
   # It combines three popular Python tools:
   # PyFlakes: Checks for logical errors in the code.
   # pycodestyle (formerly known as pep8): Checks for adherence to the PEP 8 style guide.
@@ -37,8 +37,8 @@ repos:
     rev: 6.1.0  # Set the rev to match the desired flake8 version
     hooks:
       - id: flake8
-        args: 
-          - --max-line-length=88  # Adjust as per your style guide
+        args:
+          - --max-line-length=120  # Adjust as per your style guide
           - --ignore=F821,F403,F405,F401,W503,E203,E402,E401,W605,E712,E711,F841
           # W503: Line break before binary operator
           # E203: Whitespace before colon

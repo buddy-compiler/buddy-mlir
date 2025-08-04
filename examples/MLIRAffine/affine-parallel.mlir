@@ -1,8 +1,8 @@
 // RUN: buddy-opt %s \
-// RUN:     -lower-affine -convert-scf-to-cf -convert-vector-to-llvm \
-// RUN:		  -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -lower-affine -convert-scf-to-cf -convert-cf-to-llvm -convert-vector-to-llvm \
+// RUN:		  -finalize-memref-to-llvm -convert-func-to-llvm -convert-arith-to-llvm \
 // RUN:		  -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -36,6 +36,6 @@ module {
     // CHECK-NEXT:  [4, 9]
     // CHECK-SAME: ]
     func.call @printMemrefF32(%print_output0) : (memref<*xf32>) -> ()
-    func.return 
+    func.return
     }
 }

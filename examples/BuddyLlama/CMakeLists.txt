@@ -1,8 +1,8 @@
 add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir 
-         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir 
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
+         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-llama2.py 
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-llama2.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
 )
@@ -10,13 +10,13 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT forward.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir 
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize
+            -one-shot-bufferize="bufferize-function-boundaries"
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -24,11 +24,6 @@ add_custom_command(
             -affine-parallelize
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize
-            -arith-bufferize
-            -tensor-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
             -convert-vector-to-scf
             -expand-strided-metadata
             -convert-vector-to-llvm
@@ -37,11 +32,12 @@ add_custom_command(
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
+            -convert-cf-to-llvm
             -llvm-request-c-wrappers
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
-            -convert-math-to-libm 
+            -convert-math-to-libm
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
@@ -54,28 +50,23 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT subgraph.o
-    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir 
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -convert-elementwise-to-linalg
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize
-            -func-bufferize-dynamic-offset
-            -tensor-bufferize
-            -arith-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
+            -one-shot-bufferize="bufferize-function-boundaries"
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
-            -lower-affine
             -convert-scf-to-openmp
             -convert-vector-to-scf
             -expand-strided-metadata
+            -lower-affine
             -cse
             -convert-vector-to-llvm
             -memref-expand
@@ -83,11 +74,12 @@ add_custom_command(
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
+            -convert-cf-to-llvm
             -llvm-request-c-wrappers
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
-            -convert-math-to-libm 
+            -convert-math-to-libm
             -convert-func-to-llvm
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
@@ -116,8 +108,8 @@ add_executable(buddy-llama-run llama-main.cpp)
 set(LLAMA_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 set(LLAMA_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
 
-target_compile_definitions(buddy-llama-run PRIVATE 
-  LLAMA_EXAMPLE_PATH="${LLAMA_EXAMPLE_PATH}" 
+target_compile_definitions(buddy-llama-run PRIVATE
+  LLAMA_EXAMPLE_PATH="${LLAMA_EXAMPLE_PATH}"
   LLAMA_EXAMPLE_BUILD_PATH="${LLAMA_EXAMPLE_BUILD_PATH}"
 )
 

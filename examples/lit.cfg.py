@@ -16,12 +16,12 @@ from lit.llvm.subst import FindTool
 # Configuration file for the 'lit' test runner.
 
 # name: The name of this test suite.
-config.name = 'BUDDY-EXAMPLES'
+config.name = "BUDDY-EXAMPLES"
 
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.mlir']
+config.suffixes = [".mlir"]
 if config.buddy_mlir_enable_python_packages:
     config.suffixes.append(".py")
 
@@ -29,10 +29,10 @@ if config.buddy_mlir_enable_python_packages:
 config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
-config.test_exec_root = os.path.join(config.buddy_obj_root, 'examples')
+config.test_exec_root = os.path.join(config.buddy_obj_root, "examples")
 
-config.substitutions.append(('%PATH%', config.environment['PATH']))
-config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
+config.substitutions.append(("%PATH%", config.environment["PATH"]))
+config.substitutions.append(("%shlibext", config.llvm_shlib_ext))
 
 # excludes: A list of directories to exclude from the testsuite. The 'Inputs'
 # subdirectories contain auxiliary inputs for various tests in their parent
@@ -79,10 +79,10 @@ config.excludes = [
     'BuddyDeepSeekR1'
 ]
 
-config.buddy_tools_dir = os.path.join(config.buddy_obj_root, 'bin')
+config.buddy_tools_dir = os.path.join(config.buddy_obj_root, "bin")
 
 # Tweak the PATH to include the tools dir.
-llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
+llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
 
 # Add the python path for both upstream MLIR and Buddy Compiler python packages.
 if config.buddy_mlir_enable_python_packages:
@@ -103,18 +103,24 @@ if config.buddy_mlir_enable_python_packages:
 
 tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
-    'buddy-opt',
-    'buddy-translate',
-    'mlir-cpu-runner',
+    "buddy-opt",
+    "buddy-translate",
+    "mlir-runner",
 ]
-tools.extend([
-    ToolSubst('%mlir_runner_utils_dir', config.mlir_runner_utils_dir, unresolved='ignore'),
-])
+tools.extend(
+    [
+        ToolSubst(
+            "%mlir_runner_utils_dir",
+            config.mlir_runner_utils_dir,
+            unresolved="ignore",
+        ),
+    ]
+)
 
 python_executable = config.python_executable
 tools.extend(
     [
-        ToolSubst("%PYTHON", python_executable, unresolved='ignore'),
+        ToolSubst("%PYTHON", python_executable, unresolved="ignore"),
     ]
 )
 

@@ -1,10 +1,10 @@
 // RUN: buddy-opt %s \
-// RUN:     -arith-bufferize  -tensor-bufferize -linalg-bufferize \
-// RUN:     -convert-vector-to-llvm -func-bufferize \
-// RUN:     -buffer-deallocation -convert-linalg-to-loops \
+// RUN:     --one-shot-bufferize="bufferize-function-boundaries" \
+// RUN:     -convert-vector-to-llvm \
+// RUN:     -convert-linalg-to-loops \
 // RUN:     -convert-scf-to-cf -finalize-memref-to-llvm \
-// RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN:     -convert-func-to-llvm -convert-arith-to-llvm -reconcile-unrealized-casts \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s

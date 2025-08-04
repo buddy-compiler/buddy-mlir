@@ -4,7 +4,7 @@ LLVM_BUILD_DIR := ../../llvm/build/
 BUDDY_OPT := ${BUDDY_BUILD_DIR}/bin/buddy-opt
 MLIR_OPT := ${LLVM_BUILD_DIR}/bin/mlir-opt
 MLIR_TRANSLATE := ${LLVM_BUILD_DIR}/bin/mlir-translate
-MLIR_CPU_RUNNER := ${LLVM_BUILD_DIR}/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ${LLVM_BUILD_DIR}/bin/mlir-runner
 LLC := ${LLVM_BUILD_DIR}/bin/llc
 OPT_FLAG := -O0
 
@@ -25,6 +25,7 @@ linalg-batchmatmul-f32-run:
 		-lower-affine \
 		-convert-vector-to-scf \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm \
@@ -48,6 +49,7 @@ linalg-batchmatmul-f32-vectorization-run:
 		-lower-affine \
 		-convert-vector-to-scf \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm \
@@ -74,6 +76,7 @@ linalg-batchmatmul-f32-omp-lower:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm  \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm  \
@@ -96,6 +99,7 @@ linalg-batchmatmul-f32-omp-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm  \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm  \
@@ -112,6 +116,7 @@ linalg-matmul-transpose-b-f32-run:
 		-lower-affine \
 		-convert-vector-to-scf \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-vector-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm \

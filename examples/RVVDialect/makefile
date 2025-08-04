@@ -14,7 +14,7 @@ BUDDY_TRANSLATE := ${BUDDY_MLIR_BUILD_DIR}/bin/buddy-translate
 # Core LLVM/MLIR Tools
 MLIR_OPT := ${MLIR_BUILD_DIR}/bin/mlir-opt
 MLIR_TRANSLATE := ${MLIR_BUILD_DIR}/bin/mlir-translate
-MLIR_CPU_RUNNER := ${MLIR_BUILD_DIR}/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ${MLIR_BUILD_DIR}/bin/mlir-runner
 LLC := ${MLIR_BUILD_DIR}/bin/llc
 LOCAL_CLANG := ${MLIR_BUILD_DIR}/bin/clang
 
@@ -26,7 +26,7 @@ QEMU := ${RISCV_GNU_TOOLCHAIN}/bin/qemu-riscv64
 # Cross Compiled Toolchain
 CROSS_BUDDY_MLIR_LIB := ${CROSS_BUDDY_MLIR_BUILD_DIR}/lib/
 CROSS_LLI := ${CROSS_LLVM_BUILD_DIR}/bin/lli
-CROSS_MLIR_CPU_RUNNER := ${CROSS_MLIR_BUILD_DIR}/bin/mlir-cpu-runner
+CROSS_MLIR_CPU_RUNNER := ${CROSS_MLIR_BUILD_DIR}/bin/mlir-runner
 CROSS_MLIR_C_RUNNER_UTILS := ${CROSS_MLIR_BUILD_DIR}/lib/libmlir_c_runner_utils.so
 CROSS_MLIR_RUNNER_UTILS := ${CROSS_MLIR_BUILD_DIR}/lib/libmlir_runner_utils.so
 CROSS_MLIR_LIB := ${CROSS_MLIR_BUILD_DIR}/lib
@@ -48,6 +48,7 @@ rvv-setvl-lower:
 	@${BUDDY_OPT} ./rvv-setvl.mlir \
 		-convert-scf-to-cf \
 		-convert-math-to-llvm \
+		-convert-arith-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
 		-convert-func-to-llvm \
@@ -58,6 +59,7 @@ rvv-setvl-translate:
 	@${BUDDY_OPT} ./rvv-setvl.mlir \
 		-convert-scf-to-cf \
 		-convert-math-to-llvm \
+		-convert-arith-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
 		-convert-func-to-llvm \
@@ -68,32 +70,36 @@ rvv-setvl-128-run:
 	@${BUDDY_OPT} ./rvv-setvl.mlir \
 		-convert-scf-to-cf \
 		-convert-math-to-llvm \
+		-convert-arith-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu max \
-	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v \
+	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v,-zcf \
 		-dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
 
 rvv-setvl-256-run:
 	@${BUDDY_OPT} ./rvv-setvl.mlir \
 		-convert-scf-to-cf \
 		-convert-math-to-llvm \
+		-convert-arith-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu max \
-	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v \
+	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v,-zcf \
 		-dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
 
 rvv-rsqrt-lower:
 	@${BUDDY_OPT} ./rvv-rsqrt.mlir \
 		--convert-scf-to-cf \
 		--convert-math-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-cf-to-llvm \
 		--lower-rvv --convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts \
 		-o ./log.mlir
@@ -102,6 +108,8 @@ rvv-rsqrt-translate:
 	@${BUDDY_OPT} ./rvv-rsqrt.mlir \
 		--convert-scf-to-cf \
 		--convert-math-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-cf-to-llvm \
 		--lower-rvv --convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm \
 		--reconcile-unrealized-casts | \
 		${BUDDY_TRANSLATE} --buddy-to-llvmir -o log.ll
@@ -110,6 +118,8 @@ rvv-rsqrt-aot:
 	@${BUDDY_OPT} ./rvv-rsqrt.mlir \
 		-convert-scf-to-cf \
 		--convert-math-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-cf-to-llvm \
 		--lower-rvv -convert-vector-to-llvm --finalize-memref-to-llvm --convert-func-to-llvm\
 		--reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
@@ -123,6 +133,8 @@ rvv-mul-add-lower:
 	@${BUDDY_OPT} ./rvv-mul-add.mlir \
 		-convert-scf-to-cf \
 		-convert-math-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-cf-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
@@ -134,6 +146,8 @@ rvv-mul-add-translate:
 	@${BUDDY_OPT} ./rvv-mul-add.mlir \
 		-convert-scf-to-cf \
 		-convert-math-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-cf-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
@@ -145,6 +159,8 @@ rvv-mul-add-run:
 	@${BUDDY_OPT} ./rvv-mul-add.mlir \
 		-convert-scf-to-cf \
 		-convert-math-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-cf-to-llvm \
 		-lower-rvv \
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
@@ -153,7 +169,7 @@ rvv-mul-add-run:
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} \
 			-cpu max \
-	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v \
+	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v,-zcf \
 		-dlopen=${CROSS_MLIR_C_RUNNER_UTILS} \
 		-dlopen=${CROSS_MLIR_RUNNER_UTILS}
 
@@ -167,6 +183,8 @@ rvv-stripmining-lower:
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-cf-to-llvm \
 		-reconcile-unrealized-casts \
 		-o ./log.mlir
 
@@ -180,6 +198,8 @@ rvv-stripmining-translate:
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-cf-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir -o log.ll
 
@@ -193,11 +213,13 @@ rvv-stripmining-run:
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-cf-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${QEMU} -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} \
 			-cpu max \
-	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v \
+	${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v,-zcf \
 		-dlopen=${CROSS_MLIR_C_RUNNER_UTILS} \
 		-dlopen=${CROSS_MLIR_RUNNER_UTILS}
 
@@ -211,6 +233,8 @@ rvv-stripmining-aot:
 		-convert-vector-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-func-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-cf-to-llvm \
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${LLC} -mtriple riscv64 -target-abi lp64d \

@@ -29,8 +29,10 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = arith.constant
-# CHECK: %{{.*}} = linalg.matmul
+# CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tosa.matmul
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

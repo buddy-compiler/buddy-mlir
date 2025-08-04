@@ -8,9 +8,9 @@ The purpose of the examples is to give users a better understanding of how to us
 
 ## IR Level Examples
 
-The IR level examples show how to use the passes in upstream MLIR and buddy-mlir, some of these examples come from the MLIR integration test. Most cases can be run directly with the MLIR JIT engine `mlir-cpu-runner`. The lowering pipeline and the toolchain configuration are specified in makefile target. Before you start trying the IR level examples, please make sure you have completed the [get started part](../README.md). 
+The IR level examples show how to use the passes in upstream MLIR and buddy-mlir, some of these examples come from the MLIR integration test. Most cases can be run directly with the MLIR JIT engine `mlir-runner`. The lowering pipeline and the toolchain configuration are specified in makefile target. Before you start trying the IR level examples, please make sure you have completed the [get started part](../README.md).
 
-Then you can find a Dialect that you are interested in, and you can go to the corresponding directory to find the target you want to run. The naming convention for target is `<Dialect Name>-<Operation Name>-<Target Type>`. For most examples, we provide the 
+Then you can find a Dialect that you are interested in, and you can go to the corresponding directory to find the target you want to run. The naming convention for target is `<Dialect Name>-<Operation Name>-<Target Type>`. For most examples, we provide the
 following targets:
 
 - Lower Target (`<Dialect Name>-<Operation Name>-lower`): the lower target is designed to show the lowering pipeline. You can also remove some of these passes to see the different generated MLIR code. The name of the output file is `log.mlir`.
@@ -53,7 +53,7 @@ $ ./buddy-opt ../../examples/ConvOpt/conv2d.mlir -conv-vectorization="strip-mini
 
 - Edge detection example
 
-We also provide an edge detection example to show the optimization. 
+We also provide an edge detection example to show the optimization.
 The `conv-vectorization` pass is responsible for lowering the `linalg.conv_2d` with our algorithm. And then we use `mlir-translate` and `llc` tools to generate the object file. At last, we call the MLIR convolution function in a C++ program.
 
 Please make sure OpenCV is installed to play around.
@@ -77,7 +77,7 @@ $ cd bin
 $ ./edge-detection ../../examples/images/YuTu.png
 ```
 
-We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches. 
+We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches.
 For more details, please see [the benchamrk in the buddy-benchmark repo](https://github.com/buddy-compiler/buddy-benchmark#image-processing-benchmark).
 
 
@@ -103,7 +103,7 @@ Build and run the example.
 
 This example can also show the "magic" of AutoConfig mechanism that can help you specify the `strip mining size`, `ISA SIMD/Vector extension`, and `target triple`. You only need to enable the `BUDDY_EXAMPLES` option and don't worry about the toolchain configuration.
 
-To generate build files for these examples 
+To generate build files for these examples
 
 ```
 $ cd buddy-mlir/build
@@ -153,7 +153,7 @@ $ ninja morph2D
 $ cd bin
 $ ./morph2D ../../examples/images/YuTu.png result-opening-constant.png result-opening-replicate.png result-closing-replicate.png result-closing-constant.png result-tophat-replicate.png result-dilation-constant.png result-dilation-replicate.png result-erosion-constant.png result-erosion-replicate.png result-morphgrad-replicate.png result-bottomhat-replicate.png
 ```
-We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches. 
+We also provide the performance comparison between our `buddy-opt` tool and other state-of-the-art approaches.
 For more details, please see [the benchamrk in the buddy-benchmark repo](https://github.com/buddy-compiler/buddy-benchmark#image-processing-benchmark).
 
 ### Digital Audio Processing Examples

@@ -592,7 +592,7 @@ void affineTransformController(OpBuilder &builder, Location loc,
                                MLIRContext *ctx, Value input, Value output,
                                SmallVector<Value, 6> affineMatrix,
                                int64_t stride, dip::ImageFormat format) {
-  VectorType vectorTyF32 = VectorType::get({stride}, FloatType::getF32(ctx));
+  VectorType vectorTyF32 = VectorType::get({stride}, Float32Type::get(ctx));
   VectorType vectorTyI32 = VectorType::get({stride}, IntegerType::get(ctx, 32));
 
   Value c0Index = builder.create<arith::ConstantIndexOp>(loc, 0);

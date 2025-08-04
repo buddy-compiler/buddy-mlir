@@ -38,6 +38,7 @@ set(LLVM_TARGET_DEFINITIONS RISCVBuddyExt.td)
 tablegen(LLVM RISCVGenAsmMatcher.inc -gen-asm-matcher)
 tablegen(LLVM RISCVGenAsmWriter.inc -gen-asm-writer)
 tablegen(LLVM RISCVGenCompressInstEmitter.inc -gen-compress-inst-emitter)
+tablegen(LLVM RISCVGenMacroFusion.inc -gen-macro-fusion-pred)
 tablegen(LLVM RISCVGenDAGISel.inc -gen-dag-isel)
 tablegen(LLVM RISCVGenDisassemblerTables.inc -gen-disassembler)
 tablegen(LLVM RISCVGenInstrInfo.inc -gen-instr-info)
@@ -47,6 +48,7 @@ tablegen(LLVM RISCVGenRegisterBank.inc -gen-register-bank)
 tablegen(LLVM RISCVGenRegisterInfo.inc -gen-register-info)
 tablegen(LLVM RISCVGenSearchableTables.inc -gen-searchable-tables)
 tablegen(LLVM RISCVGenSubtargetInfo.inc -gen-subtarget)
+tablegen(LLVM RISCVGenExegesis.inc -gen-exegesis)
 
 set(LLVM_TARGET_DEFINITIONS ${LLVM_TARGET_RISCV_DIR}/RISCVGISel.td)
 tablegen(LLVM RISCVGenGlobalISel.inc -gen-global-isel)
@@ -86,22 +88,24 @@ endforeach()
 # Build BuddyRISCVCodeGen target.
 buddy_add_llvm_target(BuddyRISCVCodeGen
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVAsmPrinter.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVCallingConv.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVCodeGenPrepare.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVConstantPoolValue.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVDeadRegisterDefinitions.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMakeCompressible.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVExpandAtomicPseudoInsts.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVExpandPseudoInsts.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVFoldMasks.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVFrameLowering.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVGatherScatterLowering.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVIndirectBranchTracking.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInsertVSETVLI.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInsertReadWriteCSR.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInsertWriteVXRM.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInstrInfo.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVISelDAGToDAG.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVISelLowering.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVLandingPadSetup.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMachineFunctionInfo.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMacroFusion.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMergeBaseOffset.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVOptWInstrs.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVPostRAExpandPseudoInsts.cpp
@@ -109,36 +113,15 @@ buddy_add_llvm_target(BuddyRISCVCodeGen
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMoveMerger.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVPushPopOptimizer.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVRegisterInfo.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVRVVInitUndef.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVSelectionDAGInfo.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVSubtarget.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetMachine.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetObjectFile.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetTransformInfo.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVCallLowering.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVInstructionSelector.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVLegalizerInfo.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVPostLegalizerCombiner.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVO0PreLegalizerCombiner.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVPreLegalizerCombiner.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVRegisterBankInfo.cpp
-  # Add *.h files to track the copies above.
-  # Target RISCV
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCV.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVFrameLowering.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVInstrInfo.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVISelDAGToDAG.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVISelLowering.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMachineFunctionInfo.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMacroFusion.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVRegisterInfo.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVSubtarget.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetMachine.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetObjectFile.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetTransformInfo.h
-  # GISel
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVCallLowering.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVLegalizerInfo.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVRegisterBankInfo.h
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVVectorMaskDAGMutation.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVVectorPeephole.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVVLOptimizer.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVZacasABIFix.cpp
 
   LINK_COMPONENTS
   BuddyAnalysis
@@ -206,31 +189,43 @@ endforeach()
 
 # Build LLVMBuddyRISCVDesc target.
 add_llvm_component_library(LLVMBuddyRISCVDesc
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVAsmBackend.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVBaseInfo.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVELFObjectWriter.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVInstPrinter.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCAsmInfo.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCCodeEmitter.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCExpr.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCObjectFileInfo.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCTargetDesc.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMatInt.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetStreamer.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVELFStreamer.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVAsmPrinter.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVCallingConv.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVCodeGenPrepare.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVConstantPoolValue.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVDeadRegisterDefinitions.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVExpandAtomicPseudoInsts.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVExpandPseudoInsts.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVFrameLowering.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVGatherScatterLowering.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVISelDAGToDAG.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVLandingPadSetup.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMergeBaseOffset.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMoveMerger.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVOptWInstrs.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVPostRAExpandPseudoInsts.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVPushPopOptimizer.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVRedundantCopyElimination.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVRegisterInfo.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVSelectionDAGInfo.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVSubtarget.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetMachine.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetObjectFile.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetTransformInfo.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVVectorMaskDAGMutation.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVVectorPeephole.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVZacasABIFix.cpp
+
 
   # Add *.h files to track the copies above.
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVAsmBackend.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVBaseInfo.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVELFStreamer.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVFixupKinds.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVInstPrinter.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMatInt.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCAsmInfo.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCExpr.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCObjectFileInfo.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCTargetDesc.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetStreamer.h
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVCallingConv.h
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVInstrInfo.h
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVRegisterInfo.h
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVSelectionDAGInfo.h
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVSubtarget.h
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetMachine.h
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetObjectFile.h
+
 
   LINK_COMPONENTS
   MC

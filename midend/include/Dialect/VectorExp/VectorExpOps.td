@@ -33,7 +33,7 @@ include "mlir/IR/AttrTypeBase.td"
 
 def VectorExp_PredicationOp : VectorExp_Op<"predication"> {
   let summary = "Vector Experiment Predication Operation.";
-  let arguments = (ins AnyVector:$mask,
+  let arguments = (ins AnyVectorOfAnyRank:$mask,
                        AnyInteger:$vl
                   );
   let results = (outs AnyType:$result);
@@ -133,7 +133,7 @@ def VectorExp_LoadOp : VectorExp_Op<"load", [AttrSizedOperandSegments]> {
       Optional<AnyInteger>:$vl,
       Variadic<Index>:$indices
       );
-  let results = (outs AnyVector:$result);
+  let results = (outs AnyVectorOfAnyRank:$result);
 
   let extraClassDeclaration = [{
     mlir::MemRefType getMemRefType() {

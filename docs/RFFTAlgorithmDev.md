@@ -17,14 +17,14 @@ The implementation of PocketFFT's RFFT typically involves two stages: the planni
 - Compute twiddle factors: Compute twiddle factors for different butterfly operators.
 
 ### Computation Stage
-Follow the scheduled order to achieve RFFT computation. This project already supports butterfly operators 4 and 5, represented as radf4 and radf5, respectively.  
+Follow the scheduled order to achieve RFFT computation. This project already supports butterfly operators 4 and 5, represented as radf4 and radf5, respectively.
 
-To achieve a universal RFFT algorithm, butterfly operators radf2, radf3, and radfg are needed. This part of the work will be done in the 2024 OSPP project. 
+To achieve a universal RFFT algorithm, butterfly operators radf2, radf3, and radfg are needed. This part of the work will be done in the 2024 OSPP project.
 
 ### Optimization Plan
 Currently, only the scalar version is supported; the vectorization pass is still in progress.
 
-## 2024 OSPP 
+## 2024 OSPP
 In the 2024 OSPP, three additional operators are needed to achieve universal RFFT functions: which are rad2, rad3, and radfg. Radfg represents for larger prime butterfly factors and is less efficient.
 
 ### Pre-Task
@@ -187,7 +187,7 @@ func.func @radf5Extend(%cc : memref<25xf64>, %ch : memref<25xf64>, %wa : memref<
       %chtmp4:2 = func.call @PM(%ti5_ti4#1, %ti3) : (f64, f64) -> (f64, f64)
       func.call @CH(%ch, %i, %i4, %k, %ido, %cdim, %chtmp4#0) : (memref<25xf64>, index, index, index, index, index, f64) -> ()
       func.call @CH(%ch, %ic, %i3, %k, %ido, %cdim, %chtmp4#1) : (memref<25xf64>, index, index, index, index, index, f64) -> ()
-      
+
       scf.yield
     }
     scf.yield
@@ -212,11 +212,11 @@ func.func @radf5(%cc : memref<25xf64>, %ch : memref<25xf64>, %wa : memref<16xf64
     %cc0k4 = func.call @CC(%cc, %i0, %iv, %i4, %ido, %l1) : (memref<25xf64>, index, index, index, index, index) -> (f64)
     %cc0k1 = func.call @CC(%cc, %i0, %iv, %i1, %ido, %l1) : (memref<25xf64>, index, index, index, index, index) -> (f64)
     %cr2_ci5:2 = func.call @PM(%cc0k4, %cc0k1) : (f64, f64) -> (f64, f64)
-    
+
     %cc0k3 = func.call @CC(%cc, %i0, %iv, %i3, %ido, %l1) : (memref<25xf64>, index, index, index, index, index) -> (f64)
     %cc0k2 = func.call @CC(%cc, %i0, %iv, %i2, %ido, %l1) : (memref<25xf64>, index, index, index, index, index) -> (f64)
     %cr3_ci4:2 = func.call @PM(%cc0k3, %cc0k2) : (f64, f64) -> (f64, f64)
-    
+
     %cc0k0 = func.call @CC(%cc, %i0, %iv, %i0, %ido, %l1) : (memref<25xf64>, index, index, index, index, index) -> (f64)
     %tmpch0 = arith.addf %cc0k0, %cr2_ci5#0 : f64
     %ch0 = arith.addf %tmpch0, %cr3_ci4#0 : f64
@@ -243,18 +243,18 @@ func.func @radf5(%cc : memref<25xf64>, %ch : memref<25xf64>, %wa : memref<16xf64
     %tmpch10 = arith.mulf %ti11, %cr3_ci4#1 : f64
     %ch4 = arith.subf %tmpch9, %tmpch10 : f64
     func.call @CH(%ch, %i0, %i4, %iv, %ido, %cdim, %ch4) : (memref<25xf64>, index, index, index, index, index, f64) -> ()
-    
+
     scf.yield
   }
 
   %condition = arith.cmpi ne, %ido, %i1 : index
   scf.if %condition {
     func.call @radf5Extend(%cc, %ch, %wa, %ido, %l1, %cdim) : (memref<25xf64>, memref<25xf64>, memref<16xf64>, index, index, index) -> ()
-    
+
     scf.yield
   }
-  
-  return 
+
+  return
 }
 
 func.func @main() {
@@ -282,7 +282,7 @@ Makefile:
 #!/bin/bash
 BUDDY_OPT := /PATH/TO/build/bin/buddy-opt
 MLIR_OPT := /PATH/TO/llvm/build/bin/mlir-opt
-MLIR_CPU_RUNNER := /PATH/TO/llvm/build/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := /PATH/TO/llvm/build/bin/mlir-runner
 MLIR_TRANSLATE := /PATH/TO/llvm/build/bin/mlir-translate
 LLC := /PATH/TO/llvm/build/bin/llc
 OPT_FLAG := -O0
@@ -315,7 +315,7 @@ run-radf5:
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 		${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} 
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 ```
 
 2. Develop and Debug
@@ -328,7 +328,7 @@ The C-style code can be find in pocketfft.c file from the [PocketFFT library](ht
 
 After algorithm validation, there is still some work remaining. This include rewriting the above algorithm into a lowering pass, writing examples, and benchmarks.
 
-Follow MLIR's [toy tutorial](https://mlir.llvm.org/docs/Tutorials/Toy/) or check the code of DAP/DIP dialects(designed in buddy-mlir) to understand the process for developing a dialect operation. 
+Follow MLIR's [toy tutorial](https://mlir.llvm.org/docs/Tutorials/Toy/) or check the code of DAP/DIP dialects(designed in buddy-mlir) to understand the process for developing a dialect operation.
 
 An optional task:
-Please describe the work required to add an operation (in a dialect). For example, specify which files are needed and where the examples and benchmarks are located. 
+Please describe the work required to add an operation (in a dialect). For example, specify which files are needed and where the examples and benchmarks are located.
