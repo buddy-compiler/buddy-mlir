@@ -6,7 +6,6 @@
 // RUN:     -empty-tensor-to-alloc-tensor \
 // RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
 // RUN:     -convert-linalg-to-affine-loops \
-// RUN:     -affine-loop-fusion \
 // RUN:     -affine-parallelize \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -expand-strided-metadata \
