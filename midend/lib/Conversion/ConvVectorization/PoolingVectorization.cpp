@@ -66,7 +66,7 @@ public:
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
     // Element type.
-    MemRefType inputMemRefTy = dyn_cast<MemRefType>(input.getType());
+    MemRefType inputMemRefTy = llvm::cast<MemRefType>(input.getType());
     // Element type.
     FloatType fTy = dyn_cast<FloatType>(inputMemRefTy.getElementType());
     // Constants.
@@ -170,7 +170,7 @@ public:
                 });
             // Load into a vector.
             Value vec = rewriter.create<vector::TransferReadOp>(
-                loc, vecTy, window, ValueRange{c0});
+                loc, vecTy, window, ValueRange{c0}, /*padding=*/std::nullopt);
             // Reduce vector.
             Value res = rewriter.create<vector::ReductionOp>(
                 loc, vector::CombiningKind::ADD, vec);
@@ -219,7 +219,7 @@ public:
                 });
             // Load into a vector.
             Value vec = rewriter.create<vector::TransferReadOp>(
-                loc, vecTy, window, ValueRange{c0});
+                loc, vecTy, window, ValueRange{c0}, /*padding=*/std::nullopt);
             // Reduce vector.
             Value res = rewriter.create<vector::ReductionOp>(
                 loc, vector::CombiningKind::ADD, vec);

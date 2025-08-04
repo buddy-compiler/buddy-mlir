@@ -55,10 +55,10 @@ public:
     Value B = op->getOperand(1);
     Value C = op->getOperand(2);
     // Get shape of input and output
-    ShapedType ATy = A.getType().cast<ShapedType>();
+    ShapedType ATy = llvm::cast<ShapedType>(A.getType());
     Type eleTy = ATy.getElementType();
-    // ShapedType BTy = B.getType().cast<ShapedType>();
-    // ShapedType CTy = C.getType().cast<ShapedType>();
+    // ShapedType BTy = B.getType());
+    // ShapedType CTy = C.getType());
 
     auto ctx = op->getContext();
     // Get i1 as the element type for mask vector.
@@ -96,7 +96,7 @@ public:
       // Create loop based on vector size.
       builder.create<affine::AffineForOp>(
           loc, ValueRange{c0}, builder.getDimIdentityMap(),
-          ValueRange{bCol}, vecTailMap, /*Step=*/1, std::nullopt,
+          ValueRange{bCol}, vecTailMap, /*Step=*/1, ValueRange{},
           [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
               ValueRange itrArgs) {
         // Load element and broadcast to vector.
