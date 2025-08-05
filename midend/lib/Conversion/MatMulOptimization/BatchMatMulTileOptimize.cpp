@@ -75,8 +75,9 @@ public:
     Value C = op->getOperand(2);
 
     // Acquire the element type of input tensors.
-    Type elementType = A.getType().cast<MemRefType>().getElementType();
-    ShapedType ATy = A.getType().cast<ShapedType>();
+    Type elementType =
+        mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
+    ShapedType ATy = mlir::cast<mlir::ShapedType>(A.getType());
 
     // Define constants.
     const Value c0 =

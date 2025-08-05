@@ -1,7 +1,6 @@
 set(LLVM_Analysis_DIR ${LLVM_MAIN_SRC_DIR}/lib/Analysis)
 
 add_llvm_component_library(LLVMBuddyAnalysis
-
   ${LLVM_Analysis_DIR}/AliasAnalysis.cpp
   ${LLVM_Analysis_DIR}/AliasAnalysisEvaluator.cpp
   ${LLVM_Analysis_DIR}/AliasSetTracker.cpp
@@ -40,10 +39,14 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/DominanceFrontier.cpp
   ${LLVM_Analysis_DIR}/DXILResource.cpp
   ${LLVM_Analysis_DIR}/DXILMetadataAnalysis.cpp
+  ${LLVM_Analysis_DIR}/EphemeralValuesCache.cpp
+  ${LLVM_Analysis_DIR}/FloatingPointPredicateUtils.cpp
   ${LLVM_Analysis_DIR}/FunctionPropertiesAnalysis.cpp
   ${LLVM_Analysis_DIR}/GlobalsModRef.cpp
   ${LLVM_Analysis_DIR}/GuardUtils.cpp
+  ${LLVM_Analysis_DIR}/HashRecognize.cpp
   ${LLVM_Analysis_DIR}/HeatUtils.cpp
+  ${LLVM_Analysis_DIR}/IR2Vec.cpp
   ${LLVM_Analysis_DIR}/IRSimilarityIdentifier.cpp
   ${LLVM_Analysis_DIR}/IVDescriptors.cpp
   ${LLVM_Analysis_DIR}/IVUsers.cpp
@@ -57,6 +60,7 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/InstructionPrecedenceTracking.cpp
   ${LLVM_Analysis_DIR}/InstructionSimplify.cpp
   ${LLVM_Analysis_DIR}/InteractiveModelRunner.cpp
+  ${LLVM_Analysis_DIR}/KernelInfo.cpp
   ${LLVM_Analysis_DIR}/LastRunTrackingAnalysis.cpp
   ${LLVM_Analysis_DIR}/LazyBranchProbabilityInfo.cpp
   ${LLVM_Analysis_DIR}/LazyBlockFrequencyInfo.cpp
@@ -103,6 +107,7 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/ScalarEvolutionAliasAnalysis.cpp
   ${LLVM_Analysis_DIR}/ScalarEvolutionDivision.cpp
   ${LLVM_Analysis_DIR}/ScalarEvolutionNormalization.cpp
+  ${LLVM_Analysis_DIR}/StaticDataProfileInfo.cpp
   ${LLVM_Analysis_DIR}/StackLifetime.cpp
   ${LLVM_Analysis_DIR}/StackSafetyAnalysis.cpp
   ${LLVM_Analysis_DIR}/StructuralHash.cpp

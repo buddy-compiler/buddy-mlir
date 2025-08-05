@@ -37,7 +37,8 @@ $ cmake -G Ninja ../llvm \
 
 // GPU
 $ cmake -G Ninja ../llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang;flang" \
+    -DLLVM_ENABLE_RUNTIMES="flang-rt;openmp" \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV;NVPTX" \
     -DMLIR_ENABLE_CUDA_RUNNER=ON \
     -DLLVM_ENABLE_ASSERTIONS=ON \
@@ -46,7 +47,7 @@ $ cmake -G Ninja ../llvm \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE=$(which python3)
 
-$ ninja check-clang check-mlir omp
+$ ninja check-flang check-clang check-mlir
 ```
 
 ### Build buddy-mlir

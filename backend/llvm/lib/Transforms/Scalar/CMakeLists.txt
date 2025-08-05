@@ -20,35 +20,35 @@ add_llvm_component_library(LLVMBuddyScalarOpts
   ${LLVM_Scalar_DIR}/GVN.cpp
   ${LLVM_Scalar_DIR}/GVNHoist.cpp
   ${LLVM_Scalar_DIR}/GVNSink.cpp
+  ${LLVM_Scalar_DIR}/IVUsersPrinter.cpp
   ${LLVM_Scalar_DIR}/InductiveRangeCheckElimination.cpp
   ${LLVM_Scalar_DIR}/IndVarSimplify.cpp
   ${LLVM_Scalar_DIR}/InferAddressSpaces.cpp
   ${LLVM_Scalar_DIR}/InferAlignment.cpp
   ${LLVM_Scalar_DIR}/InstSimplifyPass.cpp
-  ${LLVM_Scalar_DIR}/IVUsersPrinter.cpp
-  ${LLVM_Scalar_DIR}/JumpTableToSwitch.cpp
   ${LLVM_Scalar_DIR}/JumpThreading.cpp
+  ${LLVM_Scalar_DIR}/JumpTableToSwitch.cpp
   ${LLVM_Scalar_DIR}/LICM.cpp
   ${LLVM_Scalar_DIR}/LoopAccessAnalysisPrinter.cpp
   ${LLVM_Scalar_DIR}/LoopBoundSplit.cpp
-  ${LLVM_Scalar_DIR}/LoopDataPrefetch.cpp
+  ${LLVM_Scalar_DIR}/LoopSink.cpp
   ${LLVM_Scalar_DIR}/LoopDeletion.cpp
+  ${LLVM_Scalar_DIR}/LoopDataPrefetch.cpp
   ${LLVM_Scalar_DIR}/LoopDistribute.cpp
-  ${LLVM_Scalar_DIR}/LoopFlatten.cpp
   ${LLVM_Scalar_DIR}/LoopFuse.cpp
   ${LLVM_Scalar_DIR}/LoopIdiomRecognize.cpp
   ${LLVM_Scalar_DIR}/LoopInstSimplify.cpp
   ${LLVM_Scalar_DIR}/LoopInterchange.cpp
+  ${LLVM_Scalar_DIR}/LoopFlatten.cpp
   ${LLVM_Scalar_DIR}/LoopLoadElimination.cpp
   ${LLVM_Scalar_DIR}/LoopPassManager.cpp
   ${LLVM_Scalar_DIR}/LoopPredication.cpp
   ${LLVM_Scalar_DIR}/LoopRotation.cpp
   ${LLVM_Scalar_DIR}/LoopSimplifyCFG.cpp
-  ${LLVM_Scalar_DIR}/LoopSink.cpp
   ${LLVM_Scalar_DIR}/LoopStrengthReduce.cpp
   ${LLVM_Scalar_DIR}/LoopTermFold.cpp
-  ${LLVM_Scalar_DIR}/LoopUnrollAndJamPass.cpp
   ${LLVM_Scalar_DIR}/LoopUnrollPass.cpp
+  ${LLVM_Scalar_DIR}/LoopUnrollAndJamPass.cpp
   ${LLVM_Scalar_DIR}/LoopVersioningLICM.cpp
   ${LLVM_Scalar_DIR}/LowerAtomicPass.cpp
   ${LLVM_Scalar_DIR}/LowerConstantIntrinsics.cpp
@@ -58,8 +58,8 @@ add_llvm_component_library(LLVMBuddyScalarOpts
   ${LLVM_Scalar_DIR}/LowerWidenableCondition.cpp
   ${LLVM_Scalar_DIR}/MakeGuardsExplicit.cpp
   ${LLVM_Scalar_DIR}/MemCpyOptimizer.cpp
-  ${LLVM_Scalar_DIR}/MergedLoadStoreMotion.cpp
   ${LLVM_Scalar_DIR}/MergeICmps.cpp
+  ${LLVM_Scalar_DIR}/MergedLoadStoreMotion.cpp
   ${LLVM_Scalar_DIR}/NaryReassociate.cpp
   ${LLVM_Scalar_DIR}/NewGVN.cpp
   ${LLVM_Scalar_DIR}/PartiallyInlineLibCalls.cpp
@@ -67,16 +67,16 @@ add_llvm_component_library(LLVMBuddyScalarOpts
   ${LLVM_Scalar_DIR}/Reassociate.cpp
   ${LLVM_Scalar_DIR}/Reg2Mem.cpp
   ${LLVM_Scalar_DIR}/RewriteStatepointsForGC.cpp
-  ${LLVM_Scalar_DIR}/Scalar.cpp
-  ${LLVM_Scalar_DIR}/ScalarizeMaskedMemIntrin.cpp
-  ${LLVM_Scalar_DIR}/Scalarizer.cpp
   ${LLVM_Scalar_DIR}/SCCP.cpp
+  ${LLVM_Scalar_DIR}/SROA.cpp
+  ${LLVM_Scalar_DIR}/Scalar.cpp
+  ${LLVM_Scalar_DIR}/Scalarizer.cpp
+  ${LLVM_Scalar_DIR}/ScalarizeMaskedMemIntrin.cpp
   ${LLVM_Scalar_DIR}/SeparateConstOffsetFromGEP.cpp
   ${LLVM_Scalar_DIR}/SimpleLoopUnswitch.cpp
   ${LLVM_Scalar_DIR}/SimplifyCFGPass.cpp
   ${LLVM_Scalar_DIR}/Sink.cpp
   ${LLVM_Scalar_DIR}/SpeculativeExecution.cpp
-  ${LLVM_Scalar_DIR}/SROA.cpp
   ${LLVM_Scalar_DIR}/StraightLineStrengthReduce.cpp
   ${LLVM_Scalar_DIR}/StructurizeCFG.cpp
   ${LLVM_Scalar_DIR}/TailRecursionElimination.cpp

@@ -23,6 +23,7 @@ add_llvm_component_library(LLVMBuddyTransformUtils
   ${LLVM_Utils_DIR}/CtorUtils.cpp
   ${LLVM_Utils_DIR}/CountVisits.cpp
   ${LLVM_Utils_DIR}/Debugify.cpp
+  ${LLVM_Utils_DIR}/DeclareRuntimeLibcalls.cpp
   ${LLVM_Utils_DIR}/DemoteRegToStack.cpp
   ${LLVM_Utils_DIR}/DXILUpgrade.cpp
   ${LLVM_Utils_DIR}/EntryExitInstrumenter.cpp
@@ -70,6 +71,7 @@ add_llvm_component_library(LLVMBuddyTransformUtils
   ${LLVM_Utils_DIR}/MoveAutoInit.cpp
   ${LLVM_Utils_DIR}/NameAnonGlobals.cpp
   ${LLVM_Utils_DIR}/PredicateInfo.cpp
+  ${LLVM_Utils_DIR}/ProfileVerify.cpp
   ${LLVM_Utils_DIR}/PromoteMemoryToRegister.cpp
   ${LLVM_Utils_DIR}/RelLookupTableConverter.cpp
   ${LLVM_Utils_DIR}/ScalarEvolutionExpander.cpp

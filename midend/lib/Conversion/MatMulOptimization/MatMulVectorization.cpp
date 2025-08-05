@@ -55,7 +55,7 @@ public:
     Value B = op->getOperand(1);
     Value C = op->getOperand(2);
     // Get shape of input and output
-    ShapedType ATy = A.getType().cast<ShapedType>();
+    ShapedType ATy = mlir::cast<mlir::ShapedType>(A.getType());
     Type eleTy = ATy.getElementType();
     // ShapedType BTy = B.getType().cast<ShapedType>();
     // ShapedType CTy = C.getType().cast<ShapedType>();

@@ -31,4 +31,7 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   VectorExp
   BuddyMLIRInitAll
   BuddyToLLVMIRTranslationRegistration
+  MLIRRegisterAllDialects
+  MLIRRegisterAllExtensions
+  MLIRRegisterAllPasses
 )

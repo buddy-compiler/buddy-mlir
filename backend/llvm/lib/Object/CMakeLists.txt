@@ -24,8 +24,10 @@ add_llvm_component_library(LLVMBuddyObject
   ${LLVM_Object_DIR}/Object.cpp
   ${LLVM_Object_DIR}/ObjectFile.cpp
   ${LLVM_Object_DIR}/OffloadBinary.cpp
+  ${LLVM_Object_DIR}/OffloadBundle.cpp
   ${LLVM_Object_DIR}/RecordStreamer.cpp
   ${LLVM_Object_DIR}/RelocationResolver.cpp
+  ${LLVM_Object_DIR}/SFrameParser.cpp
   ${LLVM_Object_DIR}/SymbolicFile.cpp
   ${LLVM_Object_DIR}/SymbolSize.cpp
   ${LLVM_Object_DIR}/TapiFile.cpp
