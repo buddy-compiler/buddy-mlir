@@ -15,7 +15,7 @@
 # ===---------------------------------------------------------------------------
 #
 # This script loads a DeepSeekR1 model, imports it into a Buddy Graph,
-# and prints all the nodes in the graph.
+# applies operator fusion, and prints all the nodes in the graph.
 #
 # ===---------------------------------------------------------------------------
 
@@ -32,7 +32,7 @@ sys.path.append(
 )
 
 # Create a symbolic link or alias for buddy_mlir as mlir
-buddy_mlir_path = "/home/jjji/personal_projects/OSPP2025/buddy-mlir/build/python_packages"
+buddy_mlir_path = "/home/jjji/personal_projects/OSPP/buddy-mlir/build/python_packages"
 sys.path.append(buddy_mlir_path)
 
 # Import buddy_mlir and alias it as mlir in sys.modules
@@ -50,7 +50,7 @@ from buddy.compiler.graph.transform import simply_fuse, apply_classic_fusion
 
 # 1. Set the model path
 # Note: Ensure you have access to this path.
-model_path = "/mnt/sdb/llm_models/DeepSeek-R1-Distill-Qwen-1.5B"
+model_path = "/home/jjji/LLM_Models"
 
 # 2. Initialize the model from the specified model path.
 print(f"Loading model from: {model_path}")
@@ -85,51 +85,59 @@ assert len(graphs) == 1
 graph = graphs[0]
 
 def print_graph_nodes(graph, title):
-    """打印图节点信息的通用函数 - 包含输入输出信息"""
+    """Print graph node information with detailed input/output information"""
     content = []
-    content.append("=" * 80)
+    content.append("=" * 100)
     content.append(title)
-    content.append("=" * 80)
+    content.append("=" * 100)
     content.append(f"Total nodes: {len(graph.body)}")
 
-    # 统计QKV融合节点
-    qkv_count = sum(1 for node in graph.body if type(node).__name__ == 'QKVFusedOp')
-    addmm_count = sum(1 for node in graph.body if type(node).__name__ == 'AddMMOp')
-    content.append(f"AddMMOp nodes: {addmm_count}, QKVFusedOp nodes: {qkv_count}")
+    # Count different node types
+    node_types = {}
+    for node in graph.body:
+        node_type = type(node).__name__
+        node_types[node_type] = node_types.get(node_type, 0) + 1
+
+    content.append("Node type statistics:")
+    for node_type, count in sorted(node_types.items()):
+        content.append(f"  {node_type}: {count}")
     content.append("")
 
     for i, node in enumerate(graph.body, 1):
-        # 简化操作类型名称
+        # Get operation type name
         op_type = type(node).__name__.replace('Op', '')
 
-        # 获取输出shape信息
+        # Get output shape information
         output_shape = _extract_shape_info(node)
 
-        # 获取输入信息
-        input_info = _get_input_info(graph, node)
+        # Build basic information line
+        basic_info = f"{i:3d}. {node.name} | {op_type} | Out:{output_shape}"
 
-        # 特殊处理QKV融合节点
+        # Add extra information for special nodes
         if type(node).__name__ == 'QKVFusedOp':
             q_dim = getattr(node, 'q_dim', '?')
             k_dim = getattr(node, 'k_dim', '?')
             v_dim = getattr(node, 'v_dim', '?')
-            if input_info:
-                content.append(f"{i:3d}. {node.name} | {op_type} | In:{input_info} → Out:{output_shape} | Q:{q_dim},K:{k_dim},V:{v_dim}")
-            else:
-                content.append(f"{i:3d}. {node.name} | {op_type} | Out:{output_shape} | Q:{q_dim},K:{k_dim},V:{v_dim}")
-        else:
-            # 普通节点
-            if input_info:
-                content.append(f"{i:3d}. {node.name} | {op_type} | In:{input_info} → Out:{output_shape}")
-            else:
-                content.append(f"{i:3d}. {node.name} | {op_type} | Out:{output_shape}")
+            basic_info += f" | Q:{q_dim},K:{k_dim},V:{v_dim}"
 
-    content.append("")
+        content.append(basic_info)
+
+        # Add parent-child relationship information
+        parent_info = _get_parent_info(node)
+        if parent_info:
+            content.append(f"     Parents: {parent_info}")
+
+        children_info = _get_children_info(node)
+        if children_info:
+            content.append(f"     Children: {children_info}")
+
+        content.append("")  # Empty line separator
+
     return content
 
 
 def _extract_shape_info(node):
-    """提取节点的shape信息"""
+    """Extract shape information from node"""
     if hasattr(node, 'tensor_meta') and node.tensor_meta:
         meta = node.tensor_meta
         if isinstance(meta, dict) and 'shape' in meta:
@@ -141,44 +149,27 @@ def _extract_shape_info(node):
     return "Unknown"
 
 
-def _get_input_info(graph, node):
-    """获取节点的输入信息"""
-    if not hasattr(node, 'args') or not node.args:
-        return None
+def _get_parent_info(node):
+    """Get parent node information"""
+    if hasattr(node, '_parents') and node._parents:
+        return ", ".join(node._parents)
+    return None
 
-    input_shapes = []
-    for arg in node.args:
-        if isinstance(arg, str) and arg in graph.node_table:
-            input_node = graph.node_table[arg]
-            input_shape = _extract_shape_info(input_node)
-            input_shapes.append(f"{input_shape}")
-        elif isinstance(arg, list):
-            # 处理参数列表（如concat的输入列表）
-            list_shapes = []
-            for sub_arg in arg:
-                if isinstance(sub_arg, str) and sub_arg in graph.node_table:
-                    input_node = graph.node_table[sub_arg]
-                    input_shape = _extract_shape_info(input_node)
-                    list_shapes.append(f"{input_shape}")
-            if list_shapes:
-                input_shapes.append(f"[{','.join(list_shapes)}]")
-        elif isinstance(arg, (int, float)):
-            # 处理数值参数
-            input_shapes.append(f"val:{arg}")
 
-    # 只显示前3个输入，避免过长
-    if len(input_shapes) > 3:
-        return ",".join(input_shapes[:3]) + "..."
-    return ",".join(input_shapes) if input_shapes else None
+def _get_children_info(node):
+    """Get children node information"""
+    if hasattr(node, '_children') and node._children:
+        return ", ".join(node._children)
+    return None
 
 def analyze_fusable_patterns(graph):
-    """分析图中可融合的模式"""
+    """Analyze fusable patterns in the graph"""
     patterns = []
-    
-    # 检查 Permute + AddMM 模式
+
+    # Check Permute + AddMM pattern
     for i, node in enumerate(graph.body):
         if hasattr(node, '__class__') and node.__class__.__name__ == 'AddMMOp':
-            # 检查是否有 PermuteOp 作为输入
+            # Check if there's a PermuteOp as input
             for arg in node.args:
                 if isinstance(arg, str) and arg in graph.node_table:
                     parent_node = graph.node_table[arg]
@@ -187,8 +178,8 @@ def analyze_fusable_patterns(graph):
                             perm = parent_node.args[1]
                             if perm == [1, 0]:  # transpose pattern
                                 patterns.append(f"Transpose+MatMul: {parent_node.name} -> {node.name}")
-    
-    # 检查 RMSNorm 模式 (Pow + Mean + Add + Rsqrt)
+
+    # Check RMSNorm pattern (Pow + Mean + Add + Rsqrt)
     for i, node in enumerate(graph.body):
         if hasattr(node, '__class__') and node.__class__.__name__ == 'PowOp':
             if i + 3 < len(graph.body):
@@ -196,30 +187,26 @@ def analyze_fusable_patterns(graph):
                 node_types = [n.__class__.__name__ for n in next_nodes]
                 if node_types == ['PowOp', 'MeanOp', 'AddOp', 'RsqrtOp']:
                     patterns.append(f"RMSNorm pattern: {' -> '.join([n.name for n in next_nodes])}")
-    
+
     return patterns
 
 # 5.1 Analyze fusable patterns before fusion
 print("Analyzing fusable patterns...")
 fusable_patterns = analyze_fusable_patterns(graph)
-print(f"Found {len(fusable_patterns)} fusable patterns:")
-for pattern in fusable_patterns:
-    print(f"  - {pattern}")
 
 # 5.2 Print graph before fusion
-print("\nAnalyzing graph BEFORE fusion...")
+print("Analyzing graph BEFORE fusion...")
 before_fusion_content = print_graph_nodes(graph, "DeepSeekR1 Graph Nodes - BEFORE Fusion")
 
 # 5.3 Apply fusion and print graph after fusion
 print("Applying operator fusion...")
-# 使用真正的算子融合，而不是简单的子图组织
 apply_classic_fusion(graph)
 print("Analyzing graph AFTER fusion...")
 after_fusion_content = print_graph_nodes(graph, "DeepSeekR1 Graph Nodes - AFTER Fusion")
 
 # 5.4 Show fusion results
 print(f"\nFusion Results:")
-# 安全地提取节点数量信息
+# Extract node count information safely
 before_count = "N/A"
 after_count = "N/A"
 for line in before_fusion_content:
@@ -234,36 +221,14 @@ print(f"  Nodes before fusion: {before_count}")
 print(f"  Nodes after fusion:  {after_count}")
 
 # 5.5 Save to separate files for comparison
-# Save fusable patterns to separate file
-patterns_file = "fusable_patterns.log"
-pattern_content = []
-pattern_content.append("=" * 60)
-pattern_content.append("DeepSeekR1 Fusable Patterns Analysis")
-pattern_content.append("=" * 60)
-pattern_content.append(f"Total fusable patterns found: {len(fusable_patterns)}")
-pattern_content.append("")
-if fusable_patterns:
-    pattern_content.append("DETECTED PATTERNS:")
-    pattern_content.append("-" * 40)
-    for i, pattern in enumerate(fusable_patterns, 1):
-        pattern_content.append(f"{i:2d}. {pattern}")
-else:
-    pattern_content.append("No fusable patterns detected.")
-pattern_content.append("")
-pattern_content.append("=" * 60)
-pattern_content.append("Analysis completed.")
-
-with open(patterns_file, "w", encoding="utf-8") as f:
-    f.write("\n".join(pattern_content))
-
-# Save before fusion (without pattern info now)
+# Save before fusion
 before_fusion_file = "graph_before_fusion.log"
 before_fusion_text = "\n".join(before_fusion_content + ["=" * 60, "Analysis completed."])
 with open(before_fusion_file, "w", encoding="utf-8") as f:
     f.write(before_fusion_text)
 
 # Save after fusion
-after_fusion_file = "graph_after_fusion_qkv.log"
+after_fusion_file = "graph_after_fusion.log"
 after_fusion_text = "\n".join(after_fusion_content + ["=" * 60, "Analysis completed."])
 with open(after_fusion_file, "w", encoding="utf-8") as f:
     f.write(after_fusion_text)
@@ -276,8 +241,7 @@ print(f"Fusable patterns found: {len(fusable_patterns)}")
 print(f"Nodes before fusion: {before_count}")
 print(f"Nodes after fusion:  {after_count}")
 print(f"Files generated:")
-print(f"  - Fusable patterns: {patterns_file}")
-print(f"  - Before fusion:    {before_fusion_file}")
-print(f"  - After fusion:     {after_fusion_file}")
+print(f"  - Before fusion: {before_fusion_file}")
+print(f"  - After fusion:  {after_fusion_file}")
 print("=" * 60)
-print("Script finished successfully. Compare the two files manually.")
+print("Script finished successfully.")
