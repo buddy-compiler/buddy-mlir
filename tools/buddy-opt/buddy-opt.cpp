@@ -77,7 +77,6 @@ void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
-void registerFuncBufferizeDynamicOffsetPass();
 void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
@@ -119,7 +118,6 @@ int main(int argc, char **argv) {
   mlir::buddy::registerConvNhwcFhwcOptimizePass();
   mlir::buddy::registerConvNhwcFhwcTileOptimizePass();
   mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
-  mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
 
   // Register gpu passes

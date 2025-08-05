@@ -13,6 +13,7 @@ add_llvm_component_library(LLVMBuddySelectionDAG
   ${LLVM_SelectionDAG_DIR}/LegalizeVectorOps.cpp
   ${LLVM_SelectionDAG_DIR}/LegalizeVectorTypes.cpp
   ${LLVM_SelectionDAG_DIR}/ResourcePriorityQueue.cpp
+  ${LLVM_SelectionDAG_DIR}/SDNodeInfo.cpp
   ${LLVM_SelectionDAG_DIR}/ScheduleDAGFast.cpp
   ${LLVM_SelectionDAG_DIR}/ScheduleDAGRRList.cpp
   ${LLVM_SelectionDAG_DIR}/ScheduleDAGSDNodes.cpp
