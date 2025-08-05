@@ -33,7 +33,6 @@ from ..graph import (
     AddMMOp,
     QKVFusedOp,
     ViewOp,
-    CatOp,
     BatchMatmulOp,
     SubOp,
     MulOp,
@@ -422,68 +421,7 @@ def qkv_fused_op(
     return op
 
 
-def cat_op(
-    node: CatOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
-) -> ir.Operation:
-    """
-    Import concatenation operation.
-    From buddy graph ir's `CatOp` operator to MLIR TOSA `concat` operation.
 
-    Args:
-        node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding operations.
-
-    Returns:
-        op: The operation representing the concatenation result.
-    """
-    # Get inputs: [tensor_list, axis]
-    tensor_list = node.args[0] if len(node.args) > 0 else []
-    axis = node.args[1] if len(node.args) > 1 else 0
-
-    # Get tensor operations from symbol table or function args (for PlaceholderOp)
-    tensor_ops = []
-    missing_tensors = []
-    args_context = symbol_table.get("__func_args__", None)
-    placeholder_map = symbol_table.get("__placeholder_map__", {})
-
-    for tensor_name in tensor_list:
-        tensor_op = symbol_table.get((str(tensor_name), 0))
-        if tensor_op is not None:
-            tensor_ops.append(tensor_op)
-        else:
-            # Try to find PlaceholderOp in args_context/placeholder_map
-            if args_context and tensor_name in placeholder_map:
-                idx = placeholder_map[tensor_name]
-                tensor_op = args_context[idx]
-                tensor_ops.append(tensor_op)
-                symbol_table[(str(tensor_name), 0)] = tensor_op
-            else:
-                # Check graph.node_table for PlaceholderOp
-                node_ref = symbol_table.get("graph_node_table", {}).get(tensor_name, None)
-                if node_ref is not None and hasattr(node_ref, "__class__") and node_ref.__class__.__name__ == "PlaceholderOp":
-                    # PlaceholderOp found but no MLIR Value available
-                    pass
-                else:
-                    missing_tensors.append(tensor_name)
-
-    if len(tensor_ops) < 2:
-        # Try to recover from function arguments for QKV fusion
-        if args_context and len(missing_tensors) > 0:
-            for missing_tensor in missing_tensors:
-                if missing_tensor in placeholder_map:
-                    idx = placeholder_map[missing_tensor]
-                    if idx < len(args_context):
-                        tensor_op = args_context[idx]
-                        tensor_ops.append(tensor_op)
-                        symbol_table[(str(missing_tensor), 0)] = tensor_op
-
-        # If still insufficient tensors, raise error
-        if len(tensor_ops) < 2:
-            raise ValueError(f"CatOp {getattr(node, 'name', str(node))} requires at least 2 tensors, got {len(tensor_ops)}. Missing: {missing_tensors}")
-
-    # Perform concatenation using TOSA concat operation
-    op = tosa.ConcatOp(tensor_ops, axis)
-    return op
 
 
 def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
@@ -787,13 +725,25 @@ def slice_op(node: SliceOp, symbol_table):
     From buddy graph ir's `SliceOp` operator to MLIR TOSA `extract_slice`
     operation.
     """
-    input_tensor = symbol_table.get((str(node.args[0]), 0))
-    if input_tensor is None:
-        raise ValueError(f"SliceOp {node.name} input tensor {node.args[0]} not found in symbol_table")
+    # Check both args and _arguments for compatibility
+    args = None
+    if hasattr(node, 'args') and node.args:
+        args = node.args
+    elif hasattr(node, '_arguments') and node._arguments:
+        args = node._arguments
+    else:
+        raise ValueError(f"SliceOp {node.name} has no args or _arguments")
 
-    dim = node.args[1]
-    start_idx = node.args[2]
-    end_idx = node.args[3]
+    if len(args) < 4:
+        raise ValueError(f"SliceOp {node.name} requires 4 arguments [input, dim, start, end], got {len(args)}")
+
+    input_tensor = symbol_table.get((str(args[0]), 0))
+    if input_tensor is None:
+        raise ValueError(f"SliceOp {node.name} input tensor {args[0]} not found in symbol_table")
+
+    dim = args[1]
+    start_idx = args[2]
+    end_idx = args[3]
 
     sizes = ir.RankedTensorType(input_tensor.type).shape
     dtype = node.tensor_meta["dtype"]
@@ -2307,7 +2257,6 @@ ops_registry = {
     "VarMeanOp": var_mean_op,
     "AddMMOp": addmm_op,
     "QKVFusedOp": qkv_fused_op,
-    "CatOp": cat_op,
     "ReshapeOp": reshape_op,
     "ViewOp": reshape_op,
     "SelectOp": select_op,
