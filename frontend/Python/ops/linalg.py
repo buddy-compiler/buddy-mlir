@@ -1136,6 +1136,49 @@ def t_op(
     return op.result[0]
 
 
+def matmul_op(
+    node: MatmulOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Import the tensor matmul operation.
+    From Buddy MatmulOp to MLIR linalg `matmul` operation.
+
+    Note: This op, compute input node's matrix multiplication result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
+
+    Returns:
+        op: The operation return the linalg.matmul op.
+    """
+    assert len(node.args) == 2
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    input2 = symbol_table.get((str(node.args[1]), 0))
+    if input1 is None or input2 is None:
+        return
+
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    generic_map = ir.AffineMap.get_permutation([0, 1, 2])
+    buffer = tensor.EmptyOp(output_shape, mlir_dtype)
+    op = linalg.MatmulOp(
+        result_tensors=[tensor_type],
+        inputs=[input1, input2],
+        outputs=[buffer],
+        indexing_maps=[
+            generic_map.get_submap([0, 2]),  # lhs: (m, k)
+            generic_map.get_submap([2, 1]),  # rhs: (k, n)
+            generic_map.get_submap([0, 1]),  # out: (m, n)
+        ],
+    )
+    linalg.fill_builtin_region(op.operation)
+    return op
+
+
 def matmul_transpose_b_op(
     node: TransposeMatmulFusedOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
@@ -2498,6 +2541,7 @@ def slice_scatter_op(node: SliceScatterOp, symbol_table):
 
 
 ops_registry = {
+    "MatmulOp": matmul_op,
     "TransposeMatmulFusedOp": matmul_transpose_b_op,
     "ArangeOp": arange_op,
     "UnsqueezeOp": unsqueeze_op,
