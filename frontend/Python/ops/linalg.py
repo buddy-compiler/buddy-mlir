@@ -1164,16 +1164,19 @@ def matmul_op(
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     generic_map = ir.AffineMap.get_permutation([0, 1, 2])
-    buffer = tensor.EmptyOp(output_shape, mlir_dtype)
+    element = mlir_element_attr_get(dtype, 0.0)
+    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+    matmul_result_buffer = arith.ConstantOp(tensor_type, attr).result
     op = linalg.MatmulOp(
         result_tensors=[tensor_type],
         inputs=[input1, input2],
-        outputs=[buffer],
+        outputs=[matmul_result_buffer],
         indexing_maps=[
             generic_map.get_submap([0, 2]),  # lhs: (m, k)
             generic_map.get_submap([2, 1]),  # rhs: (k, n)
             generic_map.get_submap([0, 1]),  # out: (m, n)
         ],
+        cast="cast_signed",
     )
     linalg.fill_builtin_region(op.operation)
     return op
