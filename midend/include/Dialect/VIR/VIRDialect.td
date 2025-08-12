@@ -1,4 +1,4 @@
-//===- VIRDialect.td - Dynamic Vector IR Dialect Definition ---------------===//
+//===-- VIRDialect.td - Dynamic Vector IR Dialect Definition --------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This is the top level file for the dynamic vector IR dialect.
+// This file defines the core dialect structure for the Dynamic Vector IR (VIR),
+// including the dialect registration and namespace configuration.
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,24 +25,26 @@
 include "mlir/IR/OpBase.td"
 
 //===----------------------------------------------------------------------===//
-// Vector Experiment Dialect Definition.
+// Dynamic Vector IR Dialect Definition
 //===----------------------------------------------------------------------===//
 
 def VIR_Dialect : Dialect {
   let name = "vir";
-  let summary = "The Dynamic Vector IR Dialect.";
+  let summary = "The Dynamic Vector IR (VIR) Dialect";
   let description = [{
-    The `VIR` dialect is a dynamic vector IR, serving as a unified hardware
-    abstraction layer for multiple hardware backends.
+    The `VIR` dialect provides a dynamic vector IR that serves as a unified
+    hardware abstraction layer for multiple hardware backends, enabling
+    portable vector operations across different architectures.
   }];
   let cppNamespace = "::buddy::vir";
+  let extraClassDeclaration = [{
+      void registerTypes();
+      void registerAttrs();
+  }];
+
+  // Add type and attribute parsing and printing hooks.
+  let useDefaultTypePrinterParser = 1;
+  let useDefaultAttributePrinterParser = 1;
 }
-
-//===----------------------------------------------------------------------===//
-// Base Vector Experiment Operation Definition.
-//===----------------------------------------------------------------------===//
-
-class VIR_Op<string mnemonic, list<Trait> traits = []> :
-    Op<VIR_Dialect, mnemonic, traits>;
 
 #endif // VIR_VIRDIALECT_TD

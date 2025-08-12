@@ -1,4 +1,4 @@
-//===- VIROps.td - Dynamic Vector IR Dialect Ops --------------------------===//
+//===-- VIROps.td - Dynamic Vector IR Operation Definitions ---------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,18 +14,25 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This is the top level file for operations in the dynamic vector IR dialect.
+// This file defines the operation set for the VIR dialect,
+// including vector length management and dynamic vector operations.
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef VIR_VIROPS_TD
 #define VIR_VIROPS_TD
 
-include "VIR/VIRDialect.td"
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "VIR/VIRDialect.td"
 
-include "mlir/IR/AttrTypeBase.td"
+//===----------------------------------------------------------------------===//
+// Base VIR Operation Class
+//===----------------------------------------------------------------------===//
+
+class VIR_Op<string mnemonic, list<Trait> traits = []> :
+    Op<VIR_Dialect, mnemonic, traits>;
 
 //===----------------------------------------------------------------------===//
 // Dynamic Vector Region Operation - set_vl
@@ -33,6 +40,11 @@ include "mlir/IR/AttrTypeBase.td"
 
 def VIR_SetVLOp : VIR_Op<"set_vl"> {
   let summary = "Dynamic Vector Region SetVL Operation.";
+  let description = [{
+    The `set_vl` operation sets the vector length for subsequent dynamic vector
+    operations within its region. This enables runtime vector length management
+    for hardware-agnostic vector computations.
+  }];
   let arguments = (ins Index:$vl);
   let results = (outs Variadic<AnyTypeOf<[AnyInteger, AnyFloat]>>:$results);
   // TODO: Determine the region limitation.

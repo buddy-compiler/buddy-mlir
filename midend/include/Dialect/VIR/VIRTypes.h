@@ -1,4 +1,4 @@
-//===-- VIRDialect.h - Dynamic Vector IR Dialect Declaration ----*- C++ -*-===//
+//===-- VIRTypes.h - Dynamic Vector IR Type Declarations --------*- C++ -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,16 +14,22 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file declares the core dialect structure for the Dynamic Vector IR
-// (VIR), including the dialect registration and namespace configuration.
+// This file declares the type system for the Dynamic Vector IR (VIR) dialect,
+// including dynamic vector types and their associated interfaces.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef VIR_VIRDIALECT_H
-#define VIR_VIRDIALECT_H
+#ifndef VIR_VIRTYPES_H
+#define VIR_VIRTYPES_H
 
-#include "mlir/IR/Dialect.h"
+#include "mlir/IR/BuiltinAttributeInterfaces.h"
+#include "mlir/IR/BuiltinTypeInterfaces.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Support/ADTExtras.h"
 
-#include "VIR/VIRDialect.h.inc"
+#include "VIR/VIRAttrs.h"
 
-#endif // VIR_VIRDIALECT_H
+#define GET_TYPEDEF_CLASSES
+#include "VIR/VIRTypes.h.inc"
+
+#endif // VIR_VIRTYPES_H
