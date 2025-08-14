@@ -1,36 +1,32 @@
 // RUN: buddy-opt -batchmatmul-optimize %s | FileCheck %s
 
-// CHECK: #map = affine_map<(d0) -> (d0)>
+// CHECK: #map = affine_map<(d0) -> (d0 mod 32)>
+// CHECK: #map1 = affine_map<(d0) -> (d0)>
 // CHECK: module {
-// CHECK: affine.for %arg3 = #map(%c0) to #map(%dim) {
+// CHECK: affine.parallel (%arg3) = (0) to (%dim) {
 // CHECK-NEXT:   affine.prefetch %arg0[%arg3, %dim_0, %dim_2], read, locality<3>, data : memref<?x?x?xf32>
-// CHECK-NEXT:   affine.for %arg4 = #map(%c0) to #map(%dim_0) {
-// CHECK-NEXT:     %3 = scf.for %arg5 = %c0 to %2 step %c32 iter_args(%arg6 = %c0) -> (index) {
-// CHECK-NEXT:       %6 = vector.load %arg2[%arg3, %arg4, %arg5] : memref<?x?x?xf32>, vector<32xf32>
-// CHECK-NEXT:       %7 = scf.for %arg7 = %c0 to %dim_2 step %c1 iter_args(%arg8 = %6) -> (vector<32xf32>) {
-// CHECK-NEXT:         %9 = memref.load %arg0[%arg3, %arg4, %arg7] : memref<?x?x?xf32>
-// CHECK-NEXT:         %10 = vector.broadcast %9 : f32 to vector<32xf32>
-// CHECK-NEXT:         %11 = vector.load %arg1[%arg3, %arg7, %arg5] : memref<?x?x?xf32>, vector<32xf32>
-// CHECK-NEXT:         %12 = vector.fma %10, %11, %arg8 : vector<32xf32>
-// CHECK-NEXT:         scf.yield %12 : vector<32xf32>
+// CHECK-NEXT:   %5 = affine.for %arg4 = #map1(%c0) to #map1(%2) step 32 iter_args(%arg5 = %c0) -> (index) {
+// CHECK-NEXT:     affine.for %arg6 = #map1(%c0) to #map1(%dim_2) {
+// CHECK-NEXT:       %7 = affine.vector_load %arg1[%arg3, %arg6, %arg4] : memref<?x?x?xf32>, vector<32xf32>
+// CHECK-NEXT:       affine.for %arg7 = #map1(%c0) to #map1(%dim_0) {
+// CHECK-NEXT:         %8 = memref.load %arg0[%arg3, %arg7, %arg6] : memref<?x?x?xf32>
+// CHECK-NEXT:         %9 = vector.broadcast %8 : f32 to vector<32xf32>
+// CHECK-NEXT:         %10 = affine.vector_load %arg2[%arg3, %arg7, %arg4] : memref<?x?x?xf32>, vector<32xf32>
+// CHECK-NEXT:         %11 = vector.fma %9, %7, %10 : vector<32xf32>
+// CHECK-NEXT:         affine.vector_store %11, %arg2[%arg3, %arg7, %arg4] : memref<?x?x?xf32>, vector<32xf32>
 // CHECK-NEXT:       }
-// CHECK-NEXT:       vector.store %7, %arg2[%arg3, %arg4, %arg5] : memref<?x?x?xf32>, vector<32xf32>
-// CHECK-NEXT:       %8 = arith.addi %arg5, %c32 : index
-// CHECK-NEXT:       scf.yield %8 : index
 // CHECK-NEXT:     }
-// CHECK-NEXT:     %4 = arith.subi %dim_1, %3 : index
-// CHECK-NEXT:     %5 = arith.cmpi sgt, %4, %c0 : index
-// CHECK-NEXT:     scf.if %5 {
-// CHECK-NEXT:       %6 = vector.create_mask %4 : vector<32xi1>
-// CHECK-NEXT:       %7 = vector.maskedload %arg2[%arg3, %arg4, %3], %6, %0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
-// CHECK-NEXT:       %8 = scf.for %arg5 = %c0 to %dim_2 step %c1 iter_args(%arg6 = %7) -> (vector<32xf32>) {
-// CHECK-NEXT:         %9 = memref.load %arg0[%arg3, %arg4, %arg5] : memref<?x?x?xf32>
-// CHECK-NEXT:         %10 = vector.broadcast %9 : f32 to vector<32xf32>
-// CHECK-NEXT:         %11 = vector.maskedload %arg1[%arg3, %arg5, %3], %6, %0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
-// CHECK-NEXT:         %12 = vector.fma %10, %11, %arg6 : vector<32xf32>
-// CHECK-NEXT:         scf.yield %12 : vector<32xf32>
-// CHECK-NEXT:       }
-// CHECK-NEXT:       vector.maskedstore %arg2[%arg3, %arg4, %3], %6, %8 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32>
+// CHECK-NEXT:     %6 = arith.addi %arg4, %c32 : index
+// CHECK-NEXT:     affine.yield %6 : index
+// CHECK-NEXT:   }
+// CHECK-NEXT:   affine.for %arg4 = #map1(%c0) to #map1(%dim_2) {
+// CHECK-NEXT:     %6 = vector.maskedload %arg1[%arg3, %arg4, %5], %4, %0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
+// CHECK-NEXT:     affine.for %arg5 = #map1(%c0) to #map1(%dim_0) {
+// CHECK-NEXT:       %7 = memref.load %arg0[%arg3, %arg5, %arg4] : memref<?x?x?xf32>
+// CHECK-NEXT:       %8 = vector.broadcast %7 : f32 to vector<32xf32>
+// CHECK-NEXT:       %9 = vector.maskedload %arg2[%arg3, %arg5, %5], %4, %0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
+// CHECK-NEXT:       %10 = vector.fma %8, %6, %9 : vector<32xf32>
+// CHECK-NEXT:       vector.maskedstore %arg2[%arg3, %arg5, %5], %4, %10 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32>
 // CHECK-NEXT:     }
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
