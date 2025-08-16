@@ -1829,53 +1829,6 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     return result_reshape_op, log_sumexp
 
 
-def matmul_op(
-    node: MatmulOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
-):
-    #     """
-    #     Import the tensor matmul operation.
-    #     From Buddy MatmulOp to MLIR TOSA `matmul` operation.
-
-    #     Note: This op, compute input node's matrix multiplication result.
-    #     Args:
-    #         node: Containing information from the input graph node.
-    #         symbol_table: A dictionary mapping symbols to their corresponding
-    #         operations.
-
-    #     Returns:
-    #         op: The operation return the tosa.matmul op.
-    #     """
-
-    assert len(node.args) == 2
-    mat1 = symbol_table.get((str(node.args[0]), 0))
-    mat2 = symbol_table.get((str(node.args[1]), 0))
-    # get input shape
-    mat1_shp = ir.RankedTensorType(mat1.type).shape
-    mat2_shp = ir.RankedTensorType(mat2.type).shape
-    # append index because tosa.MatMulOp doesn't accept 2D tensor
-    mat1_reshape_op = tosa.ReshapeOp(
-        mat1, memoryview(array.array("i", [1, *mat1_shp]))
-    )
-    mat2_reshape_op = tosa.ReshapeOp(
-        mat2, memoryview(array.array("i", [1, *mat2_shp]))
-    )
-    # do matmul
-    result_element_type = ir.RankedTensorType(mat1.type).element_type
-    matmul_result_shp = [1, mat1_shp[0], mat2_shp[1]]
-    matmul_result_type = ir.RankedTensorType.get(
-        matmul_result_shp, result_element_type
-    )
-    matmul_op = tosa.MatMulOp(
-        matmul_result_type, mat1_reshape_op.result, mat2_reshape_op.result
-    )
-    final_result_shape = [mat1_shp[0], mat2_shp[1]]
-    op = tosa.ReshapeOp(
-        matmul_op.c, memoryview(array.array("i", final_result_shape))
-    )
-    return op
-
-
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,
@@ -1913,5 +1866,4 @@ ops_registry = {
     "RandIntLowOp": randint_low_op,
     "ArgMaxOp": argmax_op,
     "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
-    "MatmulOp": matmul_op,
 }
