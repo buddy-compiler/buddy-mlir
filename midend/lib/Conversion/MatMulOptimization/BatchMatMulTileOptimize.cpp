@@ -75,8 +75,8 @@ public:
     Value C = op->getOperand(2);
 
     // Acquire the element type of input tensors.
-    Type elementType = A.getType().cast<MemRefType>().getElementType();
-    ShapedType ATy = A.getType().cast<ShapedType>();
+    Type elementType = llvm::cast<MemRefType>(A.getType()).getElementType();
+    ShapedType ATy = llvm::cast<ShapedType>(A.getType());
 
     // Define constants.
     const Value c0 =

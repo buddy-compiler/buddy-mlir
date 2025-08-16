@@ -29,18 +29,13 @@ module {
   memref.global "private" constant @__constant_32x128x40xf32 : memref<32x128x40xf32> = dense<2.000000e+00> {alignment = 64 : i64}
   memref.global "private" constant @__constant_32x40x128xf32 : memref<32x40x128xf32> = dense<3.000000e+00> {alignment = 64 : i64}
   memref.global "private" constant @__constant_1x32x40x40xf32 : memref<1x32x40x40xf32> = dense<11.3137083> {alignment = 64 : i64}
-  func.func @kenerl(%arg0: tensor<32x40x128xf32>, %arg1: tensor<32x128x40xf32>, %arg2: tensor<1x1x40x40xf32>, %arg3: tensor<1x32x40x128xf32>) {
+  func.func @kenerl(%arg0: memref<32x40x128xf32>, %arg1: memref<32x128x40xf32>, %arg2: memref<1x1x40x40xf32>, %arg3: memref<1x32x40x128xf32>) {
     %t_start = call @rtclock() : () -> f64
     %cst = arith.constant 0.0883883461 : f32
     %c0 = arith.constant 0 : index
     %cst_0 = arith.constant 0.000000e+00 : f32
     %cst_1 = arith.constant 1.000000e+00 : f32
     %cst_2 = arith.constant -3.40282347E+38 : f32
-    %0 = bufferization.to_memref %arg3 : tensor<1x32x40x128xf32> to memref<1x32x40x128xf32, strided<[?, ?, ?, ?], offset: ?>>
-    %1 = bufferization.to_memref %arg2 : tensor<1x1x40x40xf32> to memref<1x1x40x40xf32, strided<[?, ?, ?, ?], offset: ?>>
-    %2 = bufferization.to_memref %arg1 : tensor<32x128x40xf32> to memref<32x128x40xf32, strided<[?, ?, ?], offset: ?>>
-    %3 = bufferization.to_memref %arg0 : tensor<32x40x128xf32> to memref<32x40x128xf32, strided<[?, ?, ?], offset: ?>>
-
     // MatMul
     // %0 = tosa.matmul %t0, %t1 : (tensor<32x40x128xf32>, tensor<32x128x40xf32>) -> tensor<32x40x40xf32>
     // Initialize MatMul Output.
@@ -57,8 +52,8 @@ module {
       affine.for %arg5 = 0 to 40 {
         affine.for %arg6 = 0 to 40 {
           affine.for %arg7 = 0 to 128 {
-            %5 = affine.load %3[%arg4, %arg5, %arg7] : memref<32x40x128xf32, strided<[?, ?, ?], offset: ?>>
-            %6 = affine.load %2[%arg4, %arg7, %arg6] : memref<32x128x40xf32, strided<[?, ?, ?], offset: ?>>
+            %5 = affine.load %arg0[%arg4, %arg5, %arg7] : memref<32x40x128xf32>
+            %6 = affine.load %arg1[%arg4, %arg7, %arg6] : memref<32x128x40xf32>
             %7 = affine.load %alloc[%arg4, %arg5, %arg6] : memref<32x40x40xf32>
             %8 = arith.mulf %5, %6 : f32
             %9 = arith.addf %7, %8 : f32
@@ -72,7 +67,8 @@ module {
     // %1 = tosa.reshape %0 {new_shape = array<i64: 1, 32, 40, 40>} : (tensor<32x40x40xf32>) -> tensor<1x32x40x40xf32>
     // %2 = "tosa.const"() <{value = dense<11.3137083> : tensor<1x32x40x40xf32>}> : () -> tensor<1x32x40x40xf32>
     // %3 = tosa.reciprocal %2 : (tensor<1x32x40x40xf32>) -> tensor<1x32x40x40xf32>
-    // %4 = tosa.mul %1, %3 {shift = 0 : i8} : (tensor<1x32x40x40xf32>, tensor<1x32x40x40xf32>) -> tensor<1x32x40x40xf32>
+    //   %shift_4 = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+    // %4 = tosa.mul %1, %3, %shift_4 : (tensor<1x32x40x40xf32>, tensor<1x32x40x40xf32>, tensor<1xi8>) -> tensor<1x32x40x40xf32>
     // %5 = tosa.add %4, %t2 : (tensor<1x32x40x40xf32>, tensor<1x1x40x40xf32>) -> tensor<1x32x40x40xf32>
     // %6 = tosa.reduce_max %5 {axis = 3 : i32} : (tensor<1x32x40x40xf32>) -> tensor<1x32x40x1xf32>
     %expand_shape = memref.expand_shape %alloc [[0, 1], [2], [3]] output_shape [1, 32, 40, 40]: memref<32x40x40xf32> into memref<1x32x40x40xf32>
@@ -93,7 +89,7 @@ module {
             // Fusion point: reshape + constant + reciprocal -> %cst
             %6 = arith.mulf %5, %cst : f32
             // Fusion point: addition
-            %7 = affine.load %1[%c0, %c0, %arg6, %arg7] : memref<1x1x40x40xf32, strided<[?, ?, ?, ?], offset: ?>>
+            %7 = affine.load %arg2[%c0, %c0, %arg6, %arg7] : memref<1x1x40x40xf32>
             %8 = arith.addf %6, %7 : f32
             // Fusion point: reduce max
             %9 = affine.load %alloc_6[%arg4, %arg5, %arg6] : memref<1x32x40xf32>
@@ -142,7 +138,8 @@ module {
 
     // Fusion: Reciprocal + Multiplication
     // %10 = tosa.reciprocal %9 : (tensor<1x32x40x1xf32>) -> tensor<1x32x40x1xf32>
-    // %11 = tosa.mul %8, %10 {shift = 0 : i8} : (tensor<1x32x40x40xf32>, tensor<1x32x40x1xf32>) -> tensor<1x32x40x40xf32>
+    //   %shift_11 = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+    // %11 = tosa.mul %8, %10, %shift_11 : (tensor<1x32x40x40xf32>, tensor<1x32x40x1xf32>, tensor<1xi8>) -> tensor<1x32x40x40xf32>
     %expand_shape_11 = memref.expand_shape %alloc_10 [[0], [1], [2, 3]] output_shape [1, 32, 40, 1]: memref<1x32x40xf32> into memref<1x32x40x1xf32>
     %alloc_13 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x40xf32>
     affine.for %arg4 = 0 to 1 {
@@ -171,7 +168,7 @@ module {
     %collapse_shape = memref.collapse_shape %alloc_13 [[0, 1], [2], [3]] : memref<1x32x40x40xf32> into memref<32x40x40xf32>
     %alloc_14 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x128xf32>
     // SSA value %0 is from %arg3
-    memref.copy %0, %alloc_14 : memref<1x32x40x128xf32, strided<[?, ?, ?, ?], offset: ?>> to memref<1x32x40x128xf32>
+    memref.copy %arg3, %alloc_14 : memref<1x32x40x128xf32> to memref<1x32x40x128xf32>
     %collapse_shape_15 = memref.collapse_shape %alloc_14 [[0, 1], [2], [3]] : memref<1x32x40x128xf32> into memref<32x40x128xf32>
 
     // MatMul
@@ -222,14 +219,10 @@ module {
   }
   func.func @main() {
     %0 = memref.get_global @__constant_32x40x128xf32 : memref<32x40x128xf32>
-    %1 = bufferization.to_tensor %0 restrict: memref<32x40x128xf32> to tensor<32x40x128xf32>
-    %2 = memref.get_global @__constant_32x128x40xf32 : memref<32x128x40xf32>
-    %3 = bufferization.to_tensor %2 restrict: memref<32x128x40xf32> to tensor<32x128x40xf32>
-    %4 = memref.get_global @__constant_1x1x40x40xf32 : memref<1x1x40x40xf32>
-    %5 = bufferization.to_tensor %4 restrict: memref<1x1x40x40xf32> to tensor<1x1x40x40xf32>
-    %6 = memref.get_global @__constant_1x32x40x128xf32 : memref<1x32x40x128xf32>
-    %7 = bufferization.to_tensor %6 restrict: memref<1x32x40x128xf32> to tensor<1x32x40x128xf32>
-    call @kenerl(%1, %3, %5, %7) : (tensor<32x40x128xf32>, tensor<32x128x40xf32>, tensor<1x1x40x40xf32>, tensor<1x32x40x128xf32>) -> ()
+    %1 = memref.get_global @__constant_32x128x40xf32 : memref<32x128x40xf32>
+    %2 = memref.get_global @__constant_1x1x40x40xf32 : memref<1x1x40x40xf32>
+    %3 = memref.get_global @__constant_1x32x40x128xf32 : memref<1x32x40x128xf32>
+    call @kenerl(%0, %1, %2, %3) : (memref<32x40x128xf32>, memref<32x128x40xf32>, memref<1x1x40x40xf32>, memref<1x32x40x128xf32>) -> ()
     return
   }
   func.func private @printMemrefF32(memref<*xf32>)
