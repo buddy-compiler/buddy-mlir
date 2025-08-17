@@ -1,4 +1,4 @@
-//===- VIROps.cpp - Dynamic Vector IR Dialect Ops -------------------------===//
+//===-- VIROps.cpp - Dynamic Vector IR Operation Implementation -----------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,16 +14,18 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines operations in the dynamic vector IR dialect.
+// This file implements the operation set for the Dynamic Vector IR (VIR)
+// dialect, including vector length management and dynamic vector operations.
 //
 //===----------------------------------------------------------------------===//
 
-#include "VIR/VIROps.h"
-#include "VIR/VIRDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
 
+#include "VIR/VIRDialect.h"
+#include "VIR/VIROps.h"
+
 #define GET_OP_CLASSES
-#include "VIR/VIROps.cpp.inc"
+#include "VIR/VIR.cpp.inc"

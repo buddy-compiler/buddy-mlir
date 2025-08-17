@@ -6,3 +6,8 @@ MLIR_OPT := ${LLVM_BUILD_DIR}/bin/mlir-opt
 
 vir-setvl-lower:
 	${BUDDY_OPT} vir-setvl.mlir -o log.mlir
+
+vir-dynamic-vec-type-lower:
+	${BUDDY_OPT} vir-dynamic-vec-type.mlir \
+	--allow-unregistered-dialect \
+	-o log.mlir

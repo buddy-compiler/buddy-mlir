@@ -1,4 +1,4 @@
-//===-- VIRDialect.cpp - Dynamic Vector IR Dialect Implementation ---------===//
+//===-- VIRAttrs.cpp - Dynamic Vector IR Attribute Implementation ---------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,42 +14,59 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the core dialect structure for the Dynamic Vector IR
-// (VIR), including dialect registration and initialization.
+// This file implements the attribute system for the Dynamic Vector IR (VIR)
+// dialect, including scaling factor attributes and their parsing/printing.
 //
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Operation.h"
-#include "mlir/IR/OperationSupport.h"
 #include "llvm/ADT/TypeSwitch.h"
-#include "llvm/AsmParser/Parser.h"
-#include "llvm/IR/Attributes.h"
-#include "llvm/IR/Type.h"
 
 #include "VIR/VIRAttrs.h"
 #include "VIR/VIRDialect.h"
-#include "VIR/VIROps.h"
-#include "VIR/VIRTypes.h"
 
 using namespace mlir;
 using namespace buddy::vir;
 
-#include "VIR/VIRDialect.cpp.inc"
+#define GET_ATTRDEF_CLASSES
+#include "VIR/VIRAttrs.cpp.inc"
 
-//===----------------------------------------------------------------------===//
-// Vector IR Dialect.
-//===----------------------------------------------------------------------===//
-
-void VIRDialect::initialize() {
-  addOperations<
-#define GET_OP_LIST
-#include "VIR/VIR.cpp.inc"
+void VIRDialect::registerAttrs() {
+  addAttributes<
+#define GET_ATTRDEF_LIST
+#include "VIR/VIRAttrs.cpp.inc"
       >();
+}
 
-  registerTypes();
-  registerAttrs();
+//===----------------------------------------------------------------------===//
+// Custom parse/print for ScalingFactorAttr (hasCustomAssemblyFormat = 1).
+//===----------------------------------------------------------------------===//
+
+Attribute ScalingFactorAttr::parse(AsmParser &parser, Type) {
+  if (parser.parseLess())
+    return {};
+
+  StringRef token;
+  if (parser.parseKeyword(&token))
+    return {};
+
+  StringRef ratio = token.take_front(1);
+  if (!(ratio == "m" || ratio == "f"))
+    return {};
+
+  int64_t value;
+  if (token.drop_front(1).getAsInteger(10, value))
+    return {};
+
+  if (parser.parseGreater())
+    return {};
+
+  return get(parser.getContext(), ratio, value);
+}
+
+void ScalingFactorAttr::print(AsmPrinter &printer) const {
+  printer << "<" << this->str() << ">";
 }
