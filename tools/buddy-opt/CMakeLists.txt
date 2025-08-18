@@ -42,5 +42,9 @@ target_link_libraries(buddy-opt
   MLIRTransforms
   MLIRTransformUtils
   MatMulTransposeBVec
+<<<<<<< HEAD
   VIRToVectorPass
+=======
+  LinearSiluFusion
+>>>>>>> ccd181b (Add Linear-Silu fusion pass and tests)
   )

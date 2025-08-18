@@ -14,4 +14,8 @@ add_subdirectory(LowerLinalgToGemmini)
 add_subdirectory(FuncBufferize)
 add_subdirectory(DepthwiseConvOptimization)
 add_subdirectory(MLIRGPU)
+<<<<<<< HEAD
 add_subdirectory(VIRToVector)
+=======
+add_subdirectory(LinearSiluFusion)
+>>>>>>> ccd181b (Add Linear-Silu fusion pass and tests)
