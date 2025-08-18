@@ -20,6 +20,10 @@ if (BUDDY_LENET_EXAMPLES)
   add_subdirectory(BuddyLeNet)
 endif()
 
+if (BUDDY_MLP_EXAMPLES)
+  add_subdirectory(BuddyMlp)
+endif()
+
 if(BUDDY_WHISPER_EXAMPLES)
   add_subdirectory(BuddyWhisper)
 endif()

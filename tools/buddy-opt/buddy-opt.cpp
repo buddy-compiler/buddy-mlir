@@ -84,12 +84,10 @@ void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
 void registerLegalizeShmemOutliningPass();
-<<<<<<< HEAD
 void registerVIRToVectorPass();
-=======
 void registerLinearSiluFusionPass();
 void registerLinearSiluLowerPass();
->>>>>>> ccd181b (Add Linear-Silu fusion pass and tests)
+
 } // namespace buddy
 } // namespace mlir
 
@@ -129,13 +127,9 @@ int main(int argc, char **argv) {
   mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
-<<<<<<< HEAD
   mlir::buddy::registerVIRToVectorPass();
-=======
   mlir::buddy::registerLinearSiluFusionPass();
   mlir::buddy::registerLinearSiluLowerPass();
-
->>>>>>> ccd181b (Add Linear-Silu fusion pass and tests)
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
   mlir::buddy::registerLegalizeShmemOutliningPass();
