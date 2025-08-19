@@ -11,7 +11,7 @@ OPT_FLAG := -O0
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_runner_utils.so
 MLIR_C_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_c_runner_utils.so
-LIB_OMP := ${LLVM_BUILD_DIR}/lib/libomp.so
+LIB_OMP := ${LLVM_BUILD_DIR}/build/runtimes/runtimes-bins/openmp/runtime/src/libgomp.so
 MTRIPLE := x86_64-unknown-linux-gnu
 else ifeq ($(shell uname),Darwin)
 MLIR_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_runner_utils.dylib

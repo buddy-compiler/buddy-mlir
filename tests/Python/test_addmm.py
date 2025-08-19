@@ -30,6 +30,8 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
+# CHECK: %{{.*}} = tosa.const_shape
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.matmul
 # CHECK: %{{.*}} = tosa.add
 # CHECK: return %{{.*}}
