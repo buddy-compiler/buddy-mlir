@@ -1066,6 +1066,8 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         element = ir.IntegerAttr.get(result_element_type, 0)
     elif result_element_type == ir.F32Type.get():
         element = ir.FloatAttr.get(result_element_type, 0.0)
+    elif result_element_type == ir.F16Type.get():
+        element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")
     expanded_size = []
@@ -1978,6 +1980,26 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         a_zp,
         b_zp,
     )
+    if mlir_dtype == ir.F16Type.get():
+        f16_max_val = 65504.0
+        f16_min_val = -65504.0
+        min_int_attr = ir.IntegerAttr.get(
+            ir.IntegerType.get_signless(64), -sys.maxsize
+        )
+        max_int_attr = ir.IntegerAttr.get(
+            ir.IntegerType.get_signless(64), sys.maxsize
+        )
+        min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_min_val)
+        max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_max_val)
+
+        matmul_op = tosa.ClampOp(
+            matmul_op.result.type,
+            matmul_op,
+            min_int_attr,
+            max_int_attr,
+            min_fp_attr,
+            max_fp_attr,
+        )
     # Multiply result by scale factor
     scale_factor_constant = arith.ConstantOp(mlir_dtype, scale_factor)
     scale_factor = tensor.SplatOp(matmul_result_type, scale_factor_constant, [])
