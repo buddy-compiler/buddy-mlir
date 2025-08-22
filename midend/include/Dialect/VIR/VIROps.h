@@ -29,6 +29,8 @@
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
+#include "VIR/VIRTypes.h"
+
 #define GET_OP_CLASSES
 #include "VIR/VIR.h.inc"
 

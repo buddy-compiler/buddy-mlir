@@ -26,6 +26,7 @@ include "mlir/IR/OpBase.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "VIR/VIRAttrs.td"
 
 //===----------------------------------------------------------------------===//
 // Dynamic Vector Type Definitions

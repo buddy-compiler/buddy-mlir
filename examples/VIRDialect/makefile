@@ -11,3 +11,15 @@ vir-dynamic-vec-type-lower:
 	${BUDDY_OPT} vir-dynamic-vec-type.mlir \
 	--allow-unregistered-dialect \
 	-o log.mlir
+
+vir-memory-lower:
+	${BUDDY_OPT} vir-memory.mlir \
+	-o log.mlir
+
+vir-basic-lower:
+	${BUDDY_OPT} vir-basic.mlir \
+	-o log.mlir
+
+vir-arith-lower:
+	${BUDDY_OPT} vir-arith.mlir \
+	-o log.mlir
