@@ -1,6 +1,6 @@
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/arg0_text_encoder.data
-         ${CMAKE_CURRENT_BINARY_DIR}arg1_text_encoder.data
+         ${CMAKE_CURRENT_BINARY_DIR}/arg1_text_encoder.data
          ${CMAKE_CURRENT_BINARY_DIR}/arg0_unet.data
          ${CMAKE_CURRENT_BINARY_DIR}/arg0_vae.data
          ${CMAKE_CURRENT_BINARY_DIR}/forward_text_encoder.mlir
