@@ -12,6 +12,10 @@ if(BUDDY_DEEPSEEKR1_EXAMPLES)
   add_subdirectory(BuddyDeepSeekR1)
 endif()
 
+if(BUDDY_ATTENTION_EXAMPLES)
+  add_subdirectory(BuddyAttention)
+endif()
+
 if (BUDDY_BERT_EXAMPLES)
   add_subdirectory(BuddyBert)
 endif()
