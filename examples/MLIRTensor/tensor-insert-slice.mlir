@@ -37,21 +37,21 @@ func.func @main() {
   // TODO: Printed results with errors, currently skipping value test.
   // CHECK: {{.*}}
   func.call @printMemrefF32(%print_out1) : (tensor<*xf32>) -> ()
-  %t4 = tensor.insert_slice %t1 into %t0[0, 1, 0][1, 3, 3][1, 1, 1] :
+  %t4 = tensor.insert_slice %t1 into %t0[0, 1, 0][3, 1, 3][1, 1, 1] :
   tensor<3x3xf32> into tensor<3x3x3xf32>
   %print_out2 = tensor.cast %t4 : tensor<3x3x3xf32> to tensor<*xf32>
   // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [3, 3, 3] strides = [9, 3, 1] data =
   // TODO: Printed results with errors, currently skipping value test.
   // CHECK: {{.*}}
   func.call @printMemrefF32(%print_out2) : (tensor<*xf32>) -> ()
-  %t5 = tensor.insert_slice %t1 into %t0[0, 0, 0][1, 3, 3][1, 2, 1] :
+  %t5 = tensor.insert_slice %t1 into %t0[0, 0, 0][3, 1, 3][1, 2, 1] :
   tensor<3x3xf32> into tensor<3x3x3xf32>
   %print_out3 = tensor.cast %t5 : tensor<3x3x3xf32> to tensor<*xf32>
   // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [3, 3, 3] strides = [9, 3, 1] data =
   // TODO: Printed results with errors, currently skipping value test.
   // CHECK: {{.*}}
   func.call @printMemrefF32(%print_out3) : (tensor<*xf32>) -> ()
-  %t6 = tensor.insert_slice %t1 into %t0[0, 0, 0][1, 3, 3][1, 1, 3] :
+  %t6 = tensor.insert_slice %t1 into %t0[0, 0, 0][3, 3, 1][1, 1, 3] :
   tensor<3x3xf32> into tensor<3x3x3xf32>
   %print_out4 = tensor.cast %t6 : tensor<3x3x3xf32> to tensor<*xf32>
   // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [3, 3, 3] strides = [9, 3, 1] data =

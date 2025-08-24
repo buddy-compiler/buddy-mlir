@@ -118,8 +118,8 @@ public:
     auto loc = op.getLoc();
     // Get the attribute and the value.
     ArrayAttr coordinateAttr = op.getCoordinate();
-    int64_t valX = coordinateAttr[0].cast<IntegerAttr>().getInt();
-    int64_t valY = coordinateAttr[1].cast<IntegerAttr>().getInt();
+    int64_t valX = mlir::cast<IntegerAttr>(coordinateAttr[0]).getInt();
+    int64_t valY = mlir::cast<IntegerAttr>(coordinateAttr[1]).getInt();
     // Get the index attribute and constant value.
     IntegerAttr attrX = rewriter.getIntegerAttr(rewriter.getIndexType(), valX);
     IntegerAttr attrY = rewriter.getIntegerAttr(rewriter.getIndexType(), valY);

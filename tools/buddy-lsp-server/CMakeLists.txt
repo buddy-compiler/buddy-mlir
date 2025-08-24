@@ -10,4 +10,7 @@ target_link_libraries(buddy-lsp-server
   ${dialect_libs}
   ${conversion_libs}
   MLIRLspServerLib
+  MLIRRegisterAllDialects
+  MLIRRegisterAllExtensions
+  MLIRRegisterAllPasses
 )

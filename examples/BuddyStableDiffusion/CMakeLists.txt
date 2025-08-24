@@ -64,7 +64,6 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize="bufferize-function-boundaries"
-            -func-bufferize-dynamic-offset
             -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
@@ -147,7 +146,6 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize="bufferize-function-boundaries"
-            -func-bufferize-dynamic-offset
             -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
@@ -231,7 +229,6 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize="bufferize-function-boundaries"
-            -func-bufferize-dynamic-offset
             -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize

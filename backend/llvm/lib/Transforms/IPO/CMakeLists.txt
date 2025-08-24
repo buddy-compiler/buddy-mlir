@@ -16,6 +16,7 @@ add_llvm_component_library(LLVMBuddyIPO
   ${LLVM_IPO_DIR}/EmbedBitcodePass.cpp
   ${LLVM_IPO_DIR}/ExpandVariadics.cpp
   ${LLVM_IPO_DIR}/ExtractGV.cpp
+  ${LLVM_IPO_DIR}/FatLTOCleanup.cpp
   ${LLVM_IPO_DIR}/ForceFunctionAttrs.cpp
   ${LLVM_IPO_DIR}/FunctionAttrs.cpp
   ${LLVM_IPO_DIR}/FunctionImport.cpp

@@ -34,7 +34,6 @@ target_link_libraries(buddy-opt
   BuddyGemmini
   LowerGemminiPass
   LowerLinalgToGemminiPass
-  FuncBufferizeDynamicOffset
   MLIRGPUPasses
   BuddyGPUTransformOPs
   MLIRTestTransforms
@@ -42,4 +41,7 @@ target_link_libraries(buddy-opt
   MLIRTransforms
   MLIRTransformUtils
   MatMulTransposeBVec
+  MLIRRegisterAllDialects
+  MLIRRegisterAllExtensions
+  MLIRRegisterAllPasses
   )

@@ -102,6 +102,7 @@ def param_extract(
         op: The operation return the memref.expand_shape op.
     """
     dtype_mapping = {
+        TensorDType.Float16: ir.F16Type.get(),
         TensorDType.Float32: ir.F32Type.get(),
         TensorDType.Int64: ir.IntegerType.get_signless(64),
     }

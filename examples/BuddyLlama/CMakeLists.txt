@@ -115,10 +115,12 @@ target_compile_definitions(buddy-llama-run PRIVATE
 
 target_link_directories(buddy-llama-run PRIVATE ${LLVM_LIBRARY_DIR})
 
+find_package(OpenMP REQUIRED)
+
 set(BUDDY_LLAMA_LIBS
   LLAMA
   mlir_c_runner_utils
-  omp
+  OpenMP::OpenMP_CXX
 )
 if(BUDDY_MLIR_USE_MIMALLOC)
   list(APPEND BUDDY_LLAMA_LIBS mimalloc)

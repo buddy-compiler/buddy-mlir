@@ -113,7 +113,8 @@ def test(source, target, llvm_dir):
         engine = ExecutionEngine(
             newModule,
             shared_libs=[
-                llvm_dir + "/build/lib/libomp.so",
+                llvm_dir
+                + "/build/runtimes/runtimes-bins/openmp/runtime/src/libgomp.so",
                 llvm_dir + "/build/lib/libmlir_c_runner_utils.so",
                 llvm_dir + "/build/lib/libmlir_async_runtime.so",
                 llvm_dir + "/build/lib/libmlir_runner_utils.so",

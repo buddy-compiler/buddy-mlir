@@ -77,9 +77,16 @@ Alternatively, you can leave the path blank, and import-deepseek-r1.py will auto
 
 ```bash
 $ cmake -G Ninja .. -DBUDDY_DEEPSEEKR1_EXAMPLES=ON
+
+//f32
 $ ninja buddy-deepseek-r1-run
 $ cd bin
 $ ./buddy-deepseek-r1-run
+
+//f16
+$ ninja buddy-deepseek-r1-f16-run
+$ cd bin
+$ ./buddy-deepseek-r1-f16-run
 ```
 
 5. Enjoy it!

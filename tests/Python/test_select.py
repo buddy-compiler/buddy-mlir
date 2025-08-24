@@ -30,7 +30,10 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
+# CHECK: %{{.*}} = tosa.const_shape
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.slice
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: return %{{.*}} : tensor<3x2xf32>
 # CHECK: }

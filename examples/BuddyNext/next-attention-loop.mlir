@@ -36,10 +36,10 @@ module {
     %cst_0 = arith.constant 0.000000e+00 : f32
     %cst_1 = arith.constant 1.000000e+00 : f32
     %cst_2 = arith.constant -3.40282347E+38 : f32
-    %0 = bufferization.to_memref %arg3 : tensor<1x32x40x128xf32> to memref<1x32x40x128xf32, strided<[?, ?, ?, ?], offset: ?>>
-    %1 = bufferization.to_memref %arg2 : tensor<1x1x40x40xf32> to memref<1x1x40x40xf32, strided<[?, ?, ?, ?], offset: ?>>
-    %2 = bufferization.to_memref %arg1 : tensor<32x128x40xf32> to memref<32x128x40xf32, strided<[?, ?, ?], offset: ?>>
-    %3 = bufferization.to_memref %arg0 : tensor<32x40x128xf32> to memref<32x40x128xf32, strided<[?, ?, ?], offset: ?>>
+    %0 = bufferization.to_buffer %arg3 : tensor<1x32x40x128xf32> to memref<1x32x40x128xf32, strided<[?, ?, ?, ?], offset: ?>>
+    %1 = bufferization.to_buffer %arg2 : tensor<1x1x40x40xf32> to memref<1x1x40x40xf32, strided<[?, ?, ?, ?], offset: ?>>
+    %2 = bufferization.to_buffer %arg1 : tensor<32x128x40xf32> to memref<32x128x40xf32, strided<[?, ?, ?], offset: ?>>
+    %3 = bufferization.to_buffer %arg0 : tensor<32x40x128xf32> to memref<32x40x128xf32, strided<[?, ?, ?], offset: ?>>
 
     // MatMul
     // %0 = tosa.matmul %t0, %t1 : (tensor<32x40x128xf32>, tensor<32x128x40xf32>) -> tensor<32x40x40xf32>

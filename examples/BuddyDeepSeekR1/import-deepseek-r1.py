@@ -40,6 +40,13 @@ parser.add_argument(
     default="./",
     help="Directory to save output files.",
 )
+parser.add_argument(
+    "--precision",
+    type=str,
+    default="f32",
+    choices=["f32", "f16"],
+    help="Precision mode for generated MLIR and input data. Choose from 'f32' or 'f16'.",
+)
 args = parser.parse_args()
 
 # Ensure the output directory exists.
@@ -52,9 +59,16 @@ if model_path is None:
     model_path = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
 # Initialize the model from the specified model path.
-model = AutoModelForCausalLM.from_pretrained(
-    model_path, torchscript=True
-).eval()
+if args.precision == "f16":
+    model = (
+        AutoModelForCausalLM.from_pretrained(model_path, torchscript=True)
+        .eval()
+        .half()
+    )
+else:
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path, torchscript=True
+    ).eval()
 model.config.use_cache = False
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
@@ -84,11 +98,23 @@ driver = GraphDriver(graphs[0])
 driver.subgraphs[0].lower_to_top_level_ir()
 
 # Save the generated files to the specified output directory.
-with open(os.path.join(output_dir, "subgraph0.mlir"), "w") as module_file:
-    print(driver.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
-    print(driver.construct_main_graph(True), file=module_file)
-all_param = numpy.concatenate(
-    [param.detach().numpy().reshape([-1]) for param in params]
-)
-all_param.tofile(os.path.join(output_dir, "arg0.data"))
+if args.precision == "f16":
+    with open(
+        os.path.join(output_dir, "subgraph0-f16.mlir"), "w"
+    ) as module_file:
+        print(driver.subgraphs[0]._imported_module, file=module_file)
+    with open(os.path.join(output_dir, "forward-f16.mlir"), "w") as module_file:
+        print(driver.construct_main_graph(True), file=module_file)
+    all_param = numpy.concatenate(
+        [param.detach().numpy().reshape([-1]) for param in params]
+    )
+    all_param.tofile(os.path.join(output_dir, "arg0-f16.data"))
+else:
+    with open(os.path.join(output_dir, "subgraph0.mlir"), "w") as module_file:
+        print(driver.subgraphs[0]._imported_module, file=module_file)
+    with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
+        print(driver.construct_main_graph(True), file=module_file)
+    all_param = numpy.concatenate(
+        [param.detach().numpy().reshape([-1]) for param in params]
+    )
+    all_param.tofile(os.path.join(output_dir, "arg0.data"))
