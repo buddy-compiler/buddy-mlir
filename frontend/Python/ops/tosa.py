@@ -240,13 +240,10 @@ def addmm_op(
     matmul_result_type = ir.RankedTensorType.get(
         matmul_result_shp, result_element_type
     )
-    ty = ir.Type.parse("tensor<1xf32>")
-    a_zp = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-    ).result
-    b_zp = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-    ).result
+    ty = ir.RankedTensorType.get([1], result_element_type)
+    attr = ir.FloatAttr.get(result_element_type, 0.0)
+    a_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
+    b_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
     matmul_op = tosa.MatMulOp(
         matmul_result_type,
         mat1_reshape_op.result,
@@ -286,13 +283,10 @@ def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
     sizes = [input_shp[0], input_shp[1], mat2_shp[2]]
     result_element_type = ir.RankedTensorType(input_.type).element_type
     result_type = ir.RankedTensorType.get(sizes, result_element_type)
-    ty = ir.Type.parse("tensor<1xf32>")
-    a_zp = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-    ).result
-    b_zp = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-    ).result
+    ty = ir.RankedTensorType.get([1], result_element_type)
+    attr = ir.FloatAttr.get(result_element_type, 0.0)
+    a_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
+    b_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
     op = tosa.MatMulOp(
         result_type,
         input_,
@@ -1386,14 +1380,10 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             output_type = ir.RankedTensorType.get(
                 out_shape, result_element_type
             )
-
-            ty = ir.Type.parse("tensor<1xf32>")
-            input_zp = tosa.ConstOp(
-                ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-            ).result
-            weight_zp = tosa.ConstOp(
-                ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-            ).result
+            ty = ir.RankedTensorType.get([1], result_element_type)
+            attr = ir.FloatAttr.get(result_element_type, 0.0)
+            a_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
+            b_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
             op = tosa.DepthwiseConv2DOp(
                 output_type,
                 input_val,
@@ -1966,13 +1956,10 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         key_shape[2],
     ]
     matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
-    ty = ir.Type.parse("tensor<1xf32>")
-    a_zp = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-    ).result
-    b_zp = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-    ).result
+    ty = ir.RankedTensorType.get([1], mlir_dtype)
+    attr = ir.FloatAttr.get(mlir_dtype, 0.0)
+    a_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
+    b_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
     matmul_op = tosa.MatMulOp(
         matmul_result_type,
         query_reshape_op.result,
@@ -1983,20 +1970,12 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     if mlir_dtype == ir.F16Type.get():
         f16_max_val = 65504.0
         f16_min_val = -65504.0
-        min_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), -sys.maxsize
-        )
-        max_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), sys.maxsize
-        )
-        min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_min_val)
-        max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_max_val)
+        min_fp_attr = ir.FloatAttr.get(ir.F16Type.get(), f16_min_val)
+        max_fp_attr = ir.FloatAttr.get(ir.F16Type.get(), f16_max_val)
 
         matmul_op = tosa.ClampOp(
             matmul_op.result.type,
             matmul_op,
-            min_int_attr,
-            max_int_attr,
             min_fp_attr,
             max_fp_attr,
         )
@@ -2062,13 +2041,10 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         value_shape[3],
     ]
     matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
-    ty = ir.Type.parse("tensor<1xf32>")
-    a_zp = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-    ).result
-    b_zp = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-    ).result
+    ty = ir.RankedTensorType.get([1], mlir_dtype)
+    attr = ir.FloatAttr.get(mlir_dtype, 0.0)
+    a_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
+    b_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
     matmul_op = tosa.MatMulOp(
         matmul_result_type,
         softmax_result.result,
@@ -2143,13 +2119,10 @@ def matmul_op(
     matmul_result_type = ir.RankedTensorType.get(
         matmul_result_shp, result_element_type
     )
-    ty = ir.Type.parse("tensor<1xf32>")
-    a_zp = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-    ).result
-    b_zp = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
-    ).result
+    ty = ir.RankedTensorType.get([1], result_element_type)
+    attr = ir.FloatAttr.get(result_element_type, 0.0)
+    a_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
+    b_zp = tosa.ConstOp(ir.DenseElementsAttr.get_splat(ty, attr)).result
     matmul_op = tosa.MatMulOp(
         matmul_result_type,
         mat1_reshape_op.result,

@@ -73,7 +73,6 @@ add_custom_command(
             -affine-loop-fusion
             -affine-parallelize
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
             -convert-vector-to-scf
             -expand-strided-metadata
             -lower-affine
@@ -156,7 +155,6 @@ add_custom_command(
             -affine-loop-fusion
             -affine-parallelize
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
             -convert-vector-to-scf
             -expand-strided-metadata
             -lower-affine
@@ -220,15 +218,17 @@ target_compile_definitions(buddy-deepseek-r1-f16-run PRIVATE
 target_link_directories(buddy-deepseek-r1-run PRIVATE ${LLVM_LIBRARY_DIR})
 target_link_directories(buddy-deepseek-r1-f16-run PRIVATE ${LLVM_LIBRARY_DIR})
 
+find_package(OpenMP REQUIRED)
+
 set(BUDDY_DEEPSEEKR1_LIBS
   DEEPSEEKR1
   mlir_c_runner_utils
-  omp
+  OpenMP::OpenMP_CXX
 )
 set(BUDDY_DEEPSEEKR1_F16_LIBS
   DEEPSEEKR1_F16
   mlir_c_runner_utils
-  omp
+  OpenMP::OpenMP_CXX
 )
 if(BUDDY_MLIR_USE_MIMALLOC)
   list(APPEND BUDDY_DEEPSEEKR1_LIBS mimalloc)
