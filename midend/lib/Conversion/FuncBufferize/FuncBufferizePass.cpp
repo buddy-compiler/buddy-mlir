@@ -104,7 +104,7 @@ void FuncBufferizeDynamicOffsetPass::runOnOperation() {
         StridedLayoutAttr::get(context, mlirShapedTypeGetDynamicSize(),
                                ArrayRef<int64_t>(stride)));
   });
-  typeConverter.addArgumentMaterialization(materializeToTensor);
+  typeConverter.addSourceMaterialization(materializeToTensor);
   typeConverter.addSourceMaterialization(materializeToTensor);
   typeConverter.addTargetMaterialization([](OpBuilder &builder,
                                             BaseMemRefType type,
@@ -129,7 +129,7 @@ void FuncBufferizeDynamicOffsetPass::runOnOperation() {
 
     if (isa<TensorType>(inputs[0].getType())) {
       // Tensor to MemRef cast.
-      return builder.create<bufferization::ToMemrefOp>(loc, type, inputs[0]);
+      return builder.create<bufferization::ToBufferOp>(loc, type, inputs[0]);
     }
 
     llvm_unreachable("only tensor/memref input types supported");
@@ -149,7 +149,7 @@ void FuncBufferizeDynamicOffsetPass::runOnOperation() {
   // Bufferize func's return op.
   populateReturnOpTypeConversionPattern(patterns, typeConverter);
   target.addLegalOp<ModuleOp, bufferization::ToTensorOp,
-                    bufferization::ToMemrefOp>();
+                    bufferization::ToBufferOp>();
   target.markUnknownOpDynamicallyLegal([&](Operation *op) {
     return isLegalForReturnOpTypeConversionPattern(op, typeConverter) ||
            isNotBranchOpInterfaceOrReturnLikeOp(op);

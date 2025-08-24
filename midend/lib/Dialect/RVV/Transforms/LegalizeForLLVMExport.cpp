@@ -160,7 +160,7 @@ struct RVVLoadOpLowering : public ConvertOpToLLVMPattern<RVVLoadOp> {
         rewriter.create<LLVM::UndefOp>(loadOp.getLoc(), resultType);
     LLVM::LLVMPointerType llvmDataTypePtr = LLVM::LLVMPointerType::get(context);
     Value dataPtr = getStridedElementPtr(
-        loadOp.getLoc(), type, adaptor.getBase(), adaptor.getIndex(), rewriter);
+        rewriter, loadOp.getLoc(), type, adaptor.getBase(), adaptor.getIndex());
     Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
         loadOp.getLoc(), llvmDataTypePtr, dataPtr);
     Value vl = loadOp.getOperand(2);
@@ -191,8 +191,8 @@ struct RVVStoreOpLowering : public ConvertOpToLLVMPattern<RVVStoreOp> {
     auto context = storeOp.getContext();
     LLVM::LLVMPointerType llvmDataTypePtr = LLVM::LLVMPointerType::get(context);
     Value dataPtr =
-        getStridedElementPtr(storeOp.getLoc(), type, adaptor.getBase(),
-                             adaptor.getIndex(), rewriter);
+        getStridedElementPtr(rewriter, storeOp.getLoc(), type, adaptor.getBase(),
+                             adaptor.getIndex());
     Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
         storeOp.getLoc(), llvmDataTypePtr, dataPtr);
     Value vl = storeOp.getOperand(3);

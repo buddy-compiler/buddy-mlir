@@ -22,6 +22,11 @@
 #ifndef UTILS_UTILS_DEF
 #define UTILS_UTILS_DEF
 
+#include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #include "mlir/IR/BuiltinTypes.h"
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Affine/IR/AffineValueMap.h>
@@ -51,10 +56,10 @@ Value insertZeroConstantOp(MLIRContext *ctx, OpBuilder &builder, Location loc,
                               ? static_cast<FloatType>(Float32Type::get(ctx))
                               : static_cast<FloatType>(Float64Type::get(ctx));
     auto zero = APFloat::getZero(floatType.getFloatSemantics());
-    op = builder.create<arith::ConstantFloatOp>(loc, zero, floatType);
+    op = builder.create<arith::ConstantFloatOp>(loc, floatType, zero);
   } else if (elemTy.isInteger(bitWidth)) {
     IntegerType type = IntegerType::get(ctx, bitWidth);
-    op = builder.create<arith::ConstantIntOp>(loc, 0, type);
+    op = builder.create<arith::ConstantIntOp>(loc, type, 0);
   }
 
   return op;
@@ -302,7 +307,7 @@ void idft1DCooleyTukeyButterfly(OpBuilder &builder, Location loc,
                  builder.create<math::Log2Op>(
                      loc, indexToF32(builder, loc, memRefLength)));
   Value pos2MPI = builder.create<arith::ConstantFloatOp>(
-      loc, (llvm::APFloat)(float)(2.0 * M_PI), builder.getF32Type());
+      loc, builder.getF32Type(), (llvm::APFloat)(float)(2.0 * M_PI));
 
   builder.create<scf::ForOp>(
       loc, c0, upperBound, c1, ValueRange{subProbs, half},
@@ -326,9 +331,9 @@ void idft1DCooleyTukeyButterfly(OpBuilder &builder, Location loc,
               jBegin = builder.create<arith::MulIOp>(loc, iv1[0], subProbSize);
               jEnd = builder.create<arith::AddIOp>(loc, jBegin, outerIterVR[1]);
               wReal = builder.create<arith::ConstantFloatOp>(
-                  loc, (llvm::APFloat)1.0f, builder.getF32Type());
+                  loc, builder.getF32Type(), (llvm::APFloat)1.0f);
               wImag = builder.create<arith::ConstantFloatOp>(
-                  loc, (llvm::APFloat)0.0f, builder.getF32Type());
+                  loc, builder.getF32Type(), (llvm::APFloat)0.0f);
 
               wRealVec =
                   builder.create<vector::BroadcastOp>(loc, vecType, wReal);
@@ -442,7 +447,7 @@ void dft1DGentlemanSandeButterfly(OpBuilder &builder, Location loc,
                  builder.create<math::Log2Op>(
                      loc, indexToF32(builder, loc, memRefLength)));
   Value neg2MPI = builder.create<arith::ConstantFloatOp>(
-      loc, (llvm::APFloat)(float)(-2.0 * M_PI), builder.getF32Type());
+      loc, builder.getF32Type(), (llvm::APFloat)(float)(-2.0 * M_PI));
 
   builder.create<scf::ForOp>(
       loc, c0, upperBound, c1, ValueRange{subProbs, subProbSize},
@@ -467,9 +472,9 @@ void dft1DGentlemanSandeButterfly(OpBuilder &builder, Location loc,
                   builder.create<arith::MulIOp>(loc, iv1[0], outerIterVR[1]);
               jEnd = builder.create<arith::AddIOp>(loc, jBegin, half);
               wReal = builder.create<arith::ConstantFloatOp>(
-                  loc, (llvm::APFloat)1.0f, builder.getF32Type());
+                  loc, builder.getF32Type(), (llvm::APFloat)1.0f);
               wImag = builder.create<arith::ConstantFloatOp>(
-                  loc, (llvm::APFloat)0.0f, builder.getF32Type());
+                  loc, builder.getF32Type(), (llvm::APFloat)0.0f);
 
               wRealVec =
                   builder.create<vector::BroadcastOp>(loc, vecType, wReal);

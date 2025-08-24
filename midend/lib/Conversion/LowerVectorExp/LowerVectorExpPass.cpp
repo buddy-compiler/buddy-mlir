@@ -113,13 +113,13 @@ public:
         }
         // Prepare the data pointer for the VP load operation.
         // - Call the `getStridedElementPtr` with above descriptor and indices.
-        Value dataPtr = this->getStridedElementPtr(loc, memRefTy, memDesc,
-                                                   indices, rewriter);
+        Value dataPtr = this->getStridedElementPtr(rewriter, loc, memRefTy, memDesc,
+                                                   indices);
         // Create VP load operation and replace the predication operation.
         // - Get the result type of the predication operation.
         // - Create VP load operation.
         // - Replace original predication operation.
-        VectorType resultType = op.getResult().getType().cast<VectorType>();
+        VectorType resultType = llvm::cast<VectorType>(op.getResult().getType());
         Value resultValue = rewriter.create<LLVM::VPLoadOp>(
             loc, resultType, dataPtr, op.getMask(), op.getVl());
         rewriter.replaceOp(op, resultValue);
@@ -146,8 +146,8 @@ public:
                   .getResult(0);
           indices.push_back(intIdx);
         }
-        Value dataPtr = this->getStridedElementPtr(loc, memRefTy, memDesc,
-                                                   indices, rewriter);
+        Value dataPtr = this->getStridedElementPtr(rewriter, loc, memRefTy, memDesc,
+                                                   indices);
         rewriter.create<LLVM::VPStoreOp>(loc, valueToStore, dataPtr,
                                          op.getMask(), op.getVl());
         rewriter.eraseOp(op);

@@ -71,7 +71,7 @@ public:
     Value C = op->getOperand(2);
 
     // Acquire the element type of input tensors.
-    Type elementType = A.getType().cast<MemRefType>().getElementType();
+    Type elementType = llvm::cast<MemRefType>(A.getType()).getElementType();
 
     // Define constants.
     const Value c0 =

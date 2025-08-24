@@ -56,9 +56,9 @@ public:
     Value B = op->getOperand(1);
     Value C = op->getOperand(2);
     // Get shape of input and output
-    ShapedType ATy = A.getType().cast<ShapedType>();
-    // ShapedType BTy = B.getType().cast<ShapedType>();
-    // ShapedType CTy = C.getType().cast<ShapedType>();
+    ShapedType ATy = llvm::cast<ShapedType>(A.getType());
+    // ShapedType BTy = B.getType());
+    // ShapedType CTy = C.getType());
 
     // Some constants.
     const Value c0 =
@@ -134,7 +134,7 @@ public:
                       for (int i = 0; i < kernelM; ++i) {
                         Value a = builder.create<TransferReadOp>(
                             loc, vTy, aptrs[i], ValueRange{c0, ivK},
-                            mapBroadcast);
+                            /*padding=*/std::nullopt, mapBroadcast);
                         as.push_back(a);
                       }
                       SmallVector<Value> ds;
@@ -144,7 +144,8 @@ public:
                           Value fixedIV = builder.create<affine::AffineApplyOp>(
                               loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
                           Value d = builder.create<TransferReadOp>(
-                              loc, vTy, c, ValueRange{c0, fixedIV});
+                              loc, vTy, c, ValueRange{c0, fixedIV},
+                              /*padding=*/std::nullopt);
                           ds.push_back(d);
                         }
                       }
@@ -155,7 +156,8 @@ public:
                               loc, AffineMap::get(1, 0, d0 + i * vecSize), ivJ);
                         }
                         Value b = builder.create<TransferReadOp>(
-                            loc, vTy, B, ValueRange{ivK, fixedIV});
+                            loc, vTy, B, ValueRange{ivK, fixedIV},
+                            /*padding=*/std::nullopt);
                         bs.push_back(b);
                       }
 

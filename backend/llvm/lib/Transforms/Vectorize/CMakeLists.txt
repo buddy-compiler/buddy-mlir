@@ -8,7 +8,6 @@ add_llvm_component_library(LLVMBuddyVectorize
   ${LLVM_Vectorize_DIR}/Vectorize.cpp
   ${LLVM_Vectorize_DIR}/VectorCombine.cpp
   ${LLVM_Vectorize_DIR}/VPlan.cpp
-  ${LLVM_Vectorize_DIR}/VPlanHCFGBuilder.cpp
   ${LLVM_Vectorize_DIR}/VPlanRecipes.cpp
   ${LLVM_Vectorize_DIR}/VPlanSLP.cpp
   ${LLVM_Vectorize_DIR}/VPlanTransforms.cpp
