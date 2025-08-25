@@ -42,4 +42,5 @@ target_link_libraries(buddy-opt
   MLIRTransforms
   MLIRTransformUtils
   MatMulTransposeBVec
+  VIRToVectorPass
   )
