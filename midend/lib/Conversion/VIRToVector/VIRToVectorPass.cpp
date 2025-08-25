@@ -34,6 +34,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Pass/Pass.h"
@@ -249,6 +250,32 @@ private:
 
               rewriter.create<vector::StoreOp>(loc, valueToStore, base,
                                                baseOffset);
+            } else if (isa<vir::ConstantOp>(innerOp)) {
+              // Convert `vir::ConstantOp` to `arith::ConstantOp` with vector
+              // type.
+              auto virConstOp = cast<vir::ConstantOp>(innerOp);
+              auto constValue = virConstOp.getValue();
+
+              // Create vector constant using DenseElementsAttr
+              auto vectorConstAttr = DenseElementsAttr::get(
+                  cast<ShapedType>(targetVectorType), constValue);
+              auto vectorConstOp = rewriter.create<arith::ConstantOp>(
+                  loc, targetVectorType, vectorConstAttr);
+
+              // Record result mapping in symbol table.
+              symbolTable[virConstOp.getResult()] = vectorConstOp.getResult();
+            } else if (isa<vir::BroadcastOp>(innerOp)) {
+              // Convert `vir::BroadcastOp` to `vector::BroadcastOp`.
+              auto virBroadcastOp = cast<vir::BroadcastOp>(innerOp);
+              auto scalarValue = virBroadcastOp.getValue();
+
+              // Create vector broadcast to convert scalar to vector
+              auto vectorBroadcastOp = rewriter.create<vector::BroadcastOp>(
+                  loc, targetVectorType, scalarValue);
+
+              // Record result mapping in symbol table.
+              symbolTable[virBroadcastOp.getResult()] =
+                  vectorBroadcastOp.getResult();
             } else {
               // Emit warning for unsupported operations.
               emitWarning(loc, "Unsupported operation: " +
@@ -336,6 +363,25 @@ private:
 
               rewriter.create<memref::StoreOp>(loc, valueToStore, base,
                                                baseOffset);
+            } else if (isa<vir::ConstantOp>(innerOp)) {
+              // Convert `vir::ConstantOp` to `arith::ConstantOp` (scalar).
+              auto virConstOp = cast<vir::ConstantOp>(innerOp);
+              auto constValue = virConstOp.getValue();
+
+              // Create arith constant with the scalar value
+              auto arithConstOp =
+                  rewriter.create<arith::ConstantOp>(loc, constValue);
+
+              // Record result mapping in symbol table.
+              symbolTable[virConstOp.getResult()] = arithConstOp.getResult();
+            } else if (isa<vir::BroadcastOp>(innerOp)) {
+              // Convert `vir::BroadcastOp` to scalar value
+              // (no broadcast needed in tail loop).
+              auto virBroadcastOp = cast<vir::BroadcastOp>(innerOp);
+              auto scalarValue = virBroadcastOp.getValue();
+
+              // In tail loop, we just use the scalar value directly
+              symbolTable[virBroadcastOp.getResult()] = scalarValue;
             } else {
               // Emit warning for unsupported operations.
               emitWarning(loc, "Unsupported operation: " +

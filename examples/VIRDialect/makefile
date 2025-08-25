@@ -51,7 +51,24 @@ vir-memory-run:
 
 vir-basic-lower:
 	${BUDDY_OPT} vir-basic.mlir \
+	-lower-vir-to-vector \
 	-o log.mlir
+
+vir-basic-run:
+	${BUDDY_OPT} vir-basic.mlir \
+		-lower-vir-to-vector \
+		-cse \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 vir-arith-lower:
 	${BUDDY_OPT} vir-arith.mlir \
