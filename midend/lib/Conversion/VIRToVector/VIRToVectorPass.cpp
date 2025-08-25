@@ -276,6 +276,19 @@ private:
               // Record result mapping in symbol table.
               symbolTable[virBroadcastOp.getResult()] =
                   vectorBroadcastOp.getResult();
+            } else if (isa<vir::FMAOp>(innerOp)) {
+              // Convert `vir::FMAOp` to `vector::FMAOp`.
+              auto virFMAOp = cast<vir::FMAOp>(innerOp);
+              auto lhsValue = symbolTable[virFMAOp.getLhs()];
+              auto rhsValue = symbolTable[virFMAOp.getRhs()];
+              auto accValue = symbolTable[virFMAOp.getAcc()];
+
+              // Create vector FMA operation
+              auto vectorFMAOp = rewriter.create<vector::FMAOp>(
+                  loc, lhsValue, rhsValue, accValue);
+
+              // Record result mapping in symbol table.
+              symbolTable[virFMAOp.getResult()] = vectorFMAOp.getResult();
             } else {
               // Emit warning for unsupported operations.
               emitWarning(loc, "Unsupported operation: " +
@@ -382,6 +395,23 @@ private:
 
               // In tail loop, we just use the scalar value directly
               symbolTable[virBroadcastOp.getResult()] = scalarValue;
+            } else if (isa<vir::FMAOp>(innerOp)) {
+              // Convert `vir::FMAOp` to scalar FMA operation in tail loop.
+              auto virFMAOp = cast<vir::FMAOp>(innerOp);
+              auto lhsValue = symbolTable[virFMAOp.getLhs()];
+              auto rhsValue = symbolTable[virFMAOp.getRhs()];
+              auto accValue = symbolTable[virFMAOp.getAcc()];
+
+              // Create scalar FMA operation using arith::AddFOp and
+              // arith::MulFOp since we need to handle scalar operations in tail
+              // loop
+              auto mulResult =
+                  rewriter.create<arith::MulFOp>(loc, lhsValue, rhsValue);
+              auto addResult =
+                  rewriter.create<arith::AddFOp>(loc, mulResult, accValue);
+
+              // Record result mapping in symbol table.
+              symbolTable[virFMAOp.getResult()] = addResult;
             } else {
               // Emit warning for unsupported operations.
               emitWarning(loc, "Unsupported operation: " +
