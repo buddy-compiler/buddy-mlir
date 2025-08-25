@@ -27,6 +27,7 @@ assert len(graphs) == 1
 graph = graphs[0]
 graph.lower_to_top_level_ir()
 print(graph._imported_module)
+
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = tosa.sigmoid
