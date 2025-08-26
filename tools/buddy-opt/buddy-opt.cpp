@@ -69,13 +69,9 @@ void registerExtendDAPPass();
 void registerDAPVectorizePass();
 void registerLowerRVVPass();
 void registerMatMulOptimizePass();
-void registerMatMulVectorizationPass();
 void registerMatMulParallelVectorizationPass();
-<<<<<<< HEAD
 void registerMatMulTransposeBUnrollVecPass();
-=======
 void registerMatMulVecPass();
->>>>>>> 323fe0f (pretask: Add next-matmul.mlir, next-matmul-manual.mlir and integrate the vectorization pass into the compilation pipeline.)
 void registerTransposeOptimizationPass();
 void registerConvOptimizePass();
 void registerConvNhwcFhwcOptimizePass();

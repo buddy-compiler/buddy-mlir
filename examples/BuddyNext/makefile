@@ -1663,14 +1663,9 @@ tosa-matmul-transpose2-run:
     ${BUDDY_OPT} \
 		-eliminate-empty-tensors \
 		-convert-tensor-to-linalg \
-		-linalg-bufferize \
+		-one-shot-bufferize \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
@@ -1715,11 +1710,6 @@ next-matmul-run:
 		-one-shot-bufferize \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
@@ -1745,23 +1735,18 @@ next-matmul-lower:
 		-one-shot-bufferize \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-reconcile-unrealized-casts -o next-matmul-lower.mlir
 
 next-matmul-lower-manual-run:
 	@${BUDDY_OPT} ./next-matmul-manual.mlir \
-		-convert-vector-to-llvm \
 		-memref-expand \
 		-arith-expand \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm  \
@@ -1779,11 +1764,6 @@ next-matmul-vectorization-lower:
 		-matmul-vectorization-512 \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-reconcile-unrealized-casts -o next-matmul-lower-pass.mlir
@@ -1797,11 +1777,6 @@ next-matmul-vectorization-run:
 		-matmul-vectorization-512 \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
