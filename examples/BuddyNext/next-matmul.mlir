@@ -1,27 +1,18 @@
 // RUN: mlir-opt %s \
 // RUN:     -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" \
 // RUN: | buddy-opt \
-// RUN:     -arith-expand \
-// RUN:     -eliminate-empty-tensors \
-// RUN:     -empty-tensor-to-alloc-tensor \
-// RUN:     -one-shot-bufferize \
+// RUN:     --one-shot-bufferize="bufferize-function-boundaries" \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -lower-affine \
-// RUN:     -one-shot-bufferize \
-// RUN:     -buffer-deallocation \
-// RUN:     -finalizing-bufferize \
 // RUN:     -convert-vector-to-scf \
-// RUN:     -expand-strided-metadata \
+// RUN:     -convert-scf-to-cf \
 // RUN:     -convert-vector-to-llvm \
-// RUN:     -memref-expand \
-// RUN:     -arith-expand \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -finalize-memref-to-llvm \
-// RUN:     -convert-scf-to-cf \
 // RUN:     -convert-openmp-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-math-to-llvm \
-// RUN:     -convert-math-to-libm  \
+// RUN:     -convert-math-to-libm \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \
