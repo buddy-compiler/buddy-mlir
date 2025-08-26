@@ -49,7 +49,7 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op->getLoc();
+    Location loc = op->getLoc();
     
     Value A = op->getOperand(0);
     Value B = op->getOperand(1);
@@ -58,19 +58,19 @@ public:
     ShapedType ATy = A.getType().cast<ShapedType>();
     Type eleTy = ATy.getElementType();
 
-    auto ctx = op->getContext();
+    MLIRContext *ctx = op->getContext();
     
     VectorType vectorTy = mlir::VectorType::get({vecSize}, eleTy);
     
-    const Value c0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
-    const Value c1 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-    const Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
-    
-    const Value c0Ele = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
-    
-    const Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);  // M = 40
-    const Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);  // K = 3072
-    const Value bCol = rewriter.create<memref::DimOp>(loc, B, c1);  // N = 1536
+    Value c0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+    Value c1 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+    Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+
+    Value c0Ele = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
+
+    Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);  // M = 40
+    Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);  // K = 3072
+    Value bCol = rewriter.create<memref::DimOp>(loc, B, c1);  // N = 1536
 
     // for i = 0 to M (40)
     rewriter.create<scf::ForOp>(
