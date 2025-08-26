@@ -69,7 +69,6 @@ void registerExtendDAPPass();
 void registerDAPVectorizePass();
 void registerLowerRVVPass();
 void registerMatMulOptimizePass();
-void registerMatMulVectorizationPass();
 void registerMatMulParallelVectorizationPass();
 void registerMatMulTransposeBUnrollVecPass();
 void registerMatmulAMXPass();
