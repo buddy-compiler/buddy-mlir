@@ -1,10 +1,8 @@
 // RUN: buddy-opt %s \
-// RUN:     -memref-expand \
-// RUN:     -arith-expand \
 // RUN:     -convert-scf-to-cf \
-// RUN:     -convert-arith-to-llvm \
-// RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-vector-to-llvm \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -convert-openmp-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-math-to-llvm \
 // RUN:     -convert-math-to-libm \

@@ -1704,20 +1704,14 @@ next-matmul-run:
 	@${MLIR_OPT} ./next-matmul.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${BUDDY_OPT} \
-		-arith-expand \
-		-eliminate-empty-tensors \
-		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
 		-convert-vector-to-scf \
-		-expand-strided-metadata \
+		-convert-scf-to-cf \
 		-convert-vector-to-llvm \
-		-memref-expand \
-		-arith-expand \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
-		-convert-scf-to-cf \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -1732,21 +1726,18 @@ next-matmul-lower:
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${BUDDY_OPT} \
 		-arith-expand \
-		-one-shot-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-lower-affine \
 		-convert-vector-to-scf \
-		-expand-strided-metadata \
 		-reconcile-unrealized-casts -o next-matmul-lower.mlir
 
 next-matmul-lower-manual-run:
 	@${BUDDY_OPT} ./next-matmul-manual.mlir \
-		-memref-expand \
-		-arith-expand \
-		-convert-arith-to-llvm \
-		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
 		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm  \
@@ -1759,33 +1750,27 @@ next-matmul-vectorization-lower:
 	@${MLIR_OPT} ./next-matmul.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${BUDDY_OPT} \
-		-arith-expand \
-		-one-shot-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-matmul-vectorization-512 \
 		-convert-linalg-to-affine-loops \
-		-lower-affine \
 		-convert-vector-to-scf \
-		-expand-strided-metadata \
+		-lower-affine \
 		-reconcile-unrealized-casts -o next-matmul-lower-pass.mlir
 
 next-matmul-vectorization-run:
 	@${MLIR_OPT} ./next-matmul.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${BUDDY_OPT} \
-		-arith-expand \
-		-one-shot-bufferize \
+		--one-shot-bufferize="bufferize-function-boundaries" \
 		-matmul-vectorization-512 \
 		-convert-linalg-to-affine-loops \
-		-lower-affine \
 		-convert-vector-to-scf \
-		-expand-strided-metadata \
+		-lower-affine \
+		-convert-scf-to-cf \
 		-convert-vector-to-llvm \
-		-memref-expand \
-		-arith-expand \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
-		-convert-scf-to-cf \
-		-convert-arith-to-llvm \
+		-convert-openmp-to-llvm \
 		-convert-math-to-llvm \
 		-convert-math-to-libm  \
 		-convert-func-to-llvm \
