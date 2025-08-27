@@ -152,6 +152,26 @@ vector-saxpy-fixed-cross-rvv-aot:
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
 		-o saxpy.fixed.${STEP_SIZE}.out
 
+vector-saxpy-fixed-cross-rvv-asm:
+	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-fixed.mlir | \
+	${BUDDY_OPT} \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir -o log.ll
+	${CLANG} -O3 log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu -fPIC \
+		--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot \
+		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -S \
+		-o saxpy.fixed.${STEP_SIZE}.s
+
 vector-saxpy-scalable-cross-rvv-aot:
 	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-scalable.mlir | \
 	${BUDDY_OPT} \
@@ -171,6 +191,26 @@ vector-saxpy-scalable-cross-rvv-aot:
 		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
 		-o saxpy.scalable.${STEP_SIZE}.out
+
+vector-saxpy-scalable-cross-rvv-asm:
+	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-scalable.mlir | \
+	${BUDDY_OPT} \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir -o log.ll
+	${CLANG} -O3 log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu -fPIC \
+		--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot \
+		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -S \
+		-o saxpy.scalable.${STEP_SIZE}.s
 
 vector-saxpy-vp-cross-rvv-aot:
 	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-vp.mlir | \
@@ -193,3 +233,25 @@ vector-saxpy-vp-cross-rvv-aot:
 		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
 		-o saxpy.vp.${STEP_SIZE}.out
+
+vector-saxpy-vp-cross-rvv-asm:
+	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-vp.mlir | \
+	${BUDDY_OPT} \
+		-lower-vector-exp \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-convert-index-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir -o log.ll
+	${CLANG} -O3 log.ll \
+		-march=rv64gcv --target=riscv64-unknown-linux-gnu -fPIC \
+		--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot \
+		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
+		-fno-inline -S \
+		-o saxpy.vp.${STEP_SIZE}.s

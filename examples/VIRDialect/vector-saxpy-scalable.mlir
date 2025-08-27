@@ -56,15 +56,15 @@ func.func @alloc_f32(%len: index, %val: f32) -> memref<?xf32> {
 }
 
 func.func @main() {
-  %c1024 = arith.constant 1024 : index
+  %size = arith.constant 105090 : index
   %f2 = arith.constant 2.0 : f32
   %f3 = arith.constant 3.0 : f32
-  %x = func.call @alloc_f32(%c1024, %f2) : (index, f32) -> memref<?xf32>
-  %y = func.call @alloc_f32(%c1024, %f3) : (index, f32) -> memref<?xf32>
+  %x = func.call @alloc_f32(%size, %f2) : (index, f32) -> memref<?xf32>
+  %y = func.call @alloc_f32(%size, %f3) : (index, f32) -> memref<?xf32>
   %a = arith.constant 5.0 : f32
 
   %t_start = call @rtclock() : () -> f64
-  func.call @saxpy_scalable(%c1024, %x, %y, %a) : (index, memref<?xf32>, memref<?xf32>, f32) -> ()
+  func.call @saxpy_scalable(%size, %x, %y, %a) : (index, memref<?xf32>, memref<?xf32>, f32) -> ()
   %t_end = call @rtclock() : () -> f64
 
   %time = arith.subf %t_end, %t_start : f64
