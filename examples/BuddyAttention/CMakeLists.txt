@@ -22,12 +22,13 @@ add_custom_command(
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
+            -lower-affine
             -affine-loop-fusion
             -affine-parallelize
             -convert-scf-to-openmp
             -convert-vector-to-scf
             -expand-strided-metadata
-            -lower-affine
+            -convert-scf-to-cf
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward-midend.mlir
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
   COMMENT "Optimizing forward.mlir (midend passes)"
@@ -37,12 +38,11 @@ add_custom_command(
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward-optimized.mlir
   COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-midend.mlir
-            -convert-vector-to-llvm
             -memref-expand
             -arith-expand
+            -convert-vector-to-llvm
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
-            -convert-scf-to-cf
             -convert-cf-to-llvm
             -llvm-request-c-wrappers
             -convert-openmp-to-llvm
@@ -70,13 +70,13 @@ add_custom_command(
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
+            -lower-affine
             -affine-loop-fusion
             -affine-parallelize
             -convert-scf-to-openmp
             -func-bufferize-dynamic-offset
             -convert-vector-to-scf
             -expand-strided-metadata
-            -lower-affine
             -cse
           -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-midend.mlir
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
@@ -87,9 +87,9 @@ add_custom_command(
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-optimized.mlir
     COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-midend.mlir
-            -convert-vector-to-llvm
             -memref-expand
             -arith-expand
+            -convert-vector-to-llvm
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
@@ -105,6 +105,57 @@ add_custom_command(
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-midend.mlir
     COMMENT "Optimizing subgraph0.mlir (backend passes)"
     VERBATIM)
+
+# Code Generation: Generate LLVM IR and object files
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.ll
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-translate --mlir-to-llvmir
+            ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-optimized.mlir
+          -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.ll
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-optimized.mlir
+    COMMENT "Generating LLVM IR from optimized subgraph0.mlir"
+    VERBATIM)
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic
+            ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.ll
+          -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.ll
+    COMMENT "Generating object file from LLVM IR"
+    VERBATIM)
+
+# Executable: Link object file with runner
+add_executable(attention-runner
+    ${CMAKE_CURRENT_SOURCE_DIR}/attention_runner.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
+)
+
+# Set properties for the executable
+set_target_properties(attention-runner PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+# Include Buddy headers
+target_include_directories(attention-runner PRIVATE
+    ${CMAKE_SOURCE_DIR}/frontend/Interfaces
+)
+
+# Set up library directories and linking
+target_link_directories(attention-runner PRIVATE ${LLVM_LIBRARY_DIR})
+
+# Define libraries to link
+set(BUDDY_ATTENTION_LIBS
+    mlir_c_runner_utils
+    omp
+)
+
+# Link with required libraries
+target_link_libraries(attention-runner ${BUDDY_ATTENTION_LIBS})
+
+# Add dependency to ensure object file is built first
+add_dependencies(attention-runner buddy-attention-codegen)
 
 
 # Create targets for building the MLIR files
@@ -127,9 +178,20 @@ add_custom_target(buddy-attention-backend
     COMMENT "Building backend optimized attention MLIR files"
 )
 
+add_custom_target(buddy-attention-codegen
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.ll
+            ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
+    COMMENT "Generating LLVM IR and object files"
+)
+
+add_custom_target(buddy-attention-executable
+    DEPENDS attention-runner
+    COMMENT "Building attention performance test executable"
+)
+
 add_custom_target(buddy-attention
-    DEPENDS buddy-attention-backend
-    COMMENT "Building all optimized attention MLIR files"
+    DEPENDS buddy-attention-executable
+    COMMENT "Building complete attention pipeline with executable"
 )
 
 
@@ -143,7 +205,11 @@ add_custom_target(buddy-attention-clean
         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-midend.mlir
         ${CMAKE_CURRENT_BINARY_DIR}/forward-optimized.mlir
         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-optimized.mlir
+        ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.ll
+        ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
         ${CMAKE_CURRENT_BINARY_DIR}/graph.log
         ${CMAKE_CURRENT_BINARY_DIR}/graph_fused.log
+    COMMAND ${CMAKE_COMMAND} -E remove -f
+        ${CMAKE_CURRENT_BINARY_DIR}/attention-runner
     COMMENT "Cleaning BuddyAttention generated files"
 )
