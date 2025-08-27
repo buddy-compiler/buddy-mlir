@@ -38,7 +38,9 @@ add_custom_command(
           ${BUDDY_BINARY_DIR}/buddy-opt
           -convert-elementwise-to-linalg
           -one-shot-bufferize="bufferize-function-boundaries"
-          -func-bufferize-dynamic-offset
+          -ownership-based-buffer-deallocation
+          -buffer-deallocation-simplification
+          -bufferization-lower-deallocations
           -convert-linalg-to-loops
           -convert-scf-to-cf
           -convert-cf-to-llvm
