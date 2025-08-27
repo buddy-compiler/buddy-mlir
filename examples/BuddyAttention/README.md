@@ -63,6 +63,16 @@ For backend optimization only (requires midend):
 ninja buddy-attention-backend
 ```
 
+For code generation (LLVM IR and object files):
+```bash
+ninja buddy-attention-codegen
+```
+
+For executable generation (performance testing):
+```bash
+ninja buddy-attention-executable
+```
+
 ## Generated Files
 
 After building, the following files will be generated in the build directory:
@@ -81,6 +91,11 @@ After building, the following files will be generated in the build directory:
 ### Backend Output (LLVM Optimized MLIR)
 - `forward-optimized.mlir`: Backend optimized main graph (LLVM dialect)
 - `subgraph0-optimized.mlir`: Backend optimized subgraph (LLVM dialect)
+
+### Code Generation Output
+- `subgraph0.ll`: LLVM IR code
+- `subgraph0.o`: Compiled object file
+- `attention-runner`: Performance test executable
 
 ## Compilation Pipeline
 
@@ -108,6 +123,14 @@ After building, the following files will be generated in the build directory:
 5. Function to LLVM conversion
 6. Final reconciliation
 
+### Code Generation (Stage 3) - `ninja buddy-attention-codegen`
+1. MLIR to LLVM IR translation
+2. LLVM IR to object file compilation
+
+### Executable Generation (Stage 4) - `ninja buddy-attention-executable`
+1. Link object file with C++ runner
+2. Create performance test executable
+
 ## Customization
 
 ### Input Parameters
@@ -122,8 +145,24 @@ Edit `attention_model.py` to change model parameters:
 - `num_attention_heads`: Number of attention heads
 - `head_dim`: Dimension per attention head
 
+## Performance Testing
+
+After building the complete pipeline, run the performance test:
+```bash
+cd build/examples/BuddyAttention
+./attention-runner
+```
+
+The performance test will:
+- Load model parameters from `arg0.data`
+- Generate random input data
+- Run warmup iterations
+- Measure execution time over multiple iterations
+- Report average latency and throughput
+- Validate output for NaN/Inf values
+
 ## Testing
-Test the model independently:
+Test the PyTorch model independently:
 ```bash
 cd examples/BuddyAttention
 python attention_model.py
