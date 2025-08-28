@@ -101,7 +101,7 @@ vir-arith-run:
 STEP ?= 4
 SIZE ?= 4096
 
-vector-saxpy-fixed-run:
+vector-saxpy-fixed-jit-run:
 	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-fixed.mlir | \
 	${BUDDY_OPT} \
 		-convert-vector-to-scf \
@@ -113,8 +113,27 @@ vector-saxpy-fixed-run:
 		-convert-arith-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+	${MLIR_CPU_RUNNER} -O3 -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+vector-saxpy-fixed-aot-run:
+	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-fixed.mlir | \
+	${BUDDY_OPT} \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir -o log.ll
+	${CLANG} log.ll \
+		-march=native -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
+		-o a.out
+	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out || true
 
 vector-saxpy-fixed-aot:
 	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-fixed.mlir | \
@@ -129,10 +148,27 @@ vector-saxpy-fixed-aot:
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir -o log.ll
-	${CLANG} log.ll ${OPT_FLAG} \
+	${CLANG} log.ll \
+		-march=native -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
-		-o a.out
-	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out || true
+		-o saxpy.fixed.${STEP}.${SIZE}.out
+
+vector-saxpy-fixed-asm:
+	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-fixed.mlir | \
+	${BUDDY_OPT} \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir -o log.ll
+	${CLANG} log.ll \
+		-march=native -O3 -S \
+		-o saxpy.fixed.${STEP}.${SIZE}.s
 
 vector-saxpy-fixed-cross-rvv-aot:
 	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-fixed.mlir | \
