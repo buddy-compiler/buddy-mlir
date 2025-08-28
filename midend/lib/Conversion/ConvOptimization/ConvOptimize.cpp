@@ -57,7 +57,7 @@ public:
     Value filter = op->getOperand(1);
     Value output = op->getOperand(2);
 
-    ShapedType inputTy = input.getType().cast<ShapedType>();
+    ShapedType inputTy = llvm::cast<MemRefType>(input.getType());
 
     Type elemTy = inputTy.getElementType();
     VectorType vecTy = VectorType::get(vecSize, elemTy);
@@ -105,14 +105,14 @@ public:
                       Value columnInput = builder.create<affine::AffineApplyOp>(loc, AffineMap::get(2, 0, d0 + d1 + j * vecSize), ValueRange{ivD, ivG});
                       Value columnFilter = builder.create<affine::AffineApplyOp>(loc, AffineMap::get(1, 0, d0 + j * vecSize), ivG);
 
-                      Value i = builder.create<TransferReadOp>(loc, vecTy, input, ValueRange{ivA, ivE, rowInput, columnInput});
+                      Value i = builder.create<TransferReadOp>(loc, vecTy, input, ValueRange{ivA, ivE, rowInput, columnInput}, /*padding=*/std::nullopt);
 
                       auto protectedF =
                           builder.create<affine::AffineIfOp>(loc, vecTy, IntegerSet::get(1, 1, {s0 - 1 - d0}, {false}), ValueRange{rowFilter, f}, true);
 
                       // if row in range, read normally.
                       auto thenBuilder = protectedF.getThenBodyBuilder();
-                      Value normalReadVec = thenBuilder.create<TransferReadOp>(loc, vecTy, filter, ValueRange{ivB, ivE, rowFilter, columnFilter});
+                      Value normalReadVec = thenBuilder.create<TransferReadOp>(loc, vecTy, filter, ValueRange{ivB, ivE, rowFilter, columnFilter}, /*padding=*/std::nullopt);
                       thenBuilder.create<affine::AffineYieldOp>(loc, normalReadVec);
 
                       // if row out of range, give back a empty vector.

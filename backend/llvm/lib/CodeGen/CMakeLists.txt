@@ -31,10 +31,10 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/DwarfEHPrepare.cpp
   ${LLVM_CodeGen_DIR}/EarlyIfConversion.cpp
   ${LLVM_CodeGen_DIR}/EdgeBundles.cpp
-  ${LLVM_CodeGen_DIR}/EHContGuardCatchret.cpp
+  ${LLVM_CodeGen_DIR}/EHContGuardTargets.cpp
   ${LLVM_CodeGen_DIR}/ExecutionDomainFix.cpp
   ${LLVM_CodeGen_DIR}/ExpandLargeDivRem.cpp
-  ${LLVM_CodeGen_DIR}/ExpandLargeFpConvert.cpp
+  ${LLVM_CodeGen_DIR}/ExpandFp.cpp
   ${LLVM_CodeGen_DIR}/ExpandMemCmp.cpp
   ${LLVM_CodeGen_DIR}/ExpandPostRAPseudos.cpp
   ${LLVM_CodeGen_DIR}/ExpandReductions.cpp

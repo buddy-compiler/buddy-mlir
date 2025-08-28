@@ -26,13 +26,15 @@ func.func private @printMemrefF32(tensor<*xf32>)
 
 func.func @test(%a : tensor<1x40x32x128xf32>, %b : tensor<32x40x40xf32>) -> (tensor<1x40x32x128xf32>) {
     %t_start = call @rtclock() : () -> f64
-    %0 = "tosa.const"() <{value = dense<[0, 2, 1, 3]> : tensor<4xi32>}> : () -> tensor<4xi32>
-    %1 = tosa.transpose %a, %0 : (tensor<1x40x32x128xf32>, tensor<4xi32>) -> tensor<1x32x40x128xf32>
-    %2 = tosa.reshape %1 {new_shape = array<i64: 32, 40, 128>} : (tensor<1x32x40x128xf32>) -> tensor<32x40x128xf32>
-    %3 = tosa.matmul %b, %2 : (tensor<32x40x40xf32>, tensor<32x40x128xf32>) -> tensor<32x40x128xf32>
-    %4 = tosa.reshape %3 {new_shape = array<i64: 1, 32, 40, 128>} : (tensor<32x40x128xf32>) -> tensor<1x32x40x128xf32>
-    %5 = "tosa.const"() <{value = dense<[0, 2, 1, 3]> : tensor<4xi32>}> : () -> tensor<4xi32>
-    %6 = tosa.transpose %4, %5 : (tensor<1x32x40x128xf32>, tensor<4xi32>) -> tensor<1x40x32x128xf32>
+    %1 = tosa.transpose %a {perms = array<i32: 0, 2, 1, 3>} : (tensor<1x40x32x128xf32>) -> tensor<1x32x40x128xf32>
+      %shape_2 = tosa.const_shape {values = dense<[32, 40, 128]> : tensor<3xindex>} : () -> !tosa.shape<3>
+  %2 = tosa.reshape %1, %shape_2 : (tensor<1x32x40x128xf32>, !tosa.shape<3>) -> tensor<32x40x128xf32>
+      %zp1_3 = "tosa.const"() <{values = dense<0.0> : tensor<1xf32>}> : () -> tensor<1xf32>
+  %zp2_3 = "tosa.const"() <{values = dense<0.0> : tensor<1xf32>}> : () -> tensor<1xf32>
+  %3 = tosa.matmul %b, %2, %zp1_3, %zp2_3 : (tensor<32x40x40xf32>, tensor<32x40x128xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<32x40x128xf32>
+      %shape_4 = tosa.const_shape {values = dense<[1, 32, 40, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %4 = tosa.reshape %3, %shape_4 : (tensor<32x40x128xf32>, !tosa.shape<4>) -> tensor<1x32x40x128xf32>
+    %6 = tosa.transpose %4 {perms = array<i32: 0, 2, 1, 3>} : (tensor<1x32x40x128xf32>) -> tensor<1x40x32x128xf32>
     %t_end = call @rtclock() : () -> f64
     %time = arith.subf %t_end, %t_start : f64
     // Print timings.
