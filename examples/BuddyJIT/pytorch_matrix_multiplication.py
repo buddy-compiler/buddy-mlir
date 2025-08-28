@@ -16,8 +16,7 @@ def execute(a, b):
     # Initialize the dynamo compiler.
     dynamo_compiler = DynamoCompiler(
         primary_registry=tosa.ops_registry,
-        aot_autograd_decomposition=inductor_decomp,
-        verbose=True
+        aot_autograd_decomposition=inductor_decomp
     )
     dynamo_compiler.importer_by_export(MatrixMultiply(), a, b)
     exec_func = dynamo_compiler.dynamo_run()
