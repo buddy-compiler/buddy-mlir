@@ -3,3 +3,4 @@ core
 *.s
 *.out
 *.elf
+*.csv

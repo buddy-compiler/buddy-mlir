@@ -1,4 +1,4 @@
-// RUN: sed 's/STEP_PLACEHOLDER/4/g' %s | \
+// RUN: sed 's/STEP_PLACEHOLDER/4/g;s/SIZE_PLACEHOLDER/4096/g' %s | \
 // RUN: buddy-opt \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -lower-affine \
@@ -56,7 +56,7 @@ func.func @alloc_f32(%len: index, %val: f32) -> memref<?xf32> {
 }
 
 func.func @main() {
-  %size = arith.constant 105090 : index
+  %size = arith.constant SIZE_PLACEHOLDER : index
   %f2 = arith.constant 2.0 : f32
   %f3 = arith.constant 3.0 : f32
   %x = func.call @alloc_f32(%size, %f2) : (index, f32) -> memref<?xf32>

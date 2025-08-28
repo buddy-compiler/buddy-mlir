@@ -97,10 +97,12 @@ vir-arith-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
-STEP_SIZE := 4
+# Default values for STEP and SIZE
+STEP ?= 4
+SIZE ?= 4096
 
 vector-saxpy-fixed-run:
-	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-fixed.mlir | \
+	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-fixed.mlir | \
 	${BUDDY_OPT} \
 		-convert-vector-to-scf \
 		-lower-affine \
@@ -115,7 +117,7 @@ vector-saxpy-fixed-run:
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 vector-saxpy-fixed-aot:
-	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-fixed.mlir | \
+	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-fixed.mlir | \
 	${BUDDY_OPT} \
 		-convert-vector-to-scf \
 		-lower-affine \
@@ -133,7 +135,7 @@ vector-saxpy-fixed-aot:
 	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out || true
 
 vector-saxpy-fixed-cross-rvv-aot:
-	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-fixed.mlir | \
+	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-fixed.mlir | \
 	${BUDDY_OPT} \
 		-convert-vector-to-scf \
 		-lower-affine \
@@ -150,10 +152,10 @@ vector-saxpy-fixed-cross-rvv-aot:
 		--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot \
 		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
-		-o saxpy.fixed.${STEP_SIZE}.out
+		-o saxpy.fixed.${STEP}.${SIZE}.out
 
 vector-saxpy-fixed-cross-rvv-asm:
-	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-fixed.mlir | \
+	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-fixed.mlir | \
 	${BUDDY_OPT} \
 		-convert-vector-to-scf \
 		-lower-affine \
@@ -170,10 +172,10 @@ vector-saxpy-fixed-cross-rvv-asm:
 		--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot \
 		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		-fno-inline -S \
-		-o saxpy.fixed.${STEP_SIZE}.s
+		-o saxpy.fixed.${STEP}.${SIZE}.s
 
 vector-saxpy-scalable-cross-rvv-aot:
-	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-scalable.mlir | \
+	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-scalable.mlir | \
 	${BUDDY_OPT} \
 		-convert-vector-to-scf \
 		-lower-affine \
@@ -190,10 +192,10 @@ vector-saxpy-scalable-cross-rvv-aot:
 		--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot \
 		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
-		-o saxpy.scalable.${STEP_SIZE}.out
+		-o saxpy.scalable.${STEP}.${SIZE}.out
 
 vector-saxpy-scalable-cross-rvv-asm:
-	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-scalable.mlir | \
+	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-scalable.mlir | \
 	${BUDDY_OPT} \
 		-convert-vector-to-scf \
 		-lower-affine \
@@ -210,10 +212,10 @@ vector-saxpy-scalable-cross-rvv-asm:
 		--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot \
 		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		-fno-inline -S \
-		-o saxpy.scalable.${STEP_SIZE}.s
+		-o saxpy.scalable.${STEP}.${SIZE}.s
 
 vector-saxpy-vp-cross-rvv-aot:
-	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-vp.mlir | \
+	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-vp.mlir | \
 	${BUDDY_OPT} \
 		-lower-vector-exp \
 		-convert-vector-to-scf \
@@ -232,10 +234,10 @@ vector-saxpy-vp-cross-rvv-aot:
 		--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot \
 		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		-L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
-		-o saxpy.vp.${STEP_SIZE}.out
+			-o saxpy.vp.${STEP}.${SIZE}.out
 
 vector-saxpy-vp-cross-rvv-asm:
-	sed 's/STEP_PLACEHOLDER/${STEP_SIZE}/g' vector-saxpy-vp.mlir | \
+	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-vp.mlir | \
 	${BUDDY_OPT} \
 		-lower-vector-exp \
 		-convert-vector-to-scf \
@@ -254,4 +256,4 @@ vector-saxpy-vp-cross-rvv-asm:
 		--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot \
 		--gcc-toolchain=${RISCV_GNU_TOOLCHAIN} \
 		-fno-inline -S \
-		-o saxpy.vp.${STEP_SIZE}.s
+		-o saxpy.vp.${STEP}.${SIZE}.s
