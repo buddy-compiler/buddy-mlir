@@ -18,7 +18,7 @@
 #
 # ===---------------------------------------------------------------------------
 
-from .. import Graph
+from ..graph import Graph
 from ..operation import *
 
 

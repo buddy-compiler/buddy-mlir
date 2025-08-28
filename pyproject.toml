@@ -1,2 +1,50 @@
+[project]
+name = "buddy"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "torch==2.5.1",
+    "numpy<2",
+    "transformers==4.46.2",
+    "tokenizers>=0.20",
+    "sentencepiece==0.2.0",
+    "accelerate",
+    "protobuf",
+    "pybind11==2.11.1",
+    "torchvision",
+    "tabulate",
+    "datasets",
+    "soundfile",
+    "librosa",
+    "PyYAML",
+    "certifi",
+    "idna",
+    "diffusers",
+    "nanobind"
+]
+
+[project.optional-dependencies]
+# 可选依赖组（如果需要的话）
+dev = [
+    "pre-commit"
+]
+
+[build-system]
+requires = ["setuptools>=64.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
+[tool.pip.index]
+urls = [
+    "https://download.pytorch.org/whl/cpu"
+]
+
+# 如果需要设置安装时的额外选项
+[tool.pip.install]
+pre = true
+
 [tool.black]
 line-length = 80
