@@ -15,9 +15,9 @@ SIZES=(4096 4098 131072 131074 4194304 4194306 67108864 67108866)
 FIXED_TARGET="vector-saxpy-fixed-aot"
 
 gen_cases () {
-  # Extract target name and create nameref to steps array
+  # Extract target name and steps array name
   local target="$1"; shift
-  local -n steps_ref=$1; shift
+  local steps_array_name="$1"; shift
 
   # Initialize counter for test cases
   local count=0
@@ -25,7 +25,8 @@ gen_cases () {
   # Iterate through all data sizes
   for size in "${SIZES[@]}"; do
     # Iterate through all step sizes for current vectorization strategy
-    for step in "${steps_ref[@]}"; do
+    # Use indirect expansion to access the array
+    for step in $(eval "echo \${$steps_array_name[@]}"); do
       # Build make command with current parameters
       cmd="make $target STEP=$step SIZE=$size"
       echo "$cmd"

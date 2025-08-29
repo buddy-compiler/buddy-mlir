@@ -17,12 +17,12 @@ ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_runner_utils.so
 MLIR_C_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_c_runner_utils.so
 MLIR_ASYNC_RUNTIME := ${LLVM_BUILD_DIR}/lib/libmlir_async_runtime.so
-MTRIPLE := x86_64-unknown-linux-gnu
 else ifeq ($(shell uname),Darwin)
 MLIR_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_runner_utils.dylib
 MLIR_C_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_c_runner_utils.dylib
 MLIR_ASYNC_RUNTIME := ${LLVM_BUILD_DIR}/lib/libmlir_async_runtime.dylib
-MTRIPLE := x86_64-apple-darwin
+# Auto-detect macOS SDK path using xcrun
+SYSROOT := -isysroot $(shell xcrun --show-sdk-path)
 endif
 
 vir-setvl-lower:
@@ -132,8 +132,10 @@ vector-saxpy-fixed-aot-run:
 	${CLANG} log.ll \
 		-march=native -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
+		-Wl,-rpath,${MLIR_LIB} \
+		${SYSROOT} \
 		-o a.out
-	@LD_LIBRARY_PATH=${MLIR_LIB} ./a.out || true
+	./a.out || true
 
 vector-saxpy-fixed-aot:
 	sed 's/STEP_PLACEHOLDER/${STEP}/g;s/SIZE_PLACEHOLDER/${SIZE}/g' vector-saxpy-fixed.mlir | \
@@ -151,6 +153,8 @@ vector-saxpy-fixed-aot:
 	${CLANG} log.ll \
 		-march=native -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils \
+		-Wl,-rpath,${MLIR_LIB} \
+		${SYSROOT} \
 		-o saxpy.fixed.${STEP}.${SIZE}.out
 
 vector-saxpy-fixed-asm:
