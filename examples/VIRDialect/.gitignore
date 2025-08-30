@@ -1,0 +1,6 @@
+log*
+core
+*.s
+*.out
+*.elf
+*.csv

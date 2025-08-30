@@ -1,0 +1,13 @@
+[submodule "llvm"]
+	path = llvm
+	url = https://github.com/llvm/llvm-project.git
+	branch = main
+	shallow = true
+[submodule "thirdparty/mimalloc"]
+	path = thirdparty/mimalloc
+	url = https://github.com/microsoft/mimalloc.git
+	shallow = true
+[submodule "thirdparty/riscv-gnu-toolchain"]
+	path = thirdparty/riscv-gnu-toolchain
+	url = https://github.com/riscv-collab/riscv-gnu-toolchain.git
+	shallow = true

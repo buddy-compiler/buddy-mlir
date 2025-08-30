@@ -1,0 +1,115 @@
+- filename: rvv-setvl.mlir
+  type: jit
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --convert-math-to-llvm --lower-rvv --convert-vector-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=256 ${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v -dlopen=${CROSS_MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: rvv-rsqrt.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --convert-math-to-llvm --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+
+- filename: rvv-mul-add.mlir
+  type: jit
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --convert-math-to-llvm --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128 ${CROSS_LLI} -march=riscv64 -mattr=+m,+d,+v -dlopen=${CROSS_MLIR_C_RUNNER_UTILS} -dlopen=${CROSS_MLIR_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: rvv-stripmining.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --convert-math-to-llvm --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT

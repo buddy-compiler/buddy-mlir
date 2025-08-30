@@ -1,0 +1,4 @@
+log.mlir
+log.ll
+log.s
+matmul-cubin.mlir

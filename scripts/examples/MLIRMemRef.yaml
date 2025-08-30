@@ -1,0 +1,101 @@
+- filename: memref-memory.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --lower-affine --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void --shared-libs=${MLIR_RUNNER_UTILS} --shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: memref-subview.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --expand-strided-metadata --lower-affine --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void --shared-libs=${MLIR_RUNNER_UTILS} --shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: memref-dim.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --lower-affine --convert-memref-to-llvm --convert-arith-to-llvm --convert-vector-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void --shared-libs=${MLIR_RUNNER_UTILS} --shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: memref-rank.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --lower-affine --convert-memref-to-llvm --convert-arith-to-llvm --convert-vector-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void --shared-libs=${MLIR_RUNNER_UTILS} --shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: memref-expand-shape.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --lower-affine --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void --shared-libs=${MLIR_RUNNER_UTILS} --shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+    
+- filename: memref-reinterpret-cast.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --lower-affine --convert-memref-to-llvm --convert-arith-to-llvm --convert-scf-to-cf --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${MLIR_CPU_RUNNER}
+    args: ${OPT_FLAG} -e main -entry-point-result=void --shared-libs=${MLIR_RUNNER_UTILS} --shared-libs=${MLIR_C_RUNNER_UTILS}
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT

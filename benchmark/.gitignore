@@ -1,0 +1,6 @@
+tempFile
+*.mlir
+*.csv
+*.png
+core
+.vscode

@@ -1,0 +1,5 @@
+# model params file
+arg0.data
+
+# model mlir file
+*.mlir

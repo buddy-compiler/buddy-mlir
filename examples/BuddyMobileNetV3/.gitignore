@@ -1,0 +1,7 @@
+# model params file
+arg0.data
+arg1.data
+
+# model mlir file
+forward.mlir
+subgraph0.mlir

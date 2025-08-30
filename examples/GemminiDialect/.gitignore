@@ -1,0 +1,4 @@
+log.*
+core
+*pk
+a.out

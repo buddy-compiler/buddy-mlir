@@ -1,0 +1,12 @@
+%%MatrixMarket matrix coordinate integer general
+%
+% This ASCII file represent a sparse 4x8 matrix with 4 nonzeros in MatrixMarket format.
+% <https://math.nist.gov/MatrixMarket/formats.html>
+%
+% Indice are 1-based, so (1,1) is the first element.
+%
+4 8 4
+1 2 2
+3 2 2
+1 6 6
+4 8 1

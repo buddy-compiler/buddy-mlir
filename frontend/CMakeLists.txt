@@ -1,0 +1,5 @@
+add_subdirectory(FrontendGen)
+add_subdirectory(Interfaces)
+if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
+  add_subdirectory(Python)
+endif()

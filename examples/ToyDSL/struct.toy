@@ -1,0 +1,26 @@
+struct a{
+  var a;
+  var b;
+}
+
+struct b {
+  a b;
+}
+
+struct c {
+  b c;
+  var a;
+}
+
+def fun(c a, b) {
+  print(b);
+  return a.c.b.a;
+}
+
+def main() {
+  c a = {{{[1,2,3,4],[5,6,7,8]}},[9,10,11,12]};
+  print(a.c.b.a);
+  print(a.c.b.b);
+  var b = fun(a, a.a);
+  print(b);
+}

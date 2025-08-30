@@ -1,0 +1,92 @@
+name: test build process
+
+on:
+  push:
+    branches: [ main, ci ]
+  pull_request:
+    branches: [ main, ci ]
+
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      # 0. Install the Ninja build system.
+      - name: Set up ninja
+        uses: seanmiddleditch/gha-setup-ninja@master
+
+      # 1. Checkout the main repository without fetching submodules initially
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+        with:
+          submodules: 'false'
+
+      # 2. Retrieve the commit ID of the LLVM submodule.
+      - name: Get LLVM submodule commit
+        id: llvm-submodule-commit
+        run: |
+          echo "commit=$(git submodule status llvm | awk '{print $1;}')" >> $GITHUB_OUTPUT
+
+      # 3. Cache the LLVM submodule source code.
+      - name: Cache LLVM source
+        id: cache-llvm-source
+        uses: actions/cache@v4
+        with:
+          path: llvm
+          key: llvm-source-${{ steps.llvm-submodule-commit.outputs.commit }}
+          restore-keys: |
+            llvm-source-
+
+      # 4. If the cache is not found, pull the LLVM submodule.
+      - name: Checkout LLVM submodule
+        run: |
+          rm -rf llvm
+          git submodule update --init --recursive llvm
+        if: steps.cache-llvm-source.outputs.cache-hit != 'true'
+
+      # 5. Cache the LLVM build directory.
+      - name: Cache LLVM build directory
+        id: cache-llvm-build-dir
+        uses: actions/cache@v4
+        with:
+          path: llvm/build
+          key: llvm-build-${{ steps.llvm-submodule-commit.outputs.commit }}
+          restore-keys: |
+            llvm-build-
+
+      # 6. If the cache is not found, configure and build LLVM.
+      - name: Configure and Build LLVM
+        run: |
+          source ~/miniconda3/bin/activate buddy
+          test -f $(python3 -c "from sysconfig import get_paths; print(get_paths()['include'])")/Python.h
+          test -f $(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")/libpython3.10.so
+          echo "Python dev headers OK"
+          cd llvm
+          rm -rf build
+          mkdir build
+          cd build
+          cmake -G Ninja ../llvm \
+            -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+            -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DCMAKE_BUILD_TYPE=RELEASE \
+            -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+            -DPython3_EXECUTABLE=$(which python3)
+          ninja check-clang check-mlir omp
+        if: steps.cache-llvm-build-dir.outputs.cache-hit != 'true'
+
+      # 7. Check the build process of buddy-mlir repository.
+      - name: Check buddy-mlir build
+        run: |
+          source ~/miniconda3/bin/activate buddy
+          pip install -r requirements.txt
+          mkdir build
+          cd build
+          cmake -G Ninja .. \
+            -DMLIR_DIR=./llvm/build/lib/cmake/mlir \
+            -DLLVM_DIR=./llvm/build/lib/cmake/llvm \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DCMAKE_BUILD_TYPE=RELEASE \
+            -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+            -DPython3_EXECUTABLE=$(which python3)
+          ninja
+          ninja check-buddy

@@ -1,0 +1,15 @@
+def fun(a) {
+  print(a + a);
+  print(a * a);
+  print(transpose(a));
+  return a * transpose(a);
+}
+
+def main() {
+  var a = [1, 2, 3, 4];
+  var b = fun(a);
+  print(b);
+  var c<2,2> = [1, 2, 3, 4];
+  var d = fun(c);
+  print(d);
+}

@@ -1,0 +1,37 @@
+#ifndef TOK
+#define TOK(ID) 
+#endif
+#ifndef PUNCTUATOR
+#define PUNCTUATOR(ID, SP) TOK(ID)
+#endif
+#ifndef KEYWORD
+#define KEYWORD(ID, FLAG) TOK(kw_ ## ID)
+#endif
+TOK(unknown)
+TOK(eof)
+TOK(identifier)
+TOK(number)
+PUNCTUATOR(semi, ";")
+PUNCTUATOR(colon, ":")
+PUNCTUATOR(apostrophe, "'")
+PUNCTUATOR(asterisk, "*")
+PUNCTUATOR(parentheseOpen, "(")
+PUNCTUATOR(parentheseClose, ")")
+PUNCTUATOR(questionMark, "?")
+PUNCTUATOR(plus, "+")
+PUNCTUATOR(equal, "=")
+PUNCTUATOR(curlyBlacketOpen, "{")
+PUNCTUATOR(curlyBlacketClose, "}")
+PUNCTUATOR(dollar, "$")
+PUNCTUATOR(comma, ",")
+PUNCTUATOR(angleBracketOpen, "<")
+PUNCTUATOR(angleBracketClose, ">")
+PUNCTUATOR(squareBracketOpen, "[")
+PUNCTUATOR(squareBracketClose, "]")
+PUNCTUATOR(doubleQuotationMark, "\"")
+KEYWORD(rule, KEYALL)
+KEYWORD(op, KEYALL)
+KEYWORD(dialect, KEYALL)
+#undef TOK
+#undef PUNCTUATOR
+#undef KEYWORD

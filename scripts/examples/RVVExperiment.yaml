@@ -1,0 +1,1035 @@
+- filename: rvv-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: NONE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: rvv-setvl.mlir
+  type: jit
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --lower-rvv --convert-vector-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: NONE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: rvv-loop-mask.mlir
+  type: jit
+  arch: rv
+  commands:
+  - exec: ${MLIR_OPT}
+    args: --convert-scf-to-cf --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: NONE
+    output: STDOUT
+  - exec: ${MLIR_TRANSLATE}
+    args: --mlir-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+    
+- filename: rvv-vp-intrinsic.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --lower-bud --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-sh.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -mattr=+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-add.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-and.mlir
+  type: aot
+  arch: general
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args:  --buddy-to-llvmir
+    workingdir:
+    env: 
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-div.mlir
+  type: aot
+  arch: general
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args:  --buddy-to-llvmir
+    workingdir:
+    env: 
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-mul.mlir
+  type: aot
+  arch: general
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args:  --buddy-to-llvmir
+    workingdir:
+    env: 
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-sub.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: NONE
+    output: STDOUT
+
+- filename: rvv-vp-intrinsic-fneg.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: NONE
+    output: STDOUT
+
+- filename: rvv-vp-intrinsic-ext.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: NONE
+    output: STDOUT
+
+- filename: rvv-vp-intrinsic-to.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-trunc.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-rem.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-fma.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: FILE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-merge.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: FILE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-select.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: FILE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-or.mlir
+  type: aot
+  arch: general
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-xor.mlir
+  type: aot
+  arch: general
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-max.mlir
+  type: aot
+  arch: general
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-min.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-memory.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: -convert-linalg-to-loops -lower-affine -convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+- filename: rvv-vp-intrinsic-memory-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: -convert-linalg-to-loops -lower-affine -convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-fma-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-fneg-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-sh-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-add-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-and-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-div-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: FILE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-ext-scalable.mlir
+  type: aot
+  arch: rv64
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: FILE
+    output: FILE
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: NONE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-max-scalable.mlir
+  type: aot
+  arch: rv64
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: FILE
+    output: FILE
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: NONE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-merge-scalable.mlir
+  type: aot
+  arch: rv64
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+  - exec: ${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc
+    args: -mabi=lp64d -L${CROSS_MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: FILE
+    output: FILE
+  - exec: ${QEMU}
+    args: -L ${RISCV_GNU_TOOLCHAIN_SYSROOT} -cpu rv64,x-v=true,vlen=128
+    workingdir:
+    env: LD_LIBRARY_PATH=${CROSS_MLIR_LIB}
+    input: NONE
+    output: FILE
+
+- filename: rvv-vp-intrinsic-min-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: rvv-vp-intrinsic-mul-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: rvv-vp-intrinsic-or-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env:
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: rvv-vp-intrinsic-rem-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: rvv-vp-intrinsic-select-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: rvv-vp-intrinsic-sub-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+
+- filename: rvv-vp-intrinsic-to-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-trunc-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-xor-scalable.mlir
+  type: aot
+  arch: rv
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir:
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir:
+    env:
+    input: STDIN
+    output: STDOUT
+  - exec: ${LLC}
+    args: -mtriple riscv64 -target-abi lp64d -mattr=+m,+d,+v -riscv-v-vector-bits-min=128
+    workingdir:
+    env:
+    input: STDIN
+    output: FILE
+
+- filename: rvv-vp-intrinsic-fmul-reduce-error.mlir
+  type: jit
+  arch: general
+  commands:
+  - exec: ${BUDDY_OPT}
+    args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
+    workingdir: 
+    env: 
+    input: FILE
+    output: STDOUT
+  - exec: ${BUDDY_TRANSLATE}
+    args: --buddy-to-llvmir
+    workingdir: 
+    env: 
+    input: STDIN
+    output: FILE
