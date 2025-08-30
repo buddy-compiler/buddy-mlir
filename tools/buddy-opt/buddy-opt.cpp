@@ -44,8 +44,10 @@
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
 #include "RVV/RVVDialect.h"
+#include "VIR/VIRAttrs.h"
 #include "VIR/VIRDialect.h"
 #include "VIR/VIROps.h"
+#include "VIR/VIRTypes.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
 
@@ -82,6 +84,7 @@ void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
 void registerLegalizeShmemOutliningPass();
+void registerVIRToVectorPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -121,7 +124,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
-
+  mlir::buddy::registerVIRToVectorPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
   mlir::buddy::registerLegalizeShmemOutliningPass();

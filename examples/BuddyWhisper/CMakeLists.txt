@@ -32,11 +32,15 @@ add_custom_command(
               -convert-elementwise-to-linalg
               -empty-tensor-to-alloc-tensor
               -one-shot-bufferize="bufferize-function-boundaries"
+              -ownership-based-buffer-deallocation
+              -buffer-deallocation-simplification
+              -bufferization-lower-deallocations
               -matmul-parallel-vectorization-optimize
               -batchmatmul-optimize
               -convert-linalg-to-affine-loops
               -affine-loop-fusion
               -affine-parallelize
+              -lower-affine
               -convert-scf-to-openmp
               -func-bufferize-dynamic-offset
               -convert-linalg-to-loops

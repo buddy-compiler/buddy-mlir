@@ -33,11 +33,15 @@ add_custom_command(
           -eliminate-empty-tensors
           -empty-tensor-to-alloc-tensor
           -one-shot-bufferize="bufferize-function-boundaries"
+          -ownership-based-buffer-deallocation
+          -buffer-deallocation-simplification
+          -bufferization-lower-deallocations
           -matmul-parallel-vectorization-optimize
           -batchmatmul-optimize
           -convert-linalg-to-affine-loops
           -affine-loop-fusion
           -affine-parallelize
+          -lower-affine
           -convert-scf-to-openmp
           -convert-vector-to-scf
           -expand-strided-metadata
@@ -81,5 +85,5 @@ target_compile_definitions(buddy-bert-run PRIVATE
 
 target_link_directories(buddy-bert-run PRIVATE ${LLVM_LIBRARY_DIR})
 
-set(BUDDY_BERT_LIBS BERT mlir_c_runner_utils)
+set(BUDDY_BERT_LIBS BERT mlir_c_runner_utils omp)
 target_link_libraries(buddy-bert-run ${BUDDY_BERT_LIBS})
