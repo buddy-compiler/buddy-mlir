@@ -1,4 +1,6 @@
 log*
 core
-a.out
+*.s
+*.out
 *.elf
+*.csv
