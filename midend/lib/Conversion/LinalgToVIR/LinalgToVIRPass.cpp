@@ -28,15 +28,11 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-
-#include "VIR/VIRDialect.h"
-#include "VIR/VIROps.h"
-#include "VIR/VIRTypes.h"
-#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/RegionUtils.h"
@@ -45,17 +41,20 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
 
+#include "VIR/VIRDialect.h"
+#include "VIR/VIROps.h"
+#include "VIR/VIRTypes.h"
+
 using namespace mlir;
 using namespace buddy;
 
 namespace {
 
 /// Helper function to check leading static dims then return vector shape with
-/// trailing dynamic dim (if any). Returns true on success.
-static bool buildVIRVectorShape(linalg::LinalgOp op,
-                                SmallVectorImpl<int64_t> &shapeOut,
-                                SmallVectorImpl<OpFoldResult> &ofrCommon,
-                                OpBuilder &b) {
+/// trailing dynamic dim (if any).
+static LogicalResult
+buildVIRVectorShape(linalg::LinalgOp op, SmallVectorImpl<int64_t> &shapeOut,
+                    SmallVectorImpl<OpFoldResult> &ofrCommon, OpBuilder &b) {
   auto loc = op.getLoc();
   SmallVector<int64_t> staticLoopSizes = op.getStaticLoopRanges();
   SmallVector<OpFoldResult> commonShape;
@@ -63,42 +62,45 @@ static bool buildVIRVectorShape(linalg::LinalgOp op,
 
   // XXX: Only the last loop dim can be dynamic for now (leading dynamic
   // dims not supported yet).
-  int64_t nLoops = op.getNumLoops();
-  for (int64_t i = 0; i < nLoops; ++i) {
+  for (int64_t i = 0, e = op.getNumLoops(); i < e; ++i) {
     int64_t sz = staticLoopSizes[i];
     auto itTy = op.getIteratorTypesArray()[i];
     if (ShapedType::isDynamic(sz)) {
-      // Allow only the last dimension to be dynamic for now.
-      if (i != nLoops - 1)
-        return false;
+      if (i != e - 1) {
+        // Allow only the last dimension to be dynamic for now.
+        return failure();
+      }
       Value operand;
       unsigned operandDimPos = 0;
       if (failed(op.mapIterationSpaceDimToOperandDim(/*loopDimPos=*/i, operand,
-                                                     operandDimPos)))
-        return false;
+                                                     operandDimPos))) {
+        return failure();
+      }
       Value dim = b.create<memref::DimOp>(loc, operand, operandDimPos);
       commonShape.push_back(dim);
     } else {
       commonShape.push_back(b.getIndexAttr(sz));
     }
-    if (!linalg::isReductionIterator(itTy))
+    if (!linalg::isReductionIterator(itTy)) {
       reducedShape.push_back(commonShape.back());
+    }
   }
 
   // Build VIR vector shape: copy loop sizes, but convert the last to dynamic
   // if it is dynamic, otherwise keep static.
   shapeOut.clear();
-  shapeOut.reserve(nLoops);
-  for (int64_t i = 0; i < nLoops; ++i) {
+  shapeOut.reserve(staticLoopSizes.size());
+  for (int64_t i = 0, e = op.getNumLoops(); i < e; ++i) {
     int64_t sz = staticLoopSizes[i];
-    if (i == nLoops - 1 && ShapedType::isDynamic(sz))
+    if (i == e - 1 && ShapedType::isDynamic(sz)) {
       shapeOut.push_back(ShapedType::kDynamic);
-    else
+    } else {
       shapeOut.push_back(sz);
+    }
   }
 
   ofrCommon = std::move(commonShape);
-  return true;
+  return success();
 }
 
 /// Compute permutation to make indexing map reindexed. Adapted from
@@ -144,11 +146,11 @@ static Value transformInputMemrefForProjectedPermutation(
   SmallVector<int64_t> resultShape;
   // Build arguments for `memref.expand_shape`.
   auto numDimsToExpand = op.getNumLoops() - indexingMap.getNumResults();
-  for (unsigned i = 0; i < numDimsToExpand; ++i) {
+  for (unsigned i = 0, e = numDimsToExpand; i < e; ++i) {
     outputShape.push_back(rewriter.getIndexAttr(1));
     resultShape.push_back(1);
   }
-  for (unsigned i = 0; i < indexingMap.getNumResults(); ++i) {
+  for (unsigned i = 0, e = indexingMap.getNumResults(); i < e; ++i) {
     int64_t shapeVal = memrefShape[i];
     resultShape.push_back(shapeVal);
     if (ShapedType::isDynamic(shapeVal)) {
@@ -159,11 +161,13 @@ static Value transformInputMemrefForProjectedPermutation(
     }
   }
   ReassociationIndices expandReassociation;
-  for (unsigned i = 0; i <= numDimsToExpand; ++i)
+  for (unsigned i = 0, e = numDimsToExpand; i <= e; ++i) {
     expandReassociation.push_back(i);
+  }
   reassociation.push_back(expandReassociation);
-  for (unsigned i = 1; i < indexingMap.getNumResults(); ++i)
+  for (unsigned i = 1, e = indexingMap.getNumResults(); i < e; ++i) {
     reassociation.push_back({static_cast<int64_t>(numDimsToExpand + i)});
+  }
 
   Value expanded = rewriter.create<memref::ExpandShapeOp>(
       loc, resultShape, opOperand->get(), reassociation, outputShape);
@@ -177,7 +181,7 @@ static Value transformInputMemrefForProjectedPermutation(
   SmallVector<OpFoldResult> offsets(op.getNumLoops(), rewriter.getIndexAttr(0));
   // Compute strides. All indexingMap inputs not present in the result are
   // 0, others are 1.
-  for (unsigned i = 0; i < op.getNumLoops(); ++i) {
+  for (unsigned i = 0, e = op.getNumLoops(); i < e; ++i) {
     auto dimExpr = rewriter.getAffineDimExpr(i);
     if (indexingMap.getResultPosition(dimExpr).has_value()) {
       strides.push_back(rewriter.getIndexAttr(1));
@@ -213,13 +217,13 @@ static Operation *createGenericElementwiseVIR(Operation *op,
   auto loc = op->getLoc();
   // Helper function to ensure that all operands are vectors.
   auto ensureVec = [&](Value v) -> Value {
-    Value cur;
-    if (auto it = vm.find(v); it != vm.end())
+    Value cur = v;
+    if (auto it = vm.find(v); it != vm.end()) {
       cur = it->second;
-    else
-      cur = v;
-    if (cur && isa<buddy::vir::DynamicVectorType>(cur.getType()))
+    }
+    if (cur && isa<buddy::vir::DynamicVectorType>(cur.getType())) {
       return cur;
+    }
     // Broadcast scalar to vector type based on its scalar type.
     Type scalarTy = cur.getType();
     auto vecTy = buddy::vir::DynamicVectorType::get(virShape, scalarTy);
@@ -229,8 +233,9 @@ static Operation *createGenericElementwiseVIR(Operation *op,
   // Collect VIR vector operands (broadcast scalars as needed).
   SmallVector<Value> vecOperands;
   vecOperands.reserve(op->getNumOperands());
-  for (Value opd : op->getOperands())
+  for (Value opd : op->getOperands()) {
     vecOperands.push_back(ensureVec(opd));
+  }
 
   // Compute VIR vector result types matching original element types.
   SmallVector<Type> resultTypes;
@@ -254,15 +259,15 @@ static LogicalResult computeShapeAndVL(linalg::LinalgOp linalgOp,
   // TODO: If dynamic shapes are supported by VIR, we need to iterate trough the
   // ofrCommon to build the vector shape (and maybe no need to separate virShape
   // and vlVal).
-  if (!buildVIRVectorShape(linalgOp, virShape, ofrCommon, rewriter)) {
+  if (failed(buildVIRVectorShape(linalgOp, virShape, ofrCommon, rewriter))) {
     return rewriter.notifyMatchFailure(
         linalgOp, "leading dynamic dims not supported yet");
   }
   Location loc = linalgOp.getLoc();
-  if (auto attr = ofrCommon.back().dyn_cast<Attribute>()) {
+  if (auto attr = dyn_cast<Attribute>(ofrCommon.back())) {
     vlVal = rewriter.create<arith::ConstantIndexOp>(
         loc, cast<IntegerAttr>(attr).getInt());
-  } else if (auto v = ofrCommon.back().dyn_cast<Value>()) {
+  } else if (auto v = dyn_cast<Value>(ofrCommon.back())) {
     vlVal = v;
   } else {
     return rewriter.notifyMatchFailure(linalgOp,
@@ -276,22 +281,22 @@ static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
   auto setVl = rewriter.create<buddy::vir::SetVLOp>(
       loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{vlVal});
   Region &region = setVl.getRegion();
-  Block *block = new Block();
-  region.push_back(block);
-  rewriter.setInsertionPointToStart(block);
+  Block &block = region.emplaceBlock();
+  rewriter.setInsertionPointToStart(&block);
   return setVl;
 }
 
-// Expand & transpose source memrefs to the common shape, and map them into
-// `transformedMemRefs`.
+/// Expand & transpose source memrefs to the common shape, and map them into
+/// `transformedMemRefs`.
 static LogicalResult transformProjectedPermutationOperands(
     linalg::LinalgOp linalgOp, PatternRewriter &rewriter,
     ArrayRef<OpFoldResult> commonShape,
     DenseMap<Value, Value> &transformedMemRefs) {
   Location loc = linalgOp.getLoc();
   for (OpOperand *opOperand : linalgOp.getOpOperandsMatchingBBargs()) {
-    if (linalgOp.isScalar(opOperand))
+    if (linalgOp.isScalar(opOperand)) {
       continue;
+    }
     auto indexingMap = linalgOp.getMatchingIndexingMap(opOperand);
     if (!indexingMap.isProjectedPermutation()) {
       return rewriter.notifyMatchFailure(
@@ -379,8 +384,9 @@ static LogicalResult convertBodyToVIR(linalg::LinalgOp linalgOp,
       if (Operation *nw =
               createGenericElementwiseVIR(&inner, rewriter, virShape, vm)) {
         for (auto [oldRes, newRes] :
-             llvm::zip(inner.getResults(), nw->getResults()))
+             llvm::zip(inner.getResults(), nw->getResults())) {
           vm[oldRes] = newRes;
+        }
         continue;
       }
     }
@@ -411,8 +417,9 @@ static LogicalResult storeYieldValues(linalg::LinalgOp linalgOp,
       // Derive shape again to form the target vector type.
       SmallVector<int64_t> virShape;
       SmallVector<OpFoldResult> tmp;
-      if (!buildVIRVectorShape(linalgOp, virShape, tmp, rewriter))
+      if (failed(buildVIRVectorShape(linalgOp, virShape, tmp, rewriter))) {
         return rewriter.notifyMatchFailure(linalgOp, "invalid vector shape");
+      }
       auto outVecTy = buddy::vir::DynamicVectorType::get(virShape, outElemTy);
       mapped = rewriter.create<buddy::vir::BroadcastOp>(loc, outVecTy, scalar);
     }
@@ -439,10 +446,12 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
     auto linalgOp = dyn_cast<linalg::LinalgOp>(op);
-    if (!linalgOp)
+    if (!linalgOp) {
       return rewriter.notifyMatchFailure(op, "expected linalg op");
-    if (!linalgOp.hasPureBufferSemantics())
+    }
+    if (!linalgOp.hasPureBufferSemantics()) {
       return rewriter.notifyMatchFailure(op, "expected pure buffer semantics");
+    }
 
     // Compute VIR vector shape and VL value.
     SmallVector<int64_t> virShape;
@@ -492,8 +501,9 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
 
     // 5) Store yielded values into outputs.
     if (failed(storeYieldValues(linalgOp, rewriter, transformedMemRefs,
-                                valueMap, vm)))
+                                valueMap, vm))) {
       return failure();
+    }
 
     // Close the set_vl region by ending the block (no explicit terminator).
     rewriter.create<vector::YieldOp>(loc);
@@ -520,8 +530,9 @@ public:
     MLIRContext *ctx = &getContext();
     RewritePatternSet patterns(ctx);
     patterns.add<LinalgGenericToVIRPattern>(ctx);
-    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns))))
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns)))) {
       signalPassFailure();
+    }
   }
 
   void getDependentDialects(DialectRegistry &registry) const override {
