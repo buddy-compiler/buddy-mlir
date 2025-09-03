@@ -29,7 +29,6 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{[a-zA-Z0-9_]+}} = math.sin 
-# CHECK: return %{{[a-zA-Z0-9_]+}}
-# CHECK: }
+#       CHECK: %[[sin:.*]] = math.sin 
+#       CHECK: return %[[sin]]
 

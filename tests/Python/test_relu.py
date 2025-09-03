@@ -29,8 +29,7 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{[a-zA-Z0-9_]+}} = "tosa.const"
-# CHECK: %{{[a-zA-Z0-9_]+}} = tosa.maximum
-# CHECK: return %{{[a-zA-Z0-9_]+}}
-# CHECK: }
+#       CHECK: %[[const:.*]] = "tosa.const"
+#       CHECK: %[[maximum:.*]] = tosa.maximum
+#       CHECK: return %[[maximum]]
 
