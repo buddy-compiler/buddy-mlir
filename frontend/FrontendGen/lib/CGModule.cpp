@@ -248,7 +248,7 @@ void CGModule::emitOp(Op *op, int index) {
           os << arg << ";\n";
           opArguments.push_back(arg);
         }
-      } else if (resOperands[index].startswith("AnyTypeOf")) {
+      } else if (resOperands[index].starts_with("AnyTypeOf")) {
         llvm::StringRef operand = resOperands[index];
         auto start = operand.find('[') + 1;
         auto end = operand.find(']');
@@ -300,7 +300,7 @@ void CGModule::emitOp(Op *op, int index) {
           os << arg << ";\n";
           opArguments.push_back(arg);
         }
-      } else if (argOperands[index].startswith("AnyTypeOf")) {
+      } else if (argOperands[index].starts_with("AnyTypeOf")) {
         llvm::StringRef operand = argOperands[index];
         auto start = operand.find('[') + 1;
         auto end = operand.find(']');

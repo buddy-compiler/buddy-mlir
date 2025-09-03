@@ -1,6 +1,6 @@
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/arg0_text_encoder.data
-         ${CMAKE_CURRENT_BINARY_DIR}arg1_text_encoder.data
+         ${CMAKE_CURRENT_BINARY_DIR}/arg1_text_encoder.data
          ${CMAKE_CURRENT_BINARY_DIR}/arg0_unet.data
          ${CMAKE_CURRENT_BINARY_DIR}/arg0_vae.data
          ${CMAKE_CURRENT_BINARY_DIR}/forward_text_encoder.mlir
@@ -22,27 +22,26 @@ add_custom_command(
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize
+            -one-shot-bufferize="bufferize-function-boundaries"
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
-            -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize
-            -arith-bufferize
-            -tensor-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
             -convert-vector-to-scf
             -expand-strided-metadata
+            -lower-affine
             -convert-vector-to-llvm
             -memref-expand
             -arith-expand
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
+            -convert-cf-to-llvm
             -llvm-request-c-wrappers
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
@@ -67,12 +66,12 @@ add_custom_command(
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize
+            -one-shot-bufferize="bufferize-function-boundaries"
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
             -func-bufferize-dynamic-offset
-            -tensor-bufferize
-            -arith-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
+            -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -82,6 +81,7 @@ add_custom_command(
             -convert-scf-to-openmp
             -convert-vector-to-scf
             -expand-strided-metadata
+            -lower-affine
             -cse
             -convert-vector-to-llvm
             -memref-expand
@@ -89,6 +89,7 @@ add_custom_command(
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
+            -convert-cf-to-llvm
             -llvm-request-c-wrappers
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
@@ -112,21 +113,19 @@ add_custom_command(
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize
+            -one-shot-bufferize="bufferize-function-boundaries"
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
-            -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize
-            -arith-bufferize
-            -tensor-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
             -convert-vector-to-scf
             -expand-strided-metadata
+            -lower-affine
             -convert-vector-to-llvm
             -memref-expand
             -arith-expand
@@ -157,13 +156,11 @@ add_custom_command(
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize
-            -func-bufferize-dynamic-offset
-            -tensor-bufferize
-            -arith-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
-            "-conv-nhwc-fhwc-tile-optimize=vec-size=16 tiling-height=4 tiling-width=4 tiling-channel=16"
+            -one-shot-bufferize="bufferize-function-boundaries"
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -173,6 +170,7 @@ add_custom_command(
             -convert-scf-to-openmp
             -convert-vector-to-scf
             -expand-strided-metadata
+            -lower-affine
             -cse
             -convert-vector-to-llvm
             -memref-expand
@@ -180,6 +178,7 @@ add_custom_command(
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
+            -convert-cf-to-llvm
             -llvm-request-c-wrappers
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
@@ -203,27 +202,26 @@ add_custom_command(
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize
+            -one-shot-bufferize="bufferize-function-boundaries"
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
-            -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize
-            -arith-bufferize
-            -tensor-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
             -convert-vector-to-scf
             -expand-strided-metadata
+            -lower-affine
             -convert-vector-to-llvm
             -memref-expand
             -arith-expand
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
+            -convert-cf-to-llvm
             -llvm-request-c-wrappers
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
@@ -248,13 +246,11 @@ add_custom_command(
             -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize
-            -func-bufferize-dynamic-offset
-            -tensor-bufferize
-            -arith-bufferize
-            -buffer-deallocation
-            -finalizing-bufferize
-            "-conv-nhwc-fhwc-tile-optimize=vec-size=16 tiling-height=4 tiling-width=4 tiling-channel=16"
+            -one-shot-bufferize="bufferize-function-boundaries"
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -264,6 +260,7 @@ add_custom_command(
             -convert-scf-to-openmp
             -convert-vector-to-scf
             -expand-strided-metadata
+            -lower-affine
             -cse
             -convert-vector-to-llvm
             -memref-expand
@@ -271,6 +268,7 @@ add_custom_command(
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
+            -convert-cf-to-llvm
             -llvm-request-c-wrappers
             -convert-openmp-to-llvm
             -convert-arith-to-llvm

@@ -1,8 +1,10 @@
 // RUN: buddy-opt %s \
 // RUN:     -convert-vector-to-scf -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-arith-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
+// RUN: | mlir-runner -e main -entry-point-result=i32 \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -18,7 +20,7 @@ memref.global "private" @gv2 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 func.func private @printMemrefI32(memref<*xi32>)
 
 func.func @main() -> i32 {
-  // expandload is also a load with a mask, but it moves to read the next  
+  // expandload is also a load with a mask, but it moves to read the next
   // element in memory only when the mask at the current lane is on, meaning:
   //    result[0] := mask[0] ? base[index++] : pass_thru[0]
   //    result[1] := mask[1] ? base[index++] : pass_thru[1]
@@ -44,13 +46,13 @@ func.func @main() -> i32 {
   // expandload normal usage
   // expandload requires a pass-through value at any time
   %mask0 = arith.constant dense<[1, 0, 1, 0]> : vector<4xi1>
-  
+
   // %v0 will be [0, 2331, 1, 2333] instead of [0, 2331, 2, 2333]
   // because lane 1 is masked off, it will not move to load the next element
   // in memory. So at lane 2, it still loads i32 1 at memory instead of 2.
   %v0 = vector.expandload %base0[%c0], %mask0, %pass_thru_4
     : memref<8xi32>, vector<4xi1>, vector<4xi32> into vector<4xi32>
-  
+
   // CHECK: ( 0, 2331, 1, 2333 )
   vector.print %v0 : vector<4xi32>
 

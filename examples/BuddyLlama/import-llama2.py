@@ -37,7 +37,7 @@ parser.add_argument(
     "--output-dir",
     type=str,
     default="./",
-    help="Directory to save output files."
+    help="Directory to save output files.",
 )
 args = parser.parse_args()
 

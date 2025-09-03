@@ -1,4 +1,4 @@
-//===- VIRDialect.cpp - Dynamic Vector IR Dialect Definition --------------===//
+//===-- VIRDialect.cpp - Dynamic Vector IR Dialect Implementation ---------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines dynamic vector IR dialect.
+// This file implements the core dialect structure for the Dynamic Vector IR
+// (VIR), including dialect registration and initialization.
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,21 +25,20 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
-#include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Attributes.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
-#include "llvm/Support/SourceMgr.h"
 
+#include "VIR/VIRAttrs.h"
 #include "VIR/VIRDialect.h"
 #include "VIR/VIROps.h"
+#include "VIR/VIRTypes.h"
 
 using namespace mlir;
 using namespace buddy::vir;
 
-#include "VIR/VIROpsDialect.cpp.inc"
+#include "VIR/VIRDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // Vector IR Dialect.
@@ -47,6 +47,9 @@ using namespace buddy::vir;
 void VIRDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "VIR/VIROps.cpp.inc"
+#include "VIR/VIR.cpp.inc"
       >();
+
+  registerTypes();
+  registerAttrs();
 }

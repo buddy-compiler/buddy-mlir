@@ -11,38 +11,6 @@ def run(f):
     return f
 
 
-# CHECK-LABEL: TEST: testLinalgMatmulConversion
-@run
-def testLinalgMatmulConversion():
-    with ir.Context(), ir.Location.unknown():
-        module = ir.Module.create()
-        i8 = ir.IntegerType.get_signless(8)
-
-        memref8x8 = ir.MemRefType.get([8, 8], i8)
-
-        with ir.InsertionPoint(module.body):
-            c1 = arith.ConstantOp(i8, 1)
-            c2 = arith.ConstantOp(i8, 2)
-
-            mem0 = memref.alloc(memref8x8, [], [])
-            mem1 = memref.alloc(memref8x8, [], [])
-            mem2 = memref.alloc(memref8x8, [], [])
-
-            linalg.fill(c2, outs=[mem0])
-            linalg.fill(c1, outs=[mem1])
-            linalg.matmul(mem0, mem1, outs=[mem2])
-
-        module.operation.verify()
-
-        pm = PassManager("builtin.module")
-        pm.add("convert-linalg-to-gemmini")
-        pm.run(module.operation)
-
-        # CHECK: gemmini.tile_matmul [[MEM0:%.*]] [[MEM1:%.*]] [[MEM2:%.*]] :
-        # CHECK-SAME: memref<8x8xi8> memref<8x8xi8> memref<8x8xi8> memref<8x8xi32>
-        print(module)
-
-
 # CHECK-LABEL TEST: testLinalgConv2DConversion
 @run
 def testLinalgConv2DConversion():

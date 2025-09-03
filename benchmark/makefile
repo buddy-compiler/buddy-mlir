@@ -1,7 +1,7 @@
 #!/bin/bash
 BUDDY_OPT := ../build/bin/buddy-opt
 MLIR_OPT := ../llvm/build/bin/mlir-opt
-MLIR_CPU_RUNNER := ../llvm/build/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ../llvm/build/bin/mlir-runner
 OPT_FLAG := -O3
 
 STRIP := 64
@@ -29,7 +29,7 @@ SOURCE=$(shell ls tempFile/*.mlir -v)
 OUT=$(patsubst tempFile/%.mlir, %.out, $(SOURCE))
 
 .PHONY:all
-all:$(OUT) 
+all:$(OUT)
 	$(shell rm -rf tempFile)
 
 BUDDY_OPT_OPTIONS := -conv-vectorization="strip-mining=${STRIP}" -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts

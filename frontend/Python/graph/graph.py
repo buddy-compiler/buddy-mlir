@@ -331,6 +331,8 @@ class Graph:
                     np_type = np.dtype(np.int32)
                 case "i64":
                     np_type = np.dtype(np.int64)
+                case "f16":
+                    np_type = np.dtype(np.float16)
                 case "f32":
                     np_type = np.dtype(np.float32)
                 case _:
@@ -368,24 +370,20 @@ class Graph:
             pm.add("eliminate-empty-tensors")
             pm.add("empty-tensor-to-alloc-tensor")
             pm.add("convert-elementwise-to-linalg")
-            pm.add("one-shot-bufferize")
+            pm.add("one-shot-bufferize{bufferize-function-boundaries}")
             pm.add("func.func(convert-linalg-to-affine-loops)")
             pm.add("affine-loop-fusion")
             pm.add("func.func(affine-parallelize)")
-            pm.add("lower-affine")
             pm.add("convert-scf-to-openmp")
-            pm.add("func-bufferize")
-            pm.add("arith-bufferize")
-            pm.add("func.func(tensor-bufferize)")
-            pm.add("func.func(buffer-deallocation)")
-            pm.add("func.func(finalizing-bufferize)")
             pm.add("expand-strided-metadata")
+            pm.add("lower-affine")
             pm.add("convert-vector-to-llvm")
             pm.add("memref-expand")
             pm.add("arith-expand")
             pm.add("convert-arith-to-llvm")
             pm.add("finalize-memref-to-llvm")
             pm.add("convert-scf-to-cf")
+            pm.add("convert-cf-to-llvm")
             pm.add("func.func(llvm-request-c-wrappers)")
             pm.add("convert-openmp-to-llvm")
             pm.add("convert-math-to-llvm")
@@ -472,6 +470,8 @@ class GraphImporter:
                 return ir.IntegerType.get_signless(32)
             case TensorDType.Int64:
                 return ir.IntegerType.get_signless(64)
+            case TensorDType.Float16:
+                return ir.F16Type.get()
             case TensorDType.Float32:
                 return ir.F32Type.get()
             case TensorDType.Bool:
@@ -686,7 +686,7 @@ class GraphImporter:
         op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)
         )
-        if isinstance(op_ret, tuple | List):
+        if isinstance(op_ret, tuple | List | ir.OpResultList):
             for i, operation in enumerate(op_ret):
                 if isinstance(operation, ir.Operation) or isinstance(
                     operation, ir.OpView

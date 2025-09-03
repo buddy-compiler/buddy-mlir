@@ -1,8 +1,8 @@
 // RUN: buddy-opt %s \
-// RUN:     -conv-nhwc-fhwc-optimize -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
+// RUN:     -conv-nhwc-fhwc-optimize -convert-linalg-to-loops -lower-affine -convert-scf-to-cf -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm \
 // RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -61,7 +61,7 @@ module {
 
     %3 = memref.cast %output : memref<?x?x?x?xf32> to memref<*xf32>
     call @printMemrefF32(%3) : (memref<*xf32>) -> ()
-    
+
 
     memref.dealloc %output : memref<?x?x?x?xf32>
     memref.dealloc %image : memref<?x?x?x?xf32>
@@ -70,13 +70,13 @@ module {
   }
 }
 
-// CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 3, 3, 2] strides = [18, 6, 2, 1] data = 
-// CHECK{LITERAL}: [[[[4,     5], 
-// CHECK{LITERAL}:    [4,     5], 
-// CHECK{LITERAL}:    [4,     5]], 
-// CHECK{LITERAL}:   [[4,     5], 
-// CHECK{LITERAL}:    [4,     5], 
-// CHECK{LITERAL}:    [4,     5]], 
-// CHECK{LITERAL}:   [[4,     5], 
-// CHECK{LITERAL}:    [4,     5], 
+// CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 3, 3, 2] strides = [18, 6, 2, 1] data =
+// CHECK{LITERAL}: [[[[4,     5],
+// CHECK{LITERAL}:    [4,     5],
+// CHECK{LITERAL}:    [4,     5]],
+// CHECK{LITERAL}:   [[4,     5],
+// CHECK{LITERAL}:    [4,     5],
+// CHECK{LITERAL}:    [4,     5]],
+// CHECK{LITERAL}:   [[4,     5],
+// CHECK{LITERAL}:    [4,     5],
 // CHECK{LITERAL}:    [4,     5]]]]

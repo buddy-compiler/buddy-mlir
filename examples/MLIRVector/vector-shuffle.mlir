@@ -1,9 +1,11 @@
 // RUN: buddy-opt %s \
 // RUN:     -convert-vector-to-scf -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-arith-to-llvm \
 // RUN:     -split-input-file -verify-diagnostics \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
+// RUN: | mlir-runner -e main -entry-point-result=i32 \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -20,7 +22,7 @@ func.func @main() -> i32 {
   %2 = vector.shuffle %0, %1[1, 0, 3, 2] : vector<3x2xf32>, vector<3x2xf32>
   // CHECK: ( ( 2, 2 ), ( 2, 2 ), ( 3, 3 ), ( 2, 2 ) )
   vector.print %2 : vector<4x2xf32>
-    
+
   %3 = arith.constant dense<4.0> : vector<4x3xf32>
   // CHECK: ( ( 4, 4, 4 ), ( 4, 4, 4 ), ( 4, 4, 4 ), ( 4, 4, 4 ) )
   vector.print %3 : vector<4x3xf32>

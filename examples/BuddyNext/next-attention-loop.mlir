@@ -1,11 +1,7 @@
 // RUN: buddy-opt %s \
 // RUN:     -affine-loop-fusion \
 // RUN:     -lower-affine \
-// RUN:     -func-bufferize \
-// RUN:     -arith-bufferize \
-// RUN:     -tensor-bufferize \
-// RUN:     -buffer-deallocation \
-// RUN:     -finalizing-bufferize \
+// RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -expand-strided-metadata \
 // RUN:     -convert-vector-to-llvm \
@@ -14,13 +10,14 @@
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-openmp-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -convert-math-to-llvm \
 // RUN:     -convert-math-to-libm  \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -39,11 +36,11 @@ module {
     %cst_0 = arith.constant 0.000000e+00 : f32
     %cst_1 = arith.constant 1.000000e+00 : f32
     %cst_2 = arith.constant -3.40282347E+38 : f32
-    %0 = bufferization.to_memref %arg3 : memref<1x32x40x128xf32, strided<[?, ?, ?, ?], offset: ?>>
-    %1 = bufferization.to_memref %arg2 : memref<1x1x40x40xf32, strided<[?, ?, ?, ?], offset: ?>>
-    %2 = bufferization.to_memref %arg1 : memref<32x128x40xf32, strided<[?, ?, ?], offset: ?>>
-    %3 = bufferization.to_memref %arg0 : memref<32x40x128xf32, strided<[?, ?, ?], offset: ?>>
-    
+    %0 = bufferization.to_memref %arg3 : tensor<1x32x40x128xf32> to memref<1x32x40x128xf32, strided<[?, ?, ?, ?], offset: ?>>
+    %1 = bufferization.to_memref %arg2 : tensor<1x1x40x40xf32> to memref<1x1x40x40xf32, strided<[?, ?, ?, ?], offset: ?>>
+    %2 = bufferization.to_memref %arg1 : tensor<32x128x40xf32> to memref<32x128x40xf32, strided<[?, ?, ?], offset: ?>>
+    %3 = bufferization.to_memref %arg0 : tensor<32x40x128xf32> to memref<32x40x128xf32, strided<[?, ?, ?], offset: ?>>
+
     // MatMul
     // %0 = tosa.matmul %t0, %t1 : (tensor<32x40x128xf32>, tensor<32x128x40xf32>) -> tensor<32x40x40xf32>
     // Initialize MatMul Output.
@@ -75,7 +72,7 @@ module {
     // %1 = tosa.reshape %0 {new_shape = array<i64: 1, 32, 40, 40>} : (tensor<32x40x40xf32>) -> tensor<1x32x40x40xf32>
     // %2 = "tosa.const"() <{value = dense<11.3137083> : tensor<1x32x40x40xf32>}> : () -> tensor<1x32x40x40xf32>
     // %3 = tosa.reciprocal %2 : (tensor<1x32x40x40xf32>) -> tensor<1x32x40x40xf32>
-    %expand_shape = memref.expand_shape %alloc [[0, 1], [2], [3]] : memref<32x40x40xf32> into memref<1x32x40x40xf32>
+    %expand_shape = memref.expand_shape %alloc [[0, 1], [2], [3]] output_shape [1, 32, 40, 40]: memref<32x40x40xf32> into memref<1x32x40x40xf32>
     %alloc_3 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x40xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
@@ -150,7 +147,7 @@ module {
     // Subtraction
     // %7 = tosa.sub %5, %6 : (tensor<1x32x40x40xf32>, tensor<1x32x40x1xf32>) -> tensor<1x32x40x40xf32>
     // Allocate space and perform subtraction.
-    %expand_shape_7 = memref.expand_shape %alloc_6 [[0], [1], [2, 3]] : memref<1x32x40xf32> into memref<1x32x40x1xf32>
+    %expand_shape_7 = memref.expand_shape %alloc_6 [[0], [1], [2, 3]] output_shape [1, 32, 40, 1]: memref<1x32x40xf32> into memref<1x32x40x1xf32>
     %alloc_8 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x40xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
@@ -208,7 +205,7 @@ module {
 
     // Reciprocal
     // %10 = tosa.reciprocal %9 : (tensor<1x32x40x1xf32>) -> tensor<1x32x40x1xf32>
-    %expand_shape_11 = memref.expand_shape %alloc_10 [[0], [1], [2, 3]] : memref<1x32x40xf32> into memref<1x32x40x1xf32>
+    %expand_shape_11 = memref.expand_shape %alloc_10 [[0], [1], [2, 3]] output_shape [1, 32, 40, 1]: memref<1x32x40xf32> into memref<1x32x40x1xf32>
     %alloc_12 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x1xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
@@ -282,7 +279,7 @@ module {
     %time = arith.subf %t_end, %t_start : f64
 
     %cast = memref.cast %alloc_16 : memref<32x40x128xf32> to memref<*xf32>
-    %4 = bufferization.to_tensor %cast : memref<*xf32>
+    // %4 = bufferization.to_tensor %cast : memref<*xf32> to tensor<*xf32>
 
     // All the elements of the MemRef are the same,
     // only check the first line to verify the correctness.
@@ -292,7 +289,7 @@ module {
     // CHECK-SAME: [8{{(, 8)*}}],
 
     // Print results.
-    call @printMemrefF32(%4) : (tensor<*xf32>) -> ()
+    call @printMemrefF32(%cast) : (memref<*xf32>) -> ()
     // Print timings.
     vector.print %time : f64
 
@@ -300,15 +297,15 @@ module {
   }
   func.func @main() {
     %0 = memref.get_global @__constant_32x40x128xf32 : memref<32x40x128xf32>
-    %1 = bufferization.to_tensor %0 : memref<32x40x128xf32>
+    %1 = bufferization.to_tensor %0 restrict: memref<32x40x128xf32> to tensor<32x40x128xf32>
     %2 = memref.get_global @__constant_32x128x40xf32 : memref<32x128x40xf32>
-    %3 = bufferization.to_tensor %2 : memref<32x128x40xf32>
+    %3 = bufferization.to_tensor %2 restrict: memref<32x128x40xf32> to tensor<32x128x40xf32>
     %4 = memref.get_global @__constant_1x1x40x40xf32 : memref<1x1x40x40xf32>
-    %5 = bufferization.to_tensor %4 : memref<1x1x40x40xf32>
+    %5 = bufferization.to_tensor %4 restrict: memref<1x1x40x40xf32> to tensor<1x1x40x40xf32>
     %6 = memref.get_global @__constant_1x32x40x128xf32 : memref<1x32x40x128xf32>
-    %7 = bufferization.to_tensor %6 : memref<1x32x40x128xf32>
+    %7 = bufferization.to_tensor %6 restrict: memref<1x32x40x128xf32> to tensor<1x32x40x128xf32>
     call @kenerl(%1, %3, %5, %7) : (tensor<32x40x128xf32>, tensor<32x128x40xf32>, tensor<1x1x40x40xf32>, tensor<1x32x40x128xf32>) -> ()
     return
   }
-  func.func private @printMemrefF32(tensor<*xf32>)
+  func.func private @printMemrefF32(memref<*xf32>)
 }
