@@ -1,4 +1,4 @@
-//===- VIRDialect.h - Dynamic Vector IR Dialect Definition ----------------===//
+//===-- VIRDialect.h - Dynamic Vector IR Dialect Declaration ----*- C++ -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This is the header file for the dynamic vector IR dialect.
+// This file declares the core dialect structure for the Dynamic Vector IR
+// (VIR), including the dialect registration and namespace configuration.
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,6 +24,6 @@
 
 #include "mlir/IR/Dialect.h"
 
-#include "VIR/VIROpsDialect.h.inc"
+#include "VIR/VIRDialect.h.inc"
 
 #endif // VIR_VIRDIALECT_H

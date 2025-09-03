@@ -2,13 +2,13 @@
 // RUN:   -pooling-nhwc-max-vectorization \
 // RUN:   -convert-linalg-to-loops \
 // RUN:   -lower-affine \
-// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-scf-to-cf -convert-cf-to-llvm \
 // RUN:   -convert-vector-to-llvm \
 // RUN:   -finalize-memref-to-llvm \
 // RUN:   -convert-arith-to-llvm \
 // RUN:   -convert-func-to-llvm \
 // RUN:   -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -20,10 +20,10 @@ module{
   func.func @pooling_nhwc_max(%a : memref<?x?x?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?x?x?xf32>) {
     %t_start = call @rtclock() : () -> f64
 
-    linalg.pooling_nhwc_max {dilations = dense<1> : vector<2xi64>, strides = dense<2> : vector<2xi64>} 
-      ins(%a, %b : memref<?x?x?x?xf32>, memref<?x?xf32>) 
+    linalg.pooling_nhwc_max {dilations = dense<1> : vector<2xi64>, strides = dense<2> : vector<2xi64>}
+      ins(%a, %b : memref<?x?x?x?xf32>, memref<?x?xf32>)
       outs(%c : memref<?x?x?x?xf32>)
-    
+
     %t_end = call @rtclock() : () -> f64
     %time = arith.subf %t_end, %t_start : f64
     %printed_output = memref.cast %c : memref<?x?x?x?xf32> to memref<*xf32>
@@ -56,7 +56,7 @@ module{
     %c1 = arith.constant 1 : index
     %0 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
     scf.for %idx0 = %c0 to %arg0 step %c1 {
-      scf.for %idx1 = %c0 to %arg1 step %c1 {   
+      scf.for %idx1 = %c0 to %arg1 step %c1 {
         memref.store %arg4, %0[%idx0, %idx1] : memref<?x?xf32>
       }
     }
@@ -87,11 +87,11 @@ module{
     // CHECK: [
     // CHECK: [1{{(, 1)*}}],
     call @pooling_nhwc_max(%v0, %v1, %v2) : (memref<?x?x?x?xf32>, memref<?x?xf32>, memref<?x?x?x?xf32>) -> ()
-    
+
     memref.dealloc %v0 : memref<?x?x?x?xf32>
     memref.dealloc %v1 : memref<?x?xf32>
     memref.dealloc %v2 : memref<?x?x?x?xf32>
 
-    return 
+    return
   }
 }

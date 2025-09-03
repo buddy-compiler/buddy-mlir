@@ -2,7 +2,7 @@
 BUDDY_OPT := ../../build/bin/buddy-opt
 MLIR_OPT := ../../llvm/build/bin/mlir-opt
 MLIR_TRANSLATE := ../../llvm/build/bin/mlir-translate
-MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-cpu-runner
+MLIR_CPU_RUNNER := ../../llvm/build/bin/mlir-runner
 LLC := ../../llvm/build/bin/llc
 OPT_FLAG := -O0
 
@@ -61,7 +61,7 @@ gpu-mma-lower:
 	@${MLIR_OPT} gpu-mma.mlir -gpu-kernel-outlining | \
 	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin{chip=sm_70}))' | \
 	${MLIR_OPT}	-convert-scf-to-cf -gpu-to-llvm -o log.mlir
-		
+
 gpu-mma-run:
 	@${MLIR_OPT} gpu-mma.mlir -gpu-kernel-outlining | \
 	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin{chip=sm_70}))' | \
@@ -72,7 +72,7 @@ vector-to-gpu-lower:
 	@${MLIR_OPT} vector-to-gpu.mlir -convert-linalg-to-loops | \
 	${MLIR_OPT} -pass-pipeline="builtin.module(gpu.module(convert-vector-to-gpu,canonicalize))" | \
 	${MLIR_OPT} -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin{chip=sm_70}))' | \
-	${MLIR_OPT}	-convert-scf-to-cf -gpu-to-llvm -o log.mlir 
+	${MLIR_OPT}	-convert-scf-to-cf -gpu-to-llvm -o log.mlir
 
 vector-to-gpu-run:
 	@${MLIR_OPT} vector-to-gpu.mlir -convert-linalg-to-loops | \

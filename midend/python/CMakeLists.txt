@@ -57,13 +57,6 @@ declare_mlir_dialect_python_bindings(
     dialects/rvv.py
   DIALECT_NAME rvv)
 
-declare_mlir_dialect_python_bindings(
-  ADD_TO_PARENT BuddyMLIRPythonSources.Dialects
-  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/buddy_mlir"
-  TD_FILE dialects/ScheBinding.td
-  SOURCES
-    dialects/sche.py
-  DIALECT_NAME sche)
 
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects
@@ -124,6 +117,7 @@ add_mlir_python_common_capi_library(BuddyMLIRPythonCAPI
 ################################################################################
 # Instantiation of all Python modules
 ################################################################################
+link_directories(${LLVM_BINARY_DIR}/tools/mlir/python_packages/mlir_core/mlir/_mlir_libs/)
 
 add_mlir_python_modules(BuddyMLIRPythonModules
   ROOT_PREFIX "${BUDDY_BUILD_DIR}/python_packages/buddy_mlir"

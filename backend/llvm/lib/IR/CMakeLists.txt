@@ -10,13 +10,19 @@ add_llvm_component_library(LLVMBuddyCore
   ${LLVM_IR_DIR}/BuiltinGCs.cpp
   ${LLVM_IR_DIR}/Comdat.cpp
   ${LLVM_IR_DIR}/ConstantFold.cpp
+  ${LLVM_IR_DIR}/ConstantFPRange.cpp
   ${LLVM_IR_DIR}/ConstantRange.cpp
+  ${LLVM_IR_DIR}/ConstantRangeList.cpp
   ${LLVM_IR_DIR}/Constants.cpp
+  ${LLVM_IR_DIR}/ConvergenceVerifier.cpp
   ${LLVM_IR_DIR}/Core.cpp
+  ${LLVM_IR_DIR}/CycleInfo.cpp
   ${LLVM_IR_DIR}/DIBuilder.cpp
   ${LLVM_IR_DIR}/DataLayout.cpp
   ${LLVM_IR_DIR}/DebugInfo.cpp
   ${LLVM_IR_DIR}/DebugInfoMetadata.cpp
+  ${LLVM_IR_DIR}/DIExpressionOptimizer.cpp
+  ${LLVM_IR_DIR}/DebugProgramInstruction.cpp
   ${LLVM_IR_DIR}/DebugLoc.cpp
   ${LLVM_IR_DIR}/DiagnosticHandler.cpp
   ${LLVM_IR_DIR}/DiagnosticInfo.cpp
@@ -28,6 +34,7 @@ add_llvm_component_library(LLVMBuddyCore
   ${LLVM_IR_DIR}/GCStrategy.cpp
   ${LLVM_IR_DIR}/GVMaterializer.cpp
   ${LLVM_IR_DIR}/Globals.cpp
+  ${LLVM_IR_DIR}/Intrinsics.cpp
   ${LLVM_IR_DIR}/IRBuilder.cpp
   ${LLVM_IR_DIR}/IRPrintingPasses.cpp
   ${LLVM_IR_DIR}/SSAContext.cpp
@@ -40,6 +47,7 @@ add_llvm_component_library(LLVMBuddyCore
   ${LLVM_IR_DIR}/LLVMRemarkStreamer.cpp
   ${LLVM_IR_DIR}/LegacyPassManager.cpp
   ${LLVM_IR_DIR}/MDBuilder.cpp
+  ${LLVM_IR_DIR}/MemoryModelRelaxationAnnotations.cpp
   ${LLVM_IR_DIR}/Mangler.cpp
   ${LLVM_IR_DIR}/Metadata.cpp
   ${LLVM_IR_DIR}/Module.cpp
@@ -67,7 +75,10 @@ add_llvm_component_library(LLVMBuddyCore
   ${LLVM_IR_DIR}/Value.cpp
   ${LLVM_IR_DIR}/ValueSymbolTable.cpp
   ${LLVM_IR_DIR}/VectorBuilder.cpp
+  ${LLVM_IR_DIR}/VectorTypeUtils.cpp
   ${LLVM_IR_DIR}/Verifier.cpp
+  ${LLVM_IR_DIR}/VFABIDemangler.cpp
+  ${LLVM_IR_DIR}/RuntimeLibcalls.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/IR

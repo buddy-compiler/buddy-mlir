@@ -35,6 +35,7 @@ print(graph._imported_module)
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.reciprocal
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
 # CHECK: return %{{.*}}
 # CHECK: }

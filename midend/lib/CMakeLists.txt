@@ -20,12 +20,10 @@ set(LinkedLibs
   LowerGemminiPass
   LowerLinalgToGemminiPass
   LowerRVVPass
-  LowerSche
   LowerVectorExpPass
   MatMulOptimization
   BatchMatMulOptimization
   MatMulParallelVectorization
-  SchedulingOnDevices
   TransposeOptimization
 )
 

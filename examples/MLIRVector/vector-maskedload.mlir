@@ -1,8 +1,10 @@
 // RUN: buddy-opt %s \
 // RUN:     -convert-vector-to-scf -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-arith-to-llvm \
 // RUN:     -split-input-file -verify-diagnostics -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=i32 \
+// RUN: | mlir-runner -e main -entry-point-result=i32 \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -18,7 +20,7 @@ memref.global "private" @gv2 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 func.func private @printMemrefI32(memref<*xi32>)
 
 func.func @main() -> i32 {
-  // maskedload is a load with a mask, supporting to load 
+  // maskedload is a load with a mask, supporting to load
   // an 1-D vector into a n-D memref with the mask.
 
   // preparation for examples

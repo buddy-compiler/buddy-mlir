@@ -51,8 +51,12 @@ set(BUDDY_EXAMPLES_DEPENDS
   FileCheck count not
   buddy-opt
   buddy-translate
-  mlir-cpu-runner
+  mlir-runner
   )
+
+if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
+  list(APPEND BUDDY_TEST_DEPENDS BuddyMLIRPythonModules)
+endif()
 
 add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."
   ${CMAKE_CURRENT_BINARY_DIR}
