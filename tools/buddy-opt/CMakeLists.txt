@@ -43,4 +43,5 @@ target_link_libraries(buddy-opt
   MLIRTransformUtils
   MatMulTransposeBVec
   VIRToVectorPass
+  LinearSiluFusion
   )
