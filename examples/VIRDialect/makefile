@@ -97,6 +97,10 @@ vir-arith-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
+vir-matmul-lower:
+	${BUDDY_OPT} vir-matmul.mlir \
+		-o log.mlir
+
 # Default values for STEP and SIZE
 STEP ?= 4
 SIZE ?= 4096
