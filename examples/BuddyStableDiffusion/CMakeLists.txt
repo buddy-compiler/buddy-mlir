@@ -64,7 +64,6 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize="bufferize-function-boundaries"
-            -func-bufferize-dynamic-offset
             -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
@@ -147,7 +146,6 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize="bufferize-function-boundaries"
-            -func-bufferize-dynamic-offset
             -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
@@ -231,7 +229,6 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize="bufferize-function-boundaries"
-            -func-bufferize-dynamic-offset
             -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
@@ -286,8 +283,15 @@ target_compile_definitions(buddy-stable-diffusion-run PRIVATE
 
 target_link_directories(buddy-stable-diffusion-run PRIVATE ${LLVM_LIBRARY_DIR})
 
-set(BUDDY_STABLE_DIFFUSION_LIBS TEXTENCODER UNET VAE mlir_c_runner_utils omp)
+find_package(OpenMP REQUIRED)
 
+set(BUDDY_STABLE_DIFFUSION_LIBS
+  TEXTENCODER
+  UNET
+  VAE
+  mlir_c_runner_utils
+  OpenMP::OpenMP_CXX
+)
 if(BUDDY_MLIR_USE_MIMALLOC)
   list(APPEND BUDDY_STABLE_DIFFUSION_LIBS mimalloc)
 endif()

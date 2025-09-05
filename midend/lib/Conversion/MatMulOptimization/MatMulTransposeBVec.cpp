@@ -62,7 +62,7 @@ public:
     Value C = op->getOperand(2);
 
     // Get shape of input and output.
-    ShapedType ATy = A.getType().cast<ShapedType>();
+    ShapedType ATy = mlir::cast<mlir::MemRefType>(A.getType());
     Type eleTy = ATy.getElementType();
 
     // the element type for mask vector.

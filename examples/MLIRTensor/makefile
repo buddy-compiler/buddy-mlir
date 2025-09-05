@@ -179,8 +179,8 @@ tensor-insert-slice-translate:
 
 tensor-insert-slice-run:
 	@${MLIR_OPT} ./tensor-insert-slice.mlir \
-		-arith-bufferize  -tensor-bufferize -linalg-bufferize -convert-vector-to-llvm \
-		-func-bufferize -buffer-deallocation -convert-linalg-to-loops -expand-strided-metadata \
+		-one-shot-bufferize="bufferize-function-boundaries" -convert-vector-to-llvm \
+		 -convert-linalg-to-loops -expand-strided-metadata \
 		 -finalize-memref-to-llvm -convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \

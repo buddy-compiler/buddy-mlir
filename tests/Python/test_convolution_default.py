@@ -33,8 +33,9 @@ print(graph._imported_module)
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.transpose
-# CHECK: %{{.*}} = "tosa.const"()
 # CHECK: %{{.*}} = tosa.transpose
+# CHECK: %{{.*}} = "tosa.const"()
+# CHECK: %{{.*}} = "tosa.const"()
 # CHECK: %{{.*}} = tosa.conv2d
 # CHECK: %{{.*}} = tosa.transpose
 # CHECK: return %{{.*}}

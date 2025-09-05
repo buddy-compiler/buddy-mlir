@@ -60,7 +60,7 @@ public:
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     FloatType f32 = Float32Type::get(ctx);
     Value f0 =
-        rewriter.create<arith::ConstantFloatOp>(loc, APFloat(float(0.0)), f32);
+        rewriter.create<arith::ConstantFloatOp>(loc, f32, APFloat(float(0.0)));
 
     Value kernelSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
     Value dataLen = rewriter.create<memref::DimOp>(loc, output, c0);
@@ -155,8 +155,8 @@ public:
 
     FloatType f32 = Float32Type::get(ctx);
 
-    Value z1 = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
-    Value z2 = rewriter.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+    Value z1 = rewriter.create<ConstantFloatOp>(loc, f32, APFloat(float(0)));
+    Value z2 = rewriter.create<ConstantFloatOp>(loc, f32, APFloat(float(0)));
 
     VectorType vectorTy32 = VectorType::get({stride}, f32);
 
@@ -267,9 +267,9 @@ public:
               builder.create<memref::LoadOp>(loc, kernel, ValueRange{iv, c5});
 
           Value z1 =
-              builder.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+              builder.create<ConstantFloatOp>(loc, f32, APFloat(float(0)));
           Value z2 =
-              builder.create<ConstantFloatOp>(loc, APFloat(float(0)), f32);
+              builder.create<ConstantFloatOp>(loc, f32, APFloat(float(0)));
 
           // Loop reordering, compute z1 for next iteration, z2 for the second
           // following iteration.

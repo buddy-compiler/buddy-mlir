@@ -28,6 +28,8 @@ add_llvm_component_library(LLVMBuddyCore
   ${LLVM_IR_DIR}/DiagnosticInfo.cpp
   ${LLVM_IR_DIR}/DiagnosticPrinter.cpp
   ${LLVM_IR_DIR}/Dominators.cpp
+  ${LLVM_IR_DIR}/DroppedVariableStats.cpp
+  ${LLVM_IR_DIR}/DroppedVariableStatsIR.cpp
   ${LLVM_IR_DIR}/EHPersonalities.cpp
   ${LLVM_IR_DIR}/FPEnv.cpp
   ${LLVM_IR_DIR}/Function.cpp
@@ -74,7 +76,6 @@ add_llvm_component_library(LLVMBuddyCore
   ${LLVM_IR_DIR}/User.cpp
   ${LLVM_IR_DIR}/Value.cpp
   ${LLVM_IR_DIR}/ValueSymbolTable.cpp
-  ${LLVM_IR_DIR}/VectorBuilder.cpp
   ${LLVM_IR_DIR}/VectorTypeUtils.cpp
   ${LLVM_IR_DIR}/Verifier.cpp
   ${LLVM_IR_DIR}/VFABIDemangler.cpp

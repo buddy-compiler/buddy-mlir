@@ -12,7 +12,7 @@ add_custom_command(
   COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg)" |
           ${BUDDY_BINARY_DIR}/buddy-opt
-            -pass-pipeline "builtin.module(func.func(buffer-deallocation-simplification, convert-linalg-to-loops),matmul-parallel-vectorization-optimize, batchmatmul-optimize, eliminate-empty-tensors,func-bufferize-dynamic-offset, func.func(llvm-request-c-wrappers),convert-scf-to-openmp, convert-openmp-to-llvm, convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
+            -pass-pipeline "builtin.module(func.func(buffer-deallocation-simplification, convert-linalg-to-loops),matmul-parallel-vectorization-optimize, batchmatmul-optimize, eliminate-empty-tensors, func.func(llvm-request-c-wrappers),convert-scf-to-openmp, convert-openmp-to-llvm, convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${CMAKE_CURRENT_BINARY_DIR}/forward.o
@@ -38,7 +38,6 @@ add_custom_command(
               -affine-loop-fusion
               -affine-parallelize
               -convert-scf-to-openmp
-              -func-bufferize-dynamic-offset
               -convert-linalg-to-loops
               -convert-vector-to-scf
               -expand-strided-metadata
@@ -93,12 +92,15 @@ target_compile_definitions(buddy-whisper-run PRIVATE
 
 target_link_directories(buddy-whisper-run PRIVATE ${LLVM_LIBRARY_DIR})
 
+find_package(OpenMP REQUIRED)
+
 set(BUDDY_WHISPER_LIBS
   WHISPER
   BuddyLibDAP
   mlir_c_runner_utils
-  omp
+  OpenMP::OpenMP_CXX
 )
+
 if(BUDDY_MLIR_USE_MIMALLOC)
   list(APPEND BUDDY_WHISPER_LIBS mimalloc)
 endif()

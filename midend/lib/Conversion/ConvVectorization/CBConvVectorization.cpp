@@ -54,7 +54,7 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
   Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
   Value cStride = rewriter.create<arith::ConstantIndexOp>(loc, stride);
   Value f0 = rewriter.create<arith::ConstantFloatOp>(
-      loc, APFloat::getZero(f32.getFloatSemantics()), f32);
+      loc, f32, APFloat::getZero(f32.getFloatSemantics()));
   // Create pass through vector.
   Value passThroughVec = rewriter.create<SplatOp>(loc, vectorTy32, f0);
   // Get input, kernel and output.
@@ -199,7 +199,7 @@ void populateCBTilingPattern(Operation *op, ArrayRef<int64_t> tileSizes,
   Value kernelCol = rewriter.create<memref::DimOp>(loc, kernel, c1);
   // Define padding value.
   Value f0 = rewriter.create<arith::ConstantFloatOp>(
-      loc, APFloat::getZero(f32.getFloatSemantics()), f32);
+      loc, f32, APFloat::getZero(f32.getFloatSemantics()));
   // Size of strip mining.
   AffineExpr d0;
   bindDims(ctx, d0);
