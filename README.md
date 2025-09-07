@@ -155,7 +155,7 @@ This repository have nix flake support. You can follow the [nix installation ins
 - If you want to contribute to this project:
 
 ```bash
-nix develop .
+nix develop .#buddy-mlir
 ```
 
 This will setup a bash shell with `clang`, `ccls`, `cmake`, `ninja`, and other necessary dependencies to build buddy-mlir from source.
@@ -163,8 +163,11 @@ This will setup a bash shell with `clang`, `ccls`, `cmake`, `ninja`, and other n
 - If you want to use the buddy-mlir bintools
 
 ```bash
-nix build .#buddy-mlir
-./result/bin/buddy-opt --version
+nix develop .
+buddy-opt --version
+llc --version
+mlir-tblgen --version
+python -c "import torch; print(torch.__version__)"
 ```
 
 ## Dialects

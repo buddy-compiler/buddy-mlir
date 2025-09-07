@@ -1,5 +1,5 @@
 {
-  description = "Generic devshell setup";
+  description = "Buddy MLIR nix flake setup";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -19,7 +19,31 @@
           # Help other use packages in this flake
           legacyPackages = pkgs;
 
-          devShells.default = pkgs.buddy-mlir.devShell;
+          # A shell with buddy-mlir tools and Python environment
+          # run: nix develop .
+          devShells.default = pkgs.mkShell {
+            nativeBuildInputs = with pkgs; [
+              buddy-mlir
+              buddy-mlir.llvm
+              buddy-mlir.pyenv
+            ];
+          };
+
+          # A shell for writing buddy-mlir code
+          # run: nix develop .#buddy-mlir
+          devShells.buddy-mlir = pkgs.mkShell {
+            nativeBuildInputs = with pkgs;
+              # Add following extra packages to buddy-mlir developement environment
+              pkgs.buddy-mlir.nativeBuildInputs ++ [
+                libjpeg
+                libpng
+                zlib-ng
+                ccls
+              ];
+          };
+
+          # run: nix build .
+          packages.default = pkgs.buddy-mlir;
 
           formatter = pkgs.nixpkgs-fmt;
         }) //

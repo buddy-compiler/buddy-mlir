@@ -15,3 +15,9 @@
 
 # Clangd configurations
 .clangd
+
+# nix output
+result
+
+# ccls
+.ccls-cache/
