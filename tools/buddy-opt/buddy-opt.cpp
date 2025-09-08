@@ -85,6 +85,7 @@ void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
 void registerLegalizeShmemOutliningPass();
 void registerVIRToVectorPass();
+void registerLinalgToVIRPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -125,6 +126,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
   mlir::buddy::registerVIRToVectorPass();
+  mlir::buddy::registerLinalgToVIRPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
   mlir::buddy::registerLegalizeShmemOutliningPass();

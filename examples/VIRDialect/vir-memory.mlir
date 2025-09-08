@@ -2,7 +2,7 @@
 // RUN: | FileCheck %s
 
 // RUN: buddy-opt %s \
-// RUN:     -lower-vir-to-vector \
+// RUN:     -lower-vir-to-vector="vector-width=4" \
 // RUN:     -cse \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -lower-affine \

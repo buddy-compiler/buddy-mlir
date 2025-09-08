@@ -42,6 +42,15 @@
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include <cstdint>
+
+// Include ARM SEV header for detecting register base width
+#if defined(__ARM_FEATURE_SVE)
+#include <arm_sve.h>
+#endif
 
 #include "VIR/VIRDialect.h"
 #include "VIR/VIROps.h"
@@ -60,6 +69,185 @@ namespace {
 static constexpr int DEFAULT_VECTOR_WIDTH = 4;
 static constexpr bool DEFAULT_USE_SCALABLE = false;
 
+VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
+                            bool useScalable, bool verbose) {
+#define VERBOSE_ANALYSIS_INFO(info)                                            \
+  if (verbose) {                                                               \
+    llvm::outs() << info;                                                      \
+  }
+  int vectorRegBitWidth = 1;
+  int totalVectorRegs = 1;
+  llvm::StringMap<bool> Features = llvm::sys::getHostCPUFeatures();
+
+  VERBOSE_ANALYSIS_INFO("--- Checking x86/x64 Features ---\n");
+  if (Features.count("avx2") && Features["avx2"]) {
+    vectorRegBitWidth = 256;
+    totalVectorRegs = 16;
+    VERBOSE_ANALYSIS_INFO("[+] AVX2 is supported.\n");
+  } else {
+    VERBOSE_ANALYSIS_INFO("[-] AVX2 is NOT supported.\n");
+  }
+
+  if (Features.count("avx512f") && Features["avx512f"]) {
+    vectorRegBitWidth = 512;
+    totalVectorRegs = 32;
+    VERBOSE_ANALYSIS_INFO("[+] AVX-512F is supported.\n");
+  } else {
+    VERBOSE_ANALYSIS_INFO("[-] AVX-512F is NOT supported.\n");
+  }
+
+  VERBOSE_ANALYSIS_INFO("\n--- Checking AArch64 Features ---\n");
+  if (Features.count("sve") && Features["sve"]) {
+    VERBOSE_ANALYSIS_INFO("[+] SVE is supported.\n");
+#if defined(__ARM_FEATURE_SVE)
+    uint64_t bytes = svcntb();
+    vectorRegBitWidth = bytes * 8;
+    totalVectorRegs = 32;
+#else
+    assert(
+        false &&
+        "LLVM detected ARM SVE, but MACRO __ARM_FEATURE_SVE is not defined.");
+#endif
+  } else {
+    VERBOSE_ANALYSIS_INFO("[-] SVE is NOT supported.\n");
+  }
+
+  Block &block = srcRegion.front();
+  auto &operations = block.getOperations();
+
+  VERBOSE_ANALYSIS_INFO(
+      "\n--- Running vectorTypeHelper Dataflow Analysis ---\n");
+
+  // Data Flow analysis
+  // USE, DEF, IN, OUT sets
+  DenseMap<Operation *, DenseSet<Value>> useSets, defSets, inSets, outSets;
+
+  // calculate USE and DEF sets
+  for (Operation &op : operations) {
+    for (Value result : op.getResults()) {
+      if (auto st = dyn_cast<ShapedType>(result.getType());
+          st && st.hasRank()) {
+        defSets[&op].insert(result);
+      }
+    }
+    for (Value operand : op.getOperands()) {
+      if (operand.getDefiningOp() &&
+          operand.getDefiningOp()->getParentRegion() == &srcRegion) {
+        if (auto st = dyn_cast<ShapedType>(operand.getType());
+            st && st.hasRank()) {
+          useSets[&op].insert(operand);
+        }
+      }
+    }
+  }
+
+  auto printValueSet = [&verbose](llvm::StringRef name,
+                                  const DenseSet<Value> &valueSet) {
+    VERBOSE_ANALYSIS_INFO("    " << name << " { ");
+    for (Value val : valueSet) {
+      if (verbose) {
+        val.print(llvm::outs(), OpPrintingFlags().printGenericOpForm());
+      }
+      VERBOSE_ANALYSIS_INFO(" ");
+    }
+    VERBOSE_ANALYSIS_INFO("}\n");
+  };
+
+  bool changed = true;
+  int iteration = 1;
+  while (changed) {
+    VERBOSE_ANALYSIS_INFO("\n--- Analysis Iteration " << iteration++
+                                                      << " ---\n");
+    changed = false;
+
+    // backward iteration
+    for (auto it = operations.rbegin(); it != operations.rend(); ++it) {
+      Operation &op = *it;
+
+      VERBOSE_ANALYSIS_INFO("Analyzing Op: ");
+      if (verbose) {
+        op.print(llvm::outs(), OpPrintingFlags().printGenericOpForm());
+      }
+      VERBOSE_ANALYSIS_INFO("\n");
+
+      DenseSet<Value> oldIn = inSets[&op];
+
+      // OUT(i) = ∪_{j ∈ Succ(i)} IN(j)
+      DenseSet<Value> outSet;
+      Operation *nextOp = op.getNextNode();
+      if (nextOp) {
+        outSet = inSets[nextOp];
+      }
+      outSets[&op] = outSet;
+      printValueSet("OUT:", outSets[&op]);
+      printValueSet("DEF:", defSets[&op]);
+      printValueSet("USE:", useSets[&op]);
+
+      // IN(i) = (OUT(i) - DEF(i)) ∪ USE(i)
+      DenseSet<Value> inSet = outSet;
+      for (Value defValue : defSets[&op]) {
+        inSet.erase(defValue);
+      }
+      inSet.insert(useSets[&op].begin(), useSets[&op].end());
+      inSets[&op] = inSet;
+      printValueSet("New IN:", inSets[&op]);
+
+      if (inSets[&op] != oldIn) {
+        changed = true;
+      }
+    }
+  }
+
+  VERBOSE_ANALYSIS_INFO("\n--- Dataflow Analysis Converged ---\n");
+
+  // Req_Group = max_i ( |IN(i) ∪ OUT(i)| )
+  unsigned int maxActiveVectors = 0;
+  for (Operation &op : operations) {
+    DenseSet<Value> liveAcross = inSets[&op];
+    liveAcross.insert(outSets[&op].begin(), outSets[&op].end());
+
+    if (liveAcross.size() > maxActiveVectors) {
+      maxActiveVectors = liveAcross.size();
+    }
+  }
+
+  int reqGroup = (maxActiveVectors == 0) ? 1 : maxActiveVectors;
+  VERBOSE_ANALYSIS_INFO("Final Max Active Vectors (Req_Group): " << reqGroup
+                                                                 << "\n");
+
+  VERBOSE_ANALYSIS_INFO("\n--- Calculating Final Vector Type ---\n");
+
+  unsigned elementBitWidth = anchorType.getIntOrFloatBitWidth();
+  if (elementBitWidth == 0) {
+    srcRegion.getParentOp()->emitError(
+        "Anchor type is not a valid integer or float type.");
+    return nullptr;
+  }
+  VERBOSE_ANALYSIS_INFO("Element Bit Width (Width_Ele): " << elementBitWidth
+                                                          << "\n");
+
+  // Size_Group = floor(Num_Reg / Req_Group)
+  int sizeGroup = totalVectorRegs / reqGroup;
+  if (sizeGroup == 0) {
+    emitWarning(srcRegion.getLoc(),
+                "High register pressure detected. Calculated vector size might "
+                "be suboptimal.");
+    sizeGroup = 1;
+  }
+  VERBOSE_ANALYSIS_INFO("Calculated Size_Group = floor("
+                        << totalVectorRegs << " / " << reqGroup
+                        << ") = " << sizeGroup << "\n");
+
+  // Size_vec = (Size_Group * Size_Reg) / Width_Ele
+  int64_t sizeVec = (sizeGroup * vectorRegBitWidth) / elementBitWidth;
+  VERBOSE_ANALYSIS_INFO("Calculated Size_vec = ("
+                        << sizeGroup << " * " << vectorRegBitWidth << ") / "
+                        << elementBitWidth << " = " << sizeVec << "\n");
+
+  return VectorType::get({sizeVec}, anchorType);
+#undef VERBOSE_ANALYSIS_INFO
+} // namespace
+
 /// VIR SetVL Operation Lowering Pattern
 ///
 /// This pattern implements the lowering approach for the VIR SetVL abstraction:
@@ -74,13 +262,16 @@ static constexpr bool DEFAULT_USE_SCALABLE = false;
 class VIRSetVLLowering : public ConvertOpToLLVMPattern<vir::SetVLOp> {
 public:
   VIRSetVLLowering(LLVMTypeConverter &converter, bool useScalable,
-                   int vectorWidth)
+                   int vectorWidth, bool verbose, bool useCustomVecWid)
       : ConvertOpToLLVMPattern<vir::SetVLOp>(converter),
-        useScalable(useScalable), vectorWidth(vectorWidth) {}
+        useScalable(useScalable), vectorWidth(vectorWidth), verbose(verbose),
+        useCustomVecWid(useCustomVecWid) {}
 
 private:
   bool useScalable;
   int vectorWidth;
+  bool verbose;
+  bool useCustomVecWid;
 
   /// @brief Recursively search for anchor types within a Region and its nested
   /// Regions
@@ -352,13 +543,27 @@ private:
     //===------------------------------------------------------------------===//
     // Step 2: Construct the target vector type.
     //===------------------------------------------------------------------===//
-    Type targetVectorType;
-    if (useScalable) {
-      SmallVector<bool, 1> scalableDim = {true};
-      targetVectorType =
-          VectorType::get({vectorWidth}, anchorType, scalableDim);
+
+    int vectorWid = vectorWidth; // Dynamic defined vector width
+    VectorType targetVectorType;
+    if (useCustomVecWid) {
+      if (verbose) {
+        llvm::outs() << "Use user custom vector width = " << vectorWidth
+                     << "\n";
+      }
+      if (useScalable) {
+        // Scalable Vector Type: e.g. `vector<[4]xf32>`.
+        SmallVector<bool, 1> scalableDim = {true};
+        targetVectorType =
+            VectorType::get({vectorWidth}, anchorType, scalableDim);
+      } else {
+        // Fixed Vector Type: e.g. `vector<4xf32>`.
+        targetVectorType = VectorType::get({vectorWidth}, anchorType);
+      }
     } else {
-      targetVectorType = VectorType::get({vectorWidth}, anchorType);
+      targetVectorType =
+          vectorTypeHelper(region, anchorType, useScalable, verbose);
+      vectorWid = int(targetVectorType.getShape()[0]);
     }
 
     //===------------------------------------------------------------------===//
@@ -367,7 +572,7 @@ private:
     Value vlValue = op.getVl();
     // Calculate the upper bound for vectorized loop.
     // vl_upbound = (vl_total - vl_step) + 1
-    Value vlStep = rewriter.create<arith::ConstantIndexOp>(loc, vectorWidth);
+    Value vlStep = rewriter.create<arith::ConstantIndexOp>(loc, vectorWid);
     Value vlUpboundPat = rewriter.create<arith::SubIOp>(loc, vlValue, vlStep);
     Value vlUpbound = rewriter.create<arith::AddIOp>(
         loc, vlUpboundPat, rewriter.create<arith::ConstantIndexOp>(loc, 1));
@@ -377,12 +582,19 @@ private:
     // the remainder in the tail loop. The number of iterations in the main loop
     // is vl / step
     Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+
+    // Create affine for loop with iteration variable.
     auto mainloop = rewriter.create<affine::AffineForOp>(
         loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
         /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
-        vectorWidth,
+        vectorWid,
         /*iterArgs=*/std::nullopt,
         [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
+          //===--------------------------------------------------------------===//
+          // Step 4: Convert operations inside the dynamic vector region.
+          //===--------------------------------------------------------------===//
+          // Symbol table: maps dynamic vector values to fixed / scalable vector
+          // values.
           DenseMap<Value, Value> symbolTable;
           // Initiate recursive descent process on top-level blocks (vectorized
           // mode)
@@ -422,9 +634,10 @@ private:
 
 void populateVIRToVectorConversionPatterns(LLVMTypeConverter &converter,
                                            RewritePatternSet &patterns,
-                                           bool useScalable, int vectorWidth) {
+                                           bool useScalable, int vectorWidth,
+                                           bool verbose, bool useCustomVecWid) {
   // clang-format off
-  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth);
+  patterns.add<VIRSetVLLowering>(converter, useScalable, vectorWidth, verbose, useCustomVecWid);
   // clang-format on
 }
 
@@ -470,6 +683,10 @@ public:
       *this, "vector-width",
       llvm::cl::desc("Vector width for fixed/scalable vectors (default: 4)"),
       llvm::cl::init(DEFAULT_VECTOR_WIDTH)};
+
+  Option<bool> verbose{*this, "verbose",
+                       llvm::cl::desc("Print register analysis information"),
+                       llvm::cl::init(false)};
 };
 } // end anonymous namespace.
 
@@ -491,8 +708,10 @@ void VIRToVectorPass::runOnOperation() {
   target.addLegalOp<UnrealizedConversionCastOp>();
   LLVMTypeConverter converter(context);
   RewritePatternSet patterns(context);
+  // use custome vector width
+  bool useCustomVecWid = vectorWidth.getNumOccurrences() > 0;
   populateVIRToVectorConversionPatterns(converter, patterns, useScalable,
-                                        vectorWidth);
+                                        vectorWidth, verbose, useCustomVecWid);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
 }
