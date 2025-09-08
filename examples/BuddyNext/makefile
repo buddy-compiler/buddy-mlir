@@ -708,6 +708,7 @@ next-ffn-optimized-run:
 	@${MLIR_OPT} ./next-ffn-optimized.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${BUDDY_OPT} \
+		-silu-fusion \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
 		-one-shot-bufferize="bufferize-function-boundaries" \
@@ -734,6 +735,12 @@ next-ffn-optimized-run:
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+# Test SiLU fusion pass
+next-silu-fusion-test:
+	@${BUDDY_OPT} ./next-silu-fusion-test.mlir \
+		-silu-fusion \
+		-o next-silu-fusion-test-output.mlir
 
 next-ffn-optimized-lower:
 	@${MLIR_OPT} ./next-ffn-optimized.mlir \
