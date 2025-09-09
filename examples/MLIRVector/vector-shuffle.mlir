@@ -1,7 +1,7 @@
 // RUN: buddy-opt %s \
 // RUN:     -convert-vector-to-scf -convert-scf-to-cf \
 // RUN:     -convert-cf-to-llvm \
-// RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm -convert-ub-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -split-input-file -verify-diagnostics \
 // RUN:     -reconcile-unrealized-casts \

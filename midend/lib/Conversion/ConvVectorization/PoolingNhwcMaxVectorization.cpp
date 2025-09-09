@@ -115,7 +115,7 @@ public:
     Value dilWidth = rewriter.create<arith::ConstantIndexOp>(loc, dilations[1]);
 
     // Get ElementType of input.
-    Type elementTy = input.getType().cast<ShapedType>().getElementType();
+    Type elementTy = llvm::cast<MemRefType>(input.getType()).getElementType();
     VectorType vectorTy = mlir::VectorType::get({strip}, elementTy);
 
     // Get Constants.

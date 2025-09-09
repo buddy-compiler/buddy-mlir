@@ -52,6 +52,9 @@ using namespace affine;
 namespace {
 
 class TransposeOptimizationPattern : public ConversionPattern {
+private:
+  int64_t affineVectorSize;
+
 public:
   explicit TransposeOptimizationPattern(MLIRContext *context,
                                         int64_t affineVectorSizeParam)
@@ -63,8 +66,7 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     auto permutationArrayAttr =
-        op->getAttr(rewriter.getStringAttr("permutation"))
-            .cast<DenseI64ArrayAttr>()
+        llvm::cast<DenseI64ArrayAttr>(op->getAttr(rewriter.getStringAttr("permutation")))
             .asArrayRef();
 
     // Retrieve input tensors A, B.
@@ -73,14 +75,14 @@ public:
 
     // Only to rewrite the rank 2 tensor transpose.
     if (permutationArrayAttr[0] != 1 or permutationArrayAttr[1] != 0 or
-        A.getType().cast<MemRefType>().getRank() != 2) {
+        llvm::cast<MemRefType>(A.getType()).getRank() != 2) {
       return failure();
     }
 
     auto loc = op->getLoc();
 
     // Acquire the element type of input tensors.
-    Type elementType = A.getType().cast<MemRefType>().getElementType();
+    Type elementType = llvm::cast<MemRefType>(A.getType()).getElementType();
 
     // Define constants.
     const Value index0 =
@@ -204,8 +206,8 @@ public:
               });
 
           // Compile time branch detection.
-          if (A.getType().cast<MemRefType>().isDynamicDim(0) or
-              A.getType().cast<MemRefType>().getDimSize(0) % affineVectorSize !=
+          if (llvm::cast<MemRefType>(A.getType()).isDynamicDim(0) or
+              llvm::cast<MemRefType>(A.getType()).getDimSize(0) % affineVectorSize !=
                   0) {
             // Depending on the position, use either full vectors or tail
             // vectors.
@@ -264,8 +266,8 @@ public:
     parallelColLoop.getRegion().push_back(loopBody);
     rewriter.setInsertionPointAfter(parallelColLoop);
 
-    if (A.getType().cast<MemRefType>().isDynamicDim(1) or
-        A.getType().cast<MemRefType>().getDimSize(1) % affineVectorSize != 0) {
+    if (llvm::cast<MemRefType>(A.getType()).isDynamicDim(1) or
+        llvm::cast<MemRefType>(A.getType()).getDimSize(1) % affineVectorSize != 0) {
 
       affine::AffineIfOp branchingColUnaligned =
           rewriter.create<affine::AffineIfOp>(
@@ -324,8 +326,8 @@ public:
                 });
           });
 
-      if (A.getType().cast<MemRefType>().isDynamicDim(0) or
-          A.getType().cast<MemRefType>().getDimSize(0) % affineVectorSize !=
+      if (llvm::cast<MemRefType>(A.getType()).isDynamicDim(0) or
+          llvm::cast<MemRefType>(A.getType()).getDimSize(0) % affineVectorSize !=
               0) {
         affine::AffineIfOp branchingRowColUnaligned =
             trueColUnalignedBranchBuilder.create<affine::AffineIfOp>(
@@ -394,9 +396,6 @@ public:
     rewriter.eraseOp(op);
     return success();
   }
-
-private:
-  int64_t affineVectorSize;
 };
 } // end anonymous namespace
 

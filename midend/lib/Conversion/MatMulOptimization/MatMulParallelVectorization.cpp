@@ -72,7 +72,7 @@ public:
     Value C = op->getOperand(2);
 
     // Acquire the element type of input tensors.
-    Type elementType = A.getType().cast<MemRefType>().getElementType();
+    Type elementType = llvm::cast<MemRefType>(A.getType()).getElementType();
 
     // Define constants.
     const Value zeroIndex =
@@ -140,8 +140,8 @@ public:
         ArrayRef<Value>{aRow, bRow}, false, 3, true);
 
     // Compile time branch detection.
-    if (C.getType().cast<MemRefType>().isDynamicDim(1) or
-        C.getType().cast<MemRefType>().getDimSize(1) % affineVectorSize != 0) {
+    if (llvm::cast<ShapedType>(C.getType()).isDynamicDim(1) or
+        llvm::cast<ShapedType>(C.getType()).getDimSize(1) % affineVectorSize != 0) {
 
       // Depending on the position, use either full vectors or tail vectors.
       affine::AffineIfOp branchingOp = rewriter.create<affine::AffineIfOp>(

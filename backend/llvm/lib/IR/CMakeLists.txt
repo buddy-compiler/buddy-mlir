@@ -74,7 +74,6 @@ add_llvm_component_library(LLVMBuddyCore
   ${LLVM_IR_DIR}/User.cpp
   ${LLVM_IR_DIR}/Value.cpp
   ${LLVM_IR_DIR}/ValueSymbolTable.cpp
-  ${LLVM_IR_DIR}/VectorBuilder.cpp
   ${LLVM_IR_DIR}/VectorTypeUtils.cpp
   ${LLVM_IR_DIR}/Verifier.cpp
   ${LLVM_IR_DIR}/VFABIDemangler.cpp

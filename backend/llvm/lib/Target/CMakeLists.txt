@@ -6,7 +6,6 @@ set(LLVM_Target_DIR ${LLVM_MAIN_SRC_DIR}/lib/Target)
 
 add_llvm_component_library(LLVMBuddyTarget
   ${LLVM_Target_DIR}/Target.cpp
-  ${LLVM_Target_DIR}/TargetIntrinsicInfo.cpp
   ${LLVM_Target_DIR}/TargetLoweringObjectFile.cpp
   ${LLVM_Target_DIR}/TargetMachine.cpp
   ${LLVM_Target_DIR}/TargetMachineC.cpp
