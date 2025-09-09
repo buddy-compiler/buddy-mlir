@@ -13,7 +13,7 @@ model.eval()
 input_data = torch.randn([1, 1, 28, 28])
 
 
-dynamo_compiler = DynamoCompiler(primary_registry=tosa.ops_registry, verbose=True)
+dynamo_compiler = DynamoCompiler(primary_registry=tosa.ops_registry)
 with torch.no_grad():
     graphs = dynamo_compiler.importer(model, input_data)
 
