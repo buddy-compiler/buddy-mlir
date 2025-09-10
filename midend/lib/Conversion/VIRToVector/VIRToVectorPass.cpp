@@ -37,15 +37,17 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
+#include "mlir/IR/ValueRange.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
 #include <cstdint>
 
-// Include ARM SEV header for detecting register base width
+// Include ARM SVE header for detecting register base width
 #if defined(__ARM_FEATURE_SVE)
 #include <arm_sve.h>
 #endif
@@ -271,56 +273,250 @@ private:
   bool verbose;
   bool useCustomVecWid;
 
+  /// Recursively search for anchor type within a given Region and its nested
+  Type findAnchorTypeRecursive(Region &region) const {
+    // Check operands and results to find dynamic vector types
+    auto checkValue = [&](Value value) {
+      auto dynVecType = dyn_cast<vir::DynamicVectorType>(value.getType());
+      if (dynVecType) {
+        if (!dynVecType.getScalingFactor()) {
+          return dynVecType.getElementType();
+        }
+      }
+      return Type{};
+    };
+    Type anchorType;
+    for (Block &block : region) {
+      for (Operation &op : block) {
+        for (Value result : op.getResults()) {
+          anchorType = checkValue(result);
+          if (anchorType) {
+            return anchorType;
+          }
+        }
+        // Recursively enter any region included in this operation
+        for (Region &innerRegion : op.getRegions()) {
+          anchorType = findAnchorTypeRecursive(innerRegion);
+          if (anchorType) {
+            return anchorType;
+          }
+        }
+      }
+    }
+    return Type{};
+  }
+
+  /// Recursively lower operations within a given block
+  void lowerBlock(OpBuilder &builder, Location loc, Block *block,
+                  DenseMap<Value, Value> &virSymbolTable, Value mainLoopIV,
+                  Type targetVectorType, bool isTailLoop) const {
+    // find mapped local Value from virSymbolTable or global Value
+    auto findValue = [&virSymbolTable](Value srcValue) {
+      if (virSymbolTable.contains(srcValue)) {
+        return virSymbolTable.lookup(srcValue);
+      }
+      return srcValue;
+    };
+
+    for (Operation &innerOp : block->without_terminator()) {
+      llvm::TypeSwitch<Operation *>(&innerOp)
+          .Case<vir::LoadOp>([&](vir::LoadOp op) {
+            Value base = op.getBase();
+            // the lastest index is dynamic and global
+            Value lastIndex = op.getIndices().back();
+            Value baseOffset =
+                builder.create<arith::AddIOp>(loc, mainLoopIV, lastIndex);
+            auto sourceIndices = op.getIndices();
+            SmallVector<Value> destIndices{};
+            // collect indices for load op
+            for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
+              auto srcOp = sourceIndices[i];
+              Value destOp = findValue(srcOp);
+              destIndices.push_back(destOp);
+            }
+            destIndices.push_back(baseOffset);
+
+            if (isTailLoop) {
+              auto memrefLoadOp =
+                  builder.create<memref::LoadOp>(loc, base, destIndices);
+              virSymbolTable[op.getResult()] = memrefLoadOp.getResult();
+            } else {
+              auto vectorLoadOp = builder.create<vector::LoadOp>(
+                  loc, targetVectorType, base, destIndices);
+              virSymbolTable[op.getResult()] = vectorLoadOp.getResult();
+            }
+          })
+          .Case<vir::StoreOp>([&](vir::StoreOp op) {
+            Value valueToStore = findValue(op.getValue());
+            if (!valueToStore) {
+              op.emitError("value to store not found in symbol table");
+              return;
+            }
+            Value base = op.getBase();
+            // the lastest index is dynamic and global
+            Value lastIndex = op.getIndices().back();
+            Value baseOffset =
+                builder.create<arith::AddIOp>(loc, mainLoopIV, lastIndex);
+            auto sourceIndices = op.getIndices();
+            SmallVector<Value> destIndices{};
+            // collect indices for load op
+            for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
+              auto srcOp = sourceIndices[i];
+              Value destOp = findValue(srcOp);
+              destIndices.push_back(destOp);
+            }
+            destIndices.push_back(baseOffset);
+
+            if (isTailLoop) {
+              builder.create<memref::StoreOp>(loc, valueToStore, base,
+                                              destIndices);
+            } else {
+              builder.create<vector::StoreOp>(loc, valueToStore, base,
+                                              destIndices);
+            }
+          })
+          .Case<vir::ConstantOp>([&](vir::ConstantOp op) {
+            auto constValue = op.getValue();
+            if (isTailLoop) {
+              auto arithConstOp =
+                  builder.create<arith::ConstantOp>(loc, constValue);
+              virSymbolTable[op.getResult()] = arithConstOp.getResult();
+            } else {
+              auto vectorConstAttr = DenseElementsAttr::get(
+                  cast<ShapedType>(targetVectorType), constValue);
+              auto vectorConstOp = builder.create<arith::ConstantOp>(
+                  loc, targetVectorType, vectorConstAttr);
+              virSymbolTable[op.getResult()] = vectorConstOp.getResult();
+            }
+          })
+          .Case<vir::BroadcastOp>([&](vir::BroadcastOp op) {
+            Value scalarValue = findValue(op.getValue());
+            if (isTailLoop) {
+              virSymbolTable[op.getResult()] = scalarValue;
+            } else {
+              auto vectorBroadcastOp = builder.create<vector::BroadcastOp>(
+                  loc, targetVectorType, scalarValue);
+              virSymbolTable[op.getResult()] = vectorBroadcastOp.getResult();
+            }
+          })
+          .Case<vir::FMAOp>([&](vir::FMAOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            Value acc = findValue(op.getAcc());
+            if (!lhs || !rhs || !acc) {
+              op.emitError("FMA operands not found in symbol table");
+              return;
+            }
+            if (isTailLoop) {
+              auto mulResult = builder.create<arith::MulFOp>(loc, lhs, rhs);
+              auto addResult =
+                  builder.create<arith::AddFOp>(loc, mulResult, acc);
+              virSymbolTable[op.getResult()] = addResult;
+            } else {
+              auto vectorFMAOp =
+                  builder.create<vector::FMAOp>(loc, lhs, rhs, acc);
+              virSymbolTable[op.getResult()] = vectorFMAOp.getResult();
+            }
+          })
+          .Case<affine::AffineForOp>([&](affine::AffineForOp op) {
+            // Find the corresponding values of the initial iteration parameters
+            // of the loop in the symbol table
+            SmallVector<Value> initialIterArgs;
+            for (Value arg : op.getInits()) {
+              Value mappedArg = findValue(arg);
+              if (!mappedArg) {
+                op.emitError("initial iter_arg not found in symbol table");
+                return;
+              }
+              initialIterArgs.push_back(mappedArg);
+            }
+
+            // create a new affine.for
+            auto newForOp = builder.create<affine::AffineForOp>(
+                loc, ValueRange(op.getLowerBoundOperands()),
+                op.getLowerBoundMap(), ValueRange(op.getUpperBoundOperands()),
+                op.getUpperBoundMap(), op.getStep().getLimitedValue(),
+                ValueRange(initialIterArgs),
+                [&](OpBuilder &b, Location bodyLoc, Value iv,
+                    ValueRange iterArgs) {
+                  // Create a new internal symbol table within the loop body
+                  DenseMap<Value, Value> innerSymbolTable(virSymbolTable);
+
+                  // Mapping Inductive Variable
+                  innerSymbolTable[op.getInductionVar()] = iv;
+
+                  // Map loop iteration parameters
+                  for (auto it : llvm::zip(op.getRegionIterArgs(), iterArgs)) {
+                    innerSymbolTable[std::get<0>(it)] = std::get<1>(it);
+                  }
+
+                  // Recursive reduction of blocks inside the loop body
+                  lowerBlock(b, bodyLoc, op.getBody(), innerSymbolTable,
+                             mainLoopIV, targetVectorType, isTailLoop);
+
+                  // Process the termination symbol (affine. field) of the loop
+                  // body
+                  Operation *terminator = op.getBody()->getTerminator();
+                  if (auto yieldOp =
+                          dyn_cast<affine::AffineYieldOp>(terminator)) {
+                    SmallVector<Value> yieldOperands;
+                    for (Value operand : yieldOp.getOperands()) {
+                      Value mappedOperand = innerSymbolTable.lookup(operand);
+                      if (!mappedOperand) {
+                        terminator->emitError(
+                            "yield operand not found in inner symbol table");
+                        return;
+                      }
+                      yieldOperands.push_back(mappedOperand);
+                    }
+                    b.create<affine::AffineYieldOp>(bodyLoc, yieldOperands);
+                  }
+                });
+
+            // Register the results of the newly created loop in the external
+            // symbol table
+            for (auto it : llvm::zip(op.getResults(), newForOp.getResults())) {
+              virSymbolTable[std::get<0>(it)] = std::get<1>(it);
+            }
+          })
+          .Case<affine::AffineYieldOp, vector::YieldOp>([&](Operation *) {
+            // During recursive descent, these terminators are handled by their
+            // parent operations (such as affine. for). We will ignore them
+            // directly here.
+          })
+          .Case<memref::LoadOp>([&](memref::LoadOp op) {
+            // This operation is scalar loading and should be copied as is, but
+            // its operands may need to be remapped from the symbol table.
+            Value base = findValue(op.getMemRef());
+            if (!base)
+              base = op.getMemRef(); // If not mapped, use the original value
+
+            SmallVector<Value> indices;
+            for (Value index : op.getIndices()) {
+              Value mappedIndex = findValue(index);
+              indices.push_back(mappedIndex);
+            }
+
+            auto newLoadOp = builder.create<memref::LoadOp>(loc, base, indices);
+            virSymbolTable[op.getResult()] = newLoadOp.getResult();
+          })
+          .Default([&](Operation *op) {
+            emitWarning(loc, "Unsupported operation during lowering: " +
+                                 op->getName().getStringRef());
+          });
+    }
+  }
+
   LogicalResult
   matchAndRewrite(vir::SetVLOp op, vir::SetVLOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
 
     //===------------------------------------------------------------------===//
-    // Step 1: Find the anchor type from dynamic vector types.
+    // Step 1: Recursive search for anchor type.
     //===------------------------------------------------------------------===//
-    // Iterate through every operation, if any variable has !vir.vec<?xT> type
-    // without scaling factor, then define the element type of this type as
-    // anchor type.
-    Type anchorType = nullptr;
-
     Region &region = op.getRegion();
-    Block &block = region.front();
-
-    for (Operation &innerOp : block) {
-      // Check all operands of the operation.
-      for (Value operand : innerOp.getOperands()) {
-        Type operandType = operand.getType();
-        if (auto dynVecType = dyn_cast<vir::DynamicVectorType>(operandType)) {
-          // Check if there is a scaling factor.
-          if (!dynVecType.getScalingFactor()) {
-            // No scaling factor, define the element type as anchor type.
-            anchorType = dynVecType.getElementType();
-            break;
-          }
-        }
-      }
-
-      // Check all results of the operation.
-      for (Value result : innerOp.getResults()) {
-        Type resultType = result.getType();
-        if (auto dynVecType = dyn_cast<vir::DynamicVectorType>(resultType)) {
-          // Check if there is a scaling factor.
-          if (!dynVecType.getScalingFactor()) {
-            // No scaling factor, define the element type as anchor type.
-            anchorType = dynVecType.getElementType();
-            break;
-          }
-        }
-      }
-
-      // If anchor type is found, we can exit the loop early.
-      if (anchorType) {
-        break;
-      }
-    }
-
-    // Check if anchor type was found
+    Type anchorType = findAnchorTypeRecursive(region);
     if (!anchorType) {
       return op.emitError(
           "No anchor type found in the dynamic vector region. "
@@ -329,8 +525,9 @@ private:
     }
 
     //===------------------------------------------------------------------===//
-    // Step 2: Construct target vector type based on pass options.
+    // Step 2: Construct the target vector type.
     //===------------------------------------------------------------------===//
+
     int vectorWid = vectorWidth; // Dynamic defined vector width
     VectorType targetVectorType;
     if (useCustomVecWid) {
@@ -354,11 +551,9 @@ private:
     }
 
     //===------------------------------------------------------------------===//
-    // Step 3: Calculate loop bounds and create vectorization loop.
+    // Step 3: Create a main vectorization loop.
     //===------------------------------------------------------------------===//
-    // Get the vector length value from SetVLOp.
     Value vlValue = op.getVl();
-
     // Calculate the upper bound for vectorized loop.
     // vl_upbound = (vl_total - vl_step) + 1
     Value vlStep = rewriter.create<arith::ConstantIndexOp>(loc, vectorWid);
@@ -366,264 +561,54 @@ private:
     Value vlUpbound = rewriter.create<arith::AddIOp>(
         loc, vlUpboundPat, rewriter.create<arith::ConstantIndexOp>(loc, 1));
 
-    // Create identity affine map (d0) -> d0 for dynamic bounds.
-    MLIRContext *ctx = rewriter.getContext();
-    AffineMap identityMap =
-        AffineMap::get(1, 0, {rewriter.getAffineDimExpr(0)}, ctx);
-
-    // Create constant 0 for lower bound.
+    // To avoid possible overflow calculations such as' (vl-1)/step * step+step
+    // ', We directly set the upper bound of the loop to vl, and then process
+    // the remainder in the tail loop. The number of iterations in the main loop
+    // is vl / step
     Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
 
     // Create affine for loop with iteration variable.
-    auto affineForOp = rewriter.create<affine::AffineForOp>(
-        loc, ValueRange{zero}, identityMap, // Lower bound: 0
-        ValueRange{vlUpbound}, identityMap, // Upper bound: vlUpbound
-        vectorWid,                          // Step size
-        /*iterArgs=*/ValueRange{zero},      // Initial iteration value: 0
-        [&](OpBuilder &rewriter, Location loc, Value iv, ValueRange iterArgs) {
+    auto mainloop = rewriter.create<affine::AffineForOp>(
+        loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
+        /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
+        vectorWid,
+        /*iterArgs=*/std::nullopt,
+        [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
           //===--------------------------------------------------------------===//
           // Step 4: Convert operations inside the dynamic vector region.
           //===--------------------------------------------------------------===//
           // Symbol table: maps dynamic vector values to fixed / scalable vector
           // values.
-          DenseMap<Value, Value> symbolTable;
-
-          // Pre-allocate symbol table capacity for better performance
-          symbolTable.reserve(block.getOperations().size());
-
-          // Iterate through all operations in the block.
-          for (Operation &innerOp : block) {
-            if (isa<vir::LoadOp>(innerOp)) {
-              // Convert `vir::LoadOp` to `vector::LoadOp`.
-              auto virLoadOp = cast<vir::LoadOp>(innerOp);
-              auto base = virLoadOp.getBase();
-              Value baseOffset;
-              auto firstIndex = virLoadOp.getIndices().front();
-              // Calculate base offset based on index value.
-              if (auto constOp =
-                      firstIndex.getDefiningOp<arith::ConstantIndexOp>()) {
-                if (constOp.value() == 0) {
-                  // If index is 0, use loop induction variable directly.
-                  baseOffset = iv;
-                } else {
-                  // If index is non-zero constant, add it to loop induction
-                  // variable.
-                  baseOffset =
-                      rewriter.create<arith::AddIOp>(loc, iv, firstIndex);
-                }
-              } else {
-                // If index is not a constant, add it to loop induction
-                // variable.
-                baseOffset =
-                    rewriter.create<arith::AddIOp>(loc, iv, firstIndex);
-              }
-
-              auto vectorLoadOp = rewriter.create<vector::LoadOp>(
-                  loc, targetVectorType, base, baseOffset);
-              // Record result mapping in symbol table.
-              symbolTable[virLoadOp.getResult()] = vectorLoadOp.getResult();
-            } else if (isa<vir::StoreOp>(innerOp)) {
-              // Convert `vir::StoreOp` to `vector::StoreOp`.
-              auto virStoreOp = cast<vir::StoreOp>(innerOp);
-              auto valueToStoreOrig = virStoreOp.getValue();
-              auto valueToStore = symbolTable[valueToStoreOrig];
-              auto base = virStoreOp.getBase();
-              Value baseOffset;
-              auto firstIndex = virStoreOp.getIndices().front();
-              // Calculate base offset based on index value.
-              if (auto constOp =
-                      firstIndex.getDefiningOp<arith::ConstantIndexOp>()) {
-                if (constOp.value() == 0) {
-                  // If index is 0, use loop induction variable directly.
-                  baseOffset = iv;
-                } else {
-                  // If index is non-zero constant, add it to loop induction
-                  // variable.
-                  baseOffset =
-                      rewriter.create<arith::AddIOp>(loc, iv, firstIndex);
-                }
-              } else {
-                // If index is not a constant, add it to loop induction
-                // variable.
-                baseOffset =
-                    rewriter.create<arith::AddIOp>(loc, iv, firstIndex);
-              }
-
-              rewriter.create<vector::StoreOp>(loc, valueToStore, base,
-                                               baseOffset);
-            } else if (isa<vir::ConstantOp>(innerOp)) {
-              // Convert `vir::ConstantOp` to `arith::ConstantOp` with vector
-              // type.
-              auto virConstOp = cast<vir::ConstantOp>(innerOp);
-              auto constValue = virConstOp.getValue();
-
-              // Create vector constant using DenseElementsAttr
-              auto vectorConstAttr = DenseElementsAttr::get(
-                  cast<ShapedType>(targetVectorType), constValue);
-              auto vectorConstOp = rewriter.create<arith::ConstantOp>(
-                  loc, targetVectorType, vectorConstAttr);
-
-              // Record result mapping in symbol table.
-              symbolTable[virConstOp.getResult()] = vectorConstOp.getResult();
-            } else if (isa<vir::BroadcastOp>(innerOp)) {
-              // Convert `vir::BroadcastOp` to `vector::BroadcastOp`.
-              auto virBroadcastOp = cast<vir::BroadcastOp>(innerOp);
-              auto scalarValue = virBroadcastOp.getValue();
-
-              // Create vector broadcast to convert scalar to vector
-              auto vectorBroadcastOp = rewriter.create<vector::BroadcastOp>(
-                  loc, targetVectorType, scalarValue);
-
-              // Record result mapping in symbol table.
-              symbolTable[virBroadcastOp.getResult()] =
-                  vectorBroadcastOp.getResult();
-            } else if (isa<vir::FMAOp>(innerOp)) {
-              // Convert `vir::FMAOp` to `vector::FMAOp`.
-              auto virFMAOp = cast<vir::FMAOp>(innerOp);
-              auto lhsValue = symbolTable[virFMAOp.getLhs()];
-              auto rhsValue = symbolTable[virFMAOp.getRhs()];
-              auto accValue = symbolTable[virFMAOp.getAcc()];
-
-              // Create vector FMA operation
-              auto vectorFMAOp = rewriter.create<vector::FMAOp>(
-                  loc, lhsValue, rhsValue, accValue);
-
-              // Record result mapping in symbol table.
-              symbolTable[virFMAOp.getResult()] = vectorFMAOp.getResult();
-            } else {
-              // Emit warning for unsupported operations.
-              emitWarning(loc, "Unsupported operation: " +
-                                   innerOp.getName().getStringRef());
-            }
-          }
-
-          // Calculate next iteration value: `i_next = i + vl_step`.
-          Value iNext = rewriter.create<arith::AddIOp>(loc, iv, vlStep);
-
-          // Yield the next iteration value.
-          rewriter.create<mlir::affine::AffineYieldOp>(loc, iNext);
+          DenseMap<Value, Value> virSymbolTable;
+          // Initiate recursive descent process on top-level blocks (vectorized
+          // mode)
+          lowerBlock(b, bodyLoc, &region.front(), virSymbolTable, iv,
+                     targetVectorType, /*isTailLoop=*/false);
+          b.create<affine::AffineYieldOp>(bodyLoc);
         });
 
-    // Get the final iteration value from the affine loop.
-    Value finalIterValue = affineForOp.getResult(0);
+    //===------------------------------------------------------------------===//
+    // Step 4: Create a tail loop to process the remaining elements.
+    //===------------------------------------------------------------------===//
+    // The starting point of the tail loop is where the main loop ends.
+    // vl - (vl % step)
+    Value vlRem = rewriter.create<arith::RemSIOp>(loc, vlValue, vlStep);
+    Value tailStart = rewriter.create<arith::SubIOp>(loc, vlValue, vlRem);
 
-    //===------------------------------------------------------------------===//
-    // Step 5: Create tail loop for remaining elements.
-    //===------------------------------------------------------------------===//
-    // Process the remainder of the elements with scalar operations.
     rewriter.create<affine::AffineForOp>(
-        loc, ValueRange{finalIterValue},
-        identityMap,                      // Start from final iter value
-        ValueRange{vlValue}, identityMap, // End at vlValue
-        1,                                // Step by 1
+        loc, /*lowerBound=*/ValueRange{tailStart}, rewriter.getDimIdentityMap(),
+        /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
+        /*step=*/1,
         /*iterArgs=*/std::nullopt,
-        [&](OpBuilder &rewriter, Location loc, Value iv, ValueRange iterArgs) {
-          //===------------------------------------------------------------===//
-          // Step 6: Convert operations to scalar operations for tail loop.
-          //===------------------------------------------------------------===//
-          // Symbol table: maps dynamic vector values to scalar values.
-          DenseMap<Value, Value> symbolTable;
-
-          // Pre-allocate symbol table capacity for better performance
-          symbolTable.reserve(block.getOperations().size());
-
-          for (Operation &innerOp : block) {
-            if (isa<vir::LoadOp>(innerOp)) {
-              // Convert `vir::LoadOp` to `memref::LoadOp` (scalar).
-              auto virLoadOp = cast<vir::LoadOp>(innerOp);
-              auto base = virLoadOp.getBase();
-              Value baseOffset;
-              auto firstIndex = virLoadOp.getIndices().front();
-
-              // Calculate base offset based on index value.
-              if (auto constOp =
-                      firstIndex.getDefiningOp<arith::ConstantIndexOp>()) {
-                if (constOp.value() == 0) {
-                  baseOffset = iv;
-                } else {
-                  baseOffset =
-                      rewriter.create<arith::AddIOp>(loc, iv, firstIndex);
-                }
-              } else {
-                baseOffset =
-                    rewriter.create<arith::AddIOp>(loc, iv, firstIndex);
-              }
-
-              auto memrefLoadOp =
-                  rewriter.create<memref::LoadOp>(loc, base, baseOffset);
-              symbolTable[virLoadOp.getResult()] = memrefLoadOp.getResult();
-            } else if (isa<vir::StoreOp>(innerOp)) {
-              // Convert `vir::StoreOp` to `memref::StoreOp` (scalar).
-              auto virStoreOp = cast<vir::StoreOp>(innerOp);
-              auto valueToStoreOrig = virStoreOp.getValue();
-              auto valueToStore = symbolTable[valueToStoreOrig];
-              auto base = virStoreOp.getBase();
-              Value baseOffset;
-              auto firstIndex = virStoreOp.getIndices().front();
-
-              // Calculate base offset based on index value.
-              if (auto constOp =
-                      firstIndex.getDefiningOp<arith::ConstantIndexOp>()) {
-                if (constOp.value() == 0) {
-                  baseOffset = iv;
-                } else {
-                  baseOffset =
-                      rewriter.create<arith::AddIOp>(loc, iv, firstIndex);
-                }
-              } else {
-                baseOffset =
-                    rewriter.create<arith::AddIOp>(loc, iv, firstIndex);
-              }
-
-              rewriter.create<memref::StoreOp>(loc, valueToStore, base,
-                                               baseOffset);
-            } else if (isa<vir::ConstantOp>(innerOp)) {
-              // Convert `vir::ConstantOp` to `arith::ConstantOp` (scalar).
-              auto virConstOp = cast<vir::ConstantOp>(innerOp);
-              auto constValue = virConstOp.getValue();
-
-              // Create arith constant with the scalar value
-              auto arithConstOp =
-                  rewriter.create<arith::ConstantOp>(loc, constValue);
-
-              // Record result mapping in symbol table.
-              symbolTable[virConstOp.getResult()] = arithConstOp.getResult();
-            } else if (isa<vir::BroadcastOp>(innerOp)) {
-              // Convert `vir::BroadcastOp` to scalar value
-              // (no broadcast needed in tail loop).
-              auto virBroadcastOp = cast<vir::BroadcastOp>(innerOp);
-              auto scalarValue = virBroadcastOp.getValue();
-
-              // In tail loop, we just use the scalar value directly
-              symbolTable[virBroadcastOp.getResult()] = scalarValue;
-            } else if (isa<vir::FMAOp>(innerOp)) {
-              // Convert `vir::FMAOp` to scalar FMA operation in tail loop.
-              auto virFMAOp = cast<vir::FMAOp>(innerOp);
-              auto lhsValue = symbolTable[virFMAOp.getLhs()];
-              auto rhsValue = symbolTable[virFMAOp.getRhs()];
-              auto accValue = symbolTable[virFMAOp.getAcc()];
-
-              // Create scalar FMA operation using arith::AddFOp and
-              // arith::MulFOp since we need to handle scalar operations in tail
-              // loop
-              auto mulResult =
-                  rewriter.create<arith::MulFOp>(loc, lhsValue, rhsValue);
-              auto addResult =
-                  rewriter.create<arith::AddFOp>(loc, mulResult, accValue);
-
-              // Record result mapping in symbol table.
-              symbolTable[virFMAOp.getResult()] = addResult;
-            } else {
-              // Emit warning for unsupported operations.
-              emitWarning(loc, "Unsupported operation: " +
-                                   innerOp.getName().getStringRef());
-            }
-          }
-
-          rewriter.create<affine::AffineYieldOp>(loc);
+        [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
+          DenseMap<Value, Value> virSymbolTable;
+          // Initiate recursive descent process on top-level blocks (scalar
+          // mode)
+          lowerBlock(b, bodyLoc, &region.front(), virSymbolTable, iv,
+                     /*targetVectorType=*/nullptr, /*isTailLoop=*/true);
+          b.create<affine::AffineYieldOp>(bodyLoc);
         });
 
-    // Erase the original `SetVLOp`.
     rewriter.eraseOp(op);
     return success();
   }
