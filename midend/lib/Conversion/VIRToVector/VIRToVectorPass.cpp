@@ -47,7 +47,7 @@
 #include "llvm/TargetParser/Host.h"
 #include <cstdint>
 
-// Include ARM SEV header for detecting register base width
+// Include ARM SVE header for detecting register base width
 #if defined(__ARM_FEATURE_SVE)
 #include <arm_sve.h>
 #endif
