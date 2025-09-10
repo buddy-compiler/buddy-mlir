@@ -22,10 +22,10 @@ add_custom_command(
   COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
-            -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize="bufferize-function-boundaries"
+            -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
@@ -34,13 +34,13 @@ add_custom_command(
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
-            -convert-scf-to-openmp
             -convert-vector-to-scf
-            -expand-strided-metadata
             -lower-affine
-            -convert-vector-to-llvm
+            -convert-scf-to-openmp
+            -cse
             -memref-expand
             -arith-expand
+            -convert-vector-to-llvm
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
@@ -65,11 +65,11 @@ add_custom_command(
     COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             ${BUDDY_BINARY_DIR}/buddy-opt
-            -convert-elementwise-to-linalg
-            -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
+            -convert-elementwise-to-linalg
             -one-shot-bufferize="bufferize-function-boundaries"
+            -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
@@ -78,16 +78,14 @@ add_custom_command(
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
+            -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp
             -func-bufferize-dynamic-offset
-            -convert-vector-to-scf
-            -expand-strided-metadata
-            -lower-affine
             -cse
-            -convert-vector-to-llvm
             -memref-expand
             -arith-expand
+            -convert-vector-to-llvm
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
@@ -112,10 +110,10 @@ add_custom_command(
   COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-f16.mlir
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
-            -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -one-shot-bufferize="bufferize-function-boundaries"
+            -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
@@ -124,13 +122,13 @@ add_custom_command(
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
-            -convert-scf-to-openmp
             -convert-vector-to-scf
-            -expand-strided-metadata
             -lower-affine
-            -convert-vector-to-llvm
+            -convert-scf-to-openmp
+            -cse
             -memref-expand
             -arith-expand
+            -convert-vector-to-llvm
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
@@ -155,11 +153,11 @@ add_custom_command(
     COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-f16.mlir
               -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
             ${BUDDY_BINARY_DIR}/buddy-opt
-            -convert-elementwise-to-linalg
-            -arith-expand
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
+            -convert-elementwise-to-linalg
             -one-shot-bufferize="bufferize-function-boundaries"
+            -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
@@ -168,16 +166,14 @@ add_custom_command(
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
+            -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp
             -func-bufferize-dynamic-offset
-            -convert-vector-to-scf
-            -expand-strided-metadata
-            -lower-affine
             -cse
-            -convert-vector-to-llvm
             -memref-expand
             -arith-expand
+            -convert-vector-to-llvm
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
