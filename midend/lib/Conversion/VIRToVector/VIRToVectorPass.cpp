@@ -273,63 +273,47 @@ private:
   bool verbose;
   bool useCustomVecWid;
 
-  /// @brief Recursively search for anchor types within a Region and its nested
-  /// Regions
-  /// @param region The region to search for
-  /// @param anchorType Used to store references of found anchor types
-  /// @return If the anchor type is found, return true
-  bool findAnchorTypeRecursive(Region &region, Type &anchorType) const {
-    if (anchorType)
-      return true; // If found, exit early
-
+  /// Recursively search for anchor type within a given Region and its nested
+  Type findAnchorTypeRecursive(Region &region) const {
+    // Check operands and results to find dynamic vector types
+    auto checkValue = [&](Value value) {
+      auto dynVecType = dyn_cast<vir::DynamicVectorType>(value.getType());
+      if (dynVecType) {
+        if (!dynVecType.getScalingFactor()) {
+          return dynVecType.getElementType();
+        }
+      }
+      return Type{};
+    };
+    Type anchorType;
     for (Block &block : region) {
       for (Operation &op : block) {
-        // Check operands and results to find dynamic vector types
-        auto checkValue = [&](Value value) {
-          if (auto dynVecType =
-                  dyn_cast<vir::DynamicVectorType>(value.getType())) {
-            if (!dynVecType.getScalingFactor()) {
-              anchorType = dynVecType.getElementType();
-              return true;
-            }
+        for (Value result : op.getResults()) {
+          anchorType = checkValue(result);
+          if (anchorType) {
+            return anchorType;
           }
-          return false;
-        };
-
-        for (Value operand : op.getOperands())
-          if (checkValue(operand))
-            return true;
-        for (Value result : op.getResults())
-          if (checkValue(result))
-            return true;
-
+        }
         // Recursively enter any region included in this operation
         for (Region &innerRegion : op.getRegions()) {
-          if (findAnchorTypeRecursive(innerRegion, anchorType))
-            return true;
+          anchorType = findAnchorTypeRecursive(innerRegion);
+          if (anchorType) {
+            return anchorType;
+          }
         }
       }
     }
-    return false;
+    return Type{};
   }
 
-  /// @brief Recursively reducing operations within a block
-  /// @param builder OpBuilder for creating new operations
-  /// @param loc The current location
-  /// @param block  Block to lower
-  /// @param symbolTable Symbol table, used to map old values to new values
-  /// @param mainLoopIV Inductive variable (IV) of the main quantization loop
-  /// @param targetVectorType The target vector type can be null ptr for tail
-  /// loops
-  /// @param isTailLoop Flag, indicating whether the tail loop is currently
-  /// being processed (generating scalar code)
+  /// Recursively lower operations within a given block
   void lowerBlock(OpBuilder &builder, Location loc, Block *block,
-                  DenseMap<Value, Value> &symbolTable, Value mainLoopIV,
+                  DenseMap<Value, Value> &virSymbolTable, Value mainLoopIV,
                   Type targetVectorType, bool isTailLoop) const {
-    // find mapped local Value from symbolTable or global Value
-    auto findValue = [&symbolTable](Value srcValue) {
-      if (symbolTable.contains(srcValue)) {
-        return symbolTable.lookup(srcValue);
+    // find mapped local Value from virSymbolTable or global Value
+    auto findValue = [&virSymbolTable](Value srcValue) {
+      if (virSymbolTable.contains(srcValue)) {
+        return virSymbolTable.lookup(srcValue);
       }
       return srcValue;
     };
@@ -345,7 +329,7 @@ private:
             auto sourceIndices = op.getIndices();
             SmallVector<Value> destIndices{};
             // collect indices for load op
-            for (size_t i = 0; i < sourceIndices.size() - 1; i++) {
+            for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
               auto srcOp = sourceIndices[i];
               Value destOp = findValue(srcOp);
               destIndices.push_back(destOp);
@@ -355,11 +339,11 @@ private:
             if (isTailLoop) {
               auto memrefLoadOp =
                   builder.create<memref::LoadOp>(loc, base, destIndices);
-              symbolTable[op.getResult()] = memrefLoadOp.getResult();
+              virSymbolTable[op.getResult()] = memrefLoadOp.getResult();
             } else {
               auto vectorLoadOp = builder.create<vector::LoadOp>(
                   loc, targetVectorType, base, destIndices);
-              symbolTable[op.getResult()] = vectorLoadOp.getResult();
+              virSymbolTable[op.getResult()] = vectorLoadOp.getResult();
             }
           })
           .Case<vir::StoreOp>([&](vir::StoreOp op) {
@@ -376,7 +360,7 @@ private:
             auto sourceIndices = op.getIndices();
             SmallVector<Value> destIndices{};
             // collect indices for load op
-            for (size_t i = 0; i < sourceIndices.size() - 1; i++) {
+            for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
               auto srcOp = sourceIndices[i];
               Value destOp = findValue(srcOp);
               destIndices.push_back(destOp);
@@ -396,23 +380,23 @@ private:
             if (isTailLoop) {
               auto arithConstOp =
                   builder.create<arith::ConstantOp>(loc, constValue);
-              symbolTable[op.getResult()] = arithConstOp.getResult();
+              virSymbolTable[op.getResult()] = arithConstOp.getResult();
             } else {
               auto vectorConstAttr = DenseElementsAttr::get(
                   cast<ShapedType>(targetVectorType), constValue);
               auto vectorConstOp = builder.create<arith::ConstantOp>(
                   loc, targetVectorType, vectorConstAttr);
-              symbolTable[op.getResult()] = vectorConstOp.getResult();
+              virSymbolTable[op.getResult()] = vectorConstOp.getResult();
             }
           })
           .Case<vir::BroadcastOp>([&](vir::BroadcastOp op) {
             Value scalarValue = findValue(op.getValue());
             if (isTailLoop) {
-              symbolTable[op.getResult()] = scalarValue;
+              virSymbolTable[op.getResult()] = scalarValue;
             } else {
               auto vectorBroadcastOp = builder.create<vector::BroadcastOp>(
                   loc, targetVectorType, scalarValue);
-              symbolTable[op.getResult()] = vectorBroadcastOp.getResult();
+              virSymbolTable[op.getResult()] = vectorBroadcastOp.getResult();
             }
           })
           .Case<vir::FMAOp>([&](vir::FMAOp op) {
@@ -427,11 +411,11 @@ private:
               auto mulResult = builder.create<arith::MulFOp>(loc, lhs, rhs);
               auto addResult =
                   builder.create<arith::AddFOp>(loc, mulResult, acc);
-              symbolTable[op.getResult()] = addResult;
+              virSymbolTable[op.getResult()] = addResult;
             } else {
               auto vectorFMAOp =
                   builder.create<vector::FMAOp>(loc, lhs, rhs, acc);
-              symbolTable[op.getResult()] = vectorFMAOp.getResult();
+              virSymbolTable[op.getResult()] = vectorFMAOp.getResult();
             }
           })
           .Case<affine::AffineForOp>([&](affine::AffineForOp op) {
@@ -456,7 +440,7 @@ private:
                 [&](OpBuilder &b, Location bodyLoc, Value iv,
                     ValueRange iterArgs) {
                   // Create a new internal symbol table within the loop body
-                  DenseMap<Value, Value> innerSymbolTable(symbolTable);
+                  DenseMap<Value, Value> innerSymbolTable(virSymbolTable);
 
                   // Mapping Inductive Variable
                   innerSymbolTable[op.getInductionVar()] = iv;
@@ -492,7 +476,7 @@ private:
             // Register the results of the newly created loop in the external
             // symbol table
             for (auto it : llvm::zip(op.getResults(), newForOp.getResults())) {
-              symbolTable[std::get<0>(it)] = std::get<1>(it);
+              virSymbolTable[std::get<0>(it)] = std::get<1>(it);
             }
           })
           .Case<affine::AffineYieldOp, vector::YieldOp>([&](Operation *) {
@@ -514,7 +498,7 @@ private:
             }
 
             auto newLoadOp = builder.create<memref::LoadOp>(loc, base, indices);
-            symbolTable[op.getResult()] = newLoadOp.getResult();
+            virSymbolTable[op.getResult()] = newLoadOp.getResult();
           })
           .Default([&](Operation *op) {
             emitWarning(loc, "Unsupported operation during lowering: " +
@@ -531,9 +515,9 @@ private:
     //===------------------------------------------------------------------===//
     // Step 1: Recursive search for anchor type.
     //===------------------------------------------------------------------===//
-    Type anchorType = nullptr;
     Region &region = op.getRegion();
-    if (!findAnchorTypeRecursive(region, anchorType) || !anchorType) {
+    Type anchorType = findAnchorTypeRecursive(region);
+    if (!anchorType) {
       return op.emitError(
           "No anchor type found in the dynamic vector region. "
           "Ensure there are operations with !vir.vec<?xT> types "
@@ -595,10 +579,10 @@ private:
           //===--------------------------------------------------------------===//
           // Symbol table: maps dynamic vector values to fixed / scalable vector
           // values.
-          DenseMap<Value, Value> symbolTable;
+          DenseMap<Value, Value> virSymbolTable;
           // Initiate recursive descent process on top-level blocks (vectorized
           // mode)
-          lowerBlock(b, bodyLoc, &region.front(), symbolTable, iv,
+          lowerBlock(b, bodyLoc, &region.front(), virSymbolTable, iv,
                      targetVectorType, /*isTailLoop=*/false);
           b.create<affine::AffineYieldOp>(bodyLoc);
         });
@@ -617,10 +601,10 @@ private:
         /*step=*/1,
         /*iterArgs=*/std::nullopt,
         [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
-          DenseMap<Value, Value> symbolTable;
+          DenseMap<Value, Value> virSymbolTable;
           // Initiate recursive descent process on top-level blocks (scalar
           // mode)
-          lowerBlock(b, bodyLoc, &region.front(), symbolTable, iv,
+          lowerBlock(b, bodyLoc, &region.front(), virSymbolTable, iv,
                      /*targetVectorType=*/nullptr, /*isTailLoop=*/true);
           b.create<affine::AffineYieldOp>(bodyLoc);
         });
