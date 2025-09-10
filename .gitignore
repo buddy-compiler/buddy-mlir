@@ -1,5 +1,6 @@
 # Nested build directory
 /build*
+/cmake-build*
 
 # vscode configurations
 /.vscode
@@ -15,3 +16,6 @@
 
 # Clangd configurations
 .clangd
+
+# Python packages
+*.egg-info/

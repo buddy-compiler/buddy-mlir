@@ -22,7 +22,7 @@ from typing import Tuple
 import functools
 from mlir.dialects import func, memref
 from mlir import ir
-from ..graph import FuncOp, CallOp, PlaceholderOp
+from ..graph.operation import FuncOp, CallOp, PlaceholderOp
 from .utils import *
 
 

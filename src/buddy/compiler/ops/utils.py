@@ -21,7 +21,7 @@
 from typing import Dict
 import mlir.ir as ir
 
-from ..graph import TensorDType
+from ..graph.graph import TensorDType
 
 
 def mlir_element_type_get(type_name):

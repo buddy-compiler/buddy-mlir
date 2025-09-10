@@ -26,8 +26,8 @@ import sys
 import mlir.ir as ir
 from mlir.dialects import tensor, tosa, arith, linalg, math
 
-from ..graph import TensorDType
-from ..graph import (
+from ..graph.graph import TensorDType
+from ..graph.operation import (
     AddOp,
     PermuteOp,
     AddMMOp,

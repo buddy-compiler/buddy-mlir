@@ -42,9 +42,9 @@ from .ops.linalg import ops_registry as linalg_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.math import ops_registry as math_ops_registry
 from .ops.func import ops_registry as func_ops_registry
-from .graph import Graph, TensorDType, TensorMeta
+from .graph.graph import Graph, TensorDType, TensorMeta
 from .graph.operation import *
-from .graph.transform import maxpool2d_simplify
+from .graph.transform.useless_op_eliminate import maxpool2d_simplify
 from .graph.type import *
 
 
@@ -494,7 +494,7 @@ class DynamoCompiler:
         lib_extension = get_lib_extension()
         lib_names = ["libmlir_runner_utils", "libmlir_c_runner_utils", "libomp"]
         path_prefix = os.path.dirname(os.path.abspath(__file__))
-        lib_base_path = os.path.join(path_prefix, "../../../../llvm/build/lib/")
+        lib_base_path = os.path.join(path_prefix, "../../../llvm/build/lib/")
         lib_base_path = os.path.abspath(lib_base_path)
         shared_libs = [
             os.path.join(lib_base_path, lib_name + lib_extension)

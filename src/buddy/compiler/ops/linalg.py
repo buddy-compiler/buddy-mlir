@@ -26,7 +26,7 @@ import copy, array, sys
 import numpy
 import functools
 
-from ..graph import *
+from ..graph.operation import *
 from ..graph.graph import TensorDType
 from .utils import *
 
