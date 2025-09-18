@@ -77,7 +77,6 @@ config.excludes = [
     "BuddyPython",
     "BuddyResNet18",
     "BuddyGraph",
-    "BuddyDeepSeekR1",
 ]
 
 config.buddy_tools_dir = os.path.join(config.buddy_obj_root, "bin")
