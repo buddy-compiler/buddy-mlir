@@ -57,7 +57,6 @@ declare_mlir_dialect_python_bindings(
     dialects/rvv.py
   DIALECT_NAME rvv)
 
-
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/buddy_mlir"
@@ -65,6 +64,14 @@ declare_mlir_dialect_python_bindings(
   SOURCES
     dialects/vector_exp.py
   DIALECT_NAME vector_exp)
+
+declare_mlir_dialect_python_bindings(
+  ADD_TO_PARENT BuddyMLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/buddy_mlir"
+  TD_FILE dialects/VIRBinding.td
+  SOURCES
+    dialects/vir.py
+  DIALECT_NAME vir)
 
 ################################################################################
 # Python extensions.
