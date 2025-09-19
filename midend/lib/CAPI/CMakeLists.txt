@@ -28,6 +28,8 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   BuddyGemminiTransforms
   BuddyRVV
   BuddyRVVTransforms
+  # TODO: naming consistancy
+  VIR
   VectorExp
   BuddyMLIRInitAll
   BuddyToLLVMIRTranslationRegistration
