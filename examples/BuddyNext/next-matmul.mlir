@@ -15,20 +15,21 @@
 // RUN:     -convert-math-to-libm \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
-// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
 
 func.func private @rtclock() -> f64
 func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 
 func.func @kernel(%lhs: tensor<40x3072xf32>, %rhs: tensor<3072x1536xf32>) {
   %t_start = call @rtclock() : () -> f64
-  
-  // linalg.matmul 
+
+  // linalg.matmul
   %output_init = arith.constant dense<0.000000e+00> : tensor<40x1536xf32>
-  %result = linalg.matmul {cast = #linalg.type_fn<cast_signed>} 
-    ins(%lhs, %rhs : tensor<40x3072xf32>, tensor<3072x1536xf32>) 
+  %result = linalg.matmul {cast = #linalg.type_fn<cast_signed>}
+    ins(%lhs, %rhs : tensor<40x3072xf32>, tensor<3072x1536xf32>)
     outs(%output_init : tensor<40x1536xf32>) -> tensor<40x1536xf32>
 
   %t_end = call @rtclock() : () -> f64
@@ -37,8 +38,10 @@ func.func @kernel(%lhs: tensor<40x3072xf32>, %rhs: tensor<3072x1536xf32>) {
   %tensor_unranked = tensor.cast %result : tensor<40x1536xf32> to tensor<*xf32>
 
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
+  // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 2 offset = 0 sizes = \[40, 1536\] strides = \[1536, 1\] data =}}
 
   vector.print %time : f64
+  // CHECK: {{[0-9]+\.[0-9]+}}
 
   return
 }
