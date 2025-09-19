@@ -21,6 +21,7 @@ set(LinkedLibs
   LowerLinalgToGemminiPass
   LowerRVVPass
   LowerVectorExpPass
+  VIRToVectorPass
   MatMulOptimization
   BatchMatMulOptimization
   MatMulParallelVectorization
