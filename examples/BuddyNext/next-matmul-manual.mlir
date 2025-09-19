@@ -8,9 +8,10 @@
 // RUN:     -convert-math-to-libm \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
-// RUN: | mlir-cpu-runner -e main -entry-point-result=void \
+// RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
-// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
 
 module {
   memref.global "private" constant @__constant_3072x1536xf32 : memref<3072x1536xf32> = dense<3.000000e+00> {alignment = 64 : i64}
@@ -60,8 +61,10 @@ module {
     %3 = arith.subf %2, %0 : f64
     %cast = memref.cast %alloc : memref<40x1536xf32> to memref<*xf32>
     call @printMemrefF32(%cast) : (memref<*xf32>) -> ()
+    // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 2 offset = 0 sizes = \[40, 1536\] strides = \[1536, 1\] data =}}
     memref.dealloc %alloc : memref<40x1536xf32>
     vector.print %3 : f64
+    // CHECK: {{[0-9]+\.[0-9]+}}
     return
   }
   
