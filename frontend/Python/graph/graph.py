@@ -333,6 +333,9 @@ class Graph:
                     np_type = np.dtype(np.int64)
                 case "f16":
                     np_type = np.dtype(np.float16)
+                case "bf16":
+                    # BF16 is stored as uint16, similar to F16
+                    np_type = np.dtype(np.uint16)
                 case "f32":
                     np_type = np.dtype(np.float32)
                 case _:
@@ -472,6 +475,8 @@ class GraphImporter:
                 return ir.IntegerType.get_signless(64)
             case TensorDType.Float16:
                 return ir.F16Type.get()
+            case TensorDType.BFloat16:
+                return ir.BF16Type.get()
             case TensorDType.Float32:
                 return ir.F32Type.get()
             case TensorDType.Bool:

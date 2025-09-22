@@ -666,6 +666,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
         TensorDType.Float64: ir.F64Type.get(),
         TensorDType.Float32: ir.F32Type.get(),
         TensorDType.Float16: ir.F16Type.get(),
+        TensorDType.BFloat16: ir.BF16Type.get(),
         TensorDType.Int64: ir.IntegerType.get_signless(64),
         TensorDType.Int32: ir.IntegerType.get_signless(32),
         TensorDType.Bool: ir.IntegerType.get_signless(1),
@@ -1030,6 +1031,8 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
     elif result_element_type == ir.F32Type.get():
         element = ir.FloatAttr.get(result_element_type, 0.0)
     elif result_element_type == ir.F16Type.get():
+        element = ir.FloatAttr.get(result_element_type, 0.0)
+    elif result_element_type == ir.BF16Type.get():
         element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")
@@ -1849,6 +1852,27 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         )
         min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_min_val)
         max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_max_val)
+
+        matmul_op = tosa.ClampOp(
+            matmul_op.result.type,
+            matmul_op,
+            min_int_attr,
+            max_int_attr,
+            min_fp_attr,
+            max_fp_attr,
+        )
+    elif mlir_dtype == ir.BF16Type.get():
+        # BF16 has the same range as F32 but lower precision
+        bf16_max_val = 3.4028235e+38
+        bf16_min_val = -3.4028235e+38
+        min_int_attr = ir.IntegerAttr.get(
+            ir.IntegerType.get_signless(64), -sys.maxsize
+        )
+        max_int_attr = ir.IntegerAttr.get(
+            ir.IntegerType.get_signless(64), sys.maxsize
+        )
+        min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_min_val)
+        max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_max_val)
 
         matmul_op = tosa.ClampOp(
             matmul_op.result.type,

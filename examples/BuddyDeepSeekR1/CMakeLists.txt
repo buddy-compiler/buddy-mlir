@@ -25,6 +25,16 @@ add_custom_command(
 )
 
 add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.mlir
+         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
+         ${CMAKE_CURRENT_BINARY_DIR}/arg0-bf16.data
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+          --precision bf16
+  COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
+)
+
+add_custom_command(
   OUTPUT forward_prefill.o
   COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill.mlir
             -simplify-tosa-reshape |
@@ -304,8 +314,97 @@ add_custom_command(
     COMMENT "Building subgraph.o "
     VERBATIM)
 
+add_custom_command(
+  OUTPUT forward-bf16.o
+  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.mlir
+            -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+          ${BUDDY_BINARY_DIR}/buddy-opt
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -one-shot-bufferize="bufferize-function-boundaries"
+            -expand-strided-metadata
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -matmul-parallel-vectorization-optimize
+            -batchmatmul-optimize
+            -convert-linalg-to-affine-loops
+            -affine-loop-fusion
+            -affine-parallelize
+            -convert-vector-to-scf
+            -lower-affine
+            -convert-scf-to-openmp
+            -cse
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+        ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+        ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          -o ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.o
+  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.mlir
+  COMMENT "Building forward.o "
+  VERBATIM)
+
+add_custom_command(
+    OUTPUT subgraph-bf16.o
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
+              -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+            ${BUDDY_BINARY_DIR}/buddy-opt
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -convert-elementwise-to-linalg
+            -one-shot-bufferize="bufferize-function-boundaries"
+            -expand-strided-metadata
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -matmul-parallel-vectorization-optimize
+            -batchmatmul-optimize
+            -convert-linalg-to-affine-loops
+            -affine-loop-fusion
+            -affine-parallelize
+            -convert-vector-to-scf
+            -lower-affine
+            -convert-scf-to-openmp
+            -func-bufferize-dynamic-offset
+            -cse
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+            -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph-bf16.o
+    DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
+    COMMENT "Building subgraph.o "
+    VERBATIM)
+
 add_library(DEEPSEEKR1 STATIC forward_prefill.o subgraph_prefill.o forward_decode.o subgraph_decode.o)
 add_library(DEEPSEEKR1_F16 STATIC forward-f16.o subgraph-f16.o)
+add_library(DEEPSEEKR1_BF16 STATIC forward-bf16.o subgraph-bf16.o)
 
 SET_SOURCE_FILES_PROPERTIES(
   template.o
@@ -323,8 +422,14 @@ SET_TARGET_PROPERTIES(
   PROPERTIES
   LINKER_LANGUAGE C)
 
+SET_TARGET_PROPERTIES(
+  DEEPSEEKR1_BF16
+  PROPERTIES
+  LINKER_LANGUAGE C)
+
 add_executable(buddy-deepseek-r1-run buddy-deepseek-r1-main.cpp)
 add_executable(buddy-deepseek-r1-f16-run buddy-deepseek-r1-f16-main.cpp)
+add_executable(buddy-deepseek-r1-bf16-run buddy-deepseek-r1-bf16-main.cpp)
 
 set(DEEPSEEKR1_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 set(DEEPSEEKR1_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
@@ -337,9 +442,14 @@ target_compile_definitions(buddy-deepseek-r1-f16-run PRIVATE
   DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}/"
   DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}/"
 )
+target_compile_definitions(buddy-deepseek-r1-bf16-run PRIVATE
+  DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}"
+  DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}"
+)
 
 target_link_directories(buddy-deepseek-r1-run PRIVATE ${LLVM_LIBRARY_DIR})
 target_link_directories(buddy-deepseek-r1-f16-run PRIVATE ${LLVM_LIBRARY_DIR})
+target_link_directories(buddy-deepseek-r1-bf16-run PRIVATE ${LLVM_LIBRARY_DIR})
 
 set(BUDDY_DEEPSEEKR1_LIBS
   DEEPSEEKR1
@@ -351,10 +461,17 @@ set(BUDDY_DEEPSEEKR1_F16_LIBS
   mlir_c_runner_utils
   omp
 )
+set(BUDDY_DEEPSEEKR1_BF16_LIBS
+  DEEPSEEKR1_BF16
+  mlir_c_runner_utils
+  omp
+)
 if(BUDDY_MLIR_USE_MIMALLOC)
   list(APPEND BUDDY_DEEPSEEKR1_LIBS mimalloc)
   list(APPEND BUDDY_DEEPSEEKR1_F16_LIBS mimalloc)
+  list(APPEND BUDDY_DEEPSEEKR1_BF16_LIBS mimalloc)
 endif()
 
 target_link_libraries(buddy-deepseek-r1-run ${BUDDY_DEEPSEEKR1_LIBS})
 target_link_libraries(buddy-deepseek-r1-f16-run ${BUDDY_DEEPSEEKR1_F16_LIBS})
+target_link_libraries(buddy-deepseek-r1-bf16-run ${BUDDY_DEEPSEEKR1_BF16_LIBS})

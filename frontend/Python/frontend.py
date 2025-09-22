@@ -209,6 +209,8 @@ class DynamoCompiler:
                 return TensorDType.Int8
             case "torch.float16":
                 return TensorDType.Float16
+            case "torch.bfloat16":
+                return TensorDType.BFloat16
             case "torch.float32":
                 return TensorDType.Float32
             case "torch.float64":
