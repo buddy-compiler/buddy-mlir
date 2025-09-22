@@ -57,4 +57,4 @@ repos:
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-added-large-files
-        args: ['--maxkb=1000']  # 允许最大1MB的文件
+        args: ['--maxkb=1000']  # Allow maximum 1MB files
