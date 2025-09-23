@@ -12,6 +12,14 @@ RISCV_GNU_TOOLCHAIN := ${BUDDY_BUILD_DIR}/thirdparty/riscv-gnu-toolchain
 CROSS_MLIR_BUILD_DIR := ../../llvm/build-cross-mlir-rv/
 CROSS_MLIR_LIB := ${CROSS_MLIR_BUILD_DIR}/lib/
 
+# Platform detection
+UNAME_M := $(shell uname -m)
+ifeq ($(findstring riscv,$(UNAME_M)),riscv)
+MARCH_FLAG := -march=rv64gcv
+else
+MARCH_FLAG := -march=native
+endif
+
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_runner_utils.so
 MLIR_C_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_c_runner_utils.so
@@ -103,7 +111,7 @@ next-positional-encoding-aot-omp:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-positional-encoding.out
@@ -144,7 +152,7 @@ next-positional-encoding-aot:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-positional-encoding.out
@@ -187,7 +195,7 @@ next-norm-aot-omp:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-norm.out
@@ -229,7 +237,7 @@ next-norm-aot:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-norm.out
@@ -270,7 +278,7 @@ next-mhsa-qkv-aot-omp:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-mhsa.out
@@ -310,7 +318,7 @@ next-mhsa-qkv-aot:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-mhsa.out
@@ -355,7 +363,7 @@ next-mhsa-core-aot-omp:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-mhsa-core.out
@@ -399,7 +407,7 @@ next-mhsa-core-aot:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-mhsa-core.out
@@ -444,7 +452,7 @@ next-mhsa-context-aot-omp:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-mhsa-context.out
@@ -488,7 +496,7 @@ next-mhsa-context-aot:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-mhsa-context.out
@@ -533,7 +541,7 @@ next-ffn-aot-omp:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-mhsa-ffn.out
@@ -577,7 +585,7 @@ next-ffn-aot:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-mhsa-ffn.out
@@ -692,7 +700,7 @@ next-flash-attention-aot-omp:
 		-reconcile-unrealized-casts | \
 	${MLIR_TRANSLATE} -mlir-to-llvmir | \
 	${CLANG} -x ir - \
-		-march=native -O3 \
+		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-flash-attention.out
