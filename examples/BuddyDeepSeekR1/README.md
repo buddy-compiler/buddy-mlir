@@ -87,6 +87,11 @@ $ ./buddy-deepseek-r1-run
 $ ninja buddy-deepseek-r1-f16-run
 $ cd bin
 $ ./buddy-deepseek-r1-f16-run
+
+//bf16
+$ ninja buddy-deepseek-r1-bf16-run
+$ cd bin
+$ ./buddy-deepseek-r1-bf16-run
 ```
 
 5. Enjoy it!
