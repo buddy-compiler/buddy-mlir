@@ -47,32 +47,32 @@ func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 #map3 = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
 #map4 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
 
-func.func @kernel(%t0: tensor<1x40x1536xf32>, %t1: tensor<1536xf32>) {
+func.func @kernel(%arg0: tensor<1x1024x1536xf32>, %arg1: tensor<1536xf32>) {
   %t_start = call @rtclock() : () -> f64
 
-  %54 = tensor.empty() : tensor<1x40x1536xf32>
+  %54 = tensor.empty() : tensor<1x1024x1536xf32>
   %c2_i32 = arith.constant 2 : i32
-  %55 = linalg.generic {indexing_maps = [#map4, #map4], iterator_types = ["parallel", "parallel", "parallel"]} ins(%t0 : tensor<1x40x1536xf32>) outs(%54 : tensor<1x40x1536xf32>) {
+  %55 = linalg.generic {indexing_maps = [#map4, #map4], iterator_types = ["parallel", "parallel", "parallel"]} ins(%arg0 : tensor<1x1024x1536xf32>) outs(%54 : tensor<1x1024x1536xf32>) {
   ^bb0(%in: f32, %out: f32):
     %3964 = math.fpowi %in, %c2_i32 : f32, i32
     linalg.yield %3964 : f32
-  } -> tensor<1x40x1536xf32>
-  %56 = tosa.reduce_sum %55 {axis = 2 : i32} : (tensor<1x40x1536xf32>) -> tensor<1x40x1xf32>
+  } -> tensor<1x1024x1536xf32>
+  %56 = tosa.reduce_sum %55 {axis = 2 : i32} : (tensor<1x1024x1536xf32>) -> tensor<1x1024x1xf32>
   %57 = "tosa.const"() <{value = dense<1.536000e+03> : tensor<1xf32>}> : () -> tensor<1xf32>
   %58 = tosa.reciprocal %57 : (tensor<1xf32>) -> tensor<1xf32>
   %59 = tosa.reshape %58 {new_shape = array<i64: 1, 1, 1>} : (tensor<1xf32>) -> tensor<1x1x1xf32>
-  %60 = tosa.mul %59, %56 : (tensor<1x1x1xf32>, tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
-  %61 = "tosa.const"() <{value = dense<9.99999997E-7> : tensor<1x40x1xf32>}> : () -> tensor<1x40x1xf32>
-  %62 = tosa.add %60, %61 : (tensor<1x40x1xf32>, tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
-  %63 = tosa.rsqrt %62 : (tensor<1x40x1xf32>) -> tensor<1x40x1xf32>
-  %64 = tosa.mul %t0, %63 : (tensor<1x40x1536xf32>, tensor<1x40x1xf32>) -> tensor<1x40x1536xf32>
-  %65 = tosa.reshape %t1 {new_shape = array<i64: 1, 1, 1536>} : (tensor<1536xf32>) -> tensor<1x1x1536xf32>
-  %66 = tosa.mul %65, %64 : (tensor<1x1x1536xf32>, tensor<1x40x1536xf32>) -> tensor<1x40x1536xf32>
+  %60 = tosa.mul %59, %56 : (tensor<1x1x1xf32>, tensor<1x1024x1xf32>) -> tensor<1x1024x1xf32>
+  %61 = "tosa.const"() <{value = dense<9.99999997E-7> : tensor<1x1024x1xf32>}> : () -> tensor<1x1024x1xf32>
+  %62 = tosa.add %60, %61 : (tensor<1x1024x1xf32>, tensor<1x1024x1xf32>) -> tensor<1x1024x1xf32>
+  %63 = tosa.rsqrt %62 : (tensor<1x1024x1xf32>) -> tensor<1x1024x1xf32>
+  %64 = tosa.mul %arg0, %63 : (tensor<1x1024x1536xf32>, tensor<1x1024x1xf32>) -> tensor<1x1024x1536xf32>
+  %65 = tosa.reshape %arg1 {new_shape = array<i64: 1, 1, 1536>} : (tensor<1536xf32>) -> tensor<1x1x1536xf32>
+  %66 = tosa.mul %65, %64 : (tensor<1x1x1536xf32>, tensor<1x1024x1536xf32>) -> tensor<1x1024x1536xf32>
 
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64
 
-  %tensor_unranked = tensor.cast %66 : tensor<1x40x1536xf32> to tensor<*xf32>
+  %tensor_unranked = tensor.cast %66 : tensor<1x1024x1536xf32> to tensor<*xf32>
 
   // Print results.
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
@@ -85,10 +85,10 @@ func.func @kernel(%t0: tensor<1x40x1536xf32>, %t1: tensor<1536xf32>) {
 
 func.func @main() {
 
-  %c0 = arith.constant dense<3.0> : tensor<1x40x1536xf32>
+  %c0 = arith.constant dense<3.0> : tensor<1x1024x1536xf32>
   %c1 = arith.constant dense <2.0> : tensor<1536xf32>
 
-  call @kernel(%c0, %c1) : (tensor<1x40x1536xf32>, tensor<1536xf32>) -> ()
+  call @kernel(%c0, %c1) : (tensor<1x1024x1536xf32>, tensor<1536xf32>) -> ()
 
   return
 }
