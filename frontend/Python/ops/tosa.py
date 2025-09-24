@@ -24,7 +24,8 @@ import numpy
 import sys
 
 import mlir.ir as ir
-from mlir.dialects import tensor, tosa, arith, linalg, math
+from mlir.ir import IndexType, F32Type
+from mlir.dialects import tensor, tosa, arith, linalg, math, affine ,vector,bufferization,memref
 
 from ..graph import TensorDType
 from ..graph import (
@@ -1721,78 +1722,118 @@ def argmax_op(node: ArgMaxOp, symbol_table):
 
 
 def scaled_dot_product_flash_attention_for_cpu_op(
-    node: ScaledDotProductFlashAttentionForCpuOp, symbol_table
+    node: "ScaledDotProductFlashAttentionForCpuOp", symbol_table
 ):
     """
-    Perform scaled dot-product attention computation.
-    Args:
-        node (ScaledDotProductFlashAttentionForCpuOp): The scaled dot-product attention operation node with metadata.
-        symbol_table: Mapping of variable names to tensor references.
+    Lower ScaledDotProductFlashAttentionForCpuOp into MLIR affine+vector IR.
     Returns:
-        result_reshape_op: Reshaped result tensor of the attention operation.
-        log_sumexp_op: Log-sum-exp constant operation.
+        result_tensor: Final attention output tensor
+        log_sumexp_reshape: Placeholder log-sum-exp (can be reshaped as needed)
     """
+    loc = ir.Location.unknown()
+    f32 = F32Type.get()
+    index = IndexType.get()
+    v16 = ir.VectorType.get([16], f32)
+
+    # === input parse ===
     query = symbol_table.get((str(node.args[0]), 0), node.args[0])
     key = symbol_table.get((str(node.args[1]), 0), node.args[1])
     value = symbol_table.get((str(node.args[2]), 0), node.args[2])
-
-    if len(node.args) == 4:
-        dropout_p = node.args[3]
-        assert dropout_p != 0.0
-    if len(node.args) == 5:
-        dropout_p = node.args[3]
-        is_causal = node.args[4]
-        assert dropout_p != 0.0
-        assert is_causal == True
-
     attn_mask = node.kwargs.get("attn_mask", None)
     scale = node.kwargs.get("scale", None)
 
+    c0 = arith.ConstantOp(index, 0, loc=loc)
     query_shape = query.type.shape
     key_shape = key.type.shape
     value_shape = value.type.shape
     output_shape = list(node.tensor_meta["shape"])
-    L, S = query_shape[-2], key_shape[-2]
-    scale_factor = (
+
+    one = arith.ConstantOp(f32, 1.0).result   
+                    
+
+    # scale = 1/sqrt(H)     
+    scale_val = (
         1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
     )
+    scale_val = arith.ConstantOp(f32, float(scale_val)).result
 
-    # Initialize attention bias
-    dtype = node.tensor_meta["dtype"][0]
-    attn_bias_shape = [L, S]
-    mlir_dtype = mlir_element_type_get(dtype)
-    attn_bias_type = ir.RankedTensorType.get(attn_bias_shape, mlir_dtype)
-    zero_constant = arith.ConstantOp(mlir_dtype, 0.0)
-    attn_bias = tensor.SplatOp(attn_bias_type, zero_constant, [])
+    zero_f32 = arith.ConstantOp(f32, 0.0, loc=loc).result
+    neg_inf = arith.ConstantOp(f32, -1.0e30, loc=loc).result
+
+    # === bufferization ===
+    Q_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(query_shape, f32), query, loc=loc
+    )
+    K_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(key_shape, f32), key, loc=loc
+    )
+    V_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(value_shape, f32), value, loc=loc
+    )
+
+    mask_memref = None
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
-        if attn_mask.type.element_type == ir.IntegerType.get_signless(1):
-            assert attn_mask.type.element_type == ir.IntegerType.get_signless(1)
-            tensor_type = ir.RankedTensorType.get(
-                attn_mask.type.shape, ir.IntegerType.get_signless(1)
-            )
-            true_tensor = arith.ConstantOp(
-                tensor_type,
-                ir.DenseElementsAttr.get_splat(
-                    tensor_type, ir.BoolAttr.get(True)
-                ),
-            )
-            attn_mask = arith.XOrIOp(attn_mask, true_tensor)
-            minus_inf_tensor = arith.ConstantOp(
-                attn_mask.type,
-                ir.DenseElementsAttr.get_splat(
-                    attn_mask.type, ir.FloatAttr.get(f32_type, float("-inf"))
-                ),
-            )
-            attn_bias = tensor.SelectOp(attn_mask, minus_inf_tensor, attn_bias)
-        else:
-            if attn_mask.type.shape != attn_bias.result.type.shape:
-                attn_mask = tosa.ReshapeOp(
-                    attn_mask,
-                    memoryview(array.array("i", attn_bias.result.type.shape)),
-                )
-            attn_bias = tosa.AddOp(attn_bias.result.type, attn_bias, attn_mask)
+        mask_memref = bufferization.ToMemrefOp(
+            memref.MemRefType.get(attn_mask.type.shape, f32), attn_mask, loc=loc
+        )
 
+    batch_dim = arith.ConstantOp(index, query_shape[0], loc=loc)
+    q_dim0 = arith.ConstantOp(index, query_shape[1], loc=loc)
+    q_dim1 = arith.ConstantOp(index, query_shape[2], loc=loc)
+    q_dim2 = arith.ConstantOp(index, query_shape[3], loc=loc)
+
+    k_dim1 = arith.ConstantOp(index, key_shape[2], loc=loc)
+
+    out_memref = memref.AllocOp(
+        memref.MemRefType.get(list(output_shape[0]), f32), [], [], loc=loc
+    )
+    out_exp_sum_memref = memref.AllocOp(
+        memref.MemRefType.get([query_shape[0],query_shape[1],query_shape[2]], f32), [], [], loc=loc
+    )
+
+    accum = memref.AllocOp(
+        memref.MemRefType.get([query_shape[-1]], f32), [], [], loc=loc
+    )
+    # batch loop
+    loop_batch = affine.AffineForOp(0, batch_dim.result, 1)
+    with ir.InsertionPoint(loop_batch.body):
+        batch = loop_batch.induction_variable
+
+        # h loop
+        loop_h = affine.AffineForOp(0, q_dim0.result, 1)
+        with ir.InsertionPoint(loop_h.body):
+            h = loop_h.induction_variable
+
+            # i loop
+            loop_i = affine.AffineForOp(0, q_dim1.result, 1)
+            with ir.InsertionPoint(loop_i.body):
+                i = loop_i.induction_variable
+
+                # initialize accum to zero
+                loop_init = affine.AffineForOp(0, q_dim2.result, 16)
+                temp_h = loop_init.induction_variable
+                with ir.InsertionPoint(loop_init.body):
+                    zv = vector.SplatOp(v16, zero_f32, loc=loc)
+                    identity_map = ir.AffineMap.get_identity(1)
+                    in_bounds = [True]
+                    vector.TransferWriteOp(None, zv, accum, [temp_h], identity_map, in_bounds)
+                    affine.yield_([])
+
+                # attention j loop
+                key_len = key_shape[2]
+                query_len = query_shape[2]
+                loop_js_bound = key_len if key_len > query_len else query_len
+                loop_js = affine.AffineForOp(
+                    0,  arith.ConstantOp(index, loop_js_bound).result, iter_args=[neg_inf, zero_f32]
+                )
+                j = loop_js.induction_variable
+                iter_args = loop_js.inner_iter_args
+                with ir.InsertionPoint(loop_js.body):
+                    max_iter = iter_args[0]
+                    sum_exp_iter = iter_args[1]
+
+<<<<<<< HEAD
     # Matrix multiplication of query and key
     query_reshape_op = tosa.ReshapeOp(
         query,
@@ -1861,83 +1902,95 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         )
         min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_min_val)
         max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_max_val)
+=======
+                    # ========== 1. calculate q·k ==========
+                    loop_qk = affine.AffineForOp(0, q_dim2.result, 16, [zero_f32])
+                    s = loop_qk.induction_variable
+                    temp_s = loop_qk.inner_iter_args[0]
+                    with ir.InsertionPoint(loop_qk.body):
+                        identity_1d = ir.AffineMap.get(len(query_shape), 0, [ir.AffineDimExpr.get(3)])  
+                        qv = vector.TransferReadOp(v16,Q_memref,[batch, h, i, s],identity_1d,zero_f32,[True],)
+                        kv = vector.TransferReadOp(v16,K_memref,[batch, h, j, s],identity_1d,zero_f32,[True],)
+                        mulv = arith.MulFOp(qv.result, kv.result, loc=loc).result
+                        sumv = vector.ReductionOp(f32, "add", mulv).result
+                        ns = arith.AddFOp(temp_s, sumv, loc=loc).result
+                        affine.yield_([ns])
 
-        matmul_op = tosa.ClampOp(
-            matmul_op.result.type,
-            matmul_op,
-            min_int_attr,
-            max_int_attr,
-            min_fp_attr,
-            max_fp_attr,
-        )
-    # Multiply result by scale factor
-    scale_factor_constant = arith.ConstantOp(mlir_dtype, scale_factor)
-    scale_factor = tensor.SplatOp(matmul_result_type, scale_factor_constant, [])
-    mul_op = tosa.MulOp(
-        matmul_result_type,
-        matmul_op,
-        scale_factor,
-    )
+                    score = loop_qk.result
+                    normalized = arith.MulFOp(score, scale_val, loc=loc).result
+                    if mask_memref is not None:
+                        map4 = ir.AffineMap.get_identity(4)
+                        mask_val = affine.load(f32, mask_memref, [batch, c0.result, i, j], map4)
+                        score_masked = arith.AddFOp(normalized, mask_val, loc=loc).result
+                    else:
+                        score_masked = normalized
 
-    # Add attention bias to the result
-    add_op = _gen_arith_binary_op(mul_op.result, attn_bias.result, tosa.AddOp)
-    # add_op = tosa.AddOp(matmul_result_type, mul_op.result, attn_bias)
-    # Apply softmax to the result
-    softmax_output_shape = list(add_op.result.type.shape)
-    softmax_dim = len(softmax_output_shape) - 1
+                    # === FlashAttention online softmax ===
+                    cond_max = arith.CmpFOp(arith.CmpFPredicate.OGT, score_masked, max_iter, loc=loc)
+                    new_max = arith.SelectOp(cond_max, score_masked, max_iter, loc=loc)
+>>>>>>> 8306d1f ([Frontend]Lower attention op to FlashAttention vectorized kernel.)
 
-    # Subtract the maximum value along the dimension where softmax is applied to
-    # prevent overflow during the exp operation.
-    max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
-    sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
-    exp_op = math.ExpOp(sub_op.result)
-    reduce_sum_op = tosa.ReduceSumOp(exp_op, softmax_dim)
-    log_op = tosa.LogOp(reduce_sum_op.result.type, reduce_sum_op)
-    log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
-    log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
-    softmax_result = math.ExpOp(log_weights.result)
-    log_sumexp = tosa.ReshapeOp(
-        log_sumexp,
-        memoryview(
-            array.array(
-                "i",
-                output_shape[1],
-            )
-        ),
-    )
+                    sub1 = arith.SubFOp(max_iter, score_masked, loc=loc).result
+                    exp1 = math.ExpOp(sub1, loc=loc).result
+                    mul1 = arith.MulFOp(exp1, sum_exp_iter, loc=loc).result
+                    add1 = arith.AddFOp(mul1, one, loc=loc).result   
 
-    # This step includes dropout during training.
-    # Multiply the result by the value tensor.
-    value_reshape_op = tosa.ReshapeOp(
-        value,
-        memoryview(
-            array.array(
-                "i",
-                [key_shape[0] * key_shape[1], value_shape[2], value_shape[3]],
-            )
-        ),
-    )
-    matmul_result_shp = matmul_result_shp = [
-        key_shape[0] * key_shape[1],
-        query_shape[2],
-        value_shape[3],
-    ]
-    matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
-    matmul_op = tosa.MatMulOp(
-        matmul_result_type, softmax_result.result, value_reshape_op.result
-    )
+                    sub2 = arith.SubFOp(score_masked, max_iter, loc=loc).result
+                    exp2 = math.ExpOp(sub2, loc=loc).result
+                    add2 = arith.AddFOp(sum_exp_iter, exp2, loc=loc).result   
 
-    result_reshape_op = tosa.ReshapeOp(
-        matmul_op.result,
-        memoryview(
-            array.array(
-                "i",
-                [key_shape[0], key_shape[1], query_shape[2], value_shape[3]],
-            )
-        ),
-    )
+                    sum_exp_update = arith.SelectOp(
+                        cond_max, add1, add2, loc=loc
+                    )
+                    # === V accumulate ===
+                    loop_d = affine.AffineForOp(0, q_dim2.result, 16)
+                    d = loop_d.induction_variable
+                    with ir.InsertionPoint(loop_d.body):
+                        identity_map = ir.AffineMap.get(len(value_shape), 0, [ir.AffineDimExpr.get(3)])
+                        vvec = vector.TransferReadOp(v16,V_memref,[batch, h, j, d],identity_map,zero_f32,[True],).result
+                        identity_map = ir.AffineMap.get_identity(1)
+                        acc_old = vector.TransferReadOp(v16,accum,[d],identity_map,zero_f32,[True],).result
 
-    return result_reshape_op, log_sumexp
+                        v_exp1 = vector.SplatOp(v16, exp1, loc=loc).result
+                        accum_mul1 = arith.MulFOp(acc_old, v_exp1, loc=loc).result
+                        r1 = arith.AddFOp(accum_mul1, vvec).result
+
+                        v_exp2 = vector.SplatOp(v16, exp2, loc=loc).result
+                        accum_mul2 = arith.MulFOp(v_exp2, vvec, loc=loc).result
+                        r2 = arith.AddFOp(accum_mul2, acc_old, loc=loc).result
+                        acc_new = arith.SelectOp(cond_max, r1, r2, loc=loc).result
+
+                        vector.TransferWriteOp(None, acc_new, accum, [d], identity_map, [True])
+                        affine.yield_([])
+
+                    affine.yield_([new_max.result, sum_exp_update.result])
+
+                final_sum = loop_js.results[1]
+
+                identity_map = ir.AffineMap.get_identity(3)
+                affine.store(final_sum, out_exp_sum_memref, [batch, h, i],identity_map)
+
+                # === write back result ===
+                loop_back = affine.AffineForOp(0, q_dim2.result, 16)
+                d_back = loop_back.induction_variable
+                with ir.InsertionPoint(loop_back.body):
+                    identity_map = ir.AffineMap.get_identity(1)
+                    accv = vector.TransferReadOp(v16,accum,[d_back],identity_map,zero_f32,[True],).result
+                    final_sum_vec = vector.SplatOp(v16, final_sum, loc=loc).result
+                    outv = arith.DivFOp(accv, final_sum_vec, loc=loc)
+                    identity_map = ir.AffineMap.get(len(list(output_shape[0])), 0, [ir.AffineDimExpr.get(3)])
+                    vector.TransferWriteOp(None, outv, out_memref, [batch, h, i, d_back], identity_map, [True])
+                    affine.yield_([])
+
+                affine.yield_([])
+            affine.yield_([])
+        affine.yield_([])
+
+    tensor_ty = ir.RankedTensorType.get(list(output_shape[0]), f32)
+    result_tensor = bufferization.ToTensorOp(tensor_ty, out_memref, restrict=ir.BoolAttr.get(True))
+    tensor_lg = ir.RankedTensorType.get([query_shape[0],query_shape[1],query_shape[2]], f32)
+    log_sumexp = bufferization.ToTensorOp(tensor_lg, out_exp_sum_memref, restrict=ir.BoolAttr.get(True))
+    return result_tensor, log_sumexp
 
 
 def le_op(
