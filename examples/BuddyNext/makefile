@@ -33,6 +33,35 @@ endif
 # ==============================================================================
 # Evaluation of Modules in DeepSeek-R1 Distill Qwen 1.5B
 # ==============================================================================
+next-flash-attention-vec-run:
+	@${MLIR_OPT} ./next-flash-attention-vec.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+		${MLIR_OPT} \
+		-arith-expand \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-libm  \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
 next-batchmatmul-decode-size-vec-omp-run:
 	@${BUDDY_OPT} ./next-batchmatmul-decode-size.mlir\
