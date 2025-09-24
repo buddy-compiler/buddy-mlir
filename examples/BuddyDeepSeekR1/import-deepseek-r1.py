@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # ===- import-deepseek-r1.py ---------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,8 +81,8 @@ dynamo_compiler = DynamoCompiler(
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
     data = {
-        "input_ids": torch.zeros((1, 40), dtype=torch.int64),
-        "attention_mask": torch.zeros((1, 40), dtype=torch.int64),
+        "input_ids": torch.zeros((1, 1024), dtype=torch.int64),
+        "attention_mask": torch.zeros((1, 1024), dtype=torch.int64),
     }
     graphs = dynamo_compiler.importer(
         model,

@@ -26,7 +26,7 @@ using namespace buddy;
 
 constexpr size_t ParamsSize = 1777088064;
 constexpr size_t MaxVocabSize = 151936;
-constexpr size_t MaxTokenLength = 40;
+constexpr size_t MaxTokenLength = 1024;
 
 /// Declare DeepSeekR1 forward function.
 extern "C" void _mlir_ciface_forward(MemRef<float, 3> *result,
@@ -133,7 +133,7 @@ int main() {
   MemRef<float, 3> resultContainer({1, 9, 151936});
   Text<size_t, 2> inputContainer(inputStr);
   MemRef<float, 1> paramsContainer({ParamsSize});
-  MemRef<long long, 2> attention_mask({1, 40}, 0);
+  MemRef<long long, 2> attention_mask({1, 1024}, 0);
 
   /// Fill data into containers
   //  - Input: register vocabulary and tokenize the input string.
