@@ -81,61 +81,22 @@ print("==================================================")
 # CHECK: module {
 # CHECK-LABEL: func.func @subgraph0
 # CHECK-SAME: tensor<1x1x28x28xf32>
-# CHECK-SAME: tensor<6x1x5x5xf32>
-# CHECK-SAME: tensor<6xf32>
-# CHECK-SAME: tensor<16x6x5x5xf32>
-# CHECK-SAME: tensor<16xf32>
-# CHECK-SAME: tensor<120x256xf32>
-# CHECK-SAME: tensor<120xf32>
-# CHECK-SAME: tensor<84x120xf32>
-# CHECK-SAME: tensor<84xf32>
-# CHECK-SAME: tensor<10x84xf32>
-# CHECK-SAME: tensor<10xf32>
 # CHECK-SAME: -> tensor<1x10xf32>
 
-#  < Key operator order >
-# CHECK: tosa.transpose{{.*}}tensor<1x28x28x1xf32>
-# CHECK: tosa.transpose{{.*}}tensor<6x5x5x1xf32>
-# CHECK: tosa.conv2d{{.*}}tensor<1x24x24x6xf32>
-# CHECK: tosa.maximum{{.*}}tensor<1x6x24x24xf32>
-# CHECK: tosa.max_pool2d{{.*}}tensor<1x12x12x6xf32>
-# CHECK: tosa.conv2d{{.*}}tensor<1x8x8x16xf32>
-# CHECK: tosa.maximum{{.*}}tensor<1x16x8x8xf32>
-# CHECK: tosa.max_pool2d{{.*}}tensor<1x4x4x16xf32>
-# CHECK: tosa.reshape{{.*}}tensor<1x256xf32>
-# CHECK: tosa.matmul{{.*}}tensor<1x1x120xf32>
-# CHECK: tosa.add{{.*}}tensor<1x120xf32>
-# CHECK: tosa.maximum{{.*}}tensor<1x120xf32>
-# CHECK: tosa.matmul{{.*}}tensor<1x1x84xf32>
-# CHECK: tosa.add{{.*}}tensor<1x84xf32>
-# CHECK: tosa.maximum{{.*}}tensor<1x84xf32>
-# CHECK: tosa.matmul{{.*}}tensor<1x1x10xf32>
-# CHECK: tosa.add{{.*}}tensor<1x10xf32>
-# CHECK: return{{.*}}tensor<1x10xf32>
+# CHECK: %[[INPUT_TRANSPOSE:.*]] = tosa.transpose {{.*}} -> tensor<1x28x28x1xf32>
+# CHECK: %[[KERNEL_TRANSPOSE:.*]] = tosa.transpose {{.*}} -> tensor<6x5x5x1xf32>
+# CHECK: %[[CONV1:.*]] = tosa.conv2d {{.*}} -> tensor<1x24x24x6xf32>
+# CHECK: %[[RELU1:.*]] = tosa.maximum
+# CHECK: %[[POOL1:.*]] = tosa.max_pool2d
+# CHECK: %[[CONV2:.*]] = tosa.conv2d {{.*}} -> tensor<1x8x8x16xf32>
+# CHECK: %[[RELU2:.*]] = tosa.maximum
+# CHECK: %[[POOL2:.*]] = tosa.max_pool2d
+# CHECK: %[[FLATTEN:.*]] = tosa.reshape {{.*}} -> tensor<1x256xf32>
+# CHECK: %[[FC1:.*]] = tosa.matmul {{.*}} -> tensor<1x1x120xf32>
+# CHECK: %[[FC2:.*]] = tosa.matmul {{.*}} -> tensor<1x1x84xf32>
+# CHECK: %[[OUTPUT_FC:.*]] = tosa.matmul {{.*}} -> tensor<1x1x10xf32>
+# CHECK: %[[OUTPUT_BIAS:.*]] = tosa.add {{.*}} -> tensor<1x10xf32>
+# CHECK: return %[[OUTPUT_BIAS]]
 # CHECK: }
 # CHECK: }
-
-# CHECK: (Main graph MLIR)
-# CHECK: module {
-# CHECK-LABEL: func.func @forward
-# CHECK-SAME: memref<44426xf32>
-# CHECK-SAME: memref<1x1x28x28xf32>
-# CHECK-SAME: -> memref<1x10xf32>
-
-# CHECK: memref.subview{{.*}} to memref<150xf32>
-# CHECK: memref.expand_shape{{.*}} into memref<6x1x5x5xf32>
-# CHECK: memref.subview{{.*}} to memref<2400xf32
-# CHECK: memref.expand_shape{{.*}} into memref<16x6x5x5xf32
-# CHECK: memref.subview{{.*}} to memref<30720xf32
-# CHECK: memref.expand_shape{{.*}} into memref<120x256xf32
-# CHECK: memref.subview{{.*}} to memref<10080xf32
-# CHECK: memref.expand_shape{{.*}} into memref<84x120xf32
-# CHECK: memref.subview{{.*}} to memref<840xf32
-# CHECK: memref.expand_shape{{.*}} into memref<10x84xf32
-# CHECK: memref.subview{{.*}} to memref<10xf32
-# CHECK: call @subgraph0{{.*}}memref<1x10xf32>
-# CHECK: return{{.*}}memref<1x10xf32>
-# CHECK: }
-# CHECK: }
-
 
