@@ -23,7 +23,11 @@ func.func private @printMemrefF32(memref<*xf32>)
 
 func.func @test(%a : memref<?x?x?xf32>, %b : memref<?x?x?xf32>, %c : memref<?x?x?xf32>) {
     %t_start = call @rtclock() : () -> f64
-    linalg.batch_matmul_transpose_b
+    linalg.batch_matmul
+      indexing_maps = [
+                    affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>,
+                    affine_map<(d0, d1, d2, d3) -> (d0, d2, d3)>,
+                    affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>]
       ins(%a, %b: memref<?x?x?xf32>, memref<?x?x?xf32>)
       outs(%c: memref<?x?x?xf32>)
     %t_end = call @rtclock() : () -> f64

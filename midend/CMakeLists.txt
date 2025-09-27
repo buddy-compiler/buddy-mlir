@@ -5,8 +5,7 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
   include(MLIRDetectPythonEnv)
   find_package(Python3 ${LLVM_MINIMUM_PYTHON_VERSION}
   COMPONENTS Interpreter Development NumPy REQUIRED)
-  find_package(Python ${LLVM_MINIMUM_PYTHON_VERSION}
-  COMPONENTS Interpreter Development NumPy REQUIRED)
+  find_package(Python COMPONENTS Interpreter Development NumPy REQUIRED)
   mlir_detect_pybind11_install()
   find_package(pybind11 2.10 CONFIG REQUIRED)
   mlir_detect_nanobind_install()

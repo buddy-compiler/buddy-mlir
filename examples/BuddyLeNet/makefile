@@ -26,24 +26,25 @@ buddy-lenet-lower:
 	${BUDDY_OPT} \
 		-eliminate-empty-tensors \
 		-convert-tensor-to-linalg \
-		-linalg-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
 		-batchmatmul-optimize \
 		-convert-linalg-to-affine-loops \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
+		-func-bufferize-dynamic-offset \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
+		-lower-affine \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-llvm-request-c-wrappers \
 		-convert-arith-to-llvm \
-		-convert-func-to-llvm \
-		-reconcile-unrealized-casts \
+		-convert-func-to-llvm
+		-reconcile-unrealized-casts
 		-o ./log.mlir
 
 buddy-lenet-translate:

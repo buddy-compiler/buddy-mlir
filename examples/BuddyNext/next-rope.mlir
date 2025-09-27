@@ -136,10 +136,7 @@ func.func @kernel(%arg0 : tensor<1x40x4096xf32>, %arg1 : tensor<1x40x4096xf32>, 
   // All the elements of the MemRef are the same,
   // only check the first line to verify the correctness.
   // CHECK: Unranked Memref base@ = {{.*}} rank = 4 offset = 0 sizes = [1, 32, 40, 128] strides = [163840, 5120, 128, 1] data =
-  // CHECK-NEXT: [
-  // CHECK-SAME: [
-  // CHECK-SAME: [
-  // CHECK-SAME: [10{{(, 10)*}}],
+  // CHECK: [10{{(, 10)*}}],
 
   %tensor_unranked_2 = tensor.cast %85 : tensor<1x32x40x128xf32> to tensor<*xf32>
 

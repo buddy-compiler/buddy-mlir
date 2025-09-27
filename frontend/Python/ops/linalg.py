@@ -1174,7 +1174,23 @@ def matmul_transpose_b_op(
     element = mlir_element_attr_get(dtype, 0.0)
     attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
     result_buffer = arith.ConstantOp(tensor_type, attr).result
-    op = linalg.matmul_transpose_b(input1, input2, outs=[result_buffer])
+
+    dimM = ir.AffineDimExpr.get(0)
+    dimN = ir.AffineDimExpr.get(1)
+    dimK = ir.AffineDimExpr.get(2)
+
+    a_map = ir.AffineMap.get(3, 0, [dimM, dimK])
+    b_map = ir.AffineMap.get(3, 0, [dimK, dimN])
+    c_map = ir.AffineMap.get(3, 0, [dimM, dimN])
+    b_transposed_map = ir.AffineMap.get(3, 0, [dimN, dimK])
+    op = linalg.MatmulOp(
+        result_tensors=[tensor_type],
+        inputs=[input1, input2],
+        outputs=[result_buffer],
+        indexing_maps=[a_map, b_transposed_map, c_map],
+    )
+    linalg.fill_builtin_region(op.operation)
+
     return op
 
 

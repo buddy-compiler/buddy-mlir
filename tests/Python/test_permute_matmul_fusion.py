@@ -9,20 +9,22 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import linalg
 from buddy.compiler.graph.transform import simply_fuse, apply_classic_fusion
 
-def foo(m1, m2,map):
-    tmp = torch.ops.aten.permute(m2,map)
-    return torch.matmul(m1,tmp)
+
+def foo(m1, m2, map):
+    tmp = torch.ops.aten.permute(m2, map)
+    return torch.matmul(m1, tmp)
+
 
 m1 = torch.ones([3, 4], dtype=torch.float32)
 m2 = torch.ones([3, 4], dtype=torch.float32)
-map = (1,0)
+map = (1, 0)
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(
     primary_registry=linalg.ops_registry,
     aot_autograd_decomposition=aot_autograd_decompositions,
 )
 
-graphs = dynamo_compiler.importer(foo, m1,m2,map)
+graphs = dynamo_compiler.importer(foo, m1, m2, map)
 assert len(graphs) == 1
 graph = graphs[0]
 pattern_list = [apply_classic_fusion]
@@ -34,7 +36,7 @@ print(graph._imported_module)
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = arith.constant
-# CHECK: %{{.*}} = linalg.matmul_transpose_b
+# CHECK: %{{.*}} = linalg.matmul
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

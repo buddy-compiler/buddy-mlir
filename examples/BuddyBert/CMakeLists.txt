@@ -36,7 +36,6 @@ add_custom_command(
           -matmul-parallel-vectorization-optimize
           -batchmatmul-optimize
           -convert-linalg-to-affine-loops
-          -affine-loop-fusion
           -affine-parallelize
           -convert-scf-to-openmp
           -convert-vector-to-scf
