@@ -85,6 +85,8 @@ jobs:
             -DMLIR_DIR=./llvm/build/lib/cmake/mlir \
             -DLLVM_DIR=./llvm/build/lib/cmake/llvm \
             -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DBUDDY_MLIR_ENABLE_DIP_LIB=ON \
+            -DBUDDY_ENABLE_PNG=ON \
             -DBUDDY_ENABLE_E2E_TESTS=ON \
             -DCMAKE_BUILD_TYPE=RELEASE \
             -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
