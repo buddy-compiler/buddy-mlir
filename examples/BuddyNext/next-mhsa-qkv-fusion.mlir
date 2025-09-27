@@ -36,6 +36,8 @@ func.func @kernel(%t0: tensor<1x40x4096xf32>, %t1: tensor<4096x4096xf32>, %t2: t
 
   %s0 = tosa.const_shape {values = dense<[40, 4096]> : tensor<2xindex>} : () -> !tosa.shape<2>
   %42 = tosa.reshape %t0, %s0 : (tensor<1x40x4096xf32>, !tosa.shape<2>) -> tensor<40x4096xf32>
+  %s0 = tosa.const_shape {values = dense<[40, 4096]> : tensor<2xindex>} : () -> !tosa.shape<2>
+  %42 = tosa.reshape %t0, %s0 : (tensor<1x40x4096xf32>, !tosa.shape<2>) -> tensor<40x4096xf32>
   %cst_6 = arith.constant dense<0.000000e+00> : tensor<40x4096xf32>
   %43 = linalg.matmul
     indexing_maps = [
@@ -48,6 +50,8 @@ func.func @kernel(%t0: tensor<1x40x4096xf32>, %t1: tensor<4096x4096xf32>, %t2: t
 
   %s2 = tosa.const_shape {values = dense<[40, 4096]> : tensor<2xindex>} : () -> !tosa.shape<2>
   %45 = tosa.reshape %t0, %s2 : (tensor<1x40x4096xf32>, !tosa.shape<2>) -> tensor<40x4096xf32>
+  %s2 = tosa.const_shape {values = dense<[40, 4096]> : tensor<2xindex>} : () -> !tosa.shape<2>
+  %45 = tosa.reshape %t0, %s2 : (tensor<1x40x4096xf32>, !tosa.shape<2>) -> tensor<40x4096xf32>
   %cst_7 = arith.constant dense<0.000000e+00> : tensor<40x4096xf32>
   %46 = linalg.matmul
     indexing_maps = [
@@ -58,6 +62,8 @@ func.func @kernel(%t0: tensor<1x40x4096xf32>, %t1: tensor<4096x4096xf32>, %t2: t
   %s3 = tosa.const_shape {values = dense<[1, 40, 4096]> : tensor<3xindex>} : () -> !tosa.shape<3>
   %47 = tosa.reshape %46, %s3 : (tensor<40x4096xf32>, !tosa.shape<3>) -> tensor<1x40x4096xf32>
 
+  %s4 = tosa.const_shape {values = dense<[40, 4096]> : tensor<2xindex>} : () -> !tosa.shape<2>
+  %48 = tosa.reshape %t0, %s4 : (tensor<1x40x4096xf32>, !tosa.shape<2>) -> tensor<40x4096xf32>
   %s4 = tosa.const_shape {values = dense<[40, 4096]> : tensor<2xindex>} : () -> !tosa.shape<2>
   %48 = tosa.reshape %t0, %s4 : (tensor<1x40x4096xf32>, !tosa.shape<2>) -> tensor<40x4096xf32>
   %cst_8 = arith.constant dense<0.000000e+00> : tensor<40x4096xf32>
