@@ -12,8 +12,8 @@ if(BUDDY_DEEPSEEKR1_EXAMPLES)
   add_subdirectory(BuddyDeepSeekR1)
 endif()
 
-if(BUDDY_ATTENTION_EXAMPLES)
-  add_subdirectory(BuddyAttention)
+if(BUDDY_TRANSFORMER_EXAMPLES)
+  add_subdirectory(BuddyTransformer)
 endif()
 
 if (BUDDY_BERT_EXAMPLES)
