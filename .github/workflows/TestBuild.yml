@@ -77,8 +77,8 @@ jobs:
       # 7. Add Install system dependencies
       - name: Install system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libpng-dev
+          apt update
+          apt install -y libpng-dev
 
       # 8. Check the build process of buddy-mlir repository.
       - name: Check buddy-mlir build
