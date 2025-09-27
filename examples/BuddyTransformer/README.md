@@ -1,13 +1,13 @@
 # Buddy Compiler DeepSeek R1 Transformer Example
 
 ## Introduction
-This example demonstrates how to use Buddy Compiler to compile a complete DeepSeek R1 1.5B transformer block to optimized MLIR code. The compilation pipeline includes frontend conversion from PyTorch to MLIR and midend optimization passes.
+This example demonstrates how to use Buddy Compiler to compile a complete DeepSeek R1 1.5B transformer block to optimized MLIR code. The compilation pipeline includes frontend conversion from PyTorch to MLIR and staged optimization passes.
 
 ## Files Structure
 - `transformer_model.py`: DeepSeek R1 transformer block PyTorch model definition
 - `import-transformer.py`: Frontend script to convert PyTorch model to MLIR
 - `transformer_runner.cpp`: C++ performance test runner
-- `CMakeLists.txt`: Build configuration for frontend and midend compilation
+- `CMakeLists.txt`: Build configuration for compilation
 - `README.md`: This documentation
 
 ## Model Configuration
@@ -46,22 +46,38 @@ cmake -G Ninja .. -DBUDDY_TRANSFORMER_EXAMPLES=ON
 
 2. Build the transformer example:
 
-For complete build (all stages):
+### One-step Compilation (Default/Production)
+
+For complete build (fastest, no intermediate files):
 ```bash
 ninja buddy-transformer
 ```
+
+This generates `transformer-runner` executable directly.
+
+### Staged Compilation (Manual debugging and analysis)
 
 For frontend only (PyTorch to TOSA):
 ```bash
 ninja buddy-transformer-frontend
 ```
 
-For code generation (object files):
+For midend optimization (TOSA to optimized MLIR):
+```bash
+ninja buddy-transformer-midend
+```
+
+For backend lowering (optimized MLIR to LLVM MLIR):
+```bash
+ninja buddy-transformer-backend
+```
+
+For code generation (LLVM IR and object files):
 ```bash
 ninja buddy-transformer-codegen
 ```
 
-For executable only:
+For staged executable:
 ```bash
 ninja buddy-transformer-executable
 ```
@@ -85,91 +101,70 @@ After building, the following files will be generated in the build directory:
 - `arg0.data`: Model parameters in binary format
 
 ### Midend Output (Optimized MLIR)
-- `forward-midend.mlir`: Midend optimized main graph (before LLVM lowering)
-- `subgraph0-midend.mlir`: Midend optimized subgraph (before LLVM lowering)
+- `forward-midend.mlir`: Forward graph after midend optimization
+- `subgraph0-midend.mlir`: Subgraph after midend optimization
 
-### Backend Output (LLVM Optimized MLIR)
-- `forward-optimized.mlir`: Backend optimized main graph (LLVM dialect)
-- `subgraph0-optimized.mlir`: Backend optimized subgraph (LLVM dialect)
+### Backend Output (Lowered MLIR)
+- `forward-backend.mlir`: Forward graph after backend lowering
+- `subgraph0-backend.mlir`: Subgraph after backend lowering
 
 ### Code Generation Output
-- `subgraph0.ll`: LLVM IR code
-- `subgraph0.o`: Compiled object file
-- `attention-runner`: Performance test executable
+- `forward.ll`: Forward graph LLVM IR
+- `subgraph0.ll`: Subgraph LLVM IR
+- `forward.o`: Forward graph object file
+- `subgraph.o`: Subgraph object file
+- `transformer-runner`: Final executable
 
-## Compilation Pipeline
+## Compilation Modes
 
-### Frontend (Stage 0) - `ninja buddy-attention-frontend`
-1. PyTorch model definition (`attention_model.py`)
-2. Model export using DynamoCompiler (`import-attention.py`)
-3. Buddy Graph representation (`graph.log`, `graph_fused.log`)
-4. TOSA dialect MLIR generation (`forward.mlir`, `subgraph0.mlir`)
+### Staged Compilation Mode (Debugging/Analysis)
 
-### Midend Optimization (Stage 1) - `ninja buddy-attention-midend`
-1. TOSA to Linalg conversion
-2. Arithmetic expansion
-3. Tensor optimization
-4. Bufferization
-5. Matrix multiplication optimization
-6. Affine loop transformations
-7. Parallelization
-8. Vector optimization
+**Stage 1: Frontend (PyTorch → TOSA)**
+- Target: `buddy-transformer-frontend`
+- Converts PyTorch model to TOSA dialect MLIR representation
+- Outputs: `forward.mlir`, `subgraph0.mlir`, `arg0.data`
 
-### Backend Optimization (Stage 2) - `ninja buddy-attention-backend`
-1. Vector to LLVM conversion
-2. Memory reference expansion
-3. Arithmetic to LLVM conversion
-4. Control flow to LLVM conversion
-5. Function to LLVM conversion
-6. Final reconciliation
+**Stage 2: Midend (TOSA → Optimized MLIR)**
+- Target: `buddy-transformer-midend`
+- Applies optimization passes:
+  - Buffer allocation and deallocation
+  - Matrix multiplication optimization
+  - Affine loop transformations
+  - Parallelization
+- Outputs: `forward-midend.mlir`, `subgraph0-midend.mlir`
 
-### Code Generation (Stage 3) - `ninja buddy-attention-codegen`
-1. MLIR to LLVM IR translation
-2. LLVM IR to object file compilation
+**Stage 3: Backend (Optimized MLIR → LLVM MLIR)**
+- Target: `buddy-transformer-backend`
+- Lowers high-level operations to LLVM dialect:
+  - Vector operations lowering
+  - Memory operations finalization
+  - Control flow conversion
+- Outputs: `forward-backend.mlir`, `subgraph0-backend.mlir`
 
-### Executable Generation (Stage 4) - `ninja buddy-attention-executable`
-1. Link object file with C++ runner
-2. Create performance test executable
+**Stage 4: Code Generation (LLVM MLIR → Object Files)**
+- Target: `buddy-transformer-codegen`
+- Generates final executable code:
+  - LLVM IR generation: `forward.ll`, `subgraph0.ll`
+  - Object file compilation: `forward.o`, `subgraph.o`
+- Target: `buddy-transformer-executable`
+- Links executable: `transformer-runner`
 
-## Customization
+### One-step Compilation Mode (Production)
 
-### Input Parameters
-Modify the import script parameters:
-```bash
-python import-attention.py --batch-size 2 --seq-len 128
-```
+**Direct Compilation**
+- Target: `buddy-transformer-onestep`
+- Compiles directly from TOSA to object files without intermediate stages
+- Faster build time, no intermediate files for inspection
+- Outputs: `forward-onestep.o`, `subgraph-onestep.o`, `transformer-runner-onestep`
 
-### Model Configuration
-Edit `attention_model.py` to change model parameters:
-- `hidden_size`: Model hidden dimension
-- `num_attention_heads`: Number of attention heads
-- `head_dim`: Dimension per attention head
+## Target Summary
 
-## Performance Testing
+| Target | Description | Output Files |
+|--------|-------------|--------------|
+| `buddy-transformer` | **One-step compilation** | `transformer-runner` |
+| `buddy-transformer-frontend` | PyTorch → TOSA MLIR | `*.mlir`, `arg0.data` |
+| `buddy-transformer-midend` | TOSA → Optimized MLIR | `*-midend.mlir` |
+| `buddy-transformer-backend` | Optimized → LLVM MLIR | `*-backend.mlir` |
+| `buddy-transformer-codegen` | LLVM MLIR → Object files | `*.ll`, `*.o` |
+| `buddy-transformer-executable` | Staged executable | `transformer-runner-staged` |
 
-After building the complete pipeline, run the performance test:
-```bash
-cd build/examples/BuddyAttention
-./attention-runner
-```
-
-The performance test will:
-- Load model parameters from `arg0.data`
-- Generate random input data
-- Run warmup iterations
-- Measure execution time over multiple iterations
-- Report average latency and throughput
-- Validate output for NaN/Inf values
-
-## Testing
-Test the PyTorch model independently:
-```bash
-cd examples/BuddyAttention
-python attention_model.py
-```
-
-## Notes
-- This example focuses on frontend and midend compilation only
-- Backend LLVM code generation is not included
-- The attention implementation follows DeepSeek R1 1.5B architecture
-- Uses f32 precision for optimal compatibility
