@@ -46,7 +46,7 @@ config.excludes = [
     'BuddyMobileNetV3',
     'BuddyStableDiffusion',
     'BuddyDeepSeekR1',
-    'BuddyAttention',
+    'BuddyTransformer',
     'BuddyResNet18',
     'BuddyGPU',
     'ConvOpt',
