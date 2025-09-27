@@ -1,4 +1,4 @@
-# ===- import-attention.py -------------------------------------------------
+# ===- import-transformer.py -----------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# DeepSeek R1 Attention Layer AOT Importer
+# DeepSeek R1 Transformer Block AOT Importer
 #
 # ===---------------------------------------------------------------------------
 
@@ -30,12 +30,12 @@ from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import simply_fuse
 
-from attention_model import create_attention_model, create_sample_inputs
+from transformer_model import create_transformer_model, create_sample_inputs
 
 
 def main():
     # Add argument parser to allow custom output directory
-    parser = argparse.ArgumentParser(description="DeepSeek R1 Attention Layer AOT Importer")
+    parser = argparse.ArgumentParser(description="DeepSeek R1 Transformer Block AOT Importer")
     parser.add_argument(
         "--output-dir",
         type=str,
@@ -61,8 +61,8 @@ def main():
     output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
-    # Create the attention model (f32 precision)
-    model = create_attention_model()
+    # Create the transformer block model (f32 precision)
+    model = create_transformer_model()
 
     # Create sample inputs
     hidden_states, attention_mask = create_sample_inputs(args.batch_size, args.seq_len)

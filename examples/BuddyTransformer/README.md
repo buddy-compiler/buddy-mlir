@@ -1,17 +1,20 @@
-# Buddy Compiler DeepSeek R1 Attention Example
+# Buddy Compiler DeepSeek R1 Transformer Example
 
 ## Introduction
-This example demonstrates how to use Buddy Compiler to compile a single layer of DeepSeek R1 1.5B attention mechanism to optimized MLIR code. The compilation pipeline includes frontend conversion from PyTorch to MLIR and midend optimization passes.
+This example demonstrates how to use Buddy Compiler to compile a complete DeepSeek R1 1.5B transformer block to optimized MLIR code. The compilation pipeline includes frontend conversion from PyTorch to MLIR and midend optimization passes.
 
 ## Files Structure
-- `attention_model.py`: DeepSeek R1 single layer attention PyTorch model definition
-- `import-attention.py`: Frontend script to convert PyTorch model to MLIR
+- `transformer_model.py`: DeepSeek R1 transformer block PyTorch model definition
+- `import-transformer.py`: Frontend script to convert PyTorch model to MLIR
+- `transformer_runner.cpp`: C++ performance test runner
 - `CMakeLists.txt`: Build configuration for frontend and midend compilation
 - `README.md`: This documentation
 
 ## Model Configuration
 - Hidden size: 1536
+- Intermediate size: 8960
 - Number of attention heads: 12
+- Number of key-value heads: 2 (Grouped Query Attention)
 - Head dimension: 128
 - Maximum sequence length: 32768
 - Default input: batch_size=1, seq_len=40
@@ -35,42 +38,39 @@ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${
 
 ### Build Commands
 
-1. Enable the attention example in CMake:
+1. Enable the transformer example in CMake:
 ```bash
 cd buddy-mlir/build
-cmake -G Ninja .. -DBUDDY_ATTENTION_EXAMPLES=ON
+cmake -G Ninja .. -DBUDDY_TRANSFORMER_EXAMPLES=ON
 ```
 
-2. Build the attention example:
+2. Build the transformer example:
 
 For complete build (all stages):
 ```bash
-ninja buddy-attention
+ninja buddy-transformer
 ```
 
 For frontend only (PyTorch to TOSA):
 ```bash
-ninja buddy-attention-frontend
+ninja buddy-transformer-frontend
 ```
 
-For midend optimization only:
+For code generation (object files):
 ```bash
-ninja buddy-attention-midend
+ninja buddy-transformer-codegen
 ```
 
-For backend optimization only (requires midend):
+For executable only:
 ```bash
-ninja buddy-attention-backend
+ninja buddy-transformer-executable
 ```
 
-For code generation (LLVM IR and object files):
-```bash
-ninja buddy-attention-codegen
-```
+## Running the Example
 
-For executable generation (performance testing):
+After building, run the performance test:
 ```bash
-ninja buddy-attention-executable
+./bin/transformer-runner
 ```
 
 ## Generated Files

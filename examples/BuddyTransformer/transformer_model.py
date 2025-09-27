@@ -1,4 +1,4 @@
-# ===- attention_model.py --------------------------------------------------
+# ===- transformer_model.py -----------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,20 +14,34 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# DeepSeek R1 Single Layer Attention Model Definition
+# DeepSeek R1 Complete Transformer Block Implementation
 #
 # ===---------------------------------------------------------------------------
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import math
 
 
+class RMSNorm(nn.Module):
+    """Root Mean Square Layer Normalization for DeepSeek R1."""
+    
+    def __init__(self, hidden_size, eps=1e-6):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.eps = eps
+        
+    def forward(self, hidden_states):
+        input_dtype = hidden_states.dtype
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.eps)
+        return self.weight * hidden_states.to(input_dtype)
+
+
 class DeepSeekAttention(nn.Module):
-    """
-    DeepSeek R1 1.5B single layer attention implementation.
-    Based on the DeepSeek-R1-Distill-Qwen-1.5B model configuration.
-    """
+    """DeepSeek R1 1.5B single layer attention implementation with GQA."""
     
     def __init__(self, config=None):
         super().__init__()
@@ -35,9 +49,9 @@ class DeepSeekAttention(nn.Module):
         # DeepSeek R1 1.5B model configuration
         self.hidden_size = 1536
         self.num_attention_heads = 12
-        self.num_key_value_heads = 12
+        self.num_key_value_heads = 2  # GQA
         self.head_dim = self.hidden_size // self.num_attention_heads
-        self.max_position_embeddings = 32768
+        self.max_position_embeddings = 131072
         self.rope_theta = 10000.0
         
         # Linear projections
@@ -50,16 +64,6 @@ class DeepSeekAttention(nn.Module):
         self.scale = 1.0 / math.sqrt(self.head_dim)
         
     def forward(self, hidden_states, attention_mask=None):
-        """
-        Forward pass of the attention layer.
-        
-        Args:
-            hidden_states: Input tensor of shape [batch_size, seq_len, hidden_size]
-            attention_mask: Optional attention mask of shape [batch_size, seq_len]
-            
-        Returns:
-            Output tensor of shape [batch_size, seq_len, hidden_size]
-        """
         batch_size, seq_len, _ = hidden_states.size()
         
         # Linear projections
@@ -72,14 +76,16 @@ class DeepSeekAttention(nn.Module):
         key_states = key_states.view(batch_size, seq_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         value_states = value_states.view(batch_size, seq_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         
+        # Repeat key and value for GQA
+        key_states = key_states.repeat_interleave(self.num_attention_heads // self.num_key_value_heads, dim=1)
+        value_states = value_states.repeat_interleave(self.num_attention_heads // self.num_key_value_heads, dim=1)
+        
         # Compute attention scores
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) * self.scale
         
         # Apply attention mask if provided
         if attention_mask is not None:
-            # Convert attention mask to attention bias
             attention_mask = attention_mask.view(batch_size, 1, 1, seq_len)
-            # Convert to same dtype as attn_weights
             attention_mask = attention_mask.to(attn_weights.dtype)
             attention_mask = (1.0 - attention_mask) * -10000.0
             attn_weights = attn_weights + attention_mask
@@ -97,18 +103,91 @@ class DeepSeekAttention(nn.Module):
         return attn_output
 
 
-def create_attention_model():
+class DeepSeekFFN(nn.Module):
+    """DeepSeek R1 1.5B Feed Forward Network implementation."""
+    
+    def __init__(self, config=None):
+        super().__init__()
+        
+        # DeepSeek R1 1.5B FFN configuration
+        self.hidden_size = 1536
+        self.intermediate_size = 8960
+        
+        # Linear projections
+        self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
+        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
+        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
+        
+    def forward(self, hidden_states):
+        # Gate projection with SiLU activation
+        gate = self.gate_proj(hidden_states)
+        gate = F.silu(gate)
+        
+        # Up projection
+        up = self.up_proj(hidden_states)
+        
+        # Gated mechanism: element-wise multiplication
+        intermediate = gate * up
+        
+        # Down projection
+        output = self.down_proj(intermediate)
+        
+        return output
+
+
+class DeepSeekTransformerBlock(nn.Module):
     """
-    Create and return a DeepSeek attention model instance.
+    DeepSeek R1 1.5B complete transformer block implementation.
+    Includes RMSNorm, Attention, FFN, and residual connections.
     """
-    model = DeepSeekAttention()
+    
+    def __init__(self, config=None):
+        super().__init__()
+        
+        # Layer components
+        self.input_layernorm = RMSNorm(1536, eps=1e-6)
+        self.self_attn = DeepSeekAttention(config)
+        self.post_attention_layernorm = RMSNorm(1536, eps=1e-6)
+        self.mlp = DeepSeekFFN(config)
+        
+    def forward(self, hidden_states, attention_mask=None):
+        """
+        Forward pass of the transformer block.
+        
+        Args:
+            hidden_states: Input tensor of shape [batch_size, seq_len, hidden_size]
+            attention_mask: Optional attention mask of shape [batch_size, seq_len]
+            
+        Returns:
+            Output tensor of shape [batch_size, seq_len, hidden_size]
+        """
+        # Self-attention with residual connection
+        residual = hidden_states
+        hidden_states = self.input_layernorm(hidden_states)
+        hidden_states = self.self_attn(hidden_states, attention_mask)
+        hidden_states = residual + hidden_states
+        
+        # FFN with residual connection
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        hidden_states = self.mlp(hidden_states)
+        hidden_states = residual + hidden_states
+        
+        return hidden_states
+
+
+def create_transformer_model():
+    """
+    Create and return a DeepSeek transformer block model instance.
+    """
+    model = DeepSeekTransformerBlock()
     model.eval()
     return model
 
 
 def create_sample_inputs(batch_size=1, seq_len=40):
     """
-    Create sample inputs for the attention model.
+    Create sample inputs for the transformer model.
     
     Args:
         batch_size: Batch size
@@ -129,11 +208,12 @@ def create_sample_inputs(batch_size=1, seq_len=40):
 
 
 if __name__ == "__main__":
-    model = create_attention_model()
+    model = create_transformer_model()
     hidden_states, attention_mask = create_sample_inputs()
     
     with torch.no_grad():
         output = model(hidden_states, attention_mask)
         print(f"Input shape: {hidden_states.shape}")
         print(f"Output shape: {output.shape}")
-        print("Model test passed successfully")
+        print(f"Parameters: {sum(p.numel() for p in model.parameters())}")
+        print("Transformer block test passed successfully")
