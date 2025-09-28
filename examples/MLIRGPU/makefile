@@ -14,11 +14,13 @@ MLIR_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_runner_utils.so
 MLIR_C_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_c_runner_utils.so
 MLIR_ASYNC_RUNTIME := ${LLVM_BUILD_DIR}/lib/libmlir_async_runtime.so
 MLIR_CUDA_RUNTIME := ${LLVM_BUILD_DIR}/lib/libmlir_cuda_runtime.so
+MLIR_FLOAT16_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_float16_utils.so
 else ifeq ($(shell uname),Darwin)
 MLIR_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_runner_utils.dylib
 MLIR_C_RUNNER_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_c_runner_utils.dylib
 MLIR_ASYNC_RUNTIME := ${LLVM_BUILD_DIR}/lib/libmlir_async_runtime.dylib
 MLIR_CUDA_RUNTIME := ${LLVM_BUILD_DIR}/lib/libmlir_cuda_runtime.dylib
+MLIR_FLOAT16_UTILS := ${LLVM_BUILD_DIR}/lib/libmlir_float16_utils.dylib
 endif
 
 gpu-all-reduce-and-ptx:
@@ -60,6 +62,82 @@ gpu-all-reduce-and-aot:
 		-Wl,-rpath,${LLVM_BUILD_DIR}/lib \
 		-o gpu-all-reduce-and.out && \
 	./gpu-all-reduce-and.out
+
+gpu-vector-contract-ptx:
+	@${MLIR_OPT} gpu-vector-contract.mlir \
+		-convert-vector-to-llvm \
+		-gpu-lower-to-nvvm-pipeline \
+		-debug-only=serialize-to-isa \
+		> /dev/null 2> log.ptx
+
+gpu-vector-contract-sass:
+	@${MLIR_OPT} gpu-vector-contract.mlir \
+		-convert-vector-to-llvm \
+		-gpu-lower-to-nvvm-pipeline \
+		-debug-only=dump-sass \
+		> /dev/null 2> log.sass
+
+gpu-vector-contract-jit:
+	@${MLIR_OPT} gpu-vector-contract.mlir \
+		-convert-vector-to-llvm \
+		-gpu-lower-to-nvvm-pipeline | \
+	${MLIR_CPU_RUNNER} -entry-point-result=void \
+		-shared-libs=${MLIR_CUDA_RUNTIME} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS} \
+		-shared-libs=${MLIR_RUNNER_UTILS}
+
+gpu-vector-contract-aot:
+	@${MLIR_OPT} gpu-vector-contract.mlir \
+		-convert-vector-to-llvm \
+		-gpu-lower-to-nvvm-pipeline | \
+	${MLIR_TRANSLATE} \
+		--mlir-to-llvmir \
+		-o vector-contract.ll && \
+	${CLANG} vector-contract.ll \
+		${MLIR_RUNNER_UTILS} \
+		${MLIR_CUDA_RUNTIME} \
+		${MLIR_C_RUNNER_UTILS} \
+		${MLIR_FLOAT16_UTILS} \
+		-no-pie \
+		-Wl,-rpath,${LLVM_BUILD_DIR}/lib \
+		-o vector-contract.out && \
+	./vector-contract.out
+
+gpu-tensor-core-ptx:
+	@${MLIR_OPT} gpu-tensor-core.mlir \
+		-gpu-lower-to-nvvm-pipeline=cubin-chip=sm_86 \
+		-debug-only=serialize-to-isa \
+		> /dev/null 2> tensor-core.ptx
+
+gpu-tensor-core-sass:
+	@${MLIR_OPT} gpu-tensor-core.mlir \
+		-gpu-lower-to-nvvm-pipeline=cubin-chip=sm_86 \
+		-debug-only=dump-sass \
+		> /dev/null 2> tensor-core.sass
+
+gpu-tensor-core-jit:
+	@${MLIR_OPT} gpu-tensor-core.mlir \
+		-gpu-lower-to-nvvm-pipeline=cubin-chip=sm_86 | \
+	${MLIR_CPU_RUNNER} -entry-point-result=void \
+		-shared-libs=${MLIR_CUDA_RUNTIME} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS} \
+		-shared-libs=${MLIR_RUNNER_UTILS}
+
+gpu-tensor-core-aot:
+	@${MLIR_OPT} gpu-tensor-core.mlir \
+		-gpu-lower-to-nvvm-pipeline=cubin-chip=sm_86 | \
+	${MLIR_TRANSLATE} \
+		--mlir-to-llvmir \
+		-o tensor-core.ll && \
+	${CLANG} tensor-core.ll \
+		${MLIR_RUNNER_UTILS} \
+		${MLIR_CUDA_RUNTIME} \
+		${MLIR_C_RUNNER_UTILS} \
+		${MLIR_FLOAT16_UTILS} \
+		-no-pie \
+		-Wl,-rpath,${LLVM_BUILD_DIR}/lib \
+		-o tensor-core.out && \
+	./tensor-core.out
 
 gpu-launch-func-lower:
 	@${MLIR_OPT} gpu-launch-func.mlir -gpu-kernel-outlining | \
