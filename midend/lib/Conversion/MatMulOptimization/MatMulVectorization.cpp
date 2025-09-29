@@ -50,112 +50,270 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
-    // Get input A, B, C.
-    Value A = op->getOperand(0);
-    Value B = op->getOperand(1);
-    Value C = op->getOperand(2);
-    // Get shape of input and output
-    ShapedType ATy = A.getType().cast<ShapedType>();
-    Type eleTy = ATy.getElementType();
-    // ShapedType BTy = B.getType().cast<ShapedType>();
-    // ShapedType CTy = C.getType().cast<ShapedType>();
 
-    auto ctx = op->getContext();
-    // Get i1 as the element type for mask vector.
-    IntegerType i1 = IntegerType::get(ctx, 1);
-    // Define `*Type`.
-    VectorType vectorTy = mlir::VectorType::get({vecSize}, eleTy);
-    VectorType vectorMaskTy = VectorType::get({vecSize}, i1);
-    // Some constants.
+    // Create constant 0-7 values.
     const Value c0 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
     const Value c1 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-    const Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
-    // Create pass through vector.
-    const Value c0Ele = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
-    Value passthruVec = rewriter.create<SplatOp>(loc, vectorTy, c0Ele);
+    const Value c2 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(2));
+    const Value c3 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(3));
+    const Value c4 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(4));
+    const Value c5 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(5));
+    const Value c6 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(6));
+    const Value c7 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(7));
 
-    // Create DimOp.
-    const Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);
-    // This algorithm does not use the column A index.
-    // const Value aCol = rewriter.create<memref::DimOp>(loc, A, c1);
-    const Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);
-    const Value bCol = rewriter.create<memref::DimOp>(loc, B, c1);
-    // Size of vector type.
-    AffineExpr d0;
-    bindDims(ctx, d0);
-    AffineMap vecTailMap = AffineMap::get(1, 0, {d0.ceilDiv(vecSize)}, ctx);
-    SmallVector<Value, 8> lowerBounds(2, c0);
-    SmallVector<Value, 8> uperBounds{bRow, aRow};
-    SmallVector<int64_t, 8> steps(2, /*Value=*/1);
-    // clang-format off
-    affine::buildAffineLoopNest(
-        rewriter, loc, lowerBounds, uperBounds, steps,
-        [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-      // Create loop based on vector size.
-      builder.create<affine::AffineForOp>(
-          loc, ValueRange{c0}, builder.getDimIdentityMap(),
-          ValueRange{bCol}, vecTailMap, /*Step=*/1, std::nullopt,
-          [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
-              ValueRange itrArgs) {
-        // Load element and broadcast to vector.
-        Value aEle = builder.create<memref::LoadOp>(
-            loc, A, ValueRange{ivs[1], ivs[0]});
-        Value aVec = builder.create<vector::BroadcastOp>(loc, vectorTy, aEle);
-        // Check tail.
-        AffineExpr m, n, k;
-        bindDims(ctx, m, n, k);
-        AffineMap BVectorMap = AffineMap::get(
-            /*dimCount=*/3, /*symbolCount=*/0, {m, k * vecSize}, ctx);
-        AffineExpr x, y, z;
-        bindDims(ctx, x, y, z);
-        AffineMap CVectorMap = AffineMap::get(
-            /*dimCount=*/3, /*symbolCount=*/0, {y, z * vecSize}, ctx);
-        // Calculate the tail.
-        Value bColCur = builder.create<arith::MulIOp>(loc, iv, step);
-        Value tailLen = builder.create<arith::SubIOp>(loc, bCol, bColCur);
-        Value tailFlag = rewriter.create<arith::CmpIOp>(
-            loc, arith::CmpIPredicate::sge, tailLen, step);
-        // If the current column does not reach the tail.
-        builder.create<scf::IfOp>(loc, tailFlag,
-            [&](OpBuilder &builder, Location loc) {
-          Value bVec = builder.create<affine::AffineVectorLoadOp>(
-              loc, vectorTy, B, BVectorMap, ValueRange{ivs[0], ivs[1], iv});
-          Value cVec = builder.create<affine::AffineVectorLoadOp>(
-              loc, vectorTy, C, CVectorMap, ValueRange{ivs[0], ivs[1], iv});
-          // FMA = Fused Multiply + Add
-          // FMAOp only supports floating point type input.
-          // TODO: Write a utils function for FMA to support both int and float.
-          Value resultVector = builder.create<FMAOp>(loc, aVec, bVec, cVec);
-          builder.create<affine::AffineVectorStoreOp>(
-              loc, resultVector, C, CVectorMap, ValueRange{ivs[0], ivs[1], iv});
-          builder.create<scf::YieldOp>(loc);
-        },
-        // The else branch (the current column reaches the tail).
-        [&](OpBuilder &builder, Location loc) {
-          // Create mask according to the tail.
-          Value maskVec = builder.create<CreateMaskOp>(
-              loc, vectorMaskTy, tailLen);
-          Value bColIdxTail = builder.create<arith::MulIOp>(loc, iv, step);
-          // Masked load input and output.
-          Value bVecTail = builder.create<MaskedLoadOp>(
-              loc, vectorTy, B, ValueRange{ivs[0], bColIdxTail},
-              maskVec, passthruVec);
-          Value cVecTail = builder.create<MaskedLoadOp>(
-              loc, vectorTy, C, ValueRange{ivs[1], bColIdxTail},
-              maskVec, passthruVec);
-          // FMA.
-          Value resultVecTail =
-              builder.create<FMAOp>(loc, aVec, bVecTail, cVecTail);
-          builder.create<MaskedStoreOp>(
-              loc, C, ValueRange{ivs[1], bColIdxTail}, maskVec, resultVecTail);
-          builder.create<scf::YieldOp>(loc);
+    // Note: the unroll factor is not the same as the vector size.
+    const Value unroll =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(8));
+
+    // Get input A, B, C.
+    Value A = op->getOperand(0);
+    Value B = op->getOperand(1);
+    Value C = op->getOperand(2);
+
+    // Create DimOp for m, n, k.
+    const Value m = rewriter.create<memref::DimOp>(loc, A, c0);
+    const Value n = rewriter.create<memref::DimOp>(loc, C, c1);
+    const Value k = rewriter.create<memref::DimOp>(loc, A, c1);
+
+    // Define step.
+    const Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+
+    // Get element type and create vector type.
+    ShapedType ATy = cast<ShapedType>(A.getType());
+    Type eleTy = ATy.getElementType();
+    VectorType vectorTy = VectorType::get({vecSize}, eleTy);
+    FloatType eleFloatTy =
+        eleTy.isF32()
+            ? static_cast<FloatType>(Float32Type::get(rewriter.getContext()))
+            : static_cast<FloatType>(Float64Type::get(rewriter.getContext()));
+
+    // Create parallel op for m dimension with unroll factor equal to 8.
+    auto parOp = rewriter.create<scf::ParallelOp>(
+        loc,
+        /*lowerBounds=*/ValueRange{c0},
+        /*upperBounds=*/ValueRange{m},
+        /*steps=*/ValueRange{unroll},
+        [&](OpBuilder &builder, Location loc, ValueRange mIdx) {
+          auto mIdx1 = rewriter.create<arith::AddIOp>(loc, mIdx[0], c1);
+          auto mIdx2 = rewriter.create<arith::AddIOp>(loc, mIdx[0], c2);
+          auto mIdx3 = rewriter.create<arith::AddIOp>(loc, mIdx[0], c3);
+          auto mIdx4 = rewriter.create<arith::AddIOp>(loc, mIdx[0], c4);
+          auto mIdx5 = rewriter.create<arith::AddIOp>(loc, mIdx[0], c5);
+          auto mIdx6 = rewriter.create<arith::AddIOp>(loc, mIdx[0], c6);
+          auto mIdx7 = rewriter.create<arith::AddIOp>(loc, mIdx[0], c7);
+
+          auto nBodyBoundTmp = rewriter.create<arith::SubIOp>(loc, n, step);
+          auto nBodyBound =
+              rewriter.create<arith::AddIOp>(loc, nBodyBoundTmp, c1);
+
+          auto nIterIdx = rewriter.create<scf::ForOp>(
+              loc,
+              /*lowerBound=*/c0,
+              /*upperBound=*/nBodyBound,
+              /*step=*/step,
+              /*initArgs=*/ValueRange{c0},
+              [&](OpBuilder &builder, Location loc, Value iv,
+                  ValueRange iterArgs) {
+                // Create sum_init vector (zero vector)
+                auto sumInit = rewriter.create<arith::ConstantOp>(
+                    loc, vectorTy,
+                    DenseElementsAttr::get(vectorTy, APFloat(0.0f)));
+
+                auto sumIterVecs = rewriter.create<scf::ForOp>(
+                    loc,
+                    /*lowerBound=*/c0,
+                    /*upperBound=*/k,
+                    /*step=*/c1,
+                    /*initArgs=*/
+                    ValueRange{sumInit, sumInit, sumInit, sumInit, sumInit,
+                               sumInit, sumInit, sumInit},
+                    [&](OpBuilder &builder, Location loc, Value kIdx,
+                        ValueRange iterArgs) {
+                      auto aEle0 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx[0], kIdx});
+                      auto aEle1 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx1, kIdx});
+                      auto aEle2 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx2, kIdx});
+                      auto aEle3 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx3, kIdx});
+                      auto aEle4 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx4, kIdx});
+                      auto aEle5 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx5, kIdx});
+                      auto aEle6 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx6, kIdx});
+                      auto aEle7 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx7, kIdx});
+
+                      auto aVec0 = rewriter.create<vector::BroadcastOp>(
+                          loc, vectorTy, aEle0);
+                      auto aVec1 = rewriter.create<vector::BroadcastOp>(
+                          loc, vectorTy, aEle1);
+                      auto aVec2 = rewriter.create<vector::BroadcastOp>(
+                          loc, vectorTy, aEle2);
+                      auto aVec3 = rewriter.create<vector::BroadcastOp>(
+                          loc, vectorTy, aEle3);
+                      auto aVec4 = rewriter.create<vector::BroadcastOp>(
+                          loc, vectorTy, aEle4);
+                      auto aVec5 = rewriter.create<vector::BroadcastOp>(
+                          loc, vectorTy, aEle5);
+                      auto aVec6 = rewriter.create<vector::BroadcastOp>(
+                          loc, vectorTy, aEle6);
+                      auto aVec7 = rewriter.create<vector::BroadcastOp>(
+                          loc, vectorTy, aEle7);
+
+                      auto bVec = rewriter.create<vector::LoadOp>(
+                          loc, vectorTy, B, ValueRange{kIdx, iv});
+
+                      auto resSumVec0 = rewriter.create<vector::FMAOp>(
+                          loc, aVec0, bVec, iterArgs[0]);
+                      auto resSumVec1 = rewriter.create<vector::FMAOp>(
+                          loc, aVec1, bVec, iterArgs[1]);
+                      auto resSumVec2 = rewriter.create<vector::FMAOp>(
+                          loc, aVec2, bVec, iterArgs[2]);
+                      auto resSumVec3 = rewriter.create<vector::FMAOp>(
+                          loc, aVec3, bVec, iterArgs[3]);
+                      auto resSumVec4 = rewriter.create<vector::FMAOp>(
+                          loc, aVec4, bVec, iterArgs[4]);
+                      auto resSumVec5 = rewriter.create<vector::FMAOp>(
+                          loc, aVec5, bVec, iterArgs[5]);
+                      auto resSumVec6 = rewriter.create<vector::FMAOp>(
+                          loc, aVec6, bVec, iterArgs[6]);
+                      auto resSumVec7 = rewriter.create<vector::FMAOp>(
+                          loc, aVec7, bVec, iterArgs[7]);
+
+                      builder.create<scf::YieldOp>(
+                          loc, ValueRange{resSumVec0, resSumVec1, resSumVec2,
+                                          resSumVec3, resSumVec4, resSumVec5,
+                                          resSumVec6, resSumVec7});
+                    });
+
+                auto sumIterVec0 = rewriter.create<vector::StoreOp>(
+                    loc, sumIterVecs.getResult(0), C, ValueRange{mIdx[0], iv});
+                auto sumIterVec1 = rewriter.create<vector::StoreOp>(
+                    loc, sumIterVecs.getResult(1), C, ValueRange{mIdx1, iv});
+                auto sumIterVec2 = rewriter.create<vector::StoreOp>(
+                    loc, sumIterVecs.getResult(2), C, ValueRange{mIdx2, iv});
+                auto sumIterVec3 = rewriter.create<vector::StoreOp>(
+                    loc, sumIterVecs.getResult(3), C, ValueRange{mIdx3, iv});
+                auto sumIterVec4 = rewriter.create<vector::StoreOp>(
+                    loc, sumIterVecs.getResult(4), C, ValueRange{mIdx4, iv});
+                auto sumIterVec5 = rewriter.create<vector::StoreOp>(
+                    loc, sumIterVecs.getResult(5), C, ValueRange{mIdx5, iv});
+                auto sumIterVec6 = rewriter.create<vector::StoreOp>(
+                    loc, sumIterVecs.getResult(6), C, ValueRange{mIdx6, iv});
+                auto sumIterVec7 = rewriter.create<vector::StoreOp>(
+                    loc, sumIterVecs.getResult(7), C, ValueRange{mIdx7, iv});
+
+                auto kNext = rewriter.create<arith::AddIOp>(loc, iv, step);
+                builder.create<scf::YieldOp>(loc, ValueRange{kNext});
+              });
+
+          // Tail processing.
+          builder.create<scf::ForOp>(
+              loc, nIterIdx.getResult(0), n, c1, std::nullopt,
+              [&](OpBuilder &builder, Location loc, Value iv,
+                  ValueRange iterArgs) {
+                Value sumInit = rewriter.create<arith::ConstantFloatOp>(
+                    loc, APFloat(float(0.0)), eleFloatTy);
+                auto sumIterVecs = rewriter.create<scf::ForOp>(
+                    loc,
+                    /*lowerBound=*/c0,
+                    /*upperBound=*/k,
+                    /*step=*/c1,
+                    /*initArgs=*/
+                    ValueRange{sumInit, sumInit, sumInit, sumInit, sumInit,
+                               sumInit, sumInit, sumInit},
+                    [&](OpBuilder &builder, Location loc, Value kIdx,
+                        ValueRange iterArgs) {
+                      auto aEle0 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx[0], kIdx});
+                      auto aEle1 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx1, kIdx});
+                      auto aEle2 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx2, kIdx});
+                      auto aEle3 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx3, kIdx});
+                      auto aEle4 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx4, kIdx});
+                      auto aEle5 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx5, kIdx});
+                      auto aEle6 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx6, kIdx});
+                      auto aEle7 = rewriter.create<memref::LoadOp>(
+                          loc, A, ValueRange{mIdx7, kIdx});
+
+                      auto bEle = rewriter.create<memref::LoadOp>(
+                          loc, B, ValueRange{kIdx, iv});
+
+                      auto tmpEle0 =
+                          rewriter.create<arith::MulFOp>(loc, aEle0, bEle);
+                      auto tmpEle1 =
+                          rewriter.create<arith::MulFOp>(loc, aEle1, bEle);
+                      auto tmpEle2 =
+                          rewriter.create<arith::MulFOp>(loc, aEle2, bEle);
+                      auto tmpEle3 =
+                          rewriter.create<arith::MulFOp>(loc, aEle3, bEle);
+                      auto tmpEle4 =
+                          rewriter.create<arith::MulFOp>(loc, aEle4, bEle);
+                      auto tmpEle5 =
+                          rewriter.create<arith::MulFOp>(loc, aEle5, bEle);
+                      auto tmpEle6 =
+                          rewriter.create<arith::MulFOp>(loc, aEle6, bEle);
+                      auto tmpEle7 =
+                          rewriter.create<arith::MulFOp>(loc, aEle7, bEle);
+
+                      auto resSum0 = rewriter.create<arith::AddFOp>(
+                          loc, tmpEle0, iterArgs[0]);
+                      auto resSum1 = rewriter.create<arith::AddFOp>(
+                          loc, tmpEle1, iterArgs[1]);
+                      auto resSum2 = rewriter.create<arith::AddFOp>(
+                          loc, tmpEle2, iterArgs[2]);
+                      auto resSum3 = rewriter.create<arith::AddFOp>(
+                          loc, tmpEle3, iterArgs[3]);
+                      auto resSum4 = rewriter.create<arith::AddFOp>(
+                          loc, tmpEle4, iterArgs[4]);
+                      auto resSum5 = rewriter.create<arith::AddFOp>(
+                          loc, tmpEle5, iterArgs[5]);
+                      auto resSum6 = rewriter.create<arith::AddFOp>(
+                          loc, tmpEle6, iterArgs[6]);
+                      auto resSum7 = rewriter.create<arith::AddFOp>(
+                          loc, tmpEle7, iterArgs[7]);
+
+                      builder.create<scf::YieldOp>(
+                          loc, ValueRange{resSum0, resSum1, resSum2, resSum3,
+                                          resSum4, resSum5, resSum6, resSum7});
+                    });
+
+                auto sumIter0 = rewriter.create<memref::StoreOp>(
+                    loc, sumIterVecs.getResult(0), C, ValueRange{mIdx[0], iv});
+                auto sumIter1 = rewriter.create<memref::StoreOp>(
+                    loc, sumIterVecs.getResult(1), C, ValueRange{mIdx1, iv});
+                auto sumIter2 = rewriter.create<memref::StoreOp>(
+                    loc, sumIterVecs.getResult(2), C, ValueRange{mIdx2, iv});
+                auto sumIter3 = rewriter.create<memref::StoreOp>(
+                    loc, sumIterVecs.getResult(3), C, ValueRange{mIdx3, iv});
+                auto sumIter4 = rewriter.create<memref::StoreOp>(
+                    loc, sumIterVecs.getResult(4), C, ValueRange{mIdx4, iv});
+                auto sumIter5 = rewriter.create<memref::StoreOp>(
+                    loc, sumIterVecs.getResult(5), C, ValueRange{mIdx5, iv});
+                auto sumIter6 = rewriter.create<memref::StoreOp>(
+                    loc, sumIterVecs.getResult(6), C, ValueRange{mIdx6, iv});
+                auto sumIter7 = rewriter.create<memref::StoreOp>(
+                    loc, sumIterVecs.getResult(7), C, ValueRange{mIdx7, iv});
+
+                builder.create<scf::YieldOp>(loc);
+              });
         });
-        builder.create<affine::AffineYieldOp>(loc);
-      });
-    });
-    // clang-format on
     rewriter.eraseOp(op);
     return success();
   }
