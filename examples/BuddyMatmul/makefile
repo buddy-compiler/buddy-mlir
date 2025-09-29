@@ -218,6 +218,32 @@ amx-bf16-matmul-asm:
 	${LLC} -mtriple ${MTRIPLE} -mattr=+amx-bf16,+amx-tile,+amx-int8 ${OPT_FLAG} -filetype=asm -o amx-asm.s
 	@echo "Generated assembly in amx-asm.s"
 
+matmul-amx-example-lower:
+	@${BUDDY_OPT} ./linalg-to-amx-example.mlir \
+		-matmul-amx \
+		-o matmul-amx-lowered.mlir
+
+matmul-amx-example-run:
+	@echo "Running MatmulAMX converted code..."
+	@${BUDDY_OPT} ./linalg-to-amx-example.mlir \
+		-matmul-amx \
+		--llvm-request-c-wrappers \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm="enable-amx" \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o matmul-amx.ll
+	@${LLC} -mtriple ${MTRIPLE} -mattr=+amx-bf16,+amx-tile,+amx-int8 ${OPT_FLAG} -filetype=obj matmul-amx.ll -o matmul-amx.o
+	@gcc -c amx-wrapper.c -o amx-wrapper-matmul.o
+	@g++ amx-wrapper-matmul.o matmul-amx.o -o matmul-amx-test -L${LLVM_BUILD_DIR}/lib -lmlir_runner_utils -lmlir_c_runner_utils -lpthread -Wl,-rpath,${LLVM_BUILD_DIR}/lib
+	@echo "Running MatmulAMX test..."
+	@LD_LIBRARY_PATH=${LLVM_BUILD_DIR}/lib ./matmul-amx-test
+	@rm -f matmul-amx.ll matmul-amx.o amx-wrapper-matmul.o matmul-amx-test
+
 linalg-bf16-matmul-run:
 	@echo "Running linalg JIT version with MLIR-level timing..."
 	@${BUDDY_OPT} ./linalg-bf16-matmul.mlir \
