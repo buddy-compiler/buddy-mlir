@@ -1059,6 +1059,65 @@ next-eliminate-identity-run:
     ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
         -shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
+next-matmul-transpose-blis-run: 
+	@${MLIR_OPT} ./next-matmul-transpose.mlir \
+		-convert-scf-to-openmp \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-cse \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+    ${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-matmul-transpose-blis.out
+	./next-matmul-transpose-blis.out || true
+
+next-sgemm-blis-run: 
+	@${MLIR_OPT} ./next-sgemm-blis.mlir \
+		-convert-scf-to-openmp \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-cse \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+    ${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-sgemm-blis.out
+	./next-sgemm-blis.out || true
+
+
+
+
 next-sgemm-run:
 	@${MLIR_OPT} ./next-sgemm.mlir \
 		-convert-linalg-to-loops \
