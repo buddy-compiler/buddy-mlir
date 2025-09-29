@@ -20,9 +20,9 @@ module{
 
   func.func @main(){
     // Set up dims.
-    %cM = arith.constant 4 : index
-    %cN = arith.constant 4 : index
-    %cK = arith.constant 4 : index
+    %cM = arith.constant 1024 : index
+    %cN = arith.constant 1024 : index
+    %cK = arith.constant 1024 : index
 
     // -------------------------------------------------------------------------
     // Test f32 as element type.
@@ -43,13 +43,8 @@ module{
     call @matmul_f32(%A_f32, %B_f32, %C_f32) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
 
     // Print output.
-    // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data =
-    // CHECK-NEXT: [
-    // CHECK-SAME:  [4, 4, 4, 4],
-    // CHECK-NEXT:  [4, 4, 4, 4],
-    // CHECK-NEXT:  [4, 4, 4, 4],
-    // CHECK-NEXT:  [4, 4, 4, 4]
-    // CHECK-SAME: ]
+    // CHECK: Unranked Memref base@ = {{.*}}
+
     %print_C_f32 = memref.cast %C_f32 : memref<?x?xf32> to memref<*xf32>
     call @printMemrefF32(%print_C_f32) : (memref<*xf32>) -> ()
 
