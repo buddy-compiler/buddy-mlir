@@ -122,10 +122,22 @@ public:
               /*initArgs=*/ValueRange{c0},
               [&](OpBuilder &builder, Location loc, Value iv,
                   ValueRange iterArgs) {
-                // Create sum_init vector (zero vector)
-                auto sumInit = rewriter.create<arith::ConstantOp>(
-                    loc, vectorTy,
-                    DenseElementsAttr::get(vectorTy, APFloat(0.0f)));
+                auto sumInitVec0 = rewriter.create<vector::LoadOp>(
+                    loc, vectorTy, C, ValueRange{mIdx[0], iv});
+                auto sumInitVec1 = rewriter.create<vector::LoadOp>(
+                    loc, vectorTy, C, ValueRange{mIdx1, iv});
+                auto sumInitVec2 = rewriter.create<vector::LoadOp>(
+                    loc, vectorTy, C, ValueRange{mIdx2, iv});
+                auto sumInitVec3 = rewriter.create<vector::LoadOp>(
+                    loc, vectorTy, C, ValueRange{mIdx3, iv});
+                auto sumInitVec4 = rewriter.create<vector::LoadOp>(
+                    loc, vectorTy, C, ValueRange{mIdx4, iv});
+                auto sumInitVec5 = rewriter.create<vector::LoadOp>(
+                    loc, vectorTy, C, ValueRange{mIdx5, iv});
+                auto sumInitVec6 = rewriter.create<vector::LoadOp>(
+                    loc, vectorTy, C, ValueRange{mIdx6, iv});
+                auto sumInitVec7 = rewriter.create<vector::LoadOp>(
+                    loc, vectorTy, C, ValueRange{mIdx7, iv});
 
                 auto sumIterVecs = rewriter.create<scf::ForOp>(
                     loc,
@@ -133,8 +145,9 @@ public:
                     /*upperBound=*/k,
                     /*step=*/c1,
                     /*initArgs=*/
-                    ValueRange{sumInit, sumInit, sumInit, sumInit, sumInit,
-                               sumInit, sumInit, sumInit},
+                    ValueRange{sumInitVec0, sumInitVec1, sumInitVec2,
+                               sumInitVec3, sumInitVec4, sumInitVec5,
+                               sumInitVec6, sumInitVec7},
                     [&](OpBuilder &builder, Location loc, Value kIdx,
                         ValueRange iterArgs) {
                       auto aEle0 = rewriter.create<memref::LoadOp>(
@@ -223,16 +236,30 @@ public:
               loc, nIterIdx.getResult(0), n, c1, std::nullopt,
               [&](OpBuilder &builder, Location loc, Value iv,
                   ValueRange iterArgs) {
-                Value sumInit = rewriter.create<arith::ConstantFloatOp>(
-                    loc, APFloat(float(0.0)), eleFloatTy);
+                auto sumInit0 = rewriter.create<memref::LoadOp>(
+                    loc, eleFloatTy, C, ValueRange{mIdx[0], iv});
+                auto sumInit1 = rewriter.create<memref::LoadOp>(
+                    loc, eleFloatTy, C, ValueRange{mIdx1, iv});
+                auto sumInit2 = rewriter.create<memref::LoadOp>(
+                    loc, eleFloatTy, C, ValueRange{mIdx2, iv});
+                auto sumInit3 = rewriter.create<memref::LoadOp>(
+                    loc, eleFloatTy, C, ValueRange{mIdx3, iv});
+                auto sumInit4 = rewriter.create<memref::LoadOp>(
+                    loc, eleFloatTy, C, ValueRange{mIdx4, iv});
+                auto sumInit5 = rewriter.create<memref::LoadOp>(
+                    loc, eleFloatTy, C, ValueRange{mIdx5, iv});
+                auto sumInit6 = rewriter.create<memref::LoadOp>(
+                    loc, eleFloatTy, C, ValueRange{mIdx6, iv});
+                auto sumInit7 = rewriter.create<memref::LoadOp>(
+                    loc, eleFloatTy, C, ValueRange{mIdx7, iv});
                 auto sumIterVecs = rewriter.create<scf::ForOp>(
                     loc,
                     /*lowerBound=*/c0,
                     /*upperBound=*/k,
                     /*step=*/c1,
                     /*initArgs=*/
-                    ValueRange{sumInit, sumInit, sumInit, sumInit, sumInit,
-                               sumInit, sumInit, sumInit},
+                    ValueRange{sumInit0, sumInit1, sumInit2, sumInit3, sumInit4,
+                               sumInit5, sumInit6, sumInit7},
                     [&](OpBuilder &builder, Location loc, Value kIdx,
                         ValueRange iterArgs) {
                       auto aEle0 = rewriter.create<memref::LoadOp>(
