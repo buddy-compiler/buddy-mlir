@@ -17,6 +17,8 @@ set(LinkedLibs
   LowerBudPass
   LowerDAPPass
   LowerDIPPass
+  LowerBuckyballPass
+  # LowerLinalgToBuckyballPass
   LowerGemminiPass
   LowerLinalgToGemminiPass
   LowerRVVPass

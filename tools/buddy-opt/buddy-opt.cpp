@@ -40,6 +40,8 @@
 #include "DAP/DAPOps.h"
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
+#include "Buckyball/BuckyballDialect.h"
+#include "Buckyball/BuckyballOps.h"
 #include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
@@ -143,6 +145,7 @@ int main(int argc, char **argv) {
                   buddy::rvv::RVVDialect,
                   buddy::vector_exp::VectorExpDialect,
                   buddy::vir::VIRDialect,
+                  buddy::buckyball::BuckyballDialect,
                   buddy::gemmini::GemminiDialect>();
   // clang-format on
 

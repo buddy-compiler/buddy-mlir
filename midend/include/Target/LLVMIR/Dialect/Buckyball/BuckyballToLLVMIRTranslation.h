@@ -1,4 +1,4 @@
-//===----------------- Dialects.h - CAPI for dialects ---------------------===//
+//===- BuckyballToLLVMIRTranslation.h - Buckyball to LLVM IR --------*- C++ -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,26 +13,20 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
+//
+// This provides registration calls for Buckyball dialect to LLVM IR translation.
+//
+//===----------------------------------------------------------------------===//
 
-#ifndef BUDDYMLIR_C_DIALECTS_H
-#define BUDDYMLIR_C_DIALECTS_H
+#ifndef TARGET_LLVMIR_DIALECT_BUCKYBALL_BUCKYBALLTOLLVMIRTRANSLATION_H
+#define TARGET_LLVMIR_DIALECT_BUCKYBALL_BUCKYBALLTOLLVMIRTRANSLATION_H
 
-#include "mlir-c/IR.h"
+#include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/MLIRContext.h"
 
-#ifdef __cplusplus
-extern "C" {
+namespace buddy {
+void registerBuckyballDialectTranslation(mlir::DialectRegistry &registry);
+void registerBuckyballDialectTranslation(mlir::MLIRContext &context);
+} // namespace buddy
+
 #endif
-
-MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Bud, bud);
-MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(DAP, dap);
-MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(DIP, dip);
-MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Buckyball, buckyball);
-MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Gemmini, gemmini);
-MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(RVV, rvv);
-MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(VectorExp, vector_exp);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif // BUDDYMLIR_C_DIALECTS_H
