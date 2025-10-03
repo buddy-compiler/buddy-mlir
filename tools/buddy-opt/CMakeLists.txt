@@ -21,6 +21,9 @@ target_link_libraries(buddy-opt
   LowerDIPPass
   BuddyDAP
   LowerDAPPass
+  BuddyTile
+  LowerLinalgToTilePass
+  LowerTileToBuckyballPass
   ExtendDAPPass
   DAPVectorization
   BuddyRVV

@@ -79,7 +79,7 @@ struct BuckyballFenceLowering : public ConvertOpToLLVMPattern<FenceOp> {
   LogicalResult
   matchAndRewrite(FenceOp fenceOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<FENCE_IntrOp>(fenceOp);
+    rewriter.replaceOpWithNewOp<Fence_IntrOp>(fenceOp);
     return success();
   }
 };
@@ -92,8 +92,12 @@ struct BuckyballMvinLowering : public ConvertOpToLLVMPattern<MvinOp> {
   LogicalResult
   matchAndRewrite(MvinOp mvinOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    Location loc = mvinOp.getLoc();
+    // Use original for memref operations (needs MemRefType)
     Value input = mvinOp.getInput();
-    Location loc = input.getLoc();
+    // Use adaptor for already-converted scalar values
+    Value addr = adaptor.getAddr();
+    Value stride = adaptor.getStride();
 
     TypeRange resultType = mlir::TypeRange(rewriter.getIndexType());
     Value extractOp = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
@@ -102,17 +106,20 @@ struct BuckyballMvinLowering : public ConvertOpToLLVMPattern<MvinOp> {
     Value indexCastOp =
         rewriter.create<arith::IndexCastOp>(loc, i64Type, extractOp);
     
-    Value spadAddrValue = mvinOp.getAddr();
     Value row = rewriter.create<memref::DimOp>(loc, input, 0);
     row = rewriter.create<arith::IndexCastOp>(loc, i64Type, row);
     Value shift1 = rewriter.create<arith::ConstantOp>(
         loc, i64Type, rewriter.getI64IntegerAttr(spAddrLen));
     row = rewriter.create<arith::ShLIOp>(loc, row, shift1);
+    Value shift2 = rewriter.create<arith::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(10));
+    Value strideShifted = rewriter.create<arith::ShLIOp>(loc, stride, shift2);
 
     // rs1 = indexCastOp
-    // rs2 = row << spAddrLen | spadAddrValue
+    // rs2 = (stride << spAddrLen+10) | (row << spAddrLen) | spadAddrValue
     Value rs1 = indexCastOp;
-    Value rs2 = rewriter.create<arith::OrIOp>(loc, row, spadAddrValue);
+    Value rs2 = rewriter.create<arith::OrIOp>(loc, row, addr);
+    rs2 = rewriter.create<arith::OrIOp>(loc, rs2, strideShifted);
 
     rewriter.replaceOpWithNewOp<Mvin_IntrOp>(mvinOp, rs1, rs2);
     return success();
@@ -130,8 +137,11 @@ struct BuckyballMvoutLowering : public ConvertOpToLLVMPattern<MvoutOp> {
   LogicalResult
   matchAndRewrite(MvoutOp mvoutOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    Location loc = mvoutOp.getLoc();
+    // Use original for memref operations (needs MemRefType)
     Value output = mvoutOp.getOutput();
-    Location loc = output.getLoc();
+    // Use adaptor for already-converted scalar values
+    Value addr = adaptor.getAddr();
 
     TypeRange resultType = mlir::TypeRange(rewriter.getIndexType());
     Value extractOp = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
@@ -140,7 +150,6 @@ struct BuckyballMvoutLowering : public ConvertOpToLLVMPattern<MvoutOp> {
     Value indexCastOp =
         rewriter.create<arith::IndexCastOp>(loc, i64Type, extractOp);
 
-    Value spadAddrValue = mvoutOp.getAddr();
     Value row = rewriter.create<memref::DimOp>(loc, output, 0);
     row = rewriter.create<arith::IndexCastOp>(loc, i64Type, row);
     Value shift1 = rewriter.create<arith::ConstantOp>(
@@ -150,8 +159,7 @@ struct BuckyballMvoutLowering : public ConvertOpToLLVMPattern<MvoutOp> {
     // rs1 = indexCastOp
     // rs2 = row << spAddrLen | spadAddrValue
     Value rs1 = indexCastOp;
-    Value rs2 = rewriter.create<arith::OrIOp>(loc, row, spadAddrValue);
-
+    Value rs2 = rewriter.create<arith::OrIOp>(loc, row, addr);
     rewriter.replaceOpWithNewOp<Mvout_IntrOp>(mvoutOp, rs1, rs2);
     return success();
   }
@@ -160,655 +168,155 @@ private:
   int64_t spAddrLen;
 };
 
-//===----------------------------------------------------------------------===//
-// Warp-level Ops
-//===----------------------------------------------------------------------===//
-struct BuckyballVecMulWarp16Lowering : public ConvertOpToLLVMPattern<VecMulWarp16Op> {
-  using ConvertOpToLLVMPattern<VecMulWarp16Op>::ConvertOpToLLVMPattern;
-  explicit BuckyballVecMulWarp16Lowering(LLVMTypeConverter &typeConverter,
-                                  int64_t spAddrLen)
+
+struct BuckyballTransposeLowering : public ConvertOpToLLVMPattern<TransposeOp> {
+  using ConvertOpToLLVMPattern<TransposeOp>::ConvertOpToLLVMPattern;
+  explicit BuckyballTransposeLowering(LLVMTypeConverter &typeConverter,
+                               int64_t spAddrLen)
       : ConvertOpToLLVMPattern(typeConverter), spAddrLen(spAddrLen) {}
   LogicalResult
-  matchAndRewrite(VecMulWarp16Op vecMulWarp16Op, OpAdaptor adaptor,
+  matchAndRewrite(TransposeOp transposeOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Location loc = vecMulWarp16Op.getLoc();
-    Value aSpAddr = vecMulWarp16Op.getASpAddr();
-    Value bSpAddr = vecMulWarp16Op.getBSpAddr();
-    Value cSpAddr = vecMulWarp16Op.getCSpAddr();
-    Value nLen = vecMulWarp16Op.getNLen();
-    // rs1 =  (bSpAddr << spAddrLen)  | aSpAddr 
-    // rs2 = (nLen << spAddrLen) | cSpAddr 
+    Location loc = transposeOp.getLoc();
+    Value input = transposeOp.getInput();
+    Value spAddr = transposeOp.getSpAddr();
+
+    TypeRange resultType = mlir::TypeRange(rewriter.getIndexType());
+    Value extractOp = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, resultType, input);
     IntegerType i64Type = rewriter.getI64Type();
-    Value shift1 = rewriter.create<arith::ConstantOp>(
+    Value indexCastOp = rewriter.create<arith::IndexCastOp>(loc, i64Type, extractOp);
+    
+    // Get iter from input dimensions (same as mvin)
+    Value iter = rewriter.create<memref::DimOp>(loc, input, 0);
+    iter = rewriter.create<arith::IndexCastOp>(loc, i64Type, iter);
+    
+    // rs1 = indexCastOp (pointer)
+    // rs2 = (iter << spAddrLen) | spAddr
+    Value rs1 = indexCastOp;
+    Value shift = rewriter.create<arith::ConstantOp>(
         loc, i64Type, rewriter.getI64IntegerAttr(spAddrLen));
-    Value bSpAddrShifted = rewriter.create<arith::ShLIOp>(loc, bSpAddr, shift1);
-    Value nLenShifted = rewriter.create<arith::ShLIOp>(loc, nLen, shift1);
-    Value rs1 = rewriter.create<arith::OrIOp>(loc, aSpAddr, bSpAddrShifted);
-    Value rs2 = rewriter.create<arith::OrIOp>(loc, cSpAddr, nLenShifted);
-    rewriter.replaceOpWithNewOp<MUL_WARP16_IntrOp>(vecMulWarp16Op, rs1, rs2);
+    Value iterShifted = rewriter.create<arith::ShLIOp>(loc, iter, shift);
+    Value rs2 = rewriter.create<arith::OrIOp>(loc, iterShifted, spAddr);
+    
+    rewriter.replaceOpWithNewOp<Transpose_IntrOp>(transposeOp, rs1, rs2);
     return success();
   }
+
 private:
   int64_t spAddrLen;
 };
 
 //===----------------------------------------------------------------------===//
-// Meta-Tile Ops (Tile-inside)
+// Hardware-level MatMul Op (combines Meta-tile and Warp-level compute)
 //===----------------------------------------------------------------------===//
-class BuckyballMetaTileMatMulLowering : public ConvertOpToLLVMPattern<MetaTileMatMulOp> {
-public:
-  using ConvertOpToLLVMPattern<MetaTileMatMulOp>::ConvertOpToLLVMPattern;
-  explicit BuckyballMetaTileMatMulLowering(LLVMTypeConverter &typeConverter, 
-                                          int64_t lane)
-      : ConvertOpToLLVMPattern(typeConverter), lane(lane) {}
-  LogicalResult
-  matchAndRewrite(MetaTileMatMulOp metaTileMatMulOp, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Location loc = metaTileMatMulOp.getLoc();
-    
-    Value aMemArray = metaTileMatMulOp.getAMemArray();
-    Value aMetaTileArray = metaTileMatMulOp.getAMetaTileArray();
-    // A, B, C Matrix's base address
-    Value aSpAddrStart = metaTileMatMulOp.getASpAddrStart();
-    Value bSpAddrStart = metaTileMatMulOp.getBSpAddrStart();
-    Value cSpAddrStart = metaTileMatMulOp.getCSpAddrStart();
-    Value metaMLen = metaTileMatMulOp.getMetaMLen();
-    Value metaNLen = metaTileMatMulOp.getMetaNLen();
-    Value metaMNum = metaTileMatMulOp.getMetaMNum();
-    Value metaNNum = metaTileMatMulOp.getMetaNNum();
-    Value laneVal = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(lane));    
-        
-    // <mvinA>
-    rewriter.create<MvinOp>(loc, aMetaTileArray, aSpAddrStart);
-    
-    // M loop over metaMNum
-    // upperBound is dynamic value, so we need to cast it to index type
-    Operation *loopOp = nullptr;
-    Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value upperBound = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), metaMNum);
-    Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    auto mLoop = rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
-    loopOp = mLoop.getOperation();
-    rewriter.setInsertionPointToStart(mLoop.getBody()); 
-    Value mLoopVal = mLoop.getInductionVar();
-    // aSpAddr = aSpAddrStart + loopIdx * lane
-    Value mLoopIdx = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), mLoopVal);
-    Value aOffset = rewriter.create<arith::MulIOp>(loc, mLoopIdx, laneVal);
-    Value aSpAddr = rewriter.create<arith::AddIOp>(loc, aSpAddrStart, aOffset);
-    // bSpAddr = bSpAddrStart (not changed)
-    Value bSpAddr = bSpAddrStart;
-    // cSpAddr = cSpAddrStart + loopIdx * lane
-    Value cOffset = rewriter.create<arith::MulIOp>(loc, mLoopIdx, laneVal);
-    Value cSpAddr = rewriter.create<arith::AddIOp>(loc, cSpAddrStart, cOffset);
-    // nLen = metaNLen * lane
-    Value nLen = rewriter.create<arith::MulIOp>(loc, metaNLen, laneVal);
-    rewriter.create<VecMulWarp16Op>(loc, aSpAddr, bSpAddr, cSpAddr, nLen);
-    rewriter.setInsertionPointAfter(loopOp);
-
-    rewriter.eraseOp(metaTileMatMulOp);
-    return success();
-  }
-private:
-  int64_t lane;
-};
-
-//===----------------------------------------------------------------------===//
-// Merge-Tile Ops
-//===----------------------------------------------------------------------===//
-class BuckyballMergeTileMatMulLowering : public ConvertOpToLLVMPattern<MergeTileMatMulOp> {
-public:
-  using ConvertOpToLLVMPattern<MergeTileMatMulOp>::ConvertOpToLLVMPattern;
-  explicit BuckyballMergeTileMatMulLowering(LLVMTypeConverter &typeConverter)
-      : ConvertOpToLLVMPattern(typeConverter) {}
-
-  LogicalResult
-  matchAndRewrite(MergeTileMatMulOp mergeTileMatMulOp, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {    
-    Location loc = mergeTileMatMulOp.getLoc();
-
-    Value aMergeTileArray = mergeTileMatMulOp.getAMergeTileArray();
-    Value aMemArray = mergeTileMatMulOp.getAMemArray();
-    Value bMergeTileArray = mergeTileMatMulOp.getBMergeTileArray();
-    Value bMemArray = mergeTileMatMulOp.getBMemArray();
-    Value aSpAddrStart = mergeTileMatMulOp.getASpAddrStart();
-    Value bSpAddrStart = mergeTileMatMulOp.getBSpAddrStart();
-    Value cSpAddrStart = mergeTileMatMulOp.getCSpAddrStart();
-    Value metaMNum = mergeTileMatMulOp.getMetaMNum();
-    Value metaNNum = mergeTileMatMulOp.getMetaNNum();
-    Value metaKNum = mergeTileMatMulOp.getMetaKNum();
-    Value metaMLen = mergeTileMatMulOp.getMetaMLen();
-    Value metaNLen = mergeTileMatMulOp.getMetaNLen();
-    Value metaKLen = mergeTileMatMulOp.getMetaKLen();
-
-    Value M = rewriter.create<memref::DimOp>(loc, aMemArray, 0);
-
-    // MvinB 
-    rewriter.create<MvinOp>(loc, bMergeTileArray, bSpAddrStart);
-
-    // K loop
-    Operation *loopOp = nullptr;
-    Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value upperBound = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), metaKNum);
-    Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);    
-    auto kLoop = rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
-    loopOp = kLoop.getOperation();
-    rewriter.setInsertionPointToStart(kLoop.getBody());
-    Value kLoopIdx = kLoop.getInductionVar();
-    Value kLoopI64 = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), kLoopIdx);
-    Value M_i64 = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), M);
-    // aSpAddr = aSpAddrStart + kIdx * M
-    Value aSpAddrOffset = rewriter.create<arith::MulIOp>(loc, kLoopI64, M_i64);
-    aSpAddrStart = rewriter.create<arith::AddIOp>(loc, aSpAddrStart, aSpAddrOffset);
-    // bSpAddr stays the same 
-    Value bSpAddr = bSpAddrStart;
-    // cSpAddr stays the same 
-    Value cSpAddr = cSpAddrStart;
-    // Create subview for A matrix slice in K dimension
-    Value metaKLenIdx = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), metaKLen);
-    Value metaTileKStart = rewriter.create<arith::MulIOp>(loc, kLoopIdx, metaKLenIdx); 
-    // the input of subview must be index type, not i64 type
-    Value aMetaTileArray = rewriter.create<memref::SubViewOp>(
-      loc, aMemArray,
-      SmallVector<OpFoldResult>{rewriter.getIndexAttr(0), metaTileKStart}, // start
-      SmallVector<OpFoldResult>{M, metaKLenIdx}, // size 
-      SmallVector<OpFoldResult>{rewriter.getIndexAttr(1), rewriter.getIndexAttr(1)} // stride
-    ); 
-    rewriter.create<MetaTileMatMulOp>(loc, aMetaTileArray, aMemArray,
-                                      aSpAddrStart, bSpAddrStart, cSpAddrStart,
-                                      metaMNum, metaNNum, metaMLen, metaNLen);
-    rewriter.setInsertionPointAfter(loopOp);
-    
-    rewriter.eraseOp(mergeTileMatMulOp);
-    return success();
-  }
-};
-
-//===----------------------------------------------------------------------===//
-// Tile division Ops
-//===----------------------------------------------------------------------===//
-class BuckyballVecTileMatMulLowering : public ConvertOpToLLVMPattern<VecTileMatMulOp> {
-  // compute the up limit of merge-tile's size
-  // mergeTileSpadRows = 
-  //    (M_mergeTileLen * M_metaTileLen) * (K_mergeTileLen * K_metaTileLen) + 
-  //    (K_mergeTileLen * K_metaTileLen) * (N_mergeTileLen * N_metaTileLen)
-  Value mergeTileSpadRows(ConversionPatternRewriter &rewriter, Location loc,
-                         Value mMergeTileLen, Value nMergeTileLen, Value kMergeTileLen, 
-                         Value mMetaTileLen, Value nMetaTileLen, Value kMetaTileLen) const {
-    Value aMatrixRows = rewriter.create<arith::MulIOp>(loc,
-        rewriter.create<arith::MulIOp>(loc, mMergeTileLen, mMetaTileLen),
-        rewriter.create<arith::MulIOp>(loc, kMergeTileLen, kMetaTileLen));
-    Value bMatrixRows = rewriter.create<arith::MulIOp>(loc,
-        rewriter.create<arith::MulIOp>(loc, kMergeTileLen, kMetaTileLen),
-        rewriter.create<arith::MulIOp>(loc, nMergeTileLen, nMetaTileLen));
-    return rewriter.create<arith::AddIOp>(loc, aMatrixRows, bMatrixRows);
-  }
-
-  // mergeTileAccRows = M_mergeTileLen * M_metaTileLen * N_mergeTileLen * N_metaTileLen
-  Value mergeTileAccRows(ConversionPatternRewriter &rewriter, Location loc,
-                        Value mMergeTileLen, Value nMergeTileLen,
-                        Value mMetaTileLen, Value nMetaTileLen) const {
-    return rewriter.create<arith::MulIOp>(loc,
-        rewriter.create<arith::MulIOp>(loc, mMergeTileLen, mMetaTileLen),
-        rewriter.create<arith::MulIOp>(loc, nMergeTileLen, nMetaTileLen));
-  }
-
-public:
-  using ConvertOpToLLVMPattern<VecTileMatMulOp>::ConvertOpToLLVMPattern;
-  explicit BuckyballVecTileMatMulLowering(LLVMTypeConverter &typeConverter, 
-                                          int64_t dim, int64_t spAddrLen, 
-                                          int64_t spadRows, int64_t accRows,
-                                          size_t sizeOfElemT, size_t sizeOfAccT,
-                                          int64_t lane, int64_t warp)
+struct BuckyballMatMulLowering : public ConvertOpToLLVMPattern<MatMulOp> {
+  using ConvertOpToLLVMPattern<MatMulOp>::ConvertOpToLLVMPattern;
+  explicit BuckyballMatMulLowering(LLVMTypeConverter &typeConverter,
+                                   int64_t dim, int64_t spAddrLen, 
+                                   int64_t spadRows, int64_t warp, int64_t lane)
       : ConvertOpToLLVMPattern(typeConverter), dim(dim), spAddrLen(spAddrLen),
-        spadRows(spadRows), accRows(accRows), sizeOfElemT(sizeOfElemT), sizeOfAccT(sizeOfAccT), lane(lane), warp(warp) {}
-
+        spadRows(spadRows), warp(warp), lane(lane) {}
+  
   LogicalResult
-  matchAndRewrite(VecTileMatMulOp vecTileMatMulOp, OpAdaptor adaptor,
+  matchAndRewrite(MatMulOp matMulOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    Location loc = matMulOp.getLoc();
     
-  // Convert aArray, bArray, cArray, dArray to ArrayindexCast 
-  Value aMemArray = vecTileMatMulOp.getAMemArray();
-  Value bMemArray = vecTileMatMulOp.getBMemArray();
-  Value cMemArray = vecTileMatMulOp.getCMemArray();
-  // Value dArray = vecTileMatMulOp.getDArray();
-  MemRefType aMemArrayType = dyn_cast<MemRefType>(aMemArray.getType());
-  MemRefType bMemArrayType = dyn_cast<MemRefType>(bMemArray.getType());
-  MemRefType cMemArrayType = dyn_cast<MemRefType>(cMemArray.getType());
-  // MemRefType dArrayType = dyn_cast<MemRefType>(dArray.getType());
-  StridedLayoutAttr aMemArrayLayout = dyn_cast<StridedLayoutAttr>(aMemArrayType.getLayout());
-  StridedLayoutAttr bMemArrayLayout = dyn_cast<StridedLayoutAttr>(bMemArrayType.getLayout());
-  StridedLayoutAttr cMemArrayLayout = dyn_cast<StridedLayoutAttr>(cMemArrayType.getLayout());
-  SmallVector<Type> resultType = {rewriter.getIndexType()};
-  TypeRange typeRange(resultType);
-  Location loc = vecTileMatMulOp.getLoc();
-  IntegerType i64Type = rewriter.getI64Type();
-
-  Value aMemArrayExtractOp =
-      rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, typeRange, aMemArray);
-  if (aMemArrayLayout) {
-    Value offset = rewriter.create<arith::ConstantIndexOp>(
-        loc, aMemArrayLayout.getOffset() * sizeOfElemT);
-    aMemArrayExtractOp =
-        rewriter.create<arith::AddIOp>(loc, aMemArrayExtractOp, offset);
-  }
-  Value aMemArrayindexCastOp =
-      rewriter.create<arith::IndexCastOp>(loc, i64Type, aMemArrayExtractOp);
-  
-  Value bMemArrayExtractOp =
-      rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, typeRange, bMemArray);
-  if (bMemArrayLayout) {
-    Value offset = rewriter.create<arith::ConstantIndexOp>(
-        loc, bMemArrayLayout.getOffset() * sizeOfElemT);
-    bMemArrayExtractOp =
-        rewriter.create<arith::AddIOp>(loc, bMemArrayExtractOp, offset);
-  }
-  Value bMemArrayindexCastOp =
-      rewriter.create<arith::IndexCastOp>(loc, i64Type, bMemArrayExtractOp);
-
-  Value cMemArrayExtractOp =
-      rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, typeRange, cMemArray);
-  if (cMemArrayLayout) {
-    Value offset = rewriter.create<arith::ConstantIndexOp>(
-        loc, cMemArrayLayout.getOffset() * sizeOfElemT);
-    cMemArrayExtractOp =
-        rewriter.create<arith::AddIOp>(loc, cMemArrayExtractOp, offset);
-  }
-  Value cMemArrayindexCastOp =
-      rewriter.create<arith::IndexCastOp>(loc, i64Type, cMemArrayExtractOp);
-  
-  // Value dArrayExtractOp =
-  //     rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, typeRange, dArray);
-  // Value dArrayindexCastOp =
-  //     rewriter.create<arith::IndexCastOp>(loc, i64Type, dArrayExtractOp);
-
-  // Get A, B, C Matrix's shape, A[M][K], B[K][N], C[M][N]
-  Value M = rewriter.create<memref::DimOp>(loc, aMemArray, 0);
-  Value K = rewriter.create<memref::DimOp>(loc, aMemArray, 1);  
-  Value N = rewriter.create<memref::DimOp>(loc, bMemArray, 1);  
-
-  // assert(K < 1024 && "K must be less than 1024");
-  
-  // M,N,K dimension's meta-tile's length
-  Value mMetaTileLen = rewriter.create<arith::ConstantIndexOp>(loc, lane);
-  Value nMetaTileLen = rewriter.create<arith::ConstantIndexOp>(loc, lane);
-  Value kMetaTileLen = rewriter.create<arith::ConstantIndexOp>(loc, warp);
-
-  // M_Padded = ((M + mMetaTileLen - 1) / mMetaTileLen) * mMetaTileLen
-  Value mPadded = rewriter.create<arith::MulIOp>(loc,
-      rewriter.create<arith::DivUIOp>(loc,
-          rewriter.create<arith::AddIOp>(loc, M,
-              rewriter.create<arith::SubIOp>(loc, mMetaTileLen,
-                  rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-          mMetaTileLen),
-      mMetaTileLen);
-  
-  // N_Padded = ((N + nMetaTileLen - 1) / nMetaTileLen) * nMetaTileLen
-  Value nPadded = rewriter.create<arith::MulIOp>(loc,
-      rewriter.create<arith::DivUIOp>(loc,
-          rewriter.create<arith::AddIOp>(loc, N,
-              rewriter.create<arith::SubIOp>(loc, nMetaTileLen, 
-                  rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-          nMetaTileLen),
-      nMetaTileLen);
-      
-  // K_Padded = ((K + kMetaTileLen - 1) / kMetaTileLen) * kMetaTileLen
-  Value kPadded = rewriter.create<arith::MulIOp>(loc,
-      rewriter.create<arith::DivUIOp>(loc,
-          rewriter.create<arith::AddIOp>(loc, K,
-              rewriter.create<arith::SubIOp>(loc, kMetaTileLen, 
-                  rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-          kMetaTileLen),
-      kMetaTileLen);
-
-  // compute how many meta-tile
-  // mTileNum = (mPadded + mMetaTileLen - 1) / mMetaTileLen
-  Value mTileNum = rewriter.create<arith::DivUIOp>(loc, 
-      rewriter.create<arith::AddIOp>(loc, mPadded, 
-          rewriter.create<arith::SubIOp>(loc, mMetaTileLen, 
-          rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-      mMetaTileLen);
-  // nTileNum = (nPadded + nMetaTileLen - 1) / nMetaTileLen
-  Value nTileNum = rewriter.create<arith::DivUIOp>(loc,
-      rewriter.create<arith::AddIOp>(loc, nPadded,
-          rewriter.create<arith::SubIOp>(loc, nMetaTileLen, 
-              rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-      nMetaTileLen);
-  // kTileNum = (kPadded + kMetaTileLen - 1) / kMetaTileLen
-  Value kTileNum = rewriter.create<arith::DivUIOp>(loc,
-      rewriter.create<arith::AddIOp>(loc, kPadded,
-          rewriter.create<arith::SubIOp>(loc, kMetaTileLen, 
-              rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-      kMetaTileLen);
-
-  // Last tile lengths
-  // mLastTileLen = (mPadded % mMetaTileLen == 0) ? mMetaTileLen : mPadded % mMetaTileLen
-  /*
-  Value mMod = rewriter.create<arith::RemUIOp>(loc, mPadded, mMetaTileLen);
-  Value mModIsZero = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, 
-      mMod, rewriter.create<arith::ConstantIndexOp>(loc, 0));
-  Value mLastTileLen = rewriter.create<arith::SelectOp>(loc, mModIsZero, 
-      mMetaTileLen, mMod);
-  // nLastTileLen = (nPadded % nMetaTileLen == 0) ? nMetaTileLen : nPadded % nMetaTileLen
-  Value nMod = rewriter.create<arith::RemUIOp>(loc, nPadded, nMetaTileLen);
-  Value nModIsZero = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-      nMod, rewriter.create<arith::ConstantIndexOp>(loc, 0));
-  Value nLastTileLen = rewriter.create<arith::SelectOp>(loc, nModIsZero,
-      nMetaTileLen, nMod);
-  // kLastTileLen = (kPadded % kMetaTileLen == 0) ? kMetaTileLen : kPadded % kMetaTileLen
-  Value kMod = rewriter.create<arith::RemUIOp>(loc, kPadded, kMetaTileLen);
-  Value kModIsZero = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-      kMod, rewriter.create<arith::ConstantIndexOp>(loc, 0));
-  Value kLastTileLen = rewriter.create<arith::SelectOp>(loc, kModIsZero,
-      kMetaTileLen, kMod);
-  */
-
-  // merge meta-tile to Merge-tile 
-  // according to accumulator's size, fill it as much as possible
-  // MergeTileLen: how many meta-tile in each dimension in Merge-tile
-  // spadRows / 2: remain half of spadRows for double buffer (we do double buffer in default)
-  Value maxSpadRows = rewriter.create<arith::DivUIOp>(loc, 
-      rewriter.create<arith::ConstantIndexOp>(loc, spadRows),
-      rewriter.create<arith::ConstantIndexOp>(loc, 2));
-  Value maxAccRows = rewriter.create<arith::ConstantIndexOp>(loc, accRows);
-  
-  // Initialize merge tile lengths
-  Value mMergeTileLen = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-  Value nMergeTileLen = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-  Value kMergeTileLen = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-
-  // extend merge tile length in N dimension
-  auto Loop1 = rewriter.create<scf::WhileOp>(
-      loc, TypeRange{nMergeTileLen.getType()}, ValueRange{nMergeTileLen},
-      [&](OpBuilder &builder, Location loc, ValueRange args) {
-          // n++
-          Value currentN = args[0];
-          Value nextN = builder.create<arith::AddIOp>(loc, currentN, 
-              builder.create<arith::ConstantIndexOp>(loc, 1));
-
-          Value spadRows = mergeTileSpadRows(rewriter, loc, 
-              mMergeTileLen, nextN, kMergeTileLen,
-              mMetaTileLen, nMetaTileLen, kMetaTileLen);
-          Value accRows = mergeTileAccRows(rewriter, loc,
-              mMergeTileLen, nextN, mMetaTileLen, nMetaTileLen);
-          // mergeTileSpadRows < upperBound
-          Value spadUpperBound = builder.create<arith::CmpIOp>(loc, 
-              arith::CmpIPredicate::ule, spadRows, maxSpadRows);
-          // mergeTileAccRows < upperBound
-          Value accUpperBound = builder.create<arith::CmpIOp>(loc, 
-              arith::CmpIPredicate::ule, accRows, maxAccRows);
-          // (nextN + 1) * nMetaTileLen <= nPadded
-          Value sizeUpperBound = builder.create<arith::CmpIOp>(loc, 
-              arith::CmpIPredicate::ule,
-              builder.create<arith::MulIOp>(loc, nextN, nMetaTileLen),
-              nPadded);
-          
-          Value Increase = builder.create<arith::AndIOp>(loc,
-              builder.create<arith::AndIOp>(loc, spadUpperBound, accUpperBound),
-              sizeUpperBound);
-          
-          builder.create<scf::ConditionOp>(loc, Increase, ValueRange{nextN});
-      },
-      [&](OpBuilder &afterBuilder, Location loc, ValueRange args) {
-          Value newN = args[0];
-          afterBuilder.create<scf::YieldOp>(loc, ValueRange{newN});
-      });
-  nMergeTileLen = Loop1.getResult(0);
-  
-  // extend merge tile length in M dimension
-  auto Loop2 = rewriter.create<scf::WhileOp>(
-      loc, TypeRange{mMergeTileLen.getType()}, ValueRange{mMergeTileLen},
-      [&](OpBuilder &builder, Location loc, ValueRange args) {
-          // m++
-          Value currentM = args[0];
-          Value nextM = builder.create<arith::AddIOp>(loc, currentM, 
-              builder.create<arith::ConstantIndexOp>(loc, 1));
-          
-          Value spadRows = mergeTileSpadRows(rewriter, loc, 
-              nextM, nMergeTileLen, kMergeTileLen,
-              mMetaTileLen, nMetaTileLen, kMetaTileLen);
-          Value accRows = mergeTileAccRows(rewriter, loc,
-              nextM, nMergeTileLen, mMetaTileLen, nMetaTileLen);
-          // mergeTileSpadRows < upperBound
-          Value spadUpperBound = builder.create<arith::CmpIOp>(loc, 
-              arith::CmpIPredicate::ule, spadRows, maxSpadRows);
-          // mergeTileAccRows < upperBound
-          Value accUpperBound = builder.create<arith::CmpIOp>(loc, 
-              arith::CmpIPredicate::ule, accRows, maxAccRows);
-          // (nextM + 1) * mMetaTileLen <= mPadded
-          Value sizeUpperBound = builder.create<arith::CmpIOp>(loc, 
-              arith::CmpIPredicate::ule,
-              builder.create<arith::MulIOp>(loc, nextM, mMetaTileLen),
-              mPadded);
-          
-          Value Increase = builder.create<arith::AndIOp>(loc,
-              builder.create<arith::AndIOp>(loc, spadUpperBound, accUpperBound),
-              sizeUpperBound);
-          
-          builder.create<scf::ConditionOp>(loc, Increase, ValueRange{nextM});
-      },
-      [&](OpBuilder &afterBuilder, Location loc, ValueRange args) {
-          Value newM = args[0];
-          afterBuilder.create<scf::YieldOp>(loc, ValueRange{newM});
-      });
-  mMergeTileLen = Loop2.getResult(0);
-
-  // compute how many merge-tile 
-  Value mMergeTileSize = rewriter.create<arith::MulIOp>(loc, mMergeTileLen, mMetaTileLen);
-  Value nMergeTileSize = rewriter.create<arith::MulIOp>(loc, nMergeTileLen, nMetaTileLen);
-  Value kMergeTileSize = rewriter.create<arith::MulIOp>(loc, kMergeTileLen, kMetaTileLen);
-  // mMergeTileNum = (mPadded + mMergeTileSize - 1) / mMergeTileSize
-  Value mMergeTileNum = rewriter.create<arith::DivUIOp>(loc,
-      rewriter.create<arith::AddIOp>(loc, mPadded,
-          rewriter.create<arith::SubIOp>(loc, mMergeTileSize, 
-              rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-      mMergeTileSize);
-  // nMergeTileNum = (nPadded + nMergeTileSize - 1) / nMergeTileSize
-  Value nMergeTileNum = rewriter.create<arith::DivUIOp>(loc,
-      rewriter.create<arith::AddIOp>(loc, nPadded,
-          rewriter.create<arith::SubIOp>(loc, nMergeTileSize, 
-              rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-      nMergeTileSize);
-  // kMergeTileNum = (kPadded + kMergeTileSize - 1) / kMergeTileSize
-  Value kMergeTileNum = rewriter.create<arith::DivUIOp>(loc,
-      rewriter.create<arith::AddIOp>(loc, kPadded,
-          rewriter.create<arith::SubIOp>(loc, kMergeTileSize, 
-              rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-      kMergeTileSize);
-
-  // Calculate last merge tile length
-  // mLastMergeTileLen = (mPadded % mMergeTileSize == 0) ? mMergeTileSize : mPadded % mMergeTileSize
-  Value mlastRemaining = rewriter.create<arith::RemUIOp>(loc, mPadded, mMergeTileSize);
-  Value mlastIsZero = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-      mlastRemaining, rewriter.create<arith::ConstantIndexOp>(loc, 0));
-  Value mLastMergeTileLen = rewriter.create<arith::SelectOp>(loc, mlastIsZero,
-      mMergeTileLen,
-      rewriter.create<arith::DivUIOp>(loc,
-          rewriter.create<arith::AddIOp>(loc, mlastRemaining,
-              rewriter.create<arith::SubIOp>(loc, mMetaTileLen, 
-                  rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-          mMetaTileLen));
-  
-  // nLastMergeTileLen = (nPadded % nMergeTileSize == 0) ? nMergeTileSize : nPadded % nMergeTileSize
-  Value nlastRemaining = rewriter.create<arith::RemUIOp>(loc, nPadded, nMergeTileSize);
-  Value nlastIsZero = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-      nlastRemaining, rewriter.create<arith::ConstantIndexOp>(loc, 0));
-  Value nLastMergeTileLen = rewriter.create<arith::SelectOp>(loc, nlastIsZero,
-      nMergeTileLen,
-      rewriter.create<arith::DivUIOp>(loc,
-          rewriter.create<arith::AddIOp>(loc, nlastRemaining,
-              rewriter.create<arith::SubIOp>(loc, nMetaTileLen, 
-                  rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-          nMetaTileLen));
-  
-  // kLastMergeTileLen = (kPadded % kMergeTileSize == 0) ? kMergeTileSize : kPadded % kMergeTileSize
-  Value klastRemaining = rewriter.create<arith::RemUIOp>(loc, kPadded, kMergeTileSize);
-  Value klastIsZero = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-      klastRemaining, rewriter.create<arith::ConstantIndexOp>(loc, 0));
-  Value kLastMergeTileLen = rewriter.create<arith::SelectOp>(loc, klastIsZero,
-      kMergeTileLen,
-      rewriter.create<arith::DivUIOp>(loc,
-          rewriter.create<arith::AddIOp>(loc, klastRemaining,
-              rewriter.create<arith::SubIOp>(loc, kMetaTileLen, 
-                  rewriter.create<arith::ConstantIndexOp>(loc, 1))),
-          kMetaTileLen));
-  
-  // target scratchpad/accumulator addr
-  // dim just means element numbers in each scratchpad line 
-  // 00=A, 01=B, 10=D, 11=C
-  // this is a kind of logic mapping, not a physical mapping
-  // scratchpad addr and accumulator addr may not continue in logical mapping,
-  // this is just keep them easy to be indexed
-  // aSpAddrStart = 0
-  Value aSpAddrStart = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  aSpAddrStart = rewriter.create<arith::IndexCastOp>(loc, i64Type, aSpAddrStart);
-
-  // bSpAddrStart = spadRows - (dimN_MergeTileLen * dimN_MetaTileLen) * (dimN_MergeTileLen * dimN_MetaTileLen) / dim;
-  Value bSpAddrStart = rewriter.create<arith::SubIOp>(loc, 
-      rewriter.create<arith::ConstantIndexOp>(loc, spadRows), 
-      rewriter.create<arith::DivUIOp>(loc, 
-          rewriter.create<arith::MulIOp>(loc, 
-              rewriter.create<arith::MulIOp>(loc, nMergeTileLen, nMetaTileLen),
-              rewriter.create<arith::MulIOp>(loc, nMergeTileLen, nMetaTileLen)),
-          rewriter.create<arith::ConstantIndexOp>(loc, dim)));
-  bSpAddrStart = rewriter.create<arith::IndexCastOp>(loc, i64Type, bSpAddrStart);
-  
-  // cSpAddrStart = 1 << (spAddrLen - 1);
-  Value cSpAddrStart = rewriter.create<arith::ShLIOp>(loc, 
-      rewriter.create<arith::ConstantIndexOp>(loc, 1), 
-      rewriter.create<arith::SubIOp>(loc, 
-          rewriter.create<arith::ConstantIndexOp>(loc, spAddrLen), 
-          rewriter.create<arith::ConstantIndexOp>(loc, 1)));
-  cSpAddrStart = rewriter.create<arith::IndexCastOp>(loc, i64Type, cSpAddrStart);
-  
-  // divide into meta-tile to caculate
-  Operation *kloopOp = nullptr;
-  Operation *mloopOp = nullptr;
-  SmallVector<Value, 3> loopIvs;
-  Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-  scf::ForOp kLoop, mLoop, nLoop;  
-  for (size_t i = 0; i < 3; i++) {
-    Value upperBound;
-    switch (i) {
-      // OutSide MergeTile Loop
-      // for (int i = 0; i < K; i++)
-      //   for (int j = 0; j < M; j++)
-      //     for (int k = 0; k < N; k++)
-      //      <MergeTileMatMulOp>
-      // <mvoutC>
-      case 2: 
-        upperBound = kMergeTileNum;
-        // upperBound = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), kMergeTileNum);
-        kLoop = rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
-        kloopOp = kLoop.getOperation();
-        rewriter.setInsertionPointToStart(kLoop.getBody());
-        loopIvs.push_back(kLoop.getInductionVar());
-        break;
-      case 1: 
-        upperBound = mMergeTileNum;
-        // upperBound = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), mMergeTileNum);
-        mLoop = rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
-        mloopOp = mLoop.getOperation();
-        rewriter.setInsertionPointToStart(mLoop.getBody());
-        loopIvs.push_back(mLoop.getInductionVar());
-        break;
-      case 0: 
-        upperBound = nMergeTileNum;
-        // upperBound = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), nMergeTileNum);
-        nLoop = rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
-        rewriter.setInsertionPointToStart(nLoop.getBody());
-        loopIvs.push_back(nLoop.getInductionVar());
-        break;
+    // Get original memref types (before conversion)
+    Value aMemArray = matMulOp.getAMemArray();
+    Value bMemArray = matMulOp.getBMemArray();
+    Value cMemArray = matMulOp.getCMemArray();
+    
+    MemRefType aMemArrayType = dyn_cast<MemRefType>(matMulOp.getOperandTypes()[0]);
+    MemRefType bMemArrayType = dyn_cast<MemRefType>(matMulOp.getOperandTypes()[1]);
+    MemRefType cMemArrayType = dyn_cast<MemRefType>(matMulOp.getOperandTypes()[2]);
+    
+    llvm::ArrayRef<int64_t> aMemArrayShape = aMemArrayType.getShape();
+    llvm::ArrayRef<int64_t> bMemArrayShape = bMemArrayType.getShape();
+    llvm::ArrayRef<int64_t> cMemArrayShape = cMemArrayType.getShape();
+    
+    uint64_t M = aMemArrayShape[0];
+    uint64_t K = aMemArrayShape[1];
+    uint64_t N = bMemArrayShape[1];
+    
+    IntegerType i64Type = rewriter.getI64Type();
+    
+    // Compute scratchpad addresses
+    const uint64_t aSpAddrStart = 0;
+    const uint64_t bSpAddrStart = spadRows - (K * N) / dim;
+    const uint64_t cSpAddrStart = 1ULL << (spAddrLen - 1);
+    
+    // Load A matrix to scratchpad
+    Value extractA = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, aMemArray);
+    Value indexCastA = rewriter.create<arith::IndexCastOp>(loc, i64Type, extractA);
+    uint64_t aAddrEncoded = (M << (spAddrLen + 16)) | (K << spAddrLen) | aSpAddrStart | (1ULL << (spAddrLen + 26));
+    Value rs1A = indexCastA;
+    Value rs2A = rewriter.create<arith::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(aAddrEncoded));
+    rewriter.create<Mvin_IntrOp>(loc, rs1A, rs2A);
+    
+    // Load B matrix to scratchpad  
+    Value extractB = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, bMemArray);
+    Value indexCastB = rewriter.create<arith::IndexCastOp>(loc, i64Type, extractB);
+    uint64_t bAddrEncoded = (K << (spAddrLen + 16)) | (N << spAddrLen) | bSpAddrStart | (1ULL << (spAddrLen + 26));
+    Value rs1B = indexCastB;
+    Value rs2B = rewriter.create<arith::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(bAddrEncoded));
+    rewriter.create<Mvin_IntrOp>(loc, rs1B, rs2B);
+    
+    // Compute: Generate warp multiply operations
+    uint64_t metaMNum = (M + lane - 1) / lane;
+    uint64_t metaKNum = (K + warp - 1) / warp;
+    
+    for (size_t k0 = 0; k0 < metaKNum; k0++) {
+      for (size_t m0 = 0; m0 < metaMNum; m0++) {
+        // Compute addresses for warp multiply
+        uint64_t aWarpSpAddr = aSpAddrStart + m0 * lane + k0 * M;
+        uint64_t bWarpSpAddr = bSpAddrStart + k0 * N;
+        uint64_t cWarpSpAddr = cSpAddrStart + m0 * lane;
+        uint64_t nLen = N;
+        
+        // Encode rs1 and rs2 for warp multiply intrinsic
+        // rs1 = (bSpAddr << spAddrLen) | aSpAddr 
+        // rs2 = (nLen << spAddrLen) | cSpAddr 
+        uint64_t rs1 = (bWarpSpAddr << spAddrLen) | aWarpSpAddr;
+        uint64_t rs2 = (nLen << spAddrLen) | cWarpSpAddr;
+        
+        Value rs1Value = rewriter.create<arith::ConstantOp>(
+            loc, i64Type, rewriter.getI64IntegerAttr(rs1));
+        Value rs2Value = rewriter.create<arith::ConstantOp>(
+            loc, i64Type, rewriter.getI64IntegerAttr(rs2));
+        
+        // Execute warp multiply intrinsic
+        rewriter.create<Mul_Warp16_IntrOp>(loc, rs1Value, rs2Value);
+      }
     }
+    
+    // Mvout - Write back C matrix  
+    Value extractC = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, cMemArray);
+    Value indexCastC = rewriter.create<arith::IndexCastOp>(loc, i64Type, extractC);
+    
+    // Encode mvout address: (rows << spAddrLen) | spadAddr
+    uint64_t mvoutAddrEncoded = (cMemArrayShape[0] << spAddrLen) | cSpAddrStart;
+    Value rs1Mvout = indexCastC;
+    Value rs2Mvout = rewriter.create<arith::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(mvoutAddrEncoded));
+    rewriter.create<Mvout_IntrOp>(loc, rs1Mvout, rs2Mvout);
+    
+    rewriter.eraseOp(matMulOp);
+    return success();
   }
-  Value mergeNIdx = loopIvs[0];
-  Value mergeMIdx = loopIvs[1];
-  Value mergeKIdx = loopIvs[2];
-
-  // Check if current tile is the last tile in each dimension
-  Value isLastM = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, 
-      mergeMIdx, rewriter.create<arith::SubIOp>(loc, mMergeTileNum, 
-      rewriter.create<arith::ConstantIndexOp>(loc, 1)));
-  Value isLastK = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, 
-      mergeKIdx, rewriter.create<arith::SubIOp>(loc, kMergeTileNum, 
-      rewriter.create<arith::ConstantIndexOp>(loc, 1)));
-  Value isLastN = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, 
-      mergeNIdx, rewriter.create<arith::SubIOp>(loc, nMergeTileNum, 
-      rewriter.create<arith::ConstantIndexOp>(loc, 1)));
-
-  // // Use select operation to choose correct length
-  Value currentMLen = rewriter.create<arith::SelectOp>(loc, isLastM,
-      rewriter.create<arith::MulIOp>(loc, mLastMergeTileLen, mMetaTileLen),
-      rewriter.create<arith::MulIOp>(loc, mMergeTileLen, mMetaTileLen));
-  Value currentKLen = rewriter.create<arith::SelectOp>(loc, isLastK,
-      rewriter.create<arith::MulIOp>(loc, kLastMergeTileLen, kMetaTileLen),
-      rewriter.create<arith::MulIOp>(loc, kMergeTileLen, kMetaTileLen));
-  Value currentNLen = rewriter.create<arith::SelectOp>(loc, isLastN,
-      rewriter.create<arith::MulIOp>(loc, nLastMergeTileLen, nMetaTileLen),
-      rewriter.create<arith::MulIOp>(loc, nMergeTileLen, nMetaTileLen));
-
-  // Calculate starting positions
-  Value mergeTileMStart = rewriter.create<arith::MulIOp>(loc,
-      rewriter.create<arith::MulIOp>(loc, mergeMIdx, mMergeTileLen),
-      mMetaTileLen);
-  Value mergeTileKStart = rewriter.create<arith::MulIOp>(loc,
-      rewriter.create<arith::MulIOp>(loc, mergeKIdx, kMergeTileLen),
-      kMetaTileLen);
-  Value mergeTileNStart = rewriter.create<arith::MulIOp>(loc,
-      rewriter.create<arith::MulIOp>(loc, mergeNIdx, nMergeTileLen),
-      nMetaTileLen);
-
-  // Create subview
-  Value aMergeTile = rewriter.create<memref::SubViewOp>(
-      loc, aMemArray,
-      SmallVector<OpFoldResult>{mergeTileMStart, mergeTileKStart},
-      SmallVector<OpFoldResult>{currentMLen, currentKLen},
-      SmallVector<OpFoldResult>{rewriter.getIndexAttr(1), rewriter.getIndexAttr(1)});
-  Value bMergeTile = rewriter.create<memref::SubViewOp>(
-      loc, bMemArray,
-      SmallVector<OpFoldResult>{mergeTileKStart, mergeTileNStart},
-      SmallVector<OpFoldResult>{currentKLen, currentNLen},
-      SmallVector<OpFoldResult>{rewriter.getIndexAttr(1), rewriter.getIndexAttr(1)});
-
-  mMergeTileLen = rewriter.create<arith::IndexCastOp>(loc, i64Type, mMergeTileLen);
-  nMergeTileLen = rewriter.create<arith::IndexCastOp>(loc, i64Type, nMergeTileLen);
-  kMergeTileLen = rewriter.create<arith::IndexCastOp>(loc, i64Type, kMergeTileLen);
-  mMetaTileLen = rewriter.create<arith::IndexCastOp>(loc, i64Type, mMetaTileLen);
-  nMetaTileLen = rewriter.create<arith::IndexCastOp>(loc, i64Type, nMetaTileLen);
-  kMetaTileLen = rewriter.create<arith::IndexCastOp>(loc, i64Type, kMetaTileLen);
-
-  rewriter.create<MergeTileMatMulOp>(loc,
-      aMergeTile, aMemArray, bMergeTile, bMemArray, 
-      aSpAddrStart, bSpAddrStart, cSpAddrStart,
-      mMergeTileLen, nMergeTileLen, kMergeTileLen,
-      mMetaTileLen, nMetaTileLen, kMetaTileLen);
-
-  // Execute mvout at the end of m loop
-  rewriter.setInsertionPointAfter(mloopOp);
   
-  // TODO:fix this
-  Value cMergeTile = rewriter.create<memref::SubViewOp>(
-    loc, cMemArray,
-    SmallVector<OpFoldResult>{rewriter.getIndexAttr(0), rewriter.getIndexAttr(0)},
-    SmallVector<OpFoldResult>{rewriter.getIndexAttr(16), rewriter.getIndexAttr(16)},
-    SmallVector<OpFoldResult>{rewriter.getIndexAttr(1), rewriter.getIndexAttr(1)});
-  rewriter.create<MvoutOp>(loc, cMergeTile, cSpAddrStart);
-
-  rewriter.setInsertionPointAfter(kloopOp);
-
-  rewriter.eraseOp(vecTileMatMulOp);
-  return success();
-}
 private:
   int64_t dim;
   int64_t spAddrLen;
   int64_t spadRows;
-  int64_t accRows;
-  size_t sizeOfElemT;
-  size_t sizeOfAccT;
-  int64_t lane;
   int64_t warp;
+  int64_t lane;
 };
 
 void mlir::populateBuckyballLegalizeForLLVMExportPatterns(
@@ -821,17 +329,16 @@ void mlir::populateBuckyballLegalizeForLLVMExportPatterns(
   patterns.add<BuckyballFenceLowering>(converter);
   patterns.add<BuckyballMvinLowering>(converter, spAddrLen);
   patterns.add<BuckyballMvoutLowering>(converter, spAddrLen);
-  patterns.add<BuckyballVecMulWarp16Lowering>(converter, spAddrLen);
-  patterns.add<BuckyballMetaTileMatMulLowering>(converter, lane);
-  patterns.add<BuckyballMergeTileMatMulLowering>(converter);
-  patterns.add<BuckyballVecTileMatMulLowering>(converter, dim, 
-      spAddrLen, spadRows, accRows, sizeOfElemT, sizeOfAccT, warp, lane);
+  patterns.add<BuckyballMatMulLowering>(converter, dim, spAddrLen, spadRows, warp, lane);
+  patterns.add<BuckyballTransposeLowering>(converter, spAddrLen);
 }
 
 void mlir::configureBuckyballLegalizeForExportTarget(
     LLVMConversionTarget &target) {
-  target.addLegalOp<FENCE_IntrOp, Mvin_IntrOp, 
-                    Mvout_IntrOp, MUL_WARP16_IntrOp>();
-  target.addIllegalOp<FenceOp, MvinOp, MvoutOp, VecTileMatMulOp, MergeTileMatMulOp, 
-                      MetaTileMatMulOp, VecMulWarp16Op>();
+  target.addLegalOp<Fence_IntrOp, Mvin_IntrOp, 
+                    Mvout_IntrOp, Mul_Warp16_IntrOp, Transpose_IntrOp>();
+  target.addIllegalOp<FenceOp, MvinOp, MvoutOp, MatMulOp, TransposeOp>();
+  // Allow memref operations during conversion
+  target.addLegalDialect<memref::MemRefDialect>();
+  target.addLegalDialect<arith::ArithDialect>();
 }

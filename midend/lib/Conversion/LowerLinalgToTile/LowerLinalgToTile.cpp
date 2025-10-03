@@ -1,4 +1,4 @@
-//====- LowerLinalgToBuckyball.cpp - Linalg Dialect Lowering Pass -----------===//
+//====- LowerLinalgToTile.cpp - Linalg Dialect Lowering Pass -----------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,18 +14,19 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines Linalg dialect lowering pass.
+// This file defines Linalg dialect lowering pass to Tile dialect.
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 
-#include "Buckyball/BuckyballDialect.h"
-#include "Buckyball/BuckyballOps.h"
+#include "Tile/TileDialect.h"
+#include "Tile/TileOps.h"
 using namespace mlir;
 using namespace buddy;
 
@@ -46,7 +47,7 @@ public:
     Value input0 = inputs[0];
     Value input1 = inputs[1];
     Value output0 = ouputs[0];
-    rewriter.replaceOpWithNewOp<buckyball::VecTileMatMulOp>(
+    rewriter.replaceOpWithNewOp<tile::TileMatMulOp>(
         matMulOp, input0, input1, output0);
     return success();
   }
@@ -105,8 +106,8 @@ public:
       Value subOutput = rewriter.create<memref::SubViewOp>(
           loc, resultType, output, staticOffsets, staticSizes, staticStrides);
       SmallVector<Value> inputs = {subInput0, subInput1};
-      SmallVector<Value> output = {subOutput};
-      rewriter.create<linalg::MatmulOp>(batchMatMulOp.getLoc(), inputs, output);
+      SmallVector<Value> outputs = {subOutput};
+      rewriter.create<linalg::MatmulOp>(batchMatMulOp.getLoc(), inputs, outputs);
     }
     rewriter.eraseOp(batchMatMulOp.getOperation());
     return success();
@@ -115,54 +116,55 @@ public:
 
 } // namespace
 
-void populateLowerLinalgToBuckyballConversionPatterns(RewritePatternSet &patterns) {
+void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<MatmulLowering>(patterns.getContext());
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
 }
 
 //===----------------------------------------------------------------------===//
-// LowerLinalgToBuckyball
+// LowerLinalgToTile
 //===----------------------------------------------------------------------===//
 
 namespace {
-class LowerLinalgToBuckyballPass
-    : public PassWrapper<LowerLinalgToBuckyballPass, OperationPass<ModuleOp>> {
+class LowerLinalgToTilePass
+    : public PassWrapper<LowerLinalgToTilePass, OperationPass<ModuleOp>> {
 public:
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerLinalgToBuckyballPass);
-  LowerLinalgToBuckyballPass() = default;
-  LowerLinalgToBuckyballPass(const LowerLinalgToBuckyballPass &) {}
-  StringRef getArgument() const final { return "convert-linalg-to-buckyball"; }
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerLinalgToTilePass);
+  LowerLinalgToTilePass() = default;
+  LowerLinalgToTilePass(const LowerLinalgToTilePass &) {}
+  StringRef getArgument() const final { return "convert-linalg-to-tile"; }
   StringRef getDescription() const final {
-    return "convert linalg dialect to buckyball dialect";
+    return "convert linalg dialect to tile dialect";
   }
   void runOnOperation() override;
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<buckyball::BuckyballDialect, func::FuncDialect,
+    registry.insert<tile::TileDialect, func::FuncDialect,
                     memref::MemRefDialect, linalg::LinalgDialect,
                     arith::ArithDialect, scf::SCFDialect>();
   }
 };
 } // namespace
 
-void LowerLinalgToBuckyballPass::runOnOperation() {
+void LowerLinalgToTilePass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
   ConversionTarget target(*context);
   target.addLegalDialect<memref::MemRefDialect, 
-                         buckyball::BuckyballDialect,
+                         tile::TileDialect,
                          arith::ArithDialect, 
                          scf::SCFDialect>();
   target.addLegalOp<linalg::FillOp, linalg::YieldOp>();
   RewritePatternSet patterns(context);
-  populateLowerLinalgToBuckyballConversionPatterns(patterns);
+  populateLowerLinalgToTileConversionPatterns(patterns);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
 }
 
 namespace mlir {
 namespace buddy {
-void registerLowerLinalgToBuckyballPass() {
-  PassRegistration<LowerLinalgToBuckyballPass>();
+void registerLowerLinalgToTilePass() {
+  PassRegistration<LowerLinalgToTilePass>();
 }
 } // namespace buddy
 } // namespace mlir
+
