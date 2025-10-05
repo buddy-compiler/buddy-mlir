@@ -251,10 +251,8 @@ public:
     
     ModuleOp parentModule = op->getParentOfType<ModuleOp>();
     
-    // 获取或创建全局变量来存储计数器起始值
     auto counterGlobal = getOrCreateCounterGlobal(rewriter, parentModule, counterId);
     
-    // 使用内联汇编读取rdcycle
     auto i64Type = rewriter.getI64Type();
     auto rdcycleAsm = rewriter.create<LLVM::InlineAsmOp>(
         loc,
@@ -267,7 +265,6 @@ public:
         /*asm_dialect=*/LLVM::AsmDialectAttr::get(context, LLVM::AsmDialect::AD_ATT),
         /*operand_attrs=*/ArrayAttr());
     
-    // 将读取的周期数存储到全局变量
     rewriter.create<LLVM::StoreOp>(loc, rdcycleAsm.getResult(0), counterGlobal);
     
     rewriter.eraseOp(op);
@@ -280,10 +277,8 @@ private:
     auto context = rewriter.getContext();
     auto loc = module.getLoc();
     
-    // 为计数器创建唯一的全局变量名
     std::string globalName = "bb_counter_start";
     
-    // 查找或创建全局变量
     LLVM::GlobalOp global;
     if (!(global = module.lookupSymbol<LLVM::GlobalOp>(globalName))) {
       OpBuilder::InsertionGuard insertGuard(rewriter);
@@ -313,14 +308,11 @@ public:
     
     ModuleOp parentModule = op->getParentOfType<ModuleOp>();
     
-    // 获取全局变量
     auto counterGlobal = getCounterGlobal(rewriter, parentModule, counterId);
     
-    // 读取起始周期数
     auto i64Type = rewriter.getI64Type();
     Value startCycles = rewriter.create<LLVM::LoadOp>(loc, i64Type, counterGlobal);
     
-    // 使用内联汇编读取当前rdcycle
     auto rdcycleAsm = rewriter.create<LLVM::InlineAsmOp>(
         loc,
         /*resultTypes=*/i64Type,
@@ -332,11 +324,9 @@ public:
         /*asm_dialect=*/LLVM::AsmDialectAttr::get(context, LLVM::AsmDialect::AD_ATT),
         /*operand_attrs=*/ArrayAttr());
     
-    // 计算周期差值
     Value endCycles = rdcycleAsm.getResult(0);
     Value cyclesDiff = rewriter.create<LLVM::SubOp>(loc, endCycles, startCycles);
     
-    // 替换操作并返回周期差值
     rewriter.replaceOp(op, cyclesDiff);
     return success();
   }
