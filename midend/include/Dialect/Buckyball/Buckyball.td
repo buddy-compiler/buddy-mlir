@@ -121,8 +121,8 @@ def TransposeOp : Buckyball_Op<"bb_transpose"> {
     Perform transpose operation on vector.
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input,
-                       I64:$spAddr);
-  let assemblyFormat = [{$input $spAddr attr-dict `:` type($input) type($spAddr)}];
+                    MemRefRankOf<[AnyType], [2]>:$output);
+  let assemblyFormat = [{$input $output attr-dict `:` type($input) type($output)}];
 }
 
 // TODO: add really detailed deployment

@@ -85,5 +85,26 @@ def TileMatMulOp : Tile_Op<"tile_matmul"> {
     type($aMemArray) type($bMemArray) type($cMemArray)}];
 }
 
+def TileTransposeOp : Tile_Op<"tile_transpose"> {
+  let summary = "Tiled matrix transpose";
+  let description = [{
+    Transpose a matrix with automatic tiling to fit hardware constraints.
+    This operation takes an arbitrary-sized input matrix and tiles it into 
+    fixed-size blocks that can be efficiently executed on the accelerator.
+    
+    The operation handles:
+    - Computation of optimal tile sizes based on SPAD and accumulator constraints
+    - Padding for cases where matrix dimensions are not perfectly divisible
+    - Generation of tiled computation loops
+    
+    This will be lowered to Buckyball TransposeOp operations with appropriate
+    data movement (mvin/mvout) operations.
+  }];
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$aMemArray,
+                       MemRefRankOf<[AnyType], [2]>:$bMemArray);
+  let assemblyFormat = [{$aMemArray $bMemArray attr-dict `:` 
+    type($aMemArray) type($bMemArray)}];
+}
+
 #endif // TILE_OPS
 

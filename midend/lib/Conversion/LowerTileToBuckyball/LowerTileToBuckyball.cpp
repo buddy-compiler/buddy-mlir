@@ -202,11 +202,156 @@ private:
 
 } // namespace
 
+namespace {
+
+class TileTransposeLowering : public OpRewritePattern<tile::TileTransposeOp> {
+  // Compute tile's SPAD rows requirement for transpose
+  size_t computeTileSpadRows(size_t rowsTileLen, size_t colsTileLen) const {
+    // Transpose requires both input and output tiles in SPAD
+    // Input tile size: rowsTileLen * colsTileLen
+    // Output tile size: colsTileLen * rowsTileLen (transposed)
+    return rowsTileLen * colsTileLen * 2;  // Both input and output
+  }
+
+public:
+  explicit TileTransposeLowering(MLIRContext *context, 
+                                int64_t dim, int64_t spadRows, int64_t accRows,
+                                int64_t warp, int64_t lane)
+      : OpRewritePattern(context), dim(dim), spadRows(spadRows), 
+        accRows(accRows), warp(warp), lane(lane) {}
+
+  LogicalResult matchAndRewrite(tile::TileTransposeOp tileTransposeOp,
+                                PatternRewriter &rewriter) const override {
+    Location loc = tileTransposeOp.getLoc();
+    
+    // Get input and output arrays
+    Value inputMemArray = tileTransposeOp.getAMemArray();
+    Value outputMemArray = tileTransposeOp.getBMemArray();
+    
+    auto inputMemArrayType = cast<MemRefType>(inputMemArray.getType());
+    auto outputMemArrayType = cast<MemRefType>(outputMemArray.getType());
+    
+    IntegerType i64Type = rewriter.getI64Type();
+
+    // Get input and output Matrix's shape - Input[Rows][Cols], Output[Cols][Rows]
+    llvm::ArrayRef<int64_t> inputMemArrayShape = inputMemArrayType.getShape();
+    llvm::ArrayRef<int64_t> outputMemArrayShape = outputMemArrayType.getShape();
+    
+    size_t Rows = inputMemArrayShape[inputMemArrayShape.size() - 2];
+    size_t Cols = inputMemArrayShape[inputMemArrayShape.size() - 1];
+    
+    // Verify output shape is transposed
+    if (outputMemArrayShape[outputMemArrayShape.size() - 2] != Cols ||
+        outputMemArrayShape[outputMemArrayShape.size() - 1] != Rows) {
+      return tileTransposeOp.emitError("Output shape must be transposed of input shape");
+    }
+
+    // Tile's meta length (fixed by hardware)
+    const size_t rowMetaLen = lane;
+    const size_t colMetaLen = lane;
+
+    // Compute padded dimensions
+    const size_t rowsPadded = ((Rows + rowMetaLen - 1) / rowMetaLen) * rowMetaLen;
+    const size_t colsPadded = ((Cols + colMetaLen - 1) / colMetaLen) * colMetaLen;
+
+    // Compute tile lengths to maximize resource utilization
+    const size_t maxSpadRows = spadRows / 2;  // Double buffer
+    
+    size_t rowsTileLen = 1;
+    size_t colsTileLen = 1;
+    
+    // Extend rows dimension
+    bool increased = true;
+    while (increased) {
+      increased = false;
+      size_t nextRows = rowsTileLen + 1;
+      size_t testSpadRows = computeTileSpadRows(nextRows, colsTileLen);
+      if (testSpadRows <= maxSpadRows && 
+          (nextRows * rowMetaLen) <= rowsPadded) {
+        rowsTileLen = nextRows;
+        increased = true;
+      }
+    }
+    
+    // Extend cols dimension
+    increased = true;
+    while (increased) {
+      increased = false;
+      size_t nextCols = colsTileLen + 1;
+      size_t testSpadRows = computeTileSpadRows(rowsTileLen, nextCols);
+      if (testSpadRows <= maxSpadRows && 
+          (nextCols * colMetaLen) <= colsPadded) {
+        colsTileLen = nextCols;
+        increased = true;
+      }
+    }
+
+    // Compute tile parameters
+    const size_t rowsTileSize = rowsTileLen * rowMetaLen;
+    const size_t colsTileSize = colsTileLen * colMetaLen;
+    
+    const size_t rowsTileNum = (rowsPadded + rowsTileSize - 1) / rowsTileSize;
+    const size_t colsTileNum = (colsPadded + colsTileSize - 1) / colsTileSize;
+    
+    // Last tile lengths (for handling non-perfectly-divisible dimensions)
+    const size_t rowsLastTileLen = (rowsPadded % rowsTileSize == 0) ? rowsTileLen : 
+                                  (rowsPadded % rowsTileSize + rowMetaLen - 1) / rowMetaLen;
+    const size_t colsLastTileLen = (colsPadded % colsTileSize == 0) ? colsTileLen : 
+                                  (colsPadded % colsTileSize + colMetaLen - 1) / colMetaLen;
+    
+    // Generate tiled computation loops
+    for (size_t row0 = 0; row0 < rowsTileNum; row0++) {
+      for (size_t col0 = 0; col0 < colsTileNum; col0++) {
+        // Determine current tile dimensions
+        const bool isLastRow = (row0 == rowsTileNum - 1);
+        const bool isLastCol = (col0 == colsTileNum - 1);
+        
+        const size_t currentRowsLen = isLastRow ? (rowsLastTileLen * rowMetaLen) : rowsTileSize;
+        const size_t currentColsLen = isLastCol ? (colsLastTileLen * colMetaLen) : colsTileSize;
+
+        // Calculate starting positions
+        const size_t tileRowStart = row0 * rowsTileSize;
+        const size_t tileColStart = col0 * colsTileSize;
+        
+        // Create subviews for current input tile
+        Value inputTile = rewriter.create<memref::SubViewOp>(
+            loc, inputMemArray,
+            SmallVector<OpFoldResult>{rewriter.getIndexAttr(tileRowStart), rewriter.getIndexAttr(tileColStart)},
+            SmallVector<OpFoldResult>{rewriter.getIndexAttr(currentRowsLen), rewriter.getIndexAttr(currentColsLen)},
+            SmallVector<OpFoldResult>{rewriter.getIndexAttr(1), rewriter.getIndexAttr(1)});
+        
+        // Create subviews for current output tile (transposed)
+        Value outputTile = rewriter.create<memref::SubViewOp>(
+            loc, outputMemArray,
+            SmallVector<OpFoldResult>{rewriter.getIndexAttr(tileColStart), rewriter.getIndexAttr(tileRowStart)},
+            SmallVector<OpFoldResult>{rewriter.getIndexAttr(currentColsLen), rewriter.getIndexAttr(currentRowsLen)},
+            SmallVector<OpFoldResult>{rewriter.getIndexAttr(1), rewriter.getIndexAttr(1)});
+
+        // Create Buckyball Transpose operation for this tile
+        rewriter.create<buckyball::TransposeOp>(loc, inputTile, outputTile);
+      }
+    }
+
+    rewriter.eraseOp(tileTransposeOp);
+    return success();
+  }
+
+private:
+  int64_t dim;
+  int64_t spadRows;
+  int64_t accRows;
+  int64_t warp;
+  int64_t lane;
+};
+
+} // namespace
 void populateLowerTileToBuckyballConversionPatterns(
     RewritePatternSet &patterns, int64_t dim, int64_t spadRows, 
     int64_t accRows, int64_t warp, int64_t lane) {
   patterns.add<TileMatMulLowering>(patterns.getContext(), dim, spadRows, 
                                    accRows, warp, lane);
+  patterns.add<TileTransposeLowering>(patterns.getContext(), dim, spadRows,
+                                     accRows, warp, lane);
 }
 
 //===----------------------------------------------------------------------===//

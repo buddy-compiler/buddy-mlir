@@ -137,11 +137,29 @@ public:
   }
 };
 
+class TransposeOpLowering : public OpRewritePattern<linalg::TransposeOp> {
+public:
+  explicit TransposeOpLowering(MLIRContext *context) : OpRewritePattern<linalg::TransposeOp>(context) {}
+  
+  LogicalResult matchAndRewrite(linalg::TransposeOp transposeOp,
+                                PatternRewriter &rewriter) const override {
+
+    Value input = transposeOp.getInput();
+    Value output = transposeOp.getInit();
+    Location loc = transposeOp.getLoc();
+    
+    rewriter.replaceOpWithNewOp<tile::TileTransposeOp>(
+        transposeOp, input, output);
+    return success();
+  }
+};
+
 } // namespace
 
 void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<MatmulLowering>(patterns.getContext());
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
+  patterns.add<TransposeOpLowering>(patterns.getContext());
 }
 
 //===----------------------------------------------------------------------===//

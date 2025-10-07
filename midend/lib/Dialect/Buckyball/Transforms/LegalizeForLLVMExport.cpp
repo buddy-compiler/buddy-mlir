@@ -171,40 +171,108 @@ private:
 
 struct BuckyballTransposeLowering : public ConvertOpToLLVMPattern<TransposeOp> {
   using ConvertOpToLLVMPattern<TransposeOp>::ConvertOpToLLVMPattern;
-  explicit BuckyballTransposeLowering(LLVMTypeConverter &typeConverter,
-                               int64_t spAddrLen)
-      : ConvertOpToLLVMPattern(typeConverter), spAddrLen(spAddrLen) {}
+    explicit BuckyballTransposeLowering(LLVMTypeConverter &typeConverter,
+                                   int64_t dim, int64_t spAddrLen, 
+                                   int64_t spadRows, int64_t warp, int64_t lane)
+      : ConvertOpToLLVMPattern(typeConverter), dim(dim), spAddrLen(spAddrLen),
+        spadRows(spadRows), warp(warp), lane(lane) {}
   LogicalResult
   matchAndRewrite(TransposeOp transposeOp, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Location loc = transposeOp.getLoc();
-    Value input = transposeOp.getInput();
-    Value spAddr = transposeOp.getSpAddr();
+                ConversionPatternRewriter &rewriter) const override {
+  Location loc = transposeOp.getLoc();
 
-    TypeRange resultType = mlir::TypeRange(rewriter.getIndexType());
-    Value extractOp = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
-        loc, resultType, input);
-    IntegerType i64Type = rewriter.getI64Type();
-    Value indexCastOp = rewriter.create<arith::IndexCastOp>(loc, i64Type, extractOp);
-    
-    // Get iter from input dimensions (same as mvin)
-    Value iter = rewriter.create<memref::DimOp>(loc, input, 0);
-    iter = rewriter.create<arith::IndexCastOp>(loc, i64Type, iter);
-    
-    // rs1 = indexCastOp (pointer)
-    // rs2 = (iter << spAddrLen) | spAddr
-    Value rs1 = indexCastOp;
-    Value shift = rewriter.create<arith::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(spAddrLen));
-    Value iterShifted = rewriter.create<arith::ShLIOp>(loc, iter, shift);
-    Value rs2 = rewriter.create<arith::OrIOp>(loc, iterShifted, spAddr);
-    
-    rewriter.replaceOpWithNewOp<Transpose_IntrOp>(transposeOp, rs1, rs2);
-    return success();
+  // Get original memref types (before conversion)
+  Value input = transposeOp.getInput();
+  Value output = transposeOp.getOutput();
+
+  MemRefType inType = dyn_cast<MemRefType>(transposeOp.getOperandTypes()[0]);
+  MemRefType outType = dyn_cast<MemRefType>(transposeOp.getOperandTypes()[1]);
+
+  llvm::ArrayRef<int64_t> inShape = inType.getShape();
+  llvm::ArrayRef<int64_t> outShape = outType.getShape();
+
+  // Expect 2-D transpose
+  if (inShape.size() != 2 || outShape.size() != 2)
+    return rewriter.notifyMatchFailure(transposeOp, "only 2-D transpose supported");
+
+  uint64_t rows = inShape[0];
+  uint64_t cols = inShape[1];
+
+  IntegerType i64Type = rewriter.getI64Type();
+
+  // --- scratchpad address layout (follow MatMul convention) ---
+  // Input matrix A placed at sp address 0
+  const uint64_t aSpAddrStart = 0;
+  // Output placed in high region so it doesn't overlap input (use high bit like MatMul's cSpAddrStart)
+  const uint64_t outSpAddrStart = spadRows / 2 ;
+
+  // --- Load input matrix to scratchpad (Mvin) ---
+  Value extractIn = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, input);
+  Value indexCastIn = rewriter.create<arith::IndexCastOp>(loc, i64Type, extractIn);
+
+  // Encode load: follow MatMul style: (rows << (spAddrLen + 16)) | (cols << spAddrLen) | spadStart | (1ULL << (spAddrLen + 26))
+  uint64_t aAddrEncoded = (rows << (spAddrLen + 16)) | (cols << spAddrLen) | aSpAddrStart | (1ULL << (spAddrLen + 26));
+  Value rs1A = indexCastIn;
+  Value rs2A = rewriter.create<arith::ConstantOp>(loc, i64Type, rewriter.getI64IntegerAttr(aAddrEncoded));
+  rewriter.create<Mvin_IntrOp>(loc, rs1A, rs2A);
+  
+  // --- Generate warp transpose operations ---
+  // We'll tile the matrix into warp-sized tiles. Using defaults consistent with MatMul examples:
+  uint64_t metaRowNum = (rows + lane - 1) / lane;
+  uint64_t metaColNum = (cols + lane - 1) / lane;
+
+  // For each meta-tile, compute the scratchpad addresses for input tile and output tile,
+  // then issue a warp transpose intrinsic. The exact encoding for the transpose intrinsic
+  // is assumed here; adjust if platform uses different bitfields.
+  for (uint64_t r0 = 0; r0 < metaRowNum; ++r0) {
+    for (uint64_t c0 = 0; c0 < metaColNum; ++c0) {
+      // Compute starting scratchpad addresses for the tile.
+      // Layout assumption: input stored in row-major contiguous blocks of 'lane' rows each.
+      uint64_t inTileSpAddr = aSpAddrStart + r0 * lane + c0 * (rows); // similar to MatMul aWarpSpAddr pattern
+      // For output (transposed), place tile at outSpAddrStart + c0*lane + r0*(cols)
+      uint64_t outTileSpAddr = outSpAddrStart + c0 * lane + r0 * (cols);
+
+      // nRows/nCols for this tile (may be smaller at edges)
+      uint64_t tileRows = std::min<uint64_t>(lane, rows - r0 * lane);
+      uint64_t tileCols = std::min<uint64_t>(lane, cols - c0 * lane);
+
+      uint iter = std::max<uint64_t>(tileRows, tileCols);
+      // Encode rs1 and rs2 for transpose intrinsic.
+      // We'll follow a similar packing convention:
+      // rs1 = (inTileSpAddr) | (outTileSpAddr << spAddrLen)  (or reversed) --
+      // choose consistent packing: rs1 = (out << spAddrLen) | in
+      uint64_t rs1 = (outTileSpAddr << spAddrLen) | inTileSpAddr;
+      // rs2 encodes tile dimensions: (tileRows << spAddrLen) | tileCols
+      uint64_t rs2 = (iter << spAddrLen);
+
+      Value rs1Value = rewriter.create<arith::ConstantOp>(loc, i64Type, rewriter.getI64IntegerAttr(rs1));
+      Value rs2Value = rewriter.create<arith::ConstantOp>(loc, i64Type, rewriter.getI64IntegerAttr(rs2));
+
+      // Issue the warp transpose intrinsic.
+      rewriter.create<Transpose_IntrOp>(loc, rs1Value, rs2Value);
+    }
   }
 
+  // --- Mvout - Write back output matrix ---
+  Value extractOut = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, output);
+  Value indexCastOut = rewriter.create<arith::IndexCastOp>(loc, i64Type, extractOut);
+
+  // Encode mvout address: (rows << spAddrLen) | spadAddrStart  (here rows = out rows)
+  uint64_t mvoutAddrEncoded = (outShape[0] << spAddrLen) | outSpAddrStart;
+  Value rs1Mvout = indexCastOut;
+  Value rs2Mvout = rewriter.create<arith::ConstantOp>(loc, i64Type, rewriter.getI64IntegerAttr(mvoutAddrEncoded));
+  rewriter.create<Mvout_IntrOp>(loc, rs1Mvout, rs2Mvout);
+
+  rewriter.eraseOp(transposeOp);
+  return success();
+}
+
 private:
+  int64_t dim;
   int64_t spAddrLen;
+  int64_t spadRows;
+  int64_t warp;
+  int64_t lane;
 };
 
 //===----------------------------------------------------------------------===//
@@ -330,7 +398,7 @@ void mlir::populateBuckyballLegalizeForLLVMExportPatterns(
   patterns.add<BuckyballMvinLowering>(converter, spAddrLen);
   patterns.add<BuckyballMvoutLowering>(converter, spAddrLen);
   patterns.add<BuckyballMatMulLowering>(converter, dim, spAddrLen, spadRows, warp, lane);
-  patterns.add<BuckyballTransposeLowering>(converter, spAddrLen);
+  patterns.add<BuckyballTransposeLowering>(converter, dim, spAddrLen, spadRows, warp, lane);
 }
 
 void mlir::configureBuckyballLegalizeForExportTarget(
