@@ -152,6 +152,95 @@ private:
   }
 };
 
+class PrintScalarOpLowering : public ConversionPattern {
+public:
+  explicit PrintScalarOpLowering(MLIRContext *context)
+      : ConversionPattern(gemmini::PrintScalarOp::getOperationName(), 1,
+                          context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto context = rewriter.getContext();
+    auto loc = op->getLoc();
+
+    ModuleOp parentModule = op->getParentOfType<ModuleOp>();
+
+    auto printfRef = getOrInsertPrintf(rewriter, parentModule);
+
+    Type elementType = op->getOperand(0).getType();
+    Value formatSpecifierCst;
+
+    if (elementType == rewriter.getF32Type() ||
+        elementType == rewriter.getF64Type()) {
+      formatSpecifierCst = getOrCreateGlobalString(
+          loc, rewriter, "scalar_fmt", StringRef("%f\n\0", 5), parentModule);
+    } else if (elementType == rewriter.getI8Type() ||
+               elementType == rewriter.getI32Type()) {
+      formatSpecifierCst = getOrCreateGlobalString(
+          loc, rewriter, "scalar_fmt", StringRef("%d\n\0", 5), parentModule);
+    }
+
+    Value valueToPrint = op->getOperand(0);
+    if (elementType == rewriter.getF32Type()) {
+      valueToPrint = rewriter.create<LLVM::FPExtOp>(loc, rewriter.getF64Type(),
+                                                    valueToPrint);
+    } else if (elementType == rewriter.getI8Type()) {
+      valueToPrint = rewriter.create<LLVM::SExtOp>(loc, rewriter.getI32Type(),
+                                                   valueToPrint);
+    }
+
+    rewriter.create<LLVM::CallOp>(
+        loc, getPrintfType(context), printfRef,
+        ArrayRef<Value>({formatSpecifierCst, valueToPrint}));
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  static LLVM::LLVMFunctionType getPrintfType(MLIRContext *context) {
+    auto llvmI32Ty = IntegerType::get(context, 32);
+    auto llvmPtr = LLVM::LLVMPointerType::get(context);
+    return LLVM::LLVMFunctionType::get(llvmI32Ty, llvmPtr, true);
+  }
+
+  static FlatSymbolRefAttr getOrInsertPrintf(PatternRewriter &rewriter,
+                                             ModuleOp module) {
+    auto *context = module.getContext();
+    if (module.lookupSymbol<LLVM::LLVMFuncOp>("printf"))
+      return SymbolRefAttr::get(context, "printf");
+
+    PatternRewriter::InsertionGuard insertGuard(rewriter);
+    rewriter.setInsertionPointToStart(module.getBody());
+    rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "printf",
+                                      getPrintfType(context));
+    return SymbolRefAttr::get(context, "printf");
+  }
+
+  static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
+                                       StringRef name, StringRef value,
+                                       ModuleOp module) {
+    LLVM::GlobalOp global;
+    if (!(global = module.lookupSymbol<LLVM::GlobalOp>(name))) {
+      OpBuilder::InsertionGuard insertGuard(builder);
+      builder.setInsertionPointToStart(module.getBody());
+      auto type = LLVM::LLVMArrayType::get(
+          IntegerType::get(builder.getContext(), 8), value.size());
+      global = builder.create<LLVM::GlobalOp>(loc, type, true,
+                                              LLVM::Linkage::Internal, name,
+                                              builder.getStringAttr(value), 0);
+    }
+
+    Value globalPtr = builder.create<LLVM::AddressOfOp>(loc, global);
+    Value cst0 = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
+                                                  builder.getIndexAttr(0));
+    return builder.create<LLVM::GEPOp>(
+        loc, LLVM::LLVMPointerType::get(builder.getContext()), global.getType(),
+        globalPtr, ArrayRef<Value>({cst0, cst0}));
+  }
+};
+
 namespace {
 class LowerGemminiToLLVMPass
     : public PassWrapper<LowerGemminiToLLVMPass, OperationPass<ModuleOp>> {
@@ -222,6 +311,7 @@ void LowerGemminiToLLVMPass::runOnOperation() {
   cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
   populateFuncToLLVMConversionPatterns(converter, patterns);
   patterns.add<PrintOpLowering>(&getContext());
+  patterns.add<PrintScalarOpLowering>(&getContext());
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
 }
