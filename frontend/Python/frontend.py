@@ -176,6 +176,12 @@ class DynamoCompiler:
             "eq.Scalar": EqualOp,
             "copy.default": CopyOp,
             "slice_scatter.default": SliceScatterOp,
+            "le.Tensor": LeOp,
+            # "bitwise_and.Tensor": BitwiseAndTensorOp,
+            "index_put.default": IndexPutOp,
+            # "constant_pad_nd.default": ConstantPadNdOp,
+            # "any.dim": AnyOp,
+            # "sum.default":SumOp,
         }
 
     @property
@@ -269,7 +275,12 @@ class DynamoCompiler:
             dynamo_run: The function of the ahead-of-time compiled module,
             return for torchdynamo's call.
         """
-
+        # print(gm.graph)
+        # print("all_nodes:")
+        # for i in gm.graph.nodes:
+        #     print(i)
+        #     print(i.op)
+        #     print("************************")
         # params = {
         #     # **dict(gm.named_parameters(remove_duplicate=False)),
         #     **dict(gm.named_buffers(remove_duplicate=False)),
@@ -288,7 +299,10 @@ class DynamoCompiler:
                 buffers_pos.append(i)
             else:
                 params_pos.append(i)
-
+        # print("debug8:")
+        # print(len(inputs_pos))
+        # print(len(params_pos))
+        # print(len(buffers_pos))
         params_flat = [inputs[i] for i in params_pos + buffers_pos]
 
         if self._verbose:
@@ -297,14 +311,18 @@ class DynamoCompiler:
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
+            # print("_inputs1:")
+            # print(_inputs)
             nonlocal params_flat
             func_inputs = []
             for i in inputs_pos:
                 # for inp in _inputs[len(params_flat) :]:
                 inp = _inputs[i]
-                inp_shape = inp.shape
-                inp_dtype = self._torch_dtype_translate(str(inp.dtype))
-                func_inputs.append(TensorMeta(inp_shape, inp_dtype))
+                print("DEBUG inp:", inp, type(inp))
+                if isinstance(inp, torch.Tensor):
+                    inp_shape = inp.shape
+                    inp_dtype = self._torch_dtype_translate(str(inp.dtype))
+                    func_inputs.append(TensorMeta(inp_shape, inp_dtype))
             fake_params = []
             for param in params_flat:
                 param_dtype = self._torch_dtype_translate(str(param.dtype))
@@ -330,24 +348,38 @@ class DynamoCompiler:
                     input_nodes.append(node)
                 else:
                     other_nodes.append(node)
+            # print("other_nodes:")
+            # print(other_nodes)
             gm_nodes = param_nodes + buffers_nodes + input_nodes + other_nodes
-
+            # with open("/home/zhuxinye/buddy-mlir/examples/BuddyDeepSeekR1/gm_nodes.txt", "w", encoding="utf-8") as f:
+            #     for gm_node in gm_nodes:
+            #         # 将 gm_node 转成字符串写入文件，并换行
+            #         f.write(str(gm_node) + "\n")
             for gm_node in gm_nodes:
                 node_users = []
                 for user in gm_node.users.keys():
                     node_users.append(str(user))
                 if gm_node.op == "placeholder":
-                    node_dtype = self._torch_dtype_translate(
-                        str(gm_node.meta["tensor_meta"].dtype)
-                    )
-                    buddy_node = self._create_node(
-                        gm_node.op,
-                        gm_node.name,
-                        gm_node.args,
-                        node_users,
-                        gm_node.meta["tensor_meta"].shape,
-                        node_dtype,
-                    )
+                    # print("ssssssssssssssssssssssssss")
+                    # print(gm_node)
+                    # print(node_users)
+                    # print(gm_node.args)
+                    # print(gm_node.name)
+                    # print(gm_node.op)
+                    # print(gm_node.meta)
+                    print(len(gm_node.meta))
+                    if len(gm_node.meta) > 1:
+                        node_dtype = self._torch_dtype_translate(
+                            str(gm_node.meta["tensor_meta"].dtype)
+                        )
+                        buddy_node = self._create_node(
+                            gm_node.op,
+                            gm_node.name,
+                            gm_node.args,
+                            node_users,
+                            gm_node.meta["tensor_meta"].shape,
+                            node_dtype,
+                        )
 
                 elif gm_node.op == "output":
                     buddy_node = self._create_node(
@@ -443,6 +475,9 @@ class DynamoCompiler:
         Returns:
             imported_graphs: The imported buddy graphs.
         """
+        # print("121345")
+        # print(args)
+        # print(kwargs)
         model_opt = dynamo.optimize(self._compile_fx)(model)
         model_opt(*args, **kwargs)
         return self._imported_graphs

@@ -26,13 +26,19 @@ using namespace buddy;
 
 constexpr size_t ParamsSize = 1777088064;
 constexpr size_t MaxVocabSize = 151936;
-constexpr size_t MaxTokenLength = 1024;
+constexpr size_t MaxTokenLengthPrefill = 40;
+constexpr size_t MaxTokenLengthDecode = 512;
 
 /// Declare DeepSeekR1 forward function.
-extern "C" void _mlir_ciface_forward(MemRef<float, 3> *result,
-                                     MemRef<float, 1> *arg0,
-                                     Text<size_t, 2> *arg1,
-                                     MemRef<long long, 2> *arg2);
+extern "C" void _mlir_ciface_forward_prefill(MemRef<float, 3> *result,
+                                             MemRef<float, 1> *arg0,
+                                             Text<size_t, 2> *arg1,
+                                             MemRef<long long, 2> *arg2);
+
+extern "C" void _mlir_ciface_forward_decode(MemRef<float, 3> *result,
+                                            MemRef<float, 1> *arg0,
+                                            Text<size_t, 2> *arg1,
+                                            MemRef<long long, 2> *arg2);
 
 // -----------------------------------------------------------------------------
 // Helper Functions
@@ -117,8 +123,8 @@ int main() {
   /// Define directories of vacabulary and parameter file.
   std::string deepSeekR1Dir = DEEPSEEKR1_EXAMPLE_PATH;
   std::string deepSeekR1BuildDir = DEEPSEEKR1_EXAMPLE_BUILD_PATH;
-  const std::string vocabDir = deepSeekR1Dir + "/vocab.txt";
-  const std::string paramsDir = deepSeekR1BuildDir + "/arg0.data";
+  const std::string vocabDir = deepSeekR1Dir + "vocab.txt";
+  const std::string paramsDir = deepSeekR1BuildDir + "arg0.data";
 
   /// Get user message.
   std::string inputStr;
@@ -130,10 +136,23 @@ int main() {
   //  - Output container.
   //  - Parameters container.
   Text<size_t, 2> outputContainer;
-  MemRef<float, 3> resultContainer({1, 9, 151936});
+  MemRef<float, 3> prefillResultContainer({1, 40, 151936});
+  MemRef<float, 3> decodeResultContainer({1, 512, 151936});
   Text<size_t, 2> inputContainer(inputStr);
-  MemRef<float, 1> paramsContainer({ParamsSize});
-  MemRef<long long, 2> attention_mask({1, 1024}, 0);
+  MemRef<float, 1> prefillParamsContainer({ParamsSize});
+  MemRef<float, 1> decodeParamsContainer({ParamsSize});
+  MemRef<long long, 2> attention_mask({1, 40}, 0);
+
+  MemRef<float, 3> pastKeyValuesPrefill[55];
+  for (int i = 0; i < 55; ++i) {
+    pastKeyValuesPrefill[i] =
+        MemRef<float, 3>({1, 2, MaxTokenLengthPrefill, 128}, false, 0);
+  }
+  MemRef<float, 3> pastKeyValuesDecode[55];
+  for (int i = 0; i < 55; ++i) {
+    pastKeyValuesDecode[i] =
+        MemRef<float, 3>({1, 2, MaxTokenLengthDecode, 128}, false, 0);
+  }
 
   /// Fill data into containers
   //  - Input: register vocabulary and tokenize the input string.
@@ -144,12 +163,17 @@ int main() {
     attention_mask.getData()[i] = 1;
   }
   outputContainer.loadVocab(vocabDir);
-  loadParameters(paramsDir, paramsContainer);
+  loadParameters(paramsDir, prefillParamsContainer);
+  loadParameters(paramsDir, decodeParamsContainer);
 
   /// Run DeepSeekR1 Inference
   //  - Perform the forward function.
   //  - Find and append the generated token.
   //  - Continue iterating until the terminal condition is met.
+
+  _mlir_ciface_forward_prefill(&prefillResultContainer, &paramsContainer,
+                               &inputContainer, &attention_mask);
+
   int generateLen = MaxTokenLength - inputContainer.getTokenCnt();
   for (int i = 0; i < generateLen; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();

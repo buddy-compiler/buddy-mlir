@@ -64,6 +64,8 @@ from ..graph import (
     ArgMaxOp,
     ScaledDotProductFlashAttentionForCpuOp,
     MatmulOp,
+    BitwiseAndTensorOp,
+    LeOp,
 )
 from .utils import *
 
@@ -516,54 +518,64 @@ def slice_op(node: SliceOp, symbol_table):
     From buddy graph ir's `SliceOp` operator to MLIR TOSA `extract_slice`
     operation.
     """
-    input_tensor = symbol_table.get((str(node.args[0]), 0))
-    dim = node.args[1]
-    start_idx = node.args[2]
-    end_idx = node.args[3]
+    # input_tensor = symbol_table.get((str(node.args[0]), 0))
+    # dim = node.args[1]
+    # start_idx = node.args[2]
+    # end_idx = node.args[3]
 
-    sizes = ir.RankedTensorType(input_tensor.type).shape
+    # sizes = ir.RankedTensorType(input_tensor.type).shape
 
-    if start_idx < 0:
-        start_idx += sizes[dim]
+    # if start_idx < 0:
+    #     start_idx += sizes[dim]
 
-    if end_idx < 0:
-        end_idx += sizes[dim]
+    # if end_idx < 0:
+    #     end_idx += sizes[dim]
 
-    if start_idx < 0:
-        start_idx = 0
-    elif start_idx >= sizes[dim]:
-        start_idx = sizes[dim]
+    # if start_idx < 0:
+    #     start_idx = 0
+    # elif start_idx >= sizes[dim]:
+    #     start_idx = sizes[dim]
 
-    if end_idx < start_idx:
-        end_idx = start_idx
-    elif end_idx >= sizes[dim]:
-        end_idx = sizes[dim]
+    # if end_idx < start_idx:
+    #     end_idx = start_idx
+    # elif end_idx >= sizes[dim]:
+    #     end_idx = sizes[dim]
 
-    new_sizes = [x for x in sizes]
-    new_sizes[dim] = end_idx - start_idx
-    new_sizes_attr = ir._denseI64ArrayAttr(new_sizes, None)
+    # new_sizes = [x for x in sizes]
+    # new_sizes[dim] = end_idx - start_idx
+    # new_sizes_attr = ir._denseI64ArrayAttr(new_sizes, None)
 
-    offsets = [0] * len(sizes)
-    offsets[dim] = start_idx
-    offsets_attr = ir._denseI64ArrayAttr(offsets, None)
+    # offsets = [0] * len(sizes)
+    # offsets[dim] = start_idx
+    # offsets_attr = ir._denseI64ArrayAttr(offsets, None)
 
-    strides = [1] * len(sizes)
-    strides_attr = ir._denseI64ArrayAttr(strides, None)
+    # strides = [1] * len(sizes)
+    # strides_attr = ir._denseI64ArrayAttr(strides, None)
 
-    result_element_type = ir.RankedTensorType(input_tensor.type).element_type
-    extract_slice_result_type = ir.RankedTensorType.get(
-        new_sizes, result_element_type
-    )
-    op = tensor.ExtractSliceOp(
-        extract_slice_result_type,
-        input_tensor,
-        [],
-        [],
-        [],
-        offsets_attr,
-        new_sizes_attr,
-        strides_attr,
-    )
+    # result_element_type = ir.RankedTensorType(input_tensor.type).element_type
+    # extract_slice_result_type = ir.RankedTensorType.get(
+    #     new_sizes, result_element_type
+    # )
+    # op = tensor.ExtractSliceOp(
+    #     extract_slice_result_type,
+    #     input_tensor,
+    #     [],
+    #     [],
+    #     [],
+    #     offsets_attr,
+    #     new_sizes_attr,
+    #     strides_attr,
+    # )
+    # print("node.args:")
+    # print(node.args)
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    # print("input1_shape:")
+    input1_shape = ir.RankedTensorType(input1.type).shape
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    # print(input1_shape)
+    op = tensor.EmptyOp(output_shape, mlir_dtype)
 
     return op
 
@@ -1829,6 +1841,113 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     return result_reshape_op, log_sumexp
 
 
+def bitwise_and_tensor_op(node: BitwiseAndTensorOp, symbol_table):
+    """
+    Compute the indices of the maximum values along the specified axis.
+
+    Args:
+        node (ArgMaxOp): The ArgMax operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+
+    Returns:
+        op: The constructed ArgMax operation.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+
+    output_shape = list(node.tensor_meta["shape"])
+    input_dtype = ir.RankedTensorType(input1.type).element_type
+
+    # === helper: 用 add 广播到目标 shape ===
+    def broadcast_tensor(tensor, target_shape):
+        if list(tensor.type.shape) == target_shape:
+            return tensor
+
+        # 全零 tensor
+        if input_dtype in (
+            ir.IntegerType.get_signless(1),
+            ir.IntegerType.get_signless(64),
+        ):
+            element = ir.IntegerAttr.get(input_dtype, 0)
+        elif input_dtype in (ir.F32Type.get(), ir.F16Type.get()):
+            element = ir.FloatAttr.get(input_dtype, 0.0)
+        else:
+            raise NotImplementedError("Unsupported element type!")
+
+        new_tensor_type = ir.RankedTensorType.get(target_shape, input_dtype)
+        new_tensor_attr = ir.DenseElementsAttr.get_splat(
+            new_tensor_type, element
+        )
+        zero_tensor = tosa.ConstOp(new_tensor_attr).results[0]
+
+        # 用 add 做广播
+        return _gen_arith_binary_op(tensor, zero_tensor, tosa.AddOp).results[0]
+
+    # 广播两个输入
+    input1 = broadcast_tensor(input1, output_shape)
+    input2 = broadcast_tensor(input2, output_shape)
+    # print(input1)
+    # print(input2)
+    # === 位与运算 ===
+    op = arith.AndIOp(input1, input2)
+    return op
+
+
+def le_op(
+    node: LeOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Import the tensor greater than operation.
+    From buddy GreaterThanOp to MLIR arith `constant` operation.
+    Note: This op, campare two input nodes, and output bool tensor to represent
+    compare result.
+    Args:
+        node: Containing information from the input graph node.
+        symbol_table: A dictionary mapping symbols to their corresponding
+        operations.
+    Returns:
+        op: The operation return the linalg.generic op.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    input2 = symbol_table.get((str(node.args[1]), 0))
+
+    output_shape = list(node.tensor_meta["shape"])
+    input_dtype = ir.RankedTensorType(input1.type).element_type
+
+    def broadcast_tensor(tensor, target_shape):
+        if list(tensor.type.shape) == target_shape:
+            return tensor
+
+        if input_dtype in (
+            ir.IntegerType.get_signless(1),
+            ir.IntegerType.get_signless(64),
+        ):
+            element = ir.IntegerAttr.get(input_dtype, 0)
+        elif input_dtype in (ir.F32Type.get(), ir.F16Type.get()):
+            element = ir.FloatAttr.get(input_dtype, 0.0)
+        else:
+            raise NotImplementedError("Unsupported element type!")
+
+        new_tensor_type = ir.RankedTensorType.get(target_shape, input_dtype)
+        new_tensor_attr = ir.DenseElementsAttr.get_splat(
+            new_tensor_type, element
+        )
+        zero_tensor = tosa.ConstOp(new_tensor_attr).results[0]
+
+        return _gen_arith_binary_op(tensor, zero_tensor, tosa.AddOp)
+
+    input1 = broadcast_tensor(input1, output_shape)
+    input2 = broadcast_tensor(input2, output_shape)
+
+    if str(input_dtype).find("i") != -1:
+        cmp_op = arith.CmpIOp(7, input1, input2)  # i <= i
+    else:
+        cmp_op = arith.CmpFOp(5, input1, input2)  # f <= f
+
+    return cmp_op
+
+
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,
@@ -1866,4 +1985,6 @@ ops_registry = {
     "RandIntLowOp": randint_low_op,
     "ArgMaxOp": argmax_op,
     "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
+    "BitwiseAndTensorOp": bitwise_and_tensor_op,
+    "LeOp": le_op,
 }

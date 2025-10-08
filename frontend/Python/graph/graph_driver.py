@@ -213,6 +213,15 @@ class GraphDriver:
         implementation.
 
         """
+        # print("debug5:")
+        # # print(dir(self._graph._inputs))
+        # # print(len(self._graph._inputs))
+        # print(self._graph._inputs[0].dtype)
+        # print(self._graph._inputs[0].shape)
+        # print(self._graph._inputs[1].dtype)
+        # print(self._graph._inputs[1].shape)
+        # # print(self._graph._inputs[1])
+        # print(len(self._graph._fake_params))
         main_graph = Graph(
             self._graph._inputs,
             self._graph._fake_params,

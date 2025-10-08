@@ -491,7 +491,25 @@ class GraphImporter:
         graph_instance._pack_params()
         # The parameters of the graph are now packed to one memref.
         """
+        # print("debug6:")
+        # idx = 1
+        # for i in self._params:
+        #     print(idx)
+        #     print(i.shape)
+        #     print(i.dtype)
+        #     idx += 1
+        # print(self._params)
         dtypes = list(set([param.dtype for param in self._params]))
+        # print("debug3:")
+        # print(dtypes)
+        # dtypes = [
+        #     TensorDType.Int8,
+        #     TensorDType.Int32,
+        #     TensorDType.Int64,
+        #     TensorDType.Float16,
+        #     TensorDType.Float32,
+        #     TensorDType.Bool,
+        # ]
         dtypes.sort(key=str)
         self._current_param_pack_offset = {dtype: 0 for dtype in dtypes}
         for dtype in dtypes:
@@ -644,6 +662,17 @@ class GraphImporter:
         Returns:
         None
         """
+        # print(f"[DEBUG] placeholder node={node}, dtype={node.tensor_meta}, name={getattr(node, 'name', None)}")
+        # print("debug4:")
+        # print(len(self._params))
+        # print(self._num_input_visited)
+        # print(len(args_list))
+        # print(node)
+        # print(dir(node))
+        # print(node.name)
+        # print(node.args)
+        # print(node.kwargs)
+        # print(node.tensor_meta)
         if self._num_input_visited < len(self._params) and self._do_param_pack:
             dtype = node.tensor_meta["dtype"]
             pack_of_dtype = None

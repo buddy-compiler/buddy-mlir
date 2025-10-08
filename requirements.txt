@@ -1,7 +1,7 @@
 --pre --extra-index-url https://download.pytorch.org/whl/cpu
-torch == 2.5.1
+torch
 numpy < 2
-transformers == 4.46.2
+transformers
 tokenizers >= 0.20
 sentencepiece == 0.2.0
 accelerate
