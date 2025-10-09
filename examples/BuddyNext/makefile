@@ -870,6 +870,39 @@ next-sgemm-parallel-vec-fixed-aot:
 		-o next-sgemm-parallel-vec-fixed.out
 	./next-sgemm-parallel-vec-fixed.out || true
 
+next-sgemm-blis-vec-fixed-aot:
+	@${BUDDY_OPT} ./next-sgemm-blis.mlir \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp \
+		-func-bufferize-dynamic-offset \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-cse \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+    ${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-sgemm-blis-vec-fixed.out
+	./next-sgemm-blis-vec-fixed.out || true
+
 next-sgemm-unroll-vec-fixed-aot:
 	@${BUDDY_OPT} ./next-sgemm-unroll-vec-fixed.mlir \
 		-convert-linalg-to-affine-loops \
