@@ -2,6 +2,7 @@ add_mlir_library(MatMulOptimization
 	MatMulOptimize.cpp
   MatMulVectorization.cpp
   MatMulParallelVectorization.cpp
+  MatMulBLIS.cpp
   BatchMatMulOptimize.cpp
   BatchMatMulTileOptimize.cpp
   BatchMatMulSCFOptimize.cpp
@@ -12,6 +13,11 @@ add_mlir_library(MatMulOptimization
   BatchMatMulTransBVec.cpp
   LINK_LIBS PUBLIC
   BuddyUtils
+)
+
+set_source_files_properties(
+  MatMulBLIS.cpp
+  PROPERTIES COMPILE_FLAGS "-g -O0"
 )
 
 add_mlir_library(BatchMatMulOptimization

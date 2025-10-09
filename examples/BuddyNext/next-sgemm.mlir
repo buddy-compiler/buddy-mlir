@@ -66,6 +66,13 @@ module {
     // %print_C = memref.cast %C : memref<?x?xf32> to memref<*xf32>
     // call @printMemrefF32(%print_C) : (memref<*xf32>) -> ()
 
+    %i = arith.constant 0 : index
+    %j = arith.constant 0 : index
+    %val = memref.load %C[%i, %j] : memref<?x?xf32>
+    %val1 = memref.load %A[%i, %j] : memref<?x?xf32>
+    vector.print %val : f32
+    vector.print %val1 : f32
+
     memref.dealloc %C : memref<?x?xf32>
     memref.dealloc %B : memref<?x?xf32>
     memref.dealloc %A : memref<?x?xf32>
