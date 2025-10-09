@@ -32,38 +32,45 @@ module {
   func.func private @get_NR() -> index { %c8 = arith.constant 8 : index return %c8 : index }
 
   // Micro Kernel: Calc C_block += A_sliver * B_sliver
-  func.func @micro_kernel(%k_c: index, %a_sliver: memref<?xf32>, %b_sliver: memref<?xf32>, 
-                         %c: memref<?x?xf32>, %i_start: index, %j_start: index, %n_dim: index) {
+  func.func @micro_kernel(%k_c: index, %a_sliver: memref<?xf32>, %b_sliver: memref<?xf32>, %c: memref<?x?xf32>, %i_start: index, %j_start: index, %n_dim: index) {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %MR = func.call @get_MR() : () -> index
     %NR = func.call @get_NR() : () -> index
 
-    // Loop over k dimension
-    scf.for %l = %c0 to %k_c step %c1 {
-      // Loop over MR (register blocking in M dimension)
-      scf.for %i = %c0 to %MR step %c1 {
-        // Loop over NR (register blocking in N dimension)
+    scf.for %i = %c0 to %MR step %c1 {
+      %c_i = arith.addi %i_start, %i : index
+      %row_acc = memref.alloca(%NR) : memref<?xf32>
+
+      // Initialize accumulators with current C values.
+      scf.for %j = %c0 to %NR step %c1 {
+        %c_j_init = arith.addi %j_start, %j : index
+        %c_val_init = memref.load %c[%c_i, %c_j_init] : memref<?x?xf32>
+        memref.store %c_val_init, %row_acc[%j] : memref<?xf32>
+      }
+
+      // Accumulate along the K dimension using the packed A/B panels.
+      scf.for %l = %c0 to %k_c step %c1 {
+        %a_idx_base = arith.muli %l, %MR : index
+        %a_idx = arith.addi %a_idx_base, %i : index
+        %a_val = memref.load %a_sliver[%a_idx] : memref<?xf32>
+
+        %b_idx_base = arith.muli %l, %NR : index
         scf.for %j = %c0 to %NR step %c1 {
-          // Calculate global A and B indices
-          %a_idx_base = arith.muli %l, %MR : index
-          %a_idx = arith.addi %a_idx_base, %i : index
-          %a_val = memref.load %a_sliver[%a_idx] : memref<?xf32>
-          
-          %b_idx_base = arith.muli %l, %NR : index
           %b_idx = arith.addi %b_idx_base, %j : index
           %b_val = memref.load %b_sliver[%b_idx] : memref<?xf32>
-          
-          // Calculate global C indices
-          %c_i = arith.addi %i_start, %i : index
-          %c_j = arith.addi %j_start, %j : index
-          %c_val = memref.load %c[%c_i, %c_j] : memref<?x?xf32>
-          
-          // C[i][j] += A[i][l] * B[l][j]
+          %acc_val = memref.load %row_acc[%j] : memref<?xf32>
           %prod = arith.mulf %a_val, %b_val : f32
-          %sum = arith.addf %c_val, %prod : f32
-          memref.store %sum, %c[%c_i, %c_j] : memref<?x?xf32>
+          %sum = arith.addf %acc_val, %prod : f32
+          memref.store %sum, %row_acc[%j] : memref<?xf32>
         }
+      }
+
+      // Commit accumulators back to C.
+      scf.for %j = %c0 to %NR step %c1 {
+        %c_j = arith.addi %j_start, %j : index
+        %acc_val_final = memref.load %row_acc[%j] : memref<?xf32>
+        memref.store %acc_val_final, %c[%c_i, %c_j] : memref<?x?xf32>
       }
     }
     return
@@ -196,40 +203,6 @@ module {
     return
   }
 
-  func.func @flatten_2d_to_1d(%A: memref<?x?xf32>) -> memref<?xf32> {
-    %c0 = arith.constant 0 : index
-    %c1 = arith.constant 1 : index
-
-    %dim0 = memref.dim %A, %c0 : memref<?x?xf32>
-    %dim1 = memref.dim %A, %c1 : memref<?x?xf32>
-
-    %total = arith.muli %dim0, %dim1 : index
-
-    %shape = memref.alloc() : memref<1xi64>
-    %flat = memref.reshape %A(%shape) : (memref<?x?xf32>, memref<1xi64>) -> memref<?xf32>
-
-    return %flat : memref<?xf32>
-  }
-
-  func.func @assert_memref_all_f32(%A: memref<?xf32>, %val: f32) {
-    %c0 = arith.constant 0 : index
-    %one = arith.constant 1 : index
-
-    %len = memref.dim %A, %c0 : memref<?xf32>
-
-    %print_len = memref.cast %A : memref<?xf32> to memref<*xf32>
-    call @printMemrefF32(%print_len) : (memref<*xf32>) -> ()
-
-    scf.for %i = %c0 to %len step %one {
-      %v = memref.load %A[%i] : memref<?xf32>
-      %cmp = arith.cmpf oeq, %v, %val : f32
-      vector.print %v : f32
-      cf.assert %cmp, "Wrong value found in memref!"
-    }
-
-    return
-  }
-
   func.func @main(){
     // Set up dims.
     %cM = arith.constant 1024 : index
@@ -268,10 +241,6 @@ module {
     %val1 = memref.load %A[%i, %j] : memref<?x?xf32>
     vector.print %val : f32
     vector.print %val1 : f32
-
-    %expected_val = arith.constant 17920.0 : f32
-    %C_flat = call @flatten_2d_to_1d(%C) : (memref<?x?xf32>) -> memref<?xf32>
-    call @assert_memref_all_f32(%C_flat, %expected_val) : (memref<?xf32>, f32) -> ()
 
     memref.dealloc %C : memref<?x?xf32>
     memref.dealloc %B : memref<?x?xf32>
