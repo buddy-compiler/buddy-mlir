@@ -868,7 +868,6 @@ next-blis-matmul:
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-blis-matmul.out
-
 	./next-blis-matmul.out || true
 
 next-sgemm-parallel-vec-fixed-aot:
