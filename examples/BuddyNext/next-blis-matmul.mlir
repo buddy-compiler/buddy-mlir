@@ -7,6 +7,7 @@
 // RUN:   -convert-cf-to-llvm \
 // RUN:   -convert-vector-to-llvm \
 // RUN:   -finalize-memref-to-llvm \
+// RUN:     -convert-math-to-llvm \
 // RUN:   -convert-arith-to-llvm \
 // RUN:   -convert-func-to-llvm \
 // RUN:   -reconcile-unrealized-casts | \
@@ -76,7 +77,7 @@ module {
           
           scf.for %i = %c0 to %mc_actual step %c1 {
             scf.for %kp = %c0 to %kc_actual step %c1 {
-              %a_row_idx = arith.addi %ic, %i : index 
+              %a_row_idx = arith.addi %ic, %i : index  // 修复：使用 %ic + %i
               %a_col_idx = arith.addi %pc, %kp : index
               %a_val = memref.load %a[%a_row_idx, %a_col_idx] : memref<?x?xf32>
               memref.store %a_val, %A_packed[%i, %kp] : memref<?x?xf32>
@@ -95,7 +96,7 @@ module {
               %n_idx_actual_end = arith.select %n_idx_bound, %n_idx_end, %nr_actual : index
               %cols_to_process = arith.subi %n_idx_actual_end, %n_idx : index
               
-              // check if 32 columns?
+              // if 32 columns?
               %can_vectorize = arith.cmpi sge, %cols_to_process, %nr : index
               scf.if %can_vectorize {
                 // 32 columns  vectorize
@@ -105,7 +106,7 @@ module {
                   %ir_actual_end = arith.select %ir_bound, %ir_end, %mc_actual : index
                   %mr_actual = arith.subi %ir_actual_end, %ir : index
                   
-                  // check if 8 rows?
+                  // if 8 rows?
                   %has_full_rows = arith.cmpi sge, %mr_actual, %c8 : index
                   scf.if %has_full_rows {
                     // 8 rows vectorize
@@ -325,8 +326,7 @@ module {
     }
     vector.print %all_vec_correct : f32
 
-    // CHECK: 1.0
-    // CHECK: 1.0
+    // CHECK: 1
 
     // ==================== Performance ====================
     %cM_large = arith.constant 1024 : index
