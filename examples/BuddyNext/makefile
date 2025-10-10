@@ -838,7 +838,7 @@ next-sgemm-parallel-unroll-vec-fixed-aot:
 
 next-blis-matmul:
 	@${BUDDY_OPT} ./next-blis-matmul.mlir \
-		-matmul-vectorization-blis\
+		-matmul-vectorization\
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-affine-parallelize \
