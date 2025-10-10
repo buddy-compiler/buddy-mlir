@@ -182,7 +182,7 @@ batchmatmul-vectorization-run:
 
 # AMX BF16 test
 # AMX requires kernel-level permissions that cannot be obtained in JIT environments
-amx-bf16-matmul-run:
+amx-bf16-matmul-aot:
 	@echo "AMX JIT version not supported due to permission issues."
 	@echo "Running simplified AOT version instead..."
 	@${BUDDY_OPT} ./amx-bf16-matmul.mlir \
@@ -218,30 +218,21 @@ amx-bf16-matmul-asm:
 	${LLC} -mtriple ${MTRIPLE} -mattr=+amx-bf16,+amx-tile,+amx-int8 ${OPT_FLAG} -filetype=asm -o amx-asm.s
 	@echo "Generated assembly in amx-asm.s"
 
+linalg-bf16-matmul-lower:
+	@${BUDDY_OPT} ./linalg-bf16-matmul.mlir \
+		-convert-linalg-to-loops \
+		-o log.mlir
+
 linalg-bf16-matmul-run:
 	@echo "Running linalg JIT version with MLIR-level timing..."
 	@${BUDDY_OPT} ./linalg-bf16-matmul.mlir \
-		-eliminate-empty-tensors \
-		-empty-tensor-to-alloc-tensor \
-		-one-shot-bufferize="bufferize-function-boundaries" \
-		-matmul-parallel-vectorization-optimize \
-		-batchmatmul-optimize \
-		-convert-linalg-to-affine-loops \
-		-affine-loop-fusion \
-		-convert-vector-to-scf \
-		-expand-strided-metadata \
+		-convert-linalg-to-loops \
 		-lower-affine \
-		-memref-expand \
-		-arith-expand \
+		-convert-scf-to-cf \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
-		-convert-scf-to-cf \
 		-convert-cf-to-llvm \
-		-convert-openmp-to-llvm \
-		-convert-arith-to-llvm \
-		-convert-math-to-llvm \
-		-convert-math-to-libm  \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e linalg_main -entry-point-result=void \

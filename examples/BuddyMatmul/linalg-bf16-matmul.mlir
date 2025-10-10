@@ -20,39 +20,19 @@ module {
   func.func private @printMemrefF32(memref<*xf32>)
 
   // Regular linalg matmul kernel for comparison
+  // linalg.matmul automatically promotes bf16 inputs to f32 for computation
   func.func @linalg_bf16_matmul(
       %A: memref<?x?xbf16>,     // [M x K], row-major
       %B: memref<?x?xbf16>,     // [K x N], row-major
       %C: memref<?x?xf32>,      // [M x N], row-major
       %M: index, %N: index, %K: index) {
-    
-    // Allocate f32 versions for linalg.matmul
-    %A_f32 = memref.alloc(%M, %K) : memref<?x?xf32>
-    %B_f32 = memref.alloc(%K, %N) : memref<?x?xf32>
-    
-    // Copy and convert bf16 to f32 element-wise
-    %c0 = arith.constant 0 : index
-    %c1 = arith.constant 1 : index
-    scf.for %i = %c0 to %M step %c1 {
-      scf.for %j = %c0 to %K step %c1 {
-        %val_bf16 = memref.load %A[%i, %j] : memref<?x?xbf16>
-        %val_f32 = arith.extf %val_bf16 : bf16 to f32
-        memref.store %val_f32, %A_f32[%i, %j] : memref<?x?xf32>
-      }
-    }
-    scf.for %i = %c0 to %K step %c1 {
-      scf.for %j = %c0 to %N step %c1 {
-        %val_bf16 = memref.load %B[%i, %j] : memref<?x?xbf16>
-        %val_f32 = arith.extf %val_bf16 : bf16 to f32
-        memref.store %val_f32, %B_f32[%i, %j] : memref<?x?xf32>
-      }
-    }
-    
-    linalg.matmul ins(%A_f32, %B_f32 : memref<?x?xf32>, memref<?x?xf32>) 
+
+    // Direct bf16 to f32 matmul: linalg.matmul performs numeric casting
+    // on the operands to the inner multiply, promoting them to the same
+    // data type as the accumulator/output (f32 in this case)
+    linalg.matmul ins(%A, %B : memref<?x?xbf16>, memref<?x?xbf16>)
                   outs(%C : memref<?x?xf32>)
-    
-    memref.dealloc %A_f32 : memref<?x?xf32>
-    memref.dealloc %B_f32 : memref<?x?xf32>
+
     return
   }
 
