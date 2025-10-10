@@ -44,26 +44,22 @@ void createBlisParams(ModuleOp module, PatternRewriter &rewriter) {
   auto indexType = rewriter.getIndexType();
 
   // TODO: Change struct array to pair array
-  struct Param {
-    StringRef name;
-    int64_t value;
-  };
-  Param params[] = {{"get_NC", 1024},
-                    {"get_MC", 256},
-                    {"get_KC", 128},
-                    {"get_MR", 4},
-                    {"get_NR", 8}};
+  std::pair<llvm::StringRef, int64_t> params[] = {{"get_NC", 1024},
+                                                  {"get_MC", 256},
+                                                  {"get_KC", 128},
+                                                  {"get_MR", 4},
+                                                  {"get_NR", 8}};
 
   rewriter.setInsertionPointToStart(module.getBody());
 
   for (auto &p : params) {
     // Function type: () -> index.
     auto funcType = rewriter.getFunctionType({}, indexType);
-    auto funcOp = rewriter.create<func::FuncOp>(loc, p.name, funcType);
+    auto funcOp = rewriter.create<func::FuncOp>(loc, p.first, funcType);
 
     Block *entry = funcOp.addEntryBlock();
     OpBuilder innerBuilder(entry, entry->begin());
-    Value c = innerBuilder.create<arith::ConstantIndexOp>(loc, p.value);
+    Value c = innerBuilder.create<arith::ConstantIndexOp>(loc, p.second);
     innerBuilder.create<func::ReturnOp>(loc, c);
 
     rewriter.setInsertionPointAfter(funcOp);
