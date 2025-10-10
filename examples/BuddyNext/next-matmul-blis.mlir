@@ -15,6 +15,7 @@
 // RUN:   -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
+
 module {
   func.func private @printMemrefF32(memref<*xf32>)
   func.func private @rtclock() -> f64
