@@ -39,26 +39,26 @@ using namespace vector;
 
 namespace {
 
-void createBlisParams(ModuleOp module, PatternRewriter &rewriter) {
+void createBlisParams(ModuleOp module, PatternRewriter &rewriter,
+                      llvm::SmallDenseMap<llvm::StringRef, int64_t> params) {
   auto loc = rewriter.getUnknownLoc();
   auto indexType = rewriter.getIndexType();
 
-  std::pair<llvm::StringRef, int64_t> params[] = {{"get_NC", 1024},
-                                                  {"get_MC", 256},
-                                                  {"get_KC", 128},
-                                                  {"get_MR", 4},
-                                                  {"get_NR", 8}};
+  llvm::SmallVector<llvm::StringRef, 5> paramNames = {
+      "get_NC", "get_MC", "get_KC", "get_MR", "get_NR"};
 
   rewriter.setInsertionPointToStart(module.getBody());
 
-  for (auto &p : params) {
+  for (auto &p_name : paramNames) {
     // Function type: () -> index.
     auto funcType = rewriter.getFunctionType({}, indexType);
-    auto funcOp = rewriter.create<func::FuncOp>(loc, p.first, funcType);
+    auto funcOp = rewriter.create<func::FuncOp>(loc, p_name, funcType);
 
     Block *entry = funcOp.addEntryBlock();
     OpBuilder innerBuilder(entry, entry->begin());
-    Value c = innerBuilder.create<arith::ConstantIndexOp>(loc, p.second);
+    if (params.find(p_name) == params.end())
+      llvm::report_fatal_error("Parameter " + p_name + " not found in params");
+    Value c = innerBuilder.create<arith::ConstantIndexOp>(loc, params[p_name]);
     innerBuilder.create<func::ReturnOp>(loc, c);
 
     rewriter.setInsertionPointAfter(funcOp);
@@ -445,7 +445,13 @@ public:
     auto loc = op->getLoc();
     auto module = op->getParentOfType<ModuleOp>();
 
-    createBlisParams(module, rewriter);
+    llvm::SmallDenseMap<llvm::StringRef, int64_t> params = {{"get_NC", NC},
+                                                            {"get_MC", MC},
+                                                            {"get_KC", KC},
+                                                            {"get_MR", MR},
+                                                            {"get_NR", NR}};
+
+    createBlisParams(module, rewriter, params);
 
     createMicroKernel(module, rewriter);
     createMacroKernel(module, rewriter);
@@ -465,11 +471,8 @@ public:
 
     /*
     InlinerInterface interface(module->getContext());
-
     auto callee = module.lookupSymbol<func::FuncOp>(call.getCallee());
-
     inlineCall(interface, call, callee, &callee.getBody());
-
     rewriter.eraseOp(call);
     */
 
