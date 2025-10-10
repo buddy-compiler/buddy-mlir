@@ -173,12 +173,11 @@ def addmm_op(
 ) -> ir.Operation:
     """
     Import matrix multiplication operation.
-    From buddy graph ir's `AddMMOp` operator to MLIR TOSA `matmul` operation.
+    From buddy graph ir's `AddMMOp` operator to MLIR linalg `matmul` operation.
 
-    Note: this function first reshapes the input matrices to 3D tensors
-    (since tosa.MatMulOp requires it). Then it multiplies these reshaped
-    matrices.
-    Finally, it adds the input tensor to the matrix multiplication result.
+    Note: This function directly uses linalg.matmul which accepts 2D tensors,
+    eliminating the need for reshape operations that were required by tosa.MatMulOp.
+    The result is then added to the input tensor.
 
     Args:
         node: Containing information from the input graph node.
@@ -189,39 +188,108 @@ def addmm_op(
         op: The operation representing the result of adding the matrix
         multiplication to the input tensor.
     """
+    # # get input
+    # input_ = symbol_table.get((str(node.args[0]), 0))
+    # mat1 = symbol_table.get((str(node.args[1]), 0))
+    # mat2 = symbol_table.get((str(node.args[2]), 0))
+    # # get input shape
+    # mat1_shp = ir.RankedTensorType(mat1.type).shape
+    # mat2_shp = ir.RankedTensorType(mat2.type).shape
+    # # append index because tosa.MatMulOp doesn't accept 2D tensor
+    # mat1_reshape_op = tosa.ReshapeOp(
+    #     mat1, memoryview(array.array("i", [1, *mat1_shp]))
+    # )
+    # mat2_reshape_op = tosa.ReshapeOp(
+    #     mat2, memoryview(array.array("i", [1, *mat2_shp]))
+    # )
+    # # do matmul
+    # result_element_type = ir.RankedTensorType(mat1.type).element_type
+    # matmul_result_shp = [1, mat1_shp[0], mat2_shp[1]]
+    # matmul_result_type = ir.RankedTensorType.get(
+    #     matmul_result_shp, result_element_type
+    # )
+    # matmul_op = tosa.MatMulOp(
+    #     matmul_result_type, mat1_reshape_op.result, mat2_reshape_op.result
+    # )
+    # # restore the shape
+    # final_result_shape = [mat1_shp[0], mat2_shp[1]]
+    # matmul_result_reshape_op = tosa.ReshapeOp(
+    #     matmul_op.c, memoryview(array.array("i", final_result_shape))
+    # )
+
+    # op = _gen_arith_binary_op(
+    #     input_, matmul_result_reshape_op.result, tosa.AddOp
+    # )
+    # return op
+
     # get input
     input_ = symbol_table.get((str(node.args[0]), 0))
     mat1 = symbol_table.get((str(node.args[1]), 0))
     mat2 = symbol_table.get((str(node.args[2]), 0))
-    # get input shape
+
+    # get input shape and element type
+    input_shp = ir.RankedTensorType(input_.type).shape
     mat1_shp = ir.RankedTensorType(mat1.type).shape
     mat2_shp = ir.RankedTensorType(mat2.type).shape
-    # append index because tosa.MatMulOp doesn't accept 2D tensor
-    mat1_reshape_op = tosa.ReshapeOp(
-        mat1, memoryview(array.array("i", [1, *mat1_shp]))
-    )
-    mat2_reshape_op = tosa.ReshapeOp(
-        mat2, memoryview(array.array("i", [1, *mat2_shp]))
-    )
-    # do matmul
     result_element_type = ir.RankedTensorType(mat1.type).element_type
-    matmul_result_shp = [1, mat1_shp[0], mat2_shp[1]]
+
+    # prepare output shape for matmul
+    matmul_result_shp = [mat1_shp[0], mat2_shp[1]]
     matmul_result_type = ir.RankedTensorType.get(
         matmul_result_shp, result_element_type
     )
-    matmul_op = tosa.MatMulOp(
-        matmul_result_type, mat1_reshape_op.result, mat2_reshape_op.result
-    )
-    # restore the shape
-    final_result_shape = [mat1_shp[0], mat2_shp[1]]
-    matmul_result_reshape_op = tosa.ReshapeOp(
-        matmul_op.c, memoryview(array.array("i", final_result_shape))
-    )
 
-    op = _gen_arith_binary_op(
-        input_, matmul_result_reshape_op.result, tosa.AddOp
-    )
-    return op
+    # create affine map for matmul indexing
+    generic_map = ir.AffineMap.get_permutation([0, 1, 2])
+
+    # Check if input_ shape matches matmul output shape
+    # If it matches, use input_ directly as output buffer (accumulation)
+    # Otherwise, use zero-initialized buffer and add later (broadcasting)
+    if list(input_shp) == matmul_result_shp:
+        # Shape matches: directly use input_ as output buffer for accumulation
+        matmul_op = linalg.MatmulOp(
+            result_tensors=[matmul_result_type],
+            inputs=[mat1, mat2],
+            outputs=[input_],
+            indexing_maps=[
+                generic_map.get_submap([0, 2]),  # lhs: (m, k)
+                generic_map.get_submap([2, 1]),  # rhs: (k, n)
+                generic_map.get_submap([0, 1]),  # out: (m, n)
+            ],
+            cast="cast_signed",
+        )
+        linalg.fill_builtin_region(matmul_op.operation)
+        return matmul_op.result
+    else:
+        # Shape doesn't match: use zero buffer for matmul, then add with broadcasting
+        zero_attr = ir.DenseElementsAttr.get_splat(
+            matmul_result_type,
+            (
+                ir.FloatAttr.get(result_element_type, 0.0)
+                if str(result_element_type) == "f32"
+                else ir.IntegerAttr.get(result_element_type, 0)
+            ),
+        )
+        matmul_output_buffer = arith.ConstantOp(
+            matmul_result_type, zero_attr
+        ).result
+
+        matmul_op = linalg.MatmulOp(
+            result_tensors=[matmul_result_type],
+            inputs=[mat1, mat2],
+            outputs=[matmul_output_buffer],
+            indexing_maps=[
+                generic_map.get_submap([0, 2]),  # lhs: (m, k)
+                generic_map.get_submap([2, 1]),  # rhs: (k, n)
+                generic_map.get_submap([0, 1]),  # out: (m, n)
+            ],
+            cast="cast_signed",
+        )
+        linalg.fill_builtin_region(matmul_op.operation)
+
+        # Add input_ with broadcasting
+        op = _gen_arith_binary_op(input_, matmul_op.result, tosa.AddOp)
+        return op
 
 
 def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:

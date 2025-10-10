@@ -62,13 +62,13 @@ print("==================================================")
 # CHECK: tosa.maximum{{.*}}tensor<1x16x8x8xf32>
 # CHECK: tosa.max_pool2d{{.*}}tensor<1x4x4x16xf32>
 # CHECK: tosa.reshape{{.*}}tensor<1x256xf32>
-# CHECK: tosa.matmul{{.*}}tensor<1x1x120xf32>
+# CHECK: linalg.matmul{{.*}}
 # CHECK: tosa.add{{.*}}tensor<1x120xf32>
 # CHECK: tosa.maximum{{.*}}tensor<1x120xf32>
-# CHECK: tosa.matmul{{.*}}tensor<1x1x84xf32>
+# CHECK: linalg.matmul{{.*}}
 # CHECK: tosa.add{{.*}}tensor<1x84xf32>
 # CHECK: tosa.maximum{{.*}}tensor<1x84xf32>
-# CHECK: tosa.matmul{{.*}}tensor<1x1x10xf32>
+# CHECK: linalg.matmul{{.*}}
 # CHECK: tosa.add{{.*}}tensor<1x10xf32>
 # CHECK: return{{.*}}tensor<1x10xf32>
 # CHECK: }
@@ -96,5 +96,3 @@ print("==================================================")
 # CHECK: return{{.*}}memref<1x10xf32>
 # CHECK: }
 # CHECK: }
-
-

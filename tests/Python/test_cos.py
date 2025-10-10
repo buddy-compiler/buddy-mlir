@@ -1,36 +1,34 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
+from buddy.compiler.ops import math
 
 
-def foo(x, y, z):
-    return torch.ops.aten.addmm(z, x, y)
+def foo(x):
+    return torch.ops.aten.cos(x)
 
 
-in1 = torch.randn(4, 2)
-in2 = torch.randn(2, 4)
-in3 = torch.randn(4, 4)
+x = torch.randn(10, 3, 6)
 
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
+    primary_registry=math.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
 )
 
-graphs = dynamo_compiler.importer(foo, in1, in2, in3)
-assert len(graphs) == 1
+foo_mlir = torch.compile(foo, backend=dynamo_compiler)
+assert torch.allclose(foo_mlir(x), foo(x), equal_nan=True)
+
+graphs = dynamo_compiler._imported_graphs
+assert len(graphs) == 1 
 graph = graphs[0]
 graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
-# CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = linalg.matmul
-# CHECK: return %{{.*}}
-# CHECK: }
-# CHECK: }
+#       CHECK: %[[cos:.*]] = math.cos 
+#       CHECK: return %[[cos]]
+
