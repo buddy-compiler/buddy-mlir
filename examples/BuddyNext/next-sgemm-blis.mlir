@@ -239,9 +239,7 @@ module {
     %i = arith.constant 0 : index
     %j = arith.constant 0 : index
     %val = memref.load %C[%i, %j] : memref<?x?xf32>
-    %val1 = memref.load %A[%i, %j] : memref<?x?xf32>
     vector.print %val : f32
-    vector.print %val1 : f32
 
     memref.dealloc %C : memref<?x?xf32>
     memref.dealloc %B : memref<?x?xf32>

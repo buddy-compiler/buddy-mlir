@@ -836,9 +836,9 @@ next-sgemm-parallel-unroll-vec-fixed-aot:
 		-o next-sgemm-parallel-unroll-vec-fixed.out
 	./next-sgemm-parallel-unroll-vec-fixed.out || true
 
-next-sgemm-blis:
+next-sgemm-blis-from-matmul-aot:
 	@${BUDDY_OPT} ./next-sgemm.mlir \
-		-matmul-blis \
+		-matmul-blis="k_c=128 m_c=256 n_c=2048 m_r=8 n_r=8" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-affine-parallelize \
@@ -904,7 +904,7 @@ next-sgemm-parallel-vec-fixed-aot:
 		-o next-sgemm-parallel-vec-fixed.out
 	./next-sgemm-parallel-vec-fixed.out || true
 
-next-sgemm-blis-vec-fixed-aot:
+next-sgemm-blis-aot:
 	@${BUDDY_OPT} ./next-sgemm-blis.mlir \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
