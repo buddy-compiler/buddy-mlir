@@ -6,6 +6,7 @@
 // RUN:   -convert-scf-to-cf \
 // RUN:   -convert-cf-to-llvm \
 // RUN:   -convert-vector-to-llvm \
+// RUN:   -expand-strided-metadata \
 // RUN:   -finalize-memref-to-llvm \
 // RUN:   -convert-arith-to-llvm \
 // RUN:   -convert-func-to-llvm \
