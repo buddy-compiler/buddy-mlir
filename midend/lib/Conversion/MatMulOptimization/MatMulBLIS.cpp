@@ -43,7 +43,6 @@ void createBlisParams(ModuleOp module, PatternRewriter &rewriter) {
   auto loc = rewriter.getUnknownLoc();
   auto indexType = rewriter.getIndexType();
 
-  // TODO: Change struct array to pair array
   std::pair<llvm::StringRef, int64_t> params[] = {{"get_NC", 1024},
                                                   {"get_MC", 256},
                                                   {"get_KC", 128},
@@ -82,16 +81,16 @@ void createMicroKernel(ModuleOp module, PatternRewriter &rewriter) {
 
   auto funcOp = rewriter.create<func::FuncOp>(loc, "micro_kernel", funcType);
   Block *entryBlock = funcOp.addEntryBlock();
-  OpBuilder innerBuilder(entryBlock, entryBlock->begin());
 
   Value k_c = entryBlock->getArgument(0);
   Value a_sliver = entryBlock->getArgument(1);
   Value b_sliver = entryBlock->getArgument(2);
-
   Value c = entryBlock->getArgument(3);
   Value i_start = entryBlock->getArgument(4);
   Value j_start = entryBlock->getArgument(5);
   Value n_dim = entryBlock->getArgument(6);
+
+  OpBuilder innerBuilder(entryBlock, entryBlock->begin());
 
   Value c0 = innerBuilder.create<arith::ConstantIndexOp>(loc, 0);
   Value c1 = innerBuilder.create<arith::ConstantIndexOp>(loc, 1);
@@ -104,45 +103,75 @@ void createMicroKernel(ModuleOp module, PatternRewriter &rewriter) {
   Value MR = callOpMR.getResult(0);
   Value NR = callOpNR.getResult(0);
 
-  // Outer i loop (0..MR).
-  // for (i = 0; i < MR; i++)
+  // Outer i loop.
   auto iLoop = innerBuilder.create<scf::ForOp>(loc, c0, MR, c1);
-  innerBuilder.setInsertionPointToStart(iLoop.getBody());
-  Value i = iLoop.getInductionVar();
-
-  Value c_i = innerBuilder.create<arith::AddIOp>(loc, i_start, i);
-  Value row_acc =
-      innerBuilder.create<memref::AllocaOp>(loc, memref1DType, ValueRange{NR});
-
-  auto jInitLoop = innerBuilder.create<scf::ForOp>(loc, c0, NR, c1);
   {
-    OpBuilder::InsertionGuard guard2(innerBuilder);
-    innerBuilder.setInsertionPointToStart(jInitLoop.getBody());
-    Value j = jInitLoop.getInductionVar();
-    Value c_j_init = innerBuilder.create<arith::AddIOp>(loc, j_start, j);
-    Value c_val_init =
-        innerBuilder.create<memref::LoadOp>(loc, c, ValueRange{c_i, c_j_init});
-    innerBuilder.create<memref::StoreOp>(loc, c_val_init, row_acc,
-                                         ValueRange{j});
+    OpBuilder::InsertionGuard guard(innerBuilder);
+    innerBuilder.setInsertionPointToStart(iLoop.getBody());
+    Value i = iLoop.getInductionVar();
+    Value c_i = innerBuilder.create<arith::AddIOp>(loc, i_start, i);
+
+    // Row accumulator [NR].
+    Value row_acc = innerBuilder.create<memref::AllocaOp>(loc, memref1DType,
+                                                          ValueRange{NR});
+    // Initialize accumulators from C.
+    auto jInitLoop = innerBuilder.create<scf::ForOp>(loc, c0, NR, c1);
+    {
+      OpBuilder::InsertionGuard guard(innerBuilder);
+      innerBuilder.setInsertionPointToStart(jInitLoop.getBody());
+      Value j = jInitLoop.getInductionVar();
+      Value c_j = innerBuilder.create<arith::AddIOp>(loc, j_start, j);
+      Value c_val =
+          innerBuilder.create<memref::LoadOp>(loc, c, ValueRange{c_i, c_j});
+      innerBuilder.create<memref::StoreOp>(loc, c_val, row_acc, ValueRange{j});
+    }
+
+    // K loop.
+    auto lLoop = innerBuilder.create<scf::ForOp>(loc, c0, k_c, c1);
+    {
+      OpBuilder::InsertionGuard guard(innerBuilder);
+      innerBuilder.setInsertionPointToStart(lLoop.getBody());
+      Value l = lLoop.getInductionVar();
+      // Load A(i, l) from packed panel.
+      Value a_idx = innerBuilder.create<arith::AddIOp>(
+          loc, innerBuilder.create<arith::MulIOp>(loc, l, MR), i);
+      Value a_val = innerBuilder.create<memref::LoadOp>(loc, a_sliver, a_idx);
+
+      // Inner j loop
+      auto jLoop = innerBuilder.create<scf::ForOp>(loc, c0, NR, c1);
+      {
+        OpBuilder::InsertionGuard guard(innerBuilder);
+        innerBuilder.setInsertionPointToStart(jLoop.getBody());
+        Value j_inner = jLoop.getInductionVar();
+        // Load B(l, j) from packed panel.
+        Value b_idx = innerBuilder.create<arith::AddIOp>(
+            loc, innerBuilder.create<arith::MulIOp>(loc, l, NR), j_inner);
+        Value b_val = innerBuilder.create<memref::LoadOp>(loc, b_sliver, b_idx);
+
+        Value acc_val =
+            innerBuilder.create<memref::LoadOp>(loc, row_acc, j_inner);
+        // acc[j] += a * b.
+        Value sum = innerBuilder.create<arith::AddFOp>(
+            loc, acc_val,
+            innerBuilder.create<arith::MulFOp>(loc, a_val, b_val));
+        innerBuilder.create<memref::StoreOp>(loc, sum, row_acc, j_inner);
+      }
+    }
+
+    // Store back to C.
+    auto jStoreLoop = innerBuilder.create<scf::ForOp>(loc, c0, NR, c1);
+    {
+      OpBuilder::InsertionGuard guard(innerBuilder);
+      innerBuilder.setInsertionPointToStart(jStoreLoop.getBody());
+      Value j_final = jStoreLoop.getInductionVar();
+      Value c_j_final =
+          innerBuilder.create<arith::AddIOp>(loc, j_start, j_final);
+      Value val = innerBuilder.create<memref::LoadOp>(loc, row_acc,
+                                                      ValueRange{j_final});
+      innerBuilder.create<memref::StoreOp>(loc, val, c,
+                                           ValueRange{c_i, c_j_final});
+    }
   }
-
-  // K loop.
-  // for (l = 0; l < k_c; l++)
-  auto lLoop = innerBuilder.create<scf::ForOp>(loc, c0, k_c, c1);
-  innerBuilder.setInsertionPointToStart(lLoop.getBody());
-  Value l = lLoop.getInductionVar();
-
-  // Final j loop.
-  auto jStoreLoop = innerBuilder.create<scf::ForOp>(loc, c0, NR, c1);
-  innerBuilder.setInsertionPointToStart(jStoreLoop.getBody());
-  Value j_final = jStoreLoop.getInductionVar();
-  Value c_j = innerBuilder.create<arith::AddIOp>(loc, j_start, j_final);
-  Value acc_val_final =
-      innerBuilder.create<memref::LoadOp>(loc, row_acc, ValueRange{j_final});
-  innerBuilder.create<memref::StoreOp>(loc, acc_val_final, c,
-                                       ValueRange{c_i, c_j});
-
-  innerBuilder.setInsertionPointAfter(iLoop);
   innerBuilder.create<func::ReturnOp>(loc);
 
   rewriter.setInsertionPointAfter(funcOp);
