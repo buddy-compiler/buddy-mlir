@@ -82,39 +82,91 @@ module {
   }
 
   func.func @micro_kernel(%a_packed : memref<?xf32>, %b_packed : memref<?xf32>, %c_sub : memref<?xf32>, %a_offset: index, %b_offset: index) {
-    %cf0 = arith.constant 0. : f32
-    %c0 = arith.constant 0 : index
-    %c1 = arith.constant 1 : index
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c2 = arith.constant 2 : index
+  %c3 = arith.constant 3 : index
+  %c4 = arith.constant 4 : index
+  %c5 = arith.constant 5 : index
+  %c6 = arith.constant 6 : index
+  %c7 = arith.constant 7 : index
 
-    %NC = arith.constant 1024 : index
-    %MC = arith.constant 256 : index
-    %KC = arith.constant 128 : index
+  %KC = arith.constant 128 : index
+  %NR = arith.constant 8   : index
 
-    %MR = arith.constant 4 : index
-    %NR = arith.constant 8 : index
+  %f0 = arith.constant 0.0 : f32
+  %z  = vector.broadcast %f0 : f32 to vector<8xf32>
 
-    affine.for %i = 0 to %MR {
-      affine.for %j = 0 to %NR {
-        %idx = affine.apply affine_map<(i,j)[NR]->(i*NR + j)>(%i, %j)[%NR]
+  %acc0_fin, %acc1_fin, %acc2_fin, %acc3_fin =
+    scf.for %p = %c0 to %KC step %c1
+      iter_args(%acc0 = %z, %acc1 = %z, %acc2 = %z, %acc3 = %z)
+      -> (vector<8xf32>, vector<8xf32>, vector<8xf32>, vector<8xf32>) {
 
-        %acc_0 = arith.constant 0.0 : f32
-        %c_val_final = scf.for %p = %c0 to %KC step %c1 iter_args(%acc = %acc_0) -> f32 {
-          
-          %a_idx = affine.apply #micro_kernel_offset(%a_offset, %i, %p)[%KC]
-          %b_idx = affine.apply #micro_kernel_offset(%b_offset, %j, %p)[%KC]
+        %binit = arith.constant dense<0.0> : vector<8xf32>
 
-          %a_val = memref.load %a_packed[%a_idx] : memref<?xf32>
-          %b_val = memref.load %b_packed[%b_idx] : memref<?xf32>
+        %bidx0 = affine.apply #micro_kernel_offset(%b_offset, %c0, %p)[%KC]
+        %b0 = memref.load %b_packed[%bidx0] : memref<?xf32>
+        %bv0 = vector.insert %b0, %binit[0] : f32 into vector<8xf32>
 
-          %prod = arith.mulf %a_val, %b_val : f32
-          %new_acc = arith.addf %acc, %prod : f32
+        %bidx1 = affine.apply #micro_kernel_offset(%b_offset, %c1, %p)[%KC]
+        %b1 = memref.load %b_packed[%bidx1] : memref<?xf32>
+        %bv1 = vector.insert %b1, %bv0[1] : f32 into vector<8xf32>
 
-          scf.yield %new_acc : f32
-        }
+        %bidx2 = affine.apply #micro_kernel_offset(%b_offset, %c2, %p)[%KC]
+        %b2 = memref.load %b_packed[%bidx2] : memref<?xf32>
+        %bv2 = vector.insert %b2, %bv1[2] : f32 into vector<8xf32>
 
-        affine.store %c_val_final, %c_sub[%idx] : memref<?xf32>
-      }
+        %bidx3 = affine.apply #micro_kernel_offset(%b_offset, %c3, %p)[%KC]
+        %b3 = memref.load %b_packed[%bidx3] : memref<?xf32>
+        %bv3 = vector.insert %b3, %bv2[3] : f32 into vector<8xf32>
+
+        %bidx4 = affine.apply #micro_kernel_offset(%b_offset, %c4, %p)[%KC]
+        %b4 = memref.load %b_packed[%bidx4] : memref<?xf32>
+        %bv4 = vector.insert %b4, %bv3[4] : f32 into vector<8xf32>
+
+        %bidx5 = affine.apply #micro_kernel_offset(%b_offset, %c5, %p)[%KC]
+        %b5 = memref.load %b_packed[%bidx5] : memref<?xf32>
+        %bv5 = vector.insert %b5, %bv4[5] : f32 into vector<8xf32>
+
+        %bidx6 = affine.apply #micro_kernel_offset(%b_offset, %c6, %p)[%KC]
+        %b6 = memref.load %b_packed[%bidx6] : memref<?xf32>
+        %bv6 = vector.insert %b6, %bv5[6] : f32 into vector<8xf32>
+
+        %bidx7 = affine.apply #micro_kernel_offset(%b_offset, %c7, %p)[%KC]
+        %b7 = memref.load %b_packed[%bidx7] : memref<?xf32>
+        %bvec = vector.insert %b7, %bv6[7] : f32 into vector<8xf32>
+
+        %aidx0 = affine.apply #micro_kernel_offset(%a_offset, %c0, %p)[%KC]
+        %a0 = memref.load %a_packed[%aidx0] : memref<?xf32>
+        %a0v = vector.splat %a0 : vector<8xf32>
+        %acc0_new = vector.fma %a0v, %bvec, %acc0 : vector<8xf32>
+
+        %aidx1 = affine.apply #micro_kernel_offset(%a_offset, %c1, %p)[%KC]
+        %a1 = memref.load %a_packed[%aidx1] : memref<?xf32>
+        %a1v = vector.splat %a1 : vector<8xf32>
+        %acc1_new = vector.fma %a1v, %bvec, %acc1 : vector<8xf32>
+
+        %aidx2 = affine.apply #micro_kernel_offset(%a_offset, %c2, %p)[%KC]
+        %a2 = memref.load %a_packed[%aidx2] : memref<?xf32>
+        %a2v = vector.splat %a2 : vector<8xf32>
+        %acc2_new = vector.fma %a2v, %bvec, %acc2 : vector<8xf32>
+
+        %aidx3 = affine.apply #micro_kernel_offset(%a_offset, %c3, %p)[%KC]
+        %a3 = memref.load %a_packed[%aidx3] : memref<?xf32>
+        %a3v = vector.splat %a3 : vector<8xf32>
+        %acc3_new = vector.fma %a3v, %bvec, %acc3 : vector<8xf32>
+
+        scf.yield %acc0_new, %acc1_new, %acc2_new, %acc3_new
+          : vector<8xf32>, vector<8xf32>, vector<8xf32>, vector<8xf32>
     }
+    %base0 = affine.apply affine_map<(i)[NR]->(i*NR)>(%c0)[%NR]
+    vector.store %acc0_fin, %c_sub[%base0] : memref<?xf32>, vector<8xf32>
+    %base1 = affine.apply affine_map<(i)[NR]->(i*NR)>(%c1)[%NR]
+    vector.store %acc1_fin, %c_sub[%base1] : memref<?xf32>, vector<8xf32>
+    %base2 = affine.apply affine_map<(i)[NR]->(i*NR)>(%c2)[%NR]
+    vector.store %acc2_fin, %c_sub[%base2] : memref<?xf32>, vector<8xf32>
+    %base3 = affine.apply affine_map<(i)[NR]->(i*NR)>(%c3)[%NR]
+    vector.store %acc3_fin, %c_sub[%base3] : memref<?xf32>, vector<8xf32>
     return
   }
 
