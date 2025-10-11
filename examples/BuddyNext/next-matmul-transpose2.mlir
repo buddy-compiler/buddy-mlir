@@ -1,21 +1,32 @@
 // RUN: buddy-opt %s \
 // RUN:     -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" \
 // RUN: | buddy-opt \
+// RUN:     -convert-elementwise-to-linalg \
+// RUN:     -arith-expand \
 // RUN:     -eliminate-empty-tensors \
-// RUN:     -convert-tensor-to-linalg \
+// RUN:     -empty-tensor-to-alloc-tensor \
 // RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
 // RUN:     -convert-linalg-to-affine-loops \
-// RUN:     -lower-affine \
+// RUN:     -affine-loop-fusion \
+// RUN:     -affine-parallelize \
+// RUN:     -convert-scf-to-openmp \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -expand-strided-metadata \
-// RUN:     -convert-vector-to-llvm \
-// RUN:     -convert-arith-to-llvm \
-// RUN:     -finalize-memref-to-llvm \
-// RUN:     -convert-scf-to-cf \
-// RUN:     -convert-cf-to-llvm \
-// RUN:     -convert-arith-to-llvm \
-// RUN:     -convert-func-to-llvm \
-// RUN:     -reconcile-unrealized-casts \
+// RUN:     -lower-affine \
+// RUN: 		-cse \
+// RUN: 		-convert-vector-to-llvm \
+// RUN: 		-memref-expand \
+// RUN: 		-arith-expand \
+// RUN: 		-convert-arith-to-llvm \
+// RUN: 		-finalize-memref-to-llvm \
+// RUN: 		-convert-scf-to-cf \
+// RUN: 		-convert-cf-to-llvm \
+// RUN: 		-convert-openmp-to-llvm \
+// RUN: 		-convert-arith-to-llvm \
+// RUN: 		-convert-math-to-llvm \
+// RUN: 		-convert-math-to-libm \
+// RUN: 		-convert-func-to-llvm \
+// RUN: 		-reconcile-unrealized-casts \
 // RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
@@ -32,7 +43,7 @@ func.func @test(%a : tensor<1x40x32x128xf32>, %b : tensor<32x40x40xf32>) -> (ten
     %3 = tosa.matmul %b, %2 : (tensor<32x40x40xf32>, tensor<32x40x128xf32>) -> tensor<32x40x128xf32>
     %4 = tosa.reshape %3 {new_shape = array<i64: 1, 32, 40, 128>} : (tensor<32x40x128xf32>) -> tensor<1x32x40x128xf32>
     %5 = "tosa.const"() <{value = dense<[0, 2, 1, 3]> : tensor<4xi32>}> : () -> tensor<4xi32>
-    %6 = tosa.transpose %4, %5 : (tensor<1x32x40x128xf32>, tensor<4xi32>) -> tensor<1x40x32x128xf32>
+    %6 = tosa.transpose %4, %5 : (tensor<1x32x40x128xf32>, tensor<4xi32>) -> tensor<1x40x32x128xf32> 
     %t_end = call @rtclock() : () -> f64
     %time = arith.subf %t_end, %t_start : f64
     // Print timings.
@@ -44,8 +55,6 @@ func.func @main(){
 
   %v2 = arith.constant dense<2.0> : tensor<32x40x40xf32>
   %v3 = arith.constant dense<3.0> : tensor<1x40x32x128xf32>
-  // %m0 = tensor.cast %v2 : tensor<32x40x40xf32> to tensor<?x?x?xf32>
-  // %m1 = tensor.cast %v3 : tensor<40x32x128xf32> to tensor<?x?x?xf32>
 
   %m2 = call @test(%v3, %v2) : (tensor<1x40x32x128xf32>, tensor<32x40x40xf32>) -> (tensor<1x40x32x128xf32>)
 
