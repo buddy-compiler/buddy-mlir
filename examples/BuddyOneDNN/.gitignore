@@ -1,0 +1,29 @@
+# Generated MLIR files
+*.mlir
+
+# Generated log files
+*.log
+
+# Compiled libraries
+*.so
+*.a
+*.dylib
+
+# Compiled executables
+test_onednn_install
+test_wrapper
+
+# Build artifacts
+*.o
+*.obj
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
