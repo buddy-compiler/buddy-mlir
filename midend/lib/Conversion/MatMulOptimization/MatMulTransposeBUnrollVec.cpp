@@ -1,5 +1,4 @@
-//===- MatMulTransposeBUnrollVec.cpp
-//--------------------------------------------===//
+//===- MatMulTransposeBUnrollVec.cpp---------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the batchmatmul optimization.
+// This file implements the MatMulTransposeB optimization.
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -30,8 +29,6 @@
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/ValueRange.h"
 #include "llvm/ADT/ArrayRef.h"
-#include <cstdint>
-#include <iostream>
 #include <mlir/Dialect/Affine/Analysis/AffineAnalysis.h>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
