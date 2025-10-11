@@ -1,3 +1,8 @@
+# Define bufferize options as variables to avoid CMake quote parsing issues
+set(BUFFERIZE_FULL_OPTS "unknown-type-conversion=identity-layout-map function-boundary-type-conversion=identity-layout-map bufferize-function-boundaries")
+set(BUFFERIZE_SIMPLE_OPTS "bufferize-function-boundaries")
+set(TOSA_PIPELINE "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))")
+
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
@@ -20,16 +25,17 @@ add_custom_command(
 add_custom_command(
   OUTPUT forward.o
   COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
-            -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+            -pass-pipeline ${TOSA_PIPELINE} |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize="bufferize-function-boundaries"
+            -one-shot-bufferize=${BUFFERIZE_FULL_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-parallel-vectorization-optimize
+            -matmul-transpose-b-unroll-vec
+            -matmul-vectorization
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
@@ -63,17 +69,18 @@ add_custom_command(
 add_custom_command(
     OUTPUT subgraph.o
     COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
-              -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+              -pass-pipeline ${TOSA_PIPELINE} |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -convert-elementwise-to-linalg
-            -one-shot-bufferize="bufferize-function-boundaries"
+            -one-shot-bufferize=${BUFFERIZE_FULL_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-parallel-vectorization-optimize
+            -matmul-transpose-b-unroll-vec
+            -matmul-vectorization
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
@@ -108,11 +115,11 @@ add_custom_command(
 add_custom_command(
   OUTPUT forward-f16.o
   COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-f16.mlir
-            -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+            -pass-pipeline ${TOSA_PIPELINE} |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize="bufferize-function-boundaries"
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
@@ -151,12 +158,12 @@ add_custom_command(
 add_custom_command(
     OUTPUT subgraph-f16.o
     COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-f16.mlir
-              -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+              -pass-pipeline ${TOSA_PIPELINE} |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -convert-elementwise-to-linalg
-            -one-shot-bufferize="bufferize-function-boundaries"
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
