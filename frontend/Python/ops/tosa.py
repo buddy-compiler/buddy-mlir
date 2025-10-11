@@ -2070,6 +2070,8 @@ def bitwise_and_tensor_op(node: BitwiseAndTensorOp, symbol_table):
     op = arith.AndIOp(input1, input2)
     return op
 
+# Import func ops registry for CallOp support
+from . import func as func_ops
 
 ops_registry = {
     "AddOp": add_op,
@@ -2111,3 +2113,6 @@ ops_registry = {
     "LeOp": le_op,
     "BitwiseAndTensorOp": bitwise_and_tensor_op,
 }
+
+# Merge func ops registry (for CallOp, FuncOp, etc.)
+ops_registry.update(func_ops.ops_registry)

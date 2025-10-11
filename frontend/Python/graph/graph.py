@@ -577,6 +577,12 @@ class GraphImporter:
 
                 return self._symbol_table.get(("output", 0))
 
+            # Generate external function declarations for CallOp nodes
+            from .operation import CallOp
+            for node in self._body:
+                if isinstance(node, CallOp):
+                    self._generate_external_func_decl(node)
+
         return self._module
 
     def import_main_graph(self) -> ir.Module:
@@ -678,6 +684,72 @@ class GraphImporter:
 
         self._symbol_table[(str(node.name), 0)] = placeholder_name
         self._num_input_visited += 1
+
+    def _generate_external_func_decl(self, call_node):
+        """
+        Generate external function declaration for CallOp.
+
+        Args:
+            call_node: CallOp node that calls an external function
+        """
+        from .operation import CallOp
+        from ..ops.utils import mlir_element_type_get
+
+        if not isinstance(call_node, CallOp):
+            return
+
+        # Get function name
+        func_name = call_node.call_func_name
+
+        # Build argument types from CallOp's arguments
+        arg_types = []
+        for i, arg in enumerate(call_node.args):
+            # Get the node that produces this argument
+            arg_node = None
+            for node in self._body:
+                if node.name == arg:
+                    arg_node = node
+                    break
+
+            if arg_node and hasattr(arg_node, 'tensor_meta'):
+                # Handle both dict and TensorMeta object
+                if isinstance(arg_node.tensor_meta, dict):
+                    shape = arg_node.tensor_meta.get('shape', [])
+                    dtype = arg_node.tensor_meta.get('dtype', 'float32')
+                else:
+                    shape = arg_node.tensor_meta.shape
+                    dtype = arg_node.tensor_meta.dtype
+                mlir_dtype = mlir_element_type_get(dtype)
+                arg_types.append(ir.RankedTensorType.get(list(shape), mlir_dtype))
+
+        # Build result types from CallOp's tensor_meta
+        result_types = []
+        if hasattr(call_node, 'tensor_meta') and 'shape' in call_node.tensor_meta:
+            shape = call_node.tensor_meta['shape']
+            dtype = call_node.tensor_meta['dtype']
+
+            if isinstance(shape, (list, tuple)) and len(shape) > 0 and isinstance(shape[0], (list, tuple)):
+                # Multiple outputs
+                for i, s in enumerate(shape):
+                    mlir_dtype = mlir_element_type_get(dtype[i])
+                    result_types.append(ir.RankedTensorType.get(s, mlir_dtype))
+            else:
+                # Single output
+                mlir_dtype = mlir_element_type_get(dtype)
+                result_types.append(ir.RankedTensorType.get(list(shape), mlir_dtype))
+
+        # Create function type
+        function_type = ir.FunctionType.get(inputs=arg_types, results=result_types)
+
+        # Create private function declaration
+        with ir.InsertionPoint(self._module.body):
+            func_decl = func.FuncOp(
+                name=func_name,
+                type=function_type,
+                visibility="private"
+            )
+            # Add llvm.emit_c_interface attribute for C ABI compatibility
+            func_decl.attributes["llvm.emit_c_interface"] = ir.UnitAttr.get()
 
     def _import_op(self, node: Op):
         """

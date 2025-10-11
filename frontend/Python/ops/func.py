@@ -61,23 +61,29 @@ def call_op(node: CallOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
     arguments = []
     for i, arg in enumerate(node.args):
         input_node = symbol_table.get((str(arg), node._args_index[i]))
-        memref_type = ir.MemRefType(input_node.type)
-        stride = []
-        shape = memref_type.shape
-        for dim, dim_size in enumerate(shape):
-            stride.append(
-                functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1])
-            )
-        memref_attr = ir.Attribute.parse(
-            "strided<{}, offset: ?>".format(stride)
-        )
-        dest = ir.MemRefType.get(shape, memref_type.element_type, memref_attr)
-        cast_op = memref.CastOp(dest, input_node)
-        arguments.append(cast_op)
+        # For TOSA dialect, inputs are tensors, we just pass them directly
+        # The function signature will use tensors instead of memrefs
+        arguments.append(input_node)
     results = []
-    for i, shape in enumerate(node.tensor_meta["shape"]):
-        mlir_dtype = mlir_element_type_get(node.tensor_meta["dtype"][i])
-        results.append(ir.MemRefType.get(shape, mlir_dtype))
+    # Handle both single output and multiple outputs
+    if "shape" in node.tensor_meta:
+        shape = node.tensor_meta["shape"]
+        dtype = node.tensor_meta["dtype"]
+
+        # Check if this is a single output (shape is torch.Size or list)
+        # or multiple outputs (shape is list of shapes)
+        if isinstance(shape, (list, tuple)) and len(shape) > 0 and isinstance(shape[0], (list, tuple)):
+            # Multiple outputs: shape is [[...], [...], ...]
+            for i, s in enumerate(shape):
+                mlir_dtype = mlir_element_type_get(dtype[i])
+                # Use RankedTensorType for TOSA dialect
+                results.append(ir.RankedTensorType.get(s, mlir_dtype))
+        else:
+            # Single output: shape is [...] or torch.Size([...])
+            mlir_dtype = mlir_element_type_get(dtype)
+            # Use RankedTensorType for TOSA dialect
+            results.append(ir.RankedTensorType.get(list(shape), mlir_dtype))
+
     func_symbol = ir.FlatSymbolRefAttr.get(node.call_func_name)
     op = func.call(results, func_symbol, arguments)
     return op
