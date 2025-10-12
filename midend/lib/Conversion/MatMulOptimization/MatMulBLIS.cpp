@@ -518,6 +518,8 @@ public:
     auto module = op->getParentOfType<ModuleOp>();
 
     // Parameter getters
+    // HACK: max(NC, MC, KC) must be greater than min(MR, NR) to prevent
+    // out-of-bounds access.
     ParamsType params = {
         {"NC", NC}, {"MC", MC}, {"KC", KC}, {"MR", MR}, {"NR", NR}};
 
@@ -561,7 +563,10 @@ class MatMulBLISPass
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MatMulBLISPass)
   StringRef getArgument() const final { return "matmul-blis"; }
-  StringRef getDescription() const final { return "MatMul BLIS."; }
+  StringRef getDescription() const final {
+    return "Performs BLIS-style matrix multiplication with hierarchical "
+           "blocking.";
+  }
   MatMulBLISPass() = default;
   MatMulBLISPass(const MatMulBLISPass &) {}
 

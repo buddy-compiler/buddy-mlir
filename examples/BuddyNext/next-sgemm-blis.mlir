@@ -16,6 +16,7 @@
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
+// HACK: max(NC, MC, KC) must be greater than min(MR, NR) to prevent out-of-bounds access.
 #cond_set_a = affine_set<(i, j)[M, K] : (M - 1 - i >= 0, K - 1 - j >= 0)>
 #cond_set_b = affine_set<(i, j)[N, K] : (K - 1 - i >= 0, N - 1 - j >= 0)>
 #micro_kernel_offset = affine_map<(off, idx, p)[KC]->(off + idx*KC + p)>
