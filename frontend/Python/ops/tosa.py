@@ -521,6 +521,13 @@ def reshape_op(node: ReshapeOp, symbol_table):
             if new_shape[i] == -1:
                 new_shape[i] = infer_dim_size
 
+    # Optimize: if the new shape is the same as the current shape, skip the reshape
+    if len(new_shape) == len(now_shape) and all(
+        int(new_dim) == int(old_dim)
+        for new_dim, old_dim in zip(new_shape, now_shape)
+    ):
+        return input1
+
     new_shape_content = array.array("i", new_shape)
     new_shape_content = memoryview(new_shape_content)
     op = tosa.ReshapeOp(input1, new_shape_content)
@@ -968,9 +975,18 @@ def embedding_op(node: EmbeddingOp, symbol_table):
     gather_op = tosa.GatherOp(
         gather_result_type, weight_reshape_op.result, indices
     )
+
+    # Check if the final reshape is needed
+    target_shape = [*indices_size, weight_size[1]]
+    gather_output_shape = list(ir.RankedTensorType(gather_op.output.type).shape)
+
+    # If gather output shape matches target shape, skip the reshape
+    if gather_output_shape == target_shape:
+        return gather_op.output
+
     op = tosa.ReshapeOp(
         gather_op.output,
-        memoryview(array.array("i", [*indices_size, weight_size[1]])),
+        memoryview(array.array("i", target_shape)),
     )
 
     return op
