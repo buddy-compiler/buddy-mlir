@@ -132,7 +132,7 @@ private:
     mlir::Type type = getType(dims);
     auto dataType = mlir::RankedTensorType::get(dims, elementType);
     mlir::DenseElementsAttr dataAttribute =
-        mlir::DenseElementsAttr::get(dataType, llvm::makeArrayRef(ctx->data));
+        mlir::DenseElementsAttr::get(dataType, llvm::ArrayRef(ctx->data));
     mlir::Location loaction =
         loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
     mlir::Value value =
@@ -158,8 +158,7 @@ private:
     mlir::Type elementType = builder.getF64Type();
     mlir::Type type = getType(dims);
     auto dataType = mlir::RankedTensorType::get(dims, elementType);
-    return mlir::DenseElementsAttr::get(dataType,
-                                        llvm::makeArrayRef(ctx->data));
+    return mlir::DenseElementsAttr::get(dataType, llvm::ArrayRef(ctx->data));
   }
 
   // Emit a number literal.
@@ -167,7 +166,7 @@ private:
     mlir::Type elementType = builder.getF64Type();
     auto dataType = mlir::RankedTensorType::get({}, elementType);
     double number = std::stod(node->toString());
-    return mlir::DenseElementsAttr::get(dataType, llvm::makeArrayRef(number));
+    return mlir::DenseElementsAttr::get(dataType, llvm::ArrayRef(number));
   }
 
   /// Emit a constant for a struct literal. It will be emitted as an array of
@@ -537,9 +536,8 @@ private:
     }
     // Generate return operation based on whether the function has the return
     // value.
-    builder.create<mlir::toy::ReturnOp>(location,
-                                        expr ? llvm::makeArrayRef(expr)
-                                             : llvm::ArrayRef<mlir::Value>());
+    builder.create<mlir::toy::ReturnOp>(
+        location, expr ? llvm::ArrayRef(expr) : llvm::ArrayRef<mlir::Value>());
     return 0;
   }
   // Make the struct type store in the map.
