@@ -698,6 +698,8 @@ class GraphImporter:
                     raise NotImplementedError
         elif isinstance(op_ret, ir.OpResult):
             self._symbol_table[(str(node.name), 0)] = op_ret
+        elif isinstance(op_ret, ir.BlockArgument):
+            self._symbol_table[(str(node.name), 0)] = op_ret
         else:
             for i, result in enumerate(op_ret.results):
                 self._symbol_table[(str(node.name), i)] = result

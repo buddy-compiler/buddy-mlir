@@ -546,6 +546,7 @@ def unsqueeze_op(node: UnsqueezeOp, symbol_table):
     sizes = ir.RankedTensorType(input_tensor.type).shape
     if dim == -1:
         sizes.append(1)
+        return input_tensor
     else:
         sizes.insert(dim, 1)
     new_shape_content = array.array("i", sizes)
@@ -617,7 +618,7 @@ def slice_op(node: SliceOp, symbol_table):
     new_sizes = [x for x in sizes]
     new_sizes[dim] = end_idx - start_idx
     new_sizes_attr = ir._denseI64ArrayAttr(new_sizes, None)
-
+        
     offsets = [0] * len(sizes)
     offsets[dim] = start_idx
     offsets_attr = ir._denseI64ArrayAttr(offsets, None)
@@ -629,6 +630,8 @@ def slice_op(node: SliceOp, symbol_table):
     extract_slice_result_type = ir.RankedTensorType.get(
         new_sizes, result_element_type
     )
+    if new_sizes == sizes:
+        return input_tensor
     op = tensor.ExtractSliceOp(
         extract_slice_result_type,
         input_tensor,
@@ -733,11 +736,12 @@ def clone_op(node: CloneOp, symbol_table):
     we actually deep-copies the original tensor.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
-    sizes = ir.RankedTensorType(input_tensor.type).shape
-    result_element_type = ir.RankedTensorType(input_tensor.type).element_type
-    output_type = ir.RankedTensorType.get(sizes, result_element_type)
+    return input_tensor
+    # sizes = ir.RankedTensorType(input_tensor.type).shape
+    # result_element_type = ir.RankedTensorType(input_tensor.type).element_type
+    # output_type = ir.RankedTensorType.get(sizes, result_element_type)
 
-    return tosa.IdentityOp(output_type, input_tensor)
+    # return tosa.IdentityOp(output_type, input_tensor)
 
 
 def var_mean_op(node: VarMeanOp, symbol_table):
@@ -1026,6 +1030,8 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
             expanded_size.append(dim)
         else:
             expanded_size.append(size)
+    if original_size == expanded_size:
+        return to_expand_tensor
     new_size_tensor_type = ir.RankedTensorType.get(
         expanded_size, result_element_type
     )
