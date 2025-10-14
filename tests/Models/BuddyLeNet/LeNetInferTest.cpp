@@ -78,7 +78,6 @@ void loadParameters(const std::string &paramFilePath,
 /// Softmax function to convert logits to probabilities.
 void softmax(float *input, size_t size) {
   size_t i;
-
   double sum = 0.0;
   // Find the maximum value in the input array for numerical stability.
   float* max_ptr = std::max_element(input, input+size);
