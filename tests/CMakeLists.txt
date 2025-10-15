@@ -47,7 +47,7 @@ add_lit_testsuites(BUDDY ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${BUDDY_TEST_DEPEND
 option(BUDDY_ENABLE_E2E_TESTS "Enable end-to-end (E2E) tests for Models" OFF)
 
 if(BUDDY_ENABLE_E2E_TESTS)
-  add_subdirectory(Models)Expand commentComment on line R50Code has comments. Press enter to view.
+  add_subdirectory(Models)
   set(BUDDY_MODELS_TEST_DEPENDS
   ${BUDDY_TEST_DEPENDS}
   buddy-lenet-run-test-cpu
