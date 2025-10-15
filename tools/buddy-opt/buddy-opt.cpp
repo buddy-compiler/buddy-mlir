@@ -87,6 +87,7 @@ void registerMatMulTransposeBVecPass();
 void registerLegalizeShmemOutliningPass();
 void registerVIRToVectorPass();
 void registerLinalgToVIRPass();
+void registerMatMulVectorizationBLISPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -112,6 +113,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerLinalgToGemminiPass();
 
   // Register Several Optimize Pass.
+  mlir::buddy::registerMatMulVectorizationBLISPass();
   mlir::buddy::registerMatMulOptimizePass();
   mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerBatchMatMulTileOptimizePass();
