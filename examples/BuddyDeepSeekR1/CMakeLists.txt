@@ -24,7 +24,9 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT forward.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
+            -simplify-tosa-reshape |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
             -pass-pipeline ${TOSA_PIPELINE} |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
@@ -67,7 +69,9 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT subgraph.o
-    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
+              -simplify-tosa-reshape |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
               -pass-pipeline ${TOSA_PIPELINE} |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
