@@ -1,5 +1,4 @@
-//===- SimplifyTosaReshape.cpp -------------------------------------------===//
-//
+//===- SimplifyTosaReshape.cpp - TOSA reshape simplification --------------===//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -14,7 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines SimplifyTosaReshapePass, which eliminates consecutive 
+// This file defines SimplifyTosaReshapePass, which eliminates consecutive
 // redundant reshape operations and performs minimal.
 //
 //===----------------------------------------------------------------------===//
@@ -98,23 +97,27 @@ public:
     func::FuncOp func = getOperation();
     MLIRContext *ctx = func.getContext();
     RewritePatternSet patterns(ctx);
-    patterns.add<CollapseReshapeChain, RemoveIdentityReshape, EraseUnusedReshape>(ctx);
+    patterns
+        .add<CollapseReshapeChain, RemoveIdentityReshape, EraseUnusedReshape>(
+            ctx);
 
     // Collect a stable snapshot of reshape ops and only rewrite those.
     SmallVector<Operation *> reshapeOps;
-    func.walk([&](tosa::ReshapeOp rop) { reshapeOps.push_back(rop.getOperation()); });
+    func.walk(
+        [&](tosa::ReshapeOp rop) { reshapeOps.push_back(rop.getOperation()); });
 
     GreedyRewriteConfig config;
     config.enableRegionSimplification = GreedySimplifyRegionLevel::Disabled;
-    config.fold = false;          // avoid materializing constants
-    config.cseConstants = false;  // avoid constant CSE reordering
+    config.fold = false;         // avoid materializing constants
+    config.cseConstants = false; // avoid constant CSE reordering
     config.strictMode = GreedyRewriteStrictness::ExistingOps;
 
     bool changed = false;
-    (void)applyOpPatternsGreedily(reshapeOps, std::move(patterns), config, &changed);
+    (void)applyOpPatternsGreedily(reshapeOps, std::move(patterns), config,
+                                  &changed);
   }
 
-void getDependentDialects(DialectRegistry &registry) const override {
+  void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<tosa::TosaDialect>();
   }
 };
