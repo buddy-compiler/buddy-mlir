@@ -1,3 +1,22 @@
+// RUN: buddy-opt %s -matmul-amx \
+// RUN:     --llvm-request-c-wrappers \
+// RUN:     -convert-linalg-to-loops \
+// RUN:     -lower-affine \
+// RUN:     -convert-scf-to-cf \
+// RUN:     -convert-vector-to-llvm="enable-amx" \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -finalize-memref-to-llvm \
+// RUN:     -convert-to-llvm \
+// RUN:     -reconcile-unrealized-casts | \
+// RUN:   mlir-translate --mlir-to-llvmir > %t.ll
+// RUN: llc -mtriple=x86_64-unknown-linux-gnu -mattr=+amx-bf16,+amx-tile,+amx-int8 %t.ll -filetype=obj -o %t.o
+// RUN: clang -c %S/amx-wrapper.c -o %t-wrapper.o
+// RUN: clang++ %t-wrapper.o %t.o -o %t.exe \
+// RUN:     -L%mlir_runner_utils_dir -lmlir_runner_utils -lmlir_c_runner_utils -lpthread \
+// RUN:     -Wl,-rpath,%mlir_runner_utils_dir
+// RUN: %t.exe
+
+
 // Example demonstrating automatic conversion from linalg.matmul to AMX operations
 // This file shows how the LinalgToAMX pass converts high-level linalg operations
 // to low-level AMX tile operations for optimal performance on Intel AMX hardware.
