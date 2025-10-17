@@ -546,7 +546,6 @@ def unsqueeze_op(node: UnsqueezeOp, symbol_table):
     sizes = ir.RankedTensorType(input_tensor.type).shape
     if dim == -1:
         sizes.append(1)
-        return input_tensor
     else:
         sizes.insert(dim, 1)
     new_shape_content = array.array("i", sizes)
