@@ -103,6 +103,7 @@ def param_extract(
     """
     dtype_mapping = {
         TensorDType.Float16: ir.F16Type.get(),
+        TensorDType.BFloat16: ir.BF16Type.get(),
         TensorDType.Float32: ir.F32Type.get(),
         TensorDType.Int64: ir.IntegerType.get_signless(64),
     }
