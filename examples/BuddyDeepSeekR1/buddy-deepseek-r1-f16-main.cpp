@@ -29,13 +29,12 @@ using namespace buddy;
 
 constexpr size_t ParamsSize = 1777088064;
 constexpr size_t MaxVocabSize = 151936;
-constexpr size_t MaxTokenLength = 40;
+constexpr size_t MaxTokenLength = 20;
 
 /// Declare DeepSeekR1 forward function.
 extern "C" void _mlir_ciface_forward(MemRef<uint16_t, 3> *result,
                                      MemRef<uint16_t, 1> *arg0,
-                                     Text<size_t, 2> *arg1,
-                                     MemRef<long long, 2> *arg2);
+                                     Text<size_t, 2> *arg1);
 
 // -----------------------------------------------------------------------------
 // Helper Functions
@@ -166,19 +165,15 @@ int main() {
   //  - Output container.
   //  - Parameters container.
   Text<size_t, 2> outputContainer;
-  MemRef<uint16_t, 3> resultContainer({1, 40, 151936});
+  MemRef<uint16_t, 3> resultContainer({1, 20, 151936});
   Text<size_t, 2> inputContainer(inputStr);
   MemRef<uint16_t, 1> paramsContainer({ParamsSize});
-  MemRef<long long, 2> attention_mask({1, 40}, 0);
 
   /// Fill data into containers
   //  - Input: register vocabulary and tokenize the input string.
   //  - Output: register vocabulary.
   //  - Parameters: load parameters from the `arg0` file into the container.
   tokenizeInput(vocabDir, inputContainer);
-  for (int i = 0; i < (int)inputContainer.getTokenCnt(); i++) {
-    attention_mask.getData()[i] = 1;
-  }
   outputContainer.loadVocab(vocabDir);
   loadParameters(paramsDir, paramsContainer);
 
@@ -190,8 +185,7 @@ int main() {
   for (int i = 0; i < generateLen; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
     // Execute the forward pass of the model.
-    _mlir_ciface_forward(&resultContainer, &paramsContainer, &inputContainer,
-                         &attention_mask);
+    _mlir_ciface_forward(&resultContainer, &paramsContainer, &inputContainer);
 
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =
@@ -213,7 +207,6 @@ int main() {
     }
     // Append the generated token into the input and output container.
     inputContainer.appendTokenIdx(maxIndex);
-    attention_mask.getData()[MaxTokenLength - generateLen + i] = 1;
     outputContainer.appendTokenIdx(maxIndex);
     free(resultContainer.release());
   }
