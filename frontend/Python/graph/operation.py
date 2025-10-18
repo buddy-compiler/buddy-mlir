@@ -585,3 +585,20 @@ class CopyOp(Op):
         super().__init__()
         self._op_type = OpType.ElementwiseType
 
+
+class LeOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class BitwiseAndTensorOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class IndexPutOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType

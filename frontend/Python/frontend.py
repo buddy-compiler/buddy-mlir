@@ -100,6 +100,7 @@ class DynamoCompiler:
         self._imported_graphs = []
         self._ops_registry = {}
         self._imported_params = {}
+        self._model_config = type("Config", (), {"decode_with_cache": False})
         self._ops_registry.update(math_ops_registry)
         self._ops_registry.update(linalg_ops_registry)
         self._ops_registry.update(tosa_ops_registry)
@@ -176,6 +177,9 @@ class DynamoCompiler:
             "eq.Scalar": EqualOp,
             "copy.default": CopyOp,
             "slice_scatter.default": SliceScatterOp,
+            "le.Tensor": LeOp,
+            "bitwise_and.Tensor": BitwiseAndTensorOp,
+            "index_put.default": IndexPutOp,
         }
 
     @property
@@ -298,9 +302,17 @@ class DynamoCompiler:
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
             nonlocal params_flat
+            num_cached_kv = 0
+            if self._model_config.decode_with_cache:
+                num_cached_kv = self._model_config.num_hidden_layers * 2
             func_inputs = []
             for i in inputs_pos:
                 # for inp in _inputs[len(params_flat) :]:
+                inp = _inputs[i + num_cached_kv]
+                inp_shape = inp.shape
+                inp_dtype = self._torch_dtype_translate(str(inp.dtype))
+                func_inputs.append(TensorMeta(inp_shape, inp_dtype))
+            for inp in _inputs[:num_cached_kv]:
                 inp = _inputs[i]
                 inp_shape = inp.shape
                 inp_dtype = self._torch_dtype_translate(str(inp.dtype))
@@ -321,7 +333,9 @@ class DynamoCompiler:
             buffers_nodes = []
             input_nodes = []
             other_nodes = []
-            for i, node in enumerate(_gm.graph.nodes):
+            for i, node in enumerate(
+                list(_gm.graph.nodes)[num_cached_kv:], start=0
+            ):
                 if i in params_pos:
                     param_nodes.append(node)
                 elif i in buffers_pos:
@@ -330,6 +344,7 @@ class DynamoCompiler:
                     input_nodes.append(node)
                 else:
                     other_nodes.append(node)
+            input_nodes.extend(list(_gm.graph.nodes)[:num_cached_kv])
             gm_nodes = param_nodes + buffers_nodes + input_nodes + other_nodes
 
             for gm_node in gm_nodes:
@@ -443,6 +458,18 @@ class DynamoCompiler:
         Returns:
             imported_graphs: The imported buddy graphs.
         """
+        if hasattr(model, "config") and model.config is not None:
+            self._model_config = model.config.__class__.from_dict(
+                model.config.to_dict()
+            )
+        if (
+            "use_cache" in kwargs
+            and kwargs["use_cache"]
+            and "past_key_values" in kwargs
+        ):
+            self._model_config.decode_with_cache = True
+        else:
+            self._model_config.decode_with_cache = False
         model_opt = dynamo.optimize(self._compile_fx)(model)
         model_opt(*args, **kwargs)
         return self._imported_graphs
