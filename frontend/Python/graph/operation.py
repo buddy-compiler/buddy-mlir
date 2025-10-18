@@ -602,3 +602,15 @@ class IndexPutOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
+
+
+class NeScalarOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class CumsumOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType

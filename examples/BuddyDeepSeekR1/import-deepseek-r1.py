@@ -18,7 +18,9 @@
 # This is the test of DeepSeekR1 model.
 #
 # ===---------------------------------------------------------------------------
+import faulthandler
 
+faulthandler.enable()
 import os
 import argparse
 import time
@@ -77,89 +79,113 @@ else:
     model = AutoModelForCausalLM.from_pretrained(
         model_path, torchscript=True
     ).eval()
-model.config.use_cache = True
+model.config.use_cache = False
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
-dynamo_compiler_prefill = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=inductor_decomp,
-    func_name="forward_prefill",
-)
+if args.precision == "f16":
+    dynamo_compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+    )
+else:
+    dynamo_compiler_prefill = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name="forward_prefill",
+    )
 
-dynamo_compiler_decode = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=inductor_decomp,
-    func_name="forward_decode",
-)
+    dynamo_compiler_decode = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name="forward_decode",
+    )
 
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
-    past_key_values_prefill = StaticCache(
-        config=model.config, max_cache_len=1024
+    if args.precision == "f16":
+        data = {
+            "input_ids": torch.zeros((1, 20), dtype=torch.int64),
+        }
+        graphs = dynamo_compiler.importer(
+            model,
+            input_ids=data["input_ids"],
+        )
+    else:
+        past_key_values_prefill = StaticCache(
+            config=model.config, max_cache_len=1024
+        )
+        past_key_values_decode = StaticCache(
+            config=model.config, max_cache_len=1024
+        )
+
+        data_prefill = {
+            "input_ids": torch.zeros((1, 1024), dtype=torch.int64),
+        }
+        data_decode = {
+            "input_ids": torch.zeros((1, 1), dtype=torch.int64),
+        }
+
+        cache_position = torch.tensor([200], dtype=torch.int64)
+
+        graphs_prefill = dynamo_compiler_prefill.importer(
+            model,
+            input_ids=data_prefill["input_ids"],
+            use_cache=True,
+            # past_key_values=past_key_values_prefill,
+            cache_implementation="static",
+        )
+        # Initialize past_key_values once during the first forward call
+        model(
+            input_ids=data_decode["input_ids"],
+            past_key_values=past_key_values_decode,
+            use_cache=True,
+            cache_implementation="static",
+        )
+
+        graphs_decode = dynamo_compiler_decode.importer(
+            model,
+            input_ids=data_decode["input_ids"],
+            use_cache=True,
+            cache_position=cache_position,
+            past_key_values=past_key_values_decode,
+            cache_implementation="static",
+        )
+
+if args.precision == "f16":
+    assert len(graphs) == 1
+    graph = graphs[0]
+    params = dynamo_compiler.imported_params[graph]
+    pattern_list = [simply_fuse]
+    graphs[0].fuse_ops(pattern_list)
+    driver = GraphDriver(graphs[0])
+    driver.subgraphs[0].lower_to_top_level_ir()
+else:
+    assert len(graphs_prefill) == 1
+    assert len(graphs_decode) == 1
+    graph_prefill = graphs_prefill[0]
+    graph_decode = graphs_decode[0]
+
+    params = dynamo_compiler_prefill.imported_params[graph_prefill]
+    pattern_list = [simply_fuse]
+
+    graphs_prefill[0].fuse_ops(pattern_list)
+    graphs_decode[0].fuse_ops(pattern_list)
+
+    graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop(
+        "subgraph0"
     )
-    past_key_values_decode = StaticCache(
-        config=model.config, max_cache_len=1024
+    graph_prefill.group_map_device["subgraph0_prefill"] = DeviceType.CPU
+
+    graph_decode.op_groups["subgraph0_decode"] = graph_decode.op_groups.pop(
+        "subgraph0"
     )
+    graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
 
-    data_prefill = {
-        "input_ids": torch.zeros((1, 1024), dtype=torch.int64),
-    }
-    data_decode = {
-        "input_ids": torch.zeros((1, 1), dtype=torch.int64),
-    }
+    driver_prefill = GraphDriver(graphs_prefill[0])
+    driver_prefill.subgraphs[0].lower_to_top_level_ir()
 
-    cache_position = torch.tensor([200], dtype=torch.int64)
-
-    graphs_prefill = dynamo_compiler_prefill.importer(
-        model,
-        input_ids=data_prefill["input_ids"],
-        use_cache=True,
-        # past_key_values=past_key_values_prefill,
-        cache_implementation="static",
-    )
-    # Initialize past_key_values once during the first forward call
-    model(
-        input_ids=data_decode["input_ids"],
-        past_key_values=past_key_values_decode,
-        use_cache=True,
-        cache_implementation="static",
-    )
-
-    graphs_decode = dynamo_compiler_decode.importer(
-        model,
-        input_ids=data_decode["input_ids"],
-        use_cache=True,
-        cache_position=cache_position,
-        past_key_values=past_key_values_decode,
-        cache_implementation="static",
-    )
-
-assert len(graphs_prefill) == 1
-assert len(graphs_decode) == 1
-graph_prefill = graphs_prefill[0]
-graph_decode = graphs_decode[0]
-
-params = dynamo_compiler_prefill.imported_params[graph_prefill]
-pattern_list = [simply_fuse]
-
-graphs_prefill[0].fuse_ops(pattern_list)
-graphs_decode[0].fuse_ops(pattern_list)
-
-graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop(
-    "subgraph0"
-)
-graph_prefill.group_map_device["subgraph0_prefill"] = DeviceType.CPU
-
-graph_decode.op_groups["subgraph0_decode"] = graph_decode.op_groups.pop(
-    "subgraph0"
-)
-graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
-
-driver_prefill = GraphDriver(graphs_prefill[0])
-driver_prefill.subgraphs[0].lower_to_top_level_ir()
-
-driver_decode = GraphDriver(graphs_decode[0])
-driver_decode.subgraphs[0].lower_to_top_level_ir()
+    driver_decode = GraphDriver(graphs_decode[0])
+    driver_decode.subgraphs[0].lower_to_top_level_ir()
 
 # Save the generated files to the specified output directory.
 if args.precision == "f16":

@@ -269,6 +269,7 @@ def addmm_op(
             (
                 ir.FloatAttr.get(result_element_type, 0.0)
                 if str(result_element_type) == "f32"
+                or str(result_element_type) == "f16"
                 else ir.IntegerAttr.get(result_element_type, 0)
             ),
         )

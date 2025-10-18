@@ -180,6 +180,9 @@ class DynamoCompiler:
             "le.Tensor": LeOp,
             "bitwise_and.Tensor": BitwiseAndTensorOp,
             "index_put.default": IndexPutOp,
+            "ne.Scalar": NeScalarOp,
+            "cumsum.default": CumsumOp,
+            "eq.Tensor": EqualOp,
         }
 
     @property

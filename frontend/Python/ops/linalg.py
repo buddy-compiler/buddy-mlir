@@ -2460,30 +2460,66 @@ def equal_op(
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
-    Import the tensor equal operation.
-    Converts Buddy EqualOp to the MLIR arith `CmpIOp` or `CmpFOp` operation.
+    Converts a Buddy EqualOp operation to an MLIR comparison operation (CmpIOp or CmpFOp).
 
-    This operation compares two input tensors and produces a boolean tensor
-    representing the comparison result.
+    This operation compares two input tensors (or a tensor and a scalar) and produces a boolean tensor
+    where each element represents the result of the comparison. The operation handles both integer and
+    floating-point comparisons.
 
-    Args:
-        node: The input graph node containing operation details.
-        symbol_table: A dictionary mapping symbols to their corresponding
-                      operations.
+    Parameters:
+        node (EqualOp): The Buddy EqualOp node containing the operation details and tensor metadata.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
 
     Returns:
-        op: A linalg.generic operation that performs element-wise equality
-            comparison.
+        op: An MLIR comparison operation (either CmpIOp for integers or CmpFOp for floats) that performs
+            element-wise equality comparison between the input tensors or tensor and scalar.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
     input_shape = ir.RankedTensorType(input_tensor.type).shape
-    tensor_type = ir.RankedTensorType.get(input_shape, input_dtype)
-    if str(input_dtype).find("i") == -1:
-        scalar = arith.ConstantOp(input_dtype, float(node.args[1]))
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    if isinstance(node.args[1], str):
+        rhs = symbol_table.get((str(node.args[1]), 0), node.args[1])
+        if input_tensor.type.shape != output_shape:
+            tensor_type = ir.RankedTensorType.get(
+                output_shape, input_tensor.type.element_type
+            )
+            if str(input_tensor.type.element_type) == "f32":
+                element = ir.FloatAttr.get(ir.F32Type.get(), 0)
+            elif str(input_tensor.type.element_type) == "f16":
+                element = ir.FloatAttr.get(ir.F16Type.get(), 0)
+            elif str(input_tensor.type.element_type) == "i64":
+                element = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), 0)
+            attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+            to_broadcast_tensor = arith.ConstantOp(input_tensor.type, attr)
+            input_tensor = tosa.AddOp(
+                tensor_type, input_tensor, to_broadcast_tensor
+            ).result
+
+        if rhs.type.shape != output_shape:
+            tensor_type = ir.RankedTensorType.get(
+                output_shape, rhs.type.element_type
+            )
+            if str(rhs.type.element_type) == "f32":
+                element = ir.FloatAttr.get(ir.F32Type.get(), 0)
+            elif str(input_tensor.type.element_type) == "f16":
+                element = ir.FloatAttr.get(ir.F16Type.get(), 0)
+            elif str(input_tensor.type.element_type) == "i64":
+                element = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), 0)
+            attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+            to_broadcast_tensor = arith.ConstantOp(rhs.type, attr)
+            rhs = tosa.AddOp(
+                tensor_type, input_tensor, to_broadcast_tensor
+            ).result
     else:
-        scalar = arith.ConstantOp(input_dtype, node.args[1])
-    rhs = tensor.SplatOp(tensor_type, scalar, [])
+        tensor_type = ir.RankedTensorType.get(input_shape, input_dtype)
+        if str(input_dtype).find("i") == -1:
+            scalar = arith.ConstantOp(input_dtype, float(node.args[1]))
+        else:
+            scalar = arith.ConstantOp(input_dtype, node.args[1])
+        rhs = tensor.SplatOp(tensor_type, scalar, [])
     if str(input_dtype).find("i") != -1:
         cmp_op = arith.CmpIOp(0, input_tensor, rhs)
     else:
@@ -2629,13 +2665,19 @@ def index_put_op(
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
-    Import the tensor index_put operation.
-    From buddy IndexPutOp to MLIR linalg.generic operation.
-    Handles None indices (full selection of that dimension).
+    Converts a Buddy IndexPutOp operation to an MLIR operation using scf.ForOp loops.
 
-    Only difference from unsafe_index_op:
-        - Extract values from `values` tensor
-        - Insert them into output tensor
+    This operation updates elements in the target tensor (input1) at specified indices (from input2)
+    with new values (from input3). It handles cases where some indices are `None`, which represents
+    a full selection for that dimension. The operation is implemented using nested loops over the
+    tensor dimensions.
+
+    Parameters:
+        node (IndexPutOp): The Buddy IndexPutOp containing tensor metadata and index data.
+        symbol_table (dict): A mapping from tensor names to corresponding MLIR operations.
+
+    Returns:
+        op: The MLIR operation representing the converted IndexPutOp.
     """
     assert len(node.args[1]) == 3
     output_shape = list(node.tensor_meta["shape"])
@@ -2717,6 +2759,114 @@ def index_put_op(
     return op
 
 
+def ne_scalar_op(
+    node: NeScalarOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy NeScalarOp operation to an MLIR comparison operation (CmpIOp or CmpFOp).
+
+    This operation compares a tensor with a scalar value and produces a boolean tensor where each element
+    represents the result of the inequality comparison (not equal). The operation supports both integer
+    and floating-point types.
+
+    Parameters:
+        node (NeScalarOp): The Buddy NeScalarOp node containing the operation details and tensor metadata.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: An MLIR comparison operation (either CmpIOp for integers or CmpFOp for floats) that performs
+            element-wise inequality (not equal) comparison between the input tensor and the scalar.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    input_shape = ir.RankedTensorType(input_tensor.type).shape
+    tensor_type = ir.RankedTensorType.get(input_shape, input_dtype)
+
+    scalar = arith.ConstantOp(input_dtype, node.args[1])
+    rhs = tensor.SplatOp(tensor_type, scalar, [])
+
+    if str(input_dtype).find("i") != -1:
+        cmp_op = arith.CmpIOp(1, input_tensor, rhs)
+    else:
+        cmp_op = arith.CmpFOp(6, input_tensor, rhs)
+
+    return cmp_op
+
+
+def cumsum_op(
+    node: NeScalarOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy CumsumOp operation to an MLIR operation using scf.ForOp loops.
+
+    This operation computes the cumulative sum along a specified dimension (axis) of a 2D input tensor.
+    The operation supports element-wise summation and updates the tensor in place.
+
+    Parameters:
+        node (CumsumOp): The Buddy CumsumOp node containing the operation details and tensor metadata.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: An MLIR operation that performs the cumulative sum along the specified dimension (axis) of the input tensor.
+            The result is stored in the output tensor.
+    """
+    output_shape = list(node.tensor_meta["shape"])
+    assert len(output_shape) == 2
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    output_tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+
+    if input1.type.element_type != mlir_dtype:
+        input1 = tosa.CastOp(output_tensor_type, input1).result
+
+    input1_memref_element_type = input1.type.element_type
+    input1_memref_type = ir.MemRefType.get(
+        input1.type.shape, input1_memref_element_type
+    )
+    input1_memref = bufferization.ToMemrefOp(input1_memref_type, input1)
+
+    dim = node.args[1]
+    if dim == -1:
+        dim += len(output_shape)
+    assert dim == 1
+    lb = arith.ConstantOp(ir.IndexType.get(), 0)
+    lb1 = arith.ConstantOp(ir.IndexType.get(), 1)
+    step = arith.ConstantOp(ir.IndexType.get(), 1)
+    ub = []
+    for i in range(len(output_shape)):
+        ub.append(arith.ConstantOp(ir.IndexType.get(), output_shape[i]))
+
+    loop0 = scf.ForOp(lb, ub[0], step)
+    with ir.InsertionPoint(loop0.body):
+        loop1 = scf.ForOp(lb1, ub[1], step)
+        with ir.InsertionPoint(loop1.body):
+            index_val = arith.SubIOp(loop1.induction_variable, step)
+            val_before = memref.LoadOp(
+                input1_memref, [loop0.induction_variable, index_val]
+            )
+            val_cur = memref.LoadOp(
+                input1_memref,
+                [loop0.induction_variable, loop1.induction_variable],
+            )
+            val_sum = arith.AddIOp(val_before.result, val_cur.result)
+            memref.StoreOp(
+                val_sum,
+                input1_memref,
+                [loop0.induction_variable, loop1.induction_variable],
+            )
+            scf.YieldOp(loop1.inner_iter_args)
+        scf.YieldOp(loop0.inner_iter_args)
+
+    op = bufferization.ToTensorOp(
+        output_tensor_type, input1_memref, restrict=True
+    )
+
+    return op
+
+
 ops_registry = {
     "MatmulOp": matmul_op,
     "TransposeMatmulFusedOp": matmul_transpose_b_op,
@@ -2760,4 +2910,6 @@ ops_registry = {
     "CopyOp": copy_op,
     "SliceScatterOp": slice_scatter_op,
     "IndexPutOp": index_put_op,
+    "NeScalarOp": ne_scalar_op,
+    "CumsumOp": cumsum_op,
 }
