@@ -1918,6 +1918,9 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     return result_reshape_op, log_sumexp
 
 
+# Import func ops registry for CallOp support
+from . import func as func_ops
+
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,
@@ -1956,3 +1959,6 @@ ops_registry = {
     "ArgMaxOp": argmax_op,
     "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
 }
+
+# Merge func ops registry (for CallOp, FuncOp, etc.)
+ops_registry.update(func_ops.ops_registry)
