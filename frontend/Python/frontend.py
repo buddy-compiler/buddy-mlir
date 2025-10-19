@@ -185,6 +185,7 @@ class DynamoCompiler:
             "eq.Tensor": EqualOp,
             "_tensor_constant": TensorConstantOp,
             "lift_fresh_copy.default": LiftFreshCopyOp,
+            "repeat.default": RepeatOp,
         }
 
     @property

@@ -2922,6 +2922,38 @@ def lift_fresh_copy_op(
     return op
 
 
+def repeat_op(
+    node: LiftFreshCopyOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy RepeatOp operation to an MLIR operation.
+
+    This operation is intended to repeat a tensor along specified dimensions by a given set of repeat factors.
+    If all repeat factors are 1, the input tensor is returned without any modification. If the repeat factors
+    are not fully implemented or contain values other than 1, the operation currently raises an assertion error.
+
+    Parameters:
+        node (RepeatOp): The Buddy RepeatOp node containing the tensor and repeat factors.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: The input tensor, or a modified version if repeat factors are implemented in the future.
+
+    Note:
+        - The repeat functionality is not fully implemented. Currently, if all repeat factors are 1, the input tensor
+        is returned unchanged.
+        - If any repeat factor is other than 1, an assertion error is triggered.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    repeat_factors = node.args[1]
+    if len(repeat_factors) == repeat_factors.count(1):
+        return input_tensor
+    else:
+        assert False
+    return input_tensor
+
+
 ops_registry = {
     "MatmulOp": matmul_op,
     "TransposeMatmulFusedOp": matmul_transpose_b_op,
@@ -2969,4 +3001,5 @@ ops_registry = {
     "CumsumOp": cumsum_op,
     "TensorConstantOp": tensor_constant_op,
     "LiftFreshCopyOp": lift_fresh_copy_op,
+    "RepeatOp": repeat_op,
 }

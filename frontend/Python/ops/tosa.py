@@ -953,7 +953,7 @@ def embedding_op(node: EmbeddingOp, symbol_table):
     indices_size = ir.RankedTensorType(indices.type).shape
     weight_size = ir.RankedTensorType(weight.type).shape
     result_element_type = ir.RankedTensorType(weight.type).element_type
-    assert len(indices_size) == 2
+    assert len(indices_size) == 2 or len(indices_size) == 1
 
     if indices_size[0] != 1:
         total_size = 1
