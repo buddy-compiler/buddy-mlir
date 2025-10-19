@@ -4,10 +4,6 @@ set(BUFFERIZE_SIMPLE_OPTS "bufferize-function-boundaries")
 set(TOSA_PIPELINE "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))")
 
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -g")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
-
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill.mlir
