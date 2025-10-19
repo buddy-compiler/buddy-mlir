@@ -18,9 +18,7 @@
 # This is the test of DeepSeekR1 model.
 #
 # ===---------------------------------------------------------------------------
-import faulthandler
 
-faulthandler.enable()
 import os
 import argparse
 import time

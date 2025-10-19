@@ -2867,6 +2867,61 @@ def cumsum_op(
     return op
 
 
+def tensor_constant_op(
+    node: TensorConstantOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy Constant0Op operation to an MLIR arith.ConstantOp.
+
+    This operation creates a constant tensor filled with zeros. It constructs a ranked tensor
+    of the specified shape and data type, generates a zero-valued element attribute, and
+    initializes the entire tensor with this value using a splat attribute.
+
+    Parameters:
+        node (Constant0Op): The Buddy Constant0Op node containing the tensor shape and data type metadata.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: An MLIR arith.ConstantOp representing a tensor filled with zeros.
+    """
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    output_shape = list(node.tensor_meta["shape"])
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    value = node.args[0]
+    element = mlir_element_attr_get(dtype, value)
+    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+    op = arith.ConstantOp(tensor_type, attr)
+    return op
+
+
+def lift_fresh_copy_op(
+    node: LiftFreshCopyOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy LiftFreshCopyOp operation to an MLIR tosa.IdentityOp.
+
+    This operation creates a new tensor with the same shape and element type as the input tensor,
+    effectively producing a fresh copy without modifying the data. Internally, this is represented
+    as an identity operation in MLIR.
+
+    Parameters:
+        node (LiftFreshCopyOp): The Buddy LiftFreshCopyOp node containing the operation details.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: An MLIR tosa.IdentityOp that represents creating a fresh copy of the input tensor.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    sizes = ir.RankedTensorType(input_tensor.type).shape
+    result_element_type = ir.RankedTensorType(input_tensor.type).element_type
+    output_type = ir.RankedTensorType.get(sizes, result_element_type)
+    op = tosa.IdentityOp(output_type, input_tensor)
+    return op
+
+
 ops_registry = {
     "MatmulOp": matmul_op,
     "TransposeMatmulFusedOp": matmul_transpose_b_op,
@@ -2912,4 +2967,6 @@ ops_registry = {
     "IndexPutOp": index_put_op,
     "NeScalarOp": ne_scalar_op,
     "CumsumOp": cumsum_op,
+    "TensorConstantOp": tensor_constant_op,
+    "LiftFreshCopyOp": lift_fresh_copy_op,
 }

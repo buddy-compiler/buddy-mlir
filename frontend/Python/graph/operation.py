@@ -604,6 +604,12 @@ class IndexPutOp(Op):
         self._op_type = OpType.ElementwiseType
 
 
+class LiftFreshCopyOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
 class NeScalarOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -614,3 +620,9 @@ class CumsumOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReduceType
+
+
+class TensorConstantOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.PlaceholderType

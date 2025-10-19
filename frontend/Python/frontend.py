@@ -183,6 +183,8 @@ class DynamoCompiler:
             "ne.Scalar": NeScalarOp,
             "cumsum.default": CumsumOp,
             "eq.Tensor": EqualOp,
+            "_tensor_constant": TensorConstantOp,
+            "lift_fresh_copy.default": LiftFreshCopyOp,
         }
 
     @property
@@ -384,7 +386,31 @@ class DynamoCompiler:
                         gm_node.meta["tensor_meta"].shape,
                         node_dtype,
                     )
+                elif gm_node.op == "get_attr":
+                    if "_tensor_constant" in gm_node.name:
+                        import re
 
+                        stack_trace = gm_node.meta.get("stack_trace")
+                        match = re.search(
+                            r"torch\.tensor\(([-+]?\d+(\.\d+)?), dtype=[a-zA-Z]+\)",
+                            stack_trace,
+                        )
+                        if not match:
+                            assert False
+                        value = float(match.group(1))
+                        gm_node.insert_arg(len(gm_node.args), value)
+                        val = gm_node.meta.get("val")
+                        node_shape = val.shape
+                        node_dtype = self._torch_dtype_translate(str(val.dtype))
+                        buddy_node = self._create_node(
+                            "_tensor_constant",
+                            gm_node.name,
+                            gm_node.args,
+                            node_users,
+                            node_shape,
+                            node_dtype,
+                            node_kwargs=gm_node.kwargs,
+                        )
                 else:
                     tensor_meta = gm_node.meta.get("tensor_meta")
                     val = gm_node.meta.get("val")
