@@ -113,12 +113,11 @@ float32_param.tofile(output_dir / "arg0.data")
 
 # CHECK: %[[FLATTEN:.*]] = tosa.reshape {{.*}} {new_shape = array<i64: 1, 256>} : (tensor<1x16x4x4xf32>) -> tensor<1x256xf32>
 
-
 # CHECK-DAG: %[[FC1_WEIGHT_TRANSPOSE:.*]] = tosa.transpose %arg5, {{.*}} : (tensor<120x256xf32>, tensor<2xi32>) -> tensor<256x120xf32>
-# CHECK: %[[FC1_OUTPUT:.*]] = tosa.matmul {{.*}}, {{.*}} : (tensor<1x1x256xf32>, tensor<1x256x120xf32>) -> tensor<1x1x120xf32>
+# CHECK: %[[FC1_OUTPUT:.*]] = linalg.matmul {cast = #linalg.type_fn<cast_signed>} ins({{.*}}, %[[FC1_WEIGHT_TRANSPOSE]] : tensor<1x256xf32>, tensor<256x120xf32>) outs({{.*}} : tensor<1x120xf32>) -> tensor<1x120xf32>
 
-# CHECK: %[[FC3_OUTPUT:.*]] = tosa.matmul {{.*}}, {{.*}} : (tensor<1x1x84xf32>, tensor<1x84x10xf32>) -> tensor<1x1x10xf32>
+# CHECK: %[[FC3_OUTPUT:.*]] = linalg.matmul {cast = #linalg.type_fn<cast_signed>} ins({{.*}}, {{.*}} : tensor<1x84xf32>, tensor<84x10xf32>) outs(%cst_1 : tensor<1x10xf32>) -> tensor<1x10xf32>
 
-# CHECK: %[[FINAL_OUTPUT:.*]] = tosa.reshape %[[FC3_OUTPUT]] {new_shape = array<i64: 1, 10>} : (tensor<1x1x10xf32>) -> tensor<1x10xf32>
-# CHECK: %[[ADD:.*]] = {{.*}}, %[[FINAL_OUTPUT]] : (tensor<1x10xf32>, tensor<1x10xf32>) -> tensor<1x10xf32>
+# CHECK: %[[FINAL_OUTPUT:.*]] = tosa.reshape %arg10 {new_shape = array<i64: 1, 10>} : (tensor<10xf32>) -> tensor<1x10xf32>
+# CHECK: %[[ADD:.*]] = tosa.add %[[FINAL_OUTPUT]], {{.*}} : (tensor<1x10xf32>, tensor<1x10xf32>) -> tensor<1x10xf32>
 # CHECK: return %[[ADD]] : tensor<1x10xf32>

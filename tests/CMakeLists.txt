@@ -49,7 +49,10 @@ option(BUDDY_ENABLE_E2E_TESTS "Enable end-to-end (E2E) tests for Models" OFF)
 if(BUDDY_ENABLE_E2E_TESTS)
   add_subdirectory(Models)
   set(BUDDY_MODELS_TEST_DEPENDS
-  ${BUDDY_TEST_DEPENDS}
+  FileCheck count not
+  buddy-opt
+  buddy-translate
+  mlir-runner
   buddy-lenet-run-test-cpu
   )
 

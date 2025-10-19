@@ -42,10 +42,10 @@ extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
                                      dip::Image<float, 4> *input);
 
 /// Print [Log] label in bold blue format.
-void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
+static void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
 /// Load parameters into data container.
-void loadParameters(const std::string &paramFilePath,
+static void loadParameters(const std::string &paramFilePath,
                     MemRef<float, 1> &params) {
   const auto loadStart = std::chrono::high_resolution_clock::now();
   // Open the parameter file in binary mode.
@@ -76,7 +76,7 @@ void loadParameters(const std::string &paramFilePath,
 }
 
 /// Softmax function to convert logits to probabilities.
-void softmax(float *input, size_t size) {
+static void softmax(float *input, size_t size) {
   size_t i;
   double sum = 0.0;
   // Find the maximum value in the input array for numerical stability.
@@ -106,8 +106,8 @@ int main() {
   intptr_t sizesOutput[2] = {1, 10};
 
   // Create input and output containers for the image and model output.
-  std::string lenetDir = LENET_EXAMPLE_PATH;
-  std::string lenetBuildDir = LENET_EXAMPLE_BUILD_PATH;
+  std::string lenetDir = LENET_TEST_PATH;
+  std::string lenetBuildDir = LENET_TEST_BUILD_PATH;
   std::string imgPath = lenetDir + "/images/" + ImgName;
   dip::Image<float, 4> input(imgPath, dip::DIP_GRAYSCALE, true /* norm */);
   MemRef<float, 2> output(sizesOutput);
@@ -125,14 +125,9 @@ int main() {
   softmax(out, KNumClass);
 
   // Find the classification and print the result.
-  float maxVal = 0;
-  float maxIdx = 0;
-  for (int i = 0; i < KNumClass; ++i) {
-    if (out[i] > maxVal) {
-      maxVal = out[i];
-      maxIdx = i;
-    }
-  }
+  auto maxIt = std::max_element(out, out+KNumClass);
+  float maxVal = *maxIt;
+  float maxIdx = std::distance(out, maxIt);
 
   std::cout << "Classification: " << maxIdx << std::endl;
   std::cout << "Probability: " << maxVal << std::endl;
