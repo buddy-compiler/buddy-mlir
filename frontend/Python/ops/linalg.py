@@ -2954,6 +2954,50 @@ def repeat_op(
     return input_tensor
 
 
+def as_strided_op(
+    node: AsStridedOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy AsStridedOp operation to an MLIR operation.
+
+    This operation is intended to implement the `as_strided` functionality, allowing
+    a tensor to be viewed with a different shape, stride, or offset. Currently, only
+    the simple case where the total number of elements in the input and output tensors
+    is the same is partially implemented. In this case, the operation falls back to
+    a reshape using tosa.ReshapeOp.
+
+    Parameters:
+        node (AsStridedOp): The Buddy AsStridedOp node containing the tensor and metadata.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: An MLIR operation representing the reshaped tensor when input and output sizes match.
+
+    Note:
+        - Full strided functionality (with arbitrary strides or offsets) is not yet implemented.
+        - If the input and output sizes differ, the operation currently raises an assertion error.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_shape = input_tensor.type.shape
+    output_shape = list(node.tensor_meta["shape"])
+    input_size = 1
+    output_size = 1
+    for i in input_shape:
+        input_size *= i
+    for i in output_shape:
+        output_size *= i
+    if input_size == output_size:
+        tensor_type = ir._denseI64ArrayAttr(
+            numpy.array(output_shape, dtype=numpy.int64), None
+        )
+        op = tosa.ReshapeOp(input_tensor, tensor_type)
+    else:
+        assert False
+
+    return op
+
+
 ops_registry = {
     "MatmulOp": matmul_op,
     "TransposeMatmulFusedOp": matmul_transpose_b_op,
@@ -3002,4 +3046,5 @@ ops_registry = {
     "TensorConstantOp": tensor_constant_op,
     "LiftFreshCopyOp": lift_fresh_copy_op,
     "RepeatOp": repeat_op,
+    "AsStridedOp": as_strided_op,
 }

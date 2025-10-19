@@ -186,6 +186,7 @@ class DynamoCompiler:
             "_tensor_constant": TensorConstantOp,
             "lift_fresh_copy.default": LiftFreshCopyOp,
             "repeat.default": RepeatOp,
+            "as_strided.default": AsStridedOp,
         }
 
     @property

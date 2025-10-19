@@ -632,3 +632,9 @@ class RepeatOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
+
+
+class AsStridedOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
