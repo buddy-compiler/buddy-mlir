@@ -91,9 +91,12 @@ def main():
     print(f"  bias: {bias.shape}")
 
     # Initialize Dynamo Compiler
+    # Merge tosa and func registries to support both TOSA ops and CallOp
+    combined_registry = {**tosa.ops_registry, **func.ops_registry}
     dynamo_compiler = DynamoCompiler(
-        primary_registry=tosa.ops_registry,
+        primary_registry=combined_registry,
         aot_autograd_decomposition=inductor_decomp,
+        enable_external_calls=True,  # Enable external library calls (oneDNN)
     )
 
     # Import the model
