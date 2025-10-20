@@ -33,7 +33,86 @@ endif
 # ==============================================================================
 # Evaluation of Modules in DeepSeek-R1 Distill Qwen 1.5B
 # ==============================================================================
+next-layernorm-online-run:
+	@${MLIR_OPT} ./next-layernorm-online.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-expand-strided-metadata \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-matmul-parallel-vectorization-optimize \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-openmp \
+		-func-bufferize-dynamic-offset \
+		-cse \
+		-memref-expand \
+		-arith-expand \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS} \
+		-shared-libs=${OMP_LIB}
 
+next-layernorm-run:
+	@${MLIR_OPT} ./next-layernorm.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-expand-strided-metadata \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-matmul-parallel-vectorization-optimize \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-openmp \
+		-func-bufferize-dynamic-offset \
+		-cse \
+		-memref-expand \
+		-arith-expand \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS} \
+		-shared-libs=${OMP_LIB}
+		
 next-test-lower:
 	@${MLIR_OPT} ./next-embedding.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
