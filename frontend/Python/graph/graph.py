@@ -585,11 +585,11 @@ class GraphImporter:
 
                 return self._symbol_table.get(("output", 0))
 
-            # Generate external function declarations for CallOp nodes (only if enabled)
+            # Generate external function declarations for CallExternalOp nodes (only if enabled)
             if self._enable_external_calls:
-                from .operation import CallOp
+                from .operation import CallExternalOp
                 for node in self._body:
-                    if isinstance(node, CallOp):
+                    if isinstance(node, CallExternalOp):
                         self._generate_external_func_decl(node)
 
         return self._module
@@ -696,15 +696,15 @@ class GraphImporter:
 
     def _generate_external_func_decl(self, call_node):
         """
-        Generate external function declaration for CallOp.
+        Generate external function declaration for CallExternalOp.
 
         Args:
-            call_node: CallOp node that calls an external function
+            call_node: CallExternalOp node that calls an external function
         """
-        from .operation import CallOp
+        from .operation import CallExternalOp
         from ..ops.utils import mlir_element_type_get
 
-        if not isinstance(call_node, CallOp):
+        if not isinstance(call_node, CallExternalOp):
             return
 
         # Get function name
