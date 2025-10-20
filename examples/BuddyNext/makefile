@@ -1586,6 +1586,140 @@ next-mask-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
+# Memory monitoring for FFN parallel vectorized version
+next-ffn-parallel-vec-run-mem:
+	@${MLIR_OPT} ./next-ffn.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-matmul-parallel-vectorization-optimize \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-expand-strided-metadata \
+		-memref-expand \
+		-arith-expand \
+		-lower-affine \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm  \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	/usr/bin/time -v ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+next-ffn-parallel-vec-lower:
+	@${MLIR_OPT} ./next-ffn.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-matmul-parallel-vectorization-optimize \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-expand-strided-metadata \
+		-convert-scf-to-openmp \
+		-o next-ffn-parallel-vec-lowered.mlir
+
+# FFN optimized version with SiLU fusion
+next-ffn-optimized-run:
+	@${MLIR_OPT} ./next-ffn-optimized.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-silu-fusion \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-matmul-parallel-vectorization-optimize \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-expand-strided-metadata \
+		-convert-scf-to-openmp \
+		-memref-expand \
+		-arith-expand \
+		-lower-affine \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm  \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+# Memory monitoring for FFN optimized version
+next-ffn-optimized-run-memory:
+	@${MLIR_OPT} ./next-ffn-optimized.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-silu-fusion \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-matmul-parallel-vectorization-optimize \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-expand-strided-metadata \
+		-convert-scf-to-openmp \
+		-memref-expand \
+		-arith-expand \
+		-lower-affine \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm  \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	/usr/bin/time -v ${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+# Test SiLU fusion pass
+next-silu-fusion-test:
+	@${BUDDY_OPT} ./next-silu-fusion-test.mlir \
+		-silu-fusion \
+		-o next-silu-fusion-test-output.mlir
+
+next-ffn-optimized-lower:
+	@${MLIR_OPT} ./next-ffn-optimized.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-silu-fusion \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-matmul-parallel-vectorization-optimize \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-expand-strided-metadata \
+		-convert-scf-to-openmp \
+		-o next-ffn-optimized-lowered.mlir
+
 pooling-nhwc-max-vec-run:
 	@${BUDDY_OPT} ./pooling-nhwc-max-vec.mlir \
 		-convert-linalg-to-loops \
