@@ -59,9 +59,17 @@ module {
     
     %2 = call @rtclock() : () -> f64
     %3 = arith.subf %2, %0 : f64
+
+    // Verify the result: each element should be 3072 * 2.0 * 3.0 = 18432.0
+    %result_elem = memref.load %alloc[%c0, %c0] : memref<40x1536xf32>
+    vector.print %result_elem : f32
+    // CHECK: 18432
+
     %cast = memref.cast %alloc : memref<40x1536xf32> to memref<*xf32>
     call @printMemrefF32(%cast) : (memref<*xf32>) -> ()
     // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 2 offset = 0 sizes = \[40, 1536\] strides = \[1536, 1\] data =}}
+    // CHECK: [18432, 18432, 18432,
+
     memref.dealloc %alloc : memref<40x1536xf32>
     vector.print %3 : f64
     // CHECK: {{[0-9]+\.[0-9]+}}
