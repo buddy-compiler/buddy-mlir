@@ -73,7 +73,7 @@ add_custom_command(
             -func-bufferize-dynamic-offset
             -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
-            -batchmatmul-optimize
+            # -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize

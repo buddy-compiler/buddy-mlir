@@ -21,7 +21,16 @@
 from typing import Dict, Tuple, List
 
 import mlir.ir as ir
-from mlir.dialects import tosa, linalg, arith, tensor, math
+from mlir.dialects import (
+    tosa,
+    linalg,
+    arith,
+    tensor,
+    math,
+    bufferization,
+    memref,
+    scf,
+)
 import copy, array, sys
 import numpy
 import functools
@@ -1262,80 +1271,152 @@ def index_op(
         return
     input1_shape = ir.RankedTensorType(input1.type).shape
     input2 = node.args[1]
+    # total number of index-dimensions provided by all index tensors
     input2_dim_sum = 0
+    # store index operand shapes for later use
+    index_shapes = []
     for i in range(len(input2)):
-        input2_dim_sum += len(symbol_table.get((str(input2[i]), 0)).type.shape)
+        t = symbol_table.get((str(input2[i]), 0))
+        s = tuple(t.type.shape)
+        index_shapes.append(s)
+        input2_dim_sum += len(s)
+
     output_shape = list(node.tensor_meta["shape"])
     input_shape = input1.type.shape
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
-    if len(input2) < len(input1_shape):
-        tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-        output = tensor.EmptyOp(output_shape, mlir_dtype)
-        generic_map = ir.AffineMap.get_permutation(
-            [i for i in range(max(len(output_shape), len(input_shape)))]
-        )
-        input_map = []
+
+    # Create output tensor and result type
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    output = tensor.EmptyOp(output_shape, mlir_dtype)
+
+    # Generic map baseline: permutation map over max rank
+    max_rank = max(len(output_shape), len(input_shape))
+    generic_map = ir.AffineMap.get_permutation([i for i in range(max_rank)])
+
+    # Build indexing maps list (AffineMapAttr) for inputs and output.
+    # We'll attempt to detect common "broadcast" patterns and set maps explicitly.
+    input_map = []
+
+    # >>> CHANGED: handle a common broadcast pattern explicitly:
+    # If we have: input rank == 2, two index operands and shapes like
+    #   idx0: (1,1)  (a scalar per row, broadcast across cols)
+    #   idx1: (40,)  (one index per column)
+    # then set maps to:
+    #   idx0 -> (d0,d0)   (broadcast scalar per row across columns)
+    #   idx1 -> (d1)      (each column index uses d1)
+    #   output -> (d0,d1)
+    # This produces:
+    #   #map  = affine_map<(d0, d1) -> (d0, d0)>
+    #   #map1 = affine_map<(d0, d1) -> (d1)>
+    #   #map2 = affine_map<(d0, d1) -> (d0, d1)>
+    #
+    # If the pattern matches, we directly push these AffineMapAttr values.
+    # <<< CHANGED
+    applied_special_broadcast = False
+    if (
+        len(input_shape) == 2
+        and len(index_shapes) == 2
+        and len(output_shape) == 2
+    ):
+        s0 = index_shapes[0]
+        s1 = index_shapes[1]
+        # match the specific example: idx0 shape (1,1) and idx1 shape (N)
+        if (len(s0) == 2 and s0[0] == 1 and s0[1] == 1) and (
+            len(s1) == 1 and s1[0] == output_shape[1]
+        ):
+            # Construct explicit submaps:
+            # idx0 map -> [0,0]  (maps (d0,d1) -> (d0,d0))
+            # idx1 map -> [1]    (maps (d0,d1) -> (d1))
+            # output map -> [0,1] (maps (d0,d1) -> (d0,d1))
+            input_map.append(
+                ir.AffineMapAttr.get(generic_map.get_submap([0, 0]))
+            )  # idx0: (d0,d0)
+            input_map.append(
+                ir.AffineMapAttr.get(generic_map.get_submap([1]))
+            )  # idx1: (d1)
+            input_map.append(
+                ir.AffineMapAttr.get(generic_map.get_submap([0, 1]))
+            )  # output: (d0,d1)
+            applied_special_broadcast = True
+
+    # >>> CHANGED: fallback / general construction when special case not applied
+    if not applied_special_broadcast:
+        # Original-ish logic but made a bit clearer:
+        # For each index operand, try to map its dimensions into the iteration
+        # space. The naive rule here is: assume index operands' dims correspond
+        # to contiguous dimensions in the iteration space; we use the same
+        # start-offset logic you had. This works for many common patterns.
+        #
+        # NOTE: if more advanced broadcasting rules are needed, extend this
+        # block (for example: detect singleton dims and repeat the mapping).
+        offset = 0
         for i in range(len(input2)):
             input2_shape = symbol_table.get((str(input2[i]), 0)).type.shape
+            dim_len = len(input2_shape)
+            # take submap covering [offset, offset+dim_len)
+            idx_list = [j for j in range(offset, offset + dim_len)]
             input_map.append(
-                ir.AffineMapAttr.get(
-                    generic_map.get_submap(
-                        [j for j in range(i, i + len(input2_shape))]
-                    )
-                )
+                ir.AffineMapAttr.get(generic_map.get_submap(idx_list))
             )
+            offset += dim_len
+
+        # Now append output map: if input rank > output rank, align to last dims of input
         if len(input_shape) > len(output_shape):
+            out_start = len(input_shape) - len(output_shape)
+            idx_list = [j for j in range(out_start, len(input_shape))]
             input_map.append(
-                ir.AffineMapAttr.get(
-                    generic_map.get_submap(
-                        [
-                            j
-                            for j in range(
-                                len(input_shape) - len(output_shape),
-                                len(input_shape),
-                            )
-                        ]
-                    )
-                )
+                ir.AffineMapAttr.get(generic_map.get_submap(idx_list))
             )
         else:
+            # default: output occupies first len(output_shape) iteration dims
+            idx_list = [j for j in range(len(output_shape))]
             input_map.append(
-                ir.AffineMapAttr.get(
-                    generic_map.get_submap(
-                        [j for j in range(len(output_shape))]
-                    )
-                )
+                ir.AffineMapAttr.get(generic_map.get_submap(idx_list))
             )
-        operands = [symbol_table.get((str(i), 0)) for i in input2]
-        op = linalg.GenericOp(
-            [tensor_type],
-            operands,
-            [output],
-            ir.ArrayAttr.get(input_map),
-            ir.ArrayAttr.get(
-                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
-                * max(len(output_shape), len(input_shape))
-            ),
-        )
-        arguments = [
-            ir.RankedTensorType(i.type).element_type for i in operands
-        ] + [ir.RankedTensorType(output.result.type).element_type]
-        block = ir.Block.create_at_start(op.region, arguments)
-        index = []
-        for i in block.arguments[:-1]:
-            indexcast_op = arith.IndexCastOp(ir.IndexType.get(), i)
-            block.append(indexcast_op)
-            index.append(indexcast_op.result)
-        for i in range(
-            input2_dim_sum, max(len(input_shape), len(output_shape))
-        ):
-            index_op = linalg.IndexOp(ir._i64Attr(i, None))
-            block.append(index_op)
-            index.append(index_op.result)
-        value = tensor.ExtractOp(input1, index)
-        block.append(value)
-        block.append(linalg.YieldOp([value.result]))
+    # <<< CHANGED
+
+    # Build operands list
+    operands = [symbol_table.get((str(i), 0)) for i in input2]
+
+    # Prepare iterator types (parallel for each iteration dimension)
+    iter_count = max(len(output_shape), len(input_shape))
+    iterator_attr = ir.ArrayAttr.get(
+        [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * iter_count
+    )
+
+    # Create the linalg.generic op
+    op = linalg.GenericOp(
+        [tensor_type],
+        operands,
+        [output],
+        ir.ArrayAttr.get(input_map),
+        iterator_attr,
+    )
+
+    # Build the region body
+    arguments = [ir.RankedTensorType(i.type).element_type for i in operands] + [
+        ir.RankedTensorType(output.result.type).element_type
+    ]
+    block = ir.Block.create_at_start(op.region, arguments)
+
+    # Convert block arguments (index outputs) into i64/index values as in original
+    index = []
+    for i in block.arguments[:-1]:
+        indexcast_op = arith.IndexCastOp(ir.IndexType.get(), i)
+        block.append(indexcast_op)
+        index.append(indexcast_op.result)
+
+    # If needed, append explicit linalg.index ops to reach the iteration space dims
+    for i in range(input2_dim_sum, max(len(input_shape), len(output_shape))):
+        index_op = linalg.IndexOp(ir._i64Attr(i, None))
+        block.append(index_op)
+        index.append(index_op.result)
+
+    # Extract value from the input tensor using the constructed 'index' list
+    value = tensor.ExtractOp(input1, index)
+    block.append(value)
+    block.append(linalg.YieldOp([value.result]))
 
     return op
 
@@ -2379,30 +2460,66 @@ def equal_op(
     symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
-    Import the tensor equal operation.
-    Converts Buddy EqualOp to the MLIR arith `CmpIOp` or `CmpFOp` operation.
+    Converts a Buddy EqualOp operation to an MLIR comparison operation (CmpIOp or CmpFOp).
 
-    This operation compares two input tensors and produces a boolean tensor
-    representing the comparison result.
+    This operation compares two input tensors (or a tensor and a scalar) and produces a boolean tensor
+    where each element represents the result of the comparison. The operation handles both integer and
+    floating-point comparisons.
 
-    Args:
-        node: The input graph node containing operation details.
-        symbol_table: A dictionary mapping symbols to their corresponding
-                      operations.
+    Parameters:
+        node (EqualOp): The Buddy EqualOp node containing the operation details and tensor metadata.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
 
     Returns:
-        op: A linalg.generic operation that performs element-wise equality
-            comparison.
+        op: An MLIR comparison operation (either CmpIOp for integers or CmpFOp for floats) that performs
+            element-wise equality comparison between the input tensors or tensor and scalar.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
     input_shape = ir.RankedTensorType(input_tensor.type).shape
-    tensor_type = ir.RankedTensorType.get(input_shape, input_dtype)
-    if str(input_dtype).find("i") == -1:
-        scalar = arith.ConstantOp(input_dtype, float(node.args[1]))
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    if isinstance(node.args[1], str):
+        rhs = symbol_table.get((str(node.args[1]), 0), node.args[1])
+        if input_tensor.type.shape != output_shape:
+            tensor_type = ir.RankedTensorType.get(
+                output_shape, input_tensor.type.element_type
+            )
+            if str(input_tensor.type.element_type) == "f32":
+                element = ir.FloatAttr.get(ir.F32Type.get(), 0)
+            elif str(input_tensor.type.element_type) == "f16":
+                element = ir.FloatAttr.get(ir.F16Type.get(), 0)
+            elif str(input_tensor.type.element_type) == "i64":
+                element = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), 0)
+            attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+            to_broadcast_tensor = arith.ConstantOp(input_tensor.type, attr)
+            input_tensor = tosa.AddOp(
+                tensor_type, input_tensor, to_broadcast_tensor
+            ).result
+
+        if rhs.type.shape != output_shape:
+            tensor_type = ir.RankedTensorType.get(
+                output_shape, rhs.type.element_type
+            )
+            if str(rhs.type.element_type) == "f32":
+                element = ir.FloatAttr.get(ir.F32Type.get(), 0)
+            elif str(input_tensor.type.element_type) == "f16":
+                element = ir.FloatAttr.get(ir.F16Type.get(), 0)
+            elif str(input_tensor.type.element_type) == "i64":
+                element = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), 0)
+            attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+            to_broadcast_tensor = arith.ConstantOp(rhs.type, attr)
+            rhs = tosa.AddOp(
+                tensor_type, input_tensor, to_broadcast_tensor
+            ).result
     else:
-        scalar = arith.ConstantOp(input_dtype, node.args[1])
-    rhs = tensor.SplatOp(tensor_type, scalar, [])
+        tensor_type = ir.RankedTensorType.get(input_shape, input_dtype)
+        if str(input_dtype).find("i") == -1:
+            scalar = arith.ConstantOp(input_dtype, float(node.args[1]))
+        else:
+            scalar = arith.ConstantOp(input_dtype, node.args[1])
+        rhs = tensor.SplatOp(tensor_type, scalar, [])
     if str(input_dtype).find("i") != -1:
         cmp_op = arith.CmpIOp(0, input_tensor, rhs)
     else:
@@ -2543,6 +2660,344 @@ def slice_scatter_op(node: SliceScatterOp, symbol_table):
     return insert_op.result
 
 
+def index_put_op(
+    node: IndexPutOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy IndexPutOp operation to an MLIR operation using scf.ForOp loops.
+
+    This operation updates elements in the target tensor (input1) at specified indices (from input2)
+    with new values (from input3). It handles cases where some indices are `None`, which represents
+    a full selection for that dimension. The operation is implemented using nested loops over the
+    tensor dimensions.
+
+    Parameters:
+        node (IndexPutOp): The Buddy IndexPutOp containing tensor metadata and index data.
+        symbol_table (dict): A mapping from tensor names to corresponding MLIR operations.
+
+    Returns:
+        op: The MLIR operation representing the converted IndexPutOp.
+    """
+    assert len(node.args[1]) == 3
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    input1_shape = input1.type.shape
+    input2 = node.args[1]
+    input3 = symbol_table.get((str(node.args[2]), 0))
+    input3_shape = input3.type.shape
+    input1_memref_element_type = input1.type.element_type
+    input1_memref_type = ir.MemRefType.get(
+        input1_shape, input1_memref_element_type
+    )
+    input1_memref = bufferization.ToMemrefOp(input1_memref_type, input1)
+
+    input2_memref = []
+    for i in range(len(node.args[1])):
+        if node.args[1][i] == None:
+            input2_memref.append(None)
+            continue
+        input2_ = symbol_table.get((str(node.args[1][i]), 0))
+        shape = input2_.type.shape
+        memref_element_type = input2_.type.element_type
+        memref_type = ir.MemRefType.get(shape, memref_element_type)
+        input2_memref.append(bufferization.ToMemrefOp(memref_type, input2_))
+
+    input3_memref_element_type = input3.type.element_type
+    input3_memref_type = ir.MemRefType.get(
+        input3_shape, input3_memref_element_type
+    )
+    input3_memref = bufferization.ToMemrefOp(input3_memref_type, input3)
+
+    if len(output_shape) == 4:
+        lb = arith.ConstantOp(ir.IndexType.get(), 0)
+        step = arith.ConstantOp(ir.IndexType.get(), 1)
+
+        ub = []
+        for i in range(len(output_shape)):
+            ub.append(arith.ConstantOp(ir.IndexType.get(), input3_shape[i]))
+
+        loop0 = scf.ForOp(lb, ub[0], step)
+        with ir.InsertionPoint(loop0.body):
+            loop1 = scf.ForOp(lb, ub[1], step)
+            with ir.InsertionPoint(loop1.body):
+                loop2 = scf.ForOp(lb, ub[2], step)
+                with ir.InsertionPoint(loop2.body):
+                    if input2[2] != None:
+                        idx_dim2_val = memref.LoadOp(
+                            input2_memref[2], [loop2.induction_variable]
+                        )
+                        idx_dim2 = arith.IndexCastOp(
+                            ir.IndexType.get(), idx_dim2_val
+                        )
+                    loop3 = scf.ForOp(lb, ub[3], step)
+                    with ir.InsertionPoint(loop3.body):
+                        val_index = [
+                            loop0.induction_variable,
+                            loop1.induction_variable,
+                            loop2.induction_variable,
+                            loop3.induction_variable,
+                        ]
+                        put_val = memref.LoadOp(input3_memref, val_index)
+                        store_index = [
+                            loop0.induction_variable,
+                            loop1.induction_variable,
+                            idx_dim2,
+                            loop3.induction_variable,
+                        ]
+                        memref.StoreOp(put_val, input1_memref, store_index)
+                        scf.YieldOp(loop3.inner_iter_args)
+                    scf.YieldOp(loop2.inner_iter_args)
+                scf.YieldOp(loop1.inner_iter_args)
+            scf.YieldOp(loop0.inner_iter_args)
+        output_tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+        op = bufferization.ToTensorOp(
+            output_tensor_type, input1_memref, restrict=True
+        )
+    return op
+
+
+def ne_scalar_op(
+    node: NeScalarOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy NeScalarOp operation to an MLIR comparison operation (CmpIOp or CmpFOp).
+
+    This operation compares a tensor with a scalar value and produces a boolean tensor where each element
+    represents the result of the inequality comparison (not equal). The operation supports both integer
+    and floating-point types.
+
+    Parameters:
+        node (NeScalarOp): The Buddy NeScalarOp node containing the operation details and tensor metadata.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: An MLIR comparison operation (either CmpIOp for integers or CmpFOp for floats) that performs
+            element-wise inequality (not equal) comparison between the input tensor and the scalar.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    input_shape = ir.RankedTensorType(input_tensor.type).shape
+    tensor_type = ir.RankedTensorType.get(input_shape, input_dtype)
+
+    scalar = arith.ConstantOp(input_dtype, node.args[1])
+    rhs = tensor.SplatOp(tensor_type, scalar, [])
+
+    if str(input_dtype).find("i") != -1:
+        cmp_op = arith.CmpIOp(1, input_tensor, rhs)
+    else:
+        cmp_op = arith.CmpFOp(6, input_tensor, rhs)
+
+    return cmp_op
+
+
+def cumsum_op(
+    node: NeScalarOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy CumsumOp operation to an MLIR operation using scf.ForOp loops.
+
+    This operation computes the cumulative sum along a specified dimension (axis) of a 2D input tensor.
+    The operation supports element-wise summation and updates the tensor in place.
+
+    Parameters:
+        node (CumsumOp): The Buddy CumsumOp node containing the operation details and tensor metadata.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: An MLIR operation that performs the cumulative sum along the specified dimension (axis) of the input tensor.
+            The result is stored in the output tensor.
+    """
+    output_shape = list(node.tensor_meta["shape"])
+    assert len(output_shape) == 2
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    output_tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+
+    if input1.type.element_type != mlir_dtype:
+        input1 = tosa.CastOp(output_tensor_type, input1).result
+
+    input1_memref_element_type = input1.type.element_type
+    input1_memref_type = ir.MemRefType.get(
+        input1.type.shape, input1_memref_element_type
+    )
+    input1_memref = bufferization.ToMemrefOp(input1_memref_type, input1)
+
+    dim = node.args[1]
+    if dim == -1:
+        dim += len(output_shape)
+    assert dim == 1
+    lb = arith.ConstantOp(ir.IndexType.get(), 0)
+    lb1 = arith.ConstantOp(ir.IndexType.get(), 1)
+    step = arith.ConstantOp(ir.IndexType.get(), 1)
+    ub = []
+    for i in range(len(output_shape)):
+        ub.append(arith.ConstantOp(ir.IndexType.get(), output_shape[i]))
+
+    loop0 = scf.ForOp(lb, ub[0], step)
+    with ir.InsertionPoint(loop0.body):
+        loop1 = scf.ForOp(lb1, ub[1], step)
+        with ir.InsertionPoint(loop1.body):
+            index_val = arith.SubIOp(loop1.induction_variable, step)
+            val_before = memref.LoadOp(
+                input1_memref, [loop0.induction_variable, index_val]
+            )
+            val_cur = memref.LoadOp(
+                input1_memref,
+                [loop0.induction_variable, loop1.induction_variable],
+            )
+            val_sum = arith.AddIOp(val_before.result, val_cur.result)
+            memref.StoreOp(
+                val_sum,
+                input1_memref,
+                [loop0.induction_variable, loop1.induction_variable],
+            )
+            scf.YieldOp(loop1.inner_iter_args)
+        scf.YieldOp(loop0.inner_iter_args)
+
+    op = bufferization.ToTensorOp(
+        output_tensor_type, input1_memref, restrict=True
+    )
+
+    return op
+
+
+def tensor_constant_op(
+    node: TensorConstantOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy Constant0Op operation to an MLIR arith.ConstantOp.
+
+    This operation creates a constant tensor filled with zeros. It constructs a ranked tensor
+    of the specified shape and data type, generates a zero-valued element attribute, and
+    initializes the entire tensor with this value using a splat attribute.
+
+    Parameters:
+        node (Constant0Op): The Buddy Constant0Op node containing the tensor shape and data type metadata.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: An MLIR arith.ConstantOp representing a tensor filled with zeros.
+    """
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    output_shape = list(node.tensor_meta["shape"])
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    value = node.args[0]
+    element = mlir_element_attr_get(dtype, value)
+    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+    op = arith.ConstantOp(tensor_type, attr)
+    return op
+
+
+def lift_fresh_copy_op(
+    node: LiftFreshCopyOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy LiftFreshCopyOp operation to an MLIR tosa.IdentityOp.
+
+    This operation creates a new tensor with the same shape and element type as the input tensor,
+    effectively producing a fresh copy without modifying the data. Internally, this is represented
+    as an identity operation in MLIR.
+
+    Parameters:
+        node (LiftFreshCopyOp): The Buddy LiftFreshCopyOp node containing the operation details.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: An MLIR tosa.IdentityOp that represents creating a fresh copy of the input tensor.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    sizes = ir.RankedTensorType(input_tensor.type).shape
+    result_element_type = ir.RankedTensorType(input_tensor.type).element_type
+    output_type = ir.RankedTensorType.get(sizes, result_element_type)
+    op = tosa.IdentityOp(output_type, input_tensor)
+    return op
+
+
+def repeat_op(
+    node: LiftFreshCopyOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy RepeatOp operation to an MLIR operation.
+
+    This operation is intended to repeat a tensor along specified dimensions by a given set of repeat factors.
+    If all repeat factors are 1, the input tensor is returned without any modification. If the repeat factors
+    are not fully implemented or contain values other than 1, the operation currently raises an assertion error.
+
+    Parameters:
+        node (RepeatOp): The Buddy RepeatOp node containing the tensor and repeat factors.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: The input tensor, or a modified version if repeat factors are implemented in the future.
+
+    Note:
+        - The repeat functionality is not fully implemented. Currently, if all repeat factors are 1, the input tensor
+        is returned unchanged.
+        - If any repeat factor is other than 1, an assertion error is triggered.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    repeat_factors = node.args[1]
+    if len(repeat_factors) == repeat_factors.count(1):
+        return input_tensor
+    else:
+        assert False
+    return input_tensor
+
+
+def as_strided_op(
+    node: AsStridedOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Converts a Buddy AsStridedOp operation to an MLIR operation.
+
+    This operation is intended to implement the `as_strided` functionality, allowing
+    a tensor to be viewed with a different shape, stride, or offset. Currently, only
+    the simple case where the total number of elements in the input and output tensors
+    is the same is partially implemented. In this case, the operation falls back to
+    a reshape using tosa.ReshapeOp.
+
+    Parameters:
+        node (AsStridedOp): The Buddy AsStridedOp node containing the tensor and metadata.
+        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
+
+    Returns:
+        op: An MLIR operation representing the reshaped tensor when input and output sizes match.
+
+    Note:
+        - Full strided functionality (with arbitrary strides or offsets) is not yet implemented.
+        - If the input and output sizes differ, the operation currently raises an assertion error.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_shape = input_tensor.type.shape
+    output_shape = list(node.tensor_meta["shape"])
+    input_size = 1
+    output_size = 1
+    for i in input_shape:
+        input_size *= i
+    for i in output_shape:
+        output_size *= i
+    if input_size == output_size:
+        tensor_type = ir._denseI64ArrayAttr(
+            numpy.array(output_shape, dtype=numpy.int64), None
+        )
+        op = tosa.ReshapeOp(input_tensor, tensor_type)
+    else:
+        assert False
+
+    return op
+
+
 ops_registry = {
     "MatmulOp": matmul_op,
     "TransposeMatmulFusedOp": matmul_transpose_b_op,
@@ -2585,4 +3040,11 @@ ops_registry = {
     "EqualOp": equal_op,
     "CopyOp": copy_op,
     "SliceScatterOp": slice_scatter_op,
+    "IndexPutOp": index_put_op,
+    "NeScalarOp": ne_scalar_op,
+    "CumsumOp": cumsum_op,
+    "TensorConstantOp": tensor_constant_op,
+    "LiftFreshCopyOp": lift_fresh_copy_op,
+    "RepeatOp": repeat_op,
+    "AsStridedOp": as_strided_op,
 }

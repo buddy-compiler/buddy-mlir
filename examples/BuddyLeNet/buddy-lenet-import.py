@@ -53,9 +53,7 @@ model = torch.load(model_path + "/lenet-model.pth", weights_only=False)
 model = model.eval()
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
-dynamo_compiler = DynamoCompiler(
-    primary_registry=tosa.ops_registry, verbose=True
-)
+dynamo_compiler = DynamoCompiler(primary_registry=tosa.ops_registry)
 
 data = torch.randn([1, 1, 28, 28])
 # Import the model into MLIR module and parameters.
