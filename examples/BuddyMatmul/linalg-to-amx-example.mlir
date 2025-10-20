@@ -15,6 +15,7 @@
 // RUN:     -L%mlir_runner_utils_dir -lmlir_runner_utils -lmlir_c_runner_utils -lpthread \
 // RUN:     -Wl,-rpath,%mlir_runner_utils_dir
 // RUN: %t.exe
+// REQUIRES: has_amx
 
 
 // Example demonstrating automatic conversion from linalg.matmul to AMX operations
