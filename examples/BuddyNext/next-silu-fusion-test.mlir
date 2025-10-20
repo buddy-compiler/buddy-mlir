@@ -51,17 +51,30 @@ func.func @main() {
 // CHECK-LABEL: func.func @test_silu_fusion
 // CHECK-NOT: tosa.sigmoid
 // CHECK-NOT: tosa.mul
-// CHECK: linalg.generic
+// CHECK: %[[CST:.*]] = arith.constant 1.{{0+}}e+00 : f32
+// CHECK: %[[EMPTY:.*]] = tensor.empty
+// CHECK: %[[RESULT:.*]] = linalg.generic
+// CHECK-SAME: ins(%arg0 : tensor<1x40x11008xf32>)
+// CHECK-SAME: outs(%[[EMPTY]] : tensor<1x40x11008xf32>)
+// CHECK: ^bb0(%[[IN:.*]]: f32, %[[OUT:.*]]: f32):
+// CHECK: %[[NEG:.*]] = arith.negf %[[IN]] : f32
+// CHECK: %[[EXP:.*]] = math.exp %[[NEG]] : f32
+// CHECK: %[[ADD:.*]] = arith.addf %[[EXP]], %[[CST]] : f32
+// CHECK: %[[DIV:.*]] = arith.divf %[[CST]], %[[ADD]] : f32
+// CHECK: %[[MUL:.*]] = arith.mulf %[[IN]], %[[DIV]] : f32
+// CHECK: linalg.yield %[[MUL]] : f32
+
+// CHECK-LABEL: func.func @test_silu_fusion_reverse
+// CHECK-NOT: tosa.sigmoid
+// CHECK-NOT: tosa.mul
+// CHECK: %[[RESULT:.*]] = linalg.generic
+// CHECK: ^bb0(%[[IN:.*]]: f32, %[[OUT:.*]]: f32):
 // CHECK: arith.negf
 // CHECK: math.exp
 // CHECK: arith.addf
 // CHECK: arith.divf
 // CHECK: arith.mulf
-
-// CHECK-LABEL: func.func @test_silu_fusion_reverse
-// CHECK-NOT: tosa.sigmoid
-// CHECK-NOT: tosa.mul
-// CHECK: linalg.generic
+// CHECK: linalg.yield
 
 // CHECK-LABEL: func.func @test_no_fusion_multiple_uses
 // CHECK: tosa.sigmoid
