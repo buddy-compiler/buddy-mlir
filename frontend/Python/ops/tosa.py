@@ -2113,6 +2113,3 @@ ops_registry = {
     "LeOp": le_op,
     "BitwiseAndTensorOp": bitwise_and_tensor_op,
 }
-
-# Merge func ops registry (for CallOp, FuncOp, etc.)
-ops_registry.update(func_ops.ops_registry)
