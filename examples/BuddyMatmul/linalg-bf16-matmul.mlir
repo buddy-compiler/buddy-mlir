@@ -31,7 +31,7 @@ module {
     // on the operands to the inner multiply, promoting them to the same
     // data type as the accumulator/output (f32 in this case)
     linalg.matmul ins(%A, %B : memref<?x?xbf16>, memref<?x?xbf16>)
-                  outs(%C : memref<?x?xf32>)
+                  outs(%C : memref<?x?xbf16>)
 
     return
   }
