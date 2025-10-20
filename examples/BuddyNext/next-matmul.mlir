@@ -35,10 +35,17 @@ func.func @kernel(%lhs: tensor<40x3072xf32>, %rhs: tensor<3072x1536xf32>) {
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64
 
+  // Verify the result: each element should be 3072 * 2.0 * 3.0 = 18432.0
+  %c0_idx = arith.constant 0 : index
+  %result_elem = tensor.extract %result[%c0_idx, %c0_idx] : tensor<40x1536xf32>
+  vector.print %result_elem : f32
+  // CHECK: 18432
+
   %tensor_unranked = tensor.cast %result : tensor<40x1536xf32> to tensor<*xf32>
 
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
   // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 2 offset = 0 sizes = \[40, 1536\] strides = \[1536, 1\] data =}}
+  // CHECK: [18432, 18432, 18432,
 
   vector.print %time : f64
   // CHECK: {{[0-9]+\.[0-9]+}}

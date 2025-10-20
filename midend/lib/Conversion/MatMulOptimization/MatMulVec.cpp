@@ -18,7 +18,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
@@ -70,15 +69,16 @@ public:
 
     Value c0Ele = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
 
-    Value aRow = rewriter.create<memref::DimOp>(loc, A, c0); // M = 40
-    Value bRow = rewriter.create<memref::DimOp>(loc, B, c0); // K = 3072
-    Value bCol = rewriter.create<memref::DimOp>(loc, B, c1); // N = 1536
+    // Get matrix dimensions: A is MxK, B is KxN, C is MxN
+    Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);
+    Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);
+    Value bCol = rewriter.create<memref::DimOp>(loc, B, c1);
 
-    // for i = 0 to M (40)
+    // Outer loop: iterate over rows of A (dimension M)
     rewriter.create<scf::ForOp>(
         loc, c0, aRow, c1, ValueRange{},
         [&](OpBuilder &builder, Location loc, Value i, ValueRange iterArgs) {
-          // for j = 0 to N step vecSize (1536 step 16)
+          // Middle loop: iterate over columns of B with vector step (dimension N)
           builder.create<scf::ForOp>(
               loc, c0, bCol, step, ValueRange{},
               [&](OpBuilder &builder, Location loc, Value j,
@@ -86,7 +86,7 @@ public:
                 Value accVec = builder.create<vector::TransferReadOp>(
                     loc, vectorTy, C, ValueRange{i, j}, c0Ele);
 
-                // for k = 0 to K (3072)
+                // Inner loop: iterate over reduction dimension K
                 auto forOp = builder.create<scf::ForOp>(
                     loc, c0, bRow, c1, ValueRange{accVec},
                     [&](OpBuilder &builder, Location loc, Value k,
@@ -146,7 +146,8 @@ public:
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect, scf::SCFDialect,
-                    affine::AffineDialect, VectorDialect>();
+                    VectorDialect, arith::ArithDialect,
+                    memref::MemRefDialect>();
   }
 
   Option<int64_t> vecSize{*this, "vector-size",
@@ -161,9 +162,9 @@ void MatMulVecPass::runOnOperation() {
 
   ConversionTarget target(*context);
   target.addLegalDialect<arith::ArithDialect, scf::SCFDialect,
-                         memref::MemRefDialect, VectorDialect>();
-  target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp,
-                    linalg::FillOp>();
+                         memref::MemRefDialect, VectorDialect,
+                         func::FuncDialect>();
+  target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
   patterns.add<MatMulVecPattern>(context, vecSize);
