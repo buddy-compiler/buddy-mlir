@@ -88,12 +88,14 @@ void registerLegalizeShmemOutliningPass();
 void registerVIRToVectorPass();
 void registerLinalgToVIRPass();
 void registerSimplifyTosaReshapePass();
+void registerFuseFCPass();
 } // namespace buddy
 } // namespace mlir
 
 int main(int argc, char **argv) {
   // Register all MLIR passes.
   mlir::registerAllPasses();
+  mlir::buddy::registerFuseFCPass();
   mlir::buddy::registerPointwiseConvToGemmPass();
   // Register Vectorization of Convolution.
   mlir::buddy::registerConvVectorizationPass();
