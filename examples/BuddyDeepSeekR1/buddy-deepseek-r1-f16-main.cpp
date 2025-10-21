@@ -152,8 +152,8 @@ int main() {
   /// Define directories of vacabulary and parameter file.
   std::string deepSeekR1Dir = DEEPSEEKR1_EXAMPLE_PATH;
   std::string deepSeekR1BuildDir = DEEPSEEKR1_EXAMPLE_BUILD_PATH;
-  const std::string vocabDir = deepSeekR1Dir + "/vocab.txt";
-  const std::string paramsDir = deepSeekR1BuildDir + "/arg0-f16.data";
+  const std::string vocabDir = deepSeekR1Dir + "vocab.txt";
+  const std::string paramsDir = deepSeekR1BuildDir + "arg0-f16.data";
 
   /// Get user message.
   std::string inputStr;
