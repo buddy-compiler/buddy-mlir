@@ -259,6 +259,8 @@ add_custom_command(
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -convert-elementwise-to-linalg
+            -canonicalize
+            -cse
             -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
@@ -266,6 +268,9 @@ add_custom_command(
             -bufferization-lower-deallocations
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
+            -canonicalize
+            -cse
+            -sccp
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
@@ -273,7 +278,10 @@ add_custom_command(
             -lower-affine
             -convert-scf-to-openmp
             -func-bufferize-dynamic-offset
+            -canonicalize
             -cse
+            -sccp
+            -remove-dead-values
             -memref-expand
             -arith-expand
             -convert-vector-to-llvm
