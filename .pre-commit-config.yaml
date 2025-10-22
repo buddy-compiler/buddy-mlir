@@ -57,3 +57,4 @@ repos:
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-added-large-files
+        args: ['--maxkb=1000']  # Allow maximum 1MB files

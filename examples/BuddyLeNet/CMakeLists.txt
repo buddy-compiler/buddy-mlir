@@ -29,6 +29,9 @@ add_custom_command(
             -eliminate-empty-tensors
             -convert-tensor-to-linalg
             -one-shot-bufferize="bufferize-function-boundaries"
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -func-bufferize-dynamic-offset
@@ -98,6 +101,9 @@ add_custom_command(
           ${BUDDY_BINARY_DIR}/buddy-opt
           -one-shot-bufferize="bufferize-function-boundaries"
           -func-bufferize-dynamic-offset
+          -ownership-based-buffer-deallocation
+          -buffer-deallocation-simplification
+          -bufferization-lower-deallocations
           -convert-linalg-to-parallel-loops
           -canonicalize
           -gpu-map-parallel-loops

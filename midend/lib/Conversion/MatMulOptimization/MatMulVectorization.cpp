@@ -28,6 +28,8 @@
 #include <mlir/Pass/Pass.h>
 
 #include "Utils/Utils.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "llvm/ADT/SmallVector.h"
 
 using namespace mlir;
 using namespace vector;
@@ -50,112 +52,168 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
-    // Get input A, B, C.
-    Value A = op->getOperand(0);
-    Value B = op->getOperand(1);
-    Value C = op->getOperand(2);
-    // Get shape of input and output
-    ShapedType ATy = A.getType().cast<ShapedType>();
-    Type eleTy = ATy.getElementType();
-    // ShapedType BTy = B.getType().cast<ShapedType>();
-    // ShapedType CTy = C.getType().cast<ShapedType>();
 
-    auto ctx = op->getContext();
-    // Get i1 as the element type for mask vector.
-    IntegerType i1 = IntegerType::get(ctx, 1);
-    // Define `*Type`.
-    VectorType vectorTy = mlir::VectorType::get({vecSize}, eleTy);
-    VectorType vectorMaskTy = VectorType::get({vecSize}, i1);
-    // Some constants.
+    // Create constant 0-7 values.
     const Value c0 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
     const Value c1 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-    const Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
-    // Create pass through vector.
-    const Value c0Ele = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
-    Value passthruVec = rewriter.create<SplatOp>(loc, vectorTy, c0Ele);
+    // unroll size
+    // Note: the unroll factor is not the same as the vector size.
+    const Value c8 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(8));
 
-    // Create DimOp.
-    const Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);
-    // This algorithm does not use the column A index.
-    // const Value aCol = rewriter.create<memref::DimOp>(loc, A, c1);
-    const Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);
-    const Value bCol = rewriter.create<memref::DimOp>(loc, B, c1);
-    // Size of vector type.
-    AffineExpr d0;
-    bindDims(ctx, d0);
-    AffineMap vecTailMap = AffineMap::get(1, 0, {d0.ceilDiv(vecSize)}, ctx);
-    SmallVector<Value, 8> lowerBounds(2, c0);
-    SmallVector<Value, 8> uperBounds{bRow, aRow};
-    SmallVector<int64_t, 8> steps(2, /*Value=*/1);
-    // clang-format off
-    affine::buildAffineLoopNest(
-        rewriter, loc, lowerBounds, uperBounds, steps,
-        [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-      // Create loop based on vector size.
-      builder.create<affine::AffineForOp>(
-          loc, ValueRange{c0}, builder.getDimIdentityMap(),
-          ValueRange{bCol}, vecTailMap, /*Step=*/1, std::nullopt,
-          [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
-              ValueRange itrArgs) {
-        // Load element and broadcast to vector.
-        Value aEle = builder.create<memref::LoadOp>(
-            loc, A, ValueRange{ivs[1], ivs[0]});
-        Value aVec = builder.create<vector::BroadcastOp>(loc, vectorTy, aEle);
-        // Check tail.
-        AffineExpr m, n, k;
-        bindDims(ctx, m, n, k);
-        AffineMap BVectorMap = AffineMap::get(
-            /*dimCount=*/3, /*symbolCount=*/0, {m, k * vecSize}, ctx);
-        AffineExpr x, y, z;
-        bindDims(ctx, x, y, z);
-        AffineMap CVectorMap = AffineMap::get(
-            /*dimCount=*/3, /*symbolCount=*/0, {y, z * vecSize}, ctx);
-        // Calculate the tail.
-        Value bColCur = builder.create<arith::MulIOp>(loc, iv, step);
-        Value tailLen = builder.create<arith::SubIOp>(loc, bCol, bColCur);
-        Value tailFlag = rewriter.create<arith::CmpIOp>(
-            loc, arith::CmpIPredicate::sge, tailLen, step);
-        // If the current column does not reach the tail.
-        builder.create<scf::IfOp>(loc, tailFlag,
-            [&](OpBuilder &builder, Location loc) {
-          Value bVec = builder.create<affine::AffineVectorLoadOp>(
-              loc, vectorTy, B, BVectorMap, ValueRange{ivs[0], ivs[1], iv});
-          Value cVec = builder.create<affine::AffineVectorLoadOp>(
-              loc, vectorTy, C, CVectorMap, ValueRange{ivs[0], ivs[1], iv});
-          // FMA = Fused Multiply + Add
-          // FMAOp only supports floating point type input.
-          // TODO: Write a utils function for FMA to support both int and float.
-          Value resultVector = builder.create<FMAOp>(loc, aVec, bVec, cVec);
-          builder.create<affine::AffineVectorStoreOp>(
-              loc, resultVector, C, CVectorMap, ValueRange{ivs[0], ivs[1], iv});
-          builder.create<scf::YieldOp>(loc);
-        },
-        // The else branch (the current column reaches the tail).
-        [&](OpBuilder &builder, Location loc) {
-          // Create mask according to the tail.
-          Value maskVec = builder.create<CreateMaskOp>(
-              loc, vectorMaskTy, tailLen);
-          Value bColIdxTail = builder.create<arith::MulIOp>(loc, iv, step);
-          // Masked load input and output.
-          Value bVecTail = builder.create<MaskedLoadOp>(
-              loc, vectorTy, B, ValueRange{ivs[0], bColIdxTail},
-              maskVec, passthruVec);
-          Value cVecTail = builder.create<MaskedLoadOp>(
-              loc, vectorTy, C, ValueRange{ivs[1], bColIdxTail},
-              maskVec, passthruVec);
-          // FMA.
-          Value resultVecTail =
-              builder.create<FMAOp>(loc, aVec, bVecTail, cVecTail);
-          builder.create<MaskedStoreOp>(
-              loc, C, ValueRange{ivs[1], bColIdxTail}, maskVec, resultVecTail);
-          builder.create<scf::YieldOp>(loc);
-        });
-        builder.create<affine::AffineYieldOp>(loc);
-      });
-    });
-    // clang-format on
+    // Get input A, B, C.
+    Value A = op->getOperand(0);
+    Value B = op->getOperand(1);
+    Value C = op->getOperand(2);
+
+    // Create DimOp for m, n, k.
+    const Value m = rewriter.create<memref::DimOp>(loc, A, c0);
+    const Value n = rewriter.create<memref::DimOp>(loc, C, c1);
+    const Value k = rewriter.create<memref::DimOp>(loc, A, c1);
+
+    // Define step.
+    const Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+
+    // Get element type and create vector type.
+    ShapedType ATy = cast<ShapedType>(A.getType());
+    Type eleTy = ATy.getElementType();
+    VectorType vectorTy = VectorType::get({vecSize}, eleTy);
+    FloatType eleFloatTy =
+        eleTy.isF32()
+            ? static_cast<FloatType>(Float32Type::get(rewriter.getContext()))
+            : static_cast<FloatType>(Float64Type::get(rewriter.getContext()));
+
+    auto tail_size = rewriter.create<arith::RemUIOp>(loc, m, c8);
+    auto parallel_size = rewriter.create<arith::SubIOp>(loc, m, tail_size);
+
+    auto createUnrollParallel = [&](int unroll_size, Value lowerBound,
+                                    Value upperBound) {
+      const Value unroll = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getIndexAttr(unroll_size));
+      auto parOp = rewriter.create<scf::ParallelOp>(
+          loc,
+          /*lowerBounds=*/ValueRange{lowerBound},
+          /*upperBounds=*/ValueRange{upperBound},
+          /*steps=*/ValueRange{unroll},
+          [&](OpBuilder &builder, Location loc, ValueRange mIdx) {
+            llvm::SmallVector<Value, 8> mIndices;
+            for (int i = 0; i < unroll_size; i++) {
+              auto offset = rewriter.create<arith::ConstantOp>(
+                  loc, rewriter.getIndexAttr(i));
+              auto m_index =
+                  rewriter.create<arith::AddIOp>(loc, mIdx[0], offset);
+              mIndices.push_back(m_index);
+            }
+
+            auto nBodyBoundTmp = rewriter.create<arith::SubIOp>(loc, n, step);
+            auto nBodyBound =
+                rewriter.create<arith::AddIOp>(loc, nBodyBoundTmp, c1);
+
+            auto nIterIdx = rewriter.create<scf::ForOp>(
+                loc,
+                /*lowerBound=*/c0,
+                /*upperBound=*/nBodyBound,
+                /*step=*/step,
+                /*initArgs=*/ValueRange{c0},
+                [&](OpBuilder &builder, Location loc, Value iv,
+                    ValueRange iterArgs) {
+                  SmallVector<Value> sumInitVecs;
+                  for (auto mIndex : mIndices) {
+                    auto sumInitVec = rewriter.create<vector::LoadOp>(
+                        loc, vectorTy, C, ValueRange{mIndex, iv});
+                    sumInitVecs.push_back(sumInitVec);
+                  }
+
+                  auto sumIterVecs = rewriter.create<scf::ForOp>(
+                      loc,
+                      /*lowerBound=*/c0,
+                      /*upperBound=*/k,
+                      /*step=*/c1,
+                      /*initArgs=*/
+                      ValueRange(sumInitVecs),
+                      [&](OpBuilder &builder, Location loc, Value kIdx,
+                          ValueRange iterArgs) {
+                        auto bVec = rewriter.create<vector::LoadOp>(
+                            loc, vectorTy, B, ValueRange{kIdx, iv});
+
+                        SmallVector<Value> resSumVecs;
+                        for (int i = 0; i < unroll_size; i++) {
+                          auto aEle = rewriter.create<memref::LoadOp>(
+                              loc, A, ValueRange{mIndices[i], kIdx});
+                          auto aVec = rewriter.create<vector::BroadcastOp>(
+                              loc, vectorTy, aEle);
+                          auto resSumVec = rewriter.create<vector::FMAOp>(
+                              loc, aVec, bVec, iterArgs[i]);
+                          resSumVecs.push_back(resSumVec);
+                        }
+                        builder.create<scf::YieldOp>(loc,
+                                                     ValueRange(resSumVecs));
+                      });
+
+                  for (int i = 0; i < unroll_size; i++) {
+                    rewriter.create<vector::StoreOp>(
+                        loc, sumIterVecs.getResult(i), C,
+                        ValueRange{mIndices[i], iv});
+                  }
+
+                  auto kNext = rewriter.create<arith::AddIOp>(loc, iv, step);
+                  builder.create<scf::YieldOp>(loc, ValueRange{kNext});
+                });
+
+            // Tail processing.
+            builder.create<scf::ForOp>(
+                loc, nIterIdx.getResult(0), n, c1, std::nullopt,
+                [&](OpBuilder &builder, Location loc, Value iv,
+                    ValueRange iterArgs) {
+                  SmallVector<Value> sumInits;
+                  for (auto mIndex : mIndices) {
+                    auto sumInit = rewriter.create<memref::LoadOp>(
+                        loc, eleFloatTy, C, ValueRange{mIndex, iv});
+                    sumInits.push_back(sumInit);
+                  }
+                  auto sumIterVecs = rewriter.create<scf::ForOp>(
+                      loc,
+                      /*lowerBound=*/c0,
+                      /*upperBound=*/k,
+                      /*step=*/c1,
+                      /*initArgs=*/
+                      ValueRange(sumInits),
+                      [&](OpBuilder &builder, Location loc, Value kIdx,
+                          ValueRange iterArgs) {
+                        SmallVector<Value> resSums;
+                        auto bEle = rewriter.create<memref::LoadOp>(
+                            loc, B, ValueRange{kIdx, iv});
+                        for (int i = 0; i < unroll_size; i++) {
+                          auto aEle = rewriter.create<memref::LoadOp>(
+                              loc, A, ValueRange{mIndices[i], kIdx});
+                          auto tmpEle =
+                              rewriter.create<arith::MulFOp>(loc, aEle, bEle);
+                          auto resSum = rewriter.create<arith::AddFOp>(
+                              loc, tmpEle, iterArgs[i]);
+                          resSums.push_back(resSum);
+                        }
+
+                        builder.create<scf::YieldOp>(loc, ValueRange(resSums));
+                      });
+
+                  for (int i = 0; i < unroll_size; i++) {
+                    rewriter.create<memref::StoreOp>(
+                        loc, sumIterVecs.getResult(i), C,
+                        ValueRange{mIndices[i], iv});
+                  }
+                  builder.create<scf::YieldOp>(loc);
+                });
+          });
+    };
+
+    // Create parallel op for m dimension with unroll factor equal to 8.
+    createUnrollParallel(8, c0, parallel_size);
+
+    // Create parallel op for the tail of m dimension.
+    createUnrollParallel(1, parallel_size, m);
+
     rewriter.eraseOp(op);
     return success();
   }

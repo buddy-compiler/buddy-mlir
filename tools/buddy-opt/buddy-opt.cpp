@@ -44,8 +44,10 @@
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
 #include "RVV/RVVDialect.h"
+#include "VIR/VIRAttrs.h"
 #include "VIR/VIRDialect.h"
 #include "VIR/VIROps.h"
+#include "VIR/VIRTypes.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
 
@@ -69,6 +71,7 @@ void registerLowerRVVPass();
 void registerMatMulOptimizePass();
 void registerMatMulVectorizationPass();
 void registerMatMulParallelVectorizationPass();
+void registerMatMulTransposeBUnrollVecPass();
 void registerTransposeOptimizationPass();
 void registerConvOptimizePass();
 void registerConvNhwcFhwcOptimizePass();
@@ -82,6 +85,9 @@ void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
 void registerLegalizeShmemOutliningPass();
+void registerVIRToVectorPass();
+void registerLinalgToVIRPass();
+void registerSimplifyTosaReshapePass();
 } // namespace buddy
 } // namespace mlir
 
@@ -114,6 +120,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerBatchMatMulTransVecPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
+  mlir::buddy::registerMatMulTransposeBUnrollVecPass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerConvOptimizePass();
   mlir::buddy::registerConvNhwcFhwcOptimizePass();
@@ -121,7 +128,10 @@ int main(int argc, char **argv) {
   mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
   mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
-
+  mlir::buddy::registerVIRToVectorPass();
+  mlir::buddy::registerLinalgToVIRPass();
+  // Register minimal TOSA reshape simplification pass.
+  mlir::buddy::registerSimplifyTosaReshapePass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
   mlir::buddy::registerLegalizeShmemOutliningPass();
