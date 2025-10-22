@@ -16,6 +16,7 @@
 
 #include "buddy-mlir-c/Dialects.h"
 
+// TODO: Does those inclusion for xxxOps.h necessary?
 #include "Dialect/Bud/BudDialect.h"
 #include "Dialect/Bud/BudOps.h"
 #include "Dialect/DAP/DAPDialect.h"
@@ -25,6 +26,7 @@
 #include "Dialect/Gemmini/GemminiDialect.h"
 #include "Dialect/Gemmini/GemminiOps.h"
 #include "Dialect/RVV/RVVDialect.h"
+#include "Dialect/VIR/VIRDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
 #include "Dialect/VectorExp/VectorExpOps.h"
 
@@ -38,3 +40,4 @@ MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Gemmini, gemmini,
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(RVV, rvv, buddy::rvv::RVVDialect)
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(VectorExp, vector_exp,
                                       buddy::vector_exp::VectorExpDialect)
+MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(VIR, vir, buddy::vir::VIRDialect)
