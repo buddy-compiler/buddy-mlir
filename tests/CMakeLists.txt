@@ -47,6 +47,11 @@ add_lit_testsuites(BUDDY ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${BUDDY_TEST_DEPEND
 option(BUDDY_ENABLE_E2E_TESTS "Enable end-to-end (E2E) tests for Models" OFF)
 
 if(BUDDY_ENABLE_E2E_TESTS)
+
+  # Always enable PNG and DIP lib support
+  set(BUDDY_ENABLE_PNG ON CACHE BOOL "Enable PNG support" FORCE)
+  set(BUDDY_MLIR_ENABLE_DIP_LIB ON CACHE BOOL "Enable DIP library" FORCE)
+
   add_subdirectory(Models)
   set(BUDDY_MODELS_TEST_DEPENDS
   FileCheck count not
