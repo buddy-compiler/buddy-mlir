@@ -77,7 +77,7 @@ $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:
 If you want to test your model end-to-end conversion and inference, you can add the following configuration
 
 ```
--DBUDDY_ENABLE_E2E_TESTS=ON
+$ cmake -G Ninja .. -DBUDDY_ENABLE_E2E_TESTS=ON
 $ ninja check-e2e
 ```
 
