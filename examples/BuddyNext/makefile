@@ -1711,23 +1711,18 @@ next-softmax-run:
 	${BUDDY_OPT} \
 		-arith-expand \
 		-eliminate-empty-tensors \
-		-one-shot-bufferize \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-convert-vector-to-llvm \
-		-memref-expand \
-		-arith-expand \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-openmp-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
@@ -1743,15 +1738,11 @@ next-softmax-lower:
 	${BUDDY_OPT} \
 		-arith-expand \
 		-eliminate-empty-tensors \
-		-one-shot-bufferize \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-reconcile-unrealized-casts -o next-softmax-lower.mlir
@@ -1764,6 +1755,7 @@ next-softmax-manual-run:
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
 		-convert-arith-to-llvm \
 		-convert-math-to-llvm \
 		-convert-func-to-llvm \

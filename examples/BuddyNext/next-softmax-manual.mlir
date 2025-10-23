@@ -1,3 +1,22 @@
+// RUN: buddy-opt %s \
+// RUN:     -convert-vector-to-llvm \
+// RUN:     -memref-expand \
+// RUN:     -arith-expand \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -finalize-memref-to-llvm \
+// RUN:     -convert-scf-to-cf \
+// RUN:     -convert-cf-to-llvm \
+// RUN:     -convert-arith-to-llvm \
+// RUN:     -convert-math-to-llvm \
+// RUN:     -convert-func-to-llvm \
+// RUN:     -reconcile-unrealized-casts \
+// RUN: | mlir-runner -e main -entry-point-result=void \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+//
+// CHECK: {{[0-9]+\.[0-9]+}}
+
 module {
   memref.global "private" constant @__constant_1x40x151936xf32 : memref<1x40x151936xf32> = dense<2.000000e+00> {alignment = 64 : i64}
   func.func private @rtclock() -> f64
