@@ -74,6 +74,13 @@ $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
 $ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
+If you want to test your model end-to-end conversion and inference, you can add the following configuration
+
+```
+$ cmake -G Ninja .. -DBUDDY_ENABLE_E2E_TESTS=ON
+$ ninja check-e2e
+```
+
 ## Examples
 
 We provide examples to demonstrate how to use the passes and interfaces in `buddy-mlir`, including IR-level transformations, domain-specific applications, and testing demonstrations.
