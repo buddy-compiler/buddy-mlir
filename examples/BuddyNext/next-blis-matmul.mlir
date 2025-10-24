@@ -39,9 +39,8 @@ module {
     %kc = arith.constant 128 : index
     %mc = arith.constant 64 : index
     %mr = arith.constant 8 : index  // 8 rows unrolled
-    %nr = arith.constant 16 : index // 32 columns for vector<16xf32>
-    %B_packed = memref.alloc(%kc,%nc ) : memref<?x?xf32>
-    %A_packed = memref.alloc(%mc, %kc) : memref<?x?xf32>
+    %nr = arith.constant 32 : index // 32 columns for vector<32xf32>
+
     // BLIS 5-loop structure
     scf.parallel (%jc) = (%c0) to (%n) step (%nc) {
       %jc_end = arith.addi %jc, %nc : index
@@ -49,37 +48,24 @@ module {
       %jc_actual_end = arith.select %jc_bound, %jc_end, %n : index
       %nc_actual = arith.subi %jc_actual_end, %jc : index
 
-      affine.for %pc = 0 to %k step 128 {
+      scf.for %pc = %c0 to %k step %kc {
         %pc_end = arith.addi %pc, %kc : index
         %pc_bound = arith.cmpi slt, %pc_end, %k : index
         %pc_actual_end = arith.select %pc_bound, %pc_end, %k : index
-        %kc_actual = arith.subi %pc_actual_end, %pc : index     
+        %kc_actual = arith.subi %pc_actual_end, %pc : index
 
-       //Pack  B
-        %num_full_blocks = arith.divui %nc_actual, %nr : index
-        %remainder_cols = arith.remui %nc_actual, %nr : index
-        scf.for %block_idx = %c0 to %num_full_blocks step %c1 {
-          %j_start = arith.muli %block_idx, %nr : index
-          scf.for %kp = %c0 to %kc_actual step %c1 {
-            %b_row_idx = arith.addi %pc, %kp : index
-            %b_col_idx = arith.addi %jc, %j_start : index
-            %b_vec = vector.load %b[%b_row_idx, %b_col_idx] : memref<?x?xf32>, vector<16xf32>
-            vector.store %b_vec, %B_packed[%kp, %j_start] : memref<?x?xf32>, vector<16xf32>
-            }
-          }
-        
-        %tail_start = arith.muli %num_full_blocks, %nr : index
+        // Pack B 
+        %B_packed = memref.alloc(%kc_actual, %nc_actual) : memref<?x?xf32>
+
         scf.for %kp = %c0 to %kc_actual step %c1 {
-          scf.for %jj = %c0 to %remainder_cols step %c1 {
+          scf.for %j = %c0 to %nc_actual step %c1 {
             %b_row_idx = arith.addi %pc, %kp : index
-            %b_col_idx = arith.addi %jc, %tail_start : index
-            %b_col_idx_actual = arith.addi %b_col_idx, %jj : index
-            %b_val = memref.load %b[%b_row_idx, %b_col_idx_actual] : memref<?x?xf32>
-            %packed_col_idx = arith.addi %tail_start, %jj : index
-            memref.store %b_val, %B_packed[%kp, %packed_col_idx] : memref<?x?xf32>
-            }
+            %b_col_idx = arith.addi %jc, %j : index
+            %b_val = memref.load %b[%b_row_idx, %b_col_idx] : memref<?x?xf32>
+            memref.store %b_val, %B_packed[%kp, %j] : memref<?x?xf32>
           }
-   
+        }
+
         scf.parallel (%ic) = (%c0) to (%m) step (%mc) {
           %ic_end = arith.addi %ic, %mc : index
           %ic_bound = arith.cmpi slt, %ic_end, %m : index
@@ -87,6 +73,8 @@ module {
           %mc_actual = arith.subi %ic_actual_end, %ic : index
 
           // Pack A
+          %A_packed = memref.alloc(%mc_actual, %kc_actual) : memref<?x?xf32>
+          
           scf.for %i = %c0 to %mc_actual step %c1 {
             scf.for %kp = %c0 to %kc_actual step %c1 {
               %a_row_idx = arith.addi %ic, %i : index  // 修复：使用 %ic + %i
@@ -96,194 +84,194 @@ module {
             }
           }
 
-           // =============== 主循环：处理完整的16列块 ===============
-            %n_body_bound_ = arith.subi %nc_actual, %nr : index
-            %n_body_bound = arith.addi %n_body_bound_, %c1 : index
+          scf.for %jr = %c0 to %nc_actual step %nr {
+            %jr_end = arith.addi %jr, %nr : index
+            %jr_bound = arith.cmpi slt, %jr_end, %nc_actual : index
+            %jr_actual_end = arith.select %jr_bound, %jr_end, %nc_actual : index
+            %nr_actual = arith.subi %jr_actual_end, %jr : index
 
-        %n_iter_idx = scf.for %jr = %c0 to %n_body_bound step %nr
-                iter_args(%n_iter_idx_init = %c0) -> (index) {
-            
-            // 向量化微内核 - 处理8行×16列
-            scf.for %ir = %c0 to %mc_actual step %mr {
-                %ir_end = arith.addi %ir, %mr : index
-                %ir_bound = arith.cmpi slt, %ir_end, %mc_actual : index
-                %ir_actual_end = arith.select %ir_bound, %ir_end, %mc_actual : index
-                %mr_actual = arith.subi %ir_actual_end, %ir : index
-                
-                %has_full_rows = arith.cmpi sge, %mr_actual, %c8 : index
-                scf.if %has_full_rows {
-                // 完整的8行向量化路径
-                %ir_0 = arith.addi %ir, %c0 : index
-                %ir_1 = arith.addi %ir, %c1 : index
-                %ir_2 = arith.addi %ir, %c2 : index
-                %ir_3 = arith.addi %ir, %c3 : index
-                %ir_4 = arith.addi %ir, %c4 : index
-                %ir_5 = arith.addi %ir, %c5 : index
-                %ir_6 = arith.addi %ir, %c6 : index
-                %ir_7 = arith.addi %ir, %c7 : index
+            scf.for %n_idx = %c0 to %nr_actual step %nr {
+              %n_idx_end = arith.addi %n_idx, %nr : index
+              %n_idx_bound = arith.cmpi slt, %n_idx_end, %nr_actual : index
+              %n_idx_actual_end = arith.select %n_idx_bound, %n_idx_end, %nr_actual : index
+              %cols_to_process = arith.subi %n_idx_actual_end, %n_idx : index
+              
+              // if 32 columns?
+              %can_vectorize = arith.cmpi sge, %cols_to_process, %nr : index
+              scf.if %can_vectorize {
+                // 32 columns  vectorize
+                scf.for %ir = %c0 to %mc_actual step %mr {
+                  %ir_end = arith.addi %ir, %mr : index
+                  %ir_bound = arith.cmpi slt, %ir_end, %mc_actual : index
+                  %ir_actual_end = arith.select %ir_bound, %ir_end, %mc_actual : index
+                  %mr_actual = arith.subi %ir_actual_end, %ir : index
+                  
+                  // if 8 rows?
+                  %has_full_rows = arith.cmpi sge, %mr_actual, %c8 : index
+                  scf.if %has_full_rows {
+                    // 8 rows vectorize
+                    %ir_0 = arith.addi %ir, %c0 : index
+                    %ir_1 = arith.addi %ir, %c1 : index
+                    %ir_2 = arith.addi %ir, %c2 : index
+                    %ir_3 = arith.addi %ir, %c3 : index
+                    %ir_4 = arith.addi %ir, %c4 : index
+                    %ir_5 = arith.addi %ir, %c5 : index
+                    %ir_6 = arith.addi %ir, %c6 : index
+                    %ir_7 = arith.addi %ir, %c7 : index
 
-                %sum_init = arith.constant dense<0.> : vector<16xf32>
-                %sum_iter_vec_0, %sum_iter_vec_1, %sum_iter_vec_2, %sum_iter_vec_3,
-                %sum_iter_vec_4, %sum_iter_vec_5, %sum_iter_vec_6, %sum_iter_vec_7
-                    = scf.for %k_inner = %c0 to %kc_actual step %c1
-                    iter_args(%sum_vec_0 = %sum_init,
-                                %sum_vec_1 = %sum_init,
-                                %sum_vec_2 = %sum_init,
-                                %sum_vec_3 = %sum_init,
-                                %sum_vec_4 = %sum_init,
-                                %sum_vec_5 = %sum_init,
-                                %sum_vec_6 = %sum_init,
-                                %sum_vec_7 = %sum_init
-                                )
-                    -> (vector<16xf32>, vector<16xf32>, vector<16xf32>, vector<16xf32>,
-                        vector<16xf32>, vector<16xf32>, vector<16xf32>, vector<16xf32>) {
-                    // 加载A值
-                    %a_val_0 = memref.load %A_packed[%ir_0, %k_inner] : memref<?x?xf32>
-                    %a_val_1 = memref.load %A_packed[%ir_1, %k_inner] : memref<?x?xf32>
-                    %a_val_2 = memref.load %A_packed[%ir_2, %k_inner] : memref<?x?xf32>
-                    %a_val_3 = memref.load %A_packed[%ir_3, %k_inner] : memref<?x?xf32>
-                    %a_val_4 = memref.load %A_packed[%ir_4, %k_inner] : memref<?x?xf32>
-                    %a_val_5 = memref.load %A_packed[%ir_5, %k_inner] : memref<?x?xf32>
-                    %a_val_6 = memref.load %A_packed[%ir_6, %k_inner] : memref<?x?xf32>
-                    %a_val_7 = memref.load %A_packed[%ir_7, %k_inner] : memref<?x?xf32>
+                    %sum_init = arith.constant dense<0.> : vector<32xf32>
+                    %sum_iter_vec_0, %sum_iter_vec_1, %sum_iter_vec_2, %sum_iter_vec_3,
+                    %sum_iter_vec_4, %sum_iter_vec_5, %sum_iter_vec_6, %sum_iter_vec_7
+                        = scf.for %k_inner = %c0 to %kc_actual step %c1
+                        iter_args(%sum_vec_0 = %sum_init,
+                                  %sum_vec_1 = %sum_init,
+                                  %sum_vec_2 = %sum_init,
+                                  %sum_vec_3 = %sum_init,
+                                  %sum_vec_4 = %sum_init,
+                                  %sum_vec_5 = %sum_init,
+                                  %sum_vec_6 = %sum_init,
+                                  %sum_vec_7 = %sum_init
+                                  )
+                        -> (vector<32xf32>, vector<32xf32>, vector<32xf32>, vector<32xf32>,
+                            vector<32xf32>, vector<32xf32>, vector<32xf32>, vector<32xf32>) {
+                      // Load A values for 8 rows
+                      %a_val_0 = memref.load %A_packed[%ir_0, %k_inner] : memref<?x?xf32>
+                      %a_val_1 = memref.load %A_packed[%ir_1, %k_inner] : memref<?x?xf32>
+                      %a_val_2 = memref.load %A_packed[%ir_2, %k_inner] : memref<?x?xf32>
+                      %a_val_3 = memref.load %A_packed[%ir_3, %k_inner] : memref<?x?xf32>
+                      %a_val_4 = memref.load %A_packed[%ir_4, %k_inner] : memref<?x?xf32>
+                      %a_val_5 = memref.load %A_packed[%ir_5, %k_inner] : memref<?x?xf32>
+                      %a_val_6 = memref.load %A_packed[%ir_6, %k_inner] : memref<?x?xf32>
+                      %a_val_7 = memref.load %A_packed[%ir_7, %k_inner] : memref<?x?xf32>
 
-                    // 广播A值到向量
-                    %a_vec_0 = vector.broadcast %a_val_0 : f32 to vector<16xf32>
-                    %a_vec_1 = vector.broadcast %a_val_1 : f32 to vector<16xf32>
-                    %a_vec_2 = vector.broadcast %a_val_2 : f32 to vector<16xf32>
-                    %a_vec_3 = vector.broadcast %a_val_3 : f32 to vector<16xf32>
-                    %a_vec_4 = vector.broadcast %a_val_4 : f32 to vector<16xf32>
-                    %a_vec_5 = vector.broadcast %a_val_5 : f32 to vector<16xf32>
-                    %a_vec_6 = vector.broadcast %a_val_6 : f32 to vector<16xf32>
-                    %a_vec_7 = vector.broadcast %a_val_7 : f32 to vector<16xf32>
+                      // Broadcast A values to vectors
+                      %a_vec_0 = vector.broadcast %a_val_0 : f32 to vector<32xf32>
+                      %a_vec_1 = vector.broadcast %a_val_1 : f32 to vector<32xf32>
+                      %a_vec_2 = vector.broadcast %a_val_2 : f32 to vector<32xf32>
+                      %a_vec_3 = vector.broadcast %a_val_3 : f32 to vector<32xf32>
+                      %a_vec_4 = vector.broadcast %a_val_4 : f32 to vector<32xf32>
+                      %a_vec_5 = vector.broadcast %a_val_5 : f32 to vector<32xf32>
+                      %a_vec_6 = vector.broadcast %a_val_6 : f32 to vector<32xf32>
+                      %a_vec_7 = vector.broadcast %a_val_7 : f32 to vector<32xf32>
 
-                    // 加载B向量（16列）
-                    %b_vec = vector.load %B_packed[%k_inner, %jr] : memref<?x?xf32>, vector<16xf32>
+                      // Load B vector (32 columns)
+                      %b_vec = vector.load %B_packed[%k_inner, %n_idx] : memref<?x?xf32>, vector<32xf32>
 
-                    // FMA计算
-                    %res_sum_vec_0 = vector.fma %a_vec_0, %b_vec, %sum_vec_0 : vector<16xf32>
-                    %res_sum_vec_1 = vector.fma %a_vec_1, %b_vec, %sum_vec_1 : vector<16xf32>
-                    %res_sum_vec_2 = vector.fma %a_vec_2, %b_vec, %sum_vec_2 : vector<16xf32>
-                    %res_sum_vec_3 = vector.fma %a_vec_3, %b_vec, %sum_vec_3 : vector<16xf32>
-                    %res_sum_vec_4 = vector.fma %a_vec_4, %b_vec, %sum_vec_4 : vector<16xf32>
-                    %res_sum_vec_5 = vector.fma %a_vec_5, %b_vec, %sum_vec_5 : vector<16xf32>
-                    %res_sum_vec_6 = vector.fma %a_vec_6, %b_vec, %sum_vec_6 : vector<16xf32>
-                    %res_sum_vec_7 = vector.fma %a_vec_7, %b_vec, %sum_vec_7 : vector<16xf32>
+                      // Fused multiply-add
+                      %res_sum_vec_0 = vector.fma %a_vec_0, %b_vec, %sum_vec_0 : vector<32xf32>
+                      %res_sum_vec_1 = vector.fma %a_vec_1, %b_vec, %sum_vec_1 : vector<32xf32>
+                      %res_sum_vec_2 = vector.fma %a_vec_2, %b_vec, %sum_vec_2 : vector<32xf32>
+                      %res_sum_vec_3 = vector.fma %a_vec_3, %b_vec, %sum_vec_3 : vector<32xf32>
+                      %res_sum_vec_4 = vector.fma %a_vec_4, %b_vec, %sum_vec_4 : vector<32xf32>
+                      %res_sum_vec_5 = vector.fma %a_vec_5, %b_vec, %sum_vec_5 : vector<32xf32>
+                      %res_sum_vec_6 = vector.fma %a_vec_6, %b_vec, %sum_vec_6 : vector<32xf32>
+                      %res_sum_vec_7 = vector.fma %a_vec_7, %b_vec, %sum_vec_7 : vector<32xf32>
 
-                    scf.yield %res_sum_vec_0, %res_sum_vec_1, %res_sum_vec_2, %res_sum_vec_3,
-                                %res_sum_vec_4, %res_sum_vec_5, %res_sum_vec_6, %res_sum_vec_7
-                        : vector<16xf32>, vector<16xf32>, vector<16xf32>, vector<16xf32>,
-                        vector<16xf32>, vector<16xf32>, vector<16xf32>, vector<16xf32>
-                }
+                      scf.yield %res_sum_vec_0, %res_sum_vec_1, %res_sum_vec_2, %res_sum_vec_3,
+                                  %res_sum_vec_4, %res_sum_vec_5, %res_sum_vec_6, %res_sum_vec_7
+                          : vector<32xf32>, vector<32xf32>, vector<32xf32>, vector<32xf32>,
+                          vector<32xf32>, vector<32xf32>, vector<32xf32>, vector<32xf32>
+                    }
 
-                // 存储结果
-                %c_row_0 = arith.addi %ic, %ir_0 : index
-                %c_row_1 = arith.addi %ic, %ir_1 : index
-                %c_row_2 = arith.addi %ic, %ir_2 : index
-                %c_row_3 = arith.addi %ic, %ir_3 : index
-                %c_row_4 = arith.addi %ic, %ir_4 : index
-                %c_row_5 = arith.addi %ic, %ir_5 : index
-                %c_row_6 = arith.addi %ic, %ir_6 : index
-                %c_row_7 = arith.addi %ic, %ir_7 : index
-                %c_col_actual = arith.addi %jc, %jr : index
+                    // Store results back to C
+                    %c_row_0 = arith.addi %ic, %ir_0 : index
+                    %c_row_1 = arith.addi %ic, %ir_1 : index
+                    %c_row_2 = arith.addi %ic, %ir_2 : index
+                    %c_row_3 = arith.addi %ic, %ir_3 : index
+                    %c_row_4 = arith.addi %ic, %ir_4 : index
+                    %c_row_5 = arith.addi %ic, %ir_5 : index
+                    %c_row_6 = arith.addi %ic, %ir_6 : index
+                    %c_row_7 = arith.addi %ic, %ir_7 : index
+                    %c_col_idx = arith.addi %jc, %jr : index
+                    %c_col_actual = arith.addi %c_col_idx, %n_idx : index
 
-                // 加载当前C值
-                %c_vec_0 = vector.load %c[%c_row_0, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                %c_vec_1 = vector.load %c[%c_row_1, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                %c_vec_2 = vector.load %c[%c_row_2, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                %c_vec_3 = vector.load %c[%c_row_3, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                %c_vec_4 = vector.load %c[%c_row_4, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                %c_vec_5 = vector.load %c[%c_row_5, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                %c_vec_6 = vector.load %c[%c_row_6, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                %c_vec_7 = vector.load %c[%c_row_7, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
+                    %c_vec_0 = vector.load %c[%c_row_0, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    %c_vec_1 = vector.load %c[%c_row_1, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    %c_vec_2 = vector.load %c[%c_row_2, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    %c_vec_3 = vector.load %c[%c_row_3, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    %c_vec_4 = vector.load %c[%c_row_4, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    %c_vec_5 = vector.load %c[%c_row_5, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    %c_vec_6 = vector.load %c[%c_row_6, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    %c_vec_7 = vector.load %c[%c_row_7, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
 
-                // 累加结果
-                %final_vec_0 = arith.addf %c_vec_0, %sum_iter_vec_0 : vector<16xf32>
-                %final_vec_1 = arith.addf %c_vec_1, %sum_iter_vec_1 : vector<16xf32>
-                %final_vec_2 = arith.addf %c_vec_2, %sum_iter_vec_2 : vector<16xf32>
-                %final_vec_3 = arith.addf %c_vec_3, %sum_iter_vec_3 : vector<16xf32>
-                %final_vec_4 = arith.addf %c_vec_4, %sum_iter_vec_4 : vector<16xf32>
-                %final_vec_5 = arith.addf %c_vec_5, %sum_iter_vec_5 : vector<16xf32>
-                %final_vec_6 = arith.addf %c_vec_6, %sum_iter_vec_6 : vector<16xf32>
-                %final_vec_7 = arith.addf %c_vec_7, %sum_iter_vec_7 : vector<16xf32>
+                    %final_vec_0 = arith.addf %c_vec_0, %sum_iter_vec_0 : vector<32xf32>
+                    %final_vec_1 = arith.addf %c_vec_1, %sum_iter_vec_1 : vector<32xf32>
+                    %final_vec_2 = arith.addf %c_vec_2, %sum_iter_vec_2 : vector<32xf32>
+                    %final_vec_3 = arith.addf %c_vec_3, %sum_iter_vec_3 : vector<32xf32>
+                    %final_vec_4 = arith.addf %c_vec_4, %sum_iter_vec_4 : vector<32xf32>
+                    %final_vec_5 = arith.addf %c_vec_5, %sum_iter_vec_5 : vector<32xf32>
+                    %final_vec_6 = arith.addf %c_vec_6, %sum_iter_vec_6 : vector<32xf32>
+                    %final_vec_7 = arith.addf %c_vec_7, %sum_iter_vec_7 : vector<32xf32>
 
-                // 存储回C矩阵
-                vector.store %final_vec_0, %c[%c_row_0, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                vector.store %final_vec_1, %c[%c_row_1, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                vector.store %final_vec_2, %c[%c_row_2, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                vector.store %final_vec_3, %c[%c_row_3, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                vector.store %final_vec_4, %c[%c_row_4, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                vector.store %final_vec_5, %c[%c_row_5, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                vector.store %final_vec_6, %c[%c_row_6, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                vector.store %final_vec_7, %c[%c_row_7, %c_col_actual] : memref<?x?xf32>, vector<16xf32>
-                } else {
-                // 行方向尾部处理 - 标量路径（处理不足8行的情况）
-                // 逐行处理，每行单独计算16列
-                        scf.for %ii = %ir to %ir_actual_end step %c1 {
-                        // 对于每一行，逐列计算16列
-                        scf.for %jj = %c0 to %nr step %c1 {
+                    vector.store %final_vec_0, %c[%c_row_0, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    vector.store %final_vec_1, %c[%c_row_1, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    vector.store %final_vec_2, %c[%c_row_2, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    vector.store %final_vec_3, %c[%c_row_3, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    vector.store %final_vec_4, %c[%c_row_4, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    vector.store %final_vec_5, %c[%c_row_5, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    vector.store %final_vec_6, %c[%c_row_6, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                    vector.store %final_vec_7, %c[%c_row_7, %c_col_actual] : memref<?x?xf32>, vector<32xf32>
+                  } else {
+                    // No 8 rows,not vectorize
+                      scf.for %jj = %c0 to %nr step %c1 {
+                      scf.for %ii = %ir to %ir_actual_end step %c1 {
                         %sum_init = arith.constant 0.0 : f32
                         %sum_iter = scf.for %k_inner = %c0 to %kc_actual step %c1
                             iter_args(%sum = %sum_init) -> (f32) {
-                            %a_val = memref.load %A_packed[%ii, %k_inner] : memref<?x?xf32>
-                            %b_col_idx = arith.addi %jr, %jj : index
-                            %b_val = memref.load %B_packed[%k_inner, %b_col_idx] : memref<?x?xf32>
-                            %prod = arith.mulf %a_val, %b_val : f32
-                            %new_sum = arith.addf %sum, %prod : f32
-                            scf.yield %new_sum : f32
+                          %a_val = memref.load %A_packed[%ii, %k_inner] : memref<?x?xf32>
+                          %b_index=arith.addi %n_idx,%jj : index
+                          %b_val = memref.load %B_packed[%k_inner, %b_index] : memref<?x?xf32>
+                          %prod = arith.mulf %a_val, %b_val : f32
+                          %new_sum = arith.addf %sum, %prod : f32
+                          scf.yield %new_sum : f32
                         }
-                        
                         %c_row_idx = arith.addi %ic, %ii : index
-                        %c_col_base = arith.addi %jc, %jr : index
-                        %c_col_actual = arith.addi %c_col_base, %jj : index
-                        
+                        %c_col_idx = arith.addi %jc, %jr : index
+                        %c_index=arith.addi %n_idx,%jj : index
+                        %c_col_actual = arith.addi %c_col_idx, %c_index : index
                         %current_val = memref.load %c[%c_row_idx, %c_col_actual] : memref<?x?xf32>
                         %final_sum = arith.addf %current_val, %sum_iter : f32
                         memref.store %final_sum, %c[%c_row_idx, %c_col_actual] : memref<?x?xf32>
-                        }
+                      }
                     }
+                  }
                 }
-            }
-            
-            %jr_next = arith.addi %jr, %nr : index
-            scf.yield %jr_next : index
-            }
+              } else {
+                // No 32 columns,not vectorize
+                scf.for %n_idx_tail = %n_idx to %n_idx_actual_end step %c1 {
+                  scf.for %ir = %c0 to %mc_actual step %mr {
+                    %ir_end = arith.addi %ir, %mr : index
+                    %ir_bound = arith.cmpi slt, %ir_end, %mc_actual : index
+                    %ir_actual_end = arith.select %ir_bound, %ir_end, %mc_actual : index
 
-            // =============== 尾部处理：处理剩余的列 ===============
-            scf.for %jr_tail = %n_iter_idx to %nc_actual step %c1 {
-            // 标量处理剩余的列 - 逐行逐列计算
-            scf.for %ir = %c0 to %mc_actual step %mr {
-                %ir_end = arith.addi %ir, %mr : index
-                %ir_bound = arith.cmpi slt, %ir_end, %mc_actual : index
-                %ir_actual_end = arith.select %ir_bound, %ir_end, %mc_actual : index
-                
-                scf.for %ii = %ir to %ir_actual_end step %c1 {
-                %sum_init = arith.constant 0.0 : f32
-                %sum_iter = scf.for %k_inner = %c0 to %kc_actual step %c1
-                    iter_args(%sum = %sum_init) -> (f32) {
-                    %a_val = memref.load %A_packed[%ii, %k_inner] : memref<?x?xf32>
-                    %b_val = memref.load %B_packed[%k_inner, %jr_tail] : memref<?x?xf32>
-                    %prod = arith.mulf %a_val, %b_val : f32
-                    %new_sum = arith.addf %sum, %prod : f32
-                    scf.yield %new_sum : f32
+                    scf.for %ii = %ir to %ir_actual_end step %c1 {
+                      %sum_init = arith.constant 0.0 : f32
+                      %sum_iter = scf.for %k_inner = %c0 to %kc_actual step %c1
+                          iter_args(%sum = %sum_init) -> (f32) {
+                        %a_val = memref.load %A_packed[%ii, %k_inner] : memref<?x?xf32>
+                        %b_val = memref.load %B_packed[%k_inner, %n_idx_tail] : memref<?x?xf32>
+                        %prod = arith.mulf %a_val, %b_val : f32
+                        %new_sum = arith.addf %sum, %prod : f32
+                        scf.yield %new_sum : f32
+                      }
+                      
+                      %c_row_idx = arith.addi %ic, %ii : index
+                      %c_col_idx = arith.addi %jc, %jr : index
+                      %c_col_actual = arith.addi %c_col_idx, %n_idx_tail : index
+                      %current_val = memref.load %c[%c_row_idx, %c_col_actual] : memref<?x?xf32>
+                      %final_sum = arith.addf %current_val, %sum_iter : f32
+                      memref.store %final_sum, %c[%c_row_idx, %c_col_actual] : memref<?x?xf32>
+                    }
+                  }
                 }
-                
-                %c_row_idx = arith.addi %ic, %ii : index
-                %c_col_actual = arith.addi %jc, %jr_tail : index
-                %current_val = memref.load %c[%c_row_idx, %c_col_actual] : memref<?x?xf32>
-                %final_sum = arith.addf %current_val, %sum_iter : f32
-                memref.store %final_sum, %c[%c_row_idx, %c_col_actual] : memref<?x?xf32>
-                }
+              }
             }
-            }
-          
-          
+          }
+          memref.dealloc %A_packed : memref<?x?xf32>
         }
-        
+        memref.dealloc %B_packed : memref<?x?xf32>
       }
     }
-    memref.dealloc %B_packed : memref<?x?xf32>
-    memref.dealloc %A_packed : memref<?x?xf32>
     return
   }
 
