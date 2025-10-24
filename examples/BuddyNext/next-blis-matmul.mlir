@@ -48,7 +48,7 @@ module {
       %jc_actual_end = arith.select %jc_bound, %jc_end, %n : index
       %nc_actual = arith.subi %jc_actual_end, %jc : index
 
-      scf.for %pc = %c0 to %k step %kc {
+      affine.for %pc = 0 to %k step 128 {
         %pc_end = arith.addi %pc, %kc : index
         %pc_bound = arith.cmpi slt, %pc_end, %k : index
         %pc_actual_end = arith.select %pc_bound, %pc_end, %k : index
