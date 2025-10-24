@@ -20,49 +20,6 @@ module {
   func.func private @printMemrefF32(memref<*xf32>)
   func.func private @rtclock() -> f64
 
-// B矩阵打包函数 - 不使用逻辑表达式
-func.func @packB(%B_packed: memref<?x?xf32>, %b: memref<?x?xf32>, 
-                 %pc: index, %jc: index, %kc_actual: index, %nc_actual: index, 
-                 %nr: index) {
-  %c0 = arith.constant 0 : index
-  %c1 = arith.constant 1 : index
-  
-  // 计算完整向量块的数量和尾部列数
-  %num_full_blocks = arith.divui %nc_actual, %nr : index
-  %remainder_cols = arith.remui %nc_actual, %nr : index
-  
-  // 处理完整的向量块
-  scf.for %block_idx = %c0 to %num_full_blocks step %c1 {
-    %j_start = arith.muli %block_idx, %nr : index
-    
-    scf.for %kp = %c0 to %kc_actual step %c1 {
-      %b_row_idx = arith.addi %pc, %kp : index
-      %b_col_idx = arith.addi %jc, %j_start : index
-      
-      // 直接向量加载
-      %b_vec = vector.load %b[%b_row_idx, %b_col_idx] : memref<?x?xf32>, vector<16xf32>
-      vector.store %b_vec, %B_packed[%kp, %j_start] : memref<?x?xf32>, vector<16xf32>
-    }
-  }
-  
-  // 处理尾部列 - 直接循环，如果remainder_cols为0则循环不执行
-  %tail_start = arith.muli %num_full_blocks, %nr : index
-  scf.for %kp = %c0 to %kc_actual step %c1 {
-    scf.for %jj = %c0 to %remainder_cols step %c1 {
-      %b_row_idx = arith.addi %pc, %kp : index
-      %b_col_idx = arith.addi %jc, %tail_start : index
-      %b_col_idx_actual = arith.addi %b_col_idx, %jj : index
-      
-      %b_val = memref.load %b[%b_row_idx, %b_col_idx_actual] : memref<?x?xf32>
-      
-      %packed_col_idx = arith.addi %tail_start, %jj : index
-      memref.store %b_val, %B_packed[%kp, %packed_col_idx] : memref<?x?xf32>
-    }
-  }
-  
-  return
-}
-
   func.func @blis_sgemm_vectorized(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -98,11 +55,31 @@ func.func @packB(%B_packed: memref<?x?xf32>, %b: memref<?x?xf32>,
         %pc_actual_end = arith.select %pc_bound, %pc_end, %k : index
         %kc_actual = arith.subi %pc_actual_end, %pc : index     
 
-        // Pack B 
-        func.call @packB(%B_packed, %b, %pc, %jc, %kc_actual, %nc_actual, %nr) 
-          : (memref<?x?xf32>, memref<?x?xf32>, index, index, index, index, index) -> ()
+       //Pack  B
+        %num_full_blocks = arith.divui %nc_actual, %nr : index
+        %remainder_cols = arith.remui %nc_actual, %nr : index
+        scf.for %block_idx = %c0 to %num_full_blocks step %c1 {
+          %j_start = arith.muli %block_idx, %nr : index
+          scf.for %kp = %c0 to %kc_actual step %c1 {
+            %b_row_idx = arith.addi %pc, %kp : index
+            %b_col_idx = arith.addi %jc, %j_start : index
+            %b_vec = vector.load %b[%b_row_idx, %b_col_idx] : memref<?x?xf32>, vector<16xf32>
+            vector.store %b_vec, %B_packed[%kp, %j_start] : memref<?x?xf32>, vector<16xf32>
+            }
+          }
+        
+        %tail_start = arith.muli %num_full_blocks, %nr : index
+        scf.for %kp = %c0 to %kc_actual step %c1 {
+          scf.for %jj = %c0 to %remainder_cols step %c1 {
+            %b_row_idx = arith.addi %pc, %kp : index
+            %b_col_idx = arith.addi %jc, %tail_start : index
+            %b_col_idx_actual = arith.addi %b_col_idx, %jj : index
+            %b_val = memref.load %b[%b_row_idx, %b_col_idx_actual] : memref<?x?xf32>
+            %packed_col_idx = arith.addi %tail_start, %jj : index
+            memref.store %b_val, %B_packed[%kp, %packed_col_idx] : memref<?x?xf32>
+            }
+          }
    
-
         scf.parallel (%ic) = (%c0) to (%m) step (%mc) {
           %ic_end = arith.addi %ic, %mc : index
           %ic_bound = arith.cmpi slt, %ic_end, %m : index
