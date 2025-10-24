@@ -1,4 +1,5 @@
 // RUN: buddy-opt %s \
+// RUN:     -batchmatmul-optimize \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf \

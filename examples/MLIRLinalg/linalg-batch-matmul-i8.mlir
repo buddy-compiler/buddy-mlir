@@ -1,4 +1,4 @@
-// RUN: buddy-opt -convert-linalg-to-loops -verify-diagnostics -expand-strided-metadata -lower-affine \
+// RUN: buddy-opt -batchmatmul-optimize -verify-diagnostics -expand-strided-metadata -lower-affine \
 // RUN:   -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf -convert-linalg-to-loops -convert-scf-to-cf -convert-cf-to-llvm -convert-arith-to-llvm \
 // RUN:   -llvm-request-c-wrappers -convert-func-to-llvm -reconcile-unrealized-casts %s \
 // RUN: | mlir-runner -O0 -e buddy_batchmatmul_i8 -entry-point-result=void \
