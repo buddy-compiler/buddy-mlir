@@ -45,4 +45,5 @@ target_link_libraries(buddy-opt
   MatMulTransposeBVec
   LinalgToVIRPass
   VIRToVectorPass
+  FullyConnectedFusion
   )
