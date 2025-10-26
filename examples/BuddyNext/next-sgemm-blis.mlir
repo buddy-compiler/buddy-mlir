@@ -83,25 +83,25 @@ module {
   }
 
   func.func @micro_kernel(%a_packed : memref<?xf32>, %b_packed : memref<?xf32>, %c_sub : memref<?xf32>, %a_offset: index, %b_offset: index) {
-  %c0 = arith.constant 0 : index
-  %c1 = arith.constant 1 : index
-  %c2 = arith.constant 2 : index
-  %c3 = arith.constant 3 : index
-  %c4 = arith.constant 4 : index
-  %c5 = arith.constant 5 : index
-  %c6 = arith.constant 6 : index
-  %c7 = arith.constant 7 : index
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c2 = arith.constant 2 : index
+    %c3 = arith.constant 3 : index
+    %c4 = arith.constant 4 : index
+    %c5 = arith.constant 5 : index
+    %c6 = arith.constant 6 : index
+    %c7 = arith.constant 7 : index
 
-  %KC = arith.constant 128 : index
-  %NR = arith.constant 8   : index
+    %KC = arith.constant 128 : index
+    %NR = arith.constant 8   : index
 
-  %f0 = arith.constant 0.0 : f32
-  %z  = vector.broadcast %f0 : f32 to vector<8xf32>
+    %f0 = arith.constant 0.0 : f32
+    %z  = vector.broadcast %f0 : f32 to vector<8xf32>
 
-  %acc0_fin, %acc1_fin, %acc2_fin, %acc3_fin =
-    scf.for %p = %c0 to %KC step %c1
-      iter_args(%acc0 = %z, %acc1 = %z, %acc2 = %z, %acc3 = %z)
-      -> (vector<8xf32>, vector<8xf32>, vector<8xf32>, vector<8xf32>) {
+    %acc0_fin, %acc1_fin, %acc2_fin, %acc3_fin =
+      scf.for %p = %c0 to %KC step %c1
+        iter_args(%acc0 = %z, %acc1 = %z, %acc2 = %z, %acc3 = %z)
+        -> (vector<8xf32>, vector<8xf32>, vector<8xf32>, vector<8xf32>) {
 
         %binit = arith.constant dense<0.0> : vector<8xf32>
 
@@ -197,33 +197,29 @@ module {
     %c_sub_size = arith.muli %MR, %NR: index
     %c_sub = memref.alloc(%c_sub_size) : memref<?xf32>
 
-    affine.for %j_c = 0 to %N step 1024 { // NC
-      affine.for %p_c = 0 to %K step 128 { // KC
-        affine.for %i_c = 0 to %M step 256 { // MC
-          func.call @pack_a(%a, %a_packed, %i_c, %p_c) : (memref<?x?xf32>, memref<?xf32>, index, index) -> ()
-          func.call @pack_b(%b, %b_packed, %j_c, %p_c) : (memref<?x?xf32>, memref<?xf32>, index, index) -> ()
+    affine.parallel (%j_c, %p_c, %i_c) = (0, 0, 0) to (%N, %K, %M) step (1024, 128, 256) { // NC, KC, MC
+      func.call @pack_a(%a, %a_packed, %i_c, %p_c) : (memref<?x?xf32>, memref<?xf32>, index, index) -> ()
+      func.call @pack_b(%b, %b_packed, %j_c, %p_c) : (memref<?x?xf32>, memref<?xf32>, index, index) -> ()
 
-          affine.for %j_r = 0 to %NC step 8 { // NR
-            affine.for %i_r = 0 to %MC step 4 { // MR
-              %a_offset = affine.apply affine_map<(i_r)[KC]->(i_r*KC)>(%i_r)[%KC]
-              %b_offset = affine.apply affine_map<(j_r)[KC]->(j_r*KC)>(%j_r)[%KC]
+      affine.for %j_r = 0 to %NC step 8 { // NR
+        affine.for %i_r = 0 to %MC step 4 { // MR
+          %a_offset = affine.apply affine_map<(i_r)[KC]->(i_r*KC)>(%i_r)[%KC]
+          %b_offset = affine.apply affine_map<(j_r)[KC]->(j_r*KC)>(%j_r)[%KC]
 
-              func.call @micro_kernel(%a_packed, %b_packed, %c_sub, %a_offset, %b_offset) : (memref<?xf32>, memref<?xf32>, memref<?xf32>, index, index) -> ()
+          func.call @micro_kernel(%a_packed, %b_packed, %c_sub, %a_offset, %b_offset) : (memref<?xf32>, memref<?xf32>, memref<?xf32>, index, index) -> ()
 
-              affine.for %i = 0 to %MR {
-                affine.for %j = 0 to %NR {
-                  %c_sub_idx = affine.apply affine_map<(i,j)[NR]->(i*NR + j)>(%i, %j)[%NR]
-                  %c_sub_val = memref.load %c_sub[%c_sub_idx] : memref<?xf32>
+          affine.for %i = 0 to %MR {
+            affine.for %j = 0 to %NR {
+              %c_sub_idx = affine.apply affine_map<(i,j)[NR]->(i*NR + j)>(%i, %j)[%NR]
+              %c_sub_val = memref.load %c_sub[%c_sub_idx] : memref<?xf32>
 
-                  %i_global = affine.apply affine_map<(i_c,i_r,i)->(i_c+i_r+i)>(%i_c, %i_r, %i)
-                  %j_global = affine.apply affine_map<(j_c,j_r,j)->(j_c+j_r+j)>(%j_c, %j_r, %j)
+              %i_global = affine.apply affine_map<(i_c,i_r,i)->(i_c+i_r+i)>(%i_c, %i_r, %i)
+              %j_global = affine.apply affine_map<(j_c,j_r,j)->(j_c+j_r+j)>(%j_c, %j_r, %j)
 
-                  affine.if #cond_set_a(%i_global, %j_global)[%M, %N] {
-                    %c_val = memref.load %c[%i_global, %j_global] : memref<?x?xf32>
-                    %c_new = arith.addf %c_val, %c_sub_val : f32
-                    memref.store %c_new, %c[%i_global, %j_global] : memref<?x?xf32>
-                  }
-                }
+              affine.if #cond_set_a(%i_global, %j_global)[%M, %N] {
+                %c_val = memref.load %c[%i_global, %j_global] : memref<?x?xf32>
+                %c_new = arith.addf %c_val, %c_sub_val : f32
+                memref.store %c_new, %c[%i_global, %j_global] : memref<?x?xf32>
               }
             }
           }
