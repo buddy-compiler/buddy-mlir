@@ -11,6 +11,7 @@ add_mlir_library(MatMulOptimization
   BatchMatMulTileOptimize.cpp
   BatchMatMulSCFOptimize.cpp
   BatchMatMulTransBVec.cpp
+  MatMulTransposeBUnrollVec.cpp
   LINK_LIBS PUBLIC
   BuddyUtils
 )
@@ -24,7 +25,7 @@ add_mlir_library(MatMulParallelVectorization
 )
 
 add_mlir_library(MatMulTransposeBVec
-  MatMulTransposeBVec.cpp 
+  MatMulTransposeBVec.cpp
 )
 
 add_mlir_library(MatMulBlisVectorization

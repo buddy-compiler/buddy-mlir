@@ -1,4 +1,4 @@
-//===- buddy-lenet-main.cpp -----------------------------------------------===//
+//===- LeNetInferTest.cpp ---------------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,12 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
+//
+// This is the LeNet infer test file.
+//
+//===----------------------------------------------------------------------===//
+
+// RUN: buddy-lenet-run-test-cpu %s 2>&1 | FileCheck %s 
 
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImgContainer.h>
@@ -25,9 +31,10 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 constexpr size_t ParamsSize = 44426;
-const std::string ImgName = "1-28x28.png";
+const std::string ImgName = "1-28*28.png";
 
 /// Declare LeNet forward function.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
@@ -35,10 +42,10 @@ extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
                                      dip::Image<float, 4> *input);
 
 /// Print [Log] label in bold blue format.
-void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
+static void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
 /// Load parameters into data container.
-void loadParameters(const std::string &paramFilePath,
+static void loadParameters(const std::string &paramFilePath,
                     MemRef<float, 1> &params) {
   const auto loadStart = std::chrono::high_resolution_clock::now();
   // Open the parameter file in binary mode.
@@ -69,16 +76,13 @@ void loadParameters(const std::string &paramFilePath,
 }
 
 /// Softmax function to convert logits to probabilities.
-void softmax(float *input, size_t size) {
+static void softmax(float *input, size_t size) {
   size_t i;
-  float max_value = -INFINITY;
   double sum = 0.0;
   // Find the maximum value in the input array for numerical stability.
-  for (i = 0; i < size; ++i) {
-    if (max_value < input[i]) {
-      max_value = input[i];
-    }
-  }
+  float* max_ptr = std::max_element(input, input+size);
+  float max_value = *max_ptr;
+
   // Calculate the sum of the exponentials of the input elements, normalized by
   // the max value.
   for (i = 0; i < size; ++i) {
@@ -95,12 +99,15 @@ int main() {
   const std::string title = "LeNet Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
+  //Defines the number of categories
+  const int KNumClass = 10;
+
   // Define the sizes of the output tensors.
   intptr_t sizesOutput[2] = {1, 10};
 
   // Create input and output containers for the image and model output.
-  std::string lenetDir = LENET_EXAMPLE_PATH;
-  std::string lenetBuildDir = LENET_EXAMPLE_BUILD_PATH;
+  std::string lenetDir = LENET_TEST_PATH;
+  std::string lenetBuildDir = LENET_TEST_BUILD_PATH;
   std::string imgPath = lenetDir + "/images/" + ImgName;
   dip::Image<float, 4> input(imgPath, dip::DIP_GRAYSCALE, true /* norm */);
   MemRef<float, 2> output(sizesOutput);
@@ -115,20 +122,18 @@ int main() {
 
   // Apply softmax to the output logits to get probabilities.
   auto out = output.getData();
-  softmax(out, 10);
+  softmax(out, KNumClass);
 
   // Find the classification and print the result.
-  float maxVal = 0;
-  float maxIdx = 0;
-  for (int i = 0; i < 10; ++i) {
-    if (out[i] > maxVal) {
-      maxVal = out[i];
-      maxIdx = i;
-    }
-  }
+  auto maxIt = std::max_element(out, out+KNumClass);
+  float maxVal = *maxIt;
+  float maxIdx = std::distance(out, maxIt);
 
   std::cout << "Classification: " << maxIdx << std::endl;
   std::cout << "Probability: " << maxVal << std::endl;
 
   return 0;
 }
+
+// CHECK: Classification: 1
+// CHECK: Probability: 1

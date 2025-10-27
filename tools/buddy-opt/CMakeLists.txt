@@ -27,6 +27,7 @@ target_link_libraries(buddy-opt
   BatchMatMulOptimization
   MatMulParallelVectorization
   TransposeOptimization
+  GraphRedundancyElimination
   ConvOptimization
   DepthwiseConvOptimization
   VectorExp

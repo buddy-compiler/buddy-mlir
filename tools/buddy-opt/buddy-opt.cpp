@@ -71,6 +71,7 @@ void registerLowerRVVPass();
 void registerMatMulOptimizePass();
 void registerMatMulVectorizationPass();
 void registerMatMulParallelVectorizationPass();
+void registerMatMulTransposeBUnrollVecPass();
 void registerTransposeOptimizationPass();
 void registerConvOptimizePass();
 void registerConvNhwcFhwcOptimizePass();
@@ -87,6 +88,7 @@ void registerLegalizeShmemOutliningPass();
 void registerVIRToVectorPass();
 void registerLinalgToVIRPass();
 void registerMatMulVectorizationBLISPass();
+void registerSimplifyTosaReshapePass();
 } // namespace buddy
 } // namespace mlir
 
@@ -120,6 +122,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerBatchMatMulTransVecPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
+  mlir::buddy::registerMatMulTransposeBUnrollVecPass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerConvOptimizePass();
   mlir::buddy::registerConvNhwcFhwcOptimizePass();
@@ -129,6 +132,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerMatMulTransposeBVecPass();
   mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerLinalgToVIRPass();
+  // Register minimal TOSA reshape simplification pass.
+  mlir::buddy::registerSimplifyTosaReshapePass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
   mlir::buddy::registerLegalizeShmemOutliningPass();

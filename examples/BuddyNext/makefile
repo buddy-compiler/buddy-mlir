@@ -34,6 +34,12 @@ endif
 # Evaluation of Modules in DeepSeek-R1 Distill Qwen 1.5B
 # ==============================================================================
 
+next-test-lower:
+	@${MLIR_OPT} ./next-embedding.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-o log.mlir
+
 next-embedding-run:
 	@${MLIR_OPT} ./next-embedding.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
@@ -74,6 +80,49 @@ next-embedding-run:
 		-shared-libs=${MLIR_C_RUNNER_UTILS} \
 		-shared-libs=${OMP_LIB}
 
+next-embedding-aot-omp:
+	@${MLIR_OPT} ./next-embedding.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-expand-strided-metadata \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-matmul-parallel-vectorization-optimize \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-openmp \
+		-func-bufferize-dynamic-offset \
+		-cse \
+		-memref-expand \
+		-arith-expand \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-embedding.out
+	./next-embedding.out || true
+
 next-positional-encoding-aot-omp:
 	@${MLIR_OPT} ./next-positional-encoding.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
@@ -93,7 +142,7 @@ next-positional-encoding-aot-omp:
 		-affine-parallelize \
 		-convert-vector-to-scf \
 		-lower-affine \
-		-convert-scf-to-openmp=num-threads=32 \
+		-convert-scf-to-openmp \
 		-func-bufferize-dynamic-offset \
 		-cse \
 		-memref-expand \
@@ -259,7 +308,7 @@ next-mhsa-qkv-aot-omp:
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-affine-parallelize \
-		-convert-scf-to-openmp=num-threads=32 \
+		-convert-scf-to-openmp \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-lower-affine \
@@ -342,7 +391,7 @@ next-mhsa-core-aot-omp:
 		-affine-loop-fusion \
 		-affine-parallelize \
 		-lower-affine \
-		-convert-scf-to-openmp=num-threads=32 \
+		-convert-scf-to-openmp \
 		-func-bufferize-dynamic-offset \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
@@ -431,7 +480,7 @@ next-mhsa-context-aot-omp:
 		-affine-loop-fusion \
 		-affine-parallelize \
 		-lower-affine \
-		-convert-scf-to-openmp=num-threads=32 \
+		-convert-scf-to-openmp \
 		-func-bufferize-dynamic-offset \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
@@ -594,6 +643,178 @@ next-ffn-no-transpose-aot-omp:
 		-o next-ffn-no-transpose.out
 	./next-ffn-no-transpose.out || true
 
+next-reshape-lower:
+	@${MLIR_OPT} ./next-reshape.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-convert-elementwise-to-linalg \
+		-arith-expand \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize="unknown-type-conversion=identity-layout-map function-boundary-type-conversion=identity-layout-map bufferize-function-boundaries" \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-convert-bufferization-to-memref \
+		-matmul-vectorization \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=32 \
+		-func-bufferize-dynamic-offset \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-cse \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts \
+		-o log.mlir
+
+next-reshape-aot-omp:
+	@${MLIR_OPT} ./next-reshape.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-convert-elementwise-to-linalg \
+		-arith-expand \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize="unknown-type-conversion=identity-layout-map function-boundary-type-conversion=identity-layout-map bufferize-function-boundaries" \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-convert-bufferization-to-memref \
+		-matmul-vectorization \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=32 \
+		-func-bufferize-dynamic-offset \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-cse \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-reshape.out
+	./next-reshape.out || true
+
+next-no-reshape-lower:
+	@${MLIR_OPT} ./next-no-reshape.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-convert-elementwise-to-linalg \
+		-arith-expand \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize="unknown-type-conversion=identity-layout-map function-boundary-type-conversion=identity-layout-map bufferize-function-boundaries" \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-convert-bufferization-to-memref \
+		-matmul-vectorization \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=32 \
+		-func-bufferize-dynamic-offset \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-cse \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts \
+		-o log.mlir
+
+next-no-reshape-aot-omp:
+	@${MLIR_OPT} ./next-no-reshape.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-convert-elementwise-to-linalg \
+		-arith-expand \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-one-shot-bufferize="unknown-type-conversion=identity-layout-map function-boundary-type-conversion=identity-layout-map bufferize-function-boundaries" \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-convert-bufferization-to-memref \
+		-matmul-vectorization \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=32 \
+		-func-bufferize-dynamic-offset \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-cse \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-no-reshape.out
+	./next-no-reshape.out || true
+
 next-ffn-aot-omp:
 	@${MLIR_OPT} ./next-ffn.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
@@ -612,7 +833,7 @@ next-ffn-aot-omp:
 		-affine-loop-fusion \
 		-affine-parallelize \
 		-lower-affine \
-		-convert-scf-to-openmp=num-threads=32 \
+		-convert-scf-to-openmp \
 		-func-bufferize-dynamic-offset \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
@@ -701,7 +922,7 @@ next-output-run-omp:
 		-affine-loop-fusion \
 		-affine-parallelize \
 		-lower-affine \
-		-convert-scf-to-openmp=num-threads=32 \
+		-convert-scf-to-openmp \
 		-func-bufferize-dynamic-offset \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
@@ -720,9 +941,13 @@ next-output-run-omp:
 		-convert-math-to-libm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} \
-		-shared-libs=${OMP_LIB}
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-output.out
+	./next-output.out || true
 
 next-output-run:
 	@${MLIR_OPT} ./next-output.mlir \
@@ -936,6 +1161,106 @@ next-sgemm-unroll-vec-fixed-aot:
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-sgemm-unroll-vec-fixed.out
 	./next-sgemm-unroll-vec-fixed.out || true
+
+next-mmtb-aot:
+	@${BUDDY_OPT} ./next-mmtb.mlir \
+		-matmul-transpose-b-unroll-vec \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp \
+		-func-bufferize-dynamic-offset \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-cse \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+    ${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-mmtb.out
+	./next-mmtb.out || true
+
+next-mmtb-sgemm-unroll-vec-aot:
+	@${BUDDY_OPT} ./log.mlir \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp \
+		-func-bufferize-dynamic-offset \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-cse \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+    ${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-mmtb-sgemm-unroll-vec.out
+	./next-mmtb-sgemm-unroll-vec.out || true
+
+next-batchmatmul-sgemm-unroll-vec-aot:
+	@${BUDDY_OPT} ./next-batchmatmul-sgemm-unroll-vec.mlir \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp \
+		-func-bufferize-dynamic-offset \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-cse \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+    ${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-batchmatmul-sgemm-unroll-vec.out
+	./next-batchmatmul-sgemm-unroll-vec.out || true
 
 next-attention-lower:
 	@${MLIR_OPT} ./next-attention.mlir \

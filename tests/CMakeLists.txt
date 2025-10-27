@@ -39,3 +39,34 @@ add_lit_testsuite(check-tests "Running the buddy regression tests..."
 set_target_properties(check-tests PROPERTIES FOLDER "Tests")
 
 add_lit_testsuites(BUDDY ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${BUDDY_TEST_DEPENDS})
+
+#------------------------------------------------------------------------------------
+#    E2E test module
+#------------------------------------------------------------------------------------
+
+option(BUDDY_ENABLE_E2E_TESTS "Enable end-to-end (E2E) tests for Models" OFF)
+
+if(BUDDY_ENABLE_E2E_TESTS)
+
+  # Always enable PNG and DIP lib support
+  set(BUDDY_ENABLE_PNG ON CACHE BOOL "Enable PNG support" FORCE)
+  set(BUDDY_MLIR_ENABLE_DIP_LIB ON CACHE BOOL "Enable DIP library" FORCE)
+
+  add_subdirectory(Models)
+  set(BUDDY_MODELS_TEST_DEPENDS
+  FileCheck count not
+  buddy-opt
+  buddy-translate
+  mlir-runner
+  buddy-lenet-run-test-cpu
+  )
+
+  add_lit_testsuite(check-e2e "Running E2E tests for Models directory..."
+    ${CMAKE_CURRENT_BINARY_DIR}/Models
+    DEPENDS ${BUDDY_MODELS_TEST_DEPENDS}
+    )
+  set_target_properties(check-e2e PROPERTIES FOLDER "Tests")
+
+  add_lit_testsuites(BUDDY_MODELS ${CMAKE_CURRENT_SOURCE_DIR}/Models DEPENDS ${BUDDY_MODELS_TEST_DEPENDS})
+
+endif()
