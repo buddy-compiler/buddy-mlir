@@ -11,7 +11,7 @@ macro(CHECK_SIMD)
   check_cxx_source_runs(
     "
     #include <immintrin.h>
-    int main() {   
+    int main() {
       __m128 x;
       x = _mm_set_ps(1.0f,1.0f,1.0f,1.0f);
       return 0;

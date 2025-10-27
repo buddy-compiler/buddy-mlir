@@ -64,7 +64,8 @@ bool isAMXCompatible(Value A, Value B, Value C) {
     return false;
 
   // For static shapes, check AMX constraints
-  if (AType.hasStaticShape() && BType.hasStaticShape() && CType.hasStaticShape()) {
+  if (AType.hasStaticShape() && BType.hasStaticShape() &&
+      CType.hasStaticShape()) {
     int64_t M = AShape[0];
     int64_t K = AShape[1];
     int64_t N = BShape[1];
@@ -87,22 +88,22 @@ bool isAMXDataTypeCompatible(Value A, Value B, Value C) {
   auto AType = mlir::dyn_cast<MemRefType>(A.getType());
   auto BType = mlir::dyn_cast<MemRefType>(B.getType());
   auto CType = mlir::dyn_cast<MemRefType>(C.getType());
-  
+
   if (!AType || !BType || !CType)
     return false;
-    
+
   Type AElemType = AType.getElementType();
   Type BElemType = BType.getElementType();
   Type CElemType = CType.getElementType();
-  
+
   return AElemType.isBF16() && BElemType.isBF16() && CElemType.isF32();
 }
 
 /// Create a pre-packed version of matrix B for AMX-friendly tile loads
 /// This function reorganizes B matrix so that each 16x32 block can be loaded
 /// efficiently by amx.tile_load operations
-Value createPackedBMatrix(OpBuilder &builder, Location loc, Value B,
-                         int64_t K, int64_t N) {
+Value createPackedBMatrix(OpBuilder &builder, Location loc, Value B, int64_t K,
+                          int64_t N) {
   auto BType = mlir::cast<MemRefType>(B.getType());
   auto elementType = BType.getElementType();
 
@@ -133,8 +134,8 @@ Value createPackedBMatrix(OpBuilder &builder, Location loc, Value B,
   // The packing is done logically - the physical layout optimization
   // will be handled by later passes
   auto packedBType = MemRefType::get(staticShape, elementType);
-  Value packedB = builder.create<memref::AllocOp>(loc, packedBType, dynamicSizes);
-
+  Value packedB =
+      builder.create<memref::AllocOp>(loc, packedBType, dynamicSizes);
 
   // Get actual dimension sizes (handle both static and dynamic cases)
   Value cK, cN;
@@ -158,8 +159,10 @@ Value createPackedBMatrix(OpBuilder &builder, Location loc, Value B,
         builder.create<scf::ForOp>(
             loc, c0, cN, c1, ValueRange{},
             [&](OpBuilder &builder, Location loc, Value j, ValueRange) {
-              Value val = builder.create<memref::LoadOp>(loc, B, ValueRange{i, j});
-              builder.create<memref::StoreOp>(loc, val, packedB, ValueRange{i, j});
+              Value val =
+                  builder.create<memref::LoadOp>(loc, B, ValueRange{i, j});
+              builder.create<memref::StoreOp>(loc, val, packedB,
+                                              ValueRange{i, j});
               builder.create<scf::YieldOp>(loc);
             });
         builder.create<scf::YieldOp>(loc);
@@ -181,26 +184,27 @@ public:
   explicit MatmulAMXPattern(MLIRContext *context)
       : RewritePattern(linalg::MatmulOp::getOperationName(), 1, context) {}
 
-  LogicalResult
-  matchAndRewrite(Operation *op,
-                  PatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     auto matmulOp = cast<linalg::MatmulOp>(op);
-    
+
     // Get input operands A, B, C
     Value A = matmulOp.getInputs()[0];
     Value B = matmulOp.getInputs()[1];
     Value C = matmulOp.getOutputs()[0];
-    
+
     // Check AMX compatibility
     if (!isAMXCompatible(A, B, C)) {
-      return rewriter.notifyMatchFailure(op,
-        "Matrix dimensions not compatible with AMX: M,N must be multiples of 16, K must be multiple of 32");
+      return rewriter.notifyMatchFailure(
+          op, "Matrix dimensions not compatible with AMX: M,N must be "
+              "multiples of 16, K must be multiple of 32");
     }
 
     if (!isAMXDataTypeCompatible(A, B, C)) {
-      return rewriter.notifyMatchFailure(op,
-        "Data types not compatible with AMX BF16: A,B must be bf16, C must be f32");
+      return rewriter.notifyMatchFailure(
+          op, "Data types not compatible with AMX BF16: A,B must be bf16, C "
+              "must be f32");
     }
 
     // Additional validation for memref types
@@ -208,8 +212,10 @@ public:
     auto BMemRefType = mlir::cast<MemRefType>(B.getType());
     auto CMemRefType = mlir::cast<MemRefType>(C.getType());
 
-    if (AMemRefType.getRank() != 2 || BMemRefType.getRank() != 2 || CMemRefType.getRank() != 2) {
-      return rewriter.notifyMatchFailure(op, "Only 2D matrices are supported for AMX conversion");
+    if (AMemRefType.getRank() != 2 || BMemRefType.getRank() != 2 ||
+        CMemRefType.getRank() != 2) {
+      return rewriter.notifyMatchFailure(
+          op, "Only 2D matrices are supported for AMX conversion");
     }
 
     // Get matrix dimensions
@@ -218,7 +224,7 @@ public:
     int64_t M = AShape[0];
     int64_t K = AShape[1];
     int64_t N = BShape[1];
-    
+
     // Create constants
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
@@ -244,7 +250,7 @@ public:
     } else {
       cK = rewriter.create<arith::ConstantIndexOp>(loc, K);
     }
-    
+
     // Create pre-packed B matrix for AMX-friendly tile loads
     Value Bpack = createPackedBMatrix(rewriter, loc, B, K, N);
 
@@ -253,7 +259,7 @@ public:
     auto f32Type = rewriter.getF32Type();
     auto tileTypeBF16 = TileType::get({16, 32}, bf16Type);
     auto tileTypeF32 = TileType::get({16, 16}, f32Type);
-    
+
     // Generate AMX tile computation loops
     // Outer loops: iterate over M and N dimensions in 16x16 tiles
     rewriter.create<scf::ForOp>(
@@ -283,11 +289,12 @@ public:
                           loc, tileTypeF32, C, ValueRange{m, n});
 
                       // Perform tile multiplication with accumulation
-                      Value tAcc2 = builder.create<TileMulFOp>(
-                          loc, tileTypeF32, tA, tB, tAcc);
+                      Value tAcc2 = builder.create<TileMulFOp>(loc, tileTypeF32,
+                                                               tA, tB, tAcc);
 
                       // Store result back to C
-                      builder.create<TileStoreOp>(loc, C, ValueRange{m, n}, tAcc2);
+                      builder.create<TileStoreOp>(loc, C, ValueRange{m, n},
+                                                  tAcc2);
 
                       builder.create<scf::YieldOp>(loc);
                     });
@@ -295,7 +302,7 @@ public:
               });
           builder.create<scf::YieldOp>(loc);
         });
-    
+
     // Remove the original linalg.matmul operation
     rewriter.eraseOp(op);
     return success();
@@ -323,9 +330,9 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, scf::SCFDialect,
-                    arith::ArithDialect, memref::MemRefDialect,
-                    vector::VectorDialect, amx::AMXDialect>();
+    registry.insert<linalg::LinalgDialect, scf::SCFDialect, arith::ArithDialect,
+                    memref::MemRefDialect, vector::VectorDialect,
+                    amx::AMXDialect>();
   }
 };
 } // end anonymous namespace
@@ -343,8 +350,6 @@ void MatmulAMXPass::runOnOperation() {
 
 namespace mlir {
 namespace buddy {
-void registerMatmulAMXPass() {
-  PassRegistration<MatmulAMXPass>();
-}
+void registerMatmulAMXPass() { PassRegistration<MatmulAMXPass>(); }
 } // namespace buddy
 } // namespace mlir
