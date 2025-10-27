@@ -15,7 +15,8 @@
 //===----------------------------------------------------------------------===//
 //
 // This file implements the SiLU fusion pass that automatically detects and
-// fuses tosa.sigmoid + tosa.mul patterns into a single linalg.generic operation.
+// fuses tosa.sigmoid + tosa.mul patterns into a single linalg.generic
+// operation.
 //
 //===----------------------------------------------------------------------===//
 
@@ -46,10 +47,10 @@ public:
   LogicalResult matchAndRewrite(tosa::MulOp mulOp,
                                 PatternRewriter &rewriter) const override {
     auto loc = mulOp.getLoc();
-    
+
     Value lhs = mulOp.getInput1();
     Value rhs = mulOp.getInput2();
-    
+
     // Check for pattern: x * sigmoid(x) or sigmoid(x) * x
     tosa::SigmoidOp sigmoidOp = nullptr;
     Value inputValue = nullptr;
@@ -65,16 +66,16 @@ public:
         inputValue = lhs;
       }
     }
-    
+
     if (!sigmoidOp || !inputValue) {
       return failure();
     }
-    
+
     // Check if sigmoid has only one use (the multiply operation)
     if (!sigmoidOp.getResult().hasOneUse()) {
       return failure();
     }
-    
+
     // Get tensor type information
     auto inputType = mlir::cast<RankedTensorType>(inputValue.getType());
     auto outputType = mlir::cast<RankedTensorType>(mulOp.getResult().getType());
@@ -86,11 +87,13 @@ public:
     for (int64_t i = 0; i < rank; ++i) {
       exprs.push_back(rewriter.getAffineDimExpr(i));
     }
-    AffineMap identityMap = AffineMap::get(rank, 0, exprs, rewriter.getContext());
+    AffineMap identityMap =
+        AffineMap::get(rank, 0, exprs, rewriter.getContext());
     SmallVector<AffineMap> indexingMaps = {identityMap, identityMap};
-    
+
     // Create iterator types (all parallel)
-    SmallVector<utils::IteratorType> iteratorTypes(rank, utils::IteratorType::parallel);
+    SmallVector<utils::IteratorType> iteratorTypes(
+        rank, utils::IteratorType::parallel);
 
     // Create empty tensor for output
     tensor::EmptyOp emptyTensor = rewriter.create<tensor::EmptyOp>(
@@ -102,7 +105,7 @@ public:
         indexingMaps, iteratorTypes,
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value input = args[0];
-          
+
           // SiLU: x * sigmoid(x) = x * (1 / (1 + exp(-x)))
           Value one = b.create<arith::ConstantOp>(
               loc, b.getFloatAttr(elementType, 1.0));
@@ -111,16 +114,16 @@ public:
           Value onePlusExp = b.create<arith::AddFOp>(loc, one, expNegInput);
           Value sigmoid = b.create<arith::DivFOp>(loc, one, onePlusExp);
           Value silu = b.create<arith::MulFOp>(loc, input, sigmoid);
-          
+
           b.create<linalg::YieldOp>(loc, silu);
         });
-    
+
     // Replace the original multiply operation
     rewriter.replaceOp(mulOp, fusedOp.getResult(0));
 
     // Erase the sigmoid operation (we already verified it has only one use)
     rewriter.eraseOp(sigmoidOp);
-    
+
     return success();
   }
 };
@@ -132,22 +135,23 @@ public:
 //===----------------------------------------------------------------------===//
 
 namespace {
-class SiLUFusionPass : public PassWrapper<SiLUFusionPass, OperationPass<func::FuncOp>> {
+class SiLUFusionPass
+    : public PassWrapper<SiLUFusionPass, OperationPass<func::FuncOp>> {
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SiLUFusionPass)
-  
+
   StringRef getArgument() const final { return "silu-fusion"; }
   StringRef getDescription() const final {
     return "Fuse TOSA sigmoid and multiply operations into SiLU activation.";
   }
-  
+
   void runOnOperation() override {
     func::FuncOp funcOp = getOperation();
     MLIRContext *context = &getContext();
-    
+
     RewritePatternSet patterns(context);
     patterns.add<SiLUFusionPattern>(context);
-    
+
     if (failed(applyPatternsAndFoldGreedily(funcOp, std::move(patterns)))) {
       signalPassFailure();
     }
@@ -161,8 +165,6 @@ public:
 
 namespace mlir {
 namespace buddy {
-void registerSiLUFusionPass() {
-  PassRegistration<SiLUFusionPass>();
-}
+void registerSiLUFusionPass() { PassRegistration<SiLUFusionPass>(); }
 } // namespace buddy
 } // namespace mlir
