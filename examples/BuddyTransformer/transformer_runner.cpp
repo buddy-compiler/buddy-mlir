@@ -27,20 +27,15 @@
 
 // External function declaration (generated from MLIR)
 extern "C" {
-void _mlir_ciface_subgraph0(MemRef<float, 3> *result,
-                            MemRef<float, 3> *hidden_states1,
-                            MemRef<float, 3> *hidden_states2,
-                            MemRef<float, 1> *input_layernorm_weight,
-                            MemRef<float, 2> *q_weight,
-                            MemRef<float, 2> *k_weight,
-                            MemRef<float, 2> *v_weight,
-                            MemRef<long long, 2> *attention_mask,
-                            MemRef<float, 2> *o_weight,
-                            MemRef<float, 3> *hidden_states3,
-                            MemRef<float, 1> *post_attention_layernorm_weight,
-                            MemRef<float, 2> *gate_proj_weight,
-                            MemRef<float, 2> *up_proj_weight,
-                            MemRef<float, 2> *down_proj_weight);
+void _mlir_ciface_subgraph0(
+    MemRef<float, 3> *result, MemRef<float, 3> *hidden_states1,
+    MemRef<float, 3> *hidden_states2, MemRef<float, 1> *input_layernorm_weight,
+    MemRef<float, 2> *q_weight, MemRef<float, 2> *k_weight,
+    MemRef<float, 2> *v_weight, MemRef<long long, 2> *attention_mask,
+    MemRef<float, 2> *o_weight, MemRef<float, 3> *hidden_states3,
+    MemRef<float, 1> *post_attention_layernorm_weight,
+    MemRef<float, 2> *gate_proj_weight, MemRef<float, 2> *up_proj_weight,
+    MemRef<float, 2> *down_proj_weight);
 }
 
 // Load parameters from binary file
@@ -59,7 +54,8 @@ void loadParameters(const std::string &filename, MemRef<float, 1> &params) {
 }
 
 // Generate random input data
-void fillRandomData(MemRef<float, 3> &memref, float min_val = -1.0f, float max_val = 1.0f) {
+void fillRandomData(MemRef<float, 3> &memref, float min_val = -1.0f,
+                    float max_val = 1.0f) {
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_real_distribution<float> dis(min_val, max_val);
@@ -114,52 +110,66 @@ int main(int argc, char **argv) {
 
     // RMSNorm weights (input_layernorm)
     MemRef<float, 1> input_layernorm_weight({hidden_size});
-    std::copy(params_data + offset, params_data + offset + hidden_size, input_layernorm_weight.getData());
+    std::copy(params_data + offset, params_data + offset + hidden_size,
+              input_layernorm_weight.getData());
     offset += hidden_size;
 
     // Q projection: 1536 x 1536
     MemRef<float, 2> q_weight({hidden_size, hidden_size});
     const size_t q_size = hidden_size * hidden_size;
-    std::copy(params_data + offset, params_data + offset + q_size, q_weight.getData());
+    std::copy(params_data + offset, params_data + offset + q_size,
+              q_weight.getData());
     offset += q_size;
 
     // K projection: 256 x 1536 (GQA: 2 heads * 128 dim)
-    const size_t kv_proj_size = num_key_value_heads * (hidden_size / num_attention_heads) * hidden_size;
-    MemRef<float, 2> k_weight({num_key_value_heads * (hidden_size / num_attention_heads), hidden_size});
-    std::copy(params_data + offset, params_data + offset + kv_proj_size, k_weight.getData());
+    const size_t kv_proj_size =
+        num_key_value_heads * (hidden_size / num_attention_heads) * hidden_size;
+    MemRef<float, 2> k_weight(
+        {num_key_value_heads * (hidden_size / num_attention_heads),
+         hidden_size});
+    std::copy(params_data + offset, params_data + offset + kv_proj_size,
+              k_weight.getData());
     offset += kv_proj_size;
 
     // V projection: 256 x 1536 (GQA: 2 heads * 128 dim)
-    MemRef<float, 2> v_weight({num_key_value_heads * (hidden_size / num_attention_heads), hidden_size});
-    std::copy(params_data + offset, params_data + offset + kv_proj_size, v_weight.getData());
+    MemRef<float, 2> v_weight(
+        {num_key_value_heads * (hidden_size / num_attention_heads),
+         hidden_size});
+    std::copy(params_data + offset, params_data + offset + kv_proj_size,
+              v_weight.getData());
     offset += kv_proj_size;
 
     // O projection: 1536 x 1536
     MemRef<float, 2> o_weight({hidden_size, hidden_size});
     const size_t o_size = hidden_size * hidden_size;
-    std::copy(params_data + offset, params_data + offset + o_size, o_weight.getData());
+    std::copy(params_data + offset, params_data + offset + o_size,
+              o_weight.getData());
     offset += o_size;
 
     // RMSNorm weights (post_attention_layernorm)
     MemRef<float, 1> post_attention_layernorm_weight({hidden_size});
-    std::copy(params_data + offset, params_data + offset + hidden_size, post_attention_layernorm_weight.getData());
+    std::copy(params_data + offset, params_data + offset + hidden_size,
+              post_attention_layernorm_weight.getData());
     offset += hidden_size;
 
     // FFN gate projection: 8960 x 1536
     const size_t ffn_proj_size = intermediate_size * hidden_size;
     MemRef<float, 2> gate_proj_weight({intermediate_size, hidden_size});
-    std::copy(params_data + offset, params_data + offset + ffn_proj_size, gate_proj_weight.getData());
+    std::copy(params_data + offset, params_data + offset + ffn_proj_size,
+              gate_proj_weight.getData());
     offset += ffn_proj_size;
 
     // FFN up projection: 8960 x 1536
     MemRef<float, 2> up_proj_weight({intermediate_size, hidden_size});
-    std::copy(params_data + offset, params_data + offset + ffn_proj_size, up_proj_weight.getData());
+    std::copy(params_data + offset, params_data + offset + ffn_proj_size,
+              up_proj_weight.getData());
     offset += ffn_proj_size;
 
     // FFN down projection: 1536 x 8960
     const size_t ffn_down_size = hidden_size * intermediate_size;
     MemRef<float, 2> down_proj_weight({hidden_size, intermediate_size});
-    std::copy(params_data + offset, params_data + offset + ffn_down_size, down_proj_weight.getData());
+    std::copy(params_data + offset, params_data + offset + ffn_down_size,
+              down_proj_weight.getData());
     offset += ffn_down_size;
 
     // Input and output containers
@@ -178,11 +188,11 @@ int main(int argc, char **argv) {
     // Warmup
     std::cout << "Warming up...\n";
     for (int i = 0; i < num_warmup; ++i) {
-      _mlir_ciface_subgraph0(&output, &hidden_states1, &hidden_states2,
-                             &input_layernorm_weight, &q_weight, &k_weight, &v_weight,
-                             &attention_mask, &o_weight, &hidden_states3,
-                             &post_attention_layernorm_weight, &gate_proj_weight,
-                             &up_proj_weight, &down_proj_weight);
+      _mlir_ciface_subgraph0(
+          &output, &hidden_states1, &hidden_states2, &input_layernorm_weight,
+          &q_weight, &k_weight, &v_weight, &attention_mask, &o_weight,
+          &hidden_states3, &post_attention_layernorm_weight, &gate_proj_weight,
+          &up_proj_weight, &down_proj_weight);
     }
 
     // Performance measurement
@@ -190,11 +200,11 @@ int main(int argc, char **argv) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < num_iterations; ++i) {
-      _mlir_ciface_subgraph0(&output, &hidden_states1, &hidden_states2,
-                             &input_layernorm_weight, &q_weight, &k_weight, &v_weight,
-                             &attention_mask, &o_weight, &hidden_states3,
-                             &post_attention_layernorm_weight, &gate_proj_weight,
-                             &up_proj_weight, &down_proj_weight);
+      _mlir_ciface_subgraph0(
+          &output, &hidden_states1, &hidden_states2, &input_layernorm_weight,
+          &q_weight, &k_weight, &v_weight, &attention_mask, &o_weight,
+          &hidden_states3, &post_attention_layernorm_weight, &gate_proj_weight,
+          &up_proj_weight, &down_proj_weight);
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();

@@ -167,4 +167,3 @@ After building, the following files will be generated in the build directory:
 | `buddy-transformer-backend` | Optimized → LLVM MLIR | `*-backend.mlir` |
 | `buddy-transformer-codegen` | LLVM MLIR → Object files | `*.ll`, `*.o` |
 | `buddy-transformer-executable` | Staged executable | `transformer-runner-staged` |
-

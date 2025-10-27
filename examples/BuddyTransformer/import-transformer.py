@@ -35,7 +35,9 @@ from transformer_model import create_transformer_model, create_sample_inputs
 
 def main():
     # Add argument parser to allow custom output directory
-    parser = argparse.ArgumentParser(description="DeepSeek R1 Transformer Block AOT Importer")
+    parser = argparse.ArgumentParser(
+        description="DeepSeek R1 Transformer Block AOT Importer"
+    )
     parser.add_argument(
         "--output-dir",
         type=str,
@@ -65,7 +67,9 @@ def main():
     model = create_transformer_model()
 
     # Create sample inputs
-    hidden_states, attention_mask = create_sample_inputs(args.batch_size, args.seq_len)
+    hidden_states, attention_mask = create_sample_inputs(
+        args.batch_size, args.seq_len
+    )
 
     # Initialize Dynamo Compiler with specific configurations as an importer
     dynamo_compiler = DynamoCompiler(
@@ -98,15 +102,18 @@ def main():
         print("=" * 80, file=graph_file)
 
         for i, node in enumerate(graph.body):
-            node_type = type(node).__name__.replace('Op', '')
+            node_type = type(node).__name__.replace("Op", "")
             print(f"Node {i+1}: {node.name} | {node_type}", file=graph_file)
 
             # Extract output shape if available
-            if hasattr(node, 'tensor_meta') and node.tensor_meta:
+            if hasattr(node, "tensor_meta") and node.tensor_meta:
                 meta = node.tensor_meta
-                if isinstance(meta, dict) and 'shape' in meta:
-                    shape = meta['shape']
-                    print(f"  Output shape: {list(shape) if hasattr(shape, '__iter__') else shape}", file=graph_file)
+                if isinstance(meta, dict) and "shape" in meta:
+                    shape = meta["shape"]
+                    print(
+                        f"  Output shape: {list(shape) if hasattr(shape, '__iter__') else shape}",
+                        file=graph_file,
+                    )
 
             print("-" * 40, file=graph_file)
 
@@ -114,7 +121,9 @@ def main():
         print("PARAMETER SHAPES:", file=graph_file)
         print("=" * 80, file=graph_file)
         for i, param in enumerate(params):
-            print(f"Parameter {i}: {param.shape} ({param.dtype})", file=graph_file)
+            print(
+                f"Parameter {i}: {param.shape} ({param.dtype})", file=graph_file
+            )
 
     # Apply graph transformations
     pattern_list = [simply_fuse]
@@ -125,21 +134,26 @@ def main():
         print("=" * 80, file=fused_file)
         print("BUDDY GRAPH AFTER FUSION", file=fused_file)
         print("=" * 80, file=fused_file)
-        print(f"Number of nodes after fusion: {len(graph.body)}", file=fused_file)
+        print(
+            f"Number of nodes after fusion: {len(graph.body)}", file=fused_file
+        )
         print("=" * 80, file=fused_file)
         print("FUSED GRAPH NODES:", file=fused_file)
         print("=" * 80, file=fused_file)
 
         for i, node in enumerate(graph.body):
-            node_type = type(node).__name__.replace('Op', '')
+            node_type = type(node).__name__.replace("Op", "")
             print(f"Node {i+1}: {node.name} | {node_type}", file=fused_file)
 
             # Extract output shape if available
-            if hasattr(node, 'tensor_meta') and node.tensor_meta:
+            if hasattr(node, "tensor_meta") and node.tensor_meta:
                 meta = node.tensor_meta
-                if isinstance(meta, dict) and 'shape' in meta:
-                    shape = meta['shape']
-                    print(f"  Output shape: {list(shape) if hasattr(shape, '__iter__') else shape}", file=fused_file)
+                if isinstance(meta, dict) and "shape" in meta:
+                    shape = meta["shape"]
+                    print(
+                        f"  Output shape: {list(shape) if hasattr(shape, '__iter__') else shape}",
+                        file=fused_file,
+                    )
 
             print("-" * 40, file=fused_file)
 
