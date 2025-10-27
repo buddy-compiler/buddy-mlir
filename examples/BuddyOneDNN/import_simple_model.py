@@ -15,18 +15,22 @@ import numpy
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse, replace_matmul_with_onednn
+from buddy.compiler.graph.transform import (
+    simply_fuse,
+    replace_matmul_with_onednn,
+)
 
 
 class SimpleModel(torch.nn.Module):
     """
     Simple model for testing oneDNN integration.
-    
+
     Forward pass:
         y = matmul(x, weight)  <- Will be replaced with oneDNN
         y = y + bias           <- Will use TOSA
         y = relu(y)            <- Will use TOSA
     """
+
     def forward(self, x, weight, bias):
         y = torch.matmul(x, weight)
         y = y + bias
@@ -85,7 +89,7 @@ def main():
     print("=" * 80)
     print("SimpleModel with oneDNN Integration")
     print("=" * 80)
-    print(f"Input shapes:")
+    print("Input shapes:")
     print(f"  x: {x.shape}")
     print(f"  weight: {weight.shape}")
     print(f"  bias: {bias.shape}")
@@ -126,14 +130,17 @@ def main():
         print("=" * 80, file=graph_file)
 
         for i, node in enumerate(graph.body):
-            node_type = type(node).__name__.replace('Op', '')
-            print(f"Node {i+1}: {node.name} | {node_type}", file=graph_file)
+            node_type = type(node).__name__.replace("Op", "")
+            print(f"Node {i + 1}: {node.name} | {node_type}", file=graph_file)
 
-            if hasattr(node, 'tensor_meta') and node.tensor_meta:
+            if hasattr(node, "tensor_meta") and node.tensor_meta:
                 meta = node.tensor_meta
-                if isinstance(meta, dict) and 'shape' in meta:
-                    shape = meta['shape']
-                    print(f"  Output shape: {list(shape) if hasattr(shape, '__iter__') else shape}", file=graph_file)
+                if isinstance(meta, dict) and "shape" in meta:
+                    shape = meta["shape"]
+                    print(
+                        f"  Output shape: {list(shape) if hasattr(shape, '__iter__') else shape}",
+                        file=graph_file,
+                    )
 
             print("-" * 40, file=graph_file)
 
@@ -142,16 +149,18 @@ def main():
     # because simply_fuse creates op_groups which will capture the current graph.body
     pattern_list = [
         replace_matmul_with_onednn,  # Replace MatmulOp with oneDNN calls
-        simply_fuse,                  # Then create op_groups
+        simply_fuse,  # Then create op_groups
     ]
-    
+
     for pattern in pattern_list:
         print(f"  - {pattern.__name__}")
-    
+
     graphs[0].fuse_ops(pattern_list)
 
     # Save graph after transform
-    with open(os.path.join(output_dir, "graph_transformed.log"), "w") as fused_file:
+    with open(
+        os.path.join(output_dir, "graph_transformed.log"), "w"
+    ) as fused_file:
         print("=" * 80, file=fused_file)
         print("BUDDY GRAPH AFTER TRANSFORM", file=fused_file)
         print("=" * 80, file=fused_file)
@@ -161,18 +170,21 @@ def main():
         print("=" * 80, file=fused_file)
 
         for i, node in enumerate(graph.body):
-            node_type = type(node).__name__.replace('Op', '')
-            print(f"Node {i+1}: {node.name} | {node_type}", file=fused_file)
-            
+            node_type = type(node).__name__.replace("Op", "")
+            print(f"Node {i + 1}: {node.name} | {node_type}", file=fused_file)
+
             # Print CallOp details
-            if node_type == "Call" and hasattr(node, 'call_func_name'):
+            if node_type == "Call" and hasattr(node, "call_func_name"):
                 print(f"  Calls: {node.call_func_name}", file=fused_file)
 
-            if hasattr(node, 'tensor_meta') and node.tensor_meta:
+            if hasattr(node, "tensor_meta") and node.tensor_meta:
                 meta = node.tensor_meta
-                if isinstance(meta, dict) and 'shape' in meta:
-                    shape = meta['shape']
-                    print(f"  Output shape: {list(shape) if hasattr(shape, '__iter__') else shape}", file=fused_file)
+                if isinstance(meta, dict) and "shape" in meta:
+                    shape = meta["shape"]
+                    print(
+                        f"  Output shape: {list(shape) if hasattr(shape, '__iter__') else shape}",
+                        file=fused_file,
+                    )
 
             print("-" * 40, file=fused_file)
 
@@ -202,33 +214,35 @@ def main():
     print("Generation Complete!")
     print("=" * 80)
     print(f"Output directory: {output_dir}")
-    print(f"Generated files:")
-    print(f"  - graph.log (before transform)")
-    print(f"  - graph_transformed.log (after transform)")
-    print(f"  - forward.mlir (main graph)")
-    print(f"  - subgraph0.mlir (subgraph)")
-    print(f"  - arg0.data (parameters)")
+    print("Generated files:")
+    print("  - graph.log (before transform)")
+    print("  - graph_transformed.log (after transform)")
+    print("  - forward.mlir (main graph)")
+    print("  - subgraph0.mlir (subgraph)")
+    print("  - arg0.data (parameters)")
     print(f"\nModel parameters: {sum(p.numel() for p in params)} elements")
     print(f"Input shape: {x.shape}")
-    
+
     # Verify transform
     print("\n" + "=" * 80)
     print("Verification:")
     print("=" * 80)
-    
-    matmul_count = sum(1 for node in graph.body if type(node).__name__ == "MatmulOp")
-    call_count = sum(1 for node in graph.body if type(node).__name__ == "CallOp")
-    
+
+    matmul_count = sum(
+        1 for node in graph.body if type(node).__name__ == "MatmulOp"
+    )
+    call_count = sum(
+        1 for node in graph.body if type(node).__name__ == "CallOp"
+    )
+
     print(f"MatmulOp count: {matmul_count} (should be 0)")
     print(f"CallOp count: {call_count} (should be 1)")
-    
+
     if matmul_count == 0 and call_count >= 1:
         print("Transform successful! MatmulOp replaced with CallOp")
     else:
         print("Transform may have issues")
 
 
-
 if __name__ == "__main__":
     main()
-

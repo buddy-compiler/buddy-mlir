@@ -478,6 +478,7 @@ class CallExternalOp(Op):
     This is separate from CallOp to avoid breaking existing functionality.
     Uses RankedTensorType for TOSA dialect compatibility.
     """
+
     def __init__(
         self,
         call_func_name: str,

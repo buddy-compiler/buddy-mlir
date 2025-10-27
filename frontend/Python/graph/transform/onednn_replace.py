@@ -62,9 +62,9 @@ def replace_matmul_with_onednn(graph: Graph):
             )
 
             # Copy other important attributes
-            if hasattr(op, '_parents'):
+            if hasattr(op, "_parents"):
                 call_op._parents = op._parents.copy()
-            if hasattr(op, '_children'):
+            if hasattr(op, "_children"):
                 call_op._children = op._children.copy()
 
             # Replace the MatmulOp with CallExternalOp in the graph
@@ -95,14 +95,16 @@ def replace_matmul_with_onednn_selective(graph: Graph, min_size=None):
             # Check if we should replace this matmul
             should_replace = True
 
-            if min_size is not None and hasattr(op, 'tensor_meta'):
-                shape = op.tensor_meta.get('shape', [])
+            if min_size is not None and hasattr(op, "tensor_meta"):
+                shape = op.tensor_meta.get("shape", [])
                 if len(shape) >= 2:
                     # For 2D: [M, N], for 3D: [B, M, N]
                     matrix_size = shape[-2] * shape[-1]
                     if matrix_size < min_size:
                         should_replace = False
-                        print(f"[oneDNN Transform] Skipping {op.name} (size {matrix_size} < {min_size})")
+                        print(
+                            f"[oneDNN Transform] Skipping {op.name} (size {matrix_size} < {min_size})"
+                        )
 
             if should_replace:
                 # Get output shape and dtype from the MatmulOp
@@ -121,9 +123,9 @@ def replace_matmul_with_onednn_selective(graph: Graph, min_size=None):
                     name=f"onednn_{op.name}",
                 )
 
-                if hasattr(op, '_parents'):
+                if hasattr(op, "_parents"):
                     call_op._parents = op._parents.copy()
-                if hasattr(op, '_children'):
+                if hasattr(op, "_children"):
                     call_op._children = op._children.copy()
 
                 graph.displace_node(op, call_op)
@@ -131,7 +133,8 @@ def replace_matmul_with_onednn_selective(graph: Graph, min_size=None):
                 # IMPORTANT: displace_node overwrites _op_type, so we need to restore it
                 call_op._op_type = OpType.Unfusable
 
-                print(f"[oneDNN Transform] Replaced {op.name} (MatmulOp) with {call_op.name} (CallExternalOp)")
-                if hasattr(op, 'tensor_meta') and 'shape' in op.tensor_meta:
+                print(
+                    f"[oneDNN Transform] Replaced {op.name} (MatmulOp) with {call_op.name} (CallExternalOp)"
+                )
+                if hasattr(op, "tensor_meta") and "shape" in op.tensor_meta:
                     print(f"  Output shape: {op.tensor_meta['shape']}")
-

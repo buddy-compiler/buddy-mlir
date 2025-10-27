@@ -588,6 +588,7 @@ class GraphImporter:
             # Generate external function declarations for CallExternalOp nodes (only if enabled)
             if self._enable_external_calls:
                 from .operation import CallExternalOp
+
                 for node in self._body:
                     if isinstance(node, CallExternalOp):
                         self._generate_external_func_decl(node)
@@ -720,24 +721,33 @@ class GraphImporter:
                     arg_node = node
                     break
 
-            if arg_node and hasattr(arg_node, 'tensor_meta'):
+            if arg_node and hasattr(arg_node, "tensor_meta"):
                 # Handle both dict and TensorMeta object
                 if isinstance(arg_node.tensor_meta, dict):
-                    shape = arg_node.tensor_meta.get('shape', [])
-                    dtype = arg_node.tensor_meta.get('dtype', 'float32')
+                    shape = arg_node.tensor_meta.get("shape", [])
+                    dtype = arg_node.tensor_meta.get("dtype", "float32")
                 else:
                     shape = arg_node.tensor_meta.shape
                     dtype = arg_node.tensor_meta.dtype
                 mlir_dtype = mlir_element_type_get(dtype)
-                arg_types.append(ir.RankedTensorType.get(list(shape), mlir_dtype))
+                arg_types.append(
+                    ir.RankedTensorType.get(list(shape), mlir_dtype)
+                )
 
         # Build result types from CallOp's tensor_meta
         result_types = []
-        if hasattr(call_node, 'tensor_meta') and 'shape' in call_node.tensor_meta:
-            shape = call_node.tensor_meta['shape']
-            dtype = call_node.tensor_meta['dtype']
+        if (
+            hasattr(call_node, "tensor_meta")
+            and "shape" in call_node.tensor_meta
+        ):
+            shape = call_node.tensor_meta["shape"]
+            dtype = call_node.tensor_meta["dtype"]
 
-            if isinstance(shape, (list, tuple)) and len(shape) > 0 and isinstance(shape[0], (list, tuple)):
+            if (
+                isinstance(shape, (list, tuple))
+                and len(shape) > 0
+                and isinstance(shape[0], (list, tuple))
+            ):
                 # Multiple outputs
                 for i, s in enumerate(shape):
                     mlir_dtype = mlir_element_type_get(dtype[i])
@@ -745,17 +755,19 @@ class GraphImporter:
             else:
                 # Single output
                 mlir_dtype = mlir_element_type_get(dtype)
-                result_types.append(ir.RankedTensorType.get(list(shape), mlir_dtype))
+                result_types.append(
+                    ir.RankedTensorType.get(list(shape), mlir_dtype)
+                )
 
         # Create function type
-        function_type = ir.FunctionType.get(inputs=arg_types, results=result_types)
+        function_type = ir.FunctionType.get(
+            inputs=arg_types, results=result_types
+        )
 
         # Create private function declaration
         with ir.InsertionPoint(self._module.body):
             func_decl = func.FuncOp(
-                name=func_name,
-                type=function_type,
-                visibility="private"
+                name=func_name, type=function_type, visibility="private"
             )
             # Add llvm.emit_c_interface attribute for C ABI compatibility
             func_decl.attributes["llvm.emit_c_interface"] = ir.UnitAttr.get()

@@ -88,6 +88,7 @@ def func_op(node: FuncOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
 #     op = func.call(results, func_symbol, arguments)
 #     return op
 
+
 def call_op(node: CallOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
     """
     Import the buddy CallOp.
@@ -118,7 +119,9 @@ def call_op(node: CallOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
     return op
 
 
-def call_external_op(node: CallExternalOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
+def call_external_op(
+    node: CallExternalOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
+):
     """
     Import the buddy CallExternalOp for external library calls (e.g., oneDNN).
     From Buddy CallExternalOp to MLIR FUNC call operation.
@@ -136,7 +139,11 @@ def call_external_op(node: CallExternalOp, symbol_table: Dict[Tuple[str, int], i
         shape = node.tensor_meta["shape"]
         dtype = node.tensor_meta["dtype"]
 
-        if isinstance(shape, (list, tuple)) and len(shape) > 0 and isinstance(shape[0], (list, tuple)):
+        if (
+            isinstance(shape, (list, tuple))
+            and len(shape) > 0
+            and isinstance(shape[0], (list, tuple))
+        ):
             # Multiple outputs: shape is [[...], [...], ...]
             for i, s in enumerate(shape):
                 mlir_dtype = mlir_element_type_get(dtype[i])

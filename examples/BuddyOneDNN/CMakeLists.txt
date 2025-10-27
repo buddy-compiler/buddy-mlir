@@ -298,4 +298,3 @@ add_custom_target(buddy-onednn-clean
         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
     COMMENT "Cleaning BuddyOneDNN generated files"
 )
-
