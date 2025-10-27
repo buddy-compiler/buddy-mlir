@@ -24,7 +24,8 @@ import numpy
 import sys
 
 import mlir.ir as ir
-from mlir.dialects import tensor, tosa, arith, linalg, math
+from mlir.ir import IndexType, F32Type
+from mlir.dialects import tensor, tosa, arith, linalg, math, affine ,vector,bufferization,memref
 
 from ..graph import TensorDType
 from ..graph import (
@@ -66,6 +67,7 @@ from ..graph import (
     MatmulOp,
     LeOp,
     BitwiseAndTensorOp,
+    LayerNormOp,
 )
 from .utils import *
 
@@ -1927,6 +1929,77 @@ def scaled_dot_product_flash_attention_for_cpu_op(
 
     return result_reshape_op, log_sumexp
 
+def layer_norm_op(node: LayerNormOp, symbol_table):
+    """
+    Perform layer normalization.
+    Args:
+        node (LayerNormOp): The layer normalization operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+    Returns:
+        out_tensor: Result tensor of the layer normalization operation.
+    """
+    gamma = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input_tensor = symbol_table.get((str(node.args[1]), 0), node.args[1])
+
+    index = IndexType.get()
+    f32 = ir.F32Type.get()
+    v8f32 = ir.VectorType.get([8], f32)
+    vec_len = arith.ConstantOp(f32, ir.FloatAttr.get(f32, 8.0))
+
+    eps = arith.ConstantOp(f32, ir.FloatAttr.get(f32, 1e-6))
+    zero_f32 = arith.ConstantOp(f32, ir.FloatAttr.get(f32, 0.0))
+    c0 = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), 0))
+
+    input_shape = input_tensor.type.shape
+
+    dim1_index = arith.ConstantOp(index, ir.IntegerAttr.get(index, input_shape[1]))
+    dim2_index = arith.ConstantOp(index, ir.IntegerAttr.get(index, input_shape[2]))
+    dim2_f32 = arith.ConstantOp(f32, ir.FloatAttr.get(f32, float(input_shape[2])))
+
+    x_memref = bufferization.ToMemrefOp(ir.MemRefType.get(input_shape, f32), input_tensor)
+    gamma_memref = bufferization.ToMemrefOp( ir.MemRefType.get(gamma.type.shape, f32), gamma)
+    out_memref = memref.AllocOp(ir.MemRefType.get(input_shape, f32), [], [])
+
+
+    identy_3 = ir.AffineMap.get_identity(3)
+    identy_1 = ir.AffineMap.get_identity(1)
+
+    loop_b = affine.AffineForOp(0, dim1_index.result, 1)
+    with ir.InsertionPoint(loop_b.body):
+        b = loop_b.induction_variable
+
+        loop_i = affine.AffineForOp(0, dim2_index.result, 8, [zero_f32.result,zero_f32.result])
+        i_sum = loop_i.induction_variable
+        iter_args = loop_i.inner_iter_args
+        with ir.InsertionPoint(loop_i.body):
+            M2_iter = iter_args[0]
+            count_iter = iter_args[1]
+
+            identy_31 = ir.AffineMap.get(len(list(input_shape)), 0, [ir.AffineDimExpr.get(len(list(input_shape)) - 1)])
+            vx = vector.TransferReadOp(v8f32,x_memref,[c0.result, b, i_sum],identy_31,zero_f32,[True] ).result
+            vg = vector.TransferReadOp(v8f32,gamma_memref,[i_sum],identy_1,zero_f32,[True], ).result
+
+            vx_sq = arith.MulFOp(vx, vx).result
+            vx_sq_sum = vector.ReductionOp(f32, "add", vx_sq).result
+
+            count_add = arith.AddFOp(count_iter, vec_len).result
+            M2_new = arith.AddFOp(M2_iter, vx_sq_sum).result
+
+            var = arith.DivFOp(M2_new, count_add).result
+            var_eps = arith.AddFOp(var, eps).result
+            inv_std = math.RsqrtOp(var_eps).result
+            inv_std_vec = vector.SplatOp(v8f32, inv_std).result
+            y_norm = arith.MulFOp(vx, inv_std_vec).result
+            y_scaled = arith.MulFOp(y_norm, vg).result
+
+            vector.TransferWriteOp(None,y_scaled,out_memref,[c0.result, b, i_sum],identy_31,[True], )
+            affine.yield_([M2_new, count_add])
+        affine.yield_([])
+
+    out_ty = ir.RankedTensorType.get(input_shape, f32)
+    out_tensor = bufferization.ToTensorOp(out_ty, out_memref, restrict=ir.BoolAttr.get(True))
+    return out_tensor
+
 
 def le_op(
     node: LeOp,
@@ -2086,4 +2159,5 @@ ops_registry = {
     "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
     "LeOp": le_op,
     "BitwiseAndTensorOp": bitwise_and_tensor_op,
+    "LayerNormOp": layer_norm_op,
 }
