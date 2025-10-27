@@ -23,8 +23,10 @@ from typing import Dict, List, Tuple, Union
 import numpy
 import sys
 
+from torch import NoneType
+
 import mlir.ir as ir
-from mlir.dialects import tensor, tosa, arith, linalg, math
+from mlir.dialects import tensor, tosa, arith, linalg, bufferization, memref, scf, arith, math
 
 from ..graph import TensorDType
 from ..graph import (
@@ -66,6 +68,7 @@ from ..graph import (
     MatmulOp,
     LeOp,
     BitwiseAndTensorOp,
+    NormOp,
 )
 from .utils import *
 
@@ -2073,6 +2076,90 @@ def bitwise_and_tensor_op(node: BitwiseAndTensorOp, symbol_table):
 
 # Import func ops registry for CallOp support
 from . import func as func_ops
+def norm_op(node: NormOp, symbol_table):
+    """
+    Perform layer normalization.
+    Args:
+        node (NormOp): The norm operation node with metadata.
+        symbol_table: Mapping of variable names to tensor references.
+    Returns:
+        out_tensor: Result tensor of the layer normalization operation.
+    """
+    gamma = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input_tensor = symbol_table.get((str(node.args[1]), 0), node.args[1])
+
+    index = ir.IndexType.get()
+    f32 = ir.F32Type.get()
+    v8f32 = ir.VectorType.get([8], f32)
+
+    eps = arith.ConstantOp(f32, ir.FloatAttr.get(f32, 1e-6))
+    zero_f32 = arith.ConstantOp(f32, ir.FloatAttr.get(f32, 0.0))
+    c0 = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), 0))
+    c1 = arith.ConstantOp(ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), 1))
+    
+    input_shape = input_tensor.type.shape
+    dim1_index = arith.ConstantOp(index, ir.IntegerAttr.get(index, input_shape[1]))
+    dim2_index = arith.ConstantOp(index, ir.IntegerAttr.get(index, input_shape[2]))
+    dim2_const = arith.ConstantOp(f32, ir.FloatAttr.get(f32, input_shape[2]))
+
+    x_memref = bufferization.ToMemrefOp(ir.MemRefType.get(input_shape, f32), input_tensor)
+    gamma_memref = bufferization.ToMemrefOp( ir.MemRefType.get(gamma.type.shape, f32), gamma)
+    out_memref = memref.AllocOp(ir.MemRefType.get(input_shape, f32), [], [])
+    # #Could choose to use scf.parallel to implement the loop_b or loop_i
+    # loop_b_parallel = scf.ParallelOp([], [c0.result], [dim1_index.result], [c1.result],[])
+    # blk = loop_b_parallel.region.blocks.append()
+    # with ir.InsertionPoint(blk):
+    #     b = blk.add_argument(ir.IndexType.get(), ir.Location.unknown())
+    loop_b = scf.ForOp(c0.result, dim1_index.result, c1.result, [])
+    with ir.InsertionPoint(loop_b.body):
+        b = loop_b.induction_variable
+        # loop_i = scf.ForOp(c0.result, dim2_index.result, c1.result, [zero_f32.result])
+        # with ir.InsertionPoint(loop_i.body):
+        #     i = loop_i.induction_variable
+        #     acc = loop_i.inner_iter_args[0]
+        #     x = memref.LoadOp(x_memref, [c0.result, b, i]).result
+        #     x_sq = arith.MulFOp(x, x).result
+        #     new_acc = arith.AddFOp(acc, x_sq).result
+        #     scf.YieldOp([new_acc])
+        loop_i_parallel = scf.ParallelOp([f32], [c0.result], [dim2_index.result], [c1.result], [zero_f32.result])
+        blk = loop_i_parallel.region.blocks.append()
+        with ir.InsertionPoint(blk):
+            i = blk.add_argument(ir.IndexType.get(), ir.Location.unknown())
+            x = memref.LoadOp(x_memref, [c0.result, b, i]).result
+            x_sq = arith.MulFOp(x, x).result
+            reduce = scf.ReduceOp([x_sq], 1)
+            region = reduce.regions[0]           
+            block = region.blocks.append()       
+            block.add_argument(f32, ir.Location.unknown())  # %lhs
+            block.add_argument(f32, ir.Location.unknown())  # %rhs
+
+            with ir.InsertionPoint(block):
+                lhs, rhs = block.arguments       
+                res = arith.AddFOp(lhs, rhs)
+                scf.ReduceReturnOp(res.result)
+
+        acc = loop_i_parallel.result
+        mean = arith.DivFOp(acc, dim2_const.result).result
+        m_eps = arith.AddFOp(mean, eps.result).result
+        inv_rms = math.RsqrtOp(m_eps).result
+        # loop_i_parallel = scf.ParallelOp([], [c0.result], [dim2_index.result], [c1.result],[])
+        # blk = loop_i_parallel.region.blocks.append()
+        # with ir.InsertionPoint(blk):
+        #     i = blk.add_argument(ir.IndexType.get(), ir.Location.unknown())
+        loop_i = scf.ForOp(c0.result, dim2_index.result, c1.result, [])
+        with ir.InsertionPoint(loop_i.body):
+            i = loop_i.induction_variable
+            x = memref.LoadOp(x_memref, [c0.result, b, i]).result
+            g = memref.LoadOp(gamma_memref, [i]).result
+            x_norm = arith.MulFOp(x, inv_rms).result
+            y = arith.MulFOp(x_norm, g).result
+            memref.StoreOp(y, out_memref, [c0.result, b, i])
+            scf.YieldOp([])
+        scf.YieldOp([])
+    out_ty = ir.RankedTensorType.get(input_shape, f32)
+    out_tensor = bufferization.ToTensorOp(out_ty, out_memref, restrict=ir.BoolAttr.get(True))
+    return out_tensor
+
 
 ops_registry = {
     "AddOp": add_op,
@@ -2113,4 +2200,5 @@ ops_registry = {
     "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
     "LeOp": le_op,
     "BitwiseAndTensorOp": bitwise_and_tensor_op,
+    "NormOp": norm_op,
 }
