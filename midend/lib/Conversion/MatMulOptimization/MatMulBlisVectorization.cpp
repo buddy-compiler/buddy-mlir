@@ -19,12 +19,12 @@
 //===----------------------------------------------------------------------===//
 
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
 #include <mlir/Dialect/Vector/IR/VectorOps.h>
-#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/IR/Dialect.h>
 #include <mlir/IR/Operation.h>
 #include <mlir/IR/TypeUtilities.h>
@@ -50,23 +50,35 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
 
-    
     // Create constant indices
-    const Value c0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
-    const Value c1 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-    const Value c2 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(2));
-    const Value c3 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(3));
-    const Value c4 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(4));
-    const Value c5 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(5));
-    const Value c6 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(6));
-    const Value c7 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(7));
+    const Value c0 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+    const Value c1 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+    const Value c2 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(2));
+    const Value c3 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(3));
+    const Value c4 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(4));
+    const Value c5 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(5));
+    const Value c6 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(6));
+    const Value c7 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(7));
 
     // Fixed BLIS blocking parameters from txt file
-    const Value nc = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(256));  // nc = 256
-    const Value kc = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(128));  // kc = 128
-    const Value mc = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(64));   // mc = 64
-    const Value mr = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(8));    // mr = 8
-    const Value nr = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(32));   // nr = 32
+    const Value nc = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIndexAttr(256)); // nc = 256
+    const Value kc = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIndexAttr(128)); // kc = 128
+    const Value mc = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIndexAttr(64)); // mc = 64
+    const Value mr = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIndexAttr(8)); // mr = 8
+    const Value nr = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIndexAttr(32)); // nr = 32
 
     // Get input A, B, C
     Value A = op->getOperand(0);
@@ -81,44 +93,65 @@ public:
     // Get element type and create vector type
     ShapedType ATy = cast<ShapedType>(A.getType());
     Type eleTy = ATy.getElementType();
-    VectorType vectorTy = VectorType::get({32}, eleTy);  // Fixed vector size 32
+    VectorType vectorTy = VectorType::get({32}, eleTy); // Fixed vector size 32
 
     // BLIS 5-loop structure
     // Loop 1: jc - column blocking
-        rewriter.create<scf::ParallelOp>(
-    loc, c0, n, nc, 
-    [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-      Value jc = ivs[0];
+    rewriter.create<scf::ParallelOp>(
+        loc, c0, n, nc, [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+          Value jc = ivs[0];
           // Compute actual nc for this block
           auto jcEnd = builder.create<arith::AddIOp>(loc, jc, nc);
-          auto jcBound = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, jcEnd, n);
-          auto jcActualEnd = builder.create<arith::SelectOp>(loc, jcBound, jcEnd, n);
+          auto jcBound = builder.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::slt, jcEnd, n);
+          auto jcActualEnd =
+              builder.create<arith::SelectOp>(loc, jcBound, jcEnd, n);
           auto ncActual = builder.create<arith::SubIOp>(loc, jcActualEnd, jc);
 
           // Loop 2: pc - k blocking
-          builder.create<scf::ForOp>(
-              loc, c0, k, kc, ValueRange{},
-              [&](OpBuilder &builder, Location loc, Value pc, ValueRange) {
-                // Compute actual kc for this block
-                auto pcEnd = builder.create<arith::AddIOp>(loc, pc, kc);
-                auto pcBound = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, pcEnd, k);
-                auto pcActualEnd = builder.create<arith::SelectOp>(loc, pcBound, pcEnd, k);
-                auto kcActual = builder.create<arith::SubIOp>(loc, pcActualEnd, pc);
+          builder.create<
+              scf::
+                  ForOp>(loc, c0, k, kc, ValueRange{},
+                         [&](OpBuilder &builder, Location loc, Value pc,
+                             ValueRange) {
+                           // Compute actual kc for this block
+                           auto pcEnd =
+                               builder.create<arith::AddIOp>(loc, pc, kc);
+                           auto pcBound = builder.create<arith::CmpIOp>(
+                               loc, arith::CmpIPredicate::slt, pcEnd, k);
+                           auto pcActualEnd = builder.create<arith::SelectOp>(
+                               loc, pcBound, pcEnd, k);
+                           auto kcActual = builder.create<arith::SubIOp>(
+                               loc, pcActualEnd, pc);
 
-                // Check if we should allocate B_packed (avoid allocation for empty blocks)
-                auto kcActualPositive = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, kcActual, c0);
-                auto ncActualPositive = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, ncActual, c0);
-                auto shouldAllocB = builder.create<arith::AndIOp>(loc, kcActualPositive, ncActualPositive);
+                           // Check if we should allocate B_packed (avoid
+                           // allocation for empty blocks)
+                           auto kcActualPositive =
+                               builder.create<arith::CmpIOp>(
+                                   loc, arith::CmpIPredicate::sgt, kcActual,
+                                   c0);
+                           auto ncActualPositive =
+                               builder.create<arith::CmpIOp>(
+                                   loc, arith::CmpIPredicate::sgt, ncActual,
+                                   c0);
+                           auto shouldAllocB = builder.create<arith::AndIOp>(
+                               loc, kcActualPositive, ncActualPositive);
 
-                builder.create<scf::IfOp>(loc, shouldAllocB,
-                  [&](OpBuilder &builder, Location loc) {
-                    // Allocate and pack B block
-                    auto B_packedType = MemRefType::get({ShapedType::kDynamic, ShapedType::kDynamic}, 
-                                                eleTy,AffineMap(),  nullptr);
-                    Value B_packed = builder.create<memref::AllocOp>(loc, B_packedType, 
-                                                                   ValueRange{kcActual, ncActual});
+                           builder.create<scf::IfOp>(
+                               loc, shouldAllocB,
+                               [&](OpBuilder &builder, Location loc) {
+                                 // Allocate and pack B block
+                                 auto B_packedType = MemRefType::get(
+                                     {ShapedType::kDynamic,
+                                      ShapedType::kDynamic},
+                                     eleTy, AffineMap(), nullptr);
+                                 Value B_packed =
+                                     builder.create<memref::AllocOp>(
+                                         loc, B_packedType,
+                                         ValueRange{kcActual, ncActual});
 
-                    // Pack B block
+                                 // Pack B block
+                                 // clang-format off
                     builder.create<scf::ForOp>(
                         loc, c0, kcActual, c1, ValueRange{},
                         [&](OpBuilder &builder, Location loc, Value kp, ValueRange) {
@@ -135,7 +168,6 @@ public:
                               });
                           builder.create<scf::YieldOp>(loc);
                         });
-
                     // Loop 3: ic - row blocking
                     builder.create<scf::ParallelOp>(
                             loc, c0, m, mc,
@@ -143,14 +175,16 @@ public:
                             Value ic = ivs[0];
                           // Compute actual mc for this block
                           auto icEnd = builder.create<arith::AddIOp>(loc, ic, mc);
-                          auto icBound = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, icEnd, m);
+                          auto icBound = builder.create<arith::CmpIOp>(loc, 
+                                                        arith::CmpIPredicate::slt, icEnd, m);
                           auto icActualEnd = builder.create<arith::SelectOp>(loc, icBound, icEnd, m);
                           auto mcActual = builder.create<arith::SubIOp>(loc, icActualEnd, ic);
 
                           // Check if we should allocate A_packed
-                          auto mcActualPositive = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, mcActual, c0);
-                          auto shouldAllocA = builder.create<arith::AndIOp>(loc, mcActualPositive, kcActualPositive);
-
+                          auto mcActualPositive = builder.create<arith::CmpIOp>(
+                              loc, arith::CmpIPredicate::sgt, mcActual, c0);
+                          auto shouldAllocA = builder.create<arith::AndIOp>(
+                              loc, mcActualPositive, kcActualPositive);
                           builder.create<scf::IfOp>(loc, shouldAllocA,
                             [&](OpBuilder &builder, Location loc) {
                               // Allocate and pack A block
@@ -182,19 +216,23 @@ public:
                                   loc, c0, ncActual, nr, ValueRange{},
                                   [&](OpBuilder &builder, Location loc, Value jr, ValueRange) {
                                     auto jrEnd = builder.create<arith::AddIOp>(loc, jr, nr);
-                                    auto jrBound = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, jrEnd, ncActual);
-                                    auto jrActualEnd = builder.create<arith::SelectOp>(loc, jrBound, jrEnd, ncActual);
-                                    auto nrActual = builder.create<arith::SubIOp>(loc, jrActualEnd, jr);
-
+                                    auto jrBound = builder.create<arith::CmpIOp>(
+                                    loc, arith::CmpIPredicate::slt, jrEnd, ncActual);
+                                    auto jrActualEnd = builder.create<arith::SelectOp>(
+                                    loc, jrBound, jrEnd, ncActual);
+                                    auto nrActual = builder.create<arith::SubIOp>(
+                                    loc, jrActualEnd, jr);
                                     // Process micro blocks
                                     builder.create<scf::ForOp>(
                                         loc, c0, nrActual, nr, ValueRange{},
                                         [&](OpBuilder &builder, Location loc, Value nIdx, ValueRange) {
                                           auto nIdxEnd = builder.create<arith::AddIOp>(loc, nIdx, nr);
-                                          auto nIdxBound = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, nIdxEnd, nrActual);
-                                          auto nIdxActualEnd = builder.create<arith::SelectOp>(loc, nIdxBound, nIdxEnd, nrActual);
-                                          auto colsToProcess = builder.create<arith::SubIOp>(loc, nIdxActualEnd, nIdx);
-
+                                          auto nIdxBound = builder.create<arith::CmpIOp>(
+                                          loc, arith::CmpIPredicate::slt, nIdxEnd, nrActual);
+                                          auto nIdxActualEnd = builder.create<arith::SelectOp>(
+                                          loc, nIdxBound, nIdxEnd, nrActual);
+                                          auto colsToProcess = builder.create<arith::SubIOp>(
+                                          loc, nIdxActualEnd, nIdx);
                                           // Check if we can vectorize (at least 32 columns)
                                           auto canVectorize = builder.create<arith::CmpIOp>(
                                               loc, arith::CmpIPredicate::sge, colsToProcess, nr);
@@ -207,14 +245,14 @@ public:
                                                     loc, c0, mcActual, mr, ValueRange{},
                                                     [&](OpBuilder &builder, Location loc, Value ir, ValueRange) {
                                                       auto irEnd = builder.create<arith::AddIOp>(loc, ir, mr);
-                                                      auto irBound = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, irEnd, mcActual);
-                                                      auto irActualEnd = builder.create<arith::SelectOp>(loc, irBound, irEnd, mcActual);
+                                                      auto irBound = builder.create<arith::CmpIOp>(
+                                                      loc, arith::CmpIPredicate::slt, irEnd, mcActual);
+                                                      auto irActualEnd = builder.create<arith::SelectOp>(
+                                                      loc, irBound, irEnd, mcActual);
                                                       auto mrActual = builder.create<arith::SubIOp>(loc, irActualEnd, ir);
-
                                                       // Check if we have full 8 rows - FIXED: use mr instead of c8
                                                       auto hasFullRows = builder.create<arith::CmpIOp>(
                                                           loc, arith::CmpIPredicate::sge, mrActual, mr);
-
                                                       builder.create<scf::IfOp>(
                                                           loc, hasFullRows,
                                                           [&](OpBuilder &builder, Location loc) {
@@ -426,9 +464,11 @@ public:
                                                           loc, c0, mcActual, mr, ValueRange{},
                                                           [&](OpBuilder &builder, Location loc, Value ir, ValueRange) {
                                                             auto irEnd = builder.create<arith::AddIOp>(loc, ir, mr);
-                                                            auto irBound = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, irEnd, mcActual);
-                                                            auto irActualEnd = builder.create<arith::SelectOp>(loc, irBound, irEnd, mcActual);
-
+                                                            auto irBound = builder.create<arith::CmpIOp>(
+                                                            loc, arith::CmpIPredicate::slt, irEnd, mcActual);
+                                                            auto irActualEnd = builder.create<arith::SelectOp>(
+                                                            loc, irBound, irEnd, mcActual);
+                                                            
                                                             builder.create<scf::ForOp>(
                                                                 loc, ir, irActualEnd, c1, ValueRange{},
                                                                 [&](OpBuilder &builder, Location loc, Value ii, ValueRange) {
@@ -465,12 +505,12 @@ public:
                                                     });
                                                 builder.create<scf::YieldOp>(loc);
                                               });
-
+                                        
                                           builder.create<scf::YieldOp>(loc);
                                         });
                                     builder.create<scf::YieldOp>(loc);
                                   });
-
+                               // clang-format on   
                               // Deallocate A_packed
                               builder.create<memref::DeallocOp>(loc, A_packed);
                               builder.create<scf::YieldOp>(loc);
