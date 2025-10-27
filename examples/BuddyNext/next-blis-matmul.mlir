@@ -77,7 +77,7 @@ module {
           
           scf.for %i = %c0 to %mc_actual step %c1 {
             scf.for %kp = %c0 to %kc_actual step %c1 {
-              %a_row_idx = arith.addi %ic, %i : index  // 修复：使用 %ic + %i
+              %a_row_idx = arith.addi %ic, %i : index 
               %a_col_idx = arith.addi %pc, %kp : index
               %a_val = memref.load %a[%a_row_idx, %a_col_idx] : memref<?x?xf32>
               memref.store %a_val, %A_packed[%i, %kp] : memref<?x?xf32>
