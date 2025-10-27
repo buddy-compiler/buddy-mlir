@@ -50,6 +50,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
 
+    
     // Create constant indices
     const Value c0 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
     const Value c1 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
@@ -201,7 +202,7 @@ public:
                                           builder.create<scf::IfOp>(
                                               loc, canVectorize,
                                               [&](OpBuilder &builder, Location loc) {
-                                                // Vectorized path 32列
+                                                // Vectorized path 32
                                                 builder.create<scf::ForOp>(
                                                     loc, c0, mcActual, mr, ValueRange{},
                                                     [&](OpBuilder &builder, Location loc, Value ir, ValueRange) {
@@ -215,7 +216,7 @@ public:
                                                           loc, arith::CmpIPredicate::sge, mrActual, mr);
 
                                                       builder.create<scf::IfOp>(
-                                                          loc, hasFullRows,//8行
+                                                          loc, hasFullRows,
                                                           [&](OpBuilder &builder, Location loc) {
                                                             // Full rows vectorized processing
                                                             auto ir0 = builder.create<arith::AddIOp>(loc, ir, c0);
