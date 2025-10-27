@@ -24,7 +24,7 @@
 #include <iostream>
 
 using namespace buddy;
-
+double total_time=0;
 constexpr size_t ParamsSize = 1777088064;
 constexpr size_t MaxVocabSize = 151936;
 constexpr size_t MaxTokenLength = 1024;
@@ -184,6 +184,7 @@ void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
 /// Print information for each iteration.
 void printIterInfo(size_t iterIdx, std::string str, double time) {
+  total_time+=time;
   std::cout << "\033[32;1m[Iteration " << iterIdx << "] \033[0m";
   std::cout << "Token: " << str << " | "
             << "Time: " << time << "s" << std::endl;
@@ -466,7 +467,8 @@ int main() {
   }
 
   /// Print the final result
-  std::cout << "\n\033[33;1m[Input]\033[0m " << inputStr << std::endl;
+  std::cout << "\n\033[33;1m[Total time]\033[0m " << total_time << std::endl;
+  std::cout << "\033[33;1m[Input]\033[0m " << inputStr << std::endl;
   std::cout << "\033[33;1m[Output]\033[0m "
             << outputContainer.revertDeepSeekR1() << std::endl;
 

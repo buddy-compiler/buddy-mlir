@@ -38,7 +38,7 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-vectorization
+            -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
@@ -84,7 +84,7 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-vectorization
+            -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
@@ -130,7 +130,7 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-vectorization
+            -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
@@ -176,7 +176,7 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-vectorization
+            -matmul-vectorization-blis
             # -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
