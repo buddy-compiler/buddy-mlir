@@ -1194,12 +1194,13 @@ next-sgemm-parallel-vec-fixed-aot:
 	./next-sgemm-parallel-vec-fixed.out || true
 
 next-sgemm-unroll-vec-fixed-aot:
-	@${MLIR_OPT} ./next-sgemm-unroll-vec-fixed.mlir \
+	@${BUDDY_OPT} ./next-sgemm-unroll-vec-fixed.mlir \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-affine-parallelize \
 		-lower-affine \
 		-convert-scf-to-openmp \
+		-func-bufferize-dynamic-offset \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-lower-affine \
