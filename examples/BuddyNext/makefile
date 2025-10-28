@@ -34,6 +34,70 @@ endif
 # Evaluation of Modules in DeepSeek-R1 Distill Qwen 1.5B
 # ==============================================================================
 
+next-sgemm-parallel-unroll-vec-aligned-run:
+	@${MLIR_OPT} ./next-sgemm-unroll-vec-aligned.mlir \
+	-convert-linalg-to-affine-loops \
+	-affine-loop-fusion \
+	-affine-parallelize \
+	-lower-affine \
+	-convert-scf-to-openmp \
+	-convert-vector-to-scf \
+	-expand-strided-metadata \
+	-lower-affine \
+	-cse \
+	-convert-vector-to-llvm \
+	-memref-expand \
+	-arith-expand \
+	-convert-arith-to-llvm \
+	-finalize-memref-to-llvm="use-aligned-alloc=true" \
+	-convert-scf-to-cf \
+	-convert-cf-to-llvm \
+	-convert-openmp-to-llvm \
+	-convert-arith-to-llvm \
+	-convert-math-to-llvm \
+	-convert-math-to-libm \
+	-convert-func-to-llvm \
+	-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+	${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-sgemm-parallel-unroll-vec-aligned.out
+	./next-sgemm-parallel-unroll-vec-aligned.out || true
+
+next-sgemm-parallel-unroll-vec-aligned-asm:
+	@${MLIR_OPT} ./next-sgemm-unroll-vec-aligned.mlir \
+	-convert-linalg-to-affine-loops \
+	-affine-loop-fusion \
+	-affine-parallelize \
+	-lower-affine \
+	-convert-scf-to-openmp \
+	-convert-vector-to-scf \
+	-expand-strided-metadata \
+	-lower-affine \
+	-cse \
+	-convert-vector-to-llvm \
+	-memref-expand \
+	-arith-expand \
+	-convert-arith-to-llvm \
+	-finalize-memref-to-llvm="use-aligned-alloc=true" \
+	-convert-scf-to-cf \
+	-convert-cf-to-llvm \
+	-convert-openmp-to-llvm \
+	-convert-arith-to-llvm \
+	-convert-math-to-llvm \
+	-convert-math-to-libm \
+	-convert-func-to-llvm \
+	-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+	${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-C -S \
+		-o next-sgemm-parallel-unroll-vec-aligned.s
+
 next-test-lower:
 	@${MLIR_OPT} ./next-embedding.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
@@ -1130,13 +1194,12 @@ next-sgemm-parallel-vec-fixed-aot:
 	./next-sgemm-parallel-vec-fixed.out || true
 
 next-sgemm-unroll-vec-fixed-aot:
-	@${BUDDY_OPT} ./next-sgemm-unroll-vec-fixed.mlir \
+	@${MLIR_OPT} ./next-sgemm-unroll-vec-fixed.mlir \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-affine-parallelize \
 		-lower-affine \
 		-convert-scf-to-openmp \
-		-func-bufferize-dynamic-offset \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
 		-lower-affine \
