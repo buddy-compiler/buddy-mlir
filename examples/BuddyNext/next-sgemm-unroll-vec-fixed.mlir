@@ -233,6 +233,42 @@ module {
     vector.print %avg_time : f64
     // CHECK: {{[0-9]+\.[0-9]+}}
 
+    // Quick sampling to verify correctness on large sizes without full print.
+    // Expect each C[i,j] == 2 * K when A=1, B=2, C=0.
+    %m = memref.dim %A, %c0_i : memref<?x?xf32>
+    %n = memref.dim %C, %c1_i : memref<?x?xf32>
+    %k = memref.dim %A, %c1_i : memref<?x?xf32>
+
+    %km1_i = arith.subi %m, %c1_i : index
+    %kn1_i = arith.subi %n, %c1_i : index
+
+    %k_i64 = arith.index_cast %k : index to i64
+    %k_f32 = arith.sitofp %k_i64 : i64 to f32
+    %expected = arith.mulf %k_f32, %cf2 : f32
+
+    %c_00    = memref.load %C[%c0_i, %c0_i] : memref<?x?xf32>
+    %c_m10   = memref.load %C[%km1_i, %c0_i] : memref<?x?xf32>
+    %c_0n1   = memref.load %C[%c0_i, %kn1_i] : memref<?x?xf32>
+    %c_m1n1  = memref.load %C[%km1_i, %kn1_i] : memref<?x?xf32>
+
+    // Cast sampled values to i32 so FileCheck can directly match 17920.
+    %expected_i32 = arith.fptosi %expected : f32 to i32
+    %c_00_i32   = arith.fptosi %c_00   : f32 to i32
+    %c_m10_i32  = arith.fptosi %c_m10  : f32 to i32
+    %c_0n1_i32  = arith.fptosi %c_0n1  : f32 to i32
+    %c_m1n1_i32 = arith.fptosi %c_m1n1 : f32 to i32
+
+    vector.print %expected_i32 : i32
+    // CHECK: 17920
+    vector.print %c_00_i32 : i32
+    // CHECK: 17920
+    vector.print %c_m10_i32 : i32
+    // CHECK: 17920
+    vector.print %c_0n1_i32 : i32
+    // CHECK: 17920
+    vector.print %c_m1n1_i32 : i32
+    // CHECK: 17920
+
     memref.dealloc %C : memref<?x?xf32>
     memref.dealloc %B : memref<?x?xf32>
     memref.dealloc %A : memref<?x?xf32>
