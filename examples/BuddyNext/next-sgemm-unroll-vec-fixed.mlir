@@ -21,7 +21,6 @@ module {
 
   func.func @sgemm_vl_32(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
     %t_start = call @rtclock() : () -> f64
-
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c2 = arith.constant 2 : index
@@ -39,7 +38,13 @@ module {
 
     %step = arith.constant 32 : index
 
-    scf.parallel (%m_idx) = (%c0) to (%m) step (%unroll) {
+    // ===== OMP runtime configuration =====
+
+    %numThreads = arith.constant 48 : i32
+
+    // proc_bind options: close | spread | master/primary
+    omp.parallel num_threads(%numThreads : i32) proc_bind(close) {
+      scf.parallel (%m_idx) = (%c0) to (%m) step (%unroll) {
       %m_idx_1 = arith.addi %m_idx, %c1 : index
       %m_idx_2 = arith.addi %m_idx, %c2 : index
       %m_idx_3 = arith.addi %m_idx, %c3 : index
@@ -171,9 +176,11 @@ module {
         memref.store %sum_iter_6, %c[%m_idx_6, %n_idx] : memref<?x?xf32>
         memref.store %sum_iter_7, %c[%m_idx_7, %n_idx] : memref<?x?xf32>
       }
-    }
+      }
 
-    %t_end = call @rtclock() : () -> f64
+      omp.terminator
+    }
+     %t_end = call @rtclock() : () -> f64
     %time = arith.subf %t_end, %t_start : f64
     vector.print %time : f64
     // CHECK: {{[0-9]+\.[0-9]+}}
@@ -186,7 +193,7 @@ module {
     %cN = arith.constant 1536 : index
     %cK = arith.constant 8960 : index
 
-    // Set Init Value.
+    // Set Init Value.:
     %cf1 = arith.constant 1.0 : f32
     %cf2 = arith.constant 2.0 : f32
     %c0 = arith.constant 0.0 : f32
