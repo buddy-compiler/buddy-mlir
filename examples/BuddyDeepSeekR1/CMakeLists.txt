@@ -45,7 +45,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
+            -convert-scf-to-openmp=num-threads=32
             -cse
             -memref-expand
             -arith-expand
@@ -91,7 +91,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
+            -convert-scf-to-openmp=num-threads=32
             -func-bufferize-dynamic-offset
             -cse
             -memref-expand
@@ -137,7 +137,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
+            -convert-scf-to-openmp=num-threads=32
             -cse
             -memref-expand
             -arith-expand
@@ -177,13 +177,13 @@ add_custom_command(
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
             -matmul-vectorization-blis
-            # -batchmatmul-optimize
+            -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
+            -convert-scf-to-openmp=num-threads=32
             -func-bufferize-dynamic-offset
             -cse
             -memref-expand
@@ -227,7 +227,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
+            -convert-scf-to-openmp=num-threads=32
             -cse
             -memref-expand
             -arith-expand
@@ -276,7 +276,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
+            -convert-scf-to-openmp=num-threads=32
             -func-bufferize-dynamic-offset
             -canonicalize
             -cse
