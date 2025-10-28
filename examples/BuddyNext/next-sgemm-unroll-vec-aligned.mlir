@@ -19,10 +19,15 @@ module {
   func.func private @printMemrefF32(memref<*xf32>)
   func.func private @rtclock() -> f64
 
-  func.func @sgemm_vl_32(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
-    %a_aligned = memref.assume_alignment %a, 64 : memref<?x?xf32> 
-    %b_aligned = memref.assume_alignment %b, 64 : memref<?x?xf32>
-    %c_aligned = memref.assume_alignment %c, 64 : memref<?x?xf32>
+  func.func @sgemm_vl_32(%a_aligned : memref<?x?xf32>, %b_aligned : memref<?x?xf32>, %c_aligned : memref<?x?xf32>) {
+    // TODO: In the latest MLIR version, memref.assume_alignment has a return value.
+    // %a_aligned = memref.assume_alignment %a, 64 : memref<?x?xf32> 
+    // %b_aligned = memref.assume_alignment %b, 64 : memref<?x?xf32>
+    // %c_aligned = memref.assume_alignment %c, 64 : memref<?x?xf32>
+    // Use a compatible way of memref.assume_alignment with the current MLIR version.
+    memref.assume_alignment %a_aligned, 64 : memref<?x?xf32> 
+    memref.assume_alignment %b_aligned, 64 : memref<?x?xf32>
+    memref.assume_alignment %c_aligned, 64 : memref<?x?xf32>
 
     %t_start = call @rtclock() : () -> f64
 
