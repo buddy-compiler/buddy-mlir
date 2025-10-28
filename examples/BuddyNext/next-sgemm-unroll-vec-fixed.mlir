@@ -20,7 +20,6 @@ module {
   func.func private @rtclock() -> f64
 
   func.func @sgemm_vl_32(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
-    %t_start = call @rtclock() : () -> f64
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c2 = arith.constant 2 : index
@@ -43,7 +42,7 @@ module {
     %numThreads = arith.constant 48 : i32
 
     // proc_bind options: close | spread | master/primary
-    omp.parallel num_threads(%numThreads : i32) proc_bind(close) {
+    omp.parallel num_threads(%numThreads : i32) proc_bind(spread) {
       scf.parallel (%m_idx) = (%c0) to (%m) step (%unroll) {
       %m_idx_1 = arith.addi %m_idx, %c1 : index
       %m_idx_2 = arith.addi %m_idx, %c2 : index
@@ -180,20 +179,22 @@ module {
 
       omp.terminator
     }
-     %t_end = call @rtclock() : () -> f64
-    %time = arith.subf %t_end, %t_start : f64
-    vector.print %time : f64
-    // CHECK: {{[0-9]+\.[0-9]+}}
+
     return
   }
 
   func.func @main(){
+    %c0_i = arith.constant 0 : index
+    %c1_i = arith.constant 1 : index
+    %cIter = arith.constant 10 : index
+    %cWarmup = arith.constant 5 : index
+
     // Set up dims.
     %cM = arith.constant 1024 : index
     %cN = arith.constant 1536 : index
     %cK = arith.constant 8960 : index
 
-    // Set Init Value.:
+    // Set Init Value.
     %cf1 = arith.constant 1.0 : f32
     %cf2 = arith.constant 2.0 : f32
     %c0 = arith.constant 0.0 : f32
@@ -214,10 +215,23 @@ module {
     ins(%c0 : f32)
     outs(%C:memref<?x?xf32>)
 
-    call @sgemm_vl_32(%A, %B, %C) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
+    // Warmup runs to prime caches without measuring.
+    scf.for %warm = %c0_i to %cWarmup step %c1_i {
+      func.call @sgemm_vl_32(%A, %B, %C) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
+    }
 
-    // %print_C = memref.cast %C : memref<?x?xf32> to memref<*xf32>
-    // call @printMemrefF32(%print_C) : (memref<*xf32>) -> ()
+    %t_start = func.call @rtclock() : () -> f64
+    scf.for %iter = %c0_i to %cIter step %c1_i {
+      func.call @sgemm_vl_32(%A, %B, %C) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
+    }
+    %t_end = func.call @rtclock() : () -> f64
+    %total_time = arith.subf %t_end, %t_start : f64
+
+    %iter_i64 = arith.index_cast %cIter : index to i64
+    %iter_f64 = arith.sitofp %iter_i64 : i64 to f64
+    %avg_time = arith.divf %total_time, %iter_f64 : f64
+    vector.print %avg_time : f64
+    // CHECK: {{[0-9]+\.[0-9]+}}
 
     memref.dealloc %C : memref<?x?xf32>
     memref.dealloc %B : memref<?x?xf32>
