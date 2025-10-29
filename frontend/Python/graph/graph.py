@@ -107,6 +107,7 @@ class Graph:
         func_name: str,
         device: DeviceType = DeviceType.CPU,
         verbose=False,
+        enable_external_calls: bool = False,
     ) -> None:
         """
         Initializes the Graph.
@@ -120,6 +121,8 @@ class Graph:
                 The ops lower strategy for the graph.
             func_name: str
                 The function name for the MLIR module.
+            enable_external_calls: bool
+                Enable external function call support (for oneDNN, etc.)
         """
         self._body = []
         self._inputs = inputs
@@ -136,6 +139,7 @@ class Graph:
         self.execution_engine = None
         self.op_groups: Dict[str, List[Op]] = {}
         self.group_map_device: Dict[str, DeviceType] = {}
+        self._enable_external_calls = enable_external_calls
 
     @property
     def body(self):
@@ -312,6 +316,7 @@ class Graph:
                 False,
                 self.device,
                 verbose=self._verbose,
+                enable_external_calls=self._enable_external_calls,
             )
             self._imported_module = fx_importer.import_graph()
             outputs = fx_importer.get_output_nodes()
@@ -427,6 +432,7 @@ class GraphImporter:
         do_param_pack: bool = False,
         device: DeviceType = DeviceType.CPU,
         verbose=False,
+        enable_external_calls: bool = False,
     ):
         """
         Initializes the buddy Graph importer.
@@ -436,6 +442,7 @@ class GraphImporter:
             inputs (List[TensorMeta]): Input tensor(s) of the buddy graph.
             func_name (str): Name of the generated MLIR function.
             ops_registry (dict): Registry for the candidate operations.
+            enable_external_calls (bool): Enable external function call support (for oneDNN, etc.)
         """
         if ops_registry is None:
             ops_registry = {}
@@ -452,6 +459,7 @@ class GraphImporter:
         self._module = ir.Module.create()
         self._ops_registry = ops_registry
         self._current_param_pack_offset = None
+        self._enable_external_calls = enable_external_calls
 
     def _str_to_mlir_dtype(self, dtype: str) -> ir.Type:
         """
@@ -577,6 +585,14 @@ class GraphImporter:
 
                 return self._symbol_table.get(("output", 0))
 
+            # Generate external function declarations for CallExternalOp nodes (only if enabled)
+            if self._enable_external_calls:
+                from .operation import CallExternalOp
+
+                for node in self._body:
+                    if isinstance(node, CallExternalOp):
+                        self._generate_external_func_decl(node)
+
         return self._module
 
     def import_main_graph(self) -> ir.Module:
@@ -678,6 +694,83 @@ class GraphImporter:
 
         self._symbol_table[(str(node.name), 0)] = placeholder_name
         self._num_input_visited += 1
+
+    def _generate_external_func_decl(self, call_node):
+        """
+        Generate external function declaration for CallExternalOp.
+
+        Args:
+            call_node: CallExternalOp node that calls an external function
+        """
+        from .operation import CallExternalOp
+        from ..ops.utils import mlir_element_type_get
+
+        if not isinstance(call_node, CallExternalOp):
+            return
+
+        # Get function name
+        func_name = call_node.call_func_name
+
+        # Build argument types from CallOp's arguments
+        arg_types = []
+        for i, arg in enumerate(call_node.args):
+            # Get the node that produces this argument
+            arg_node = None
+            for node in self._body:
+                if node.name == arg:
+                    arg_node = node
+                    break
+
+            if arg_node and hasattr(arg_node, "tensor_meta"):
+                # Handle both dict and TensorMeta object
+                if isinstance(arg_node.tensor_meta, dict):
+                    shape = arg_node.tensor_meta.get("shape", [])
+                    dtype = arg_node.tensor_meta.get("dtype", "float32")
+                else:
+                    shape = arg_node.tensor_meta.shape
+                    dtype = arg_node.tensor_meta.dtype
+                mlir_dtype = mlir_element_type_get(dtype)
+                arg_types.append(
+                    ir.RankedTensorType.get(list(shape), mlir_dtype)
+                )
+
+        # Build result types from CallOp's tensor_meta
+        result_types = []
+        if (
+            hasattr(call_node, "tensor_meta")
+            and "shape" in call_node.tensor_meta
+        ):
+            shape = call_node.tensor_meta["shape"]
+            dtype = call_node.tensor_meta["dtype"]
+
+            if (
+                isinstance(shape, (list, tuple))
+                and len(shape) > 0
+                and isinstance(shape[0], (list, tuple))
+            ):
+                # Multiple outputs
+                for i, s in enumerate(shape):
+                    mlir_dtype = mlir_element_type_get(dtype[i])
+                    result_types.append(ir.RankedTensorType.get(s, mlir_dtype))
+            else:
+                # Single output
+                mlir_dtype = mlir_element_type_get(dtype)
+                result_types.append(
+                    ir.RankedTensorType.get(list(shape), mlir_dtype)
+                )
+
+        # Create function type
+        function_type = ir.FunctionType.get(
+            inputs=arg_types, results=result_types
+        )
+
+        # Create private function declaration
+        with ir.InsertionPoint(self._module.body):
+            func_decl = func.FuncOp(
+                name=func_name, type=function_type, visibility="private"
+            )
+            # Add llvm.emit_c_interface attribute for C ABI compatibility
+            func_decl.attributes["llvm.emit_c_interface"] = ir.UnitAttr.get()
 
     def _import_op(self, node: Op):
         """

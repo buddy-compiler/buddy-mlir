@@ -22,7 +22,7 @@ from typing import Tuple
 import functools
 from mlir.dialects import func, memref
 from mlir import ir
-from ..graph import FuncOp, CallOp, PlaceholderOp
+from ..graph import FuncOp, CallOp, CallExternalOp, PlaceholderOp
 from .utils import *
 
 
@@ -53,6 +53,42 @@ def func_op(node: FuncOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
     return op
 
 
+# def call_op(node: CallOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
+#     """
+#     Import the buddy CallOp.
+#     From Buddy CallOp to MLIR FUNC call operation.
+#     """
+#     arguments = []
+#     for i, arg in enumerate(node.args):
+#         input_node = symbol_table.get((str(arg), node._args_index[i]))
+#         # For TOSA dialect, inputs are tensors, we just pass them directly
+#         # The function signature will use tensors instead of memrefs
+#         arguments.append(input_node)
+#     results = []
+#     # Handle both single output and multiple outputs
+#     if "shape" in node.tensor_meta:
+#         shape = node.tensor_meta["shape"]
+#         dtype = node.tensor_meta["dtype"]
+
+#         # Check if this is a single output (shape is torch.Size or list)
+#         # or multiple outputs (shape is list of shapes)
+#         if isinstance(shape, (list, tuple)) and len(shape) > 0 and isinstance(shape[0], (list, tuple)):
+#             # Multiple outputs: shape is [[...], [...], ...]
+#             for i, s in enumerate(shape):
+#                 mlir_dtype = mlir_element_type_get(dtype[i])
+#                 # Use RankedTensorType for TOSA dialect
+#                 results.append(ir.RankedTensorType.get(s, mlir_dtype))
+#         else:
+#             # Single output: shape is [...] or torch.Size([...])
+#             mlir_dtype = mlir_element_type_get(dtype)
+#             # Use RankedTensorType for TOSA dialect
+#             results.append(ir.RankedTensorType.get(list(shape), mlir_dtype))
+
+#     func_symbol = ir.FlatSymbolRefAttr.get(node.call_func_name)
+#     op = func.call(results, func_symbol, arguments)
+#     return op
+
+
 def call_op(node: CallOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
     """
     Import the buddy CallOp.
@@ -78,6 +114,47 @@ def call_op(node: CallOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
     for i, shape in enumerate(node.tensor_meta["shape"]):
         mlir_dtype = mlir_element_type_get(node.tensor_meta["dtype"][i])
         results.append(ir.MemRefType.get(shape, mlir_dtype))
+    func_symbol = ir.FlatSymbolRefAttr.get(node.call_func_name)
+    op = func.call(results, func_symbol, arguments)
+    return op
+
+
+def call_external_op(
+    node: CallExternalOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
+):
+    """
+    Import the buddy CallExternalOp for external library calls (e.g., oneDNN).
+    From Buddy CallExternalOp to MLIR FUNC call operation.
+    Uses RankedTensorType for TOSA dialect compatibility.
+    """
+    arguments = []
+    for i, arg in enumerate(node.args):
+        input_node = symbol_table.get((str(arg), node._args_index[i]))
+        # For TOSA dialect, inputs are tensors, pass them directly
+        arguments.append(input_node)
+
+    results = []
+    # Handle both single output and multiple outputs
+    if "shape" in node.tensor_meta:
+        shape = node.tensor_meta["shape"]
+        dtype = node.tensor_meta["dtype"]
+
+        if (
+            isinstance(shape, (list, tuple))
+            and len(shape) > 0
+            and isinstance(shape[0], (list, tuple))
+        ):
+            # Multiple outputs: shape is [[...], [...], ...]
+            for i, s in enumerate(shape):
+                mlir_dtype = mlir_element_type_get(dtype[i])
+                # Use RankedTensorType for TOSA dialect
+                results.append(ir.RankedTensorType.get(s, mlir_dtype))
+        else:
+            # Single output: shape is [...] or torch.Size([...])
+            mlir_dtype = mlir_element_type_get(dtype)
+            # Use RankedTensorType for TOSA dialect
+            results.append(ir.RankedTensorType.get(list(shape), mlir_dtype))
+
     func_symbol = ir.FlatSymbolRefAttr.get(node.call_func_name)
     op = func.call(results, func_symbol, arguments)
     return op
@@ -168,5 +245,6 @@ def param_extract(
 ops_registry = {
     "FuncOp": func_op,
     "CallOp": call_op,
+    "CallExternalOp": call_external_op,
     "param.extract": param_extract,
 }

@@ -65,6 +65,7 @@ class DynamoCompiler:
         primary_registry: Optional[dict] = None,
         aot_autograd_decomposition: Optional[dict] = None,
         verbose=False,
+        enable_external_calls: bool = False,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -77,6 +78,7 @@ class DynamoCompiler:
             verbose (bool): Controls whether to print additional information for
                 debugging purposes. The default value is False, indicating that
                 no extra debug information will be printed.
+            enable_external_calls (bool): Enable external function call support (for oneDNN, etc.)
         Attributes:
             _func_name: The function name to be used.
             _aot_autograd_decomposition (Optional[dict], optional):
@@ -97,6 +99,7 @@ class DynamoCompiler:
         self._func_name = func_name
         self._aot_autograd_decomposition = aot_autograd_decomposition
         self._verbose = verbose
+        self._enable_external_calls = enable_external_calls
         self._imported_graphs = []
         self._ops_registry = {}
         self._imported_params = {}
@@ -337,6 +340,7 @@ class DynamoCompiler:
                 self._func_name,
                 DeviceType.CPU,
                 self._verbose,
+                self._enable_external_calls,
             )
             param_nodes = []
             buffers_nodes = []

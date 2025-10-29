@@ -42,13 +42,14 @@ config.excludes = [
     "BuddyBert",
     "BuddyLlama",
     "BuddyWhisper",
-    "BuddyBert",
     "BuddyMobileNetV3",
     "BuddyStableDiffusion",
     "BuddyDeepSeekR1",
     "BuddyTransformer",
     "BuddyResNet18",
     "BuddyGPU",
+    "BuddyOneDNN",
+    "BuddyGraph",
     "ConvOpt",
     "DAPDialect",
     "DIPDialect",
@@ -75,9 +76,6 @@ config.excludes = [
     "log.mlir",
     "lit.cfg.py",
     "BuddyPython",
-    "BuddyResNet18",
-    "BuddyGraph",
-    "BuddyDeepSeekR1",
 ]
 
 config.buddy_tools_dir = os.path.join(config.buddy_obj_root, "bin")

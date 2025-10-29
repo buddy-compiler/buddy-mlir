@@ -2071,6 +2071,9 @@ def bitwise_and_tensor_op(node: BitwiseAndTensorOp, symbol_table):
     return op
 
 
+# Import func ops registry for CallOp support
+from . import func as func_ops
+
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,

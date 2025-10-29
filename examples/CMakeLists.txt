@@ -40,6 +40,10 @@ if (BUDDY_STABLE_DIFFUSION_EXAMPLES)
   add_subdirectory(BuddyStableDiffusion)
 endif()
 
+if (BUDDY_ONEDNN_EXAMPLES)
+  add_subdirectory(BuddyOneDNN)
+endif()
+
 if(BUDDY_DSL_EXAMPLES)
   add_subdirectory(ToyDSL)
 endif()
