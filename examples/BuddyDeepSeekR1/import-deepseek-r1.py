@@ -52,8 +52,8 @@ parser.add_argument(
     "--precision",
     type=str,
     default="f32",
-    choices=["f32", "f16"],
-    help="Precision mode for generated MLIR and input data. Choose from 'f32' or 'f16'.",
+    choices=["f32", "f16", "bf16"],
+    help="Precision mode for generated MLIR and input data. Choose from 'f32', 'f16', or 'bf16'.",
 )
 args = parser.parse_args()
 
@@ -72,6 +72,12 @@ if args.precision == "f16":
         AutoModelForCausalLM.from_pretrained(model_path, torchscript=True)
         .eval()
         .half()
+    )
+elif args.precision == "bf16":
+    model = (
+        AutoModelForCausalLM.from_pretrained(model_path, torchscript=True)
+        .eval()
+        .bfloat16()
     )
 else:
     model = AutoModelForCausalLM.from_pretrained(
@@ -197,6 +203,20 @@ if args.precision == "f16":
         [param.detach().numpy().reshape([-1]) for param in params]
     )
     all_param.tofile(os.path.join(output_dir, "arg0-f16.data"))
+elif args.precision == "bf16":
+    with open(
+        os.path.join(output_dir, "subgraph0-bf16.mlir"), "w"
+    ) as module_file:
+        print(driver.subgraphs[0]._imported_module, file=module_file)
+    with open(os.path.join(output_dir, "forward-bf16.mlir"), "w") as module_file:
+        print(driver.construct_main_graph(True), file=module_file)
+    # Convert BF16 parameters to float32 first, then to numpy
+    all_param = numpy.concatenate(
+        [param.detach().float().numpy().reshape([-1]) for param in params]
+    )
+    # Convert float32 to BF16 format (uint16) for storage
+    all_param_bf16 = numpy.frombuffer(all_param.astype(numpy.float32).tobytes(), dtype=numpy.uint16)[1::2]
+    all_param_bf16.tofile(os.path.join(output_dir, "arg0-bf16.data"))
 else:
     with open(
         os.path.join(output_dir, "subgraph0_prefill.mlir"), "w"
