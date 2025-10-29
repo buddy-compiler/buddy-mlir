@@ -56,7 +56,7 @@ class TensorDType(Enum):
 
 class TensorMeta:
     """
-    Store tensor metadata, including shape and data type, while overlooking raw 
+    Store tensor metadata, including shape and data type, while overlooking raw
     data.
 
     Attributes:
@@ -67,7 +67,7 @@ class TensorMeta:
 
     Methods:
     - __init__(shape: tuple, dtype: str) -> None:
-        Initializes a new instance of the TensorMeta class with the specified 
+        Initializes a new instance of the TensorMeta class with the specified
         shape and data type.
 
     Example:
@@ -88,6 +88,7 @@ class TensorMeta:
         self.shape = shape
         self.dtype = dtype
 
+
 class DeviceType(Enum):
     """
     Enumeration class representing different types of devices.
@@ -100,6 +101,7 @@ class DeviceType(Enum):
     Each attribute represents a specific device type and is associated with a
     string value.
     """
-    CPU = 'cpu'
-    GPU = 'gpu'
-    UNKNOW = 'unknow'
+
+    CPU = "cpu"
+    GPU = "gpu"
+    UNKNOW = "unknow"

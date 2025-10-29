@@ -1,9 +1,22 @@
-// ===- onednn_ops.cpp
-// ----------------------------------------------------------
+//===- onednn_ops.cpp -----------------------------------------------------===//
 //
-// oneDNN Operations Implementation
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// ===---------------------------------------------------------------------------
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file implements oneDNN operations wrapper functions.
+//
+//===----------------------------------------------------------------------===//
 
 #include "onednn_ops.h"
 #include <iostream>
@@ -145,7 +158,7 @@ void onednn_matmul_3d_f32(float *A, int64_t *A_shape, int64_t A_rank, float *B,
         auto c_batch_md = memory::desc(c_batch_dims, memory::data_type::f32,
                                        memory::format_tag::ab);
 
-        // 指向当前batch的数据
+        // Pointer to current batch data
         float *a_batch_ptr = A + b * M * K;
         float *c_batch_ptr = C + b * M * N;
 
