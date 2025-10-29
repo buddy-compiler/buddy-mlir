@@ -89,6 +89,7 @@ void registerVIRToVectorPass();
 void registerLinalgToVIRPass();
 void registerMatMulVectorizationBLISPass();
 void registerSimplifyTosaReshapePass();
+void registerSiLUFusionPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -134,6 +135,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLinalgToVIRPass();
   // Register minimal TOSA reshape simplification pass.
   mlir::buddy::registerSimplifyTosaReshapePass();
+  mlir::buddy::registerSiLUFusionPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
   mlir::buddy::registerLegalizeShmemOutliningPass();
