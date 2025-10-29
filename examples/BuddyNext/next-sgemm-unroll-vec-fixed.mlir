@@ -3,8 +3,10 @@
 // RUN:   -cse \
 // RUN:   -lower-affine \
 // RUN:   -convert-vector-to-scf \
+// RUN:   -convert-scf-to-openmp \
 // RUN:   -convert-scf-to-cf \
 // RUN:   -convert-cf-to-llvm \
+// RUN:   -convert-openmp-to-llvm \
 // RUN:   -convert-vector-to-llvm \
 // RUN:   -finalize-memref-to-llvm \
 // RUN:   -convert-arith-to-llvm \
@@ -12,7 +14,8 @@
 // RUN:   -reconcile-unrealized-casts | \
 // RUN: mlir-runner -e main -entry-point-result=void \
 // RUN:   -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
-// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN:   -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN:   -shared-libs=%mlir_runner_utils_dir/libomp%shlibext \
 // RUN: | FileCheck %s
 
 module {
@@ -38,7 +41,7 @@ module {
     %step = arith.constant 32 : index
     %numThreads = arith.constant 144 : i32
 
-    omp.parallel num_threads(%numThreads : i32) proc_bind(close) {
+    omp.parallel num_threads(%numThreads : i32) proc_bind(spread) {
       omp.wsloop schedule(static) {
         omp.loop_nest (%m_idx) : index = (%c0) to (%m) step (%unroll) {
           %m_idx_1 = arith.addi %m_idx, %c1 : index
