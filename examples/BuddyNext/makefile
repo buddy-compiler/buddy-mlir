@@ -55,9 +55,13 @@ next-batchmatmul-decode-size-vec-omp-run:
 		-convert-math-to-libm  \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} \
-		-shared-libs=${OMP_LIB}
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+	${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-batchmatmul-decode-size-vec-omp-run.out
+	./next-batchmatmul-decode-size-vec-omp-run.out || true
 
 next-batchmatmul-decode-size-omp-run:
 	@${BUDDY_OPT} ./next-batchmatmul-decode-size.mlir \
@@ -79,9 +83,13 @@ next-batchmatmul-decode-size-omp-run:
 		-convert-math-to-libm  \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} \
-		-shared-libs=${OMP_LIB}
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+	${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-batchmatmul-decode-size-omp-run.out
+	./next-batchmatmul-decode-size-omp-run.out || true
 
 next-sgemm-parallel-unroll-vec-aligned-run:
 	@${MLIR_OPT} ./next-sgemm-unroll-vec-aligned.mlir \
