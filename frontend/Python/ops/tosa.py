@@ -319,11 +319,17 @@ def qkv_fused_op(
     weight_combined = symbol_table.get((str(node.args[2]), 0))
 
     if bias_combined is None:
-        raise ValueError(f"QKVFusedOp {node.name}: bias_combined '{node.args[0]}' not found in symbol_table")
+        raise ValueError(
+            f"QKVFusedOp {node.name}: bias_combined '{node.args[0]}' not found in symbol_table"
+        )
     if input_tensor is None:
-        raise ValueError(f"QKVFusedOp {node.name}: input_tensor '{node.args[1]}' not found in symbol_table")
+        raise ValueError(
+            f"QKVFusedOp {node.name}: input_tensor '{node.args[1]}' not found in symbol_table"
+        )
     if weight_combined is None:
-        raise ValueError(f"QKVFusedOp {node.name}: weight_combined '{node.args[2]}' not found in symbol_table")
+        raise ValueError(
+            f"QKVFusedOp {node.name}: weight_combined '{node.args[2]}' not found in symbol_table"
+        )
 
     # Get input shapes
     input_shape = ir.RankedTensorType(input_tensor.type).shape
@@ -331,10 +337,14 @@ def qkv_fused_op(
 
     # Validate input dimensions - support 2D and 3D input
     if len(input_shape) not in [2, 3]:
-        raise ValueError(f"QKVFusedOp expects 2D or 3D input, got {len(input_shape)}D: {input_shape}")
+        raise ValueError(
+            f"QKVFusedOp expects 2D or 3D input, got {len(input_shape)}D: {input_shape}"
+        )
 
     if len(weight_shape) != 2:
-        raise ValueError(f"QKVFusedOp expects 2D weight, got {len(weight_shape)}D: {weight_shape}")
+        raise ValueError(
+            f"QKVFusedOp expects 2D weight, got {len(weight_shape)}D: {weight_shape}"
+        )
 
     # Handle 2D and 3D input cases
     if len(input_shape) == 2:
@@ -354,7 +364,9 @@ def qkv_fused_op(
     combined_dim = weight_shape[1]
 
     if hidden_dim != weight_hidden_dim:
-        raise ValueError(f"QKVFusedOp dimension mismatch: input hidden_dim={hidden_dim}, weight hidden_dim={weight_hidden_dim}")
+        raise ValueError(
+            f"QKVFusedOp dimension mismatch: input hidden_dim={hidden_dim}, weight hidden_dim={weight_hidden_dim}"
+        )
 
     # Prepare matrix multiplication input
     if is_2d_input:
@@ -379,10 +391,13 @@ def qkv_fused_op(
             matmul_input, memoryview(array.array("i", [1, seq_len, hidden_dim]))
         ).result
         weight_3d = tosa.ReshapeOp(
-            weight_combined, memoryview(array.array("i", [1, weight_hidden_dim, combined_dim]))
+            weight_combined,
+            memoryview(array.array("i", [1, weight_hidden_dim, combined_dim])),
         ).result
         matmul_3d_result_shape = [1, seq_len, combined_dim]
-        matmul_3d_result_type = ir.RankedTensorType.get(matmul_3d_result_shape, result_element_type)
+        matmul_3d_result_type = ir.RankedTensorType.get(
+            matmul_3d_result_shape, result_element_type
+        )
 
         matmul_op = tosa.MatMulOp(
             matmul_3d_result_type, matmul_input_3d, weight_3d
@@ -395,13 +410,17 @@ def qkv_fused_op(
     else:
         # 3D case processing
         matmul_input_3d = tosa.ReshapeOp(
-            matmul_input, memoryview(array.array("i", [1, batch_size * seq_len, hidden_dim]))
+            matmul_input,
+            memoryview(array.array("i", [1, batch_size * seq_len, hidden_dim])),
         ).result
         weight_3d = tosa.ReshapeOp(
-            weight_combined, memoryview(array.array("i", [1, weight_hidden_dim, combined_dim]))
+            weight_combined,
+            memoryview(array.array("i", [1, weight_hidden_dim, combined_dim])),
         ).result
         matmul_3d_result_shape = [1, batch_size * seq_len, combined_dim]
-        matmul_3d_result_type = ir.RankedTensorType.get(matmul_3d_result_shape, result_element_type)
+        matmul_3d_result_type = ir.RankedTensorType.get(
+            matmul_3d_result_shape, result_element_type
+        )
 
         matmul_op = tosa.MatMulOp(
             matmul_3d_result_type, matmul_input_3d, weight_3d
@@ -419,9 +438,6 @@ def qkv_fused_op(
     )
 
     return op
-
-
-
 
 
 def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
@@ -630,7 +646,9 @@ def reshape_op(node: ReshapeOp, symbol_table):
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
-        raise ValueError(f"ReshapeOp {node.name} input tensor {node.args[0]} not found in symbol_table")
+        raise ValueError(
+            f"ReshapeOp {node.name} input tensor {node.args[0]} not found in symbol_table"
+        )
     new_shape = []
     for i in node.args[1]:
         new_shape.append(i)
@@ -727,19 +745,23 @@ def slice_op(node: SliceOp, symbol_table):
     """
     # Check both args and _arguments for compatibility
     args = None
-    if hasattr(node, 'args') and node.args:
+    if hasattr(node, "args") and node.args:
         args = node.args
-    elif hasattr(node, '_arguments') and node._arguments:
+    elif hasattr(node, "_arguments") and node._arguments:
         args = node._arguments
     else:
         raise ValueError(f"SliceOp {node.name} has no args or _arguments")
 
     if len(args) < 4:
-        raise ValueError(f"SliceOp {node.name} requires 4 arguments [input, dim, start, end], got {len(args)}")
+        raise ValueError(
+            f"SliceOp {node.name} requires 4 arguments [input, dim, start, end], got {len(args)}"
+        )
 
     input_tensor = symbol_table.get((str(args[0]), 0))
     if input_tensor is None:
-        raise ValueError(f"SliceOp {node.name} input tensor {args[0]} not found in symbol_table")
+        raise ValueError(
+            f"SliceOp {node.name} input tensor {args[0]} not found in symbol_table"
+        )
 
     dim = args[1]
     start_idx = args[2]
@@ -760,7 +782,9 @@ def slice_op(node: SliceOp, symbol_table):
 
     # Validate dimension index
     if dim < 0 or dim >= tensor_rank:
-        raise ValueError(f"SliceOp {node.name}: dimension {dim} is out of range for tensor with rank {tensor_rank}")
+        raise ValueError(
+            f"SliceOp {node.name}: dimension {dim} is out of range for tensor with rank {tensor_rank}"
+        )
 
     # Handle negative indices
     if start_idx < 0:
@@ -784,7 +808,9 @@ def slice_op(node: SliceOp, symbol_table):
 
     # Validate new_sizes
     if any(s < 0 for s in new_sizes):
-        raise ValueError(f"SliceOp {node.name}: negative size in new_sizes {new_sizes}")
+        raise ValueError(
+            f"SliceOp {node.name}: negative size in new_sizes {new_sizes}"
+        )
 
     if any(s > 2**31 - 1 for s in new_sizes):
         # For very large sizes, use original sizes
@@ -2030,8 +2056,8 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         )
     elif mlir_dtype == ir.BF16Type.get():
         # BF16 has the same range as F32 but lower precision
-        bf16_max_val = 3.4028235e+38
-        bf16_min_val = -3.4028235e+38
+        bf16_max_val = 3.4028235e38
+        bf16_min_val = -3.4028235e38
         min_int_attr = ir.IntegerAttr.get(
             ir.IntegerType.get_signless(64), -sys.maxsize
         )

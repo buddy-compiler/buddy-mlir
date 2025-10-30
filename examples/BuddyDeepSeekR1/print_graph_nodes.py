@@ -32,12 +32,15 @@ sys.path.append(
 )
 
 # Create a symbolic link or alias for buddy_mlir as mlir
-buddy_mlir_path = "/home/jjji/personal_projects/OSPP/buddy-mlir/build/python_packages"
+buddy_mlir_path = (
+    "/home/jjji/personal_projects/OSPP/buddy-mlir/build/python_packages"
+)
 sys.path.append(buddy_mlir_path)
 
 # Import buddy_mlir and alias it as mlir in sys.modules
 import buddy_mlir
-sys.modules['mlir'] = buddy_mlir
+
+sys.modules["mlir"] = buddy_mlir
 
 import torch
 import torch._dynamo as dynamo
@@ -84,6 +87,7 @@ print("Graph imported successfully.")
 assert len(graphs) == 1
 graph = graphs[0]
 
+
 def print_graph_nodes(graph, title):
     """Print graph node information with detailed input/output information"""
     content = []
@@ -105,7 +109,7 @@ def print_graph_nodes(graph, title):
 
     for i, node in enumerate(graph.body, 1):
         # Get operation type name
-        op_type = type(node).__name__.replace('Op', '')
+        op_type = type(node).__name__.replace("Op", "")
 
         # Get output shape information
         output_shape = _extract_shape_info(node)
@@ -114,10 +118,10 @@ def print_graph_nodes(graph, title):
         basic_info = f"{i:3d}. {node.name} | {op_type} | Out:{output_shape}"
 
         # Add extra information for special nodes
-        if type(node).__name__ == 'QKVFusedOp':
-            q_dim = getattr(node, 'q_dim', '?')
-            k_dim = getattr(node, 'k_dim', '?')
-            v_dim = getattr(node, 'v_dim', '?')
+        if type(node).__name__ == "QKVFusedOp":
+            q_dim = getattr(node, "q_dim", "?")
+            k_dim = getattr(node, "k_dim", "?")
+            v_dim = getattr(node, "v_dim", "?")
             basic_info += f" | Q:{q_dim},K:{k_dim},V:{v_dim}"
 
         content.append(basic_info)
@@ -138,11 +142,11 @@ def print_graph_nodes(graph, title):
 
 def _extract_shape_info(node):
     """Extract shape information from node"""
-    if hasattr(node, 'tensor_meta') and node.tensor_meta:
+    if hasattr(node, "tensor_meta") and node.tensor_meta:
         meta = node.tensor_meta
-        if isinstance(meta, dict) and 'shape' in meta:
-            shape = meta['shape']
-            if hasattr(shape, 'size'):
+        if isinstance(meta, dict) and "shape" in meta:
+            shape = meta["shape"]
+            if hasattr(shape, "size"):
                 return list(shape.size())
             elif isinstance(shape, (list, tuple)):
                 return list(shape)
@@ -151,16 +155,17 @@ def _extract_shape_info(node):
 
 def _get_parent_info(node):
     """Get parent node information"""
-    if hasattr(node, '_parents') and node._parents:
+    if hasattr(node, "_parents") and node._parents:
         return ", ".join(node._parents)
     return None
 
 
 def _get_children_info(node):
     """Get children node information"""
-    if hasattr(node, '_children') and node._children:
+    if hasattr(node, "_children") and node._children:
         return ", ".join(node._children)
     return None
+
 
 def analyze_fusable_patterns(graph):
     """Analyze fusable patterns in the graph"""
@@ -168,27 +173,38 @@ def analyze_fusable_patterns(graph):
 
     # Check Permute + AddMM pattern
     for i, node in enumerate(graph.body):
-        if hasattr(node, '__class__') and node.__class__.__name__ == 'AddMMOp':
+        if hasattr(node, "__class__") and node.__class__.__name__ == "AddMMOp":
             # Check if there's a PermuteOp as input
             for arg in node.args:
                 if isinstance(arg, str) and arg in graph.node_table:
                     parent_node = graph.node_table[arg]
-                    if hasattr(parent_node, '__class__') and parent_node.__class__.__name__ == 'PermuteOp':
-                        if hasattr(parent_node, 'args') and len(parent_node.args) > 1:
+                    if (
+                        hasattr(parent_node, "__class__")
+                        and parent_node.__class__.__name__ == "PermuteOp"
+                    ):
+                        if (
+                            hasattr(parent_node, "args")
+                            and len(parent_node.args) > 1
+                        ):
                             perm = parent_node.args[1]
                             if perm == [1, 0]:  # transpose pattern
-                                patterns.append(f"Transpose+MatMul: {parent_node.name} -> {node.name}")
+                                patterns.append(
+                                    f"Transpose+MatMul: {parent_node.name} -> {node.name}"
+                                )
 
     # Check RMSNorm pattern (Pow + Mean + Add + Rsqrt)
     for i, node in enumerate(graph.body):
-        if hasattr(node, '__class__') and node.__class__.__name__ == 'PowOp':
+        if hasattr(node, "__class__") and node.__class__.__name__ == "PowOp":
             if i + 3 < len(graph.body):
-                next_nodes = graph.body[i:i+4]
+                next_nodes = graph.body[i : i + 4]
                 node_types = [n.__class__.__name__ for n in next_nodes]
-                if node_types == ['PowOp', 'MeanOp', 'AddOp', 'RsqrtOp']:
-                    patterns.append(f"RMSNorm pattern: {' -> '.join([n.name for n in next_nodes])}")
+                if node_types == ["PowOp", "MeanOp", "AddOp", "RsqrtOp"]:
+                    patterns.append(
+                        f"RMSNorm pattern: {' -> '.join([n.name for n in next_nodes])}"
+                    )
 
     return patterns
+
 
 # 5.1 Analyze fusable patterns before fusion
 print("Analyzing fusable patterns...")
@@ -196,16 +212,20 @@ fusable_patterns = analyze_fusable_patterns(graph)
 
 # 5.2 Print graph before fusion
 print("Analyzing graph BEFORE fusion...")
-before_fusion_content = print_graph_nodes(graph, "DeepSeekR1 Graph Nodes - BEFORE Fusion")
+before_fusion_content = print_graph_nodes(
+    graph, "DeepSeekR1 Graph Nodes - BEFORE Fusion"
+)
 
 # 5.3 Apply fusion and print graph after fusion
 print("Applying operator fusion...")
 apply_classic_fusion(graph)
 print("Analyzing graph AFTER fusion...")
-after_fusion_content = print_graph_nodes(graph, "DeepSeekR1 Graph Nodes - AFTER Fusion")
+after_fusion_content = print_graph_nodes(
+    graph, "DeepSeekR1 Graph Nodes - AFTER Fusion"
+)
 
 # 5.4 Show fusion results
-print(f"\nFusion Results:")
+print("\nFusion Results:")
 # Extract node count information safely
 before_count = "N/A"
 after_count = "N/A"
@@ -223,13 +243,17 @@ print(f"  Nodes after fusion:  {after_count}")
 # 5.5 Save to separate files for comparison
 # Save before fusion
 before_fusion_file = "graph_before_fusion.log"
-before_fusion_text = "\n".join(before_fusion_content + ["=" * 60, "Analysis completed."])
+before_fusion_text = "\n".join(
+    before_fusion_content + ["=" * 60, "Analysis completed."]
+)
 with open(before_fusion_file, "w", encoding="utf-8") as f:
     f.write(before_fusion_text)
 
 # Save after fusion
 after_fusion_file = "graph_after_fusion.log"
-after_fusion_text = "\n".join(after_fusion_content + ["=" * 60, "Analysis completed."])
+after_fusion_text = "\n".join(
+    after_fusion_content + ["=" * 60, "Analysis completed."]
+)
 with open(after_fusion_file, "w", encoding="utf-8") as f:
     f.write(after_fusion_text)
 
@@ -240,7 +264,7 @@ print("=" * 60)
 print(f"Fusable patterns found: {len(fusable_patterns)}")
 print(f"Nodes before fusion: {before_count}")
 print(f"Nodes after fusion:  {after_count}")
-print(f"Files generated:")
+print("Files generated:")
 print(f"  - Before fusion: {before_fusion_file}")
 print(f"  - After fusion:  {after_fusion_file}")
 print("=" * 60)

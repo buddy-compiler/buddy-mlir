@@ -3,7 +3,7 @@
 # One-click sync Python files to build directory
 # Usage: ./sync_and_test.sh
 
-set -e  
+set -e
 
 # Color definitions
 RED='\033[0;31m'
@@ -59,7 +59,7 @@ fi
 sync_python_files() {
     local src_dir="$1"
     local dest_base="$2"
-    
+
     # Recursively copy all .py files
     find "$src_dir" -name "*.py" -type f | while read -r file; do
         # Get relative path
@@ -72,10 +72,10 @@ sync_python_files() {
         else
             dest_dir="$dest_base/$dir_part"
         fi
-        
+
         # Create target directory
         mkdir -p "$dest_dir"
-        
+
         # Copy file
         cp "$file" "$dest_dir/"
         print_info "Synced: $rel_path"
@@ -108,4 +108,3 @@ print_info "BUDDY_MLIR_BUILD_DIR=$BUDDY_MLIR_BUILD_DIR"
 print_info "LLVM_MLIR_BUILD_DIR=$LLVM_MLIR_BUILD_DIR"
 print_info "PYTHONPATH updated"
 print_success "Script execution completed!"
-
