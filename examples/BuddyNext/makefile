@@ -34,6 +34,63 @@ endif
 # Evaluation of Modules in DeepSeek-R1 Distill Qwen 1.5B
 # ==============================================================================
 
+next-batchmatmul-decode-size-vec-omp-run:
+	@${BUDDY_OPT} ./next-batchmatmul-decode-size.mlir\
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=32 \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm  \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm  \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+	${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-batchmatmul-decode-size-vec-omp-run.out
+	./next-batchmatmul-decode-size-vec-omp-run.out || true
+
+next-batchmatmul-decode-size-omp-run:
+	@${BUDDY_OPT} ./next-batchmatmul-decode-size.mlir \
+		-convert-linalg-to-affine-loops \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=32 \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm  \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm  \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+	${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-batchmatmul-decode-size-omp-run.out
+	./next-batchmatmul-decode-size-omp-run.out || true
+
 next-sgemm-parallel-unroll-vec-aligned-run:
 	@${MLIR_OPT} ./next-sgemm-unroll-vec-aligned.mlir \
 	-convert-linalg-to-affine-loops \
