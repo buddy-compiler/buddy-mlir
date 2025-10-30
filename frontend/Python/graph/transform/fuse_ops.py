@@ -502,16 +502,41 @@ def qkv_fusion(graph: Graph, q_node, k_node, v_node, shared_input):
     _update_node_references(graph, k_node.name, k_slice_op.name)
     _update_node_references(graph, v_node.name, v_slice_op.name)
 
-    # Find all operations that depend on slice operations and move them after slices
+    # Find all operations that depend on slice operations (recursively)
+    # We need to move not just direct dependents, but also indirect dependents
+    # BUT only those that are currently BEFORE the last slice operation
     dependent_operations = []
     slice_names = [q_slice_op.name, k_slice_op.name, v_slice_op.name]
 
+    # Find the position of the last slice operation
+    last_slice_index = graph.body.index(v_slice_op)
+
+    # Build a set of all nodes that transitively depend on slices
+    # but only consider nodes that are BEFORE the last slice
+    dependent_node_names = set(slice_names)
+    changed = True
+    while changed:
+        changed = False
+        for i, node in enumerate(graph.body):
+            # Skip nodes that are already after the last slice
+            if i > last_slice_index:
+                continue
+            if node.name in dependent_node_names:
+                continue
+            if hasattr(node, 'args') and node.args:
+                for arg in node.args:
+                    if isinstance(arg, str) and arg in dependent_node_names:
+                        dependent_node_names.add(node.name)
+                        changed = True
+                        break
+
+    # Collect nodes that need to be moved (excluding the slices themselves)
+    # Only move nodes that are BEFORE the last slice
     for i, node in enumerate(graph.body):
-        if hasattr(node, 'args') and node.args:
-            for arg in node.args:
-                if isinstance(arg, str) and arg in slice_names:
-                    dependent_operations.append((i, node))
-                    break
+        if i > last_slice_index:
+            break
+        if node.name in dependent_node_names and node.name not in slice_names:
+            dependent_operations.append((i, node))
 
     # Sort dependent operations by their current index (descending order for safe removal)
     dependent_operations.sort(key=lambda x: x[0], reverse=True)
@@ -524,9 +549,40 @@ def qkv_fusion(graph: Graph, q_node, k_node, v_node, shared_input):
             removed_operations.append(node)
             # print(f"  Moved dependent operation: {node.name} from index {idx}")
 
-    # Insert dependent operations after the last slice operation
+    # Topologically sort the removed operations to maintain dependencies
+    # Build dependency graph for removed operations
+    removed_names = {node.name for node in removed_operations}
+    sorted_operations = []
+    remaining = list(removed_operations)
+
+    while remaining:
+        # Find nodes with no dependencies in the remaining set
+        ready = []
+        for node in remaining:
+            has_dep_in_remaining = False
+            if hasattr(node, 'args') and node.args:
+                for arg in node.args:
+                    if isinstance(arg, str) and arg in removed_names:
+                        # Check if this dependency is still in remaining
+                        if any(n.name == arg for n in remaining):
+                            has_dep_in_remaining = True
+                            break
+            if not has_dep_in_remaining:
+                ready.append(node)
+
+        if not ready:
+            # Circular dependency or error - just append remaining in order
+            sorted_operations.extend(remaining)
+            break
+
+        # Add ready nodes to sorted list and remove from remaining
+        sorted_operations.extend(ready)
+        for node in ready:
+            remaining.remove(node)
+
+    # Insert sorted operations after the last slice operation
     last_slice_index = graph.body.index(v_slice_op)
-    for i, node in enumerate(removed_operations):
+    for i, node in enumerate(sorted_operations):
         insert_pos = last_slice_index + 1 + i
         graph.body.insert(insert_pos, node)
         # print(f"  Inserted {node.name} at index {insert_pos}")

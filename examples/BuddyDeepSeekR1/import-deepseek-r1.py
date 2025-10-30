@@ -36,7 +36,7 @@ import numpy
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.graph.transform import simply_fuse, apply_classic_fusion
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.graph.operation import *
 
@@ -170,10 +170,16 @@ else:
     graph_decode = graphs_decode[0]
 
     params = dynamo_compiler_prefill.imported_params[graph_prefill]
-    pattern_list = [simply_fuse]
 
-    graphs_prefill[0].fuse_ops(pattern_list)
-    graphs_decode[0].fuse_ops(pattern_list)
+    # Apply QKV fusion for prefill graph (long sequence processing)
+    print("Applying QKV fusion to prefill graph...")
+    print(f"Prefill nodes before fusion: {len(graph_prefill.body)}")
+    apply_classic_fusion(graph_prefill)
+    print(f"Prefill nodes after fusion: {len(graph_prefill.body)}")
+
+    # Apply simple fusion for decode graph (single token processing with kv cache)
+    pattern_list_decode = [simply_fuse]
+    graphs_decode[0].fuse_ops(pattern_list_decode)
 
     graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop(
         "subgraph0"
