@@ -100,6 +100,52 @@ add_custom_command(
     COMMENT "Building subgraph-onestep.o (one-step compilation)"
     VERBATIM)
 
+# Subgraph Timed: One-step compilation with timing instrumentation
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/subgraph-timed.o
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_SOURCE_DIR}/subgraph0_timed.mlir
+              -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+            ${BUDDY_BINARY_DIR}/buddy-opt
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -convert-elementwise-to-linalg
+            -one-shot-bufferize="bufferize-function-boundaries"
+            -expand-strided-metadata
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -matmul-parallel-vectorization-optimize
+            -batchmatmul-optimize
+            -convert-linalg-to-affine-loops
+            -affine-loop-fusion
+            -affine-parallelize
+            -convert-vector-to-scf
+            -lower-affine
+            -convert-scf-to-openmp
+            -func-bufferize-dynamic-offset
+            -cse
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+            -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph-timed.o
+    DEPENDS buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/subgraph0_timed.mlir
+    COMMENT "Building subgraph-timed.o (with timing instrumentation)"
+    VERBATIM)
+
 # Staged compilation (for analysis)
 
 # Forward: Midend optimization
@@ -364,6 +410,49 @@ add_custom_target(buddy-transformer
 # Add dependency for one-step executable
 add_dependencies(transformer-runner buddy-transformer-onestep-codegen)
 
+# ===== Timed executable with operator profiling =====
+add_executable(transformer-runner-timed
+    ${CMAKE_CURRENT_SOURCE_DIR}/transformer_runner.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph-timed.o
+)
+
+# Set properties for the timed executable
+set_target_properties(transformer-runner-timed PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+# Include Buddy headers for timed executable
+target_include_directories(transformer-runner-timed PRIVATE
+    ${CMAKE_SOURCE_DIR}/frontend/Interfaces
+)
+
+# Define paths for the timed executable
+target_compile_definitions(transformer-runner-timed PRIVATE
+    BUDDY_TRANSFORMER_EXAMPLE_PATH="${CMAKE_CURRENT_SOURCE_DIR}"
+    BUDDY_TRANSFORMER_EXAMPLE_BUILD_PATH="${CMAKE_CURRENT_BINARY_DIR}"
+)
+
+# Set up library directories and linking for timed executable
+target_link_directories(transformer-runner-timed PRIVATE ${LLVM_LIBRARY_DIR})
+
+# Link with required libraries for timed executable
+target_link_libraries(transformer-runner-timed ${BUDDY_TRANSFORMER_LIBS})
+
+# Timed compilation targets
+add_custom_target(buddy-transformer-timed-codegen
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/subgraph-timed.o
+    COMMENT "Building timed object file with operator profiling"
+)
+
+add_custom_target(buddy-transformer-timed-executable
+    DEPENDS transformer-runner-timed
+    COMMENT "Building timed transformer executable with operator profiling"
+)
+
+# Add dependency for timed executable
+add_dependencies(transformer-runner-timed buddy-transformer-timed-codegen)
+
 # Clean target to remove generated files
 add_custom_target(buddy-transformer-clean
     COMMAND ${CMAKE_COMMAND} -E remove -f
@@ -380,10 +469,12 @@ add_custom_target(buddy-transformer-clean
         ${CMAKE_CURRENT_BINARY_DIR}/subgraph.o
         ${CMAKE_CURRENT_BINARY_DIR}/forward-onestep.o
         ${CMAKE_CURRENT_BINARY_DIR}/subgraph-onestep.o
+        ${CMAKE_CURRENT_BINARY_DIR}/subgraph-timed.o
         ${CMAKE_CURRENT_BINARY_DIR}/graph.log
         ${CMAKE_CURRENT_BINARY_DIR}/graph_fused.log
     COMMAND ${CMAKE_COMMAND} -E remove -f
         ${CMAKE_CURRENT_BINARY_DIR}/transformer-runner
         ${CMAKE_CURRENT_BINARY_DIR}/transformer-runner-staged
+        ${CMAKE_CURRENT_BINARY_DIR}/transformer-runner-timed
     COMMENT "Cleaning BuddyTransformer generated files"
 )
