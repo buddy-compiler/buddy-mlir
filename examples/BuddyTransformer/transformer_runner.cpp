@@ -19,11 +19,127 @@
 // ===---------------------------------------------------------------------------
 
 #include <buddy/Core/Container.h>
+#include <algorithm>
 #include <chrono>
+#include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <map>
+#include <numeric>
 #include <random>
+#include <string>
 #include <vector>
+
+// ===== Operator Timing Infrastructure =====
+
+// Timing data structure
+struct TimingRecord {
+  std::string op_name;
+  std::vector<double> times_ms;
+
+  void add_time(double time_sec) {
+    times_ms.push_back(time_sec * 1000.0); // Convert to milliseconds
+  }
+
+  double get_avg() const {
+    if (times_ms.empty()) return 0.0;
+    return std::accumulate(times_ms.begin(), times_ms.end(), 0.0) / times_ms.size();
+  }
+
+  double get_min() const {
+    if (times_ms.empty()) return 0.0;
+    return *std::min_element(times_ms.begin(), times_ms.end());
+  }
+
+  double get_max() const {
+    if (times_ms.empty()) return 0.0;
+    return *std::max_element(times_ms.begin(), times_ms.end());
+  }
+
+  double get_total() const {
+    return std::accumulate(times_ms.begin(), times_ms.end(), 0.0);
+  }
+};
+
+// Global timing data storage
+static std::map<std::string, TimingRecord> g_timing_data;
+
+// Timing functions called from MLIR
+extern "C" {
+  // Get current time in seconds
+  double rtclock() {
+    auto now = std::chrono::high_resolution_clock::now();
+    return std::chrono::duration<double>(now.time_since_epoch()).count();
+  }
+
+  // MLIR C interface wrapper for rtclock
+  double _mlir_ciface_rtclock() {
+    return rtclock();
+  }
+
+  // Record timing for an operator
+  void record_timing(const char* op_name, double duration_sec) {
+    std::string name(op_name);
+    g_timing_data[name].op_name = name;
+    g_timing_data[name].add_time(duration_sec);
+  }
+
+  // MLIR C interface wrapper for record_timing
+  void _mlir_ciface_record_timing(void* op_name_ptr, double duration_sec) {
+    const char* op_name = reinterpret_cast<const char*>(op_name_ptr);
+    record_timing(op_name, duration_sec);
+  }
+}
+
+// Print timing report
+void print_timing_report() {
+  std::cout << "\n";
+  std::cout << "========================================\n";
+  std::cout << "     Operator Timing Report\n";
+  std::cout << "========================================\n";
+  std::cout << std::fixed << std::setprecision(4);
+
+  double total_time = 0.0;
+  for (const auto& [name, record] : g_timing_data) {
+    total_time += record.get_avg();
+  }
+
+  std::cout << std::left << std::setw(30) << "Operator"
+            << std::right << std::setw(12) << "Avg (ms)"
+            << std::setw(12) << "Min (ms)"
+            << std::setw(12) << "Max (ms)"
+            << std::setw(12) << "% Total" << "\n";
+  std::cout << "----------------------------------------"
+            << "----------------------------------------\n";
+
+  for (const auto& [name, record] : g_timing_data) {
+    double avg = record.get_avg();
+    double percentage = (total_time > 0) ? (avg / total_time * 100.0) : 0.0;
+
+    std::cout << std::left << std::setw(30) << name
+              << std::right << std::setw(12) << avg
+              << std::setw(12) << record.get_min()
+              << std::setw(12) << record.get_max()
+              << std::setw(11) << percentage << "%\n";
+  }
+
+  std::cout << "----------------------------------------"
+            << "----------------------------------------\n";
+  std::cout << std::left << std::setw(30) << "TOTAL"
+            << std::right << std::setw(12) << total_time
+            << std::setw(12) << ""
+            << std::setw(12) << ""
+            << std::setw(12) << "100.0%\n";
+  std::cout << "========================================\n\n";
+}
+
+// Clear timing data (for warmup)
+void clear_timing_data() {
+  g_timing_data.clear();
+}
+
+// ===== End of Timing Infrastructure =====
 
 // External function declaration (generated from MLIR)
 extern "C" {
@@ -195,6 +311,9 @@ int main(int argc, char **argv) {
           &up_proj_weight, &down_proj_weight);
     }
 
+    // Clear timing data from warmup
+    clear_timing_data();
+
     // Performance measurement
     std::cout << "Running performance test...\n";
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -218,6 +337,9 @@ int main(int argc, char **argv) {
     std::cout << "========\n";
     std::cout << "Total time: " << duration.count() / 1000.0 << " ms\n";
     std::cout << "Average time per iteration: " << avg_time_ms << " ms\n";
+
+    // Print detailed operator timing report
+    print_timing_report();
 
     // Verify output (basic sanity check)
     float *output_data = output.getData();

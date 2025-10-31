@@ -19,11 +19,29 @@
 # ===---------------------------------------------------------------------------
 
 import os
+import sys
 import argparse
 import torch
 import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
 import numpy
+
+# Add the parent directory for 'buddy' packages
+sys.path.append(
+    os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__), "..", "..", "build", "python_packages"
+        )
+    )
+)
+
+# Add MLIR Python bindings path
+mlir_python_path = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__), "..", "..", "llvm", "build", "tools", "mlir", "python_packages", "mlir_core"
+    )
+)
+sys.path.append(mlir_python_path)
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
