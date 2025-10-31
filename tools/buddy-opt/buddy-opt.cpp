@@ -69,6 +69,7 @@ void registerExtendDAPPass();
 void registerDAPVectorizePass();
 void registerLowerRVVPass();
 void registerMatMulOptimizePass();
+void registerMatMulVectorizationPass();
 void registerMatMulParallelVectorizationPass();
 void registerMatMulTransposeBUnrollVecPass();
 void registerMatmulAMXPass();
@@ -116,13 +117,13 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerLinalgToGemminiPass();
 
   // Register Several Optimize Pass.
+  mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulVectorizationBLISPass();
   mlir::buddy::registerMatMulOptimizePass();
   mlir::buddy::registerBatchMatMulOptimizePass();
   mlir::buddy::registerBatchMatMulTileOptimizePass();
   mlir::buddy::registerBatchMatMuSCFOptimize();
   mlir::buddy::registerBatchMatMulTransVecPass();
-  mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
   mlir::buddy::registerMatMulTransposeBUnrollVecPass();
   mlir::buddy::registerMatmulAMXPass();
