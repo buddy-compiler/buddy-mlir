@@ -536,6 +536,41 @@ tile-rect-conv-run:
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
 
+gemmini-risc-matmul-lower:
+	@${BUDDY_OPT} ./risc_matmul.mlir \
+		-matmul-gemmini \
+		-o log.mlir
+
+gemmini-risc-matmul-translate:
+	@${BUDDY_OPT} ./risc_matmul.mlir \
+		-matmul-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+
+gemmini-risc-matmul-asm:
+	@${BUDDY_OPT} ./risc_matmul.mlir \
+		-matmul-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.s
+
+gemmini-risc-matmul-run:
+	@${BUDDY_OPT} ./risc_matmul.mlir \
+		-matmul-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.o
+	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
+	@spike --extension=gemmini pk a.out
+
 gemmini-linalg-matmul-lower:
 	@${BUDDY_OPT} ./matmul.mlir \
 		-convert-linalg-to-gemmini \

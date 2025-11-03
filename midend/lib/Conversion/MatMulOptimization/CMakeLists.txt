@@ -1,6 +1,7 @@
 add_mlir_library(MatMulOptimization
 	MatMulOptimize.cpp
   MatMulVectorization.cpp
+  MatMulGemmini.cpp
   MatMulParallelVectorization.cpp
   MatMulBlisVectorization.cpp
   BatchMatMulOptimize.cpp
