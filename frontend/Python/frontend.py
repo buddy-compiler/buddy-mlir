@@ -338,6 +338,8 @@ class DynamoCompiler:
                 DeviceType.CPU,
                 self._verbose,
             )
+            # Store reference to actual parameters for transform functions to modify
+            graph._params_ref = params_flat
             param_nodes = []
             buffers_nodes = []
             input_nodes = []

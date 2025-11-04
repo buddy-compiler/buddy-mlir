@@ -36,7 +36,11 @@ import numpy
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse, apply_classic_fusion
+from buddy.compiler.graph.transform import (
+    simply_fuse,
+    apply_classic_fusion,
+    eliminate_transpose,
+)
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.graph.operation import *
 
@@ -159,6 +163,8 @@ if args.precision == "f16":
     assert len(graphs) == 1
     graph = graphs[0]
     params = dynamo_compiler.imported_params[graph]
+    # Apply eliminate_transpose optimization before fusion
+    graphs[0].perform([eliminate_transpose])
     pattern_list = [simply_fuse]
     graphs[0].fuse_ops(pattern_list)
     driver = GraphDriver(graphs[0])
@@ -170,6 +176,9 @@ else:
     graph_decode = graphs_decode[0]
 
     params = dynamo_compiler_prefill.imported_params[graph_prefill]
+    # Apply eliminate_transpose optimization before fusion
+    graphs_prefill[0].perform([eliminate_transpose])
+    graphs_decode[0].perform([eliminate_transpose])
     pattern_list = [simply_fuse]
 
     graphs_prefill[0].fuse_ops(pattern_list)
@@ -208,14 +217,18 @@ elif args.precision == "bf16":
         os.path.join(output_dir, "subgraph0-bf16.mlir"), "w"
     ) as module_file:
         print(driver.subgraphs[0]._imported_module, file=module_file)
-    with open(os.path.join(output_dir, "forward-bf16.mlir"), "w") as module_file:
+    with open(
+        os.path.join(output_dir, "forward-bf16.mlir"), "w"
+    ) as module_file:
         print(driver.construct_main_graph(True), file=module_file)
     # Convert BF16 parameters to float32 first, then to numpy
     all_param = numpy.concatenate(
         [param.detach().float().numpy().reshape([-1]) for param in params]
     )
     # Convert float32 to BF16 format (uint16) for storage
-    all_param_bf16 = numpy.frombuffer(all_param.astype(numpy.float32).tobytes(), dtype=numpy.uint16)[1::2]
+    all_param_bf16 = numpy.frombuffer(
+        all_param.astype(numpy.float32).tobytes(), dtype=numpy.uint16
+    )[1::2]
     all_param_bf16.tofile(os.path.join(output_dir, "arg0-bf16.data"))
 else:
     with open(

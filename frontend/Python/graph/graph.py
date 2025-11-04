@@ -127,6 +127,7 @@ class Graph:
         self._fake_params = fake_params
         self.device = device
         self._imported_module = None
+        self._params_ref = None  # Reference to actual parameter tensors (set by DynamoCompiler)
         self._verbose = verbose
         self._ops_registry = ops_registry
         self._func_name = func_name
@@ -449,6 +450,9 @@ class GraphImporter:
         self._do_param_pack = do_param_pack
         self._param_packs = []
         self._num_input_visited = 0
+        self._num_inputs_visited_non_param = (
+            0  # Track number of non-param inputs visited
+        )
         self._module = ir.Module.create()
         self._ops_registry = ops_registry
         self._current_param_pack_offset = None
@@ -651,19 +655,33 @@ class GraphImporter:
         """
         if self._num_input_visited < len(self._params) and self._do_param_pack:
             dtype = node.tensor_meta["dtype"]
-            pack_of_dtype = None
-            for pack in args_list:
-                if ir.MemRefType(
-                    pack.type
-                ).element_type == self._str_to_mlir_dtype(dtype):
-                    pack_of_dtype = pack
-                    break
-            placeholder_name = self._ops_registry["param.extract"](
-                node, self._current_param_pack_offset[dtype], pack_of_dtype
-            ).result
-            self._current_param_pack_offset[dtype] += functools.reduce(
-                lambda x, y: x * y, list(node.tensor_meta["shape"]), 1
-            )
+            # Check if this dtype is in _current_param_pack_offset
+            # If not, it might be an input (e.g., int64) that's not a parameter
+            # In this case, we should treat it as input, not parameter
+            if dtype in self._current_param_pack_offset:
+                pack_of_dtype = None
+                for pack in args_list:
+                    if ir.MemRefType(
+                        pack.type
+                    ).element_type == self._str_to_mlir_dtype(dtype):
+                        pack_of_dtype = pack
+                        break
+                placeholder_name = self._ops_registry["param.extract"](
+                    node, self._current_param_pack_offset[dtype], pack_of_dtype
+                ).result
+                self._current_param_pack_offset[dtype] += functools.reduce(
+                    lambda x, y: x * y, list(node.tensor_meta["shape"]), 1
+                )
+            else:
+                # This PlaceholderOp has a dtype that's not in _params, treat it as input
+                # args_list structure: [param_packs..., inputs...]
+                # Use sequential index for inputs that appear before params finish
+                # This ensures inputs are processed in the order they appear in graph.body
+                placeholder_name = args_list[
+                    len(self._param_packs) + self._num_inputs_visited_non_param
+                ]
+                self._num_inputs_visited_non_param += 1
+                # Note: We still increment _num_input_visited at the end
         elif self._do_param_pack:
             if len(self._params) > 0:
                 placeholder_name = args_list[
