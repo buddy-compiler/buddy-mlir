@@ -130,6 +130,7 @@ class Graph:
         self._fake_params = fake_params
         self.device = device
         self._imported_module = None
+        self._params_ref = None
         self._verbose = verbose
         self._ops_registry = ops_registry
         self._func_name = func_name

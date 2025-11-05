@@ -342,6 +342,7 @@ class DynamoCompiler:
                 self._verbose,
                 self._enable_external_calls,
             )
+            graph._params_ref = params_flat
             param_nodes = []
             buffers_nodes = []
             input_nodes = []
