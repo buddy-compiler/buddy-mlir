@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <array>
 
 using namespace buddy;
 double total_time=0;
