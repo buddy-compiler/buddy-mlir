@@ -119,9 +119,22 @@ class Op:
         """
         self._children.append(child)
 
+    
+    def split_node(self, dim: int, parallel: int):
+        """
+        Split the node into two nodes.
+        """
+        shape = self._tensor_meta["shape"]
+        shape[dim] = shape[dim] / parallel
+        self._tensor_meta["shape"] = shape
+
     @property
     def args(self):
         return self._arguments
+    
+    @property
+    def parents(self):
+        return self._parents
 
     @property
     def kwargs(self):
@@ -141,19 +154,21 @@ class Op:
 
     @tensor_meta.setter
     def tensor_meta(self, new_tensor_meta):
-        self._tensor_meta = new_tensor_meta
+        self._tensor_meta.update(new_tensor_meta)
 
 
 class PlaceholderOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.PlaceholderType
+        self._newshape: list = None
 
 
 class MatmulOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReduceType
+        self._newshape: list = None
 
 
 class TransposeMatmulFusedOp(Op):
@@ -190,12 +205,14 @@ class ViewOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
+        self._newshape: list = None
 
 
 class EmbeddingOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
+        self._newshape: list = None
 
 
 class OnesOp(Op):
