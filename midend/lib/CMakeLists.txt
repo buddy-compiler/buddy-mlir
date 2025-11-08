@@ -26,6 +26,7 @@ set(LinkedLibs
   MatMulParallelVectorization
   TransposeOptimization
   TosaElementwiseFusion
+  AssumeTightMemRefLayoutPass
 )
 
 

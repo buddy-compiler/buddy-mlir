@@ -186,7 +186,8 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-vectorization-blis
+            -assume-tight-memref-layout
+            -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
