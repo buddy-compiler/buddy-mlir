@@ -91,6 +91,34 @@ next-batchmatmul-decode-size-omp-run:
 		-o next-batchmatmul-decode-size-omp-run.out
 	./next-batchmatmul-decode-size-omp-run.out || true
 
+transpose-matmul-benchmark-run:
+	@${BUDDY_OPT} ./transpose-matmul-benchmark.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-convert-tensor-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map unknown-type-conversion=identity-layout-map" \
+		-expand-strided-metadata \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS}
+
 next-sgemm-parallel-unroll-vec-aligned-run:
 	@${MLIR_OPT} ./next-sgemm-unroll-vec-aligned.mlir \
 	-convert-linalg-to-affine-loops \
