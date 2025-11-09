@@ -80,18 +80,18 @@ $ cmake -G Ninja .. -DBUDDY_DEEPSEEKR1_EXAMPLES=ON
 
 //f32
 $ ninja buddy-deepseek-r1-run
-$ cd bin
-$ ./buddy-deepseek-r1-run
+$ ./bin/buddy-deepseek-r1-run
+
+// NUMA node binding
+numactl --cpunodebind=0,1 --membind=0,1 taskset -c 0-47 ./bin/buddy-deepseek-r1-run
 
 //f16
 $ ninja buddy-deepseek-r1-f16-run
-$ cd bin
-$ ./buddy-deepseek-r1-f16-run
+$ ./bin/buddy-deepseek-r1-f16-run
 
 //bf16
 $ ninja buddy-deepseek-r1-bf16-run
-$ cd bin
-$ ./buddy-deepseek-r1-bf16-run
+$ ./bin/buddy-deepseek-r1-bf16-run
 ```
 
 5. Enjoy it!
@@ -170,7 +170,7 @@ const std::string paramsDir = deepSeekR1Dir + "arg0.data";
         -mabi=lp64d
       )
     ```
-  
+
   The complete modified CMakeLists file is attached in appendix, you could copy and paste it directly.
 
 7. Build and run the model:
