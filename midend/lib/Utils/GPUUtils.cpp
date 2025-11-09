@@ -262,7 +262,7 @@ std::optional<SmallVector<int64_t>> getMmaNativeVectorSize(Operation *op) {
     if (resultElementType.isF16() || resultElementType.isBF16()) {
       // For matrixC.
       if (*operandId == 2) {
-        SmallVector<int64_t> readShape;
+        SmallVector<int64_t> readShape(readOp.getVectorType().getRank() - 2, 1);
         readShape.append({mmaShapeM, mmaShapeN});
         LLVM_DEBUG({
           llvm::interleaveComma(readShape,
@@ -273,20 +273,9 @@ std::optional<SmallVector<int64_t>> getMmaNativeVectorSize(Operation *op) {
       }
 
       // For matrixA and matrixB.
-      if (*operandId == 0 || *operandId == 1) {
-        // MmaSyncOp input operands: matrixA and matrixB.
-        // LDSMx1, x2, x4:
-        // - LDSMx1 loads a 1 tile  of 8x8.
-        // - LDSMx2 loads a 2 tiles of 8x8.
-        // - LDSMx4 loads a 4 tiles of 8x8. (in use)
-        // here uses the largest tiled load, i.e., LDSMx4.
-
-        // MmaSyncOp source operand: matrixC.
-        // matrixC is also read/written in tiled block of 16x16. In the pass
-        // OptimizeVectorTransfer, matrixC reads are moved above the mainloop
-        // and writes are moved below the mainloop. Thus, mma.sync read/write
-        // accumulator inplace.
-        SmallVector<int64_t> readShape;
+      if (*operandId == 0) {
+        // MmaSyncOp input operands: matrixA.
+        SmallVector<int64_t> readShape(readOp.getVectorType().getRank() - 2, 1);
         readShape.append({16, 16});
         LLVM_DEBUG({
           llvm::interleaveComma(readShape,
@@ -294,6 +283,26 @@ std::optional<SmallVector<int64_t>> getMmaNativeVectorSize(Operation *op) {
           llvm::dbgs() << "\n";
         });
         return readShape;
+      }
+      if (*operandId == 1)
+      {
+        // MmaSyncOp input operands: matrixB
+        VectorType sliceType;
+        for (Operation *users : op->getUsers()) {
+          auto extract = dyn_cast<vector::ExtractStridedSliceOp>(users);
+          if (!extract)
+            return std::nullopt;
+          auto vecType = llvm::cast<VectorType>(extract.getResult().getType());
+          if (sliceType && sliceType != vecType)
+            return std::nullopt;
+          sliceType = vecType;
+        }
+        LLVM_DEBUG({
+          llvm::interleaveComma(sliceType.getShape(),
+                                DBGS() << "shape for vector.xfer_read: ");
+          llvm::dbgs() << "\n";
+        });
+        return llvm::to_vector(sliceType.getShape());
       }
     }
 
@@ -304,7 +313,7 @@ std::optional<SmallVector<int64_t>> getMmaNativeVectorSize(Operation *op) {
 
       // For matrixC.
       if (*operandId == 2) {
-        SmallVector<int64_t> readShape;
+        SmallVector<int64_t> readShape(readOp.getVectorType().getRank() - 2, 1);
         readShape.append({mmaShapeM, mmaShapeN});
         LLVM_DEBUG({
           llvm::interleaveComma(readShape,
@@ -315,7 +324,7 @@ std::optional<SmallVector<int64_t>> getMmaNativeVectorSize(Operation *op) {
       }
       // For matrixA.
       if (*operandId == 0) {
-        SmallVector<int64_t> readShape;
+        SmallVector<int64_t> readShape(readOp.getVectorType().getRank() - 2, 1);
         readShape.append({mmaShapeM, mmaShapeK});
         LLVM_DEBUG({
           llvm::interleaveComma(readShape,
