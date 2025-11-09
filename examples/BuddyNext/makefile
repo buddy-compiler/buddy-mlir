@@ -2189,9 +2189,9 @@ next-linalg-matmul-decode-perf:
 	taskset -c 0-47 \
 	./next-linalg-matmul.out || true
 
-next-linalg-matmul-perf-run:
-	@${BUDDY_OPT} ./next-linalg-matmul-perf.mlir \
-		-matmul-vectorization-blis \
+next-linalg-matmul-vec-perf-run:
+	@${BUDDY_OPT} ./next-linalg-matmul-vec-perf.mlir \
+		-matmul-parallel-vectorization-optimize \
 		-convert-linalg-to-affine-loops \
 		-affine-parallelize \
 		-lower-affine \
