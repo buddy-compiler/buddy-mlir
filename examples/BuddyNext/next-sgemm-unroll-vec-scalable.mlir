@@ -1,3 +1,22 @@
+// RUN: buddy-opt  %s \
+// RUN:   -convert-linalg-to-loops \
+// RUN:   -cse \
+// RUN:   -lower-affine \
+// RUN:   -convert-vector-to-scf \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-cf-to-llvm \
+// RUN:   -convert-vector-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -reconcile-unrealized-casts | \
+// RUN: mlir-runner -e main -entry-point-result=void \
+// RUN:   -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
+// RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+// RUN: | FileCheck %s
+// 
+// REQUIRES: has_scalable_vector
+
 module {
   func.func private @printMemrefF32(memref<*xf32>)
   func.func private @rtclock() -> f64
@@ -161,6 +180,7 @@ module {
 
     %t_end = call @rtclock() : () -> f64
     %time = arith.subf %t_end, %t_start : f64
+    // CHECK: {{[0-9]+.[0-9]+}}
     vector.print %time : f64
     return
   }
