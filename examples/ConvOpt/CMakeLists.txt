@@ -15,13 +15,13 @@ message(STATUS "Spliting size: ${SPLITING_SIZE}")
 
 
 add_custom_command(OUTPUT conv2d.o
-  COMMAND ${CMAKE_BINARY_DIR}/bin/buddy-opt ${BUDDY_EXAMPLES_DIR}/ConvOpt/conv2d.mlir -conv-vectorization="strip-mining=${SPLITING_SIZE}" -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -finalize-memref-to-llvm -llvm-request-c-wrappers -convert-func-to-llvm -reconcile-unrealized-casts | 
+  COMMAND ${CMAKE_BINARY_DIR}/bin/buddy-opt ${BUDDY_EXAMPLES_DIR}/ConvOpt/conv2d.mlir -conv-vectorization="strip-mining=${SPLITING_SIZE}" -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -finalize-memref-to-llvm -llvm-request-c-wrappers --convert-arith-to-llvm -convert-func-to-llvm --convert-cf-to-llvm -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llc -mtriple=${BUDDY_TARGET_TRIPLE} -mattr=${BUDDY_OPT_ATTR} --filetype=obj -o ${BUDDY_BINARY_DIR}/../examples/ConvOpt/conv2d.o
   DEPENDS buddy-opt)
 
 # add_custom_command(OUTPUT conv2d.o
-#   COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/ConvOpt/conv2d.mlir -convert-linalg-to-loops -convert-scf-to-cf -convert-linalg-to-llvm -lower-affine -convert-scf-to-cf --finalize-memref-to-llvm -convert-func-to-llvm='emit-c-wrappers=1' -reconcile-unrealized-casts | 
+#   COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${BUDDY_EXAMPLES_DIR}/ConvOpt/conv2d.mlir -convert-linalg-to-loops -convert-scf-to-cf -convert-linalg-to-llvm -lower-affine -convert-scf-to-cf --finalize-memref-to-llvm -convert-func-to-llvm='emit-c-wrappers=1' -reconcile-unrealized-casts |
 #           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate --mlir-to-llvmir |
 #           ${LLVM_TOOLS_BINARY_DIR}/llc -mtriple=${BUDDY_OPT_TRIPLE} -mattr=${BUDDY_OPT_ATTR} --filetype=obj -o ${BUDDY_BINARY_DIR}/../examples/ConvOpt/conv2d.o
 #   DEPENDS buddy-opt)
@@ -46,5 +46,3 @@ if(BUDDY_ENABLE_OPENCV)
   add_dependencies(edge-detection buddy-opt)
   target_link_libraries(edge-detection ${OpenCV_LIBS} Conv2D)
   endif()
-
-
