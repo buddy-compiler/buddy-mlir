@@ -1793,6 +1793,23 @@ def scaled_dot_product_flash_attention_for_cpu_op(
                 )
             attn_bias = tosa.AddOp(attn_bias.result.type, attn_bias, attn_mask)
 
+    # Transpose key tensor
+    key_shape = list(key.type.shape)
+    perm_list = list(range(len(key_shape)))
+    perm_list[-1], perm_list[-2] = perm_list[-2], perm_list[-1]
+    perm_const_op = tosa.ConstOp(
+        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+    )
+    perm_shape = []
+    perm_shape.append(key_shape[0])
+    perm_shape.append(key_shape[1])
+    perm_shape.append(key_shape[3])
+    perm_shape.append(key_shape[2])
+    permute_result_type = ir.RankedTensorType.get(perm_shape, mlir_dtype)
+    key = tosa.TransposeOp(
+        permute_result_type, key, perm_const_op.results[0]
+    ).result
+
     # Matrix multiplication of query and key
     query_reshape_op = tosa.ReshapeOp(
         query,
@@ -1811,7 +1828,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         key,
         memoryview(
             array.array(
-                "i", [key_shape[0] * key_shape[1], key_shape[2], key_shape[3]]
+                "i", [key_shape[0] * key_shape[1], key_shape[3], key_shape[2]]
             )
         ),
     )
@@ -1821,13 +1838,8 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         key_shape[2],
     ]
     matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
-    element = mlir_element_attr_get(dtype, 0.0)
-    attr = ir.DenseElementsAttr.get_splat(matmul_result_type, element)
-    matmul_result_buffer = arith.ConstantOp(matmul_result_type, attr).result
-    matmul_op = linalg.batch_matmul_transpose_b(
-        query_reshape_op.result,
-        key_reshape_op.result,
-        outs=[matmul_result_buffer],
+    matmul_op = tosa.MatMulOp(
+        matmul_result_type, query_reshape_op.result, key_reshape_op.result
     )
     if mlir_dtype == ir.F16Type.get():
         f16_max_val = 65504.0
@@ -1842,7 +1854,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_max_val)
 
         matmul_op = tosa.ClampOp(
-            matmul_op.type,
+            matmul_op.result.type,
             matmul_op,
             min_int_attr,
             max_int_attr,
@@ -1851,8 +1863,8 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         )
     elif mlir_dtype == ir.BF16Type.get():
         # BF16 has the same range as F32 but lower precision
-        bf16_max_val = 3.4028235e38
-        bf16_min_val = -3.4028235e38
+        bf16_max_val = 3.4028235e+38
+        bf16_min_val = -3.4028235e+38
         min_int_attr = ir.IntegerAttr.get(
             ir.IntegerType.get_signless(64), -sys.maxsize
         )

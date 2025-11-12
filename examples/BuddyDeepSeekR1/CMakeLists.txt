@@ -264,9 +264,7 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT subgraph-f16.o
-    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-f16.mlir
-              -simplify-tosa-reshape |
-            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-f16.mlir
               -pass-pipeline ${TOSA_PIPELINE} |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
@@ -279,8 +277,7 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -assume-tight-memref-layout
-            -matmul-vectorization-blis
+            -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -canonicalize
             -cse
@@ -295,7 +292,7 @@ add_custom_command(
             -canonicalize
             -cse
             -sccp
-            # -remove-dead-values
+            -remove-dead-values
             -memref-expand
             -arith-expand
             -convert-vector-to-llvm
