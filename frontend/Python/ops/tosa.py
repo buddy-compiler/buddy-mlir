@@ -500,13 +500,18 @@ def reshape_op(node: ReshapeOp, symbol_table):
     shape will be inferred automatically.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    new_shape = []
-    for i in node.args[1]:
-        new_shape.append(i)
-    total_size = 1
     now_shape = ir.RankedTensorType(input1.type).shape
+    total_size = 1
     for dim_siz in now_shape:
         total_size *= dim_siz
+    
+    new_shape = []
+    if node._newshape is None:
+        for i in node.args[1]:
+            new_shape.append(i)
+    else: 
+        for i in node._newshape:
+            new_shape.append(i)    
 
     neg_one_cnt = 0
     rest_size = 1
@@ -1542,7 +1547,8 @@ def sigmoid_op(node: SigmoidOp, symbol_table):
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
         return
-    output_shape = list(node.tensor_meta["shape"])
+    input_shape = ir.RankedTensorType(input1.type).shape
+    output_shape = list(input_shape)
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
