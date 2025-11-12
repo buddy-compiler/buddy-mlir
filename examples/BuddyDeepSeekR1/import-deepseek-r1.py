@@ -38,6 +38,7 @@ from buddy.compiler.graph.transform import (
     simply_fuse,
     apply_classic_fusion,
     eliminate_transpose,
+    flash_attention,
 )
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.graph.operation import *
@@ -175,10 +176,11 @@ else:
     params = dynamo_compiler_prefill.imported_params[graph_prefill]
     graphs_prefill[0].perform([eliminate_transpose])
     graphs_decode[0].perform([eliminate_transpose])
-    pattern_list = [simply_fuse, apply_classic_fusion]
+    pattern_list_prefill = [simply_fuse]
+    pattern_list_decode = [simply_fuse,flash_attention]
 
-    graphs_prefill[0].fuse_ops(pattern_list)
-    graphs_decode[0].fuse_ops(pattern_list)
+    graphs_prefill[0].fuse_ops(pattern_list_prefill)
+    graphs_decode[0].fuse_ops(pattern_list_decode)
 
     graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop(
         "subgraph0"
