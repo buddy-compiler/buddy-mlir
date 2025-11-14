@@ -329,7 +329,7 @@ next-positional-encoding-aot:
 	./next-positional-encoding.out || true
 
 next-norm-aot-omp:
-	@${MLIR_OPT} ./next-norm.mlir \
+	@${MLIR_OPT} ./next-norm-opt.mlir \
 		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
 	${BUDDY_OPT} \
 		-eliminate-empty-tensors \
@@ -348,6 +348,48 @@ next-norm-aot-omp:
 		-convert-vector-to-scf \
 		-lower-affine \
 		-convert-scf-to-openmp \
+		-func-bufferize-dynamic-offset \
+		-cse \
+		-memref-expand \
+		-arith-expand \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-norm.out
+	./next-norm.out || true
+
+next-norm-opt-aot:
+	@${MLIR_OPT} ./next-norm-opt.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-expand-strided-metadata \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-matmul-parallel-vectorization-optimize \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-convert-vector-to-scf \
+		-lower-affine \
 		-func-bufferize-dynamic-offset \
 		-cse \
 		-memref-expand \

@@ -23,7 +23,9 @@ from ..operation import *
 from .. import DeviceType
 from torch.fx.immutable_collections import immutable_list
 
-classicfuse_register = {"transpose_matmul_fusion": TransposeMatmulFusedOp}
+classicfuse_register = {"transpose_matmul_fusion": TransposeMatmulFusedOp,
+                         "norm_fusion": NormOp
+                        }
 
 # TODO: classify op type for op fusion
 # OP_TYPE_FUSABLE = [OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType]
@@ -56,6 +58,39 @@ def classic_fuse_check(graph: Graph):
             transpose_matmul_fusion(
                 graph, op, pattern[0], pattern[1], pattern[2]
             )
+        # === LayerNorm pattern ===
+        if isinstance(op, PowOp):
+            # check LayerNorm pattern: pow -> mean -> add -> rsqrt -> mul -> mul
+            if not op._children:
+                continue
+            mean_node = graph.node_table.get(op._children[0], None)
+            if not isinstance(mean_node, MeanOp):
+                continue
+
+            if not mean_node._children:
+                continue
+            add_node = graph.node_table.get(mean_node._children[0], None)
+            if not isinstance(add_node, AddOp):
+                continue
+
+            if not add_node._children:
+                continue
+            rsqrt_node = graph.node_table.get(add_node._children[0], None)
+            if not isinstance(rsqrt_node, RsqrtOp):
+                continue
+
+            if not rsqrt_node._children:
+                continue
+            mul_node = graph.node_table.get(rsqrt_node._children[0], None)
+            if not isinstance(mul_node, MulOp):
+                continue
+
+            if not mul_node._children:
+                continue
+            mul_2_node = graph.node_table.get(mul_node._children[0], None)
+            if not isinstance(mul_2_node, MulOp):
+                continue
+            norm_fusion(graph, op, mean_node, add_node, rsqrt_node, mul_node, mul_2_node, "norm_fusion")
 
 
 def transpose_matmul_fusion(
@@ -89,6 +124,53 @@ def transpose_matmul_fusion(
 
     if graph.check_delete_node(target):
         graph.delete_node(target, targets_parent)
+
+
+def norm_fusion(
+    graph: Graph,
+    pow_node: Op,
+    mean_node: Op,
+    add_node: Op,
+    rsqrt_node: Op,
+    mul_node: Op,      
+    mul_2_node: Op,    
+    pattern: str,
+):
+    """
+    Fuse LayerNorm subgraph (Pow -> Mean -> Add -> Rsqrt -> Mul -> Mul)
+    into one LayerNormFusedOp.
+    """
+    fused_cls = classicfuse_register.get(pattern)
+
+    fused_op = fused_cls()
+
+    fused_op.name = "NormOp"
+
+    graph.displace_node(mul_2_node, fused_op)
+
+    fused_op.args.pop(fused_op.args.index(mul_node.name))
+
+    fused_op._parents.pop(fused_op._parents.index(mul_node.name))
+    for parent_name in pow_node._parents:
+        fused_op._parents.append(parent_name)
+        fused_op.args.append(parent_name)
+
+    mul_node._children.clear()
+
+    if graph.check_delete_node(mul_node):
+        graph.delete_node(mul_node,[graph.node_table.get(mul_node._parents[0], None),graph.node_table.get(mul_node._parents[1], None)])
+
+    if graph.check_delete_node(rsqrt_node):
+        graph.delete_node(rsqrt_node,[add_node])
+
+    if graph.check_delete_node(add_node):
+        graph.delete_node(add_node,[mean_node])
+
+    if graph.check_delete_node(mean_node):
+        graph.delete_node(mean_node,[pow_node])
+
+    if graph.check_delete_node(pow_node):
+        graph.delete_node(pow_node,[graph.node_table.get(mul_node._parents[0], None)])
 
 
 def apply_classic_fusion(graph: Graph):
