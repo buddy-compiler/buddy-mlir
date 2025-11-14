@@ -141,21 +141,28 @@ check_cxx_source_runs(
 # Check RISC-V Vector
 #-------------------------------------------------------------------------------
 
+  set(CMAKE_REQUIRED_FLAGS "-march=rv64gcv")
   check_cxx_source_runs(
     "
     #include <riscv_vector.h>
     int main() {
       int avl = 70;
-      int vl = vsetvl_e32m2(avl);
+      int vl = __riscv_vsetvl_e32m2(avl);
       return 0;
     }
     " HAVE_LOCAL_RVV)
 
-    if(${HAVE_LOCAL_RVV})
-      message(STATUS "\tRISC-V Vector local support - yes")
-    else()
-      message(STATUS "\tRISC-V Vector local support - no")
-    endif(${HAVE_LOCAL_RVV})
+#-------------------------------------------------------------------------------
+# Check Scalable Vector (RISC-V RVV)
+#-------------------------------------------------------------------------------
+
+  if(${HAVE_LOCAL_RVV})
+    set(HAVE_SCALABLE_VECTOR 1)
+    message(STATUS "\tScalable Vector support - yes (RVV)")
+  else()
+    set(HAVE_SCALABLE_VECTOR 0)
+    message(STATUS "\tScalable Vector support - no")
+  endif()
 
   set(CMAKE_REQUIRED_FLAGS "${_CHECK_SIMD_ORIG_REQUIRED_FLAGS}")
 
