@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # ===- import-deepseek-r1.py ---------------------------------------------------
-#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -177,7 +176,7 @@ else:
     graphs_prefill[0].perform([eliminate_transpose])
     graphs_decode[0].perform([eliminate_transpose])
     pattern_list_prefill = [simply_fuse]
-    pattern_list_decode = [simply_fuse,flash_attention]
+    pattern_list_decode = [simply_fuse, flash_attention]
 
     graphs_prefill[0].fuse_ops(pattern_list_prefill)
     graphs_decode[0].fuse_ops(pattern_list_decode)
