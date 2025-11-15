@@ -573,6 +573,24 @@ class ScaledDotProductFlashAttentionForCpuOp(Op):
         self._op_type = OpType.ElementwiseType
 
 
+class FlashAttentionForCpuOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class FlashAttentionForCpuVectorOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class FlashAttentionForCpuVectorTileOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
 class GeOp(Op):
     def __init__(self) -> None:
         super().__init__()

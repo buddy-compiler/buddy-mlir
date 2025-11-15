@@ -18,7 +18,7 @@
 #
 # ===---------------------------------------------------------------------------
 
-from .fuse_ops import simply_fuse, apply_classic_fusion
+from .fuse_ops import simply_fuse, apply_classic_fusion,flash_attention
 from .useless_op_eliminate import maxpool2d_simplify
 from .eliminate_weight_transpose import eliminate_transpose
 from .onednn_replace import (
