@@ -35,6 +35,7 @@ from mlir.dialects import (
     vector,
     bufferization,
     memref,
+    scf,
 )
 
 from ..graph import TensorDType
@@ -76,6 +77,7 @@ from ..graph import (
     ScaledDotProductFlashAttentionForCpuOp,
     FlashAttentionForCpuOp,
     FlashAttentionForCpuVectorOp,
+    FlashAttentionForCpuVectorTileOp,
     MatmulOp,
     LeOp,
     BitwiseAndTensorOp,
@@ -2532,6 +2534,311 @@ def flash_attention_for_cpu_vector_op(
     return result_tensor, log_sumexp
 
 
+def flash_attention_for_cpu_vector_tiled_op(
+    node: "FlashAttentionForCpuVectorTileOp", symbol_table
+):
+    """
+    Lower ScaledDotProductFlashAttentionForCpuTileOp into MLIR affine+vector IR.
+    Returns:
+        result_tensor: Final attention output tensor
+        log_sumexp_reshape: Placeholder log-sum-exp (can be reshaped as needed)
+    """
+    loc = ir.Location.unknown()
+    f32 = F32Type.get()
+    index = IndexType.get()
+    dtype = node.tensor_meta["dtype"][0]
+    dtype = mlir_element_type_get(dtype)
+    vector_width = 16
+    v16 = ir.VectorType.get([vector_width], dtype)
+    vec_len = arith.ConstantOp(index, vector_width, loc=loc)
+
+    # === input parse ===
+    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    key = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    attn_mask = node.kwargs.get("attn_mask", None)
+    scale = node.kwargs.get("scale", None)
+
+    c0 = arith.ConstantOp(index, 0, loc=loc)
+    query_shape = query.type.shape
+    key_shape = key.type.shape
+    value_shape = value.type.shape
+    output_shape = list(node.tensor_meta["shape"])
+
+    one = arith.ConstantOp(dtype, 1.0).result
+
+    # scale = 1/sqrt(H)
+    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    scale_val = arith.ConstantOp(dtype, float(scale_val)).result
+
+    zero = arith.ConstantOp(dtype, 0.0, loc=loc).result
+    neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+    zero_vec = vector.SplatOp(v16, zero, loc=loc)
+    step_1 = arith.ConstantOp(index, 1, loc=loc)
+
+    # === bufferization ===
+    Q_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(query_shape, dtype), query, loc=loc
+    )
+    K_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(key_shape, dtype), key, loc=loc
+    )
+    V_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(value_shape, dtype), value, loc=loc
+    )
+
+    mask_memref = None
+    if attn_mask is not None:
+        attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
+        mask_memref = bufferization.ToMemrefOp(
+            memref.MemRefType.get(attn_mask.type.shape, dtype),
+            attn_mask,
+            loc=loc,
+        )
+
+    batch_size = arith.ConstantOp(index, query_shape[0], loc=loc)
+    num_heads = arith.ConstantOp(index, query_shape[1], loc=loc)
+    q_seq_len = arith.ConstantOp(index, query_shape[2], loc=loc)
+    head_dim = arith.ConstantOp(index, query_shape[3], loc=loc)
+    k_seq_len = arith.ConstantOp(index, key_shape[2], loc=loc)
+    block_size = 64
+    block_size_kv = arith.ConstantOp(index, block_size, loc=loc)
+
+    out_memref = memref.AllocOp(
+        memref.MemRefType.get(list(output_shape[0]), dtype), [], [], loc=loc
+    )
+    out_scores_memref = memref.AllocOp(
+        memref.MemRefType.get(
+            [query_shape[0], query_shape[1], query_shape[2]], dtype
+        ),
+        [],
+        [],
+        loc=loc,
+    )
+    acc_memref = memref.AllocOp(
+        memref.MemRefType.get([query_shape[3]], dtype), [], [], loc=loc
+    )
+    score_tile_memref = memref.AllocOp(
+        memref.MemRefType.get([block_size], dtype), [], [], loc=loc
+    )
+    acc_block_memref = memref.AllocOp(
+        memref.MemRefType.get([query_shape[3]], dtype), [], [], loc=loc
+    )
+
+    # batch loop
+    loop_batch = scf.ForOp(c0.result, batch_size.result, step_1.result, [])
+    with ir.InsertionPoint(loop_batch.body):
+        b = loop_batch.induction_variable
+        # head loop
+        loop_h = scf.ForOp(c0.result, num_heads.result, step_1.result, [])
+        with ir.InsertionPoint(loop_h.body):
+            h = loop_h.induction_variable
+            # query sequence length loop
+            loop_i = scf.ForOp(c0.result, q_seq_len.result, step_1.result, [])
+            with ir.InsertionPoint(loop_i.body):
+                q = loop_i.induction_variable
+
+                # initialize accum to zero
+                loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                k = loop_k.induction_variable
+                with ir.InsertionPoint(loop_k.body):
+                    vector.StoreOp(zero_vec, acc_memref, [k])
+                    scf.yield_([])
+
+                # block loop
+                loop_block = scf.ForOp(
+                    c0.result,
+                    k_seq_len.result,
+                    block_size_kv.result,
+                    [neg_inf, zero],
+                )
+                k_block_start = loop_block.induction_variable
+                iter_args = loop_block.inner_iter_args
+                with ir.InsertionPoint(loop_block.body):
+                    m_i_iter = iter_args[0]
+                    l_i_iter = iter_args[1]
+                    loop_jj = scf.ForOp(
+                        c0.result, block_size_kv.result, vec_len
+                    )
+                    with ir.InsertionPoint(loop_jj.body):
+                        jj = loop_jj.induction_variable
+                        vector.StoreOp(zero_vec, score_tile_memref, [jj])
+                        scf.yield_([])
+                    loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                    with ir.InsertionPoint(loop_k.body):
+                        k = loop_k.induction_variable
+                        vector.StoreOp(zero_vec, acc_block_memref, [k])
+                        scf.yield_([])
+                    # compute m_block
+                    loop_jj = scf.ForOp(
+                        c0.result, block_size_kv.result, step_1, [neg_inf]
+                    )
+                    iter_args = loop_jj.inner_iter_args
+                    max_block_iter = iter_args[0]
+                    with ir.InsertionPoint(loop_jj.body):
+                        jj = loop_jj.induction_variable
+                        idx = arith.AddIOp(k_block_start, jj, loc=loc).result
+
+                        loop_k = scf.ForOp(
+                            c0.result,
+                            head_dim.result,
+                            vec_len,
+                            [zero_vec.result],
+                        )
+                        k = loop_k.induction_variable
+                        acc_vec = loop_k.inner_iter_args[0]
+                        with ir.InsertionPoint(loop_k.body):
+                            q_data = vector.LoadOp(v16, Q_memref, [b, h, q, k])
+                            k_data = vector.LoadOp(
+                                v16, K_memref, [b, h, idx, k]
+                            )
+                            prod = arith.MulFOp(
+                                q_data.result, k_data.result, loc=loc
+                            ).result
+                            new_acc = arith.AddFOp(
+                                acc_vec, prod, loc=loc
+                            ).result
+                            scf.yield_([new_acc])
+                        score_tile_sum = vector.ReductionOp(
+                            dtype, "add", loop_k.result
+                        ).result
+                        score_tile_scaled = arith.MulFOp(
+                            score_tile_sum, scale_val, loc=loc
+                        ).result
+                        if mask_memref is not None:
+                            mask_val = memref.LoadOp(
+                                mask_memref, [b, c0.result, q, idx]
+                            ).result
+                            score_tile_masked = arith.AddFOp(
+                                score_tile_scaled, mask_val, loc=loc
+                            ).result
+                        else:
+                            score_tile_masked = score_tile_scaled
+                        memref.StoreOp(
+                            score_tile_masked, score_tile_memref, [jj]
+                        )
+                        is_m_i = arith.CmpFOp(
+                            arith.CmpFPredicate.OGT,
+                            score_tile_masked,
+                            max_block_iter,
+                            loc=loc,
+                        ).result
+                        m_i_tile = arith.SelectOp(
+                            is_m_i, score_tile_masked, max_block_iter, loc=loc
+                        ).result
+                        scf.yield_([m_i_tile])
+                    m_block = loop_jj.result
+                    # compute l_block
+                    loop_jj = scf.ForOp(
+                        c0.result, block_size_kv.result, step_1, [zero]
+                    )
+                    iter_args = loop_jj.inner_iter_args
+                    l_block_iter = iter_args[0]
+                    with ir.InsertionPoint(loop_jj.body):
+                        jj = loop_jj.induction_variable
+                        idx = arith.AddIOp(k_block_start, jj, loc=loc).result
+                        score_tile_masked = memref.LoadOp(
+                            score_tile_memref, [jj]
+                        )
+                        score_tile_sub_m_block = arith.SubFOp(
+                            score_tile_masked.result, m_block, loc=loc
+                        ).result
+                        p = math.ExpOp(score_tile_sub_m_block, loc=loc).result
+                        exp_score_tile_vec = vector.SplatOp(
+                            v16, p, loc=loc
+                        ).result
+                        l_block_new = arith.AddFOp(
+                            l_block_iter, p, loc=loc
+                        ).result
+
+                        loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                        k = loop_k.induction_variable
+                        with ir.InsertionPoint(loop_k.body):
+                            v_data = vector.LoadOp(
+                                v16, V_memref, [b, h, idx, k]
+                            )
+                            acc_block_val = vector.LoadOp(
+                                v16, acc_block_memref, [k]
+                            )
+                            prod = arith.MulFOp(
+                                v_data.result, exp_score_tile_vec, loc=loc
+                            ).result
+                            new_acc = arith.AddFOp(
+                                acc_block_val.result, prod, loc=loc
+                            ).result
+                            vector.StoreOp(new_acc, acc_block_memref, [k])
+                            scf.yield_([])
+                        scf.yield_([l_block_new])
+
+                    l_block = loop_jj.result
+                    m_i_iter_is_max = arith.CmpFOp(
+                        arith.CmpFPredicate.OGT, m_block, m_i_iter, loc=loc
+                    ).result
+                    m_new = arith.SelectOp(
+                        m_i_iter_is_max, m_block, m_i_iter, loc=loc
+                    ).result
+                    sub_max = arith.SubFOp(m_i_iter, m_new, loc=loc).result
+                    alpha = math.ExpOp(sub_max, loc=loc).result
+                    alpha_vec = vector.SplatOp(v16, alpha, loc=loc).result
+
+                    sub_block = arith.SubFOp(m_block, m_new, loc=loc).result
+                    beta = math.ExpOp(sub_block, loc=loc).result
+                    beta_vec = vector.SplatOp(v16, beta, loc=loc).result
+
+                    loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                    with ir.InsertionPoint(loop_k.body):
+                        k = loop_k.induction_variable
+                        acc_vec = vector.LoadOp(v16, acc_memref, [k])
+                        acc_block_vec = vector.LoadOp(
+                            v16, acc_block_memref, [k]
+                        )
+                        alpha_mul = arith.MulFOp(
+                            acc_vec.result, alpha_vec, loc=loc
+                        ).result
+                        beta_mul = arith.MulFOp(
+                            acc_block_vec.result, beta_vec, loc=loc
+                        ).result
+                        new_acc = arith.AddFOp(
+                            alpha_mul, beta_mul, loc=loc
+                        ).result
+                        vector.StoreOp(new_acc, acc_memref, [k])
+                        scf.yield_([])
+                    l_alpha = arith.MulFOp(l_i_iter, alpha, loc=loc).result
+                    l_beta = arith.MulFOp(l_block, beta, loc=loc).result
+                    l_i = arith.AddFOp(l_alpha, l_beta, loc=loc).result
+                    scf.yield_([m_new, l_i])
+
+                l_i = loop_block.results[1]
+                memref.StoreOp(l_i, out_scores_memref, [b, h, q])
+                sum_vec = vector.SplatOp(v16, l_i, loc=loc).result
+                loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                with ir.InsertionPoint(loop_k.body):
+                    k = loop_k.induction_variable
+                    acc_vec = vector.LoadOp(v16, acc_memref, [k])
+                    out_vec = arith.DivFOp(
+                        acc_vec.result, sum_vec, loc=loc
+                    ).result
+                    vector.StoreOp(out_vec, out_memref, [b, h, q, k])
+                    scf.yield_([])
+
+                scf.yield_([])
+            scf.yield_([])
+        scf.yield_([])
+    out_tensor = bufferization.ToTensorOp(
+        ir.RankedTensorType.get(list(output_shape[0]), dtype),
+        out_memref,
+        restrict=ir.BoolAttr.get(True),
+    )
+    out_scores_tensor = bufferization.ToTensorOp(
+        ir.RankedTensorType.get(
+            [query_shape[0], query_shape[1], query_shape[2]], dtype
+        ),
+        out_scores_memref,
+        restrict=ir.BoolAttr.get(True),
+    )
+    return out_tensor, out_scores_tensor
+
+
 def le_op(
     node: LeOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
@@ -2693,6 +3000,7 @@ ops_registry = {
     "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
     "FlashAttentionForCpuOp": flash_attention_for_cpu_op,
     "FlashAttentionForCpuVectorOp": flash_attention_for_cpu_vector_op,
+    "FlashAttentionForCpuVectorTileOp": flash_attention_for_cpu_vector_tiled_op,
     "LeOp": le_op,
     "BitwiseAndTensorOp": bitwise_and_tensor_op,
 }

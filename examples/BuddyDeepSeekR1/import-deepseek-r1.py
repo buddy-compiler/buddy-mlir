@@ -175,8 +175,8 @@ else:
     params = dynamo_compiler_prefill.imported_params[graph_prefill]
     graphs_prefill[0].perform([eliminate_transpose])
     graphs_decode[0].perform([eliminate_transpose])
-    pattern_list_prefill = [simply_fuse]
-    pattern_list_decode = [simply_fuse, flash_attention]
+    pattern_list_prefill = [simply_fuse, apply_classic_fusion]
+    pattern_list_decode = [simply_fuse, apply_classic_fusion, flash_attention]
 
     graphs_prefill[0].fuse_ops(pattern_list_prefill)
     graphs_decode[0].fuse_ops(pattern_list_decode)

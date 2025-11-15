@@ -23,9 +23,10 @@ from ..operation import *
 from .. import DeviceType
 from torch.fx.immutable_collections import immutable_list
 
-classicfuse_register = {"transpose_matmul_fusion": TransposeMatmulFusedOp,
-                        "flash_attention_fusion": FlashAttentionForCpuVectorOp,
-                        }
+classicfuse_register = {
+    "transpose_matmul_fusion": TransposeMatmulFusedOp,
+    "flash_attention_fusion": FlashAttentionForCpuVectorTileOp,
+}
 
 # TODO: classify op type for op fusion
 # OP_TYPE_FUSABLE = [OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType]
@@ -137,7 +138,7 @@ def simply_fuse(graph: Graph):
     graph.op_groups["subgraph0"] = new_op_group
     graph.group_map_device = {"subgraph0": device}
 
-    
+
 def flash_attention(graph: Graph):
     """
     Replace ScaledDotProductFlashAttentionForCpuOp with FlashAttentionForCpuOp.
@@ -159,9 +160,8 @@ def replace_attention_op(graph: Graph):
     """
     replace ScaledDotProductFlashAttentionForCpuOp with FlashAttentionForCpuOp.
     """
-    for op in list(graph.body): 
+    for op in list(graph.body):
         if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
             new_op = classicfuse_register.get("flash_attention_fusion")()
-            new_op.name = "FlashAttentionForCpuVectorOp" 
+            new_op.name = "FlashAttentionForCpuVectorTileOp"
             graph.displace_node(op, new_op)
-
