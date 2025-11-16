@@ -1781,7 +1781,8 @@ def scaled_dot_product_flash_attention_for_cpu_op(
             minus_inf_tensor = arith.ConstantOp(
                 attn_mask.type,
                 ir.DenseElementsAttr.get_splat(
-                    attn_mask.type, ir.FloatAttr.get(f32_type, float("-inf"))
+                    attn_mask.type,
+                    ir.FloatAttr.get(ir.F32Type.get(), float("-inf")),
                 ),
             )
             attn_bias = tensor.SelectOp(attn_mask, minus_inf_tensor, attn_bias)

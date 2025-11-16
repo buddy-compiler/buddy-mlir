@@ -96,6 +96,7 @@ add_custom_command(
             -bufferization-lower-deallocations
             -matmul-vectorization-blis
             -batchmatmul-optimize
+            -batchmatmul-transpose-b-vectorization
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
@@ -189,6 +190,7 @@ add_custom_command(
             -assume-tight-memref-layout
             -matmul-vectorization-decode
             -batchmatmul-optimize
+            -batchmatmul-transpose-b-vectorization
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
