@@ -18,6 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
@@ -73,9 +74,6 @@ public:
     Value B = op->getOperand(1);
     Value C = op->getOperand(2);
 
-    // Get i1 as the element type for mask vector.
-    IntegerType i1 = IntegerType::get(ctx, 1);
-    VectorType vectorMaskTy = mlir::VectorType::get({vecSize}, i1);
     // Acquire the element type of input tensors.
     Type elementType = A.getType().cast<MemRefType>().getElementType();
     VectorType vectorTy = mlir::VectorType::get({vecSize}, elementType);
@@ -88,8 +86,8 @@ public:
     const Value zero = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getZeroAttr(elementType));
 
-    // Create pass through vector.
-    Value passThroughVec = rewriter.create<SplatOp>(loc, vectorTy, zero);
+    // Create initial zero vector for accumulation.
+    Value zeroVec = rewriter.create<SplatOp>(loc, vectorTy, zero);
 
     // Get dimensions of input tensors.
     Value batch = rewriter.create<memref::DimOp>(loc, A, c0);
@@ -97,70 +95,87 @@ public:
     Value bRow = rewriter.create<memref::DimOp>(loc, A, c2);
     Value bCol = rewriter.create<memref::DimOp>(loc, B, c1);
 
-    // Calculate the upper bound for vectorized processing
-    // - Subtract `vlStep` is to avoid overflow at the vectorization tail.
-    // - Add 1 to ensure the final loop runs when the workload length
-    //   is divisible by the vector size.
-    Value upperBoundTmp = rewriter.create<arith::SubIOp>(loc, bRow, vlStep);
-    Value upperBound = rewriter.create<arith::AddIOp>(loc, upperBoundTmp, c1);
+    // Compute main (vectorized) part and tail part sizes along reduction dim.
+    Value tailSize = rewriter.create<arith::RemUIOp>(loc, bRow, vlStep);
+    Value mainSize = rewriter.create<arith::SubIOp>(loc, bRow, tailSize);
 
-    affine::buildAffineLoopNest(
-        rewriter, loc, {c0, c0, c0}, {batch, aRow, bCol}, /*Step=*/{1, 1, 1},
-        [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-          // Get a vector of the output memref.
-          Value val = builder.create<memref::LoadOp>(
-              loc, elementType, C, ValueRange{ivs[0], ivs[1], ivs[2]});
-          auto iterValues = builder.create<scf::ForOp>(
-              loc, c0, upperBound, /*Step=*/vlStep, ValueRange{c0, val},
-              [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
-                  ValueRange itrArgs) {
-                Value aVec = builder.create<vector::LoadOp>(
-                    loc, vectorTy, A, ValueRange{ivs[0], ivs[1], iv});
-                Value bVec = builder.create<vector::LoadOp>(
-                    loc, vectorTy, B, ValueRange{ivs[0], ivs[2], iv});
-                // Compute the result vector either through integer
-                // multiplication and addition or fused multiply-add
-                // based on the element type.
-                Value tmpVec;
-                if (isa<IntegerType>(elementType)) {
-                  tmpVec = builder.create<arith::MulIOp>(loc, aVec, bVec);
-                } else {
-                  tmpVec = builder.create<arith::MulFOp>(loc, aVec, bVec);
-                }
-                Value tmpVal = builder.create<vector::ReductionOp>(
-                    loc, vector::CombiningKind::ADD, tmpVec, itrArgs[1],
-                    ::mlir::arith::FastMathFlags::reassoc);
-                Value idx =
-                    nestedBuilder.create<arith::AddIOp>(nestedLoc, iv, vlStep);
-                builder.create<scf::YieldOp>(loc, ValueRange{idx, tmpVal});
-              });
-          // Compute the tail size and Process the remaining elements
-          // using masked vector operations.
-          Value idx = iterValues.getResult(0);
-          Value tailSize = builder.create<arith::SubIOp>(loc, bRow, idx);
-          Value tailMask =
-              builder.create<CreateMaskOp>(loc, vectorMaskTy, tailSize);
-          Value maskedAVec = builder.create<MaskedLoadOp>(
-              loc, vectorTy, A, ValueRange{ivs[0], ivs[1], idx}, tailMask,
-              passThroughVec);
-          Value maskedBVec = builder.create<MaskedLoadOp>(
-              loc, vectorTy, B, ValueRange{ivs[0], ivs[2], idx}, tailMask,
-              passThroughVec);
-          // Compute the result vector either through integer
-          // multiplication and addition or fused multiply-add
-          // based on the element type.
-          Value tmpVec;
+    // Create nested scf.for loops instead of affine loops.
+    auto batchLoop = rewriter.create<scf::ForOp>(loc, c0, batch, c1);
+    rewriter.setInsertionPointToStart(batchLoop.getBody());
+    Value batchIdx = batchLoop.getInductionVar();
+
+    auto aRowLoop = rewriter.create<scf::ForOp>(loc, c0, aRow, c1);
+    rewriter.setInsertionPointToStart(aRowLoop.getBody());
+    Value aRowIdx = aRowLoop.getInductionVar();
+
+    auto bColLoop = rewriter.create<scf::ForOp>(loc, c0, bCol, c1);
+    rewriter.setInsertionPointToStart(bColLoop.getBody());
+    Value bColIdx = bColLoop.getInductionVar();
+
+    // Inner vectorized loop using vector.fma for accumulation.
+    auto vecLoop = rewriter.create<scf::ForOp>(
+        loc, c0, mainSize, vlStep, ValueRange{zeroVec},
+        [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
+            ValueRange itrArgs) {
+          Value aVec = nestedBuilder.create<vector::LoadOp>(
+              nestedLoc, vectorTy, A, ValueRange{batchIdx, aRowIdx, iv});
+          Value bVec = nestedBuilder.create<vector::LoadOp>(
+              nestedLoc, vectorTy, B, ValueRange{batchIdx, bColIdx, iv});
+          // Use vector.fma for fused multiply-add accumulation.
+          Value resultVec;
           if (isa<IntegerType>(elementType)) {
-            tmpVec = builder.create<arith::MulIOp>(loc, maskedAVec, maskedBVec);
+            // For integer types, use mul + add since fma doesn't apply.
+            Value mulVec =
+                nestedBuilder.create<arith::MulIOp>(nestedLoc, aVec, bVec);
+            resultVec = nestedBuilder.create<arith::AddIOp>(nestedLoc, mulVec,
+                                                            itrArgs[0]);
           } else {
-            tmpVec = builder.create<arith::MulFOp>(loc, maskedAVec, maskedBVec);
+            // For floating point types, use vector.fma.
+            resultVec = nestedBuilder.create<vector::FMAOp>(nestedLoc, aVec,
+                                                            bVec, itrArgs[0]);
           }
-          Value tmpVal = builder.create<vector::ReductionOp>(
-              loc, vector::CombiningKind::ADD, tmpVec, iterValues.getResult(1),
-              ::mlir::arith::FastMathFlags::reassoc);
-          builder.create<affine::AffineStoreOp>(
-              loc, tmpVal, C, ValueRange{ivs[0], ivs[1], ivs[2]});
+          nestedBuilder.create<scf::YieldOp>(nestedLoc, resultVec);
         });
+
+    // Load the initial value from output memref.
+    Value initVal = rewriter.create<memref::LoadOp>(
+        loc, elementType, C, ValueRange{batchIdx, aRowIdx, bColIdx});
+
+    // Perform reduction on the accumulated vector (main vectorized part).
+    Value partialResult = rewriter.create<vector::ReductionOp>(
+        loc, vector::CombiningKind::ADD, vecLoop.getResult(0), initVal,
+        ::mlir::arith::FastMathFlags::reassoc);
+
+    // Tail processing for remaining elements that do not fit into a full
+    // vector.
+    auto tailLoop = rewriter.create<scf::ForOp>(
+        loc, mainSize, bRow, c1, ValueRange{partialResult},
+        [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
+            ValueRange itrArgs) {
+          Value aElem = nestedBuilder.create<memref::LoadOp>(
+              nestedLoc, elementType, A, ValueRange{batchIdx, aRowIdx, iv});
+          Value bElem = nestedBuilder.create<memref::LoadOp>(
+              nestedLoc, elementType, B, ValueRange{batchIdx, bColIdx, iv});
+          Value resultScalar;
+          if (isa<IntegerType>(elementType)) {
+            Value mulVal =
+                nestedBuilder.create<arith::MulIOp>(nestedLoc, aElem, bElem);
+            resultScalar = nestedBuilder.create<arith::AddIOp>(
+                nestedLoc, mulVal, itrArgs[0]);
+          } else {
+            Value mulVal =
+                nestedBuilder.create<arith::MulFOp>(nestedLoc, aElem, bElem);
+            resultScalar = nestedBuilder.create<arith::AddFOp>(
+                nestedLoc, mulVal, itrArgs[0]);
+          }
+          nestedBuilder.create<scf::YieldOp>(nestedLoc, resultScalar);
+        });
+
+    Value finalResult = tailLoop.getResult(0);
+
+    // Store the result back.
+    rewriter.create<memref::StoreOp>(loc, finalResult, C,
+                                     ValueRange{batchIdx, aRowIdx, bColIdx});
     rewriter.eraseOp(op);
     return success();
   }
