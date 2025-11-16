@@ -2189,28 +2189,27 @@ next-linalg-matmul-decode-perf:
 	taskset -c 0-47 \
 	./next-linalg-matmul.out || true
 
-next-tosa-matmul-aot-omp:
-	@${MLIR_OPT} ./next-tosa-matmul.mlir \
-		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
-	${BUDDY_OPT} \
+
+next-batch-matmul-transpose-b-aot-omp:
+	@${BUDDY_OPT} ./next-batch-matmul-transpose-b.mlir \
 		-eliminate-empty-tensors \
 		-empty-tensor-to-alloc-tensor \
 		-convert-elementwise-to-linalg \
-		-one-shot-bufferize="bufferize-function-boundaries" \
+		-one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS} \
 		-expand-strided-metadata \
 		-ownership-based-buffer-deallocation \
 		-buffer-deallocation-simplification \
-		-convert-bufferization-to-memref \
 		-bufferization-lower-deallocations \
 		-assume-tight-memref-layout \
 		-matmul-vectorization-decode \
-		-batch-matmul-vectorization-decode \
+		-batchmatmul-optimize \
+		-batchmatmul-transpose-b-vectorization \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-affine-parallelize \
 		-convert-vector-to-scf \
 		-lower-affine \
-		-convert-scf-to-openmp=num-threads=$(NUM_THREADS) \
+		-convert-scf-to-openmp=num-threads=48 \
 		-func-bufferize-dynamic-offset \
 		-cse \
 		-memref-expand \
@@ -2231,40 +2230,22 @@ next-tosa-matmul-aot-omp:
 		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
-		-o next-tosa-matmul.out
+		-o next-batch-matmul-transpose-b.out
 	export OMP_NUM_THREADS=$(NUM_THREADS)
 	export OMP_PLACES=cores
 	export OMP_PROC_BIND=close
 	numactl --cpunodebind=0,1 --membind=0,1 \
 	taskset -c 0-47 \
-	./next-tosa-matmul.out || true
+	./next-batch-matmul-transpose-b.out || true
 
-next-tosa-matmul-lower:
-	@${MLIR_OPT} ./next-tosa-matmul.mlir \
-		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
-	${BUDDY_OPT} \
-		-eliminate-empty-tensors \
-		-empty-tensor-to-alloc-tensor \
-		-convert-elementwise-to-linalg \
-		-one-shot-bufferize="bufferize-function-boundaries" \
-		-expand-strided-metadata \
-		-ownership-based-buffer-deallocation \
-		-buffer-deallocation-simplification \
-		-convert-bufferization-to-memref \
-		-bufferization-lower-deallocations \
-		-assume-tight-memref-layout \
-		-matmul-vectorization-decode \
-		-batch-matmul-vectorization-decode \
-		-o log.mlir
-
-next-tosa-matmul-manual:
-	@${BUDDY_OPT} ./next-tosa-matmul-manual.mlir \
+next-test:
+	@${BUDDY_OPT} ./lower-new.mlir \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-affine-parallelize \
 		-convert-vector-to-scf \
 		-lower-affine \
-		-convert-scf-to-openmp=num-threads=$(NUM_THREADS) \
+		-convert-scf-to-openmp=num-threads=12 \
 		-func-bufferize-dynamic-offset \
 		-cse \
 		-memref-expand \
@@ -2285,10 +2266,20 @@ next-tosa-matmul-manual:
 		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
-		-o next-tosa-matmul-manual.out
-	export OMP_NUM_THREADS=$(NUM_THREADS)
-	export OMP_PLACES=cores
-	export OMP_PROC_BIND=close
-	numactl --cpunodebind=0,1 --membind=0,1 \
-	taskset -c 0-47 \
-	./next-tosa-matmul-manual.out || true
+		-o next-test.out
+	./next-test.out || true
+
+test-a:
+	@${MLIR_OPT} ./a.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-expand-strided-metadata \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-assume-tight-memref-layout \
+		-o a_log.mlir
