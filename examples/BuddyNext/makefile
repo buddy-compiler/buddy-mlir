@@ -2188,3 +2188,107 @@ next-linalg-matmul-decode-perf:
 	numactl --cpunodebind=0,1 --membind=0,1 \
 	taskset -c 0-47 \
 	./next-linalg-matmul.out || true
+
+next-tosa-matmul-aot-omp:
+	@${MLIR_OPT} ./next-tosa-matmul.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-expand-strided-metadata \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-convert-bufferization-to-memref \
+		-bufferization-lower-deallocations \
+		-assume-tight-memref-layout \
+		-matmul-vectorization-decode \
+		-batch-matmul-vectorization-decode \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=$(NUM_THREADS) \
+		-func-bufferize-dynamic-offset \
+		-cse \
+		-memref-expand \
+		-arith-expand \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-tosa-matmul.out
+	export OMP_NUM_THREADS=$(NUM_THREADS)
+	export OMP_PLACES=cores
+	export OMP_PROC_BIND=close
+	numactl --cpunodebind=0,1 --membind=0,1 \
+	taskset -c 0-47 \
+	./next-tosa-matmul.out || true
+
+next-tosa-matmul-lower:
+	@${MLIR_OPT} ./next-tosa-matmul.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-expand-strided-metadata \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-convert-bufferization-to-memref \
+		-bufferization-lower-deallocations \
+		-assume-tight-memref-layout \
+		-matmul-vectorization-decode \
+		-batch-matmul-vectorization-decode \
+		-o log.mlir
+
+next-tosa-matmul-manual:
+	@${BUDDY_OPT} ./next-tosa-matmul-manual.mlir \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=$(NUM_THREADS) \
+		-func-bufferize-dynamic-offset \
+		-cse \
+		-memref-expand \
+		-arith-expand \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-tosa-matmul-manual.out
+	export OMP_NUM_THREADS=$(NUM_THREADS)
+	export OMP_PLACES=cores
+	export OMP_PROC_BIND=close
+	numactl --cpunodebind=0,1 --membind=0,1 \
+	taskset -c 0-47 \
+	./next-tosa-matmul-manual.out || true
