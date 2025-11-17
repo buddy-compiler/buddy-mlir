@@ -437,6 +437,7 @@ SET_TARGET_PROPERTIES(
 add_executable(buddy-deepseek-r1-run buddy-deepseek-r1-main.cpp)
 add_executable(buddy-deepseek-r1-f16-run buddy-deepseek-r1-f16-main.cpp)
 add_executable(buddy-deepseek-r1-bf16-run buddy-deepseek-r1-bf16-main.cpp)
+add_executable(buddy-deepseek-r1-cli buddy-deepseek-r1-cli.cpp)
 
 set(DEEPSEEKR1_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 set(DEEPSEEKR1_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
@@ -453,10 +454,16 @@ target_compile_definitions(buddy-deepseek-r1-bf16-run PRIVATE
   DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}"
   DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}"
 )
+target_compile_definitions(buddy-deepseek-r1-cli PRIVATE
+  DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}/"
+  DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}/"
+)
+target_compile_options(buddy-deepseek-r1-cli PRIVATE -fno-rtti)
 
 target_link_directories(buddy-deepseek-r1-run PRIVATE ${LLVM_LIBRARY_DIR})
 target_link_directories(buddy-deepseek-r1-f16-run PRIVATE ${LLVM_LIBRARY_DIR})
 target_link_directories(buddy-deepseek-r1-bf16-run PRIVATE ${LLVM_LIBRARY_DIR})
+target_link_directories(buddy-deepseek-r1-cli PRIVATE ${LLVM_LIBRARY_DIR})
 
 set(BUDDY_DEEPSEEKR1_LIBS
   DEEPSEEKR1
@@ -482,3 +489,4 @@ endif()
 target_link_libraries(buddy-deepseek-r1-run ${BUDDY_DEEPSEEKR1_LIBS})
 target_link_libraries(buddy-deepseek-r1-f16-run ${BUDDY_DEEPSEEKR1_F16_LIBS})
 target_link_libraries(buddy-deepseek-r1-bf16-run ${BUDDY_DEEPSEEKR1_BF16_LIBS})
+target_link_libraries(buddy-deepseek-r1-cli ${BUDDY_DEEPSEEKR1_LIBS} LLVMOption)
