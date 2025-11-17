@@ -40,9 +40,13 @@ config.buddy_mlir_enable_python_packages = "@BUDDY_MLIR_ENABLE_PYTHON_PACKAGES@"
 config.buddy_python_packages_dir = "@BUDDY_MLIR_PYTHON_PACKAGES_DIR@"
 config.mlir_runner_utils_dir = "@LLVM_LIBS_DIR@"
 config.have_amx = "@HAVE_AMX@"
+config.have_scalable_vector = "@HAVE_SCALABLE_VECTOR@"
 
 if str(config.have_amx).lower() in ("1", "on", "true", "yes"):
     config.available_features.add("has_amx")
+
+if str(config.have_scalable_vector).lower() in ("1", "on", "true", "yes"):
+    config.available_features.add("has_scalable_vector")
 
 # Support substitution of the tools_dir with user parameters. This is
 # used when we can't determine the tool dir at configuration time.
