@@ -25,7 +25,8 @@
 
 module {
   func.func private @rtclock() -> f64
-  func.func private @printMemrefF64(memref<*xf64>)
+  func.func private @printMemrefF64(%ptr: memref<*xf64>)
+
 
   func.func private @report_case(%m: index, %n: index, %k: index, %time: f64) {
     %buffer = memref.alloca() : memref<4xf64>
@@ -76,9 +77,28 @@ module {
   }
 
   func.func private @perf_case(%m: index, %n: index, %k: index) {
-    %time = call @run_matmul(%m, %n, %k) : (index, index, index) -> f64
+    %warmup = call @run_matmul(%m, %n, %k) : (index, index, index) -> f64
+    %iter = arith.constant 5 : index
+    %c0   = arith.constant 0 : index
+    %c1   = arith.constant 1 : index
+    %zero = arith.constant 0.0 : f64
+    //  Use a scalar memref as an accumulator for the total elapsed time.
+    %sum_mem = memref.alloca() : memref<f64>
+    memref.store %zero, %sum_mem[] : memref<f64>
+    // Loop iter times, calling run_matmul and accumulating the elapsed time.
+    scf.for %i = %c0 to %iter step %c1 {
+      %elapsed = func.call @run_matmul(%m, %n, %k)
+                : (index, index, index) -> f64
+      %old_sum  = memref.load %sum_mem[] : memref<f64>
+      %new_sum  = arith.addf %old_sum, %elapsed : f64
+      memref.store %new_sum, %sum_mem[] : memref<f64>
+    }
+    %sum = memref.load %sum_mem[] : memref<f64>
+    %iter_i64 = arith.index_cast %iter : index to i64
+    %iter_f64 = arith.sitofp %iter_i64 : i64 to f64
+    %avg      = arith.divf %sum, %iter_f64 : f64
     // print formart: [M, N, K, seconds]
-    call @report_case(%m, %n, %k, %time) : (index, index, index, f64) -> ()
+    call @report_case(%m, %n, %k, %avg) : (index, index, index, f64) -> ()
     return
   }
 
