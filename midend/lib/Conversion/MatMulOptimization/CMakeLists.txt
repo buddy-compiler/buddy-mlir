@@ -7,6 +7,7 @@ add_mlir_library(MatMulOptimization
   BatchMatMulOptimize.cpp
   BatchMatMulTileOptimize.cpp
   BatchMatMulSCFOptimize.cpp
+  BatchMatMulVectorizationDecode.cpp
   MatMulTransposeBVec.cpp
   BatchMatMulOptimize.cpp
   BatchMatMulTileOptimize.cpp

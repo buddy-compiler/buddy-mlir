@@ -38,6 +38,7 @@ from buddy.compiler.graph.transform import (
     apply_classic_fusion,
     eliminate_transpose,
     flash_attention,
+    eliminate_matmul_transpose_reshape,
 )
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.graph.operation import *
@@ -173,8 +174,15 @@ else:
     graph_decode = graphs_decode[0]
 
     params = dynamo_compiler_prefill.imported_params[graph_prefill]
-    graphs_prefill[0].perform([eliminate_transpose])
-    graphs_decode[0].perform([eliminate_transpose])
+
+    # Enable verbose mode for debugging eliminate_matmul_transpose_reshape
+    graphs_prefill[0].perform(
+        [eliminate_transpose, eliminate_matmul_transpose_reshape]
+    )
+    graphs_decode[0].perform(
+        [eliminate_transpose, eliminate_matmul_transpose_reshape]
+    )
+    # Enable flash attention to decode phase
     pattern_list_prefill = [simply_fuse, apply_classic_fusion]
     pattern_list_decode = [simply_fuse, apply_classic_fusion, flash_attention]
 

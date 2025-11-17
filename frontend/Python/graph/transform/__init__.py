@@ -18,9 +18,12 @@
 #
 # ===---------------------------------------------------------------------------
 
-from .fuse_ops import simply_fuse, apply_classic_fusion,flash_attention
+from .fuse_ops import simply_fuse, apply_classic_fusion, flash_attention
 from .useless_op_eliminate import maxpool2d_simplify
 from .eliminate_weight_transpose import eliminate_transpose
+from .eliminate_matmul_transpose_reshape import (
+    eliminate_matmul_transpose_reshape,
+)
 from .onednn_replace import (
     replace_matmul_with_onednn,
     replace_matmul_with_onednn_selective,

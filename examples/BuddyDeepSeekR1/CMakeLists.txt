@@ -96,6 +96,7 @@ add_custom_command(
             -bufferization-lower-deallocations
             -matmul-vectorization-blis
             -batchmatmul-optimize
+            -batchmatmul-transpose-b-vectorization
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
@@ -174,7 +175,8 @@ add_custom_command(
 add_custom_command(
     OUTPUT subgraph_decode.o
     COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode.mlir
-              -simplify-tosa-reshape |
+              -simplify-tosa-reshape
+              -simplify-tosa-matmul-scalar |
             ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
               -pass-pipeline ${TOSA_PIPELINE} |
             ${BUDDY_BINARY_DIR}/buddy-opt
@@ -187,8 +189,9 @@ add_custom_command(
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
             -assume-tight-memref-layout
-            -matmul-vectorization-decode
-            -batchmatmul-optimize
+            -matmul-vectorization-decode=vector-size=128
+            -batch-matmul-vectorization-decode=vector-size=128
+            -batchmatmul-transpose-b-vectorization
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
