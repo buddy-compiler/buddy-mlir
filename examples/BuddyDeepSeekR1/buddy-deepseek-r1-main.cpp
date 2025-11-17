@@ -14,6 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <array>
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
@@ -22,10 +23,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <array>
 
 using namespace buddy;
-double total_time=0;
+double total_time = 0;
 constexpr size_t ParamsSize = 1777088064;
 constexpr size_t MaxVocabSize = 151936;
 constexpr size_t MaxTokenLength = 1024;
@@ -185,7 +185,7 @@ void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
 /// Print information for each iteration.
 void printIterInfo(size_t iterIdx, std::string str, double time) {
-  total_time+=time;
+  total_time += time;
   std::cout << "\033[32;1m[Iteration " << iterIdx << "] \033[0m";
   std::cout << "Token: " << str << " | "
             << "Time: " << time << "s" << std::endl;
@@ -378,6 +378,7 @@ int main() {
   //  - Find and append the generated token.
   //  - Continue iterating until the terminal condition is met.
 
+  double prefillTokensPerSec = 0.0;
   const auto inferenceStart = std::chrono::high_resolution_clock::now();
   _mlir_ciface_forward_prefill(ptrPrefillResultContainer, &ParamsContainer,
                                &inputContainerPrefill);
@@ -392,6 +393,12 @@ int main() {
   int maxIndex = findMaxIndex(startPtr, endPtr);
   std::string tok = inputContainerPrefill.getStr(maxIndex);
   printIterInfo(0, tok, inferenceTime.count() / 1000);
+  const double prefillSeconds = inferenceTime.count() / 1000.0;
+  if (prefillSeconds > 0.0) {
+    prefillTokensPerSec =
+        static_cast<double>(inputContainerPrefill.getTokenCnt()) /
+        prefillSeconds;
+  }
   inputContainerDecode.getData()[0] = (long long)maxIndex;
   outputContainer.appendTokenIdx(maxIndex);
 
@@ -411,6 +418,8 @@ int main() {
 
   cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
   int generateLen = MaxTokenLength - inputContainerPrefill.getTokenCnt();
+  double decodeTimeAccumMs = 0.0;
+  size_t decodeTokens = 0;
   for (int i = 1; i <= generateLen; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
     _mlir_ciface_forward_decode(
@@ -448,6 +457,8 @@ int main() {
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =
         inferenceEnd - inferenceStart;
+    decodeTimeAccumMs += inferenceTime.count();
+    decodeTokens += 1;
 
     // Determine the generated token.
     const float *startPtr = ptrDecodeResultContainer->logits.getData();
@@ -467,8 +478,17 @@ int main() {
     cachePosition.getData()[0] += 1;
   }
 
+  const double decodeSeconds = decodeTimeAccumMs / 1000.0;
+  const double decodeTokensPerSec =
+      decodeSeconds > 0.0 ? static_cast<double>(decodeTokens) / decodeSeconds
+                          : 0.0;
+
   /// Print the final result
   std::cout << "\n\033[33;1m[Total time]\033[0m " << total_time << std::endl;
+  std::cout << "\033[31;1m[Prefilling]\033[0m " << prefillTokensPerSec
+            << " tokens/s" << std::endl;
+  std::cout << "\033[31;1m[Decoding]\033[0m " << decodeTokensPerSec
+            << " tokens/s" << std::endl;
   std::cout << "\033[33;1m[Input]\033[0m " << inputStr << std::endl;
   std::cout << "\033[33;1m[Output]\033[0m "
             << outputContainer.revertDeepSeekR1() << std::endl;
