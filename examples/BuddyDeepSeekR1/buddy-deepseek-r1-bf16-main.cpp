@@ -109,7 +109,7 @@ float decode_bf16(uint16_t h) {
   // F32 format: 1 sign bit, 8 exponent bits, 23 mantissa bits
   // BF16 is essentially F32 with the lower 16 bits truncated
   uint32_t f32_bits = static_cast<uint32_t>(h) << 16;
-  return *reinterpret_cast<float*>(&f32_bits);
+  return *reinterpret_cast<float *>(&f32_bits);
 }
 
 int findMaxIndex(const uint16_t *start, size_t length) {
@@ -131,7 +131,8 @@ int findMaxIndex(const uint16_t *start, size_t length) {
 
 int main() {
   /// Print the title of this example.
-  const std::string title = "DeepSeekR1 BF16 Inference Powered by Buddy Compiler";
+  const std::string title =
+      "DeepSeekR1 BF16 Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
   /// Define directories of vacabulary and parameter file.
