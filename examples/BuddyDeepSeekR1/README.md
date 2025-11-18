@@ -83,7 +83,7 @@ $ ninja buddy-deepseek-r1-run
 $ ./bin/buddy-deepseek-r1-run
 
 // NUMA node binding
-numactl --cpunodebind=0,1 --membind=0,1 taskset -c 0-47 ./bin/buddy-deepseek-r1-run
+numactl --cpunodebind=0,1,2,3 --interleave=0,1,2,3 taskset -c 0-47 ./bin/buddy-deepseek-r1-run
 
 //f16
 $ ninja buddy-deepseek-r1-f16-run

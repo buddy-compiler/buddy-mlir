@@ -193,7 +193,7 @@ add_custom_command(
             -assume-tight-memref-layout
             -matmul-vectorization-decode=vector-size=128
             -batch-matmul-vectorization-decode=vector-size=128
-            -batchmatmul-transpose-b-vectorization
+            -batchmatmul-transpose-b-vectorization=vector-size=16
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
