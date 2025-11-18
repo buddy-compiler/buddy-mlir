@@ -349,12 +349,13 @@ GenerationResult runGeneration(const std::string &prompt,
   outputContainer.loadVocab(vocabPath);
 
   inputContainerPrefill.tokenizeDeepSeekR1(vocabPath, MaxTokenLength);
-  stats.promptTokens = inputContainerPrefill.getTokenCnt();
-  if (stats.promptTokens == 0) {
+  if (inputContainerPrefill.getTokenCnt() == 0) {
     tokenStream << std::endl;
     stats.finalText.clear();
     return stats;
   }
+  // Prefill graph always runs with a fixed sequence length, so report that.
+  stats.promptTokens = MaxTokenLength;
 
   const auto prefillStart = std::chrono::high_resolution_clock::now();
   _mlir_ciface_forward_prefill(prefillPtr, &paramsContainer,
@@ -365,7 +366,7 @@ GenerationResult runGeneration(const std::string &prompt,
   const double prefillSeconds = prefillMs.count() / 1000.0;
   if (prefillSeconds > 0.0) {
     stats.prefillTokensPerSec =
-        static_cast<double>(stats.promptTokens) / prefillSeconds;
+        static_cast<double>(MaxTokenLength) / prefillSeconds;
   }
 
   std::string streamed;

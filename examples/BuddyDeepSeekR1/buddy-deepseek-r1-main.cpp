@@ -395,9 +395,7 @@ int main() {
   printIterInfo(0, tok, inferenceTime.count() / 1000);
   const double prefillSeconds = inferenceTime.count() / 1000.0;
   if (prefillSeconds > 0.0) {
-    prefillTokensPerSec =
-        static_cast<double>(inputContainerPrefill.getTokenCnt()) /
-        prefillSeconds;
+    prefillTokensPerSec = static_cast<double>(MaxTokenLength) / prefillSeconds;
   }
   inputContainerDecode.getData()[0] = (long long)maxIndex;
   outputContainer.appendTokenIdx(maxIndex);
@@ -485,9 +483,9 @@ int main() {
 
   /// Print the final result
   std::cout << "\n\033[33;1m[Total time]\033[0m " << total_time << std::endl;
-  std::cout << "\033[31;1m[Prefilling]\033[0m " << prefillTokensPerSec
+  std::cout << "\033[33;1m[Prefilling]\033[0m " << prefillTokensPerSec
             << " tokens/s" << std::endl;
-  std::cout << "\033[31;1m[Decoding]\033[0m " << decodeTokensPerSec
+  std::cout << "\033[33;1m[Decoding]\033[0m " << decodeTokensPerSec
             << " tokens/s" << std::endl;
   std::cout << "\033[33;1m[Input]\033[0m " << inputStr << std::endl;
   std::cout << "\033[33;1m[Output]\033[0m "
