@@ -101,6 +101,12 @@ if args.precision == "f16":
         aot_autograd_decomposition=inductor_decomp,
         func_name="forward_decode",
     )
+elif args.precision == "bf16":
+    # BF16 uses single forward mode (not prefill/decode split)
+    dynamo_compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+    )
 else:
     dynamo_compiler_prefill = DynamoCompiler(
         primary_registry=tosa.ops_registry,
@@ -156,6 +162,12 @@ with torch.no_grad():
             past_key_values=past_key_values_decode,
             cache_implementation="static",
         )
+    elif args.precision == "bf16":
+        # BF16 uses single forward mode
+        data = {
+            "input_ids": torch.zeros((1, 40), dtype=torch.int64),
+        }
+        graphs = dynamo_compiler.importer(model, **data)
     else:
         past_key_values_prefill = StaticCache(
             config=model.config, max_cache_len=1024
@@ -231,6 +243,21 @@ if args.precision == "f16":
 
     driver_decode = GraphDriver(graphs_decode[0])
     driver_decode.subgraphs[0].lower_to_top_level_ir()
+elif args.precision == "bf16":
+    # BF16 uses single forward mode
+    assert len(graphs) == 1
+    graph = graphs[0]
+    params = dynamo_compiler.imported_params[graph]
+
+    # Apply graph transformations
+    graphs[0].perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
+    pattern_list = [simply_fuse, apply_classic_fusion]
+    graphs[0].fuse_ops(pattern_list)
+
+    graph.group_map_device["subgraph0"] = DeviceType.CPU
+
+    driver = GraphDriver(graphs[0])
+    driver.subgraphs[0].lower_to_top_level_ir()
 else:
     assert len(graphs_prefill) == 1
     assert len(graphs_decode) == 1
