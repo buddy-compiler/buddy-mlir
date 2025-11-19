@@ -162,6 +162,12 @@ class TransposeMatmulFusedOp(Op):
         self._op_type = OpType.ReduceType
 
 
+class MatmulWithAccOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
 class GetItemOp(Op):
     def __init__(self) -> None:
         super().__init__()
