@@ -436,24 +436,26 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT forward-bf16.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.mlir
-            -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.mlir
+            -simplify-tosa-reshape |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+            -pass-pipeline ${TOSA_PIPELINE} |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize="bufferize-function-boundaries"
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-parallel-vectorization-optimize
+            -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
+            -convert-scf-to-openmp=num-threads=48
             -cse
             -memref-expand
             -arith-expand
@@ -479,25 +481,28 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT subgraph-bf16.o
-    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
-              -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
+              -simplify-tosa-reshape |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+              -pass-pipeline ${TOSA_PIPELINE} |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -convert-elementwise-to-linalg
-            -one-shot-bufferize="bufferize-function-boundaries"
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-parallel-vectorization-optimize
+            -matmul-vectorization-blis
             -batchmatmul-optimize
+            -batchmatmul-transpose-b-vectorization
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
+            -convert-scf-to-openmp=num-threads=48
             -func-bufferize-dynamic-offset
             -cse
             -memref-expand
