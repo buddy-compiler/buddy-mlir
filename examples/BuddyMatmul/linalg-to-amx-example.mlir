@@ -1,3 +1,4 @@
+// REQUIRES: has_amx
 // RUN: buddy-opt %s -matmul-amx \
 // RUN:     --llvm-request-c-wrappers \
 // RUN:     -convert-linalg-to-loops \
@@ -15,7 +16,6 @@
 // RUN:     -L%mlir_runner_utils_dir -lmlir_runner_utils -lmlir_c_runner_utils -lpthread \
 // RUN:     -Wl,-rpath,%mlir_runner_utils_dir
 // RUN: %t.exe | FileCheck %s
-// REQUIRES: has_amx
 //
 // Expected output verification (512×1024×2048 matmul):
 // CHECK: {{[0-9]+\.[0-9]+}}
