@@ -198,7 +198,7 @@ amx-bf16-matmul-aot:
 	${MLIR_TRANSLATE} --mlir-to-llvmir -o amx-quick.ll
 	@${LLC} -mtriple ${MTRIPLE} -mattr=+amx-bf16,+amx-tile,+amx-int8 ${OPT_FLAG} -filetype=obj amx-quick.ll -o amx-quick.o
 	@gcc -c amx-wrapper.c -o amx-wrapper-quick.o
-	@g++ amx-wrapper-quick.o amx-quick.o -o amx-quick -L${LLVM_BUILD_DIR}/lib -lmlir_runner_utils -lmlir_c_runner_utils -lpthread -Wl,-rpath,${LLVM_BUILD_DIR}/lib
+	@g++ amx-wrapper-quick.o amx-quick.o -o amx-quick -L${LLVM_BUILD_DIR}/lib -lmlir_runner_utils -lmlir_c_runner_utils -lmlir_float16_utils -lpthread -Wl,-rpath,${LLVM_BUILD_DIR}/lib
 	@echo "Running AMX quick test..."
 	@LD_LIBRARY_PATH=${LLVM_BUILD_DIR}/lib ./amx-quick
 	@rm -f amx-quick.ll amx-quick.o amx-wrapper-quick.o amx-quick
@@ -224,16 +224,25 @@ linalg-bf16-matmul-lower:
 		-o log.mlir
 
 linalg-bf16-matmul-run:
-	@echo "Running linalg JIT version with MLIR-level timing..."
-	@${BUDDY_OPT} ./linalg-bf16-matmul.mlir \
+	@echo "Compiling and running linalg-to-AMX example..."
+	@${BUDDY_OPT} ./linalg-to-amx-example.mlir \
 		-convert-linalg-to-loops \
 		-lower-affine \
 		-convert-scf-to-cf \
-		-convert-vector-to-llvm \
+		-llvm-request-c-wrappers \
+		-convert-vector-to-llvm="enable-amx" \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-cf-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
-	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e linalg_main -entry-point-result=void \
-		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o linalg-amx.ll
+	@${LLC} -mtriple=x86_64-unknown-linux-gnu -mattr=+amx-bf16,+amx-tile,+amx-int8 \
+		-relocation-model=pic linalg-amx.ll -filetype=obj -o linalg-amx.o
+	@gcc -c -fPIC amx-wrapper.c -o amx-wrapper.o
+	@g++ -no-pie linalg-amx.o amx-wrapper.o -o linalg-amx-exec \
+		-L${LLVM_BUILD_DIR}/lib -lmlir_runner_utils -lmlir_c_runner_utils -lmlir_float16_utils -lpthread \
+		-Wl,-rpath,${LLVM_BUILD_DIR}/lib
+	@echo "Running executable..."
+	@./linalg-amx-exec
+	@rm -f linalg-amx.ll linalg-amx.o amx-wrapper.o linalg-amx-exec
