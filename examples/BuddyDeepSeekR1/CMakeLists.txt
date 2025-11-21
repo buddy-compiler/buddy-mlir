@@ -582,3 +582,31 @@ target_link_libraries(buddy-deepseek-r1-run ${BUDDY_DEEPSEEKR1_LIBS})
 target_link_libraries(buddy-deepseek-r1-f16-run ${BUDDY_DEEPSEEKR1_F16_LIBS})
 target_link_libraries(buddy-deepseek-r1-bf16-run ${BUDDY_DEEPSEEKR1_BF16_LIBS})
 target_link_libraries(buddy-deepseek-r1-cli ${BUDDY_DEEPSEEKR1_LIBS} LLVMOption)
+
+# Create a distributable package
+set(DIST_PACKAGE_NAME "buddy-deepseek-r1")
+set(DIST_PACKAGE_DIR ${CMAKE_CURRENT_BINARY_DIR}/${DIST_PACKAGE_NAME})
+set(DIST_PACKAGE_ARCHIVE ${CMAKE_CURRENT_BINARY_DIR}/${DIST_PACKAGE_NAME}.tar.zst)
+
+add_custom_target(buddy-deepseek-r1-package
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${DIST_PACKAGE_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_decode.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+    ${DIST_PACKAGE_DIR}/
+  COMMAND sh -c "tar -I 'zstd -T0 -10' -cvf ${DIST_PACKAGE_ARCHIVE} ${DIST_PACKAGE_NAME}"
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${DIST_PACKAGE_DIR}
+  COMMENT "Creating distributable package: ${DIST_PACKAGE_ARCHIVE}"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_decode.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+  USES_TERMINAL
+  VERBATIM
+)

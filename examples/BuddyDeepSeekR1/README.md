@@ -146,10 +146,10 @@ cmake -G Ninja .. \
 ninja
 ```
 
-3. Follow the instructions in the last section *on X86 or ARM device*, you will got the files required to build the executable program of DeepSeekR1:
+3. Generate the required files by following the instructions in the previous section *on X86 or ARM device*. This will create the necessary files for building the DeepSeekR1 executable:
 
 ```text
-These files will be generated in `buddy-mlir/build/examples/BuddyDeepSeekR1/` :
+Files generated in `buddy-mlir/build/examples/BuddyDeepSeekR1/`:
 forward_prefill.mlir
 forward_decode.mlir
 subgraph0_prefill.mlir
@@ -157,22 +157,39 @@ subgraph0_decode.mlir
 arg0.data
 ```
 
-Then modify the build system so that we could build the executable program of the model. Here's what I did:
+**Recommended approach**: Create a compressed package for easy transfer:
 
-4. Transfer all of these files to the directory `buddy-mlir/examples/BuddyDeepSeekR1` in your RISC-V device with `scp`(recommended) or `rsync`.
-
-5. Modify `buddy-deepseek-r1-main.cpp`:
-
-```cpp
-// about line 278, modify `deepSeekR1BuildDir` to `deepSeekR1Dir`
-const std::string paramsDir = deepSeekR1Dir + "arg0.data";
+```sh
+# In buddy-mlir/build
+ninja buddy-deepseek-r1-package
 ```
 
-6. Modify `CMakeLists.txt`:
+This creates `buddy-deepseek-r1.tar.zst` containing all necessary files for cross-platform deployment.
+
+**Alternative approach**: Transfer the individual files listed above directly to your RISC-V device if you prefer not to use the compressed package.
+
+4. Transfer the files to your RISC-V device and prepare for building:
+
+**If using the compressed package (recommended)**:
+
+```sh
+# Transfer the package
+rsync -avP --progress /path/to/buddy-deepseek-r1.tar.zst user@risc-v-host:<path-to-buddy-mlir>/build/examples/BuddyDeepSeekR1
+```
+
+Then extract on the RISC-V device:
+
+```sh
+# On RISC-V device
+cd buddy-mlir/build/examples/BuddyDeepSeekR1
+tar -I zstd -xvf buddy-deepseek-r1.tar.zst --strip-components=1
+```
+
+5. Modify `CMakeLists.txt`:
 
   - For convenience, you could delete all unrelated compile options in the file first. Say, if you're going to build FP32, then delete all compile options about FP16 or BF16.
   - Add `-mattr=+m,+d,+v` for *all* `llc` command like this: `${LLVM_TOOLS_BINARY_DIR}/llc -mattr=+m,+d,+v -filetype=obj -relocation-model=pic -O3`.
-  - Change dependent directory for *four object file* like this: `DEPENDS buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/forward_prefill.mlir`.
+  - Note: Since the files are extracted to the build directory, you don't need to change the dependent directory paths (they will use `${CMAKE_CURRENT_BINARY_DIR}` by default).
   - Add `arch` and `abi` related compile options for the main file. Just copy and paste these lines to CMakeLists:
 
     ```cmake
@@ -191,7 +208,7 @@ const std::string paramsDir = deepSeekR1Dir + "arg0.data";
 
   The complete modified CMakeLists file is attached in appendix, you could copy and paste it directly.
 
-7. Build and run the model:
+6. Build and run the model:
 
 ```sh
 # in buddy-mlir/build
