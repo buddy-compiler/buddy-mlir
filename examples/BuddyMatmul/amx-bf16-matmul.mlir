@@ -4,6 +4,7 @@
 //
 // To test manually, use: make amx-bf16-matmul-aot
 //
+// REQUIRES: has_amx
 // RUN: make -C %S amx-bf16-matmul-aot | FileCheck %s
 //
 // AMX BF16 MatMul (No-Transpose Interface)
