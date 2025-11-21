@@ -429,6 +429,7 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -matmul-amx
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -440,7 +441,7 @@ add_custom_command(
             -cse
             -memref-expand
             -arith-expand
-            -convert-vector-to-llvm
+            -convert-vector-to-llvm="enable-amx"
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
@@ -455,6 +456,7 @@ add_custom_command(
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
         ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          -mattr=+amx-bf16,+amx-tile,+amx-int8
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-bf16.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-bf16.mlir
   COMMENT "Building forward_prefill-bf16.o "
@@ -475,6 +477,7 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -matmul-amx
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -batchmatmul-transpose-b-vectorization
@@ -488,7 +491,7 @@ add_custom_command(
             -cse
             -memref-expand
             -arith-expand
-            -convert-vector-to-llvm
+            -convert-vector-to-llvm="enable-amx"
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
@@ -503,6 +506,7 @@ add_custom_command(
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+            -mattr=+amx-bf16,+amx-tile,+amx-int8
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_prefill-bf16.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-bf16.mlir
     COMMENT "Building subgraph_prefill.o "
@@ -534,7 +538,7 @@ add_custom_command(
             -cse
             -memref-expand
             -arith-expand
-            -convert-vector-to-llvm
+            -convert-vector-to-llvm="enable-amx"
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
@@ -549,6 +553,7 @@ add_custom_command(
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
         ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          -mattr=+amx-bf16,+amx-tile,+amx-int8
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-bf16.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-bf16.mlir
   COMMENT "Building forward_decode-bf16.o "
@@ -584,7 +589,7 @@ add_custom_command(
             -cse
             -memref-expand
             -arith-expand
-            -convert-vector-to-llvm
+            -convert-vector-to-llvm="enable-amx"
             -convert-arith-to-llvm
             -finalize-memref-to-llvm
             -convert-scf-to-cf
@@ -599,6 +604,7 @@ add_custom_command(
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+            -mattr=+amx-bf16,+amx-tile,+amx-int8
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode-bf16.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-bf16.mlir
     COMMENT "Building subgraph_decode-bf16.o "
@@ -631,7 +637,6 @@ SET_TARGET_PROPERTIES(
 
 add_executable(buddy-deepseek-r1-run buddy-deepseek-r1-main.cpp)
 add_executable(buddy-deepseek-r1-f16-run buddy-deepseek-r1-f16-main.cpp)
-add_executable(buddy-deepseek-r1-bf16-run buddy-deepseek-r1-bf16-main.cpp)
 add_executable(buddy-deepseek-r1-bf16-pd-run buddy-deepseek-r1-bf16-pd.cpp)
 add_executable(buddy-deepseek-r1-cli buddy-deepseek-r1-cli.cpp)
 
@@ -646,10 +651,6 @@ target_compile_definitions(buddy-deepseek-r1-f16-run PRIVATE
   DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}/"
   DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}/"
 )
-target_compile_definitions(buddy-deepseek-r1-bf16-run PRIVATE
-  DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}"
-  DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}"
-)
 target_compile_definitions(buddy-deepseek-r1-bf16-pd-run PRIVATE
   DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}/"
   DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}/"
@@ -662,7 +663,6 @@ target_compile_options(buddy-deepseek-r1-cli PRIVATE -fno-rtti)
 
 target_link_directories(buddy-deepseek-r1-run PRIVATE ${LLVM_LIBRARY_DIR})
 target_link_directories(buddy-deepseek-r1-f16-run PRIVATE ${LLVM_LIBRARY_DIR})
-target_link_directories(buddy-deepseek-r1-bf16-run PRIVATE ${LLVM_LIBRARY_DIR})
 target_link_directories(buddy-deepseek-r1-bf16-pd-run PRIVATE ${LLVM_LIBRARY_DIR})
 target_link_directories(buddy-deepseek-r1-cli PRIVATE ${LLVM_LIBRARY_DIR})
 
@@ -689,6 +689,5 @@ endif()
 
 target_link_libraries(buddy-deepseek-r1-run ${BUDDY_DEEPSEEKR1_LIBS})
 target_link_libraries(buddy-deepseek-r1-f16-run ${BUDDY_DEEPSEEKR1_F16_LIBS})
-target_link_libraries(buddy-deepseek-r1-bf16-run ${BUDDY_DEEPSEEKR1_BF16_LIBS})
 target_link_libraries(buddy-deepseek-r1-bf16-pd-run ${BUDDY_DEEPSEEKR1_BF16_LIBS})
 target_link_libraries(buddy-deepseek-r1-cli ${BUDDY_DEEPSEEKR1_LIBS} LLVMOption)

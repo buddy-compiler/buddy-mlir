@@ -20,15 +20,20 @@
 #include <chrono>
 #include <cstddef>
 #include <cstring>
+#include <errno.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 using namespace buddy;
 double total_time = 0;
 constexpr size_t ParamsSize = 1777088064;
 constexpr size_t MaxVocabSize = 151936;
-constexpr size_t MaxTokenLength = 20;
+constexpr size_t MaxTokenLength = 32;
+
+#define ARCH_REQ_XCOMP_PERM 0x1023
 
 constexpr size_t NUM_LAYERS = 56;
 constexpr size_t HiddenSize = 128;
@@ -200,6 +205,28 @@ void getUserInput(std::string &inputStr) {
 /// Print [Log] label in bold blue format.
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
+/// Request AMX permission from the kernel
+void requestAMXPermission() {
+  printLogLabel();
+  std::cout << "Requesting AMX permission..." << std::endl;
+
+  // Request AMX_TILE permission (18)
+  long ret = syscall(SYS_arch_prctl, ARCH_REQ_XCOMP_PERM, 18);
+  if (ret != 0) {
+    printLogLabel();
+    std::cout << "Warning: Failed to request AMX_TILE permission: " << ret
+              << " (errno: " << strerror(errno) << ")" << std::endl;
+    printLogLabel();
+    std::cout << "This might be due to kernel version or configuration."
+              << std::endl;
+    printLogLabel();
+    std::cout << "Attempting to run anyway..." << std::endl;
+  } else {
+    printLogLabel();
+    std::cout << "AMX_TILE permission granted" << std::endl;
+  }
+}
+
 /// Print information for each iteration.
 void printIterInfo(size_t iterIdx, std::string str, double time) {
   total_time += time;
@@ -307,6 +334,9 @@ int main() {
   const std::string title =
       "DeepSeekR1 BF16 Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
+
+  /// Request AMX permission
+  requestAMXPermission();
 
   /// Define directories of vacabulary and parameter file.
   std::string deepSeekR1Dir = DEEPSEEKR1_EXAMPLE_PATH;
