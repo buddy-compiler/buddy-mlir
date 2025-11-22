@@ -61,6 +61,11 @@ constexpr float RopeTheta = 10000.0f;
 
 using RopeFreqArray = std::array<float, HiddenSize / 2>;
 
+// ANSI Color Codes
+constexpr const char* COLOR_RESET = "\033[0m";
+constexpr const char* COLOR_BLUE = "\033[34;1m";
+constexpr const char* COLOR_YELLOW = "\033[33;1m";
+
 struct MemRefContainer {
   MemRef<float, 4> kv0;
   MemRef<float, 4> kv1;
@@ -581,9 +586,10 @@ GenerationResult runGeneration(const std::string &prompt,
   const std::chrono::duration<double, std::milli> prefillMs =
       prefillEnd - prefillStart;
   const double prefillSeconds = prefillMs.count() / 1000.0;
+  const size_t actualPrefillTokens = inputContainerPrefill.getTokenCnt();
   if (prefillSeconds > 0.0) {
     stats.prefillTokensPerSec =
-        static_cast<double>(MaxTokenLength) / prefillSeconds;
+        static_cast<double>(actualPrefillTokens) / prefillSeconds;
   }
 
   std::string streamed;
@@ -606,15 +612,20 @@ GenerationResult runGeneration(const std::string &prompt,
 
   // Copy KV cache from prefill to decode.
   getInfoStream() << "[Debug] Copying KV cache...\n";
+  const auto copyStart = std::chrono::high_resolution_clock::now();
   copyKVByCachePositionBlock(prefillResult, decodeResult,
                              inputContainerPrefill.getTokenCnt());
+  const auto copyEnd = std::chrono::high_resolution_clock::now();
+  const std::chrono::duration<double, std::milli> copyMs =
+      copyEnd - copyStart;
+  const double copySeconds = copyMs.count() / 1000.0;
   getInfoStream() << "[Debug] KV cache copy finished.\n";
 
   cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
   inputContainerDecode.getData()[0] = static_cast<long long>(maxIndex);
   if (maxIndex == eosTokenId) {
     tokenStream << std::endl;
-    stats.totalSeconds = prefillSeconds;
+    stats.totalSeconds = prefillSeconds + copySeconds;
     stats.finalText = streamed;
     return stats;
   }
@@ -725,7 +736,7 @@ GenerationResult runGeneration(const std::string &prompt,
   tokenStream << std::endl;
   stats.generatedTokens = outputContainer.getTokenCnt();
   stats.finalText = streamed;
-  stats.totalSeconds = prefillSeconds + decodeSeconds;
+  stats.totalSeconds = prefillSeconds + copySeconds + decodeSeconds;
   return stats;
 }
 
