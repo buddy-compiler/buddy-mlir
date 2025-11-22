@@ -16,9 +16,12 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
+#include <cmath>
+#include <csignal>
 #include <cstddef>
 #include <cstring>
 #include <filesystem>
@@ -39,6 +42,14 @@ namespace fs = std::filesystem;
 
 namespace {
 
+std::atomic<bool> g_receivedSigInt(false);
+
+void signalHandler(int signal) {
+  if (signal == SIGINT) {
+    g_receivedSigInt = true;
+  }
+}
+
 constexpr size_t ParamsSize = 1777088064;
 constexpr size_t MaxVocabSize = 151936;
 constexpr size_t MaxTokenLength = 1024;
@@ -46,6 +57,9 @@ constexpr size_t MaxTokenLength = 1024;
 constexpr size_t HiddenSize = 128;
 constexpr size_t HeadNum = 2;
 constexpr long long DefaultEosToken = 151643;
+constexpr float RopeTheta = 10000.0f;
+
+using RopeFreqArray = std::array<float, HiddenSize / 2>;
 
 struct MemRefContainer {
   MemRef<float, 4> kv0;
@@ -173,10 +187,87 @@ extern "C" void _mlir_ciface_forward_decode(
     MemRef<float, 4> *kv50, MemRef<float, 4> *kv51, MemRef<float, 4> *kv52,
     MemRef<float, 4> *kv53, MemRef<float, 4> *kv54, MemRef<float, 4> *kv55);
 
+static llvm::cl::opt<std::string>
+    ModelPathOpt("model",
+                 llvm::cl::desc("Path to the model parameter file (arg0.data)"),
+                 llvm::cl::value_desc("path"), llvm::cl::init(""));
+
+static llvm::cl::opt<std::string>
+    VocabPathOpt("vocab",
+                 llvm::cl::desc("Path to the vocabulary file (vocab.txt)"),
+                 llvm::cl::value_desc("path"), llvm::cl::init(""));
+
+static llvm::cl::opt<std::string>
+    PromptOpt("prompt", llvm::cl::desc("Prompt text passed directly"),
+              llvm::cl::value_desc("text"), llvm::cl::init(""));
+
+static llvm::cl::opt<std::string>
+    PromptFileOpt("prompt-file", llvm::cl::desc("File containing prompt text"),
+                  llvm::cl::value_desc("path"), llvm::cl::init(""));
+
+static llvm::cl::opt<bool>
+    InteractiveOpt("interactive",
+                   llvm::cl::desc("Start REPL-style interactive mode (combine "
+                                  "with --prompt for a system prompt)"),
+                   llvm::cl::init(false));
+
+static llvm::cl::opt<unsigned>
+    KeepTokenNumOpt("keep-token-num",
+                    llvm::cl::desc("Number of cached tokens to keep when the "
+                                   "decode context hits the maximum length"),
+                    llvm::cl::init(static_cast<unsigned>(MaxTokenLength / 4)));
+
+static llvm::cl::opt<unsigned>
+    MaxTokensOpt("max-tokens",
+                 llvm::cl::desc("Maximum number of tokens to generate "
+                                "(including the first decoded token)"),
+                 llvm::cl::init(1024));
+
+static llvm::cl::opt<double> TemperatureOpt(
+    "temperature",
+    llvm::cl::desc(
+        "Sampling temperature (currently only greedy decoding is supported)"),
+    llvm::cl::init(0.0));
+
+static llvm::cl::opt<int>
+    TopKOpt("top-k",
+            llvm::cl::desc(
+                "Top-k sampling (currently only greedy decoding is supported)"),
+            llvm::cl::init(1));
+
+static llvm::cl::opt<double>
+    TopPOpt("top-p",
+            llvm::cl::desc(
+                "Top-p sampling (currently only greedy decoding is supported)"),
+            llvm::cl::init(1.0));
+
+static llvm::cl::opt<long long>
+    EosIdOpt("eos-id", llvm::cl::desc("ID of the end-of-sequence token"),
+             llvm::cl::init(DefaultEosToken));
+
+static llvm::cl::opt<bool> SuppressStatsOpt(
+    "no-stats",
+    llvm::cl::desc("Output text only and hide performance statistics"),
+    llvm::cl::init(false));
+
+llvm::raw_ostream &getInfoStream() {
+  if (SuppressStatsOpt) {
+    return llvm::nulls();
+  }
+  return llvm::errs();
+}
+
+static llvm::cl::opt<float>
+    RopeThetaOpt("rope-theta",
+                 llvm::cl::desc("RoPE Theta value (default 10000.0 for "
+                                "DeepSeek/Qwen, 1000000.0 for long context)"),
+                 llvm::cl::init(10000.0f));
+
 int findMaxIndex(const float *start, const float *end) {
   return std::distance(start, std::max_element(start, end));
 }
 
+/// Copies KV cache from prefill to decode container.
 void copyKVByCachePositionBlock(const MemRefContainer &prefill,
                                 MemRefContainer &decode, int cachePosition) {
   constexpr int numKV = 56;
@@ -196,6 +287,111 @@ void copyKVByCachePositionBlock(const MemRefContainer &prefill,
   }
 }
 
+/// Discards tokens from KV cache to maintain fixed window size.
+void discardKVByCachePositionBlock(MemRefContainer &decode, int keepTokenNum,
+                                   int discardLen, int currentTokenCount) {
+  constexpr int numKV = 56;
+  const int maxTokens = static_cast<int>(MaxTokenLength);
+  const int headCount = static_cast<int>(HeadNum);
+  currentTokenCount = std::clamp(currentTokenCount, 0, maxTokens);
+
+  if (discardLen <= 0 || keepTokenNum < 0 ||
+      keepTokenNum >= currentTokenCount) {
+    llvm::errs()
+        << "[Error] discardKVByCachePositionBlock: invalid parameters.\n";
+    return;
+  }
+
+  const int srcStartIndex = keepTokenNum + discardLen;
+  if (srcStartIndex >= currentTokenCount) {
+    llvm::errs() << "[Error] discardKVByCachePositionBlock: srcStartIndex ("
+                 << srcStartIndex << ") >= currentTokenCount ("
+                 << currentTokenCount
+                 << "). This indicates an invalid discard length.\n";
+    return;
+  }
+
+  const int validTailTokens = currentTokenCount - srcStartIndex;
+
+  for (int k = 0; k < numKV; ++k) {
+    auto &kv = *decode.kvPtrs[k];
+    for (int h = 0; h < headCount; ++h) {
+      float *headBase =
+          kv.getData() + static_cast<size_t>(h) * MaxTokenLength * HiddenSize;
+
+      float *dstPtr = headBase + static_cast<size_t>(keepTokenNum) * HiddenSize;
+      float *srcPtr =
+          headBase + static_cast<size_t>(srcStartIndex) * HiddenSize;
+
+      const size_t bytesToMove =
+          static_cast<size_t>(validTailTokens) * HiddenSize * sizeof(float);
+
+      // Move valid tail tokens to new position.
+      std::memmove(dstPtr, srcPtr, bytesToMove);
+
+      // Clear the now-stale tail so subsequent attention won't read garbage.
+      float *clearPtr =
+          dstPtr + static_cast<size_t>(validTailTokens) * HiddenSize;
+      const int clearTokens = maxTokens - (keepTokenNum + validTailTokens);
+      if (clearTokens > 0) {
+        const size_t bytesToClear =
+            static_cast<size_t>(clearTokens) * HiddenSize * sizeof(float);
+        std::memset(clearPtr, 0, bytesToClear);
+      }
+    }
+  }
+}
+
+void applyRotaryDeltaToSlice(MemRefContainer &decode, int startToken,
+                             int tokenCount, const RopeFreqArray &cosValues,
+                             const RopeFreqArray &sinValues) {
+  if (tokenCount <= 0)
+    return;
+  constexpr int numKV = 56;
+  const size_t headStride = MaxTokenLength * HiddenSize;
+  const size_t halfSize = HiddenSize / 2;
+  for (int idx = 0; idx < numKV; idx += 2) {
+    for (int h = 0; h < static_cast<int>(HeadNum); ++h) {
+      float *headBase =
+          decode.kvPtrs[idx]->getData() + static_cast<size_t>(h) * headStride;
+      for (int t = 0; t < tokenCount; ++t) {
+        float *tokenPtr =
+            headBase + static_cast<size_t>(startToken + t) * HiddenSize;
+        for (size_t i = 0; i < halfSize; ++i) {
+          const float val1 = tokenPtr[i];
+          const float val2 = tokenPtr[i + halfSize];
+          tokenPtr[i] = val1 * cosValues[i] - val2 * sinValues[i];
+          tokenPtr[i + halfSize] = val1 * sinValues[i] + val2 * cosValues[i];
+        }
+      }
+    }
+  }
+}
+
+/// Adjusts RoPE for cached keys after token discard.
+void adjustKeyCacheRope(MemRefContainer &decode, int keepTokenNum,
+                        int discardLen, int currentTokenCount,
+                        const RopeFreqArray &inverseFreqs) {
+  if (discardLen <= 0)
+    return;
+  const int srcStartIndex = keepTokenNum + discardLen;
+  if (srcStartIndex >= currentTokenCount)
+    return;
+  const int tokenCount = currentTokenCount - srcStartIndex;
+  RopeFreqArray cosValues{};
+  RopeFreqArray sinValues{};
+  // Rotate backwards to align keys with new positions.
+  const float delta = -static_cast<float>(discardLen);
+  for (size_t i = 0; i < inverseFreqs.size(); ++i) {
+    const float angle = inverseFreqs[i] * delta;
+    cosValues[i] = static_cast<float>(std::cos(angle));
+    sinValues[i] = static_cast<float>(std::sin(angle));
+  }
+
+  // StaticCache stores key/value pairs; even indices correspond to key caches.
+  applyRotaryDeltaToSlice(decode, keepTokenNum, tokenCount, cosValues,
+                          sinValues);
+}
 std::string readPromptFromFile(const std::string &filePath) {
   std::ifstream file(filePath);
   if (!file.is_open()) {
@@ -263,12 +459,24 @@ void streamNewText(Text<size_t, 2> &outputContainer, std::string &lastPrinted,
   lastPrinted = std::move(current);
 }
 
+RopeFreqArray buildInverseRopeFreqs(float theta) {
+  RopeFreqArray inverseFreqs{};
+  for (size_t i = 0; i < inverseFreqs.size(); ++i) {
+    const float exponent =
+        (2.0f * static_cast<float>(i)) / static_cast<float>(HiddenSize);
+    inverseFreqs[i] = 1.0f / static_cast<float>(std::pow(theta, exponent));
+  }
+  return inverseFreqs;
+}
+
 GenerationResult runGeneration(const std::string &prompt,
                                MemRef<float, 1> &paramsContainer,
                                const std::string &vocabPath, int maxNewTokens,
                                long long eosTokenId,
                                std::ostream &tokenStream) {
   GenerationResult stats;
+  const RopeFreqArray ropeInverseFreqs =
+      buildInverseRopeFreqs(RopeThetaOpt.getValue());
 
   Text<size_t, 2> outputContainer;
   Text<size_t, 2> inputContainerPrefill(prompt);
@@ -349,6 +557,12 @@ GenerationResult runGeneration(const std::string &prompt,
   outputContainer.loadVocab(vocabPath);
 
   inputContainerPrefill.tokenizeDeepSeekR1(vocabPath, MaxTokenLength);
+  if (inputContainerPrefill.getTokenCnt() > MaxTokenLength) {
+    llvm::errs() << "[Error] Token count "
+                 << inputContainerPrefill.getTokenCnt()
+                 << " exceeds MaxTokenLength " << MaxTokenLength << ".\n";
+    return stats;
+  }
   if (inputContainerPrefill.getTokenCnt() == 0) {
     tokenStream << std::endl;
     stats.finalText.clear();
@@ -357,9 +571,12 @@ GenerationResult runGeneration(const std::string &prompt,
   // Prefill graph always runs with a fixed sequence length, so report that.
   stats.promptTokens = MaxTokenLength;
 
+  getInfoStream() << "[Debug] Starting prefill execution...\n";
   const auto prefillStart = std::chrono::high_resolution_clock::now();
+  // Execute prefill graph.
   _mlir_ciface_forward_prefill(prefillPtr, &paramsContainer,
                                &inputContainerPrefill);
+  getInfoStream() << "[Debug] Prefill execution finished.\n";
   const auto prefillEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> prefillMs =
       prefillEnd - prefillStart;
@@ -370,17 +587,6 @@ GenerationResult runGeneration(const std::string &prompt,
   }
 
   std::string streamed;
-  int availableByContext =
-      std::max(0, static_cast<int>(MaxTokenLength) -
-                      static_cast<int>(inputContainerPrefill.getTokenCnt()));
-  if (availableByContext == 0 || maxNewTokens == 0) {
-    tokenStream << std::endl;
-    stats.totalSeconds = prefillSeconds;
-    stats.finalText = streamed;
-    return stats;
-  }
-
-  int remainingBudget = std::min(maxNewTokens, availableByContext);
 
   MemRef<float, 3> logitsDecode({1, 1, MaxVocabSize});
   MemRefContainer decodeResult(
@@ -398,8 +604,11 @@ GenerationResult runGeneration(const std::string &prompt,
   const float *endPtr = startPtr + MaxVocabSize;
   int maxIndex = findMaxIndex(startPtr, endPtr);
 
+  // Copy KV cache from prefill to decode.
+  getInfoStream() << "[Debug] Copying KV cache...\n";
   copyKVByCachePositionBlock(prefillResult, decodeResult,
                              inputContainerPrefill.getTokenCnt());
+  getInfoStream() << "[Debug] KV cache copy finished.\n";
 
   cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
   inputContainerDecode.getData()[0] = static_cast<long long>(maxIndex);
@@ -409,31 +618,29 @@ GenerationResult runGeneration(const std::string &prompt,
     stats.finalText = streamed;
     return stats;
   }
-
-  if (remainingBudget > 0) {
-    outputContainer.appendTokenIdx(maxIndex);
-    streamNewText(outputContainer, streamed, tokenStream);
-    --remainingBudget;
-  }
-
-  if (remainingBudget == 0) {
-    tokenStream << std::endl;
-    stats.generatedTokens = outputContainer.getTokenCnt();
-    stats.finalText = streamed;
-    stats.totalSeconds = prefillSeconds;
-    return stats;
-  }
-
-  const int decodeBudget = remainingBudget;
-  const auto maxDecodeSteps = std::min(
-      decodeBudget,
-      std::max(0, static_cast<int>(MaxTokenLength) -
-                      static_cast<int>(inputContainerPrefill.getTokenCnt())));
-
+  outputContainer.appendTokenIdx(maxIndex);
+  streamNewText(outputContainer, streamed, tokenStream);
   double decodeTimeAccumMs = 0.0;
   size_t decodeTokens = 0;
+  const int keepTokenNum =
+      std::clamp(static_cast<int>(KeepTokenNumOpt.getValue()), 0,
+                 static_cast<int>(MaxTokenLength));
 
-  for (int i = 0; i < maxDecodeSteps; ++i) {
+  getInfoStream() << "Prefill tokens: " << inputContainerPrefill.getTokenCnt()
+                  << "\n";
+  getInfoStream() << "Initial cachePosition: " << cachePosition.getData()[0]
+                  << "\n";
+
+  // Decode loop.
+  while (InteractiveOpt || cachePosition.getData()[0] < maxNewTokens) {
+
+    getInfoStream() << "Current cachePosition: " << cachePosition.getData()[0]
+                    << "\n";
+    if (g_receivedSigInt) {
+      llvm::errs() << "\n[Generation interrupted by user]\n";
+      g_receivedSigInt = false;
+      break;
+    }
     const auto decodeStart = std::chrono::high_resolution_clock::now();
     _mlir_ciface_forward_decode(
         decodePtr, &paramsContainer, &inputContainerDecode, &cachePosition,
@@ -454,6 +661,9 @@ GenerationResult runGeneration(const std::string &prompt,
     const auto decodeEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> decodeTime =
         decodeEnd - decodeStart;
+    getInfoStream() << "decode time: "
+                    << llvm::formatv("{0:F2}", decodeTime.count() / 1000)
+                    << " s \n";
     decodeTimeAccumMs += decodeTime.count();
     ++decodeTokens;
 
@@ -468,7 +678,43 @@ GenerationResult runGeneration(const std::string &prompt,
     inputContainerDecode.getData()[0] = maxIndex;
     outputContainer.appendTokenIdx(maxIndex);
     streamNewText(outputContainer, streamed, tokenStream);
-    cachePosition.getData()[0] += 1;
+
+    // Discard tokens if max context length reached.
+    if (cachePosition.getData()[0] + 1 >=
+        static_cast<long long>(MaxTokenLength)) {
+      const int currentTokens =
+          std::min(static_cast<int>(cachePosition.getData()[0]) + 1,
+                   static_cast<int>(MaxTokenLength));
+      int discardTokenNum = std::max(1, (currentTokens - keepTokenNum) / 2);
+      getInfoStream() << "Discarding " << discardTokenNum << " tokens.\n";
+
+      const auto discardStart = std::chrono::high_resolution_clock::now();
+      discardKVByCachePositionBlock(decodeResult, keepTokenNum, discardTokenNum,
+                                    currentTokens);
+      const auto discardMid = std::chrono::high_resolution_clock::now();
+      adjustKeyCacheRope(decodeResult, keepTokenNum, discardTokenNum,
+                         currentTokens, ropeInverseFreqs);
+      const auto discardEnd = std::chrono::high_resolution_clock::now();
+      const std::chrono::duration<double, std::milli> discardOnlyTime =
+          discardMid - discardStart;
+      const std::chrono::duration<double, std::milli> ropeTime =
+          discardEnd - discardMid;
+      const std::chrono::duration<double, std::milli> totalDiscardTime =
+          discardEnd - discardStart;
+      getInfoStream() << "\n discardKVByCachePositionBlock time: "
+                      << llvm::formatv("{0:F2}", discardOnlyTime.count())
+                      << " ms \n";
+      getInfoStream() << " adjustKeyCacheRope time: "
+                      << llvm::formatv("{0:F2}", ropeTime.count()) << " ms \n";
+      getInfoStream() << " Total discard time: "
+                      << llvm::formatv("{0:F2}", totalDiscardTime.count())
+                      << " ms \n";
+      const long long newLength = currentTokens - discardTokenNum;
+      cachePosition.getData()[0] =
+          std::clamp(newLength, 0LL, static_cast<long long>(MaxTokenLength));
+    } else {
+      cachePosition.getData()[0] += 1;
+    }
   }
 
   const double decodeSeconds = decodeTimeAccumMs / 1000.0;
@@ -486,41 +732,39 @@ GenerationResult runGeneration(const std::string &prompt,
 }
 
 void printStats(const GenerationResult &result) {
-  llvm::errs() << "Prompt tokens: " << result.promptTokens << "\n";
-  llvm::errs() << "Generated tokens: " << result.generatedTokens << "\n";
-  llvm::errs() << "Prefill throughput: "
-               << llvm::formatv("{0:F3}", result.prefillTokensPerSec)
-               << " tokens/s\n";
-  llvm::errs() << "Decode throughput: "
-               << llvm::formatv("{0:F3}", result.decodeTokensPerSec)
-               << " tokens/s\n";
-  llvm::errs() << "Total time: " << llvm::formatv("{0:F2}", result.totalSeconds)
-               << " s\n";
+  getInfoStream() << "Prefill tokens: " << result.promptTokens << "\n";
+  getInfoStream() << "Generated tokens: " << result.generatedTokens << "\n";
+  getInfoStream() << "Prefill throughput: "
+                  << llvm::formatv("{0:F3}", result.prefillTokensPerSec)
+                  << " tokens/s\n";
+  getInfoStream() << "Decode throughput: "
+                  << llvm::formatv("{0:F3}", result.decodeTokensPerSec)
+                  << " tokens/s\n";
+  getInfoStream() << "Total time: "
+                  << llvm::formatv("{0:F2}", result.totalSeconds) << " s\n";
 }
 
 void runInteractiveSession(const std::string &systemPrompt,
                            MemRef<float, 1> &paramsContainer,
                            const std::string &vocabPath, int maxNewTokens,
                            long long eosTokenId, bool suppressStats) {
-  llvm::errs()
-      << "Entering interactive mode. Type :exit or :quit to end the session\n";
+  llvm::errs() << "Entering interactive mode.\n"
+               << "  - Type your prompt and press Enter to submit\n"
+               << "  - End a line with '\\' to continue to the next line\n"
+               << "  - Type :paste to enter paste mode (for long text)\n"
+               << "  - Type :clear to discard the buffer\n"
+               << "  - Type :exit or :quit to end the session\n";
   std::string userInput;
-  while (true) {
-    std::cout << ">>> " << std::flush;
-    if (!std::getline(std::cin, userInput)) {
-      llvm::errs() << "Input stream ended. Leaving interactive mode\n";
-      break;
+  std::string bufferedPrompt;
+  bool pasteMode = false;
+
+  auto submitBufferedPrompt = [&]() {
+    if (bufferedPrompt.empty()) {
+      return;
     }
-    if (userInput == ":exit" || userInput == ":quit") {
-      llvm::errs() << "Leaving interactive mode\n";
-      break;
-    }
-    if (userInput.empty()) {
-      continue;
-    }
-    std::string finalPrompt = userInput;
+    std::string finalPrompt = bufferedPrompt;
     if (!systemPrompt.empty()) {
-      finalPrompt = systemPrompt + "\n\n" + userInput;
+      finalPrompt = systemPrompt + "\n\n" + finalPrompt;
     }
     GenerationResult result =
         runGeneration(finalPrompt, paramsContainer, vocabPath, maxNewTokens,
@@ -528,69 +772,98 @@ void runInteractiveSession(const std::string &systemPrompt,
     if (!suppressStats) {
       printStats(result);
     }
+    bufferedPrompt.clear();
+  };
+
+  while (true) {
+    if (!pasteMode) {
+      std::cout << (bufferedPrompt.empty() ? ">>> " : "... ") << std::flush;
+    }
+
+    if (g_receivedSigInt) {
+      llvm::errs() << "\nInterrupted. Exiting...\n";
+      break;
+    }
+
+    if (!std::getline(std::cin, userInput)) {
+      if (g_receivedSigInt) {
+        llvm::errs() << "\nInterrupted. Exiting...\n";
+        break;
+      }
+      llvm::errs() << "Input stream ended. Leaving interactive mode\n";
+      break;
+    }
+
+    if (g_receivedSigInt) {
+      llvm::errs() << "\nInterrupted. Exiting...\n";
+      break;
+    }
+
+    // Paste Mode Logic
+    if (pasteMode) {
+      if (userInput == ":end") {
+        pasteMode = false;
+        submitBufferedPrompt();
+        continue;
+      }
+      if (!bufferedPrompt.empty())
+        bufferedPrompt.push_back('\n');
+      bufferedPrompt += userInput;
+      continue;
+    }
+
+    // Normal Mode Logic
+    if (userInput == ":exit" || userInput == ":quit") {
+      llvm::errs() << "Leaving interactive mode\n";
+      break;
+    }
+    if (userInput == ":clear") {
+      bufferedPrompt.clear();
+      llvm::errs() << "Prompt buffer cleared\n";
+      continue;
+    }
+    if (userInput == ":paste") {
+      pasteMode = true;
+      llvm::errs()
+          << "Entering paste mode. Type ':end' on a new line to submit.\n";
+      continue;
+    }
+
+    if (userInput.empty()) {
+      // If buffer is not empty (e.g. previous line ended with '\'), submit it.
+      if (!bufferedPrompt.empty()) {
+        submitBufferedPrompt();
+      }
+      continue;
+    }
+
+    // Check for continuation character '\'
+    if (userInput.back() == '\\') {
+      userInput.pop_back(); // Remove the backslash
+      if (!bufferedPrompt.empty())
+        bufferedPrompt.push_back('\n');
+      bufferedPrompt += userInput;
+      continue;
+    }
+
+    // Append and submit immediately
+    if (!bufferedPrompt.empty())
+      bufferedPrompt.push_back('\n');
+    bufferedPrompt += userInput;
+    submitBufferedPrompt();
   }
 }
 
 } // namespace
 
-static llvm::cl::opt<std::string>
-    ModelPathOpt("model",
-                 llvm::cl::desc("Path to the model parameter file (arg0.data)"),
-                 llvm::cl::value_desc("path"), llvm::cl::init(""));
-
-static llvm::cl::opt<std::string>
-    VocabPathOpt("vocab",
-                 llvm::cl::desc("Path to the vocabulary file (vocab.txt)"),
-                 llvm::cl::value_desc("path"), llvm::cl::init(""));
-
-static llvm::cl::opt<std::string>
-    PromptOpt("prompt", llvm::cl::desc("Prompt text passed directly"),
-              llvm::cl::value_desc("text"), llvm::cl::init(""));
-
-static llvm::cl::opt<std::string>
-    PromptFileOpt("prompt-file", llvm::cl::desc("File containing prompt text"),
-                  llvm::cl::value_desc("path"), llvm::cl::init(""));
-
-static llvm::cl::opt<bool>
-    InteractiveOpt("interactive",
-                   llvm::cl::desc("Start REPL-style interactive mode (combine "
-                                  "with --prompt for a system prompt)"),
-                   llvm::cl::init(false));
-
-static llvm::cl::opt<unsigned>
-    MaxTokensOpt("max-tokens",
-                 llvm::cl::desc("Maximum number of tokens to generate "
-                                "(including the first decoded token)"),
-                 llvm::cl::init(256));
-
-static llvm::cl::opt<double> TemperatureOpt(
-    "temperature",
-    llvm::cl::desc(
-        "Sampling temperature (currently only greedy decoding is supported)"),
-    llvm::cl::init(0.0));
-
-static llvm::cl::opt<int>
-    TopKOpt("top-k",
-            llvm::cl::desc(
-                "Top-k sampling (currently only greedy decoding is supported)"),
-            llvm::cl::init(1));
-
-static llvm::cl::opt<double>
-    TopPOpt("top-p",
-            llvm::cl::desc(
-                "Top-p sampling (currently only greedy decoding is supported)"),
-            llvm::cl::init(1.0));
-
-static llvm::cl::opt<long long>
-    EosIdOpt("eos-id", llvm::cl::desc("ID of the end-of-sequence token"),
-             llvm::cl::init(DefaultEosToken));
-
-static llvm::cl::opt<bool> SuppressStatsOpt(
-    "no-stats",
-    llvm::cl::desc("Output text only and hide performance statistics"),
-    llvm::cl::init(false));
-
 int main(int argc, char **argv) {
+  struct sigaction sa;
+  sa.sa_handler = signalHandler;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0; // Disable SA_RESTART to allow blocking calls (like getline)
+                   // to be interrupted
+  sigaction(SIGINT, &sa, nullptr);
+
   llvm::cl::ParseCommandLineOptions(argc, argv, "buddy DeepSeek R1 CLI\n");
 
   if (!PromptOpt.empty() && !PromptFileOpt.empty()) {
@@ -614,6 +887,13 @@ int main(int argc, char **argv) {
 
   if (!InteractiveOpt && prompt.empty()) {
     llvm::errs() << "Prompt cannot be empty\n";
+    return 1;
+  }
+
+  if (KeepTokenNumOpt > MaxTokenLength / 2) {
+    llvm::errs()
+        << "--keep-token-num must be smaller than half of context window ("
+        << MaxTokenLength << ")\n";
     return 1;
   }
 
