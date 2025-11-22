@@ -47,6 +47,11 @@ constexpr size_t HiddenSize = 128;
 constexpr size_t HeadNum = 2;
 constexpr long long DefaultEosToken = 151643;
 
+// ANSI Color Codes
+constexpr const char* COLOR_RESET = "\033[0m";
+constexpr const char* COLOR_BLUE = "\033[34;1m";
+constexpr const char* COLOR_YELLOW = "\033[33;1m";
+
 struct MemRefContainer {
   MemRef<float, 4> kv0;
   MemRef<float, 4> kv1;
@@ -364,9 +369,10 @@ GenerationResult runGeneration(const std::string &prompt,
   const std::chrono::duration<double, std::milli> prefillMs =
       prefillEnd - prefillStart;
   const double prefillSeconds = prefillMs.count() / 1000.0;
+  const size_t actualPrefillTokens = inputContainerPrefill.getTokenCnt();
   if (prefillSeconds > 0.0) {
     stats.prefillTokensPerSec =
-        static_cast<double>(MaxTokenLength) / prefillSeconds;
+        static_cast<double>(actualPrefillTokens) / prefillSeconds;
   }
 
   std::string streamed;
@@ -398,14 +404,19 @@ GenerationResult runGeneration(const std::string &prompt,
   const float *endPtr = startPtr + MaxVocabSize;
   int maxIndex = findMaxIndex(startPtr, endPtr);
 
+  const auto copyStart = std::chrono::high_resolution_clock::now();
   copyKVByCachePositionBlock(prefillResult, decodeResult,
                              inputContainerPrefill.getTokenCnt());
+  const auto copyEnd = std::chrono::high_resolution_clock::now();
+  const std::chrono::duration<double, std::milli> copyMs =
+      copyEnd - copyStart;
+  const double copySeconds = copyMs.count() / 1000.0;
 
   cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
   inputContainerDecode.getData()[0] = static_cast<long long>(maxIndex);
   if (maxIndex == eosTokenId) {
     tokenStream << std::endl;
-    stats.totalSeconds = prefillSeconds;
+    stats.totalSeconds = prefillSeconds + copySeconds;
     stats.finalText = streamed;
     return stats;
   }
@@ -420,7 +431,7 @@ GenerationResult runGeneration(const std::string &prompt,
     tokenStream << std::endl;
     stats.generatedTokens = outputContainer.getTokenCnt();
     stats.finalText = streamed;
-    stats.totalSeconds = prefillSeconds;
+    stats.totalSeconds = prefillSeconds + copySeconds;
     return stats;
   }
 
@@ -481,20 +492,20 @@ GenerationResult runGeneration(const std::string &prompt,
   tokenStream << std::endl;
   stats.generatedTokens = outputContainer.getTokenCnt();
   stats.finalText = streamed;
-  stats.totalSeconds = prefillSeconds + decodeSeconds;
+  stats.totalSeconds = prefillSeconds + copySeconds + decodeSeconds;
   return stats;
 }
 
 void printStats(const GenerationResult &result) {
-  llvm::errs() << "Prompt tokens: " << result.promptTokens << "\n";
-  llvm::errs() << "Generated tokens: " << result.generatedTokens << "\n";
-  llvm::errs() << "Prefill throughput: "
+  llvm::errs() << COLOR_YELLOW << "Prompt tokens" << COLOR_RESET << ": " << result.promptTokens << "\n";
+  llvm::errs() << COLOR_YELLOW << "Generated tokens" << COLOR_RESET << ": " << result.generatedTokens << "\n";
+  llvm::errs() << COLOR_YELLOW << "Prefill throughput" << COLOR_RESET << ": "
                << llvm::formatv("{0:F3}", result.prefillTokensPerSec)
                << " tokens/s\n";
-  llvm::errs() << "Decode throughput: "
+  llvm::errs() << COLOR_YELLOW << "Decode throughput" << COLOR_RESET << ": "
                << llvm::formatv("{0:F3}", result.decodeTokensPerSec)
                << " tokens/s\n";
-  llvm::errs() << "Total time: " << llvm::formatv("{0:F2}", result.totalSeconds)
+  llvm::errs() << COLOR_YELLOW << "Total time" << COLOR_RESET << ": " << llvm::formatv("{0:F2}", result.totalSeconds)
                << " s\n";
 }
 
@@ -502,17 +513,16 @@ void runInteractiveSession(const std::string &systemPrompt,
                            MemRef<float, 1> &paramsContainer,
                            const std::string &vocabPath, int maxNewTokens,
                            long long eosTokenId, bool suppressStats) {
-  llvm::errs()
-      << "Entering interactive mode. Type :exit or :quit to end the session\n";
+  llvm::errs() << COLOR_BLUE << "Entering interactive mode. Type :exit or :quit to end the session" << COLOR_RESET << "\n";
   std::string userInput;
   while (true) {
-    std::cout << ">>> " << std::flush;
+    std::cout << COLOR_YELLOW << ">>> " << COLOR_RESET << std::flush;
     if (!std::getline(std::cin, userInput)) {
-      llvm::errs() << "Input stream ended. Leaving interactive mode\n";
+      llvm::errs() << COLOR_BLUE << "Input stream ended. Leaving interactive mode" << COLOR_RESET << "\n";
       break;
     }
     if (userInput == ":exit" || userInput == ":quit") {
-      llvm::errs() << "Leaving interactive mode\n";
+      llvm::errs() << COLOR_BLUE << "Leaving interactive mode" << COLOR_RESET << "\n";
       break;
     }
     if (userInput.empty()) {
