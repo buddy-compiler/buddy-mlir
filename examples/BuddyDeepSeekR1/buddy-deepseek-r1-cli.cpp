@@ -633,6 +633,39 @@ GenerationResult runGeneration(const std::string &prompt,
 
   // Decode loop.
   while (InteractiveOpt || cachePosition.getData()[0] < maxNewTokens) {
+    // Discard tokens if max context length reached.
+    if (cachePosition.getData()[0] >= static_cast<long long>(MaxTokenLength)) {
+      const int currentTokens =
+          std::min(static_cast<int>(cachePosition.getData()[0]),
+                   static_cast<int>(MaxTokenLength));
+      int discardTokenNum = std::max(1, (currentTokens - keepTokenNum) / 2);
+      getInfoStream() << "Discarding " << discardTokenNum << " tokens.\n";
+
+      const auto discardStart = std::chrono::high_resolution_clock::now();
+      discardKVByCachePositionBlock(decodeResult, keepTokenNum, discardTokenNum,
+                                    currentTokens);
+      const auto discardMid = std::chrono::high_resolution_clock::now();
+      adjustKeyCacheRope(decodeResult, keepTokenNum, discardTokenNum,
+                         currentTokens, ropeInverseFreqs);
+      const auto discardEnd = std::chrono::high_resolution_clock::now();
+      const std::chrono::duration<double, std::milli> discardOnlyTime =
+          discardMid - discardStart;
+      const std::chrono::duration<double, std::milli> ropeTime =
+          discardEnd - discardMid;
+      const std::chrono::duration<double, std::milli> totalDiscardTime =
+          discardEnd - discardStart;
+      getInfoStream() << "\n discardKVByCachePositionBlock time: "
+                      << llvm::formatv("{0:F2}", discardOnlyTime.count())
+                      << " ms \n";
+      getInfoStream() << " adjustKeyCacheRope time: "
+                      << llvm::formatv("{0:F2}", ropeTime.count()) << " ms \n";
+      getInfoStream() << " Total discard time: "
+                      << llvm::formatv("{0:F2}", totalDiscardTime.count())
+                      << " ms \n";
+      const long long newLength = currentTokens - discardTokenNum;
+      cachePosition.getData()[0] =
+          std::clamp(newLength, 0LL, static_cast<long long>(MaxTokenLength));
+    }
 
     getInfoStream() << "Current cachePosition: " << cachePosition.getData()[0]
                     << "\n";
@@ -679,42 +712,7 @@ GenerationResult runGeneration(const std::string &prompt,
     outputContainer.appendTokenIdx(maxIndex);
     streamNewText(outputContainer, streamed, tokenStream);
 
-    // Discard tokens if max context length reached.
-    if (cachePosition.getData()[0] + 1 >=
-        static_cast<long long>(MaxTokenLength)) {
-      const int currentTokens =
-          std::min(static_cast<int>(cachePosition.getData()[0]) + 1,
-                   static_cast<int>(MaxTokenLength));
-      int discardTokenNum = std::max(1, (currentTokens - keepTokenNum) / 2);
-      getInfoStream() << "Discarding " << discardTokenNum << " tokens.\n";
-
-      const auto discardStart = std::chrono::high_resolution_clock::now();
-      discardKVByCachePositionBlock(decodeResult, keepTokenNum, discardTokenNum,
-                                    currentTokens);
-      const auto discardMid = std::chrono::high_resolution_clock::now();
-      adjustKeyCacheRope(decodeResult, keepTokenNum, discardTokenNum,
-                         currentTokens, ropeInverseFreqs);
-      const auto discardEnd = std::chrono::high_resolution_clock::now();
-      const std::chrono::duration<double, std::milli> discardOnlyTime =
-          discardMid - discardStart;
-      const std::chrono::duration<double, std::milli> ropeTime =
-          discardEnd - discardMid;
-      const std::chrono::duration<double, std::milli> totalDiscardTime =
-          discardEnd - discardStart;
-      getInfoStream() << "\n discardKVByCachePositionBlock time: "
-                      << llvm::formatv("{0:F2}", discardOnlyTime.count())
-                      << " ms \n";
-      getInfoStream() << " adjustKeyCacheRope time: "
-                      << llvm::formatv("{0:F2}", ropeTime.count()) << " ms \n";
-      getInfoStream() << " Total discard time: "
-                      << llvm::formatv("{0:F2}", totalDiscardTime.count())
-                      << " ms \n";
-      const long long newLength = currentTokens - discardTokenNum;
-      cachePosition.getData()[0] =
-          std::clamp(newLength, 0LL, static_cast<long long>(MaxTokenLength));
-    } else {
-      cachePosition.getData()[0] += 1;
-    }
+    cachePosition.getData()[0] += 1;
   }
 
   const double decodeSeconds = decodeTimeAccumMs / 1000.0;
