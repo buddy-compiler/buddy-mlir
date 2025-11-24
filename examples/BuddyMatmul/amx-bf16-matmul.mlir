@@ -180,6 +180,7 @@ module {
   // Test with M=512, K=512, N=512
   func.func @amx_main() {
     %c0    = arith.constant 0 : index
+    %c1    = arith.constant 1 : index
     %c256  = arith.constant 256 : index
     %c512  = arith.constant 512 : index
     %c1024 = arith.constant 1024 : index
@@ -219,15 +220,32 @@ module {
     %t_end = call @rtclock() : () -> f64
     %computation_time = arith.subf %t_end, %t_start : f64
 
-    // Print the entire output matrix C[512×512]
-    %Cu = memref.cast %C : memref<?x?xf32> to memref<*xf32>
-    call @printMemrefF32(%Cu) : (memref<*xf32>) -> ()
+    // Print F32 result (original AMX output)
+    %Cu_f32 = memref.cast %C : memref<?x?xf32> to memref<*xf32>
+    call @printMemrefF32(%Cu_f32) : (memref<*xf32>) -> ()
+
+    // Allocate BF16 result matrix
+    %C_bf16 = memref.alloc(%c512, %c512) : memref<?x?xbf16>
+
+    // Convert F32 to BF16
+    scf.for %i = %c0 to %c512 step %c1 {
+      scf.for %j = %c0 to %c512 step %c1 {
+        %val_f32 = memref.load %C[%i, %j] : memref<?x?xf32>
+        %val_bf16 = arith.truncf %val_f32 : f32 to bf16
+        memref.store %val_bf16, %C_bf16[%i, %j] : memref<?x?xbf16>
+      }
+    }
+
+    // Print BF16 result (after truncation)
+    %Cu_bf16 = memref.cast %C_bf16 : memref<?x?xbf16> to memref<*xbf16>
+    call @printMemrefBF16(%Cu_bf16) : (memref<*xbf16>) -> ()
 
     // Print timing result
     // CHECK: {{[0-9]+\.[0-9]+}}
     vector.print %computation_time : f64
 
     // Cleanup
+    memref.dealloc %C_bf16 : memref<?x?xbf16>
     memref.dealloc %C : memref<?x?xf32>
     memref.dealloc %B_packed : memref<?x?xbf16>
     memref.dealloc %B : memref<?x?xbf16>
