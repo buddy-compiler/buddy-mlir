@@ -157,6 +157,7 @@ class DynamoCompiler:
             "getitem": GetItemOp,
             "convolution.default": Conv2dOp,
             "max_pool2d_with_indices.default": MaxPool2dWithIndicesOp,
+            "_low_memory_max_pool2d_with_offsets.default": MaxPool2dWithIndicesOp,
             "relu.default": ReluOp,
             "iota.default": IotaOp,
             "sigmoid.default": SigmoidOp,
