@@ -60,6 +60,33 @@ vector-load-run:
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
 
+vector-load-alignment-run:
+	@${MLIR_OPT} ./vector-fma-alignment.mlir \
+	    -convert-vector-to-scf -lower-affine -convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm="use-aligned-alloc=true" \
+		-convert-func-to-llvm \
+		-convert-arith-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+vector-load-alignment-asm:
+	@${MLIR_OPT} ./vector-fma-alignment.mlir \
+	    -convert-vector-to-scf -lower-affine -convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-finalize-memref-to-llvm="use-aligned-alloc=true" \
+		-convert-func-to-llvm \
+		-convert-arith-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+	@${LOCAL_CLANG} -c log.ll \
+		-march=native -O3 \
+		-S \
+		-o log.s
+
 vector-broadcast-lower:
 	@${MLIR_OPT} ./vector-broadcast.mlir \
 		-convert-vector-to-scf -convert-scf-to-cf \

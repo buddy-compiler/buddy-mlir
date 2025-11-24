@@ -37,7 +37,7 @@ add_custom_command(
           -buffer-deallocation-simplification
           -bufferization-lower-deallocations
           -matmul-parallel-vectorization-optimize
-          -batchmatmul-optimize
+          # -batchmatmul-optimize
           -convert-linalg-to-affine-loops
           -affine-loop-fusion
           -affine-parallelize

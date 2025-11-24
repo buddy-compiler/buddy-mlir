@@ -1,4 +1,4 @@
-//===- BatchMatMulOptimize.cpp --------------------------------------------===//
+//===--------------BatchMatMulOptimize.cpp---------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the batchmatmul optimization.
+// This file implements the BatchMatMul optimization.
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -29,7 +29,6 @@
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/ValueRange.h"
 #include "llvm/ADT/ArrayRef.h"
-#include <cstdint>
 #include <mlir/Dialect/Affine/Analysis/AffineAnalysis.h>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
@@ -81,174 +80,171 @@ public:
     Type elementType = A.getType().cast<MemRefType>().getElementType();
     VectorType vectorTy = mlir::VectorType::get({vecSize}, elementType);
 
-    const AffineExpr d0 = rewriter.getAffineDimExpr(0);
-    const AffineExpr d1 = rewriter.getAffineDimExpr(1);
-    const AffineExpr d2 = rewriter.getAffineDimExpr(2);
+    AffineExpr d0 = rewriter.getAffineDimExpr(0);
+    AffineExpr d1 = rewriter.getAffineDimExpr(1);
 
     // Define constants.
-    const Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    const Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    const Value c2 = rewriter.create<arith::ConstantIndexOp>(loc, 2);
-    const Value vlStep = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
-    const Value zero = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getZeroAttr(elementType));
-    const AffineExpr zeroAffine = rewriter.getAffineConstantExpr(0);
-
-    // Create pass through vector.
-    Value passThroughVec = rewriter.create<SplatOp>(loc, vectorTy, zero);
+    llvm::SmallVector<Value, 8> constantVals;
+    for (int i = 0; i <= 8; ++i) {
+      auto val =
+          rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(i));
+      constantVals.push_back(val);
+    }
+    Value vlStep = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
 
     // Get dimensions of input tensors.
-    Value batch = rewriter.create<memref::DimOp>(loc, A, c0);
-    Value aRow = rewriter.create<memref::DimOp>(loc, A, c1);
-    Value bCol = rewriter.create<memref::DimOp>(loc, B, c2);
-    Value bRow = rewriter.create<memref::DimOp>(loc, B, c1);
+    Value batch = rewriter.create<memref::DimOp>(loc, A, constantVals[0]);
+    Value aRow = rewriter.create<memref::DimOp>(loc, A, constantVals[1]);
+    Value aCol = rewriter.create<memref::DimOp>(loc, A, constantVals[2]);
+    Value bCol = rewriter.create<memref::DimOp>(loc, C, constantVals[2]);
 
-    // Calculate the upper bound for vectorized processing
-    // - Subtract `vlStep` is to avoid overflow at the vectorization tail.
-    // - Add 1 to ensure the final loop runs when the workload length
-    //   is divisible by the vector size.
-    Value upperBound_tmp = rewriter.create<arith::SubIOp>(loc, bCol, vlStep);
-    Value upperBound = rewriter.create<arith::AddIOp>(loc, upperBound_tmp, c1);
+    AffineMap unrollMap = AffineMap::get(
+        /*dimCount=*/1,
+        /*symbolCount=*/0, {d0 % rewriter.getAffineConstantExpr(8)}, ctx);
+    AffineMap tailMap = AffineMap::get(
+        /*dimCount=*/2,
+        /*symbolCount=*/0, {d0 - d1}, ctx);
+    AffineMap affineMapVec = AffineMap::get(
+        /*dimCount=*/2,
+        /*symbolCount=*/0, {d0 - d1 + rewriter.getAffineConstantExpr(1)}, ctx);
 
-    // Calculate the length of the tail, which might not fit in a vector.
-    Value tailSize = rewriter.create<affine::AffineApplyOp>(
-        loc, AffineMap::get(1, 0, d0 % vecSize), ValueRange{bCol});
+    Value tailSize =
+        rewriter.create<AffineApplyOp>(loc, unrollMap, ValueRange{aRow});
+    Value parallelSize = rewriter.create<AffineApplyOp>(
+        loc, tailMap, ValueRange{aRow, tailSize});
 
-    // Generate a mask vector based on the tail length.
-    Value tailMask = rewriter.create<CreateMaskOp>(loc, vectorMaskTy, tailSize);
+    Value nUpperBound = rewriter.create<AffineApplyOp>(
+        loc, affineMapVec, ValueRange{bCol, vlStep});
 
-    SmallVector<Value, 4U> reducedValues = llvm::to_vector<4>(
-        llvm::map_range(ArrayRef<LoopReduction>{},
-                        [](const LoopReduction &red) { return red.value; }));
+    auto createUnrollParallel = [&](int unrollSize, Value lowerBound,
+                                    Value upperBound) {
+      // Create the primary parallel batch level loop.
+      auto parOp = rewriter.create<scf::ParallelOp>(
+          loc,
+          /*lowerBounds=*/ValueRange{constantVals[0], lowerBound},
+          /*upperBounds=*/ValueRange{batch, upperBound},
+          /*steps=*/ValueRange{constantVals[1], constantVals[unrollSize]},
+          [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+            llvm::SmallVector<Value, 8> mIndices;
+            for (int i = 0; i < unrollSize; ++i) {
+              auto mIndex =
+                  rewriter.create<arith::AddIOp>(loc, ivs[1], constantVals[i]);
+              mIndices.push_back(mIndex);
+            }
 
-    // Create the primary parallel batch level loop.
-    AffineParallelOp parallelBatchLoop =
-        rewriter.create<affine::AffineParallelOp>(
-            loc, ValueRange(reducedValues).getTypes(), ValueRange{batch},
-            ArrayRef<NamedAttribute>{
-                rewriter.getNamedAttr("lowerBoundsGroups",
-                                      rewriter.getI32TensorAttr({1})),
-                rewriter.getNamedAttr("upperBoundsGroups",
-                                      rewriter.getI32TensorAttr({1})),
-                rewriter.getNamedAttr(
-                    "lowerBoundsMap",
-                    AffineMapAttr::get(AffineMap::get(0, 0, {zeroAffine},
-                                                      rewriter.getContext()))),
-                rewriter.getNamedAttr("upperBoundsMap",
-                                      AffineMapAttr::get(AffineMap::get(
-                                          1, 0, {d0}, rewriter.getContext()))),
-                rewriter.getNamedAttr("reductions", rewriter.getArrayAttr({})),
-                rewriter.getNamedAttr("steps", rewriter.getI64ArrayAttr({1}))});
+            auto iter_idx = rewriter.create<scf::ForOp>(
+                loc, constantVals[0], nUpperBound,
+                /*Step=*/vlStep, ValueRange{constantVals[0]},
+                [&](OpBuilder &builder, Location loc, Value iv0,
+                    ValueRange iterArgs0) {
+                  SmallVector<Value> cVecs;
+                  for (auto mIndex : mIndices) {
+                    auto cInitVec = rewriter.create<vector::LoadOp>(
+                        loc, vectorTy, C, ValueRange{ivs[0], mIndex, iv0});
+                    cVecs.push_back(cInitVec);
+                  }
+                  auto sumIterVecs = builder.create<scf::ForOp>(
+                      loc, constantVals[0], aCol, /*Step=*/constantVals[1],
+                      ValueRange{cVecs},
+                      [&](OpBuilder &builder, Location loc, Value iv1,
+                          ValueRange iterArgs1) {
+                        auto bVec = rewriter.create<vector::LoadOp>(
+                            loc, vectorTy, B, ValueRange{ivs[0], iv1, iv0});
+                        SmallVector<Value> resSumVecs;
+                        if (isa<IntegerType>(elementType)) {
+                          for (int i = 0; i < unrollSize; ++i) {
+                            auto aEle = rewriter.create<memref::LoadOp>(
+                                loc, A, ValueRange{ivs[0], mIndices[i], iv1});
+                            auto aVec = rewriter.create<vector::BroadcastOp>(
+                                loc, vectorTy, aEle);
+                            Value mulVec =
+                                builder.create<arith::MulIOp>(loc, aVec, bVec);
+                            Value resSumVec = builder.create<arith::AddIOp>(
+                                loc, mulVec, iterArgs1[0]);
+                            resSumVecs.push_back(resSumVec);
+                          }
+                        } else {
+                          for (int i = 0; i < unrollSize; ++i) {
+                            auto aEle = rewriter.create<memref::LoadOp>(
+                                loc, A, ValueRange{ivs[0], mIndices[i], iv1});
+                            auto aVec = rewriter.create<vector::BroadcastOp>(
+                                loc, vectorTy, aEle);
+                            Value resSumVec = rewriter.create<vector::FMAOp>(
+                                loc, aVec, bVec, iterArgs1[i]);
+                            resSumVecs.push_back(resSumVec);
+                          }
+                        }
+                        builder.create<scf::YieldOp>(loc,
+                                                     ValueRange{resSumVecs});
+                      });
+                  for (int i = 0; i < unrollSize; ++i) {
+                    rewriter.create<vector::StoreOp>(
+                        loc, sumIterVecs.getResult(i), C,
+                        ValueRange{ivs[0], mIndices[i], iv0});
+                  }
 
-    // Create the loop body for the parallel loop.
-    Block *loopBody = new Block();
-    rewriter.setInsertionPointToStart(loopBody);
-    loopBody->addArgument(rewriter.getIndexType(), loc);
-    Value loopVarBatchIdx = loopBody->getArguments()[0];
+                  auto nextIdx =
+                      rewriter.create<arith::AddIOp>(loc, iv0, vlStep);
+                  builder.create<scf::YieldOp>(loc, ValueRange{nextIdx});
+                });
+            // Compute the tail size and Process the remaining elements
+            // using masked vector operations.
+            Value idx = iter_idx.getResult(0);
+            rewriter.create<scf::ForOp>(
+                loc, idx, bCol,
+                /*Step=*/constantVals[1], std::nullopt,
+                [&](OpBuilder &builder, Location loc, Value iv0,
+                    ValueRange itrArgs0) {
+                  SmallVector<Value> cEles;
+                  for (auto mIndex : mIndices) {
+                    auto cInit = rewriter.create<memref::LoadOp>(
+                        loc, C, ValueRange{ivs[0], mIndex, iv0});
+                    cEles.push_back(cInit);
+                  }
+                  auto sumIterVecs = rewriter.create<scf::ForOp>(
+                      loc, constantVals[0], aCol, constantVals[1],
+                      ValueRange{cEles},
+                      [&](OpBuilder &builder, Location loc, Value iv1,
+                          ValueRange iterArgs1) {
+                        auto bEle = rewriter.create<memref::LoadOp>(
+                            loc, B, ValueRange{ivs[0], iv1, iv0});
+                        SmallVector<Value> resSums;
+                        if (isa<IntegerType>(elementType)) {
+                          for (int i = 0; i < unrollSize; ++i) {
+                            auto aEle = rewriter.create<memref::LoadOp>(
+                                loc, A, ValueRange{ivs[0], mIndices[i], iv1});
+                            auto tmpEle =
+                                rewriter.create<arith::MulIOp>(loc, aEle, bEle);
+                            auto resSum = rewriter.create<arith::AddIOp>(
+                                loc, tmpEle, iterArgs1[i]);
+                            resSums.push_back(resSum);
+                          }
+                        } else {
+                          for (int i = 0; i < unrollSize; ++i) {
+                            auto aEle = rewriter.create<memref::LoadOp>(
+                                loc, A, ValueRange{ivs[0], mIndices[i], iv1});
+                            auto tmpEle =
+                                rewriter.create<arith::MulFOp>(loc, aEle, bEle);
+                            auto resSum = rewriter.create<arith::AddFOp>(
+                                loc, tmpEle, iterArgs1[i]);
+                            resSums.push_back(resSum);
+                          }
+                        }
 
-    // Prefetching data from tensor 'A' for better cache utilization.
-    rewriter.create<affine::AffinePrefetchOp>(
-        loc, A, AffineMap::get(3, 0, {d0, d1, d2}, ctx),
-        ArrayRef<Value>{loopVarBatchIdx, aRow, bRow}, false, 3, true);
-    auto iter_idx = rewriter.create<affine::AffineForOp>(
-        loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
-        ValueRange{upperBound}, rewriter.getDimIdentityMap(),
-        /*Step=*/vecSize, ValueRange{c0},
-        [&](OpBuilder &builder, Location loc, Value iv1, ValueRange itrArgs0) {
-          builder.create<affine::AffineForOp>(
-              loc, ValueRange{c0}, builder.getDimIdentityMap(),
-              ValueRange{bRow}, builder.getDimIdentityMap(),
-              /*Step=*/1, std::nullopt,
-              [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv2,
-                  ValueRange itrArgs0) {
-                Value bVec = builder.create<affine::AffineVectorLoadOp>(
-                    loc, vectorTy, B, ValueRange{loopVarBatchIdx, iv2, iv1});
-                nestedBuilder.create<affine::AffineForOp>(
-                    nestedLoc, ValueRange{c0}, builder.getDimIdentityMap(),
-                    ValueRange{aRow}, builder.getDimIdentityMap(), /*Step=*/1,
-                    std::nullopt,
-                    [&](OpBuilder &builder, Location loc, Value iv3,
-                        ValueRange itrArgs1) {
-                      Value aValue = builder.create<memref::LoadOp>(
-                          loc, elementType, A,
-                          ValueRange{loopVarBatchIdx, iv3, iv2});
-                      Value aVec = builder.create<vector::BroadcastOp>(
-                          loc, vectorTy, aValue);
-                      Value cVec = builder.create<affine::AffineVectorLoadOp>(
-                          loc, vectorTy, C,
-                          ValueRange{loopVarBatchIdx, iv3, iv1});
-                      // Compute the result vector either through integer
-                      // multiplication and addition or fused multiply-add
-                      // based on the element type.
-                      Value computedVec;
-                      if (isa<IntegerType>(elementType)) {
-                        Value mulVec =
-                            builder.create<arith::MulIOp>(loc, aVec, bVec);
-                        computedVec =
-                            builder.create<arith::AddIOp>(loc, mulVec, cVec);
-                      } else {
-                        computedVec = builder.create<vector::FMAOp>(loc, aVec,
-                                                                    bVec, cVec);
-                      }
-                      builder.create<affine::AffineVectorStoreOp>(
-                          loc, computedVec, C,
-                          ValueRange{loopVarBatchIdx, iv3, iv1});
-                      builder.create<affine::AffineYieldOp>(loc);
-                    });
-                builder.create<affine::AffineYieldOp>(loc);
-              });
-          Value idx = builder.create<arith::AddIOp>(loc, iv1, vlStep);
-          builder.create<affine::AffineYieldOp>(loc, idx);
-        });
-    // Compute the tail size and Process the remaining elements
-    // using masked vector operations.
-    Value idx = iter_idx.getResult(0);
-    rewriter.create<affine::AffineForOp>(
-        loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{bRow},
-        rewriter.getDimIdentityMap(),
-        /*Step=*/1, std::nullopt,
-        [&](OpBuilder &builder, Location loc, Value iv1, ValueRange itrArgs0) {
-          Value maskedBVec = builder.create<vector::MaskedLoadOp>(
-              loc, vectorTy, B, ValueRange{loopVarBatchIdx, iv1, idx}, tailMask,
-              passThroughVec);
-          builder.create<affine::AffineForOp>(
-              loc, ValueRange{c0}, builder.getDimIdentityMap(),
-              ValueRange{aRow}, builder.getDimIdentityMap(), /*Step=*/1,
-              std::nullopt,
-              [&](OpBuilder &builder, Location loc, Value iv2,
-                  ValueRange itrArgs1) {
-                Value aValue = builder.create<memref::LoadOp>(
-                    loc, A, ValueRange{loopVarBatchIdx, iv2, iv1});
-                Value aVec =
-                    builder.create<vector::BroadcastOp>(loc, vectorTy, aValue);
-                Value maskedCVec = builder.create<MaskedLoadOp>(
-                    loc, vectorTy, C, ValueRange{loopVarBatchIdx, iv2, idx},
-                    tailMask, passThroughVec);
-                // Compute the result vector either through integer
-                // multiplication and addition or fused multiply-add
-                // based on the element type.
-                Value computedVec;
-                if (isa<IntegerType>(elementType)) {
-                  Value mulVec =
-                      builder.create<arith::MulIOp>(loc, aVec, maskedBVec);
-                  computedVec =
-                      builder.create<arith::AddIOp>(loc, mulVec, maskedCVec);
-                } else {
-                  computedVec = builder.create<vector::FMAOp>(
-                      loc, aVec, maskedBVec, maskedCVec);
-                }
-                builder.create<MaskedStoreOp>(
-                    loc, C, ValueRange{loopVarBatchIdx, iv2, idx}, tailMask,
-                    computedVec);
-                builder.create<affine::AffineYieldOp>(loc);
-              });
-
-          builder.create<affine::AffineYieldOp>(loc);
-        });
-    rewriter.create<affine::AffineYieldOp>(loc);
-    // Finalize the loop and erase the original operation.
-    parallelBatchLoop.getRegion().push_back(loopBody);
-    rewriter.setInsertionPointAfter(parallelBatchLoop);
+                        builder.create<scf::YieldOp>(loc, ValueRange{resSums});
+                      });
+                  
+                  for (int i = 0; i < unrollSize; i++) {
+                    rewriter.create<memref::StoreOp>(
+                        loc, sumIterVecs.getResult(i), C,
+                        ValueRange{ivs[0], mIndices[i], iv0});
+                  }
+                  builder.create<scf::YieldOp>(loc);
+                });
+          });
+    };
+    createUnrollParallel(8, constantVals[0], parallelSize);
+    createUnrollParallel(1, parallelSize, aRow);
 
     rewriter.eraseOp(op);
     return success();

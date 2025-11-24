@@ -44,6 +44,7 @@ llvm_config.use_default_substitutions()
 config.excludes = [
     "Inputs",
     "Examples",
+    "Models",
     "CMakeLists.txt",
     "README.txt",
     "LICENSE.txt",
@@ -69,6 +70,7 @@ tools = [
     "buddy-audio-container-test",
     "buddy-text-container-test",
     "mlir-runner",
+    "buddy-lenet-run-test-cpu",
 ]
 tools.extend(
     [

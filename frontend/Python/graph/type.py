@@ -26,20 +26,29 @@ class TensorDType(Enum):
     Enum class for declaring tensor data types.
 
     Members:
+    - Int8: str
+        Represents the 8-bit integer data type.
     - Int32: str
         Represents the 32-bit integer data type.
     - Int64: str
         Represents the 64-bit integer data type.
+    - Float16: str
+        Represents the 16-bit floating-point data type.
+    - BFloat16: str
+        Represents the 16-bit brain floating-point data type.
     - Float32: str
         Represents the 32-bit floating-point data type.
+    - Float64: str
+        Represents the 64-bit floating-point data type.
     - Bool: str
         Represents the boolean data type.
     """
-    
+
     Int8 = "int8"
     Int32 = "int32"
     Int64 = "int64"
     Float16 = "float16"
+    BFloat16 = "bfloat16"
     Float32 = "float32"
     Float64 = "float64"
     Bool = "bool"
@@ -47,7 +56,7 @@ class TensorDType(Enum):
 
 class TensorMeta:
     """
-    Store tensor metadata, including shape and data type, while overlooking raw 
+    Store tensor metadata, including shape and data type, while overlooking raw
     data.
 
     Attributes:
@@ -58,7 +67,7 @@ class TensorMeta:
 
     Methods:
     - __init__(shape: tuple, dtype: str) -> None:
-        Initializes a new instance of the TensorMeta class with the specified 
+        Initializes a new instance of the TensorMeta class with the specified
         shape and data type.
 
     Example:
@@ -79,6 +88,7 @@ class TensorMeta:
         self.shape = shape
         self.dtype = dtype
 
+
 class DeviceType(Enum):
     """
     Enumeration class representing different types of devices.
@@ -91,6 +101,7 @@ class DeviceType(Enum):
     Each attribute represents a specific device type and is associated with a
     string value.
     """
-    CPU = 'cpu'
-    GPU = 'gpu'
-    UNKNOW = 'unknow'
+
+    CPU = "cpu"
+    GPU = "gpu"
+    UNKNOW = "unknow"

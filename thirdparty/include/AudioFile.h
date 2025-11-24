@@ -49,6 +49,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <stdint.h>
 
 // disable some warnings on Windows
 #if defined(_MSC_VER)

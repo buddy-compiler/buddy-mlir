@@ -29,6 +29,9 @@ set(LinkedLibs
   BatchMatMulOptimization
   MatMulParallelVectorization
   TransposeOptimization
+  TosaElementwiseFusion
+  AssumeTightMemRefLayoutPass
+  GraphRedundancyElimination
 )
 
 

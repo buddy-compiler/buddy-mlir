@@ -4,11 +4,12 @@
 // RUN:     -eliminate-empty-tensors \
 // RUN:     -empty-tensor-to-alloc-tensor \
 // RUN:     -convert-elementwise-to-linalg \
-// RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
+// RUN:     -one-shot-bufferize="unknown-type-conversion=identity-layout-map function-boundary-type-conversion=identity-layout-map bufferize-function-boundaries" \
 // RUN:     -expand-strided-metadata \
 // RUN:     -ownership-based-buffer-deallocation \
 // RUN:     -buffer-deallocation-simplification \
 // RUN:     -bufferization-lower-deallocations \
+// RUN:     -convert-bufferization-to-memref \
 // RUN:     -matmul-parallel-vectorization-optimize \
 // RUN:     -batchmatmul-optimize \
 // RUN:     -convert-linalg-to-affine-loops \
@@ -41,7 +42,7 @@
 func.func private @rtclock() -> f64
 func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 
-func.func @kernel(%arg0: tensor<1x1024x1536xf32>, %arg1: tensor<1536xf32>, %arg2 : tensor<256xf32>, %arg3: tensor<1536x1536xf32>, %arg4: tensor<256x1536xf32>, %arg5: tensor<1x1024x128xf32>) {
+func.func @kernel(%arg0: tensor<1x1024x1536xf32>, %arg1: tensor<1536xf32>, %arg2 : tensor<256xf32>, %arg3: tensor<1536x1536xf32>, %arg4: tensor<256x1536xf32>, %arg5: tensor<1x1024x128xf32>) -> (tensor<1x12x1024x128xf32>, tensor<1x12x1024x128xf32>, tensor<1x12x1024x128xf32>) {
   %t_start = call @rtclock() : () -> f64
 
   %67 = tosa.reshape %arg0 {new_shape = array<i64: 1024, 1536>} : (tensor<1x1024x1536xf32>) -> tensor<1024x1536xf32>
@@ -127,31 +128,48 @@ func.func @kernel(%arg0: tensor<1x1024x1536xf32>, %arg1: tensor<1536xf32>, %arg2
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64
 
-  %tensor_unranked_q = tensor.cast %113 : tensor<1x12x1024x128xf32> to tensor<*xf32>
-  %tensor_unranked_k = tensor.cast %124 : tensor<1x12x1024x128xf32> to tensor<*xf32>
-  %tensor_unranked_v = tensor.cast %129 : tensor<1x12x1024x128xf32> to tensor<*xf32>
-
-  // Print results.
-  call @printMemrefF32(%tensor_unranked_q) : (tensor<*xf32>) -> ()
-  call @printMemrefF32(%tensor_unranked_k) : (tensor<*xf32>) -> ()
-  call @printMemrefF32(%tensor_unranked_v) : (tensor<*xf32>) -> ()
   // Print timings.
   vector.print %time : f64
   // CHECK: {{[0-9]+\.[0-9]+}}
 
-  return
+  return %113, %124, %129 : tensor<1x12x1024x128xf32>, tensor<1x12x1024x128xf32>, tensor<1x12x1024x128xf32>
 }
 
 func.func @main() {
 
-  %c0 = arith.constant dense<2.0> : tensor<1x1024x1536xf32>
-  %c1 = arith.constant dense <3.0> : tensor<1536xf32>
-  %c2 = arith.constant dense <4.0> : tensor<256xf32>
-  %c3 = arith.constant dense <5.0> : tensor<1536x1536xf32>
-  %c4 = arith.constant dense <6.0> : tensor<256x1536xf32>
-  %c5 = arith.constant dense <7.0> : tensor<1x1024x128xf32>
+  %cst_2 = arith.constant 2.0 : f32
+  %empty_0 = tensor.empty() : tensor<1x1024x1536xf32>
+  %c0 = linalg.fill ins(%cst_2 : f32) outs(%empty_0 : tensor<1x1024x1536xf32>) -> tensor<1x1024x1536xf32>
 
-  call @kernel(%c0, %c1, %c2, %c3, %c4, %c5) : (tensor<1x1024x1536xf32>, tensor<1536xf32>, tensor<256xf32>, tensor<1536x1536xf32>, tensor<256x1536xf32>, tensor<1x1024x128xf32>) -> ()
+  %cst_3 = arith.constant 3.0 : f32
+  %empty_1 = tensor.empty() : tensor<1536xf32>
+  %c1 = linalg.fill ins(%cst_3 : f32) outs(%empty_1 : tensor<1536xf32>) -> tensor<1536xf32>
+
+  %cst_4 = arith.constant 4.0 : f32
+  %empty_2 = tensor.empty() : tensor<256xf32>
+  %c2 = linalg.fill ins(%cst_4 : f32) outs(%empty_2 : tensor<256xf32>) -> tensor<256xf32>
+
+  %cst_5 = arith.constant 5.0 : f32
+  %empty_3 = tensor.empty() : tensor<1536x1536xf32>
+  %c3 = linalg.fill ins(%cst_5 : f32) outs(%empty_3 : tensor<1536x1536xf32>) -> tensor<1536x1536xf32>
+
+  %cst_6 = arith.constant 6.0 : f32
+  %empty_4 = tensor.empty() : tensor<256x1536xf32>
+  %c4 = linalg.fill ins(%cst_6 : f32) outs(%empty_4 : tensor<256x1536xf32>) -> tensor<256x1536xf32>
+
+  %cst_7 = arith.constant 7.0 : f32
+  %empty_5 = tensor.empty() : tensor<1x1024x128xf32>
+  %c5 = linalg.fill ins(%cst_7 : f32) outs(%empty_5 : tensor<1x1024x128xf32>) -> tensor<1x1024x128xf32>
+
+  %res:3 = call @kernel(%c0, %c1, %c2, %c3, %c4, %c5) : (tensor<1x1024x1536xf32>, tensor<1536xf32>, tensor<256xf32>, tensor<1536x1536xf32>, tensor<256x1536xf32>, tensor<1x1024x128xf32>) -> (tensor<1x12x1024x128xf32>, tensor<1x12x1024x128xf32>, tensor<1x12x1024x128xf32>)
+
+  %tensor_unranked_q = tensor.cast %res#0 : tensor<1x12x1024x128xf32> to tensor<*xf32>
+  %tensor_unranked_k = tensor.cast %res#1 : tensor<1x12x1024x128xf32> to tensor<*xf32>
+  %tensor_unranked_v = tensor.cast %res#2 : tensor<1x12x1024x128xf32> to tensor<*xf32>
+  // Print results.
+  // call @printMemrefF32(%tensor_unranked_q) : (tensor<*xf32>) -> ()
+  // call @printMemrefF32(%tensor_unranked_k) : (tensor<*xf32>) -> ()
+  // call @printMemrefF32(%tensor_unranked_v) : (tensor<*xf32>) -> ()
 
   return
 }

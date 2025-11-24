@@ -20,16 +20,16 @@ module{
 
   func.func @main(){
     // Set up dims.
-    %cM = arith.constant 1024 : index
-    %cN = arith.constant 1024 : index
-    %cK = arith.constant 1024 : index
+    %cM = arith.constant 4 : index
+    %cN = arith.constant 4 : index
+    %cK = arith.constant 4 : index
 
     // -------------------------------------------------------------------------
     // Test f32 as element type.
     // -------------------------------------------------------------------------
 
     // Set Init Value.
-    %cf0_32 = arith.constant 0.0 : f32
+    %cf10_32 = arith.constant 10.0 : f32
     %cf1_32 = arith.constant 1.0 : f32
 
     %A_f32 = memref.alloc(%cM, %cK) : memref<?x?xf32>
@@ -38,13 +38,18 @@ module{
 
     linalg.fill ins(%cf1_32 : f32) outs(%A_f32 : memref<?x?xf32>)
     linalg.fill ins(%cf1_32 : f32) outs(%B_f32 : memref<?x?xf32>)
-    linalg.fill ins(%cf0_32 : f32) outs(%C_f32 : memref<?x?xf32>)
+    linalg.fill ins(%cf10_32 : f32) outs(%C_f32 : memref<?x?xf32>)
 
     call @matmul_f32(%A_f32, %B_f32, %C_f32) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
 
     // Print output.
-    // CHECK: Unranked Memref base@ = {{.*}}
-
+    // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 4] strides = [4, 1] data =
+    // CHECK-NEXT: [
+    // CHECK-SAME:  [14,   14,   14,   14],
+    // CHECK-NEXT:  [14,   14,   14,   14],
+    // CHECK-NEXT:  [14,   14,   14,   14],
+    // CHECK-NEXT:  [14,   14,   14,   14]
+    // CHECK-SAME: ]
     %print_C_f32 = memref.cast %C_f32 : memref<?x?xf32> to memref<*xf32>
     call @printMemrefF32(%print_C_f32) : (memref<*xf32>) -> ()
 

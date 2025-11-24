@@ -32,6 +32,7 @@ target_link_libraries(buddy-opt
   BatchMatMulOptimization
   MatMulParallelVectorization
   TransposeOptimization
+  GraphRedundancyElimination
   ConvOptimization
   DepthwiseConvOptimization
   VectorExp
@@ -49,4 +50,6 @@ target_link_libraries(buddy-opt
   MatMulTransposeBVec
   LinalgToVIRPass
   VIRToVectorPass
+  TosaElementwiseFusion
+  AssumeTightMemRefLayoutPass
   )

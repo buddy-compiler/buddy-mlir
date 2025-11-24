@@ -2,17 +2,17 @@
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-antlr_target(Toy 
+antlr_target(Toy
   Toy.g4
   VISITOR)
 
-# Include toy definition directories. 
+# Include toy definition directories.
 include_directories(${ANTLR_Toy_OUTPUT_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/toy) 
-include_directories(${CMAKE_CURRENT_BINARY_DIR}) 
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/toy)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${ANTLR4_INCLUDE_DIRS})
-include_directories(${LLVM_MLIR_SOURCE_DIR}/examples/toy/Ch7/include)
+include_directories(${MLIR_MAIN_SRC_DIR}/examples/toy/Ch7/include)
 include_directories(include)
 
 add_subdirectory(include)
@@ -24,18 +24,18 @@ set(LLVM_LINK_COMPONENTS
   OrcJIT
   )
 
-set(LLVM_TARGET_DEFINITIONS ${LLVM_MLIR_SOURCE_DIR}/examples/toy/Ch7/mlir/ToyCombine.td)
+set(LLVM_TARGET_DEFINITIONS ${MLIR_MAIN_SRC_DIR}/examples/toy/Ch7/mlir/ToyCombine.td)
 mlir_tablegen(ToyCombine.inc -gen-rewriters)
 add_public_tablegen_target(ToyCombineIncGen)
 
 # Add DSL -> MLIR frontend.
-add_llvm_executable(buddy-toy-dsl 
+add_llvm_executable(buddy-toy-dsl
   main.cpp
-  ${LLVM_MLIR_SOURCE_DIR}/examples/toy/Ch7/mlir/LowerToAffineLoops.cpp
-  ${LLVM_MLIR_SOURCE_DIR}/examples/toy/Ch7/mlir/Dialect.cpp
-  ${LLVM_MLIR_SOURCE_DIR}/examples/toy/Ch7/mlir/LowerToLLVM.cpp
-  ${LLVM_MLIR_SOURCE_DIR}/examples/toy/Ch7/mlir/ShapeInferencePass.cpp
-  ${LLVM_MLIR_SOURCE_DIR}/examples/toy/Ch7/mlir/ToyCombine.cpp  
+  ${MLIR_MAIN_SRC_DIR}/examples/toy/Ch7/mlir/LowerToAffineLoops.cpp
+  ${MLIR_MAIN_SRC_DIR}/examples/toy/Ch7/mlir/Dialect.cpp
+  ${MLIR_MAIN_SRC_DIR}/examples/toy/Ch7/mlir/LowerToLLVM.cpp
+  ${MLIR_MAIN_SRC_DIR}/examples/toy/Ch7/mlir/ShapeInferencePass.cpp
+  ${MLIR_MAIN_SRC_DIR}/examples/toy/Ch7/mlir/ToyCombine.cpp
   ${ANTLR_Toy_CXX_OUTPUTS}
   DEPENDS
   ToyCombineIncGen
@@ -49,7 +49,7 @@ get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 
 # Add link libraries.
-target_link_libraries(buddy-toy-dsl 
+target_link_libraries(buddy-toy-dsl
   PRIVATE
   Threads::Threads
   ${dialect_libs}

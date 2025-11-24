@@ -472,6 +472,29 @@ class CallOp(Op):
         self._op_type = OpType.Unfusable
 
 
+class CallExternalOp(Op):
+    """
+    Operation for calling external library functions (e.g., oneDNN).
+    This is separate from CallOp to avoid breaking existing functionality.
+    Uses RankedTensorType for TOSA dialect compatibility.
+    """
+
+    def __init__(
+        self,
+        call_func_name: str,
+        args: List[str],
+        args_index: List[int],
+        tensor_meta: dict,
+        name: str = None,
+    ) -> None:
+        super().__init__(name)
+        self.call_func_name = call_func_name
+        self.args = args
+        self._args_index = args_index
+        self.tensor_meta = tensor_meta
+        self._op_type = OpType.Unfusable
+
+
 class FuncOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -585,3 +608,56 @@ class CopyOp(Op):
         super().__init__()
         self._op_type = OpType.ElementwiseType
 
+
+class LeOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class BitwiseAndTensorOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class IndexPutOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class LiftFreshCopyOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class NeScalarOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class CumsumOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class TensorConstantOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.PlaceholderType
+
+
+class RepeatOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class AsStridedOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType

@@ -64,6 +64,8 @@ from ..graph import (
     ArgMaxOp,
     ScaledDotProductFlashAttentionForCpuOp,
     MatmulOp,
+    LeOp,
+    BitwiseAndTensorOp,
 )
 from .utils import *
 
@@ -173,12 +175,11 @@ def addmm_op(
 ) -> ir.Operation:
     """
     Import matrix multiplication operation.
-    From buddy graph ir's `AddMMOp` operator to MLIR TOSA `matmul` operation.
+    From buddy graph ir's `AddMMOp` operator to MLIR linalg `matmul` operation.
 
-    Note: this function first reshapes the input matrices to 3D tensors
-    (since tosa.MatMulOp requires it). Then it multiplies these reshaped
-    matrices.
-    Finally, it adds the input tensor to the matrix multiplication result.
+    Note: This function directly uses linalg.matmul which accepts 2D tensors,
+    eliminating the need for reshape operations that were required by tosa.MatMulOp.
+    The result is then added to the input tensor.
 
     Args:
         node: Containing information from the input graph node.
@@ -189,39 +190,109 @@ def addmm_op(
         op: The operation representing the result of adding the matrix
         multiplication to the input tensor.
     """
+    # # get input
+    # input_ = symbol_table.get((str(node.args[0]), 0))
+    # mat1 = symbol_table.get((str(node.args[1]), 0))
+    # mat2 = symbol_table.get((str(node.args[2]), 0))
+    # # get input shape
+    # mat1_shp = ir.RankedTensorType(mat1.type).shape
+    # mat2_shp = ir.RankedTensorType(mat2.type).shape
+    # # append index because tosa.MatMulOp doesn't accept 2D tensor
+    # mat1_reshape_op = tosa.ReshapeOp(
+    #     mat1, memoryview(array.array("i", [1, *mat1_shp]))
+    # )
+    # mat2_reshape_op = tosa.ReshapeOp(
+    #     mat2, memoryview(array.array("i", [1, *mat2_shp]))
+    # )
+    # # do matmul
+    # result_element_type = ir.RankedTensorType(mat1.type).element_type
+    # matmul_result_shp = [1, mat1_shp[0], mat2_shp[1]]
+    # matmul_result_type = ir.RankedTensorType.get(
+    #     matmul_result_shp, result_element_type
+    # )
+    # matmul_op = tosa.MatMulOp(
+    #     matmul_result_type, mat1_reshape_op.result, mat2_reshape_op.result
+    # )
+    # # restore the shape
+    # final_result_shape = [mat1_shp[0], mat2_shp[1]]
+    # matmul_result_reshape_op = tosa.ReshapeOp(
+    #     matmul_op.c, memoryview(array.array("i", final_result_shape))
+    # )
+
+    # op = _gen_arith_binary_op(
+    #     input_, matmul_result_reshape_op.result, tosa.AddOp
+    # )
+    # return op
+
     # get input
     input_ = symbol_table.get((str(node.args[0]), 0))
     mat1 = symbol_table.get((str(node.args[1]), 0))
     mat2 = symbol_table.get((str(node.args[2]), 0))
-    # get input shape
+
+    # get input shape and element type
+    input_shp = ir.RankedTensorType(input_.type).shape
     mat1_shp = ir.RankedTensorType(mat1.type).shape
     mat2_shp = ir.RankedTensorType(mat2.type).shape
-    # append index because tosa.MatMulOp doesn't accept 2D tensor
-    mat1_reshape_op = tosa.ReshapeOp(
-        mat1, memoryview(array.array("i", [1, *mat1_shp]))
-    )
-    mat2_reshape_op = tosa.ReshapeOp(
-        mat2, memoryview(array.array("i", [1, *mat2_shp]))
-    )
-    # do matmul
     result_element_type = ir.RankedTensorType(mat1.type).element_type
-    matmul_result_shp = [1, mat1_shp[0], mat2_shp[1]]
+
+    # prepare output shape for matmul
+    matmul_result_shp = [mat1_shp[0], mat2_shp[1]]
     matmul_result_type = ir.RankedTensorType.get(
         matmul_result_shp, result_element_type
     )
-    matmul_op = tosa.MatMulOp(
-        matmul_result_type, mat1_reshape_op.result, mat2_reshape_op.result
-    )
-    # restore the shape
-    final_result_shape = [mat1_shp[0], mat2_shp[1]]
-    matmul_result_reshape_op = tosa.ReshapeOp(
-        matmul_op.c, memoryview(array.array("i", final_result_shape))
-    )
 
-    op = _gen_arith_binary_op(
-        input_, matmul_result_reshape_op.result, tosa.AddOp
-    )
-    return op
+    # create affine map for matmul indexing
+    generic_map = ir.AffineMap.get_permutation([0, 1, 2])
+
+    # Check if input_ shape matches matmul output shape
+    # If it matches, use input_ directly as output buffer (accumulation)
+    # Otherwise, use zero-initialized buffer and add later (broadcasting)
+    if list(input_shp) == matmul_result_shp:
+        # Shape matches: directly use input_ as output buffer for accumulation
+        matmul_op = linalg.MatmulOp(
+            result_tensors=[matmul_result_type],
+            inputs=[mat1, mat2],
+            outputs=[input_],
+            indexing_maps=[
+                generic_map.get_submap([0, 2]),  # lhs: (m, k)
+                generic_map.get_submap([2, 1]),  # rhs: (k, n)
+                generic_map.get_submap([0, 1]),  # out: (m, n)
+            ],
+            cast="cast_signed",
+        )
+        linalg.fill_builtin_region(matmul_op.operation)
+        return matmul_op.result
+    else:
+        # Shape doesn't match: use zero buffer for matmul, then add with broadcasting
+        zero_attr = ir.DenseElementsAttr.get_splat(
+            matmul_result_type,
+            (
+                ir.FloatAttr.get(result_element_type, 0.0)
+                if str(result_element_type) == "f32"
+                or str(result_element_type) == "f16"
+                else ir.IntegerAttr.get(result_element_type, 0)
+            ),
+        )
+        matmul_output_buffer = arith.ConstantOp(
+            matmul_result_type, zero_attr
+        ).result
+
+        matmul_op = linalg.MatmulOp(
+            result_tensors=[matmul_result_type],
+            inputs=[mat1, mat2],
+            outputs=[matmul_output_buffer],
+            indexing_maps=[
+                generic_map.get_submap([0, 2]),  # lhs: (m, k)
+                generic_map.get_submap([2, 1]),  # rhs: (k, n)
+                generic_map.get_submap([0, 1]),  # out: (m, n)
+            ],
+            cast="cast_signed",
+        )
+        linalg.fill_builtin_region(matmul_op.operation)
+
+        # Add input_ with broadcasting
+        op = _gen_arith_binary_op(input_, matmul_op.result, tosa.AddOp)
+        return op
 
 
 def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
@@ -453,6 +524,13 @@ def reshape_op(node: ReshapeOp, symbol_table):
             if new_shape[i] == -1:
                 new_shape[i] = infer_dim_size
 
+    # Optimize: if the new shape is the same as the current shape, skip the reshape
+    if len(new_shape) == len(now_shape) and all(
+        int(new_dim) == int(old_dim)
+        for new_dim, old_dim in zip(new_shape, now_shape)
+    ):
+        return input1
+
     new_shape_content = array.array("i", new_shape)
     new_shape_content = memoryview(new_shape_content)
     op = tosa.ReshapeOp(input1, new_shape_content)
@@ -522,6 +600,16 @@ def slice_op(node: SliceOp, symbol_table):
     end_idx = node.args[3]
 
     sizes = ir.RankedTensorType(input_tensor.type).shape
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    output_shape = list(node.tensor_meta["shape"])
+
+    rank_diff = len(output_shape) - len(sizes)
+    if rank_diff > 0:
+        input_tensor = tosa.ReshapeOp(
+            input_tensor, memoryview(array.array("i", [1] * rank_diff + sizes))
+        )
+        sizes = [1] * rank_diff + sizes
 
     if start_idx < 0:
         start_idx += sizes[dim]
@@ -550,10 +638,9 @@ def slice_op(node: SliceOp, symbol_table):
     strides = [1] * len(sizes)
     strides_attr = ir._denseI64ArrayAttr(strides, None)
 
-    result_element_type = ir.RankedTensorType(input_tensor.type).element_type
-    extract_slice_result_type = ir.RankedTensorType.get(
-        new_sizes, result_element_type
-    )
+    extract_slice_result_type = ir.RankedTensorType.get(new_sizes, mlir_dtype)
+    if new_sizes == sizes:
+        return input_tensor
     op = tensor.ExtractSliceOp(
         extract_slice_result_type,
         input_tensor,
@@ -579,6 +666,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
         TensorDType.Float64: ir.F64Type.get(),
         TensorDType.Float32: ir.F32Type.get(),
         TensorDType.Float16: ir.F16Type.get(),
+        TensorDType.BFloat16: ir.BF16Type.get(),
         TensorDType.Int64: ir.IntegerType.get_signless(64),
         TensorDType.Int32: ir.IntegerType.get_signless(32),
         TensorDType.Bool: ir.IntegerType.get_signless(1),
@@ -658,11 +746,12 @@ def clone_op(node: CloneOp, symbol_table):
     we actually deep-copies the original tensor.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
-    sizes = ir.RankedTensorType(input_tensor.type).shape
-    result_element_type = ir.RankedTensorType(input_tensor.type).element_type
-    output_type = ir.RankedTensorType.get(sizes, result_element_type)
+    return input_tensor
+    # sizes = ir.RankedTensorType(input_tensor.type).shape
+    # result_element_type = ir.RankedTensorType(input_tensor.type).element_type
+    # output_type = ir.RankedTensorType.get(sizes, result_element_type)
 
-    return tosa.IdentityOp(output_type, input_tensor)
+    # return tosa.IdentityOp(output_type, input_tensor)
 
 
 def var_mean_op(node: VarMeanOp, symbol_table):
@@ -865,7 +954,7 @@ def embedding_op(node: EmbeddingOp, symbol_table):
     indices_size = ir.RankedTensorType(indices.type).shape
     weight_size = ir.RankedTensorType(weight.type).shape
     result_element_type = ir.RankedTensorType(weight.type).element_type
-    assert len(indices_size) == 2
+    assert len(indices_size) == 2 or len(indices_size) == 1
 
     if indices_size[0] != 1:
         total_size = 1
@@ -900,9 +989,18 @@ def embedding_op(node: EmbeddingOp, symbol_table):
     gather_op = tosa.GatherOp(
         gather_result_type, weight_reshape_op.result, indices
     )
+
+    # Check if the final reshape is needed
+    target_shape = [*indices_size, weight_size[1]]
+    gather_output_shape = list(ir.RankedTensorType(gather_op.output.type).shape)
+
+    # If gather output shape matches target shape, skip the reshape
+    if gather_output_shape == target_shape:
+        return gather_op.output
+
     op = tosa.ReshapeOp(
         gather_op.output,
-        memoryview(array.array("i", [*indices_size, weight_size[1]])),
+        memoryview(array.array("i", target_shape)),
     )
 
     return op
@@ -934,6 +1032,8 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         element = ir.FloatAttr.get(result_element_type, 0.0)
     elif result_element_type == ir.F16Type.get():
         element = ir.FloatAttr.get(result_element_type, 0.0)
+    elif result_element_type == ir.BF16Type.get():
+        element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")
     expanded_size = []
@@ -942,6 +1042,8 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
             expanded_size.append(dim)
         else:
             expanded_size.append(size)
+    if original_size == expanded_size:
+        return to_expand_tensor
     new_size_tensor_type = ir.RankedTensorType.get(
         expanded_size, result_element_type
     )
@@ -1679,7 +1781,8 @@ def scaled_dot_product_flash_attention_for_cpu_op(
             minus_inf_tensor = arith.ConstantOp(
                 attn_mask.type,
                 ir.DenseElementsAttr.get_splat(
-                    attn_mask.type, ir.FloatAttr.get(f32_type, float("-inf"))
+                    attn_mask.type,
+                    ir.FloatAttr.get(ir.F32Type.get(), float("-inf")),
                 ),
             )
             attn_bias = tensor.SelectOp(attn_mask, minus_inf_tensor, attn_bias)
@@ -1690,23 +1793,6 @@ def scaled_dot_product_flash_attention_for_cpu_op(
                     memoryview(array.array("i", attn_bias.result.type.shape)),
                 )
             attn_bias = tosa.AddOp(attn_bias.result.type, attn_bias, attn_mask)
-
-    # Transpose key tensor
-    key_shape = list(key.type.shape)
-    perm_list = list(range(len(key_shape)))
-    perm_list[-1], perm_list[-2] = perm_list[-2], perm_list[-1]
-    perm_const_op = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-    )
-    perm_shape = []
-    perm_shape.append(key_shape[0])
-    perm_shape.append(key_shape[1])
-    perm_shape.append(key_shape[3])
-    perm_shape.append(key_shape[2])
-    permute_result_type = ir.RankedTensorType.get(perm_shape, mlir_dtype)
-    key = tosa.TransposeOp(
-        permute_result_type, key, perm_const_op.results[0]
-    ).result
 
     # Matrix multiplication of query and key
     query_reshape_op = tosa.ReshapeOp(
@@ -1726,7 +1812,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         key,
         memoryview(
             array.array(
-                "i", [key_shape[0] * key_shape[1], key_shape[3], key_shape[2]]
+                "i", [key_shape[0] * key_shape[1], key_shape[2], key_shape[3]]
             )
         ),
     )
@@ -1736,8 +1822,13 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         key_shape[2],
     ]
     matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
-    matmul_op = tosa.MatMulOp(
-        matmul_result_type, query_reshape_op.result, key_reshape_op.result
+    element = mlir_element_attr_get(dtype, 0.0)
+    attr = ir.DenseElementsAttr.get_splat(matmul_result_type, element)
+    matmul_result_buffer = arith.ConstantOp(matmul_result_type, attr).result
+    matmul_op = linalg.batch_matmul_transpose_b(
+        query_reshape_op.result,
+        key_reshape_op.result,
+        outs=[matmul_result_buffer],
     )
     if mlir_dtype == ir.F16Type.get():
         f16_max_val = 65504.0
@@ -1750,6 +1841,27 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         )
         min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_min_val)
         max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_max_val)
+
+        matmul_op = tosa.ClampOp(
+            matmul_op.type,
+            matmul_op,
+            min_int_attr,
+            max_int_attr,
+            min_fp_attr,
+            max_fp_attr,
+        )
+    elif mlir_dtype == ir.BF16Type.get():
+        # BF16 has the same range as F32 but lower precision
+        bf16_max_val = 3.4028235e38
+        bf16_min_val = -3.4028235e38
+        min_int_attr = ir.IntegerAttr.get(
+            ir.IntegerType.get_signless(64), -sys.maxsize
+        )
+        max_int_attr = ir.IntegerAttr.get(
+            ir.IntegerType.get_signless(64), sys.maxsize
+        )
+        min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_min_val)
+        max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_max_val)
 
         matmul_op = tosa.ClampOp(
             matmul_op.result.type,
@@ -1829,6 +1941,128 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     return result_reshape_op, log_sumexp
 
 
+def le_op(
+    node: LeOp,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Import the tensor less-than-or-equal (<=) operation from the graph to MLIR.
+
+    This operation takes two input tensors, compares them element-wise using
+    the less-than-or-equal relation, and outputs a boolean tensor where each
+    element indicates the comparison result. The inputs are automatically
+    broadcasted to match the output shape if necessary.
+
+    Args:
+        node: The input graph node containing information about the operation,
+              including input arguments and tensor metadata.
+        symbol_table: A dictionary mapping node symbols to their corresponding
+                      MLIR operations.
+
+    Returns:
+        op: The MLIR operation representing the element-wise less-than-or-equal
+            comparison, typically as a `arith.CmpIOp` or `arith.CmpFOp` producing
+            a boolean tensor.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0))
+    input2 = symbol_table.get((str(node.args[1]), 0))
+
+    output_shape = list(node.tensor_meta["shape"])
+    input_dtype = ir.RankedTensorType(input1.type).element_type
+
+    def broadcast_tensor(tensor, target_shape):
+        if list(tensor.type.shape) == target_shape:
+            return tensor
+
+        if input_dtype in (
+            ir.IntegerType.get_signless(1),
+            ir.IntegerType.get_signless(64),
+        ):
+            element = ir.IntegerAttr.get(input_dtype, 0)
+        elif input_dtype in (ir.F32Type.get(), ir.F16Type.get()):
+            element = ir.FloatAttr.get(input_dtype, 0.0)
+        else:
+            raise NotImplementedError("Unsupported element type!")
+
+        new_tensor_type = ir.RankedTensorType.get(target_shape, input_dtype)
+        new_tensor_attr = ir.DenseElementsAttr.get_splat(
+            new_tensor_type, element
+        )
+        zero_tensor = tosa.ConstOp(new_tensor_attr).results[0]
+
+        return _gen_arith_binary_op(tensor, zero_tensor, tosa.AddOp)
+
+    input1 = broadcast_tensor(input1, output_shape)
+    input2 = broadcast_tensor(input2, output_shape)
+
+    if str(input_dtype).find("i") != -1:
+        cmp_op = arith.CmpIOp(7, input1, input2)  # i <= i
+    else:
+        cmp_op = arith.CmpFOp(5, input1, input2)  # f <= f
+
+    return cmp_op
+
+
+def bitwise_and_tensor_op(node: BitwiseAndTensorOp, symbol_table):
+    """
+    Perform an element-wise bitwise AND operation between two input tensors.
+
+    This operation takes two input tensors, broadcasts them to the output shape
+    if necessary, and computes the element-wise bitwise AND. The result is a
+    tensor of the same shape as specified in the node's metadata.
+
+    Args:
+        node (BitwiseAndTensorOp): The operation node containing input arguments
+                                   and tensor metadata.
+        symbol_table: A dictionary mapping node symbols to their corresponding
+                      MLIR tensor operations.
+
+    Returns:
+        op: The MLIR operation representing the element-wise bitwise AND result.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+
+    output_shape = list(node.tensor_meta["shape"])
+    input_dtype = ir.RankedTensorType(input1.type).element_type
+
+    # === Helper: broadcast a tensor to the target shape using addition ===
+    def broadcast_tensor(tensor, target_shape):
+        if list(tensor.type.shape) == target_shape:
+            return tensor
+
+        # Create a zero tensor of the target shape
+        if input_dtype in (
+            ir.IntegerType.get_signless(1),
+            ir.IntegerType.get_signless(64),
+        ):
+            element = ir.IntegerAttr.get(input_dtype, 0)
+        elif input_dtype in (ir.F32Type.get(), ir.F16Type.get()):
+            element = ir.FloatAttr.get(input_dtype, 0.0)
+        else:
+            raise NotImplementedError("Unsupported element type!")
+
+        new_tensor_type = ir.RankedTensorType.get(target_shape, input_dtype)
+        new_tensor_attr = ir.DenseElementsAttr.get_splat(
+            new_tensor_type, element
+        )
+        zero_tensor = tosa.ConstOp(new_tensor_attr).results[0]
+
+        # Broadcast tensor to target shape using addition
+        return _gen_arith_binary_op(tensor, zero_tensor, tosa.AddOp).results[0]
+
+    # Broadcast both inputs to match the output shape
+    input1 = broadcast_tensor(input1, output_shape)
+    input2 = broadcast_tensor(input2, output_shape)
+
+    # === Bitwise AND operation ===
+    op = arith.AndIOp(input1, input2)
+    return op
+
+
+# Import func ops registry for CallOp support
+from . import func as func_ops
+
 ops_registry = {
     "AddOp": add_op,
     "MulOp": mul_op,
@@ -1866,4 +2100,6 @@ ops_registry = {
     "RandIntLowOp": randint_low_op,
     "ArgMaxOp": argmax_op,
     "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
+    "LeOp": le_op,
+    "BitwiseAndTensorOp": bitwise_and_tensor_op,
 }

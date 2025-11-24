@@ -23,6 +23,7 @@
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
+#include <mlir/Dialect/SCF/IR/SCF.h>
 #include <mlir/Dialect/Vector/IR/VectorOps.h>
 #include <mlir/IR/Dialect.h>
 #include <mlir/IR/Operation.h>
@@ -62,7 +63,7 @@ public:
     Value C = op->getOperand(2);
 
     // Get shape of input and output.
-    ShapedType ATy = A.getType().cast<ShapedType>();
+    ShapedType ATy = cast<ShapedType>(A.getType());
     Type eleTy = ATy.getElementType();
 
     // the element type for mask vector.
@@ -88,117 +89,63 @@ public:
     const Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);
     const Value bCol = rewriter.create<memref::DimOp>(loc, B, c1);
 
-    AffineMap vecTailMap;
-    AffineExpr d0;
-    bindDims(ctx, d0);
-    if (scalable) {
-      auto s0 = getAffineSymbolExpr(0, ctx);
-      vecTailMap = AffineMap::get(1, 1, {d0.ceilDiv(s0)}, ctx);
-    } else {
-      vecTailMap = AffineMap::get(1, 0, {d0.ceilDiv(vf)}, ctx);
-    }
-    SmallVector<Value> innerUpperBoundOperands{bCol};
-    if (scalable) {
-      innerUpperBoundOperands.push_back(step);
-    }
+    // Create permutation map for transfer_read: (d0, d1) -> (d1)
+    AffineExpr d0, d1;
+    bindDims(ctx, d0, d1);
+    AffineMap permMap1D = AffineMap::get(2, 0, {d1}, ctx);
 
-    SmallVector<Value, 8> lowerBounds(2, c0);
-    SmallVector<Value, 8> uperBounds{aRow, bRow};
-    SmallVector<int64_t, 8> steps(2, 1);
-
-    affine::buildAffineLoopNest(
-        rewriter, loc, lowerBounds, uperBounds, steps,
+    // Create outer parallel loop for row dimension using scf.parallel
+    auto outerParallelLoop = rewriter.create<scf::ParallelOp>(
+        loc,
+        /*lowerBounds=*/ValueRange{c0},
+        /*upperBounds=*/ValueRange{aRow},
+        /*steps=*/ValueRange{c1},
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-          // Create loop based on vector size.
-          auto innerLoop = builder.create<affine::AffineForOp>(
-              loc, ValueRange{c0}, builder.getDimIdentityMap(),
-              innerUpperBoundOperands, vecTailMap, 1, ValueRange{passthruVec},
-              [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
-                  ValueRange itrArgs) {
-                Value acc = itrArgs[0];
+          Value rowIdx = ivs[0];
 
-                AffineExpr a, b;
-                bindDims(ctx, a, b);
-                AffineMap AVectorMap;
-                if (scalable) {
-                  auto s0 = getAffineSymbolExpr(0, ctx);
-                  AVectorMap = AffineMap::get(
-                      /*dimCount=*/2, /*symbolCount=*/1, {a, b * s0}, ctx);
-                } else {
-                  AVectorMap = AffineMap::get(
-                      /*dimCount=*/2, /*symbolCount=*/0, {a, b * vf}, ctx);
-                }
-                // Check tail.
-                AffineExpr m, k;
-                bindDims(ctx, m, k);
-                AffineMap BVectorMap;
-                if (scalable) {
-                  auto s0 = getAffineSymbolExpr(0, ctx);
-                  BVectorMap = AffineMap::get(
-                      /*dimCount=*/2, /*symbolCount=*/1, {m, k * s0}, ctx);
-                } else {
-                  BVectorMap = AffineMap::get(
-                      /*dimCount=*/2, /*symbolCount=*/0, {m, k * vf}, ctx);
-                }
-                // Calculate the tail.
-                Value bColCur = builder.create<arith::MulIOp>(loc, iv, step);
-                Value tailLen =
-                    builder.create<arith::SubIOp>(loc, bCol, bColCur);
-                Value tailFlag = rewriter.create<arith::CmpIOp>(
-                    loc, arith::CmpIPredicate::sge, tailLen, step);
-                // If the current column does not reach the tail.
-                auto ifOp = builder.create<scf::IfOp>(
-                    loc, tailFlag,
-                    [&](OpBuilder &builder, Location loc) {
-                      SmallVector<Value> aVecMapOperands{ivs[0], iv};
-                      SmallVector<Value> bVecMapOperands{ivs[1], iv};
-                      if (scalable) {
-                        aVecMapOperands.push_back(step);
-                        bVecMapOperands.push_back(step);
-                      }
-                      Value aVec = builder.create<affine::AffineVectorLoadOp>(
-                          loc, vectorTy, A, AVectorMap, aVecMapOperands);
-                      Value bVec = builder.create<affine::AffineVectorLoadOp>(
-                          loc, vectorTy, B, BVectorMap, bVecMapOperands);
-                      Value resvec =
-                          builder.create<arith::MulFOp>(loc, aVec, bVec);
-                      Value newAcc =
-                          builder.create<arith::AddFOp>(loc, acc, resvec);
-                      builder.create<scf::YieldOp>(loc, newAcc);
-                    },
-                    // The else branch
-                    [&](OpBuilder &builder, Location loc) {
-                      // Create mask according to the tail.
-                      Value maskVec = builder.create<CreateMaskOp>(
-                          loc, vectorMaskTy, tailLen);
-                      Value ColIdxTail =
-                          builder.create<arith::MulIOp>(loc, iv, step);
+          // Create inner parallel loop for column dimension
+          auto innerParallelLoop = builder.create<scf::ParallelOp>(
+              loc,
+              /*lowerBounds=*/ValueRange{c0},
+              /*upperBounds=*/ValueRange{bRow},
+              /*steps=*/ValueRange{c1},
+              [&](OpBuilder &builder, Location loc, ValueRange ivs) {
+                Value colIdx = ivs[0];
 
-                      Value aVecTail = builder.create<MaskedLoadOp>(
-                          loc, vectorTy, A, ValueRange{ivs[0], ColIdxTail},
-                          maskVec, passthruVec);
+                // Create inner vectorization loop with iter_args for
+                // accumulation
+                Value stepValueForScf =
+                    scalable ? step
+                             : builder.create<arith::ConstantIndexOp>(loc, vf);
 
-                      Value bVecTail = builder.create<MaskedLoadOp>(
-                          loc, vectorTy, B, ValueRange{ivs[1], ColIdxTail},
-                          maskVec, passthruVec);
-
-                      Value resvec = builder.create<arith::MulFOp>(
-                          loc, aVecTail, bVecTail);
-                      Value newAcc =
-                          builder.create<arith::AddFOp>(loc, acc, resvec);
-                      builder.create<scf::YieldOp>(loc, newAcc);
+                auto innerLoop = builder.create<scf::ForOp>(
+                    loc, c0, bCol, stepValueForScf, ValueRange{passthruVec},
+                    [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
+                        ValueRange itrArgs) {
+                      Value acc = itrArgs[0];
+                      auto aVec = nestedBuilder.create<vector::TransferReadOp>(
+                          nestedLoc, vectorTy, A, ValueRange{rowIdx, iv},
+                          permMap1D);
+                      auto bVec = nestedBuilder.create<vector::TransferReadOp>(
+                          nestedLoc, vectorTy, B, ValueRange{colIdx, iv},
+                          permMap1D);
+                      Value newAcc = nestedBuilder.create<vector::FMAOp>(
+                          nestedLoc, aVec, bVec, acc);
+                      nestedBuilder.create<scf::YieldOp>(nestedLoc, newAcc);
                     });
-                builder.create<affine::AffineYieldOp>(loc, ifOp.getResult(0));
+                Value load = builder.create<memref::LoadOp>(
+                    loc, C, ValueRange{rowIdx, colIdx});
+                // Reduction directly uses load as accumulator, no need to add
+                // again
+                Value result = builder.create<vector::ReductionOp>(
+                    loc, CombiningKind::ADD, innerLoop->getResult(0), load,
+                    arith::FastMathFlags::reassoc);
+                builder.create<memref::StoreOp>(loc, result, C,
+                                                ValueRange{rowIdx, colIdx});
               });
-
-          Value load = builder.create<memref::LoadOp>(
-              loc, C, ValueRange{ivs[0], ivs[1]});
-          Value reduction = builder.create<vector::ReductionOp>(
-              loc, CombiningKind::ADD, innerLoop->getResult(0), load,
-              arith::FastMathFlags::reassoc);
-          builder.create<memref::StoreOp>(loc, reduction, C,
-                                          ValueRange{ivs[0], ivs[1]});
         });
+
+    // TODO: Add tile processing for the inner loop.
 
     rewriter.eraseOp(op);
     return success();

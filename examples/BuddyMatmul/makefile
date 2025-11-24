@@ -179,3 +179,61 @@ batchmatmul-vectorization-run:
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+# AMX BF16 test
+# AMX requires kernel-level permissions that cannot be obtained in JIT environments
+amx-bf16-matmul-aot:
+	@echo "AMX JIT version not supported due to permission issues."
+	@echo "Running simplified AOT version instead..."
+	@${BUDDY_OPT} ./amx-bf16-matmul.mlir \
+		--llvm-request-c-wrappers \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm="enable-amx" \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o amx-quick.ll
+	@${LLC} -mtriple ${MTRIPLE} -mattr=+amx-bf16,+amx-tile,+amx-int8 ${OPT_FLAG} -filetype=obj amx-quick.ll -o amx-quick.o
+	@gcc -c amx-wrapper.c -o amx-wrapper-quick.o
+	@g++ amx-wrapper-quick.o amx-quick.o -o amx-quick -L${LLVM_BUILD_DIR}/lib -lmlir_runner_utils -lmlir_c_runner_utils -lpthread -Wl,-rpath,${LLVM_BUILD_DIR}/lib
+	@echo "Running AMX quick test..."
+	@LD_LIBRARY_PATH=${LLVM_BUILD_DIR}/lib ./amx-quick
+	@rm -f amx-quick.ll amx-quick.o amx-wrapper-quick.o amx-quick
+
+# Check what AMX instructions are generated
+amx-bf16-matmul-asm:
+	@${BUDDY_OPT} ./amx-bf16-matmul.mlir \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm="enable-amx" \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir | \
+	${LLC} -mtriple ${MTRIPLE} -mattr=+amx-bf16,+amx-tile,+amx-int8 ${OPT_FLAG} -filetype=asm -o amx-asm.s
+	@echo "Generated assembly in amx-asm.s"
+
+linalg-bf16-matmul-lower:
+	@${BUDDY_OPT} ./linalg-bf16-matmul.mlir \
+		-convert-linalg-to-loops \
+		-o log.mlir
+
+linalg-bf16-matmul-run:
+	@echo "Running linalg JIT version with MLIR-level timing..."
+	@${BUDDY_OPT} ./linalg-bf16-matmul.mlir \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-cf-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e linalg_main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}

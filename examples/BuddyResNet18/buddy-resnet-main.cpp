@@ -28,7 +28,7 @@
 #include <vector>
 
 constexpr size_t ParamsSize = 11699112;
-const std::string ImgName = "dog-224*224.png";
+const std::string ImgName = "dog-224x224.png";
 
 // Declare the resnet C interface.
 extern "C" void _mlir_ciface_forward(MemRef<float, 2> *output,
