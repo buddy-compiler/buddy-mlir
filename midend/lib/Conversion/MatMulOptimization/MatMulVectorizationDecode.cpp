@@ -34,9 +34,10 @@ using namespace mlir;
 namespace {
 class MatMulVectorizationDecodePattern : public ConversionPattern {
 public:
-  MatMulVectorizationDecodePattern(MLIRContext *ctx, int64_t vecSize)
+  MatMulVectorizationDecodePattern(MLIRContext *ctx, int64_t vecSize,
+                                    bool scalableParam)
       : ConversionPattern(linalg::MatmulOp::getOperationName(), 1, ctx),
-        vecSize(vecSize) {}
+        vecSize(vecSize), scalable(scalableParam) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
@@ -61,11 +62,15 @@ public:
       return failure();
 
     Type elementType = cType.getElementType();
-    auto vectorType = VectorType::get({vecSize}, elementType);
+    auto vectorType = VectorType::get({vecSize}, elementType, {scalable});
 
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+    if (scalable) {
+      Value vscale = rewriter.create<vector::VectorScaleOp>(loc);
+      step = rewriter.create<arith::MulIOp>(loc, step, vscale);
+    }
 
     Value n = rewriter.create<memref::DimOp>(loc, C, c1);
     Value k = rewriter.create<memref::DimOp>(loc, A, c1);
@@ -105,6 +110,7 @@ public:
 
 private:
   int64_t vecSize;
+  bool scalable;
 };
 
 class MatMulVectorizationDecodePass
@@ -120,6 +126,10 @@ public:
 
   MatMulVectorizationDecodePass() = default;
   MatMulVectorizationDecodePass(const MatMulVectorizationDecodePass &) {}
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<linalg::LinalgDialect, scf::SCFDialect, vector::VectorDialect>();
+  }
 
   void runOnOperation() override {
     MLIRContext *context = &getContext();
@@ -146,7 +156,8 @@ public:
         });
 
     RewritePatternSet patterns(context);
-    patterns.add<MatMulVectorizationDecodePattern>(context, vectorSize);
+    bool isScalable = (vectorType == "scalable");
+    patterns.add<MatMulVectorizationDecodePattern>(context, vectorSize, isScalable);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
@@ -156,6 +167,10 @@ public:
       *this, "vector-size",
       llvm::cl::desc("Specify the vector width for n-dimension iteration."),
       llvm::cl::init(32)};
+  Option<std::string> vectorType{
+      *this, "vector-type",
+      llvm::cl::desc("Specify vector type: fixed or scalable."),
+      llvm::cl::init("fixed")};
 };
 } // namespace
 

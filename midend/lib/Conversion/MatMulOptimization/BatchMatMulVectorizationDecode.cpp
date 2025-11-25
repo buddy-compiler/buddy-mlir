@@ -56,10 +56,12 @@ namespace {
 class BatchMatMulVectorizationDecodePattern : public ConversionPattern {
 public:
   explicit BatchMatMulVectorizationDecodePattern(MLIRContext *context,
-                                                 int64_t vecSizeParam)
+                                                 int64_t vecSizeParam,
+                                                 bool scalableParam)
       : ConversionPattern(linalg::BatchMatmulOp::getOperationName(), 1,
                           context) {
     vecSize = vecSizeParam;
+    scalable = scalableParam;
   }
 
   LogicalResult
@@ -75,7 +77,7 @@ public:
 
     // Acquire the element type of input tensors.
     Type elementType = A.getType().cast<MemRefType>().getElementType();
-    VectorType vectorTy = mlir::VectorType::get({vecSize}, elementType);
+    VectorType vectorTy = mlir::VectorType::get({vecSize}, elementType, {scalable});
 
     // Define constants.
     llvm::SmallVector<Value, 8> constantVals;
@@ -85,6 +87,10 @@ public:
       constantVals.push_back(val);
     }
     Value vlStep = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+    if (scalable) {
+      Value vscale = rewriter.create<vector::VectorScaleOp>(loc);
+      vlStep = rewriter.create<arith::MulIOp>(loc, vlStep, vscale);
+    }
 
     // Get dimensions of input tensors.
     Value batch = rewriter.create<memref::DimOp>(loc, A, constantVals[0]);
@@ -157,6 +163,7 @@ public:
 
 private:
   int64_t vecSize;
+  bool scalable;
 };
 } // end anonymous namespace
 
@@ -196,6 +203,10 @@ public:
   Option<int64_t> vecSize{*this, "vector-size",
                           llvm::cl::desc("Affine Vector size."),
                           llvm::cl::init(32)};
+  Option<std::string> vectorType{
+      *this, "vector-type",
+      llvm::cl::desc("Specify vector type: fixed or scalable."),
+      llvm::cl::init("fixed")};
 };
 } // end anonymous namespace.
 
@@ -211,7 +222,8 @@ void BatchMatMulVectorizationDecodePass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<BatchMatMulVectorizationDecodePattern>(context, vecSize);
+  bool isScalable = (vectorType == "scalable");
+  patterns.add<BatchMatMulVectorizationDecodePattern>(context, vecSize, isScalable);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
