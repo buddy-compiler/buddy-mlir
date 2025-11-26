@@ -1965,7 +1965,6 @@ def flash_attention_for_cpu_op(node: "FlashAttentionForCpuOp", symbol_table):
         log_sumexp_reshape: Placeholder log-sum-exp (can be reshaped as needed)
     """
     loc = ir.Location.unknown()
-    f32 = F32Type.get()
     index = IndexType.get()
 
     # === input parse ===
@@ -1991,7 +1990,10 @@ def flash_attention_for_cpu_op(node: "FlashAttentionForCpuOp", symbol_table):
     scale_val = arith.ConstantOp(dtype, float(scale_val)).result
 
     zero_dtype = arith.ConstantOp(dtype, 0.0, loc=loc).result
-    neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+    if dtype == ir.F16Type.get():
+        neg_inf = arith.ConstantOp(dtype, -65504.0, loc=loc).result
+    else:
+        neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
 
     # === bufferization ===
     Q_memref = bufferization.ToMemrefOp(
@@ -2017,8 +2019,6 @@ def flash_attention_for_cpu_op(node: "FlashAttentionForCpuOp", symbol_table):
     q_dim0 = arith.ConstantOp(index, query_shape[1], loc=loc)
     q_dim1 = arith.ConstantOp(index, query_shape[2], loc=loc)
     q_dim2 = arith.ConstantOp(index, query_shape[3], loc=loc)
-
-    k_dim1 = arith.ConstantOp(index, key_shape[2], loc=loc)
 
     out_memref = memref.AllocOp(
         memref.MemRefType.get(list(output_shape[0]), dtype), [], [], loc=loc
@@ -2314,7 +2314,11 @@ def flash_attention_for_cpu_vector_op(
     scale_val = arith.ConstantOp(dtype, float(scale_val)).result
 
     zero_dtype = arith.ConstantOp(dtype, 0.0, loc=loc).result
-    neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+    # neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+    if dtype == ir.F16Type.get():
+        neg_inf = arith.ConstantOp(dtype, -65504.0, loc=loc).result
+    else:
+        neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
 
     # === bufferization ===
     Q_memref = bufferization.ToMemrefOp(
@@ -2340,8 +2344,6 @@ def flash_attention_for_cpu_vector_op(
     q_dim0 = arith.ConstantOp(index, query_shape[1], loc=loc)
     q_dim1 = arith.ConstantOp(index, query_shape[2], loc=loc)
     q_dim2 = arith.ConstantOp(index, query_shape[3], loc=loc)
-
-    k_dim1 = arith.ConstantOp(index, key_shape[2], loc=loc)
 
     out_memref = memref.AllocOp(
         memref.MemRefType.get(list(output_shape[0]), dtype), [], [], loc=loc
@@ -2545,12 +2547,14 @@ def flash_attention_for_cpu_vector_tiled_op(
         log_sumexp_reshape: Placeholder log-sum-exp (can be reshaped as needed)
     """
     loc = ir.Location.unknown()
-    f32 = F32Type.get()
     index = IndexType.get()
-    dtype = node.tensor_meta["dtype"][0]
-    dtype = mlir_element_type_get(dtype)
+    f32 = F32Type.get()
+    dtype_qkv = node.tensor_meta["dtype"][0]
+    dtype_qkv = mlir_element_type_get(dtype_qkv)
+    dtype = f32
     vector_width = 16
     v16 = ir.VectorType.get([vector_width], dtype)
+    v16_qkv = ir.VectorType.get([vector_width], dtype_qkv)
     vec_len = arith.ConstantOp(index, vector_width, loc=loc)
 
     # === input parse ===
@@ -2566,33 +2570,34 @@ def flash_attention_for_cpu_vector_tiled_op(
     value_shape = value.type.shape
     output_shape = list(node.tensor_meta["shape"])
 
-    one = arith.ConstantOp(dtype, 1.0).result
-
     # scale = 1/sqrt(H)
     scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
     scale_val = arith.ConstantOp(dtype, float(scale_val)).result
 
     zero = arith.ConstantOp(dtype, 0.0, loc=loc).result
-    neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+    if dtype == ir.F16Type.get():
+        neg_inf = arith.ConstantOp(dtype, -65504.0, loc=loc).result
+    else:
+        neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
     zero_vec = vector.SplatOp(v16, zero, loc=loc)
     step_1 = arith.ConstantOp(index, 1, loc=loc)
 
     # === bufferization ===
     Q_memref = bufferization.ToMemrefOp(
-        memref.MemRefType.get(query_shape, dtype), query, loc=loc
+        memref.MemRefType.get(query_shape, dtype_qkv), query, loc=loc
     )
     K_memref = bufferization.ToMemrefOp(
-        memref.MemRefType.get(key_shape, dtype), key, loc=loc
+        memref.MemRefType.get(key_shape, dtype_qkv), key, loc=loc
     )
     V_memref = bufferization.ToMemrefOp(
-        memref.MemRefType.get(value_shape, dtype), value, loc=loc
+        memref.MemRefType.get(value_shape, dtype_qkv), value, loc=loc
     )
 
     mask_memref = None
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
         mask_memref = bufferization.ToMemrefOp(
-            memref.MemRefType.get(attn_mask.type.shape, dtype),
+            memref.MemRefType.get(attn_mask.type.shape, dtype_qkv),
             attn_mask,
             loc=loc,
         )
@@ -2606,11 +2611,11 @@ def flash_attention_for_cpu_vector_tiled_op(
     block_size_kv = arith.ConstantOp(index, block_size, loc=loc)
 
     out_memref = memref.AllocOp(
-        memref.MemRefType.get(list(output_shape[0]), dtype), [], [], loc=loc
+        memref.MemRefType.get(list(output_shape[0]), dtype_qkv), [], [], loc=loc
     )
     out_scores_memref = memref.AllocOp(
         memref.MemRefType.get(
-            [query_shape[0], query_shape[1], query_shape[2]], dtype
+            [query_shape[0], query_shape[1], query_shape[2]], dtype_qkv
         ),
         [],
         [],
@@ -2689,10 +2694,16 @@ def flash_attention_for_cpu_vector_tiled_op(
                         k = loop_k.induction_variable
                         acc_vec = loop_k.inner_iter_args[0]
                         with ir.InsertionPoint(loop_k.body):
-                            q_data = vector.LoadOp(v16, Q_memref, [b, h, q, k])
-                            k_data = vector.LoadOp(
-                                v16, K_memref, [b, h, idx, k]
+                            q_data = vector.LoadOp(
+                                v16_qkv, Q_memref, [b, h, q, k]
                             )
+                            k_data = vector.LoadOp(
+                                v16_qkv, K_memref, [b, h, idx, k]
+                            )
+                            # convert f16 to f32
+                            if dtype_qkv == ir.F16Type.get():
+                                q_data = arith.ExtFOp(v16, q_data)
+                                k_data = arith.ExtFOp(v16, k_data)
                             prod = arith.MulFOp(
                                 q_data.result, k_data.result, loc=loc
                             ).result
@@ -2710,6 +2721,9 @@ def flash_attention_for_cpu_vector_tiled_op(
                             mask_val = memref.LoadOp(
                                 mask_memref, [b, c0.result, q, idx]
                             ).result
+                            # convert f16 to f32
+                            if dtype_qkv == ir.F16Type.get():
+                                mask_val = arith.ExtFOp(dtype, mask_val).result
                             score_tile_masked = arith.AddFOp(
                                 score_tile_scaled, mask_val, loc=loc
                             ).result
@@ -2756,8 +2770,11 @@ def flash_attention_for_cpu_vector_tiled_op(
                         k = loop_k.induction_variable
                         with ir.InsertionPoint(loop_k.body):
                             v_data = vector.LoadOp(
-                                v16, V_memref, [b, h, idx, k]
+                                v16_qkv, V_memref, [b, h, idx, k]
                             )
+                            # convert f16 to f32
+                            if dtype_qkv == ir.F16Type.get():
+                                v_data = arith.ExtFOp(v16, v_data)
                             acc_block_val = vector.LoadOp(
                                 v16, acc_block_memref, [k]
                             )
@@ -2810,7 +2827,11 @@ def flash_attention_for_cpu_vector_tiled_op(
                     scf.yield_([m_new, l_i])
 
                 l_i = loop_block.results[1]
-                memref.StoreOp(l_i, out_scores_memref, [b, h, q])
+                if dtype_qkv == ir.F16Type.get():
+                    l_i_write = arith.TruncFOp(dtype_qkv, l_i).result
+                    memref.StoreOp(l_i_write, out_scores_memref, [b, h, q])
+                else:
+                    memref.StoreOp(l_i, out_scores_memref, [b, h, q])
                 sum_vec = vector.SplatOp(v16, l_i, loc=loc).result
                 loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
                 with ir.InsertionPoint(loop_k.body):
@@ -2819,6 +2840,8 @@ def flash_attention_for_cpu_vector_tiled_op(
                     out_vec = arith.DivFOp(
                         acc_vec.result, sum_vec, loc=loc
                     ).result
+                    if dtype_qkv == ir.F16Type.get():
+                        out_vec = arith.TruncFOp(v16_qkv, out_vec).result
                     vector.StoreOp(out_vec, out_memref, [b, h, q, k])
                     scf.yield_([])
 
@@ -2826,13 +2849,13 @@ def flash_attention_for_cpu_vector_tiled_op(
             scf.yield_([])
         scf.yield_([])
     out_tensor = bufferization.ToTensorOp(
-        ir.RankedTensorType.get(list(output_shape[0]), dtype),
+        ir.RankedTensorType.get(list(output_shape[0]), dtype_qkv),
         out_memref,
         restrict=ir.BoolAttr.get(True),
     )
     out_scores_tensor = bufferization.ToTensorOp(
         ir.RankedTensorType.get(
-            [query_shape[0], query_shape[1], query_shape[2]], dtype
+            [query_shape[0], query_shape[1], query_shape[2]], dtype_qkv
         ),
         out_scores_memref,
         restrict=ir.BoolAttr.get(True),
