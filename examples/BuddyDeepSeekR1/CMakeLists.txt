@@ -21,38 +21,41 @@ else()
   set(LLC_RISCV_ATTRS "")
 endif()
 
-add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill.mlir
-         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill.mlir
-         ${CMAKE_CURRENT_BINARY_DIR}/forward_decode.mlir
-         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode.mlir
-         ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
-          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-  COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
-)
+# Skip import commands on RVV platform
+if(NOT IS_RVV_PLATFORM)
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
+  )
 
-add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-f16.mlir
-         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-f16.mlir
-         ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-f16.mlir
-         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-f16.mlir
-         ${CMAKE_CURRENT_BINARY_DIR}/arg0-f16.data
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
-          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-          --precision f16
-  COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
-)
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-f16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-f16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-f16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-f16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/arg0-f16.data
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+            --precision f16
+    COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
+  )
 
-add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.mlir
-         ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
-         ${CMAKE_CURRENT_BINARY_DIR}/arg0-bf16.data
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
-          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-          --precision bf16
-  COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
-)
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/arg0-bf16.data
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+            --precision bf16
+    COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
+  )
+endif()
 
 add_custom_command(
   OUTPUT forward_prefill.o
