@@ -28,23 +28,32 @@ module {
 
     %vec_iters = arith.divui %K, %vn : index
     %vec_limit = arith.muli %vec_iters, %vn : index
-
     %acc_mem = memref.alloc() : memref<8xf32>
     scf.for %i = %c0 to %vn step %c1 {
       memref.store %zero_f, %acc_mem[%i] : memref<8xf32>
     }
+    
     scf.for %kk = %c0 to %vec_limit step %vn {
       %avec = vector.load %A[%a_row, %kk] : memref<?x?xf32>, vector<8xf32>
-      %bvec = vector.load %B[%kk, %b_col] : memref<?x?xf32>, vector<8xf32>
+      %bvec_temp = memref.alloc() : memref<8xf32>
+      scf.for %i = %c0 to %vn step %c1 {
+        %kk_i = arith.addi %kk, %i : index
+        %b_val = memref.load %B[%kk_i, %b_col] : memref<?x?xf32>
+        memref.store %b_val, %bvec_temp[%i] : memref<8xf32>
+      }
+      %bvec = vector.load %bvec_temp[%c0] : memref<8xf32>, vector<8xf32>
+      memref.dealloc %bvec_temp : memref<8xf32>
       %prev = vector.load %acc_mem[%c0] : memref<8xf32>, vector<8xf32>
       %sumvec = vector.fma %avec, %bvec, %prev : vector<8xf32>
       vector.store %sumvec, %acc_mem[%c0] : memref<8xf32>, vector<8xf32>
     }
+    
     %acc_scalar = scf.for %i = %c0 to %vn step %c1 iter_args(%s = %zero_f) -> (f32) {
       %vitem = memref.load %acc_mem[%i] : memref<8xf32>
       %s2 = arith.addf %s, %vitem : f32
       scf.yield %s2 : f32
     }
+    
     %tail_sum = scf.for %kk = %vec_limit to %K step %c1 iter_args(%s = %acc_scalar) -> (f32) {
       %a = memref.load %A[%a_row, %kk] : memref<?x?xf32>
       %b = memref.load %B[%kk, %b_col] : memref<?x?xf32>
@@ -52,6 +61,7 @@ module {
       %s2 = arith.addf %s, %prod : f32
       scf.yield %s2 : f32
     }
+    
     memref.dealloc %acc_mem : memref<8xf32>
     // Add C[ir0, ir1]
     %c_orig = memref.load %C[%c_row, %c_col] : memref<?x?xf32>
