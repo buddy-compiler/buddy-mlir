@@ -1,4 +1,5 @@
 add_mlir_library(MatMulOptimization
+  MatMulGgmlOptimize.cpp
   MatMulOptimize.cpp
   MatMulVectorization.cpp
   MatMulVectorizationDecode.cpp
