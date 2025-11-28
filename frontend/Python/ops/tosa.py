@@ -24,7 +24,19 @@ import numpy
 import sys
 
 import mlir.ir as ir
-from mlir.dialects import tensor, tosa, arith, linalg, math
+from mlir.ir import IndexType, F32Type
+from mlir.dialects import (
+    tensor,
+    tosa,
+    arith,
+    linalg,
+    math,
+    affine,
+    vector,
+    bufferization,
+    memref,
+    scf,
+)
 
 from ..graph import TensorDType
 from ..graph import (
@@ -63,6 +75,9 @@ from ..graph import (
     RandIntLowOp,
     ArgMaxOp,
     ScaledDotProductFlashAttentionForCpuOp,
+    FlashAttentionForCpuOp,
+    FlashAttentionForCpuVectorOp,
+    FlashAttentionForCpuVectorTileOp,
     MatmulOp,
     LeOp,
     BitwiseAndTensorOp,
@@ -1941,6 +1956,913 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     return result_reshape_op, log_sumexp
 
 
+def flash_attention_for_cpu_op(node: "FlashAttentionForCpuOp", symbol_table):
+    """
+    Lower ScaledDotProductFlashAttentionForCpuOp into MLIR affine+vector IR.
+    "FlashAttentionForCpuOp": flash_attention_for_cpu_op,
+    Returns:
+        result_tensor: Final attention output tensor
+        log_sumexp_reshape: Placeholder log-sum-exp (can be reshaped as needed)
+    """
+    loc = ir.Location.unknown()
+    index = IndexType.get()
+
+    # === input parse ===
+    dtype = node.tensor_meta["dtype"][0]
+    dtype = mlir_element_type_get(dtype)
+
+    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    key = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    attn_mask = node.kwargs.get("attn_mask", None)
+    scale = node.kwargs.get("scale", None)
+
+    c0 = arith.ConstantOp(index, 0, loc=loc)
+    query_shape = query.type.shape
+    key_shape = key.type.shape
+    value_shape = value.type.shape
+    output_shape = list(node.tensor_meta["shape"])
+
+    one = arith.ConstantOp(dtype, 1.0).result
+
+    # scale = 1/sqrt(H)
+    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    scale_val = arith.ConstantOp(dtype, float(scale_val)).result
+
+    zero_dtype = arith.ConstantOp(dtype, 0.0, loc=loc).result
+    if dtype == ir.F16Type.get():
+        neg_inf = arith.ConstantOp(dtype, -65504.0, loc=loc).result
+    else:
+        neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+
+    # === bufferization ===
+    Q_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(query_shape, dtype), query, loc=loc
+    )
+    K_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(key_shape, dtype), key, loc=loc
+    )
+    V_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(value_shape, dtype), value, loc=loc
+    )
+
+    mask_memref = None
+    if attn_mask is not None:
+        attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
+        mask_memref = bufferization.ToMemrefOp(
+            memref.MemRefType.get(attn_mask.type.shape, dtype),
+            attn_mask,
+            loc=loc,
+        )
+
+    batch_dim = arith.ConstantOp(index, query_shape[0], loc=loc)
+    q_dim0 = arith.ConstantOp(index, query_shape[1], loc=loc)
+    q_dim1 = arith.ConstantOp(index, query_shape[2], loc=loc)
+    q_dim2 = arith.ConstantOp(index, query_shape[3], loc=loc)
+
+    out_memref = memref.AllocOp(
+        memref.MemRefType.get(list(output_shape[0]), dtype), [], [], loc=loc
+    )
+    out_exp_sum_memref = memref.AllocOp(
+        memref.MemRefType.get(
+            [query_shape[0], query_shape[1], query_shape[2]], dtype
+        ),
+        [],
+        [],
+        loc=loc,
+    )
+
+    accum = memref.AllocOp(
+        memref.MemRefType.get([query_shape[-1]], dtype), [], [], loc=loc
+    )
+    # batch loop
+
+    # loop_batch = affine.AffineForOp(0, batch_dim.result, 1)
+    # with ir.InsertionPoint(loop_batch.body):
+    # batch = loop_batch.induction_variable
+    loop_batch = affine.AffineParallelOp(
+        results_=[],
+        reductions=ir.ArrayAttr.get([]),
+        lowerBoundsMap=ir.AffineMap.get(0, 0, [ir.AffineConstantExpr.get(0)]),
+        lowerBoundsGroups=[1],
+        upperBoundsMap=ir.AffineMap.get_identity(1),
+        upperBoundsGroups=[1],
+        steps=[1],
+        mapOperands=[batch_dim.result],
+    )
+    body_block = loop_batch.regions[0].blocks.append()
+    with ir.InsertionPoint(body_block):
+        batch = body_block.add_argument(
+            ir.IndexType.get(), ir.Location.unknown()
+        )
+
+        # h loop
+        # loop_h = affine.AffineForOp(0, q_dim0.result, 1)
+        # with ir.InsertionPoint(loop_h.body):
+        #     h = loop_h.induction_variable
+
+        loop_h = affine.AffineParallelOp(
+            results_=[],
+            reductions=ir.ArrayAttr.get([]),
+            lowerBoundsMap=ir.AffineMap.get(
+                0, 0, [ir.AffineConstantExpr.get(0)]
+            ),
+            lowerBoundsGroups=[1],
+            upperBoundsMap=ir.AffineMap.get_identity(1),
+            upperBoundsGroups=[1],
+            steps=[1],
+            mapOperands=[q_dim0.result],
+        )
+        body_block = loop_h.regions[0].blocks.append()
+        with ir.InsertionPoint(body_block):
+            h = body_block.add_argument(
+                ir.IndexType.get(), ir.Location.unknown()
+            )
+
+            # i loop
+            # loop_i = affine.AffineForOp(0, q_dim1.result, 1)
+            # with ir.InsertionPoint(loop_i.body):
+            #     i = loop_i.induction_variable
+
+            loop_i = affine.AffineParallelOp(
+                results_=[],
+                reductions=ir.ArrayAttr.get([]),
+                lowerBoundsMap=ir.AffineMap.get(
+                    0, 0, [ir.AffineConstantExpr.get(0)]
+                ),
+                lowerBoundsGroups=[1],
+                upperBoundsMap=ir.AffineMap.get_identity(1),
+                upperBoundsGroups=[1],
+                steps=[1],
+                mapOperands=[q_dim1.result],
+            )
+            body_block = loop_i.regions[0].blocks.append()
+            with ir.InsertionPoint(body_block):
+                i = body_block.add_argument(
+                    ir.IndexType.get(), ir.Location.unknown()
+                )
+
+                # initialize accum to zero
+                loop_init = affine.AffineForOp(0, q_dim2.result, 1)
+                temp_h = loop_init.induction_variable
+                with ir.InsertionPoint(loop_init.body):
+                    zero_dtype_2 = arith.ConstantOp(dtype, 0.0, loc=loc).result
+                    affine.store(
+                        zero_dtype_2,
+                        accum,
+                        [temp_h],
+                        ir.AffineMap.get_identity(1),
+                    )
+                    affine.yield_([])
+
+                # attention j loop
+                key_len = key_shape[2]
+                query_len = query_shape[2]
+                loop_js_bound = key_len if key_len > query_len else query_len
+                loop_js = affine.AffineForOp(
+                    0,
+                    arith.ConstantOp(index, loop_js_bound).result,
+                    iter_args=[neg_inf, zero_dtype],
+                )
+                j = loop_js.induction_variable
+                iter_args = loop_js.inner_iter_args
+                with ir.InsertionPoint(loop_js.body):
+                    max_iter = iter_args[0]
+                    sum_exp_iter = iter_args[1]
+
+                    # ========== 1. calculate q·k ==========
+                    loop_qk = affine.AffineForOp(
+                        0, q_dim2.result, 1, [zero_dtype]
+                    )
+                    s = loop_qk.induction_variable
+                    temp_s = loop_qk.inner_iter_args[0]
+                    with ir.InsertionPoint(loop_qk.body):
+                        qv = affine.load(
+                            dtype,
+                            Q_memref,
+                            [batch, h, i, s],
+                            ir.AffineMap.get_identity(4),
+                        )
+                        kv = affine.load(
+                            dtype,
+                            K_memref,
+                            [batch, h, j, s],
+                            ir.AffineMap.get_identity(4),
+                        )
+                        mulv = arith.MulFOp(qv, kv, loc=loc).result
+                        ns = arith.AddFOp(temp_s, mulv, loc=loc).result
+                        affine.yield_([ns])
+
+                    # loop_qk = affine.AffineParallelOp(
+                    #     results_=[zero_dtype.type],
+                    #     reductions = ir.Attribute.parse("[0]"),
+                    #     lowerBoundsMap = ir.AffineMap.get(0, 0, [ir.AffineConstantExpr.get(0)]),
+                    #     lowerBoundsGroups = [1],
+                    #     upperBoundsMap = ir.AffineMap.get_identity(1),
+                    #     upperBoundsGroups = [1],
+                    #     steps = [1],
+                    #     mapOperands=[q_dim2.result],
+                    # )
+                    # body_block = loop_qk.regions[0].blocks.append()
+                    # s = body_block.add_argument(ir.IndexType.get(), ir.Location.unknown())
+                    # with ir.InsertionPoint(body_block):
+                    #     qv = affine.load(dtype,Q_memref,[batch, h, i, s],ir.AffineMap.get_identity(4))
+                    #     kv = affine.load(dtype,K_memref,[batch, h, j, s],ir.AffineMap.get_identity(4))
+                    #     mulv = arith.MulFOp(qv, kv, loc=loc).result
+                    #     affine.yield_([mulv])
+
+                    score = loop_qk.result
+                    normalized = arith.MulFOp(score, scale_val, loc=loc).result
+                    if mask_memref is not None:
+                        map4 = ir.AffineMap.get_identity(4)
+                        mask_val = affine.load(
+                            dtype, mask_memref, [batch, c0.result, i, j], map4
+                        )
+                        score_masked = arith.AddFOp(
+                            normalized, mask_val, loc=loc
+                        ).result
+                    else:
+                        score_masked = normalized
+
+                    # === FlashAttention online softmax ===
+                    cond_max = arith.CmpFOp(
+                        arith.CmpFPredicate.OGT, score_masked, max_iter, loc=loc
+                    )
+                    new_max = arith.SelectOp(
+                        cond_max, score_masked, max_iter, loc=loc
+                    )
+
+                    sub1 = arith.SubFOp(max_iter, score_masked, loc=loc).result
+                    exp1 = math.ExpOp(sub1, loc=loc).result
+                    mul1 = arith.MulFOp(exp1, sum_exp_iter, loc=loc).result
+                    add1 = arith.AddFOp(mul1, one, loc=loc).result
+
+                    sub2 = arith.SubFOp(score_masked, max_iter, loc=loc).result
+                    exp2 = math.ExpOp(sub2, loc=loc).result
+                    add2 = arith.AddFOp(sum_exp_iter, exp2, loc=loc).result
+
+                    sum_exp_update = arith.SelectOp(
+                        cond_max, add1, add2, loc=loc
+                    )
+                    # === V accumulate ===
+                    loop_d = affine.AffineForOp(0, q_dim2.result, 1)
+                    d = loop_d.induction_variable
+                    with ir.InsertionPoint(loop_d.body):
+                        identity_map = ir.AffineMap.get(
+                            len(value_shape), 0, [ir.AffineDimExpr.get(3)]
+                        )
+                        vvec = affine.load(
+                            dtype,
+                            V_memref,
+                            [batch, h, j, d],
+                            ir.AffineMap.get_identity(4),
+                        )
+                        identity_map = ir.AffineMap.get_identity(1)
+                        acc_old = affine.load(
+                            dtype, accum, [d], ir.AffineMap.get_identity(1)
+                        )
+
+                        accum_mul1 = arith.MulFOp(acc_old, exp1, loc=loc).result
+                        r1 = arith.AddFOp(accum_mul1, vvec, loc=loc).result
+
+                        accum_mul2 = arith.MulFOp(exp2, vvec, loc=loc).result
+                        r2 = arith.AddFOp(accum_mul2, acc_old, loc=loc).result
+                        acc_new = arith.SelectOp(
+                            cond_max, r1, r2, loc=loc
+                        ).result
+
+                        affine.store(
+                            acc_new, accum, [d], ir.AffineMap.get_identity(1)
+                        )
+                        affine.yield_([])
+
+                    affine.yield_([new_max.result, sum_exp_update.result])
+
+                final_sum = loop_js.results[1]
+
+                identity_map = ir.AffineMap.get_identity(3)
+                affine.store(
+                    final_sum, out_exp_sum_memref, [batch, h, i], identity_map
+                )
+
+                # === write back result ===
+                loop_back = affine.AffineForOp(0, q_dim2.result, 1)
+                d_back = loop_back.induction_variable
+                with ir.InsertionPoint(loop_back.body):
+                    identity_map = ir.AffineMap.get_identity(1)
+                    accv = affine.load(dtype, accum, [d_back], identity_map)
+                    outv = arith.DivFOp(accv, final_sum, loc=loc)
+                    affine.store(
+                        outv,
+                        out_memref,
+                        [batch, h, i, d_back],
+                        ir.AffineMap.get_identity(4),
+                    )
+                    affine.yield_([])
+
+                affine.yield_([])
+            affine.yield_([])
+        affine.yield_([])
+
+    tensor_ty = ir.RankedTensorType.get(list(output_shape[0]), dtype)
+    result_tensor = bufferization.ToTensorOp(
+        tensor_ty, out_memref, restrict=ir.BoolAttr.get(True)
+    )
+    tensor_lg = ir.RankedTensorType.get(
+        [query_shape[0], query_shape[1], query_shape[2]], dtype
+    )
+    log_sumexp = bufferization.ToTensorOp(
+        tensor_lg, out_exp_sum_memref, restrict=ir.BoolAttr.get(True)
+    )
+    return result_tensor, log_sumexp
+
+
+def flash_attention_for_cpu_vector_op(
+    node: "FlashAttentionForCpuVectorOp", symbol_table
+):
+    """
+    Lower ScaledDotProductFlashAttentionForCpuOp into MLIR affine+vector IR.
+    Returns:
+        result_tensor: Final attention output tensor
+        log_sumexp_reshape: Placeholder log-sum-exp (can be reshaped as needed)
+    """
+    loc = ir.Location.unknown()
+    f32 = F32Type.get()
+    index = IndexType.get()
+    dtype = node.tensor_meta["dtype"][0]
+    dtype = mlir_element_type_get(dtype)
+    vector_width = 16
+    v16 = ir.VectorType.get([vector_width], dtype)
+
+    # === input parse ===
+    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    key = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    attn_mask = node.kwargs.get("attn_mask", None)
+    scale = node.kwargs.get("scale", None)
+
+    c0 = arith.ConstantOp(index, 0, loc=loc)
+    query_shape = query.type.shape
+    key_shape = key.type.shape
+    value_shape = value.type.shape
+    output_shape = list(node.tensor_meta["shape"])
+
+    one = arith.ConstantOp(dtype, 1.0).result
+
+    # scale = 1/sqrt(H)
+    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    scale_val = arith.ConstantOp(dtype, float(scale_val)).result
+
+    zero_dtype = arith.ConstantOp(dtype, 0.0, loc=loc).result
+    # neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+    if dtype == ir.F16Type.get():
+        neg_inf = arith.ConstantOp(dtype, -65504.0, loc=loc).result
+    else:
+        neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+
+    # === bufferization ===
+    Q_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(query_shape, dtype), query, loc=loc
+    )
+    K_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(key_shape, dtype), key, loc=loc
+    )
+    V_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(value_shape, dtype), value, loc=loc
+    )
+
+    mask_memref = None
+    if attn_mask is not None:
+        attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
+        mask_memref = bufferization.ToMemrefOp(
+            memref.MemRefType.get(attn_mask.type.shape, dtype),
+            attn_mask,
+            loc=loc,
+        )
+
+    batch_dim = arith.ConstantOp(index, query_shape[0], loc=loc)
+    q_dim0 = arith.ConstantOp(index, query_shape[1], loc=loc)
+    q_dim1 = arith.ConstantOp(index, query_shape[2], loc=loc)
+    q_dim2 = arith.ConstantOp(index, query_shape[3], loc=loc)
+
+    out_memref = memref.AllocOp(
+        memref.MemRefType.get(list(output_shape[0]), dtype), [], [], loc=loc
+    )
+    out_exp_sum_memref = memref.AllocOp(
+        memref.MemRefType.get(
+            [query_shape[0], query_shape[1], query_shape[2]], dtype
+        ),
+        [],
+        [],
+        loc=loc,
+    )
+
+    accum = memref.AllocOp(
+        memref.MemRefType.get([query_shape[-1]], dtype), [], [], loc=loc
+    )
+
+    zv = vector.SplatOp(v16, zero_dtype, loc=loc)
+
+    # batch loop
+    loop_batch = affine.AffineForOp(0, batch_dim.result, 1)
+    with ir.InsertionPoint(loop_batch.body):
+        batch = loop_batch.induction_variable
+
+        # h loop
+        loop_h = affine.AffineForOp(0, q_dim0.result, 1)
+        with ir.InsertionPoint(loop_h.body):
+            h = loop_h.induction_variable
+
+            # i loop
+            loop_i = affine.AffineForOp(0, q_dim1.result, 1)
+            with ir.InsertionPoint(loop_i.body):
+                i = loop_i.induction_variable
+
+                # initialize accum to zero
+                loop_init = affine.AffineForOp(0, q_dim2.result, vector_width)
+                temp_h = loop_init.induction_variable
+                with ir.InsertionPoint(loop_init.body):
+                    identity_map = ir.AffineMap.get_identity(1)
+                    # vector.TransferWriteOp(None, zv, accum, [temp_h], identity_map, [True])
+                    vector.StoreOp(zv, accum, [temp_h])
+                    affine.yield_([])
+
+                # attention j loop
+                key_len = key_shape[2]
+                query_len = query_shape[2]
+                loop_js_bound = key_len if key_len > query_len else query_len
+                loop_js = affine.AffineForOp(
+                    0,
+                    arith.ConstantOp(index, loop_js_bound).result,
+                    iter_args=[neg_inf, zero_dtype],
+                )
+                j = loop_js.induction_variable
+                iter_args = loop_js.inner_iter_args
+                with ir.InsertionPoint(loop_js.body):
+                    max_iter = iter_args[0]
+                    sum_exp_iter = iter_args[1]
+
+                    # ========== 1. calculate q·k ==========
+                    acc_init = vector.SplatOp(v16, zero_dtype).result
+                    loop_qk = affine.AffineForOp(
+                        0, q_dim2.result, vector_width, [acc_init]
+                    )
+                    s = loop_qk.induction_variable
+                    acc_vec = loop_qk.inner_iter_args[0]
+                    with ir.InsertionPoint(loop_qk.body):
+                        # identity_1d = ir.AffineMap.get(len(query_shape), 0, [ir.AffineDimExpr.get(3)])
+                        # qv = vector.TransferReadOp(v16,Q_memref,[batch, h, i, s],identity_1d,zero_dtype,[True],)
+                        # kv = vector.TransferReadOp(v16,K_memref,[batch, h, j, s],identity_1d,zero_dtype,[True],)
+
+                        qv = vector.LoadOp(v16, Q_memref, [batch, h, i, s])
+                        kv = vector.LoadOp(v16, K_memref, [batch, h, j, s])
+                        mulv = arith.MulFOp(
+                            qv.result, kv.result, loc=loc
+                        ).result
+                        acc_new = arith.AddFOp(acc_vec, mulv).result
+                        affine.yield_([acc_new])
+                    score = vector.ReductionOp(
+                        dtype, "add", loop_qk.result
+                    ).result
+
+                    normalized = arith.MulFOp(score, scale_val, loc=loc).result
+                    if mask_memref is not None:
+                        map4 = ir.AffineMap.get_identity(4)
+                        mask_val = affine.load(
+                            dtype, mask_memref, [batch, c0.result, i, j], map4
+                        )
+                        score_masked = arith.AddFOp(
+                            normalized, mask_val, loc=loc
+                        ).result
+                    else:
+                        score_masked = normalized
+
+                    # === FlashAttention online softmax ===
+                    cond_max = arith.CmpFOp(
+                        arith.CmpFPredicate.OGT, score_masked, max_iter, loc=loc
+                    )
+                    new_max = arith.SelectOp(
+                        cond_max, score_masked, max_iter, loc=loc
+                    )
+
+                    sub1 = arith.SubFOp(max_iter, score_masked, loc=loc).result
+                    exp1 = math.ExpOp(sub1, loc=loc).result
+                    mul1 = arith.MulFOp(exp1, sum_exp_iter, loc=loc).result
+                    add1 = arith.AddFOp(mul1, one, loc=loc).result
+
+                    sub2 = arith.SubFOp(score_masked, max_iter, loc=loc).result
+                    exp2 = math.ExpOp(sub2, loc=loc).result
+                    add2 = arith.AddFOp(sum_exp_iter, exp2, loc=loc).result
+
+                    sum_exp_update = arith.SelectOp(
+                        cond_max, add1, add2, loc=loc
+                    )
+
+                    v_exp1 = vector.SplatOp(v16, exp1, loc=loc).result
+                    v_exp2 = vector.SplatOp(v16, exp2, loc=loc).result
+
+                    # === V accumulate ===
+                    loop_d = affine.AffineForOp(0, q_dim2.result, vector_width)
+                    d = loop_d.induction_variable
+                    with ir.InsertionPoint(loop_d.body):
+                        # identity_map = ir.AffineMap.get(len(value_shape), 0, [ir.AffineDimExpr.get(3)])
+                        # vvec = vector.TransferReadOp(v16,V_memref,
+                        # [batch, h, j, d],identity_map,zero_dtype,[True],).result
+                        vvec = vector.LoadOp(
+                            v16, V_memref, [batch, h, j, d]
+                        ).result
+
+                        # identity_map = ir.AffineMap.get_identity(1)
+                        # acc_old = vector.TransferReadOp(v16,accum,[d],
+                        # identity_map,zero_dtype,[True],).result
+                        acc_old = vector.LoadOp(v16, accum, [d]).result
+
+                        accum_mul1 = arith.MulFOp(
+                            acc_old, v_exp1, loc=loc
+                        ).result
+                        r1 = arith.AddFOp(accum_mul1, vvec).result
+
+                        accum_mul2 = arith.MulFOp(v_exp2, vvec, loc=loc).result
+                        r2 = arith.AddFOp(accum_mul2, acc_old, loc=loc).result
+                        acc_new = arith.SelectOp(
+                            cond_max, r1, r2, loc=loc
+                        ).result
+
+                        # vector.TransferWriteOp(None, acc_new, accum, [d],
+                        # identity_map, [True])
+                        vector.StoreOp(acc_new, accum, [d])
+                        affine.yield_([])
+
+                    affine.yield_([new_max.result, sum_exp_update.result])
+
+                final_sum = loop_js.results[1]
+
+                identity_map = ir.AffineMap.get_identity(3)
+                affine.store(
+                    final_sum, out_exp_sum_memref, [batch, h, i], identity_map
+                )
+
+                final_sum_vec = vector.SplatOp(v16, final_sum, loc=loc).result
+
+                # === write back result ===
+                loop_back = affine.AffineForOp(0, q_dim2.result, vector_width)
+                d_back = loop_back.induction_variable
+                with ir.InsertionPoint(loop_back.body):
+                    # identity_map = ir.AffineMap.get_identity(1)
+                    # accv = vector.TransferReadOp(v16,accum,[d_back],
+                    # identity_map,zero_dtype,[True],).result
+                    accv = vector.LoadOp(v16, accum, [d_back]).result
+
+                    outv = arith.DivFOp(accv, final_sum_vec, loc=loc)
+                    # identity_map = ir.AffineMap.get(len(list(output_shape[0])), 0, [ir.AffineDimExpr.get(3)])
+                    # vector.TransferWriteOp(None, outv, out_memref,
+                    # [batch, h, i, d_back], identity_map, [True])
+                    vector.StoreOp(outv, out_memref, [batch, h, i, d_back])
+                    affine.yield_([])
+
+                affine.yield_([])
+            affine.yield_([])
+        affine.yield_([])
+
+    tensor_ty = ir.RankedTensorType.get(list(output_shape[0]), dtype)
+    result_tensor = bufferization.ToTensorOp(
+        tensor_ty, out_memref, restrict=ir.BoolAttr.get(True)
+    )
+    tensor_lg = ir.RankedTensorType.get(
+        [query_shape[0], query_shape[1], query_shape[2]], dtype
+    )
+    log_sumexp = bufferization.ToTensorOp(
+        tensor_lg, out_exp_sum_memref, restrict=ir.BoolAttr.get(True)
+    )
+    return result_tensor, log_sumexp
+
+
+def flash_attention_for_cpu_vector_tiled_op(
+    node: "FlashAttentionForCpuVectorTileOp", symbol_table
+):
+    """
+    Lower ScaledDotProductFlashAttentionForCpuTileOp into MLIR affine+vector IR.
+    Returns:
+        result_tensor: Final attention output tensor
+        log_sumexp_reshape: Placeholder log-sum-exp (can be reshaped as needed)
+    """
+    loc = ir.Location.unknown()
+    index = IndexType.get()
+    f32 = F32Type.get()
+    dtype_qkv = node.tensor_meta["dtype"][0]
+    dtype_qkv = mlir_element_type_get(dtype_qkv)
+    dtype = f32
+    vector_width = 16
+    v16 = ir.VectorType.get([vector_width], dtype)
+    v16_qkv = ir.VectorType.get([vector_width], dtype_qkv)
+    vec_len = arith.ConstantOp(index, vector_width, loc=loc)
+
+    # === input parse ===
+    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    key = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    attn_mask = node.kwargs.get("attn_mask", None)
+    scale = node.kwargs.get("scale", None)
+
+    c0 = arith.ConstantOp(index, 0, loc=loc)
+    query_shape = query.type.shape
+    key_shape = key.type.shape
+    value_shape = value.type.shape
+    output_shape = list(node.tensor_meta["shape"])
+
+    # scale = 1/sqrt(H)
+    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    scale_val = arith.ConstantOp(dtype, float(scale_val)).result
+
+    zero = arith.ConstantOp(dtype, 0.0, loc=loc).result
+    if dtype == ir.F16Type.get():
+        neg_inf = arith.ConstantOp(dtype, -65504.0, loc=loc).result
+    else:
+        neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+    zero_vec = vector.SplatOp(v16, zero, loc=loc)
+    step_1 = arith.ConstantOp(index, 1, loc=loc)
+
+    # === bufferization ===
+    Q_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(query_shape, dtype_qkv), query, loc=loc
+    )
+    K_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(key_shape, dtype_qkv), key, loc=loc
+    )
+    V_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(value_shape, dtype_qkv), value, loc=loc
+    )
+
+    mask_memref = None
+    if attn_mask is not None:
+        attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
+        mask_memref = bufferization.ToMemrefOp(
+            memref.MemRefType.get(attn_mask.type.shape, dtype_qkv),
+            attn_mask,
+            loc=loc,
+        )
+
+    batch_size = arith.ConstantOp(index, query_shape[0], loc=loc)
+    num_heads = arith.ConstantOp(index, query_shape[1], loc=loc)
+    q_seq_len = arith.ConstantOp(index, query_shape[2], loc=loc)
+    head_dim = arith.ConstantOp(index, query_shape[3], loc=loc)
+    k_seq_len = arith.ConstantOp(index, key_shape[2], loc=loc)
+    block_size = 64
+    block_size_kv = arith.ConstantOp(index, block_size, loc=loc)
+
+    out_memref = memref.AllocOp(
+        memref.MemRefType.get(list(output_shape[0]), dtype_qkv), [], [], loc=loc
+    )
+    out_scores_memref = memref.AllocOp(
+        memref.MemRefType.get(
+            [query_shape[0], query_shape[1], query_shape[2]], dtype_qkv
+        ),
+        [],
+        [],
+        loc=loc,
+    )
+    acc_memref = memref.AllocOp(
+        memref.MemRefType.get([query_shape[3]], dtype), [], [], loc=loc
+    )
+    score_tile_memref = memref.AllocOp(
+        memref.MemRefType.get([block_size], dtype), [], [], loc=loc
+    )
+    acc_block_memref = memref.AllocOp(
+        memref.MemRefType.get([query_shape[3]], dtype), [], [], loc=loc
+    )
+
+    # batch loop
+    loop_batch = scf.ForOp(c0.result, batch_size.result, step_1.result, [])
+    with ir.InsertionPoint(loop_batch.body):
+        b = loop_batch.induction_variable
+        # head loop
+        loop_h = scf.ForOp(c0.result, num_heads.result, step_1.result, [])
+        with ir.InsertionPoint(loop_h.body):
+            h = loop_h.induction_variable
+            # query sequence length loop
+            loop_i = scf.ForOp(c0.result, q_seq_len.result, step_1.result, [])
+            with ir.InsertionPoint(loop_i.body):
+                q = loop_i.induction_variable
+
+                # initialize accum to zero
+                loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                k = loop_k.induction_variable
+                with ir.InsertionPoint(loop_k.body):
+                    vector.StoreOp(zero_vec, acc_memref, [k])
+                    scf.yield_([])
+
+                # block loop
+                loop_block = scf.ForOp(
+                    c0.result,
+                    k_seq_len.result,
+                    block_size_kv.result,
+                    [neg_inf, zero],
+                )
+                k_block_start = loop_block.induction_variable
+                iter_args = loop_block.inner_iter_args
+                with ir.InsertionPoint(loop_block.body):
+                    m_i_iter = iter_args[0]
+                    l_i_iter = iter_args[1]
+                    loop_jj = scf.ForOp(
+                        c0.result, block_size_kv.result, vec_len
+                    )
+                    with ir.InsertionPoint(loop_jj.body):
+                        jj = loop_jj.induction_variable
+                        vector.StoreOp(zero_vec, score_tile_memref, [jj])
+                        scf.yield_([])
+                    loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                    with ir.InsertionPoint(loop_k.body):
+                        k = loop_k.induction_variable
+                        vector.StoreOp(zero_vec, acc_block_memref, [k])
+                        scf.yield_([])
+                    # compute m_block
+                    loop_jj = scf.ForOp(
+                        c0.result, block_size_kv.result, step_1, [neg_inf]
+                    )
+                    iter_args = loop_jj.inner_iter_args
+                    max_block_iter = iter_args[0]
+                    with ir.InsertionPoint(loop_jj.body):
+                        jj = loop_jj.induction_variable
+                        idx = arith.AddIOp(k_block_start, jj, loc=loc).result
+
+                        loop_k = scf.ForOp(
+                            c0.result,
+                            head_dim.result,
+                            vec_len,
+                            [zero_vec.result],
+                        )
+                        k = loop_k.induction_variable
+                        acc_vec = loop_k.inner_iter_args[0]
+                        with ir.InsertionPoint(loop_k.body):
+                            q_data = vector.LoadOp(
+                                v16_qkv, Q_memref, [b, h, q, k]
+                            )
+                            k_data = vector.LoadOp(
+                                v16_qkv, K_memref, [b, h, idx, k]
+                            )
+                            # convert f16 to f32
+                            if dtype_qkv == ir.F16Type.get():
+                                q_data = arith.ExtFOp(v16, q_data)
+                                k_data = arith.ExtFOp(v16, k_data)
+                            prod = arith.MulFOp(
+                                q_data.result, k_data.result, loc=loc
+                            ).result
+                            new_acc = arith.AddFOp(
+                                acc_vec, prod, loc=loc
+                            ).result
+                            scf.yield_([new_acc])
+                        score_tile_sum = vector.ReductionOp(
+                            dtype, "add", loop_k.result
+                        ).result
+                        score_tile_scaled = arith.MulFOp(
+                            score_tile_sum, scale_val, loc=loc
+                        ).result
+                        if mask_memref is not None:
+                            mask_val = memref.LoadOp(
+                                mask_memref, [b, c0.result, q, idx]
+                            ).result
+                            # convert f16 to f32
+                            if dtype_qkv == ir.F16Type.get():
+                                mask_val = arith.ExtFOp(dtype, mask_val).result
+                            score_tile_masked = arith.AddFOp(
+                                score_tile_scaled, mask_val, loc=loc
+                            ).result
+                        else:
+                            score_tile_masked = score_tile_scaled
+                        memref.StoreOp(
+                            score_tile_masked, score_tile_memref, [jj]
+                        )
+                        is_m_i = arith.CmpFOp(
+                            arith.CmpFPredicate.OGT,
+                            score_tile_masked,
+                            max_block_iter,
+                            loc=loc,
+                        ).result
+                        m_i_tile = arith.SelectOp(
+                            is_m_i, score_tile_masked, max_block_iter, loc=loc
+                        ).result
+                        scf.yield_([m_i_tile])
+                    m_block = loop_jj.result
+                    # compute l_block
+                    loop_jj = scf.ForOp(
+                        c0.result, block_size_kv.result, step_1, [zero]
+                    )
+                    iter_args = loop_jj.inner_iter_args
+                    l_block_iter = iter_args[0]
+                    with ir.InsertionPoint(loop_jj.body):
+                        jj = loop_jj.induction_variable
+                        idx = arith.AddIOp(k_block_start, jj, loc=loc).result
+                        score_tile_masked = memref.LoadOp(
+                            score_tile_memref, [jj]
+                        )
+                        score_tile_sub_m_block = arith.SubFOp(
+                            score_tile_masked.result, m_block, loc=loc
+                        ).result
+                        p = math.ExpOp(score_tile_sub_m_block, loc=loc).result
+                        exp_score_tile_vec = vector.SplatOp(
+                            v16, p, loc=loc
+                        ).result
+                        l_block_new = arith.AddFOp(
+                            l_block_iter, p, loc=loc
+                        ).result
+
+                        loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                        k = loop_k.induction_variable
+                        with ir.InsertionPoint(loop_k.body):
+                            v_data = vector.LoadOp(
+                                v16_qkv, V_memref, [b, h, idx, k]
+                            )
+                            # convert f16 to f32
+                            if dtype_qkv == ir.F16Type.get():
+                                v_data = arith.ExtFOp(v16, v_data)
+                            acc_block_val = vector.LoadOp(
+                                v16, acc_block_memref, [k]
+                            )
+                            prod = arith.MulFOp(
+                                v_data.result, exp_score_tile_vec, loc=loc
+                            ).result
+                            new_acc = arith.AddFOp(
+                                acc_block_val.result, prod, loc=loc
+                            ).result
+                            vector.StoreOp(new_acc, acc_block_memref, [k])
+                            scf.yield_([])
+                        scf.yield_([l_block_new])
+
+                    l_block = loop_jj.result
+                    m_i_iter_is_max = arith.CmpFOp(
+                        arith.CmpFPredicate.OGT, m_block, m_i_iter, loc=loc
+                    ).result
+                    m_new = arith.SelectOp(
+                        m_i_iter_is_max, m_block, m_i_iter, loc=loc
+                    ).result
+                    sub_max = arith.SubFOp(m_i_iter, m_new, loc=loc).result
+                    alpha = math.ExpOp(sub_max, loc=loc).result
+                    alpha_vec = vector.SplatOp(v16, alpha, loc=loc).result
+
+                    sub_block = arith.SubFOp(m_block, m_new, loc=loc).result
+                    beta = math.ExpOp(sub_block, loc=loc).result
+                    beta_vec = vector.SplatOp(v16, beta, loc=loc).result
+
+                    loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                    with ir.InsertionPoint(loop_k.body):
+                        k = loop_k.induction_variable
+                        acc_vec = vector.LoadOp(v16, acc_memref, [k])
+                        acc_block_vec = vector.LoadOp(
+                            v16, acc_block_memref, [k]
+                        )
+                        alpha_mul = arith.MulFOp(
+                            acc_vec.result, alpha_vec, loc=loc
+                        ).result
+                        beta_mul = arith.MulFOp(
+                            acc_block_vec.result, beta_vec, loc=loc
+                        ).result
+                        new_acc = arith.AddFOp(
+                            alpha_mul, beta_mul, loc=loc
+                        ).result
+                        vector.StoreOp(new_acc, acc_memref, [k])
+                        scf.yield_([])
+                    l_alpha = arith.MulFOp(l_i_iter, alpha, loc=loc).result
+                    l_beta = arith.MulFOp(l_block, beta, loc=loc).result
+                    l_i = arith.AddFOp(l_alpha, l_beta, loc=loc).result
+                    scf.yield_([m_new, l_i])
+
+                l_i = loop_block.results[1]
+                if dtype_qkv == ir.F16Type.get():
+                    l_i_write = arith.TruncFOp(dtype_qkv, l_i).result
+                    memref.StoreOp(l_i_write, out_scores_memref, [b, h, q])
+                else:
+                    memref.StoreOp(l_i, out_scores_memref, [b, h, q])
+                sum_vec = vector.SplatOp(v16, l_i, loc=loc).result
+                loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                with ir.InsertionPoint(loop_k.body):
+                    k = loop_k.induction_variable
+                    acc_vec = vector.LoadOp(v16, acc_memref, [k])
+                    out_vec = arith.DivFOp(
+                        acc_vec.result, sum_vec, loc=loc
+                    ).result
+                    if dtype_qkv == ir.F16Type.get():
+                        out_vec = arith.TruncFOp(v16_qkv, out_vec).result
+                    vector.StoreOp(out_vec, out_memref, [b, h, q, k])
+                    scf.yield_([])
+
+                scf.yield_([])
+            scf.yield_([])
+        scf.yield_([])
+    out_tensor = bufferization.ToTensorOp(
+        ir.RankedTensorType.get(list(output_shape[0]), dtype_qkv),
+        out_memref,
+        restrict=ir.BoolAttr.get(True),
+    )
+    out_scores_tensor = bufferization.ToTensorOp(
+        ir.RankedTensorType.get(
+            [query_shape[0], query_shape[1], query_shape[2]], dtype_qkv
+        ),
+        out_scores_memref,
+        restrict=ir.BoolAttr.get(True),
+    )
+    return out_tensor, out_scores_tensor
+
+
 def le_op(
     node: LeOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
@@ -2100,6 +3022,9 @@ ops_registry = {
     "RandIntLowOp": randint_low_op,
     "ArgMaxOp": argmax_op,
     "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
+    "FlashAttentionForCpuOp": flash_attention_for_cpu_op,
+    "FlashAttentionForCpuVectorOp": flash_attention_for_cpu_vector_op,
+    "FlashAttentionForCpuVectorTileOp": flash_attention_for_cpu_vector_tiled_op,
     "LeOp": le_op,
     "BitwiseAndTensorOp": bitwise_and_tensor_op,
 }

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # ===- import-deepseek-r1.py ---------------------------------------------------
-#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -38,6 +37,7 @@ from buddy.compiler.graph.transform import (
     simply_fuse,
     apply_classic_fusion,
     eliminate_transpose,
+    flash_attention,
     eliminate_matmul_transpose_reshape,
 )
 from buddy.compiler.graph.type import DeviceType
@@ -238,6 +238,7 @@ else:
     graph_decode = graphs_decode[0]
 
     params = dynamo_compiler_prefill.imported_params[graph_prefill]
+
     # Enable verbose mode for debugging eliminate_matmul_transpose_reshape
     graphs_prefill[0].perform(
         [eliminate_transpose, eliminate_matmul_transpose_reshape]
@@ -245,10 +246,12 @@ else:
     graphs_decode[0].perform(
         [eliminate_transpose, eliminate_matmul_transpose_reshape]
     )
-    pattern_list = [simply_fuse, apply_classic_fusion]
+    # Enable flash attention to decode phase
+    pattern_list_prefill = [simply_fuse, apply_classic_fusion]
+    pattern_list_decode = [simply_fuse, apply_classic_fusion, flash_attention]
 
-    graphs_prefill[0].fuse_ops(pattern_list)
-    graphs_decode[0].fuse_ops(pattern_list)
+    graphs_prefill[0].fuse_ops(pattern_list_prefill)
+    graphs_decode[0].fuse_ops(pattern_list_decode)
 
     graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop(
         "subgraph0"
