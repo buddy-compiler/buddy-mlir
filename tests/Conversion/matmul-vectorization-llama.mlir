@@ -1,5 +1,5 @@
 // RUN: buddy-opt %s \
-// RUN:     -matmul-vectorization-llama \
+// RUN:     -matmul-vectorization-ggml \
 // RUN:     -convert-linalg-to-loops -lower-affine -convert-scf-to-cf \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-arith-to-llvm -convert-cf-to-llvm \
 // RUN:     -convert-func-to-llvm -reconcile-unrealized-casts \
