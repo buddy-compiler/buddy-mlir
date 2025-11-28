@@ -98,7 +98,6 @@ public:
 
     Value total_chunks = rewriter.create<arith::MulIOp>(loc, nchunk0, nchunk1);
 
-    // Outer parallel over total_chunks (one chunk per thread)
     rewriter.create<scf::ParallelOp>(
         loc, ValueRange{zero}, ValueRange{total_chunks}, ValueRange{one},
         [&](OpBuilder &parBuilder, Location ploc, ValueRange parIvs) {
@@ -111,7 +110,6 @@ public:
           Value ith1 =
               parBuilder.create<arith::DivUIOp>(ploc, current_chunk, nchunk0);
 
-          // row block indices
           Value ir0_start = parBuilder.create<arith::MulIOp>(ploc, dr0, ith0);
           Value ir0_end_tmp =
               parBuilder.create<arith::AddIOp>(ploc, ir0_start, dr0);
@@ -120,7 +118,6 @@ public:
           Value ir0_end =
               parBuilder.create<arith::SelectOp>(ploc, ir0_lt, ir0_end_tmp, M);
 
-          // col block indices
           Value ir1_start = parBuilder.create<arith::MulIOp>(ploc, dr1, ith1);
           Value ir1_end_tmp =
               parBuilder.create<arith::AddIOp>(ploc, ir1_start, dr1);
@@ -129,7 +126,6 @@ public:
           Value ir1_end =
               parBuilder.create<arith::SelectOp>(ploc, ir1_lt, ir1_end_tmp, N);
 
-          // Number of rows per dot (usually 1 for generality)
           Value num_rows_per_vec_dot = parBuilder.create<arith::ConstantOp>(
               ploc, parBuilder.getIndexAttr(1));
           Value blck_0 = parBuilder.create<arith::ConstantOp>(
@@ -137,7 +133,6 @@ public:
           Value blck_1 = parBuilder.create<arith::ConstantOp>(
               ploc, parBuilder.getIndexAttr(16));
 
-          // Now call mul_mat_one_chunk for this chunk
           parBuilder.create<scf::ForOp>(
               ploc, ir1_start, ir1_end, blck_1, ValueRange{},
               [&](OpBuilder &b1, Location loc, Value iir1, ValueRange) {
@@ -173,12 +168,9 @@ public:
                                 ValueRange{},
                                 [&](OpBuilder &b3, Location loc, Value ir0,
                                     ValueRange) {
-                                  // Vectorized dot-add kernel
-                                  int vecSize = 8; // SIMD width
-                                  bool scalable = false;
-
-                                  VectorType vectorTy = VectorType::get(
-                                      {vecSize}, elemTy, {scalable});
+                                  int vecSize = 8;
+                                  VectorType vectorTy =
+                                      VectorType::get({vecSize}, elemTy);
                                   Value c0 = b3.create<arith::ConstantOp>(
                                       loc, b3.getIndexAttr(0));
                                   Value c1 = b3.create<arith::ConstantOp>(
@@ -186,59 +178,106 @@ public:
                                   Value vecStep = b3.create<arith::ConstantOp>(
                                       loc, b3.getIndexAttr(vecSize));
 
-                                  // Compute vectorization bounds for K
-                                  Value vecLenVal = vecStep;
                                   Value vecIters = b3.create<arith::DivUIOp>(
-                                      loc, K, vecLenVal);
+                                      loc, K, vecStep);
                                   Value vecLimit = b3.create<arith::MulIOp>(
-                                      loc, vecIters, vecLenVal);
-                                  // K_tail = K % vecSize
-                                  Value tailSize = b3.create<arith::RemUIOp>(
-                                      loc, K, vecLenVal);
+                                      loc, vecIters, vecStep);
 
-                                  // Vector sum initialization to 0
+                                  Value accMem = b3.create<memref::AllocOp>(
+                                      loc, MemRefType::get({vecSize}, elemTy));
                                   Value zeroF = b3.create<arith::ConstantOp>(
                                       loc, elemTy,
                                       b3.getFloatAttr(elemTy, 0.0));
-                                  Value accVecInit = b3.create<vector::SplatOp>(
-                                      loc, vectorTy, zeroF);
+
+                                  // 初始化累加器
+                                  auto initLoop = b3.create<scf::ForOp>(
+                                      loc, c0, vecStep, c1, ValueRange{},
+                                      [&](OpBuilder &initBuilder, Location loc,
+                                          Value i, ValueRange) {
+                                        initBuilder.create<memref::StoreOp>(
+                                            loc, zeroF, accMem, ValueRange{i});
+                                        initBuilder.create<scf::YieldOp>(loc);
+                                      });
 
                                   auto vecAccFor = b3.create<scf::ForOp>(
-                                      loc, c0, vecLimit, vecLenVal,
-                                      ValueRange{accVecInit},
+                                      loc, c0, vecLimit, vecStep, ValueRange{},
                                       [&](OpBuilder &vecBuilder, Location loc,
-                                          Value kk, ValueRange iterArgs) {
-                                        Value vecSum = iterArgs[0];
+                                          Value kk, ValueRange) {
                                         Value avec =
                                             vecBuilder.create<vector::LoadOp>(
                                                 loc, vectorTy, A,
                                                 ValueRange{ir0, kk});
+
+                                        Value bTemp =
+                                            vecBuilder.create<memref::AllocOp>(
+                                                loc, MemRefType::get({vecSize},
+                                                                     elemTy));
+                                        auto bLoadLoop = vecBuilder.create<
+                                            scf::ForOp>(
+                                            loc, c0, vecStep, c1, ValueRange{},
+                                            [&](OpBuilder &bBuilder,
+                                                Location loc, Value i,
+                                                ValueRange) {
+                                              Value kk_i =
+                                                  bBuilder
+                                                      .create<arith::AddIOp>(
+                                                          loc, kk, i);
+                                              Value bVal =
+                                                  bBuilder
+                                                      .create<memref::LoadOp>(
+                                                          loc, B,
+                                                          ValueRange{kk_i,
+                                                                     ir1});
+                                              bBuilder.create<memref::StoreOp>(
+                                                  loc, bVal, bTemp,
+                                                  ValueRange{i});
+                                              bBuilder.create<scf::YieldOp>(
+                                                  loc);
+                                            });
                                         Value bvec =
                                             vecBuilder.create<vector::LoadOp>(
-                                                loc, vectorTy, B,
-                                                ValueRange{kk, ir1});
-                                        Value sumvec =
+                                                loc, vectorTy, bTemp,
+                                                ValueRange{c0});
+                                        vecBuilder.create<memref::DeallocOp>(
+                                            loc, bTemp);
+
+                                        Value currentAcc =
+                                            vecBuilder.create<vector::LoadOp>(
+                                                loc, vectorTy, accMem,
+                                                ValueRange{c0});
+
+                                        Value newAcc =
                                             vecBuilder.create<vector::FMAOp>(
-                                                loc, avec, bvec, vecSum);
-                                        vecBuilder.create<scf::YieldOp>(
-                                            loc, ValueRange{sumvec});
+                                                loc, avec, bvec, currentAcc);
+
+                                        vecBuilder.create<vector::StoreOp>(
+                                            loc, newAcc, accMem,
+                                            ValueRange{c0});
+
+                                        vecBuilder.create<scf::YieldOp>(loc);
                                       });
-                                  Value accVec = vecAccFor.getResult(0);
+
                                   Value sumScalar =
                                       b3.create<arith::ConstantOp>(
                                           loc, elemTy,
                                           b3.getFloatAttr(elemTy, 0.0));
-                                  for (int i = 0; i < vecSize; ++i) {
-                                    Value idx = b3.create<arith::ConstantOp>(
-                                        loc, b3.getIndexAttr(i));
-                                    Value item =
-                                        b3.create<vector::ExtractElementOp>(
-                                            loc, accVec, idx);
-                                    sumScalar = b3.create<arith::AddFOp>(
-                                        loc, sumScalar, item);
-                                  }
+                                  auto sumLoop = b3.create<scf::ForOp>(
+                                      loc, c0, vecStep, c1,
+                                      ValueRange{sumScalar},
+                                      [&](OpBuilder &sumBuilder, Location loc,
+                                          Value i, ValueRange iterArgs) {
+                                        Value currentSum = iterArgs[0];
+                                        Value elem =
+                                            sumBuilder.create<memref::LoadOp>(
+                                                loc, accMem, ValueRange{i});
+                                        Value newSum =
+                                            sumBuilder.create<arith::AddFOp>(
+                                                loc, currentSum, elem);
+                                        sumBuilder.create<scf::YieldOp>(
+                                            loc, ValueRange{newSum});
+                                      });
+                                  sumScalar = sumLoop.getResult(0);
 
-                                  // Scalar tail accumulation
                                   auto tailFor = b3.create<scf::ForOp>(
                                       loc, vecLimit, K, c1,
                                       ValueRange{sumScalar},
@@ -263,15 +302,16 @@ public:
 
                                   Value finalScalar = tailFor.getResult(0);
 
-                                  // Add the original C[ir0, ir1]
                                   Value cOrig = b3.create<memref::LoadOp>(
                                       loc, C, ValueRange{ir0, ir1});
                                   Value cNew = b3.create<arith::AddFOp>(
                                       loc, finalScalar, cOrig);
 
-                                  // Store the result
                                   b3.create<memref::StoreOp>(
                                       loc, cNew, C, ValueRange{ir0, ir1});
+
+                                  b3.create<memref::DeallocOp>(loc, accMem);
+
                                   b3.create<scf::YieldOp>(loc);
                                 });
                             b2.create<scf::YieldOp>(loc);
@@ -280,7 +320,7 @@ public:
                 b1.create<scf::YieldOp>(loc);
               });
         });
-    // Erase linalg.matmul
+
     rewriter.eraseOp(op);
     return success();
   }
@@ -293,7 +333,7 @@ class MatMulLlamaMode
     : public PassWrapper<MatMulLlamaMode, OperationPass<ModuleOp>> {
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MatMulLlamaMode)
-  StringRef getArgument() const final { return "matmul-vectorization-llama"; }
+  StringRef getArgument() const final { return "matmul-vectorization-ggml"; }
   StringRef getDescription() const final {
     return "Llama mode matmul (full chunk + tile parallelization, matches "
            "try.mlir)";
@@ -334,6 +374,6 @@ void MatMulLlamaMode::runOnOperation() {
 
 namespace mlir {
 namespace buddy {
-void registerMatMulLlamaMode() { PassRegistration<MatMulLlamaMode>(); }
+void registerMatMulGgml() { PassRegistration<MatMulLlamaMode>(); }
 } // namespace buddy
 } // namespace mlir
