@@ -1177,8 +1177,8 @@ next-sgemm-parallel-unroll-vec-fixed-aot:
 		-o next-sgemm-parallel-unroll-vec-fixed.out
 	./next-sgemm-parallel-unroll-vec-fixed.out || true
 
-next-matmul-llama:
-	@${BUDDY_OPT} ./next-matmul-llama.mlir \
+next-matmul-ggml:
+	@${BUDDY_OPT} ./next-matmul-ggml.mlir \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
 		-affine-parallelize \
@@ -1207,8 +1207,8 @@ next-matmul-llama:
 		${MARCH_FLAG} -O3 \
 		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
 		-Wl,-rpath,${MLIR_LIB} \
-		-o next-matmul-llama.out
-	./next-matmul-llama.out || true
+		-o next-matmul-ggml.out
+	./next-matmul-ggml.out || true
 
 next-blis-matmul:
 	@${BUDDY_OPT} ./next-blis-matmul.mlir \
