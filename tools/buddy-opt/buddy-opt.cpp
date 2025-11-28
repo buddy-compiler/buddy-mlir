@@ -95,7 +95,7 @@ void registerMatMulVectorizationBLISPass();
 void registerSimplifyTosaReshapePass();
 void registerSiLUFusionPass();
 void registerSimplifyTosaMatmulScalarPass();
-void registerMatMulLlamaMode() ;
+void registerMatMulGgml() ;
 } // namespace buddy
 } // namespace mlir
 
@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerMatMulTransposeBVecPass();
   mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerLinalgToVIRPass();
-  mlir::buddy::registerMatMulLlamaMode();
+  mlir::buddy::registerMatMulGgml();
   // Register minimal TOSA reshape simplification pass.
   mlir::buddy::registerSimplifyTosaReshapePass();
   // Register tosa.matmul(K=1,J=1) -> tosa.mul rewrite.
