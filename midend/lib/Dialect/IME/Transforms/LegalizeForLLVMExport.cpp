@@ -34,7 +34,41 @@ struct IMEVmadotLowering : public ConvertOpToLLVMPattern<VmadotOp> {
 
   LogicalResult matchAndRewrite(VmadotOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const override {
-    rewriter.eraseOp(op);
+    // ime.vmadot %c, %a, %b
+    Value cStruct = adaptor.getOperands()[0];
+    Value cPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), cStruct, ArrayRef<int64_t>{1}); // Index 1 is alignedPtr
+
+    Value aStruct = adaptor.getOperands()[1];
+    Value aPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), aStruct, ArrayRef<int64_t>{1});
+
+    Value bStruct = adaptor.getOperands()[2];
+    Value bPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), bStruct, ArrayRef<int64_t>{1});
+
+    
+    StringRef asmString = 
+        "vsetvli t0, zero, e32, m2\n\t"
+        "vxor.vv v28, v28, v28\n\t" 
+        "vsetvli t0, zero, e8, m1\n\t"
+        "vle8.v v0, ($1)\n\t" 
+        "vle8.v v1, ($2)\n\t"
+        "vmadot v28, v0, v1\n\t"
+       "vsetvli t0, zero, e32, m2\n\t"
+        "vse32.v v28, ($0)";
+
+   StringRef constraints = "r,r,r,~{v0},~{v1},~{v28},~{v29},~{t0},~{memory}";
+
+     rewriter.replaceOpWithNewOp<LLVM::InlineAsmOp>(
+        op,
+        TypeRange(),                            
+        ValueRange{cPtr, aPtr, bPtr},           
+        asmString,                              
+        constraints,                            
+        true,                                   
+        false,                                  
+        LLVM::AsmDialectAttr::get(getContext(), LLVM::AsmDialect::AD_ATT), 
+        ArrayAttr()                             
+    );
+
     return success();
   }
 };
@@ -44,7 +78,39 @@ struct IMEVmadotuLowering : public ConvertOpToLLVMPattern<VmadotuOp> {
 
   LogicalResult matchAndRewrite(VmadotuOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const override {
-    rewriter.eraseOp(op);
+    Value vdStruct = adaptor.getOperands()[0];
+    Value vdPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vdStruct, ArrayRef<int64_t>{1});
+
+    Value vs1Struct = adaptor.getOperands()[1];
+    Value vs1Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs1Struct, ArrayRef<int64_t>{1});
+
+    Value vs2Struct = adaptor.getOperands()[2];
+    Value vs2Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs2Struct, ArrayRef<int64_t>{1});
+
+        StringRef asmString = 
+        "vsetvli t0, zero, e32, m2\n\t"
+        "vxor.vv v28, v28, v28\n\t"
+        "vsetvli t0, zero, e8, m1\n\t"
+        "vle8.v v0, ($1)\n\t"
+        "vle8.v v1, ($2)\n\t"
+        "vmadotu v28, v0, v1\n\t"
+        "vsetvli t0, zero, e32, m2\n\t"
+        "vse32.v v28, ($0)";
+
+    StringRef constraints = "r,r,r,~{v0},~{v1},~{v28},~{v29},~{t0},~{memory}";
+
+    rewriter.replaceOpWithNewOp<LLVM::InlineAsmOp>(
+        op,
+        TypeRange(),
+        ValueRange{vdPtr, vs1Ptr, vs2Ptr},
+        asmString,
+        constraints,
+        true,
+        false,
+        LLVM::AsmDialectAttr::get(getContext(), LLVM::AsmDialect::AD_ATT),
+        ArrayAttr()
+    );
+
     return success();
   }
 };
@@ -54,7 +120,39 @@ struct IMEVmadotsuLowering : public ConvertOpToLLVMPattern<VmadotsuOp> {
 
   LogicalResult matchAndRewrite(VmadotsuOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const override {
-    rewriter.eraseOp(op);
+    Value vdStruct = adaptor.getOperands()[0];
+    Value vdPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vdStruct, ArrayRef<int64_t>{1});
+
+    Value vs1Struct = adaptor.getOperands()[1];
+    Value vs1Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs1Struct, ArrayRef<int64_t>{1});
+
+    Value vs2Struct = adaptor.getOperands()[2];
+    Value vs2Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs2Struct, ArrayRef<int64_t>{1});
+
+    StringRef asmString = 
+        "vsetvli t0, zero, e32, m2\n\t"
+        "vxor.vv v28, v28, v28\n\t"
+        "vsetvli t0, zero, e8, m1\n\t"
+        "vle8.v v0, ($1)\n\t"
+        "vle8.v v1, ($2)\n\t"
+        "vmadotsu v28, v0, v1\n\t"
+        "vsetvli t0, zero, e32, m2\n\t"
+        "vse32.v v28, ($0)";
+
+    StringRef constraints = "r,r,r,~{v0},~{v1},~{v28},~{v29},~{t0},~{memory}";
+
+    rewriter.replaceOpWithNewOp<LLVM::InlineAsmOp>(
+        op,
+        TypeRange(),
+        ValueRange{vdPtr, vs1Ptr, vs2Ptr},
+        asmString,
+        constraints,
+        true,
+        false,
+        LLVM::AsmDialectAttr::get(getContext(), LLVM::AsmDialect::AD_ATT),
+        ArrayAttr()
+    );
+
     return success();
   }
 };
@@ -64,7 +162,39 @@ struct IMEVmadotusLowering : public ConvertOpToLLVMPattern<VmadotusOp> {
 
   LogicalResult matchAndRewrite(VmadotusOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const override {
-    rewriter.eraseOp(op);
+    Value vdStruct = adaptor.getOperands()[0];
+    Value vdPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vdStruct, ArrayRef<int64_t>{1});
+
+    Value vs1Struct = adaptor.getOperands()[1];
+    Value vs1Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs1Struct, ArrayRef<int64_t>{1});
+
+    Value vs2Struct = adaptor.getOperands()[2];
+    Value vs2Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs2Struct, ArrayRef<int64_t>{1});
+
+    StringRef asmString = 
+        "vsetvli t0, zero, e32, m2\n\t"
+        "vxor.vv v28, v28, v28\n\t"
+        "vsetvli t0, zero, e8, m1\n\t"
+        "vle8.v v0, ($1)\n\t"
+        "vle8.v v1, ($2)\n\t"
+        "vmadotus v28, v0, v1\n\t"
+        "vsetvli t0, zero, e32, m2\n\t"
+        "vse32.v v28, ($0)";
+
+    StringRef constraints = "r,r,r,~{v0},~{v1},~{v28},~{v29},~{t0},~{memory}";
+
+    rewriter.replaceOpWithNewOp<LLVM::InlineAsmOp>(
+        op,
+        TypeRange(),
+        ValueRange{vdPtr, vs1Ptr, vs2Ptr},
+        asmString,
+        constraints,
+        true,
+        false,
+        LLVM::AsmDialectAttr::get(getContext(), LLVM::AsmDialect::AD_ATT),
+        ArrayAttr()
+    );
+
     return success();
   }
 };
@@ -74,7 +204,37 @@ struct IMEVfmadotLowering : public ConvertOpToLLVMPattern<VfmadotOp> {
 
   LogicalResult matchAndRewrite(VfmadotOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const override {
-    rewriter.eraseOp(op);
+    Value vdStruct = adaptor.getOperands()[0];
+    Value vdPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vdStruct, ArrayRef<int64_t>{1});
+
+    Value vs1Struct = adaptor.getOperands()[1];
+    Value vs1Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs1Struct, ArrayRef<int64_t>{1});
+
+    Value vs2Struct = adaptor.getOperands()[2];
+    Value vs2Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs2Struct, ArrayRef<int64_t>{1});
+
+    StringRef asmString = 
+        "vsetvli t0, zero, e16, m2\n\t"
+        "vfmv.v.f v28, ft0\n\t"
+        "vle16.v v0, ($1)\n\t"
+        "vle16.v v1, ($2)\n\t"
+        "vfmadot v28, v0, v1\n\t"
+        "vse16.v v28, ($0)";
+
+    StringRef constraints = "r,r,r,~{v0},~{v1},~{v28},~{v29},~{t0},~{memory}";
+
+    rewriter.replaceOpWithNewOp<LLVM::InlineAsmOp>(
+        op,
+        TypeRange(),
+        ValueRange{vdPtr, vs1Ptr, vs2Ptr},
+        asmString,
+        constraints,
+        true,
+        false,
+        LLVM::AsmDialectAttr::get(getContext(), LLVM::AsmDialect::AD_ATT),
+        ArrayAttr()
+    );
+
     return success();
   }
 };

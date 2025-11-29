@@ -46,9 +46,9 @@ def VmadotOp : IME_Op<"vmadot"> {
     where vs1 and vs2 are int8 matrices, and vd is int32 accumulator.
   }];
   let arguments = (ins 
+    MemRefRankOf<[I32], [2]>:$vd,
     MemRefRankOf<[I8], [2]>:$vs1,
-    MemRefRankOf<[I8], [2]>:$vs2,
-    MemRefRankOf<[I32], [2]>:$vd
+    MemRefRankOf<[I8], [2]>:$vs2
   );
   let assemblyFormat = "$vd `,` $vs1 `,` $vs2 attr-dict `:` type($vd) `,` type($vs1) `,` type($vs2)";
 }
@@ -56,9 +56,9 @@ def VmadotOp : IME_Op<"vmadot"> {
 def VmadotuOp : IME_Op<"vmadotu"> {
   let summary = "Integer matrix multiply-accumulate (unsigned × unsigned)";
   let arguments = (ins 
+    MemRefRankOf<[I32], [2]>:$vd,
     MemRefRankOf<[UI8], [2]>:$vs1,
-    MemRefRankOf<[UI8], [2]>:$vs2,
-    MemRefRankOf<[I32], [2]>:$vd
+    MemRefRankOf<[UI8], [2]>:$vs2
   );
   let assemblyFormat = "$vd `,` $vs1 `,` $vs2 attr-dict `:` type($vd) `,` type($vs1) `,` type($vs2)";
 }
@@ -66,9 +66,9 @@ def VmadotuOp : IME_Op<"vmadotu"> {
 def VmadotsuOp : IME_Op<"vmadotsu"> {
   let summary = "Integer matrix multiply-accumulate (signed × unsigned)";
   let arguments = (ins 
+    MemRefRankOf<[I32], [2]>:$vd,
     MemRefRankOf<[I8], [2]>:$vs1,
-    MemRefRankOf<[UI8], [2]>:$vs2,
-    MemRefRankOf<[I32], [2]>:$vd
+    MemRefRankOf<[UI8], [2]>:$vs2
   );
   let assemblyFormat = "$vd `,` $vs1 `,` $vs2 attr-dict `:` type($vd) `,` type($vs1) `,` type($vs2)";
 }
@@ -76,9 +76,9 @@ def VmadotsuOp : IME_Op<"vmadotsu"> {
 def VmadotusOp : IME_Op<"vmadotus"> {
   let summary = "Integer matrix multiply-accumulate (unsigned × signed)";
   let arguments = (ins 
+    MemRefRankOf<[I32], [2]>:$vd,
     MemRefRankOf<[UI8], [2]>:$vs1,
-    MemRefRankOf<[I8], [2]>:$vs2,
-    MemRefRankOf<[I32], [2]>:$vd
+    MemRefRankOf<[I8], [2]>:$vs2
   );
   let assemblyFormat = "$vd `,` $vs1 `,` $vs2 attr-dict `:` type($vd) `,` type($vs1) `,` type($vs2)";
 }
@@ -86,9 +86,9 @@ def VmadotusOp : IME_Op<"vmadotus"> {
 def VfmadotOp : IME_Op<"vfmadot"> {
   let summary = "Floating-point matrix multiply-accumulate (float16)";
   let arguments = (ins 
+    MemRefRankOf<[F16], [2]>:$vd,
     MemRefRankOf<[F16], [2]>:$vs1,
-    MemRefRankOf<[F16], [2]>:$vs2,
-    MemRefRankOf<[F16], [2]>:$vd
+    MemRefRankOf<[F16], [2]>:$vs2
   );
   let assemblyFormat = "$vd `,` $vs1 `,` $vs2 attr-dict `:` type($vd) `,` type($vs1) `,` type($vs2)";
 }
