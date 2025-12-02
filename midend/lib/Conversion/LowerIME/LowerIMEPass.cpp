@@ -20,8 +20,10 @@
 
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Pass/Pass.h"
 
 #include "Dialect/IME/IMEDialect.h"
@@ -46,6 +48,8 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<LLVM::LLVMDialect>();
     registry.insert<IMEDialect>();
+    registry.insert<arith::ArithDialect>();
+    registry.insert<memref::MemRefDialect>();
   }
 
   void runOnOperation() override;

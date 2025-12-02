@@ -16,8 +16,10 @@
 
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Pass/Pass.h"
 
 #include "Dialect/IME/IMEDialect.h"
@@ -34,41 +36,24 @@ struct IMEVmadotLowering : public ConvertOpToLLVMPattern<VmadotOp> {
 
   LogicalResult matchAndRewrite(VmadotOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const override {
-    // ime.vmadot %c, %a, %b
-    Value cStruct = adaptor.getOperands()[0];
-    Value cPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), cStruct, ArrayRef<int64_t>{1}); // Index 1 is alignedPtr
+    Location loc = op.getLoc();
+    IntegerType i64Type = rewriter.getI64Type();
 
-    Value aStruct = adaptor.getOperands()[1];
-    Value aPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), aStruct, ArrayRef<int64_t>{1});
+    // Extract aligned pointers from memref descriptors and convert to i64
+    Value vdExtract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVd());
+    Value vdI64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vdExtract);
 
-    Value bStruct = adaptor.getOperands()[2];
-    Value bPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), bStruct, ArrayRef<int64_t>{1});
+    Value vs1Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVs1());
+    Value vs1I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
 
-    
-    StringRef asmString = 
-        "vsetvli t0, zero, e32, m2\n\t"
-        "vxor.vv v28, v28, v28\n\t" 
-        "vsetvli t0, zero, e8, m1\n\t"
-        "vle8.v v0, ($1)\n\t" 
-        "vle8.v v1, ($2)\n\t"
-        "vmadot v28, v0, v1\n\t"
-       "vsetvli t0, zero, e32, m2\n\t"
-        "vse32.v v28, ($0)";
+    Value vs2Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVs2());
+    Value vs2I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
 
-   StringRef constraints = "r,r,r,~{v0},~{v1},~{v28},~{v29},~{t0},~{memory}";
-
-     rewriter.replaceOpWithNewOp<LLVM::InlineAsmOp>(
-        op,
-        TypeRange(),                            
-        ValueRange{cPtr, aPtr, bPtr},           
-        asmString,                              
-        constraints,                            
-        true,                                   
-        false,                                  
-        LLVM::AsmDialectAttr::get(getContext(), LLVM::AsmDialect::AD_ATT), 
-        ArrayAttr()                             
-    );
-
+    // Replace with intrinsic operation
+    rewriter.replaceOpWithNewOp<Vmadot_IntrOp>(op, vdI64, vs1I64, vs2I64);
     return success();
   }
 };
@@ -78,39 +63,22 @@ struct IMEVmadotuLowering : public ConvertOpToLLVMPattern<VmadotuOp> {
 
   LogicalResult matchAndRewrite(VmadotuOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const override {
-    Value vdStruct = adaptor.getOperands()[0];
-    Value vdPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vdStruct, ArrayRef<int64_t>{1});
+    Location loc = op.getLoc();
+    IntegerType i64Type = rewriter.getI64Type();
 
-    Value vs1Struct = adaptor.getOperands()[1];
-    Value vs1Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs1Struct, ArrayRef<int64_t>{1});
+    Value vdExtract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVd());
+    Value vdI64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vdExtract);
 
-    Value vs2Struct = adaptor.getOperands()[2];
-    Value vs2Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs2Struct, ArrayRef<int64_t>{1});
+    Value vs1Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVs1());
+    Value vs1I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
 
-        StringRef asmString = 
-        "vsetvli t0, zero, e32, m2\n\t"
-        "vxor.vv v28, v28, v28\n\t"
-        "vsetvli t0, zero, e8, m1\n\t"
-        "vle8.v v0, ($1)\n\t"
-        "vle8.v v1, ($2)\n\t"
-        "vmadotu v28, v0, v1\n\t"
-        "vsetvli t0, zero, e32, m2\n\t"
-        "vse32.v v28, ($0)";
+    Value vs2Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVs2());
+    Value vs2I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
 
-    StringRef constraints = "r,r,r,~{v0},~{v1},~{v28},~{v29},~{t0},~{memory}";
-
-    rewriter.replaceOpWithNewOp<LLVM::InlineAsmOp>(
-        op,
-        TypeRange(),
-        ValueRange{vdPtr, vs1Ptr, vs2Ptr},
-        asmString,
-        constraints,
-        true,
-        false,
-        LLVM::AsmDialectAttr::get(getContext(), LLVM::AsmDialect::AD_ATT),
-        ArrayAttr()
-    );
-
+    rewriter.replaceOpWithNewOp<Vmadotu_IntrOp>(op, vdI64, vs1I64, vs2I64);
     return success();
   }
 };
@@ -120,39 +88,22 @@ struct IMEVmadotsuLowering : public ConvertOpToLLVMPattern<VmadotsuOp> {
 
   LogicalResult matchAndRewrite(VmadotsuOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const override {
-    Value vdStruct = adaptor.getOperands()[0];
-    Value vdPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vdStruct, ArrayRef<int64_t>{1});
+    Location loc = op.getLoc();
+    IntegerType i64Type = rewriter.getI64Type();
 
-    Value vs1Struct = adaptor.getOperands()[1];
-    Value vs1Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs1Struct, ArrayRef<int64_t>{1});
+    Value vdExtract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVd());
+    Value vdI64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vdExtract);
 
-    Value vs2Struct = adaptor.getOperands()[2];
-    Value vs2Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs2Struct, ArrayRef<int64_t>{1});
+    Value vs1Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVs1());
+    Value vs1I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
 
-    StringRef asmString = 
-        "vsetvli t0, zero, e32, m2\n\t"
-        "vxor.vv v28, v28, v28\n\t"
-        "vsetvli t0, zero, e8, m1\n\t"
-        "vle8.v v0, ($1)\n\t"
-        "vle8.v v1, ($2)\n\t"
-        "vmadotsu v28, v0, v1\n\t"
-        "vsetvli t0, zero, e32, m2\n\t"
-        "vse32.v v28, ($0)";
+    Value vs2Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVs2());
+    Value vs2I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
 
-    StringRef constraints = "r,r,r,~{v0},~{v1},~{v28},~{v29},~{t0},~{memory}";
-
-    rewriter.replaceOpWithNewOp<LLVM::InlineAsmOp>(
-        op,
-        TypeRange(),
-        ValueRange{vdPtr, vs1Ptr, vs2Ptr},
-        asmString,
-        constraints,
-        true,
-        false,
-        LLVM::AsmDialectAttr::get(getContext(), LLVM::AsmDialect::AD_ATT),
-        ArrayAttr()
-    );
-
+    rewriter.replaceOpWithNewOp<Vmadotsu_IntrOp>(op, vdI64, vs1I64, vs2I64);
     return success();
   }
 };
@@ -162,39 +113,22 @@ struct IMEVmadotusLowering : public ConvertOpToLLVMPattern<VmadotusOp> {
 
   LogicalResult matchAndRewrite(VmadotusOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const override {
-    Value vdStruct = adaptor.getOperands()[0];
-    Value vdPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vdStruct, ArrayRef<int64_t>{1});
+    Location loc = op.getLoc();
+    IntegerType i64Type = rewriter.getI64Type();
 
-    Value vs1Struct = adaptor.getOperands()[1];
-    Value vs1Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs1Struct, ArrayRef<int64_t>{1});
+    Value vdExtract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVd());
+    Value vdI64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vdExtract);
 
-    Value vs2Struct = adaptor.getOperands()[2];
-    Value vs2Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs2Struct, ArrayRef<int64_t>{1});
+    Value vs1Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVs1());
+    Value vs1I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
 
-    StringRef asmString = 
-        "vsetvli t0, zero, e32, m2\n\t"
-        "vxor.vv v28, v28, v28\n\t"
-        "vsetvli t0, zero, e8, m1\n\t"
-        "vle8.v v0, ($1)\n\t"
-        "vle8.v v1, ($2)\n\t"
-        "vmadotus v28, v0, v1\n\t"
-        "vsetvli t0, zero, e32, m2\n\t"
-        "vse32.v v28, ($0)";
+    Value vs2Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVs2());
+    Value vs2I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
 
-    StringRef constraints = "r,r,r,~{v0},~{v1},~{v28},~{v29},~{t0},~{memory}";
-
-    rewriter.replaceOpWithNewOp<LLVM::InlineAsmOp>(
-        op,
-        TypeRange(),
-        ValueRange{vdPtr, vs1Ptr, vs2Ptr},
-        asmString,
-        constraints,
-        true,
-        false,
-        LLVM::AsmDialectAttr::get(getContext(), LLVM::AsmDialect::AD_ATT),
-        ArrayAttr()
-    );
-
+    rewriter.replaceOpWithNewOp<Vmadotus_IntrOp>(op, vdI64, vs1I64, vs2I64);
     return success();
   }
 };
@@ -204,37 +138,22 @@ struct IMEVfmadotLowering : public ConvertOpToLLVMPattern<VfmadotOp> {
 
   LogicalResult matchAndRewrite(VfmadotOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const override {
-    Value vdStruct = adaptor.getOperands()[0];
-    Value vdPtr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vdStruct, ArrayRef<int64_t>{1});
+    Location loc = op.getLoc();
+    IntegerType i64Type = rewriter.getI64Type();
 
-    Value vs1Struct = adaptor.getOperands()[1];
-    Value vs1Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs1Struct, ArrayRef<int64_t>{1});
+    Value vdExtract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVd());
+    Value vdI64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vdExtract);
 
-    Value vs2Struct = adaptor.getOperands()[2];
-    Value vs2Ptr = rewriter.create<LLVM::ExtractValueOp>(op.getLoc(), vs2Struct, ArrayRef<int64_t>{1});
+    Value vs1Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVs1());
+    Value vs1I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
 
-    StringRef asmString = 
-        "vsetvli t0, zero, e16, m2\n\t"
-        "vfmv.v.f v28, ft0\n\t"
-        "vle16.v v0, ($1)\n\t"
-        "vle16.v v1, ($2)\n\t"
-        "vfmadot v28, v0, v1\n\t"
-        "vse16.v v28, ($0)";
+    Value vs2Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
+        loc, op.getVs2());
+    Value vs2I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
 
-    StringRef constraints = "r,r,r,~{v0},~{v1},~{v28},~{v29},~{t0},~{memory}";
-
-    rewriter.replaceOpWithNewOp<LLVM::InlineAsmOp>(
-        op,
-        TypeRange(),
-        ValueRange{vdPtr, vs1Ptr, vs2Ptr},
-        asmString,
-        constraints,
-        true,
-        false,
-        LLVM::AsmDialectAttr::get(getContext(), LLVM::AsmDialect::AD_ATT),
-        ArrayAttr()
-    );
-
+    rewriter.replaceOpWithNewOp<Vfmadot_IntrOp>(op, vdI64, vs1I64, vs2I64);
     return success();
   }
 };
@@ -245,6 +164,8 @@ struct LegalizeIMEForLLVMExport
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<LLVM::LLVMDialect>();
+    registry.insert<arith::ArithDialect>();
+    registry.insert<memref::MemRefDialect>();
   }
 
   void runOnOperation() override {
@@ -253,7 +174,13 @@ struct LegalizeIMEForLLVMExport
 
     LLVMConversionTarget target(context);
     target.addLegalDialect<LLVM::LLVMDialect>();
-    target.addIllegalDialect<IMEDialect>();
+    target.addLegalDialect<arith::ArithDialect>();
+    target.addLegalDialect<memref::MemRefDialect>();
+    // Mark intrinsic operations as legal
+    target.addLegalOp<Vmadot_IntrOp, Vmadotu_IntrOp, Vmadotsu_IntrOp,
+                      Vmadotus_IntrOp, Vfmadot_IntrOp>();
+    // Mark high-level IME operations as illegal - they should be lowered
+    target.addIllegalOp<VmadotOp, VmadotuOp, VmadotsuOp, VmadotusOp, VfmadotOp>();
 
     LLVMTypeConverter typeConverter(&context);
 
@@ -275,8 +202,14 @@ void mlir::populateIMELegalizeForLLVMExportPatterns(
 }
 
 void mlir::configureIMELegalizeForExportTarget(LLVMConversionTarget &target) {
-  target.addLegalDialect<LLVM::LLVMDialect>();
-  target.addIllegalDialect<IMEDialect>();
+  // Mark dialects used during lowering as legal
+  target.addLegalDialect<arith::ArithDialect>();
+  target.addLegalDialect<memref::MemRefDialect>();
+  // Mark intrinsic operations as legal - they will be further lowered to LLVM IR
+  target.addLegalOp<Vmadot_IntrOp, Vmadotu_IntrOp, Vmadotsu_IntrOp,
+                    Vmadotus_IntrOp, Vfmadot_IntrOp>();
+  // Mark high-level IME operations as illegal - they should be lowered
+  target.addIllegalOp<VmadotOp, VmadotuOp, VmadotsuOp, VmadotusOp, VfmadotOp>();
 }
 
 std::unique_ptr<Pass> buddy::ime::createLegalizeForLLVMExportPass() {

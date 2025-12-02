@@ -25,6 +25,7 @@ include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 
 def IME_Dialect : Dialect {
   let name = "ime";
@@ -92,6 +93,40 @@ def VfmadotOp : IME_Op<"vfmadot"> {
   );
   let assemblyFormat = "$vd `,` $vs1 `,` $vs2 attr-dict `:` type($vd) `,` type($vs1) `,` type($vs2)";
 }
+
+//===----------------------------------------------------------------------===//
+// IME Intrinsic operation definitions
+//===----------------------------------------------------------------------===//
+// These intrinsic operations are used as the lowering target for high-level
+// IME operations. They will be further translated to LLVM IR intrinsics.
+
+class IME_IntrOpBase<string mnemonic, list<Trait> traits = []> : 
+  LLVM_IntrOpBase</*Dialect dialect=*/IME_Dialect, 
+                  /*string opName=*/"intr." # mnemonic,
+                  /*string enumName=*/"riscv_ime_" # !subst(".", "_", mnemonic),
+                  /*list<int> overloadedResults=*/[], 
+                  /*list<int> overloadedOperands=*/[], 
+                  /*list<Trait> traits=*/traits, 
+                  /*int numResults=*/0>;
+
+// Integer matrix multiply-accumulate intrinsics
+// All take 3 i64 arguments: vd_ptr, vs1_ptr, vs2_ptr
+
+def IME_Vmadot_IntrOp : IME_IntrOpBase<"vmadot">,
+  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+
+def IME_Vmadotu_IntrOp : IME_IntrOpBase<"vmadotu">,
+  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+
+def IME_Vmadotsu_IntrOp : IME_IntrOpBase<"vmadotsu">,
+  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+
+def IME_Vmadotus_IntrOp : IME_IntrOpBase<"vmadotus">,
+  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+
+// Floating-point matrix multiply-accumulate intrinsic
+def IME_Vfmadot_IntrOp : IME_IntrOpBase<"vfmadot">,
+  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
 
 #endif // IME_DIALECT
 
