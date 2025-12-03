@@ -1406,8 +1406,6 @@ def _index_op_all_tensors(
     Handle index operation when all indices are tensors (no None values).
     This uses the original implementation with special broadcast pattern handling.
     """
-    # total number of index-dimensions provided by all index tensors
-    input2_dim_sum = 0
     # store index operand shapes for later use
     index_shapes = []
     for i in range(len(input2)):
@@ -1416,18 +1414,16 @@ def _index_op_all_tensors(
             return
         s = tuple(t.type.shape)
         index_shapes.append(s)
-        input2_dim_sum += len(s)
 
     # Create output tensor and result type
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     output = tensor.EmptyOp(output_shape, mlir_dtype)
 
-    # Generic map baseline: permutation map over max rank
-    max_rank = max(len(output_shape), len(input_shape))
-    generic_map = ir.AffineMap.get_permutation([i for i in range(max_rank)])
+    # The iteration space is determined by output_shape
+    out_rank = len(output_shape)
+    generic_map = ir.AffineMap.get_permutation([i for i in range(out_rank)])
 
     # Build indexing maps list (AffineMapAttr) for inputs and output.
-    # We'll attempt to detect common "broadcast" patterns and set maps explicitly.
     input_map = []
 
     # >>> Handle a common broadcast pattern explicitly:
@@ -1438,10 +1434,6 @@ def _index_op_all_tensors(
     #   idx0 -> (d0,d0)   (broadcast scalar per row across columns)
     #   idx1 -> (d1)      (each column index uses d1)
     #   output -> (d0,d1)
-    # This produces:
-    #   #map  = affine_map<(d0, d1) -> (d0, d0)>
-    #   #map1 = affine_map<(d0, d1) -> (d1)>
-    #   #map2 = affine_map<(d0, d1) -> (d0, d1)>
     applied_special_broadcast = False
     if (
         len(input_shape) == 2
@@ -1455,9 +1447,6 @@ def _index_op_all_tensors(
             len(s1) == 1 and s1[0] == output_shape[1]
         ):
             # Construct explicit submaps:
-            # idx0 map -> [0,0]  (maps (d0,d1) -> (d0,d0))
-            # idx1 map -> [1]    (maps (d0,d1) -> (d1))
-            # output map -> [0,1] (maps (d0,d1) -> (d0,d1))
             input_map.append(
                 ir.AffineMapAttr.get(generic_map.get_submap([0, 0]))
             )  # idx0: (d0,d0)
@@ -1469,32 +1458,68 @@ def _index_op_all_tensors(
             )  # output: (d0,d1)
             applied_special_broadcast = True
 
-    # Fallback / general construction when special case not applied
+    # General broadcast handling: all index tensors broadcast to output_shape
     if not applied_special_broadcast:
-        # For each index operand, try to map its dimensions into the iteration
-        # space. The naive rule here is: assume index operands' dims correspond
-        # to contiguous dimensions in the iteration space.
-        offset = 0
-        for i in range(len(input2)):
-            input2_shape = symbol_table.get((str(input2[i]), 0)).type.shape
-            dim_len = len(input2_shape)
-            # take submap covering [offset, offset+dim_len)
-            idx_list = [j for j in range(offset, offset + dim_len)]
-            input_map.append(
-                ir.AffineMapAttr.get(generic_map.get_submap(idx_list))
-            )
-            offset += dim_len
+        # Check if all index tensors can broadcast to output_shape
+        all_broadcastable = True
+        for idx_shape in index_shapes:
+            if len(idx_shape) > out_rank:
+                all_broadcastable = False
+                break
+            # Check broadcast compatibility
+            for j in range(len(idx_shape)):
+                out_dim_idx = out_rank - len(idx_shape) + j
+                if (
+                    idx_shape[j] != 1
+                    and idx_shape[j] != output_shape[out_dim_idx]
+                ):
+                    all_broadcastable = False
+                    break
+            if not all_broadcastable:
+                break
 
-        # Now append output map: if input rank > output rank, align to last dims of input
-        if len(input_shape) > len(output_shape):
-            out_start = len(input_shape) - len(output_shape)
-            idx_list = [j for j in range(out_start, len(input_shape))]
-            input_map.append(
-                ir.AffineMapAttr.get(generic_map.get_submap(idx_list))
-            )
+        if all_broadcastable:
+            # Create affine maps with broadcast semantics
+            for idx_shape in index_shapes:
+                idx_rank = len(idx_shape)
+                # Build affine expressions for this index tensor
+                # Align to the right of output dimensions
+                exprs = []
+                for j in range(idx_rank):
+                    out_dim_idx = out_rank - idx_rank + j
+                    if idx_shape[j] == 1:
+                        # Broadcast dimension: use constant 0
+                        exprs.append(ir.AffineConstantExpr.get(0))
+                    else:
+                        # Non-broadcast dimension: use the corresponding output dim
+                        exprs.append(ir.AffineDimExpr.get(out_dim_idx))
+                affine_map = ir.AffineMap.get(out_rank, 0, exprs)
+                input_map.append(ir.AffineMapAttr.get(affine_map))
+
+            # Output map: identity over output dimensions
+            out_exprs = [ir.AffineDimExpr.get(i) for i in range(out_rank)]
+            out_map = ir.AffineMap.get(out_rank, 0, out_exprs)
+            input_map.append(ir.AffineMapAttr.get(out_map))
         else:
-            # default: output occupies first len(output_shape) iteration dims
-            idx_list = [j for j in range(len(output_shape))]
+            # Fallback: contiguous dimension mapping (original behavior)
+            # This may fail for complex cases, but preserves old behavior
+            offset = 0
+            for i in range(len(input2)):
+                input2_shape = symbol_table.get((str(input2[i]), 0)).type.shape
+                dim_len = len(input2_shape)
+                idx_list = [
+                    j for j in range(offset, min(offset + dim_len, out_rank))
+                ]
+                # Pad with zeros if needed
+                while len(idx_list) < dim_len:
+                    idx_list.append(0)
+                input_map.append(
+                    ir.AffineMapAttr.get(generic_map.get_submap(idx_list))
+                )
+                offset += dim_len
+
+            # Output map
+            idx_list = [j for j in range(out_rank)]
             input_map.append(
                 ir.AffineMapAttr.get(generic_map.get_submap(idx_list))
             )
@@ -1503,7 +1528,7 @@ def _index_op_all_tensors(
     operands = [symbol_table.get((str(i), 0)) for i in input2]
 
     # Prepare iterator types (parallel for each iteration dimension)
-    iter_count = max(len(output_shape), len(input_shape))
+    iter_count = out_rank
     iterator_attr = ir.ArrayAttr.get(
         [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * iter_count
     )
@@ -1523,15 +1548,18 @@ def _index_op_all_tensors(
     ]
     block = ir.Block.create_at_start(op.region, arguments)
 
-    # Convert block arguments (index outputs) into i64/index values
+    # Convert block arguments (index tensor values) into index values
+    # Each block argument (except the last one which is output) is an index value
     index = []
     for i in block.arguments[:-1]:
         indexcast_op = arith.IndexCastOp(ir.IndexType.get(), i)
         block.append(indexcast_op)
         index.append(indexcast_op.result)
 
-    # If needed, append explicit linalg.index ops to reach the iteration space dims
-    for i in range(input2_dim_sum, max(len(input_shape), len(output_shape))):
+    # If we have fewer index tensors than input dimensions, we need to add
+    # linalg.index ops for the remaining dimensions
+    num_index_tensors = len(input2)
+    for i in range(num_index_tensors, len(input_shape)):
         index_op_inst = linalg.IndexOp(ir._i64Attr(i, None))
         block.append(index_op_inst)
         index.append(index_op_inst.result)
