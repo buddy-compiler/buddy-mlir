@@ -34,6 +34,12 @@ constexpr size_t NUM_LAYERS = 56;
 constexpr size_t HiddenSize = 128;
 constexpr size_t HeadNum = 2;
 
+// ANSI Color Codes
+constexpr const char* COLOR_RESET = "\033[0m";
+constexpr const char* COLOR_BLUE = "\033[34;1m";
+constexpr const char* COLOR_GREEN = "\033[32;1m";
+constexpr const char* COLOR_YELLOW = "\033[33;1m";
+
 struct MemRefContainer {
 
   MemRef<float, 4> kv0;
@@ -181,12 +187,13 @@ void getUserInput(std::string &inputStr) {
 }
 
 /// Print [Log] label in bold blue format.
-void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
+void printLogLabel() {
+  std::cout << COLOR_BLUE << "[Log] " << COLOR_RESET;
+}
 
 /// Print information for each iteration.
 void printIterInfo(size_t iterIdx, std::string str, double time) {
-  total_time += time;
-  std::cout << "\033[32;1m[Iteration " << iterIdx << "] \033[0m";
+  std::cout << COLOR_GREEN << "[Iteration " << iterIdx << "] " << COLOR_RESET;
   std::cout << "Token: " << str << " | "
             << "Time: " << time << "s" << std::endl;
 }
@@ -269,7 +276,7 @@ void copy_kv_by_cache_position_block(const MemRefContainer &prefill,
 int main() {
   /// Print the title of this example.
   const std::string title = "DeepSeekR1 Inference Powered by Buddy Compiler";
-  std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
+  std::cout << COLOR_YELLOW << title << COLOR_RESET << std::endl;
 
   /// Define directories of vacabulary and parameter file.
   std::string deepSeekR1Dir = DEEPSEEKR1_EXAMPLE_PATH;
@@ -393,9 +400,11 @@ int main() {
   int maxIndex = findMaxIndex(startPtr, endPtr);
   std::string tok = inputContainerPrefill.getStr(maxIndex);
   printIterInfo(0, tok, inferenceTime.count() / 1000);
+  total_time += inferenceTime.count() / 1000.0;
   const double prefillSeconds = inferenceTime.count() / 1000.0;
+  size_t actualPrefillTokens = inputContainerPrefill.getTokenCnt();
   if (prefillSeconds > 0.0) {
-    prefillTokensPerSec = static_cast<double>(MaxTokenLength) / prefillSeconds;
+    prefillTokensPerSec = static_cast<double>(actualPrefillTokens) / prefillSeconds;
   }
   inputContainerDecode.getData()[0] = (long long)maxIndex;
   outputContainer.appendTokenIdx(maxIndex);
@@ -411,8 +420,13 @@ int main() {
 
   MemRefContainer *ptrDecodeResultContainer = &decodeResultContainer;
 
+  const auto copyStart = std::chrono::high_resolution_clock::now();
   copy_kv_by_cache_position_block(prefillResultContainer, decodeResultContainer,
                                   inputContainerPrefill.getTokenCnt());
+  const auto copyEnd = std::chrono::high_resolution_clock::now();
+  const std::chrono::duration<double, std::milli> copyTime =
+      copyEnd - copyStart;
+  total_time += copyTime.count() / 1000.0;
 
   cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
   int generateLen = MaxTokenLength - inputContainerPrefill.getTokenCnt();
@@ -476,19 +490,27 @@ int main() {
     cachePosition.getData()[0] += 1;
   }
 
+  total_time += decodeTimeAccumMs / 1000.0;
+
   const double decodeSeconds = decodeTimeAccumMs / 1000.0;
   const double decodeTokensPerSec =
       decodeSeconds > 0.0 ? static_cast<double>(decodeTokens) / decodeSeconds
                           : 0.0;
 
   /// Print the final result
-  std::cout << "\n\033[33;1m[Total time]\033[0m " << total_time << std::endl;
-  std::cout << "\033[33;1m[Prefilling]\033[0m " << prefillTokensPerSec
+  const double prefillTime = prefillSeconds;
+  const double decodeTime = decodeTimeAccumMs / 1000.0;
+  const double copyTimeSec = copyTime.count() / 1000.0;
+  std::cout << "\n" << COLOR_YELLOW << "[Total time]" << COLOR_RESET << " " << total_time << "s" << std::endl;
+  std::cout << COLOR_YELLOW << "[Prefill time]" << COLOR_RESET << " " << prefillTime << "s" << std::endl;
+  std::cout << COLOR_YELLOW << "[KV cache copy time]" << COLOR_RESET << " " << copyTimeSec << "s" << std::endl;
+  std::cout << COLOR_YELLOW << "[Decode time]" << COLOR_RESET << " " << decodeTime << "s" << std::endl;
+  std::cout << COLOR_YELLOW << "[Prefilling]" << COLOR_RESET << " " << prefillTokensPerSec
             << " tokens/s" << std::endl;
-  std::cout << "\033[33;1m[Decoding]\033[0m " << decodeTokensPerSec
+  std::cout << COLOR_YELLOW << "[Decoding]" << COLOR_RESET << " " << decodeTokensPerSec
             << " tokens/s" << std::endl;
-  std::cout << "\033[33;1m[Input]\033[0m " << inputStr << std::endl;
-  std::cout << "\033[33;1m[Output]\033[0m "
+  std::cout << COLOR_YELLOW << "[Input]" << COLOR_RESET << " " << inputStr << std::endl;
+  std::cout << COLOR_YELLOW << "[Output]" << COLOR_RESET << " "
             << outputContainer.revertDeepSeekR1() << std::endl;
 
   return 0;

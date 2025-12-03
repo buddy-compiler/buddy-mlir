@@ -96,17 +96,27 @@ def _gen_arith_binary_op(input1, input2, op_func):
         input1_shape, input2_shape
     )
 
+    dynamic_marker = ir.ShapedType.get_dynamic_size()
     broadcasted_result_shp = []
     for dim1, dim2 in zip(norm_input1_shape, norm_input2_shape):
-        broadcasted_result_shp.append(max(dim1, dim2))
-    if input1_shape != norm_input1_shape:
-        input1 = tosa.ReshapeOp(
-            input1, memoryview(array.array("i", norm_input1_shape))
-        ).result
-    if input2_shape != norm_input2_shape:
-        input2 = tosa.ReshapeOp(
-            input2, memoryview(array.array("i", norm_input2_shape))
-        ).result
+        # Handle dynamic dimensions in broadcasting
+        if dim1 == dynamic_marker or dim2 == dynamic_marker:
+            # If either is dynamic, result is dynamic
+            broadcasted_result_shp.append(dynamic_marker)
+        else:
+            broadcasted_result_shp.append(max(dim1, dim2))
+
+    # Only reshape if shapes need normalization and don't contain dynamic dims
+    has_dynamic = any(d == dynamic_marker for d in norm_input1_shape + norm_input2_shape)
+    if not has_dynamic:
+        if input1_shape != norm_input1_shape:
+            input1 = tosa.ReshapeOp(
+                input1, memoryview(array.array("i", norm_input1_shape))
+            ).result
+        if input2_shape != norm_input2_shape:
+            input2 = tosa.ReshapeOp(
+                input2, memoryview(array.array("i", norm_input2_shape))
+            ).result
 
     result_element_type = ir.RankedTensorType(input1.type).element_type
     result_tensor_type = ir.RankedTensorType.get(
@@ -996,6 +1006,13 @@ def embedding_op(node: EmbeddingOp, symbol_table):
 
     # If gather output shape matches target shape, skip the reshape
     if gather_output_shape == target_shape:
+        return gather_op.output
+
+    # Skip reshape if target shape contains dynamic dimensions
+    # (TOSA reshape requires compile-time constant shapes)
+    dynamic_marker = ir.ShapedType.get_dynamic_size()
+    if any(dim == dynamic_marker for dim in target_shape):
+        # Return gather output directly - shape is already correct structurally
         return gather_op.output
 
     op = tosa.ReshapeOp(

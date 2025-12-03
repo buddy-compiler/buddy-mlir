@@ -35,15 +35,26 @@ def func_op(node: FuncOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
     for arg in node.args:
         shape = list(arg.shape)
         mlir_dtype = mlir_element_type_get(arg.dtype)
-        stride = []
-        for dim, dim_size in enumerate(shape):
-            stride.append(
-                functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1])
+
+        # Check for dynamic dimensions
+        dynamic_marker = ir.ShapedType.get_dynamic_size()
+        has_dynamic = any(dim == dynamic_marker for dim in shape)
+
+        # Only create strided layout if all dimensions are static
+        if not has_dynamic:
+            stride = []
+            for dim, dim_size in enumerate(shape):
+                stride.append(
+                    functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1])
+                )
+            memref_attr = ir.Attribute.parse(
+                "strided<{}, offset: ?>".format(stride)
             )
-        memref_attr = ir.Attribute.parse(
-            "strided<{}, offset: ?>".format(stride)
-        )
-        arguments.append(ir.MemRefType.get(shape, mlir_dtype, memref_attr))
+            arguments.append(ir.MemRefType.get(shape, mlir_dtype, memref_attr))
+        else:
+            # For dynamic dimensions, use default layout (no explicit striding)
+            arguments.append(ir.MemRefType.get(shape, mlir_dtype))
+
     results = []
     for i, shape in enumerate(node.tensor_meta["shape"]):
         mlir_dtype = mlir_element_type_get(node.tensor_meta["dtype"][i])
@@ -98,16 +109,27 @@ def call_op(node: CallOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
     for i, arg in enumerate(node.args):
         input_node = symbol_table.get((str(arg), node._args_index[i]))
         memref_type = ir.MemRefType(input_node.type)
-        stride = []
         shape = memref_type.shape
-        for dim, dim_size in enumerate(shape):
-            stride.append(
-                functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1])
+
+        # Check for dynamic dimensions
+        dynamic_marker = ir.ShapedType.get_dynamic_size()
+        has_dynamic = any(dim == dynamic_marker for dim in shape)
+
+        if not has_dynamic:
+            # Only create strided layout if all dimensions are static
+            stride = []
+            for dim, dim_size in enumerate(shape):
+                stride.append(
+                    functools.reduce(lambda x, y: x * y, shape[dim + 1 :] + [1])
+                )
+            memref_attr = ir.Attribute.parse(
+                "strided<{}, offset: ?>".format(stride)
             )
-        memref_attr = ir.Attribute.parse(
-            "strided<{}, offset: ?>".format(stride)
-        )
-        dest = ir.MemRefType.get(shape, memref_type.element_type, memref_attr)
+            dest = ir.MemRefType.get(shape, memref_type.element_type, memref_attr)
+        else:
+            # For dynamic dimensions, use default layout
+            dest = ir.MemRefType.get(shape, memref_type.element_type)
+
         cast_op = memref.CastOp(dest, input_node)
         arguments.append(cast_op)
     results = []
