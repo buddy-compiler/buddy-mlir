@@ -1,30 +1,30 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
+from torch._inductor.decomposition import decompositions as inductor_decomp
+
 from buddy.compiler.frontend import DynamoCompiler
-
-# Test lt.Scalar operation
-# lt.Scalar: Less than scalar comparison
+from buddy.compiler.ops import tosa
 
 
-def test_lt_scalar():
-    """Test lt.Scalar operator"""
-    dynamo_compiler = DynamoCompiler()
-
-    def fn(x):
-        return x < 0.5  # lt.Scalar: compare each element with 0.5
-
-    x = torch.randn(5)
-    graphs = dynamo_compiler.importer(fn, x)
-    graph = graphs[0]
-    graph.lower_to_top_level_ir()
-    print(graph._imported_module)
+def foo(x):
+    return x < 0.5
 
 
-# CHECK: module
+in1 = torch.randn(4, 4)
+
+# Initialize the dynamo compiler.
+dynamo_compiler = DynamoCompiler(
+    primary_registry=tosa.ops_registry,
+    aot_autograd_decomposition=inductor_decomp,
+)
+
+graphs = dynamo_compiler.importer(foo, in1)
+assert len(graphs) == 1
+graph = graphs[0]
+graph.lower_to_top_level_ir()
+print(graph._imported_module)
+
 # CHECK: func.func @forward
-# CHECK: tosa.const
-# CHECK: arith.cmpf
+# CHECK: arith.cmpf olt
 # CHECK: return
-
-test_lt_scalar()
