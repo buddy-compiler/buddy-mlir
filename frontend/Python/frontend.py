@@ -384,6 +384,7 @@ class DynamoCompiler:
             "randperm.default": RandpermOp,
             # Core Aten remaining operations
             "_embedding_bag.default": EmbeddingBagOp,
+            "_embedding_bag_forward_only.default": EmbeddingBagOp,
             "_cdist_forward.default": CdistForwardOp,
             "_pdist_forward.default": PdistForwardOp,
             "_fft_r2c.default": FftR2cOp,
