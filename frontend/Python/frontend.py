@@ -74,10 +74,7 @@ class DynamoCompiler:
             func_name: The function name to be used.
             primary_registry (dict, optional): The primary operations registry.
             aot_autograd_decomposition (Optional[dict], optional):
-                The ahead-of-time autograd decomposition dictionary.
-                If None, defaults to torch._inductor.decomposition.decompositions
-                which provides comprehensive operator decomposition rules to
-                automatically decompose high-level operators into Core Aten IR.
+            The ahead-of-time autograd decomposition dictionary.
             verbose (bool): Controls whether to print additional information for
                 debugging purposes. The default value is False, indicating that
                 no extra debug information will be printed.

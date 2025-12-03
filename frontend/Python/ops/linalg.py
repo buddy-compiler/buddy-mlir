@@ -1366,6 +1366,197 @@ def index_op(
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
 
+    # Check if any index is None - if so, use the new path that handles None indices
+    has_none_indices = any(idx is None for idx in input2)
+
+    if has_none_indices:
+        # New path: Handle advanced indexing with None entries
+        return _index_op_with_none_indices(
+            node,
+            input1,
+            input2,
+            output_shape,
+            input_shape,
+            mlir_dtype,
+            symbol_table,
+        )
+    else:
+        # Original path: All indices are tensors, use special broadcast handling
+        return _index_op_all_tensors(
+            node,
+            input1,
+            input2,
+            output_shape,
+            input_shape,
+            mlir_dtype,
+            symbol_table,
+        )
+
+
+def _index_op_all_tensors(
+    node: IndexOp,
+    input1,
+    input2,
+    output_shape,
+    input_shape,
+    mlir_dtype,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Handle index operation when all indices are tensors (no None values).
+    This uses the original implementation with special broadcast pattern handling.
+    """
+    # total number of index-dimensions provided by all index tensors
+    input2_dim_sum = 0
+    # store index operand shapes for later use
+    index_shapes = []
+    for i in range(len(input2)):
+        t = symbol_table.get((str(input2[i]), 0))
+        if t is None:
+            return
+        s = tuple(t.type.shape)
+        index_shapes.append(s)
+        input2_dim_sum += len(s)
+
+    # Create output tensor and result type
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    output = tensor.EmptyOp(output_shape, mlir_dtype)
+
+    # Generic map baseline: permutation map over max rank
+    max_rank = max(len(output_shape), len(input_shape))
+    generic_map = ir.AffineMap.get_permutation([i for i in range(max_rank)])
+
+    # Build indexing maps list (AffineMapAttr) for inputs and output.
+    # We'll attempt to detect common "broadcast" patterns and set maps explicitly.
+    input_map = []
+
+    # >>> Handle a common broadcast pattern explicitly:
+    # If we have: input rank == 2, two index operands and shapes like
+    #   idx0: (1,1)  (a scalar per row, broadcast across cols)
+    #   idx1: (40,)  (one index per column)
+    # then set maps to:
+    #   idx0 -> (d0,d0)   (broadcast scalar per row across columns)
+    #   idx1 -> (d1)      (each column index uses d1)
+    #   output -> (d0,d1)
+    # This produces:
+    #   #map  = affine_map<(d0, d1) -> (d0, d0)>
+    #   #map1 = affine_map<(d0, d1) -> (d1)>
+    #   #map2 = affine_map<(d0, d1) -> (d0, d1)>
+    applied_special_broadcast = False
+    if (
+        len(input_shape) == 2
+        and len(index_shapes) == 2
+        and len(output_shape) == 2
+    ):
+        s0 = index_shapes[0]
+        s1 = index_shapes[1]
+        # match the specific example: idx0 shape (1,1) and idx1 shape (N)
+        if (len(s0) == 2 and s0[0] == 1 and s0[1] == 1) and (
+            len(s1) == 1 and s1[0] == output_shape[1]
+        ):
+            # Construct explicit submaps:
+            # idx0 map -> [0,0]  (maps (d0,d1) -> (d0,d0))
+            # idx1 map -> [1]    (maps (d0,d1) -> (d1))
+            # output map -> [0,1] (maps (d0,d1) -> (d0,d1))
+            input_map.append(
+                ir.AffineMapAttr.get(generic_map.get_submap([0, 0]))
+            )  # idx0: (d0,d0)
+            input_map.append(
+                ir.AffineMapAttr.get(generic_map.get_submap([1]))
+            )  # idx1: (d1)
+            input_map.append(
+                ir.AffineMapAttr.get(generic_map.get_submap([0, 1]))
+            )  # output: (d0,d1)
+            applied_special_broadcast = True
+
+    # Fallback / general construction when special case not applied
+    if not applied_special_broadcast:
+        # For each index operand, try to map its dimensions into the iteration
+        # space. The naive rule here is: assume index operands' dims correspond
+        # to contiguous dimensions in the iteration space.
+        offset = 0
+        for i in range(len(input2)):
+            input2_shape = symbol_table.get((str(input2[i]), 0)).type.shape
+            dim_len = len(input2_shape)
+            # take submap covering [offset, offset+dim_len)
+            idx_list = [j for j in range(offset, offset + dim_len)]
+            input_map.append(
+                ir.AffineMapAttr.get(generic_map.get_submap(idx_list))
+            )
+            offset += dim_len
+
+        # Now append output map: if input rank > output rank, align to last dims of input
+        if len(input_shape) > len(output_shape):
+            out_start = len(input_shape) - len(output_shape)
+            idx_list = [j for j in range(out_start, len(input_shape))]
+            input_map.append(
+                ir.AffineMapAttr.get(generic_map.get_submap(idx_list))
+            )
+        else:
+            # default: output occupies first len(output_shape) iteration dims
+            idx_list = [j for j in range(len(output_shape))]
+            input_map.append(
+                ir.AffineMapAttr.get(generic_map.get_submap(idx_list))
+            )
+
+    # Build operands list
+    operands = [symbol_table.get((str(i), 0)) for i in input2]
+
+    # Prepare iterator types (parallel for each iteration dimension)
+    iter_count = max(len(output_shape), len(input_shape))
+    iterator_attr = ir.ArrayAttr.get(
+        [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * iter_count
+    )
+
+    # Create the linalg.generic op
+    op = linalg.GenericOp(
+        [tensor_type],
+        operands,
+        [output],
+        ir.ArrayAttr.get(input_map),
+        iterator_attr,
+    )
+
+    # Build the region body
+    arguments = [ir.RankedTensorType(i.type).element_type for i in operands] + [
+        ir.RankedTensorType(output.result.type).element_type
+    ]
+    block = ir.Block.create_at_start(op.region, arguments)
+
+    # Convert block arguments (index outputs) into i64/index values
+    index = []
+    for i in block.arguments[:-1]:
+        indexcast_op = arith.IndexCastOp(ir.IndexType.get(), i)
+        block.append(indexcast_op)
+        index.append(indexcast_op.result)
+
+    # If needed, append explicit linalg.index ops to reach the iteration space dims
+    for i in range(input2_dim_sum, max(len(input_shape), len(output_shape))):
+        index_op_inst = linalg.IndexOp(ir._i64Attr(i, None))
+        block.append(index_op_inst)
+        index.append(index_op_inst.result)
+
+    # Extract value from the input tensor using the constructed 'index' list
+    value = tensor.ExtractOp(input1, index)
+    block.append(value)
+    block.append(linalg.YieldOp([value.result]))
+
+    return op
+
+
+def _index_op_with_none_indices(
+    node: IndexOp,
+    input1,
+    input2,
+    output_shape,
+    input_shape,
+    mlir_dtype,
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
+):
+    """
+    Handle index operation when some indices are None (meaning use all elements
+    along that dimension).
+    """
     # Create output tensor and result type
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     output = tensor.EmptyOp(output_shape, mlir_dtype)
