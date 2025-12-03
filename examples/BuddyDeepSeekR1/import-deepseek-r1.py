@@ -58,6 +58,12 @@ parser.add_argument(
     choices=["f32", "f16", "bf16"],
     help="Precision mode for generated MLIR and input data. Choose from 'f32', 'f16', or 'bf16'.",
 )
+parser.add_argument(
+    "--max-seq-len",
+    type=int,
+    default=128,
+    help="Maximum sequence length for f16/bf16 prefill. For f32, defaults to 1024.",
+)
 args = parser.parse_args()
 
 # Ensure the output directory exists.
@@ -94,6 +100,7 @@ if args.precision == "f16":
         primary_registry=tosa.ops_registry,
         aot_autograd_decomposition=inductor_decomp,
         func_name="forward_prefill",
+        dynamic_dims={0: [1]},  # input_ids (input parameter, not cache) has dynamic sequence length
     )
 
     dynamo_compiler_decode = DynamoCompiler(
@@ -117,15 +124,19 @@ else:
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
     if args.precision == "f16":
-        past_key_values_prefill = StaticCache(
-            config=model.config, max_cache_len=20
-        )
+        max_seq_len = args.max_seq_len
+        # Don't initialize cache for prefill since it's not used (commented out below)
+        # past_key_values_prefill = StaticCache(
+        #     config=model.config, max_cache_len=max_seq_len
+        # )
         past_key_values_decode = StaticCache(
-            config=model.config, max_cache_len=20
+            config=model.config, max_cache_len=max_seq_len
         )
 
+        # Create dynamic shape tensor for prefill
+        # Using a sample tensor, but torch.export will trace with dynamic dimensions
         data_prefill = {
-            "input_ids": torch.zeros((1, 20), dtype=torch.int64),
+            "input_ids": torch.zeros((1, max_seq_len), dtype=torch.int64),
         }
         data_decode = {
             "input_ids": torch.zeros((1, 1), dtype=torch.int64),
@@ -136,9 +147,9 @@ with torch.no_grad():
         graphs_prefill = dynamo_compiler_prefill.importer(
             model,
             input_ids=data_prefill["input_ids"],
-            use_cache=True,
-            # past_key_values=past_key_values_prefill,
+            use_cache=False,  # Don't use cache for prefill
             cache_implementation="static",
+            dynamic=True
         )
         # Initialize past_key_values once during the first forward call
         model(
@@ -155,6 +166,7 @@ with torch.no_grad():
             cache_position=cache_position,
             past_key_values=past_key_values_decode,
             cache_implementation="static",
+            dynamic=True
         )
     else:
         past_key_values_prefill = StaticCache(

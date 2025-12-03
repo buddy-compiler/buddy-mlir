@@ -56,37 +56,31 @@ class TensorDType(Enum):
 
 class TensorMeta:
     """
-    Store tensor metadata, including shape and data type, while overlooking raw
-    data.
-
-    Attributes:
-    - shape: tuple
-        Represents the shape of the tensor.
-    - dtype: str
-        Represents the data type of the tensor.
-
-    Methods:
-    - __init__(shape: tuple, dtype: str) -> None:
-        Initializes a new instance of the TensorMeta class with the specified
-        shape and data type.
-
-    Example:
-    meta = TensorMeta(shape=(3, 4), dtype='float32')
-    # Access metadata attributes: meta.shape, meta.dtype
+    Store tensor metadata, including shape and data type.
+    Use None or -1 for dynamic dimensions (e.g., shape=(1, None) for variable sequence length).
     """
 
     def __init__(self, shape, dtype) -> None:
-        """
-        Initialize a new instance of the TensorMeta class.
-
-        Parameters:
-        - shape: tuple
-            Represents the shape of the tensor.
-        - dtype: str
-            Represents the data type of the tensor.
-        """
         self.shape = shape
         self.dtype = dtype
+
+    def is_dynamic(self) -> bool:
+        """Check if any dimension is dynamic (None or -1)."""
+        if self.shape is None:
+            return False
+        return any(dim is None or dim == -1 for dim in self.shape)
+
+    def get_mlir_shape_string(self) -> str:
+        """Convert shape to MLIR format: (1, None, 128) -> '1x?x128'."""
+        if self.shape is None or len(self.shape) == 0:
+            return ""
+        shape_parts = []
+        for dim in self.shape:
+            if dim is None or dim == -1:
+                shape_parts.append("?")
+            else:
+                shape_parts.append(str(dim))
+        return "x".join(shape_parts)
 
 
 class DeviceType(Enum):

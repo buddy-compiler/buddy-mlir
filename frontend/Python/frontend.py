@@ -66,6 +66,7 @@ class DynamoCompiler:
         aot_autograd_decomposition: Optional[dict] = None,
         verbose=False,
         enable_external_calls: bool = False,
+        dynamic_dims: Optional[dict] = None,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -79,6 +80,8 @@ class DynamoCompiler:
                 debugging purposes. The default value is False, indicating that
                 no extra debug information will be printed.
             enable_external_calls (bool): Enable external function call support (for oneDNN, etc.)
+            dynamic_dims (dict, optional): Maps input indices to lists of dynamic dimension indices.
+                Example: {0: [1]} means input 0's dimension 1 is dynamic.
         Attributes:
             _func_name: The function name to be used.
             _aot_autograd_decomposition (Optional[dict], optional):
@@ -100,6 +103,7 @@ class DynamoCompiler:
         self._aot_autograd_decomposition = aot_autograd_decomposition
         self._verbose = verbose
         self._enable_external_calls = enable_external_calls
+        self._dynamic_dims = dynamic_dims if dynamic_dims is not None else {}
         self._imported_graphs = []
         self._ops_registry = {}
         self._imported_params = {}
@@ -267,7 +271,13 @@ class DynamoCompiler:
         if node_kwargs is None:
             node_kwargs = {}
         buddy_node._keyword_arguments.update(node_kwargs)
-        buddy_node._tensor_meta["shape"] = node_output_shape
+
+        # Convert None to MLIR dynamic size marker for tensor metadata
+        converted_shape = [
+            ir.ShapedType.get_dynamic_size() if dim is None else dim
+            for dim in node_output_shape
+        ]
+        buddy_node._tensor_meta["shape"] = converted_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node
 
@@ -318,12 +328,16 @@ class DynamoCompiler:
             if self._model_config.decode_with_cache:
                 num_cached_kv = self._model_config.num_hidden_layers * 2
             func_inputs = []
-            for i in inputs_pos:
+            for input_idx, i in enumerate(inputs_pos):
                 # for inp in _inputs[len(params_flat) :]:
                 inp = _inputs[i + num_cached_kv]
-                inp_shape = inp.shape
+                inp_shape = list(inp.shape)
+                # Apply dynamic dimensions if specified
+                if input_idx in self._dynamic_dims:
+                    for dim_idx in self._dynamic_dims[input_idx]:
+                        inp_shape[dim_idx] = None  # Mark as dynamic
                 inp_dtype = self._torch_dtype_translate(str(inp.dtype))
-                func_inputs.append(TensorMeta(inp_shape, inp_dtype))
+                func_inputs.append(TensorMeta(tuple(inp_shape), inp_dtype))
             for inp in _inputs[:num_cached_kv]:
                 inp = _inputs[i]
                 inp_shape = inp.shape
@@ -361,6 +375,21 @@ class DynamoCompiler:
             input_nodes.extend(list(_gm.graph.nodes)[:num_cached_kv])
             gm_nodes = param_nodes + buffers_nodes + input_nodes + other_nodes
 
+            # Create a mapping from node to input index for dynamic dim lookup
+            # Only include nodes that are actual user inputs (in inputs_pos), not parameters/buffers
+            node_to_input_idx = {}
+            for node in input_nodes:
+                # Find this node's position in inputs_pos
+                try:
+                    node_idx = list(_gm.graph.nodes).index(node)
+                    if node_idx in inputs_pos:
+                        input_idx = inputs_pos.index(node_idx)
+                        node_to_input_idx[node] = input_idx
+                except (ValueError, AttributeError):
+                    # Node might not be in graph.nodes or nodes might not be indexable
+                    # Fall back to using enumerate index for input_nodes
+                    pass
+
             for gm_node in gm_nodes:
                 node_users = []
                 for user in gm_node.users.keys():
@@ -369,12 +398,21 @@ class DynamoCompiler:
                     node_dtype = self._torch_dtype_translate(
                         str(gm_node.meta["tensor_meta"].dtype)
                     )
+
+                    # Override shape with dynamic dimensions if specified
+                    node_shape = list(gm_node.meta["tensor_meta"].shape)
+                    if gm_node in node_to_input_idx:
+                        input_idx = node_to_input_idx[gm_node]
+                        if input_idx in self._dynamic_dims:
+                            for dim_idx in self._dynamic_dims[input_idx]:
+                                node_shape[dim_idx] = None  # Mark as dynamic
+
                     buddy_node = self._create_node(
                         gm_node.op,
                         gm_node.name,
                         gm_node.args,
                         node_users,
-                        gm_node.meta["tensor_meta"].shape,
+                        node_shape,
                         node_dtype,
                     )
 
