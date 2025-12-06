@@ -34,8 +34,9 @@ namespace {
 struct IMEVmadotLowering : public ConvertOpToLLVMPattern<VmadotOp> {
   using ConvertOpToLLVMPattern::ConvertOpToLLVMPattern;
 
-  LogicalResult matchAndRewrite(VmadotOp op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(VmadotOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     IntegerType i64Type = rewriter.getI64Type();
 
@@ -46,11 +47,13 @@ struct IMEVmadotLowering : public ConvertOpToLLVMPattern<VmadotOp> {
 
     Value vs1Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
         loc, op.getVs1());
-    Value vs1I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
+    Value vs1I64 =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
 
     Value vs2Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
         loc, op.getVs2());
-    Value vs2I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
+    Value vs2I64 =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
 
     // Replace with intrinsic operation
     rewriter.replaceOpWithNewOp<Vmadot_IntrOp>(op, vdI64, vs1I64, vs2I64);
@@ -61,8 +64,9 @@ struct IMEVmadotLowering : public ConvertOpToLLVMPattern<VmadotOp> {
 struct IMEVmadotuLowering : public ConvertOpToLLVMPattern<VmadotuOp> {
   using ConvertOpToLLVMPattern::ConvertOpToLLVMPattern;
 
-  LogicalResult matchAndRewrite(VmadotuOp op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(VmadotuOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     IntegerType i64Type = rewriter.getI64Type();
 
@@ -72,11 +76,13 @@ struct IMEVmadotuLowering : public ConvertOpToLLVMPattern<VmadotuOp> {
 
     Value vs1Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
         loc, op.getVs1());
-    Value vs1I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
+    Value vs1I64 =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
 
     Value vs2Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
         loc, op.getVs2());
-    Value vs2I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
+    Value vs2I64 =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
 
     rewriter.replaceOpWithNewOp<Vmadotu_IntrOp>(op, vdI64, vs1I64, vs2I64);
     return success();
@@ -86,8 +92,9 @@ struct IMEVmadotuLowering : public ConvertOpToLLVMPattern<VmadotuOp> {
 struct IMEVmadotsuLowering : public ConvertOpToLLVMPattern<VmadotsuOp> {
   using ConvertOpToLLVMPattern::ConvertOpToLLVMPattern;
 
-  LogicalResult matchAndRewrite(VmadotsuOp op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(VmadotsuOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     IntegerType i64Type = rewriter.getI64Type();
 
@@ -97,11 +104,13 @@ struct IMEVmadotsuLowering : public ConvertOpToLLVMPattern<VmadotsuOp> {
 
     Value vs1Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
         loc, op.getVs1());
-    Value vs1I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
+    Value vs1I64 =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
 
     Value vs2Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
         loc, op.getVs2());
-    Value vs2I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
+    Value vs2I64 =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
 
     rewriter.replaceOpWithNewOp<Vmadotsu_IntrOp>(op, vdI64, vs1I64, vs2I64);
     return success();
@@ -111,8 +120,9 @@ struct IMEVmadotsuLowering : public ConvertOpToLLVMPattern<VmadotsuOp> {
 struct IMEVmadotusLowering : public ConvertOpToLLVMPattern<VmadotusOp> {
   using ConvertOpToLLVMPattern::ConvertOpToLLVMPattern;
 
-  LogicalResult matchAndRewrite(VmadotusOp op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(VmadotusOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     IntegerType i64Type = rewriter.getI64Type();
 
@@ -122,11 +132,13 @@ struct IMEVmadotusLowering : public ConvertOpToLLVMPattern<VmadotusOp> {
 
     Value vs1Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
         loc, op.getVs1());
-    Value vs1I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
+    Value vs1I64 =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
 
     Value vs2Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
         loc, op.getVs2());
-    Value vs2I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
+    Value vs2I64 =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
 
     rewriter.replaceOpWithNewOp<Vmadotus_IntrOp>(op, vdI64, vs1I64, vs2I64);
     return success();
@@ -136,8 +148,9 @@ struct IMEVmadotusLowering : public ConvertOpToLLVMPattern<VmadotusOp> {
 struct IMEVfmadotLowering : public ConvertOpToLLVMPattern<VfmadotOp> {
   using ConvertOpToLLVMPattern::ConvertOpToLLVMPattern;
 
-  LogicalResult matchAndRewrite(VfmadotOp op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(VfmadotOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     IntegerType i64Type = rewriter.getI64Type();
 
@@ -147,11 +160,13 @@ struct IMEVfmadotLowering : public ConvertOpToLLVMPattern<VfmadotOp> {
 
     Value vs1Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
         loc, op.getVs1());
-    Value vs1I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
+    Value vs1I64 =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, vs1Extract);
 
     Value vs2Extract = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(
         loc, op.getVs2());
-    Value vs2I64 = rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
+    Value vs2I64 =
+        rewriter.create<arith::IndexCastOp>(loc, i64Type, vs2Extract);
 
     rewriter.replaceOpWithNewOp<Vfmadot_IntrOp>(op, vdI64, vs1I64, vs2I64);
     return success();
@@ -180,7 +195,8 @@ struct LegalizeIMEForLLVMExport
     target.addLegalOp<Vmadot_IntrOp, Vmadotu_IntrOp, Vmadotsu_IntrOp,
                       Vmadotus_IntrOp, Vfmadot_IntrOp>();
     // Mark high-level IME operations as illegal - they should be lowered
-    target.addIllegalOp<VmadotOp, VmadotuOp, VmadotsuOp, VmadotusOp, VfmadotOp>();
+    target
+        .addIllegalOp<VmadotOp, VmadotuOp, VmadotsuOp, VmadotusOp, VfmadotOp>();
 
     LLVMTypeConverter typeConverter(&context);
 
@@ -205,7 +221,8 @@ void mlir::configureIMELegalizeForExportTarget(LLVMConversionTarget &target) {
   // Mark dialects used during lowering as legal
   target.addLegalDialect<arith::ArithDialect>();
   target.addLegalDialect<memref::MemRefDialect>();
-  // Mark intrinsic operations as legal - they will be further lowered to LLVM IR
+  // Mark intrinsic operations as legal - they will be further lowered to LLVM
+  // IR
   target.addLegalOp<Vmadot_IntrOp, Vmadotu_IntrOp, Vmadotsu_IntrOp,
                     Vmadotus_IntrOp, Vfmadot_IntrOp>();
   // Mark high-level IME operations as illegal - they should be lowered
