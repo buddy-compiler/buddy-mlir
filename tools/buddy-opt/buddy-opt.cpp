@@ -43,6 +43,8 @@
 #include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
+#include "IME/IMEDialect.h"
+#include "IME/IMEOps.h"
 #include "RVV/RVVDialect.h"
 #include "VIR/VIRAttrs.h"
 #include "VIR/VIRDialect.h"
@@ -83,6 +85,7 @@ void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
+void registerLowerIMEPass();
 void registerFuncBufferizeDynamicOffsetPass();
 void registerAssumeTightMemRefLayoutPass();
 void registerConvertMemcpyToGPUPass();
@@ -118,6 +121,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerVectorExpPass();
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
+  mlir::buddy::registerLowerIMEPass();
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulVectorizationBLISPass();
@@ -163,7 +167,8 @@ int main(int argc, char **argv) {
                   buddy::rvv::RVVDialect,
                   buddy::vector_exp::VectorExpDialect,
                   buddy::vir::VIRDialect,
-                  buddy::gemmini::GemminiDialect>();
+                  buddy::gemmini::GemminiDialect,
+                  buddy::ime::IMEDialect>();
   // clang-format on
 
   mlir::buddy::registerBuddyGPUTransformOps(registry);
