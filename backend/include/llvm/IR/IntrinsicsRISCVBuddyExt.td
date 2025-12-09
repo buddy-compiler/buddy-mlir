@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-// 
+//
 // This is the costum intrinsic definition file of RISC-V buddy extension.
 //
 //===----------------------------------------------------------------------===//
@@ -29,65 +29,84 @@ def int_riscv_mvin3 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty],[]>;
 let TargetPrefix = "riscv" in
 def int_riscv_mvout : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_flush : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_config_ld : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_config_st : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_config_ex : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_config_norm : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_preload : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_compute_preloaded : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_compute_accumulated : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_ws_config_bounds : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_ws_config_addrs_ab : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_ws_config_addrs_dc : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_ws_config_strides_ab : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_ws_config_strides_dc : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_ws : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_conv_ws : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_conv_ws_config1 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_conv_ws_config2 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_conv_ws_config3 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_conv_ws_config4 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_conv_ws_config5 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_loop_conv_ws_config6 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+//===----------------------------------------------------------------------===//
+// IME Extension Intrinsics
+//===----------------------------------------------------------------------===//
+
+let TargetPrefix = "riscv" in
+def int_riscv_ime_vmadot : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_ime_vmadotu : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_ime_vmadotsu : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_ime_vmadotus : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_ime_vfmadot : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], []>;
