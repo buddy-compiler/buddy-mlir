@@ -8,6 +8,10 @@ elseif (HAVE_SSE)
     set(SPLITING_SIZE 16)
 elseif (HAVE_NEON)
     set(SPLITING_SIZE 16)
+else()
+    # Fallback split size when no SIMD feature or override is detected.
+    # This ensures that functionality is not broken on scalar-only targets.
+    set(SPLITING_SIZE 1)
 endif ()
 
 #-------------------------------------------------------------------------------
