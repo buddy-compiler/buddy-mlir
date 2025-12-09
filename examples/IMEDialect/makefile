@@ -3,15 +3,11 @@ BUDDY_OPT := ../../build/bin/buddy-opt
 BUDDY_TRANSLATE := ../../build/bin/buddy-translate
 BUDDY_LLC := ../../build/bin/buddy-llc
 
-# ==============================================================================
-# Targets
-# ==============================================================================
-
 .PHONY: all clean vmadot vmadotu vmadotsu vmadotus vfmadot help
 
 all: vmadot vmadotu vmadotsu vmadotus vfmadot
 
-# Individual IME operation examples
+
 vmadot: vmadot.mlir
 	$(BUDDY_OPT) $< -o vmadot-out.mlir
 
@@ -30,8 +26,7 @@ vfmadot: vfmadot.mlir
 clean:
 	rm -f *-out.mlir
 
-# lowering, translation, and assembly generation for each example
-# -------------------------------------------------------------------------
+
 vmadot-lower:
 	@${BUDDY_OPT} ./vmadot.mlir \
 		-lower-ime \
@@ -78,7 +73,7 @@ vmadot-asm:
 		-mattr=+m,+v \
 		-o log.s
 
-# -------------------------------------------------------------------------
+
 vmadotu-lower:
 	@${BUDDY_OPT} ./vmadotu.mlir \
 		-lower-ime \
@@ -125,7 +120,7 @@ vmadotu-asm:
 		-mattr=+m,+v \
 		-o log.s
 
-# -------------------------------------------------------------------------
+
 vmadotsu-lower:
 	@${BUDDY_OPT} ./vmadotsu.mlir \
 		-lower-ime \
@@ -172,7 +167,7 @@ vmadotsu-asm:
 		-mattr=+m,+v \
 		-o log.s
 
-# -------------------------------------------------------------------------
+
 vmadotus-lower:
 	@${BUDDY_OPT} ./vmadotus.mlir \
 		-lower-ime \
@@ -219,7 +214,7 @@ vmadotus-asm:
 		-mattr=+m,+v \
 		-o log.s
 
-# -------------------------------------------------------------------------
+
 vfmadot-lower:
 	@${BUDDY_OPT} ./vfmadot.mlir \
 		-lower-ime \
