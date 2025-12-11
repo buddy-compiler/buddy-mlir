@@ -23,7 +23,10 @@ from ..operation import *
 from .. import DeviceType
 from torch.fx.immutable_collections import immutable_list
 
-classicfuse_register = {"transpose_matmul_fusion": TransposeMatmulFusedOp}
+classicfuse_register = {
+    "transpose_matmul_fusion": TransposeMatmulFusedOp,
+    "flash_attention_prefill_fusion": FlashAttentionForCpuPrefillOp,
+}
 
 # TODO: classify op type for op fusion
 # OP_TYPE_FUSABLE = [OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType]
@@ -134,3 +137,33 @@ def simply_fuse(graph: Graph):
     graph.op_groups = {}
     graph.op_groups["subgraph0"] = new_op_group
     graph.group_map_device = {"subgraph0": device}
+
+
+def flash_attention_prefill(graph: Graph):
+    """
+    Replace ScaledDotProductFlashAttentionForCpuOp with FlashAttentionForCpuPrefillOp.
+    """
+    new_op_group = []
+    device = DeviceType.CPU
+    replace_attention_op(graph)
+
+    for op in graph.body:
+        if isinstance(op, PlaceholderOp):
+            continue
+        new_op_group.append(op)
+
+    graph.op_groups = {"subgraph0": new_op_group}
+    graph.group_map_device = {"subgraph0": device}
+
+
+def replace_attention_op(graph: Graph):
+    """
+    replace ScaledDotProductFlashAttentionForCpuOp with FlashAttentionForCpuPrefillOp.
+    """
+    for op in list(graph.body):
+        if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
+            new_op = classicfuse_register.get(
+                "flash_attention_prefill_fusion"
+            )()
+            new_op.name = "FlashAttentionForCpuPrefillOp"
+            graph.displace_node(op, new_op)
