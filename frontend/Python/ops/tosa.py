@@ -408,6 +408,7 @@ def addmm_op(
                 ir.FloatAttr.get(result_element_type, 0.0)
                 if str(result_element_type) == "f32"
                 or str(result_element_type) == "f16"
+                or str(result_element_type) == "bf16"
                 else ir.IntegerAttr.get(result_element_type, 0)
             ),
         )
@@ -3112,7 +3113,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_max_val)
 
         matmul_op = tosa.ClampOp(
-            matmul_op.result.type,
+            matmul_op.type,
             matmul_op,
             min_int_attr,
             max_int_attr,

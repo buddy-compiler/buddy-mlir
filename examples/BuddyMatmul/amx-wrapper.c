@@ -60,15 +60,6 @@ int main() {
     printf("AMX_TILE permission granted\n");
   }
 
-  ret = syscall(SYS_arch_prctl, ARCH_REQ_XCOMP_PERM, 19); // 19 = AMX_DATA
-  if (ret != 0) {
-    printf("Warning: Failed to request AMX_DATA permission: %ld (errno: %s)\n",
-           ret, strerror(errno));
-    printf("Attempting to run anyway...\n");
-  } else {
-    printf("AMX_DATA permission granted\n");
-  }
-
   printf("Starting AMX computation...\n");
 
   // Call the MLIR-generated main function
