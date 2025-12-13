@@ -20,6 +20,7 @@
 
 from typing import Any, List, Optional
 from types import FunctionType
+from enum import Enum, auto
 import ctypes
 import functools
 import numpy as np
@@ -67,6 +68,10 @@ def make_output_memref_descriptor(ranks, dtypes):
 
     return OutputDescriptor
 
+class NodeType(Enum):
+    FakeNode = auto()
+    InputNode = auto()
+    OtherNode = auto()
 
 class Graph:
     """
@@ -101,8 +106,6 @@ class Graph:
 
     def __init__(
         self,
-        inputs: List[TensorMeta],
-        fake_params: List[TensorMeta],
         ops_registry: dict,
         func_name: str,
         device: DeviceType = DeviceType.CPU,
@@ -125,9 +128,9 @@ class Graph:
                 Enable external function call support (for oneDNN, etc.)
         """
         self._body = []
-        self._inputs = inputs
+        self._inputs = []
         self.node_table: Dict[str, Op] = {}
-        self._fake_params = fake_params
+        self._fake_params = []
         self.device = device
         self._imported_module = None
         self._params_ref = None
@@ -150,7 +153,7 @@ class Graph:
     def body(self, new_body):
         self._body = new_body
 
-    def add_node(self, node: Op):
+    def add_node(self, node: Op, node_type: NodeType = NodeType.OtherNode):
         """
         Adds an operation node to the graph's body.
 
@@ -167,8 +170,57 @@ class Graph:
         graph_instance.add_node(op_node)
         # The op_node is now part of the graph's body
         """
+        node_idx = len(self._body)
         self._body.append(node)
         self.node_table[node.name] = node
+        if node_type == NodeType.FakeNode:
+            self._fake_params.append(node_idx)
+        elif node_type == NodeType.InputNode:
+            self._inputs.append(node_idx)
+
+    def get_input(self, i):
+        return self._body[self._inputs[i]]
+
+    @property 
+    def inputs(self) -> list[Op]:
+        return [self.get_input(i) for i in range(len(self._inputs))]
+
+    @property
+    def input_tm(self) -> list[TensorMeta]:
+        tm_list = []
+        for input in self.inputs:
+            input_tm_dict = input.tensor_meta
+            if isinstance(input_tm_dict, TensorMeta):
+                tm_list.append(input_tm_dict)
+                continue
+            tm_list.append(TensorMeta(
+                shape=input_tm_dict["shape"],
+                dtype=input_tm_dict["dtype"],
+            ))
+
+        return tm_list
+
+    def get_fake_params(self, i):
+        return self._body[self._fake_params[i]]
+
+    @property
+    def params(self):
+        return [self.get_fake_params(i) for i in range(len(self._fake_params))]
+    
+    @property
+    def params_tm(self) -> list[TensorMeta]:
+        tm_list = []
+        for param in self.params:
+            param_tm_dict = param.tensor_meta
+            if isinstance(param_tm_dict, TensorMeta):
+                tm_list.append(param_tm_dict)
+                continue
+            tm_list.append(TensorMeta(
+                shape=param_tm_dict["shape"],
+                dtype=param_tm_dict["dtype"],
+            ))
+
+        return tm_list
 
     def check_delete_node(self, node: Op) -> bool:
         """
@@ -350,8 +402,8 @@ class Graph:
         with ir.Location.unknown(self._ctx):
             fx_importer = GraphImporter(
                 self._body,
-                self._fake_params,
-                self._inputs,
+                self.params_tm,
+                self.input_tm,
                 self._func_name,
                 self._ops_registry,
                 False,
