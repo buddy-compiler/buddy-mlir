@@ -875,22 +875,6 @@ class DynamoCompiler:
             num_cached_kv = 0
             if self._model_config.decode_with_cache:
                 num_cached_kv = self._model_config.num_hidden_layers * 2
-            """func_inputs = []
-            for i in inputs_pos:
-                # for inp in _inputs[len(params_flat) :]:
-                inp = _inputs[i + num_cached_kv]
-                inp_shape = inp.shape
-                inp_dtype = self._torch_dtype_translate(str(inp.dtype))
-                func_inputs.append(TensorMeta(inp_shape, inp_dtype))
-            for inp in _inputs[:num_cached_kv]:
-                inp = _inputs[i]
-                inp_shape = inp.shape
-                inp_dtype = self._torch_dtype_translate(str(inp.dtype))
-                func_inputs.append(TensorMeta(inp_shape, inp_dtype))
-            fake_params = []
-            for param in params_flat:
-                param_dtype = self._torch_dtype_translate(str(param.dtype))
-                fake_params.append(TensorMeta(param.shape, param_dtype))"""
             graph = Graph(
                 self._ops_registry,
                 self._func_name,

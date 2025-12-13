@@ -119,7 +119,6 @@ class GraphDriver:
         # Construct each subgraph
         for subgraph_name in self._graph.op_groups.keys():
             subgraph_input = []
-            #subgraph_body = []
             subgraph_device = self._graph.group_map_device[subgraph_name]
 
             # Create subgraph and add it to the dictionary
@@ -144,12 +143,10 @@ class GraphDriver:
                     if inp in node._parents:
                         placeholder_node.add_children(op.name)
                 subgraph.add_node(placeholder_node, NodeType.InputNode)
-                #subgraph_body.append(placeholder_node)
 
             # Add operations to subgraph body
             for op in self._graph.op_groups[subgraph_name]:
                 subgraph.add_node(op, NodeType.OtherNode)
-                #subgraph_body.append(op)
 
             # Construct output node
             output_node = OutputOp()
@@ -159,7 +156,6 @@ class GraphDriver:
                 output_node.add_parent(output)
             
             subgraph.add_node(node=output_node, node_type=NodeType.OtherNode)
-            #subgraph_body.append(output_node)
 
             for op in subgraph._body:
                 subgraph.node_table[op.name] = op
@@ -237,10 +233,6 @@ class GraphDriver:
                 )
             main_graph.add_node(func_node)
 
-        ## Adding placeholder operations from the original graph
-        #for op in self._graph.body:
-        #    if isinstance(op, PlaceholderOp):
-        #        main_graph.add_node(op)
         
         for op in self._graph.inputs:
             main_graph.add_node(op, node_type=NodeType.InputNode)
