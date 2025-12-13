@@ -1,0 +1,10 @@
+log.*
+core
+*pk
+a.out
+lowered.mlir
+vfmadot-basic.mlir
+vmadot-basic.mlir
+vmadot-variants.mlir
+README.md
+*-out.mlir

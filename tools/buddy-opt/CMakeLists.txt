@@ -40,6 +40,9 @@ target_link_libraries(buddy-opt
   BuddyGemmini
   LowerGemminiPass
   LowerLinalgToGemminiPass
+  BuddyIME
+  BuddyIMETransforms
+  LowerIMEPass
   FuncBufferizeDynamicOffset
   MLIRGPUPasses
   BuddyGPUTransformOPs

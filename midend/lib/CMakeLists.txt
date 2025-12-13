@@ -23,6 +23,7 @@ set(LinkedLibs
   LowerBuckyballPass
   LowerGemminiPass
   LowerLinalgToGemminiPass
+  LowerIMEPass
   LowerRVVPass
   LowerVectorExpPass
   MatMulOptimization

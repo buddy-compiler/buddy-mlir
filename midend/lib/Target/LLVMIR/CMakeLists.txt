@@ -11,4 +11,5 @@ add_mlir_translation_library(BuddyToLLVMIRTranslationRegistration
   BuddyRVVToLLVMIRTranslation
   BuddyBuckyballToLLVMIRTranslation
   BuddyGemminiToLLVMIRTranslation
+  MLIRIMEToLLVMIRTranslation
   )

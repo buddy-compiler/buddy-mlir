@@ -29,6 +29,7 @@
 
 #include "Target/LLVMIR/Dialect/Buckyball/BuckyballToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/Gemmini/GemminiToLLVMIRTranslation.h"
+#include "Target/LLVMIR/Dialect/IME/IMEToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/RVV/RVVToLLVMIRTranslation.h"
 
 using namespace buddy;
@@ -55,6 +56,7 @@ void registerBuddyToLLVMIRTranslation() {
         registerRVVDialectTranslation(registry);
         registerBuckyballDialectTranslation(registry);
         registerGemminiDialectTranslation(registry);
+        registerIMEDialectTranslation(registry);
       });
 }
 } // namespace buddy

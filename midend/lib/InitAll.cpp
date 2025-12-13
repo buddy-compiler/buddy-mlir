@@ -26,6 +26,7 @@
 #include "Dialect/Tile/TileDialect.h"
 #include "Dialect/Buckyball/BuckyballDialect.h"
 #include "Dialect/Gemmini/GemminiDialect.h"
+#include "Dialect/IME/IMEDialect.h"
 #include "Dialect/RVV/RVVDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
 
@@ -40,6 +41,7 @@ void registerLowerDAPPass();
 void registerLowerDIPPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
+void registerLowerIMEPass();
 void registerLowerRVVPass();
 void registerLowerVectorExpPass();
 void registerLowerLinalgToTilePass();
@@ -66,6 +68,7 @@ void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<::buddy::tile::TileDialect>();
   registry.insert<::buddy::buckyball::BuckyballDialect>();
   registry.insert<::buddy::gemmini::GemminiDialect>();
+  registry.insert<::buddy::ime::IMEDialect>();
   registry.insert<::buddy::rvv::RVVDialect>();
   registry.insert<::buddy::vector_exp::VectorExpDialect>();
 }
@@ -83,6 +86,7 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerLowerBuckyballPass();
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
+  mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
   mlir::buddy::registerBatchMatMulOptimizePass();
