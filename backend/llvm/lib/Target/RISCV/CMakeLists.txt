@@ -202,7 +202,6 @@ add_llvm_component_library(LLVMBuddyRISCVDesc
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetStreamer.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCTargetDesc.cpp
 
-
   # Add *.h files to track the copies above.
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVAsmBackend.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVBaseInfo.h
@@ -215,7 +214,6 @@ add_llvm_component_library(LLVMBuddyRISCVDesc
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCObjectFileInfo.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetStreamer.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCTargetDesc.h
-
 
   LINK_COMPONENTS
   MC

@@ -14,11 +14,16 @@ target_link_libraries(buddy-opt
   MLIROptLib
   CBConvVectorization
   BuddyBud
+  BuddyBuckyball
+  LowerBuckyballPass
   LowerBudPass
   BuddyDIP
   LowerDIPPass
   BuddyDAP
   LowerDAPPass
+  BuddyTile
+  LowerLinalgToTilePass
+  LowerTileToBuckyballPass
   ExtendDAPPass
   DAPVectorization
   BuddyRVV

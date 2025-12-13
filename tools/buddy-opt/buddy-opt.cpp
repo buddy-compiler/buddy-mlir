@@ -40,6 +40,10 @@
 #include "DAP/DAPOps.h"
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
+#include "Tile/TileDialect.h"
+#include "Tile/TileOps.h"
+#include "Buckyball/BuckyballDialect.h"
+#include "Buckyball/BuckyballOps.h"
 #include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
@@ -83,6 +87,9 @@ void registerConvNhwcFhwcOptimizePass();
 void registerConvNhwcFhwcTileOptimizePass();
 void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
+void registerLowerLinalgToTilePass();
+void registerLowerTileToBuckyballPass();
+void registerLowerBuckyballPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
 void registerLowerIMEPass();
@@ -119,6 +126,9 @@ int main(int argc, char **argv) {
   mlir::buddy::registerDAPVectorizePass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
+  mlir::buddy::registerLowerLinalgToTilePass();
+  mlir::buddy::registerLowerTileToBuckyballPass();
+  mlir::buddy::registerLowerBuckyballPass();
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
   mlir::buddy::registerLowerIMEPass();
@@ -169,6 +179,9 @@ int main(int argc, char **argv) {
                   buddy::vir::VIRDialect,
                   buddy::gemmini::GemminiDialect,
                   buddy::ime::IMEDialect>();
+                  buddy::tile::TileDialect,
+                  buddy::buckyball::BuckyballDialect,
+                  buddy::gemmini::GemminiDialect>();
   // clang-format on
 
   mlir::buddy::registerBuddyGPUTransformOps(registry);
