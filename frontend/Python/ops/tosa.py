@@ -64,6 +64,7 @@ from ..graph import (
     ArgMaxOp,
     ScaledDotProductFlashAttentionForCpuOp,
     MatmulOp,
+    SiluOp,
     LeOp,
     BitwiseAndTensorOp,
     AbsOp,
@@ -2797,6 +2798,26 @@ def sigmoid_op(node: SigmoidOp, symbol_table):
     op = tosa.SigmoidOp(tensor_type, input1)
 
     return op
+
+
+def silu_op(node: SiluOp, symbol_table):
+    """
+    Import the buddy SiluOp.
+    Implements SiLU fusion: x * sigmoid(x) using tosa.sigmoid and tosa.mul.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    if input_tensor is None:
+        return
+
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+
+    sigmoid_op = tosa.SigmoidOp(tensor_type, input_tensor)
+    mul_op = tosa.MulOp(tensor_type, input_tensor, sigmoid_op.result)
+
+    return mul_op
 
 
 def reciprocal_op(node: ReciprocalOp, symbol_table):
@@ -9334,6 +9355,7 @@ ops_registry = {
     "ReluOp": relu_op,
     "IotaOp": iota_op,
     "SigmoidOp": sigmoid_op,
+    "SiLUOp": silu_op,
     "ReciprocalOp": reciprocal_op,
     "MeanOp": mean_op,
     "ClampMinOp": clamp_min_op,

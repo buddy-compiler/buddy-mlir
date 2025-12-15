@@ -23,7 +23,8 @@ from ..operation import *
 from .. import DeviceType
 from torch.fx.immutable_collections import immutable_list
 
-classicfuse_register = {"transpose_matmul_fusion": TransposeMatmulFusedOp}
+classicfuse_register = {"transpose_matmul_fusion": TransposeMatmulFusedOp,
+                        "silu_fusion": SiluOp}
 
 # TODO: classify op type for op fusion
 # OP_TYPE_FUSABLE = [OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType]
@@ -52,10 +53,25 @@ def classic_fuse_check(graph: Graph):
                     1
                 ] == immutable_list([1, 0]):
                     pattern = target, parentop, "transpose_matmul_fusion"
+        elif isinstance(op, MulOp):
+            # Check for mul + sigmoid fusion pattern: mul(x, sigmoid(x))
+            parentop = [graph.node_table[str(i)] for i in op._parents]
+            for target in parentop:
+                if isinstance(target, SigmoidOp):
+                    # Check if the sigmoid input is also an input to the mul operation
+                    sigmoid_input = target._parents[0] if target._parents else None
+                    if sigmoid_input and sigmoid_input in op._parents:
+                        pattern = target, parentop, "silu_fusion"
+                        break
         if pattern:
-            transpose_matmul_fusion(
-                graph, op, pattern[0], pattern[1], pattern[2]
-            )
+            if pattern[2] == "transpose_matmul_fusion":
+                transpose_matmul_fusion(
+                    graph, op, pattern[0], pattern[1], pattern[2]
+                )
+            elif pattern[2] == "silu_fusion":
+                silu_fusion(
+                    graph, op, pattern[0], pattern[1], pattern[2]
+                )
 
 
 def transpose_matmul_fusion(
@@ -82,6 +98,44 @@ def transpose_matmul_fusion(
     fused_op.args.extend(target.args)
 
     fused_op._parents.extend(target._parents)
+    targets_parent = [graph.node_table[i] for i in target._parents]
+    for i in targets_parent:
+        i.add_children(fused_op.name)
+    target._children.pop(target._children.index(fused_op.name))
+
+    if graph.check_delete_node(target):
+        graph.delete_node(target, targets_parent)
+
+
+def silu_fusion(
+    graph: Graph, node, target: Op, parents: List[Op], pattern: str
+):
+    """
+    Function to fuse mul and sigmoid operations into one operation.
+    Such as mul(x, sigmoid(x)) -> fused_mul_sigmoid(x)
+
+    Args:
+    - graph (Graph): The input graph to be simplified.
+    - node (Op): The mul operation to be fused.
+    - target (Op): The sigmoid operation to be fused.
+    - parents (List[Op]): The parents of the node to be fused.
+    - pattern (str): The pattern of the fusion.
+    Returns:
+    - None: Modifies the input graph in place.
+    """
+    fused_op = classicfuse_register.get(pattern)()
+    # mulop -> fusedmulopnode
+    fused_op.name = "fusedSilu"
+    graph.displace_node(node, fused_op)
+    fused_op.args.pop(fused_op.args.index(target.name))
+    fused_op._parents.pop(fused_op._parents.index(target.name))
+    fused_op.args.extend(target.args)
+
+    fused_op._parents.extend(target._parents)
+
+    fused_op.args[:] = list(set(fused_op.args))
+    fused_op._parents[:] = list(set(fused_op._parents))
+
     targets_parent = [graph.node_table[i] for i in target._parents]
     for i in targets_parent:
         i.add_children(fused_op.name)
@@ -134,3 +188,4 @@ def simply_fuse(graph: Graph):
     graph.op_groups = {}
     graph.op_groups["subgraph0"] = new_op_group
     graph.group_map_device = {"subgraph0": device}
+    
