@@ -83,7 +83,8 @@ bool isAMXCompatible(Value A, Value B, Value C) {
 }
 
 /// Check if data types are compatible with AMX BF16 requirements
-/// A, B should be bf16; C should be f32
+/// A, B should be bf16; C can be f32 or bf16
+/// If C is bf16, we will add f32->bf16 conversion after AMX computation
 bool isAMXDataTypeCompatible(Value A, Value B, Value C) {
   auto AType = mlir::dyn_cast<MemRefType>(A.getType());
   auto BType = mlir::dyn_cast<MemRefType>(B.getType());
@@ -96,12 +97,18 @@ bool isAMXDataTypeCompatible(Value A, Value B, Value C) {
   Type BElemType = BType.getElementType();
   Type CElemType = CType.getElementType();
 
-  return AElemType.isBF16() && BElemType.isBF16() && CElemType.isF32();
+  // Allow both f32 and bf16 output
+  return AElemType.isBF16() && BElemType.isBF16() &&
+         (CElemType.isF32() || CElemType.isBF16());
 }
 
-/// Create a pre-packed version of matrix B for AMX-friendly tile loads
-/// This function reorganizes B matrix so that each 16x32 block can be loaded
-/// efficiently by amx.tile_load operations
+/// Create a VNNI-packed version of matrix B for AMX BF16 operations.
+/// Input: B[K x N] in standard row-major layout
+/// Output: B_packed[K/2 x N*2] in VNNI format
+/// VNNI format: each row contains interleaved elements from 2 consecutive rows
+/// of B
+///   B_packed[row_pair, 2*n]   = B[2*row_pair, n]
+///   B_packed[row_pair, 2*n+1] = B[2*row_pair+1, n]
 Value createPackedBMatrix(OpBuilder &builder, Location loc, Value B, int64_t K,
                           int64_t N) {
   auto BType = mlir::cast<MemRefType>(B.getType());
@@ -113,56 +120,83 @@ Value createPackedBMatrix(OpBuilder &builder, Location loc, Value B, int64_t K,
 
   Value c0 = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
+  Value c2 = builder.create<arith::ConstantIndexOp>(loc, 2);
 
-  // For K dimension
+  // The packed buffer is [K/2 x N*2] in VNNI format
+  // First dimension: K/2 (number of row pairs)
   if (K == ShapedType::kDynamic) {
     staticShape.push_back(ShapedType::kDynamic);
-    dynamicSizes.push_back(builder.create<memref::DimOp>(loc, B, c0));
+    Value dimK = builder.create<memref::DimOp>(loc, B, c0);
+    Value dimKDiv2 = builder.create<arith::DivUIOp>(loc, dimK, c2);
+    dynamicSizes.push_back(dimKDiv2);
   } else {
-    staticShape.push_back(K);
+    staticShape.push_back(K / 2);
   }
 
-  // For N dimension
+  // Second dimension: N*2 (interleaved columns)
   if (N == ShapedType::kDynamic) {
     staticShape.push_back(ShapedType::kDynamic);
-    dynamicSizes.push_back(builder.create<memref::DimOp>(loc, B, c1));
+    Value dimN = builder.create<memref::DimOp>(loc, B, c1);
+    Value dimNMul2 = builder.create<arith::MulIOp>(loc, dimN, c2);
+    dynamicSizes.push_back(dimNMul2);
   } else {
-    staticShape.push_back(N);
+    staticShape.push_back(N * 2);
   }
 
-  // Create a new memref for the packed B matrix with the same dimensions
-  // The packing is done logically - the physical layout optimization
-  // will be handled by later passes
+  // Create a new memref for the VNNI-packed B matrix
   auto packedBType = MemRefType::get(staticShape, elementType);
   Value packedB =
       builder.create<memref::AllocOp>(loc, packedBType, dynamicSizes);
 
   // Get actual dimension sizes (handle both static and dynamic cases)
-  Value cK, cN;
+  Value cK, cN, cKDiv2;
   if (K == ShapedType::kDynamic) {
-    cK = builder.create<memref::DimOp>(loc, B, c0).getResult();
+    cK = builder.create<memref::DimOp>(loc, B, c0);
+    cKDiv2 = builder.create<arith::DivUIOp>(loc, cK, c2);
   } else {
-    cK = builder.create<arith::ConstantIndexOp>(loc, K).getResult();
+    cK = builder.create<arith::ConstantIndexOp>(loc, K);
+    cKDiv2 = builder.create<arith::ConstantIndexOp>(loc, K / 2);
   }
 
   if (N == ShapedType::kDynamic) {
-    cN = builder.create<memref::DimOp>(loc, B, c1).getResult();
+    cN = builder.create<memref::DimOp>(loc, B, c1);
   } else {
-    cN = builder.create<arith::ConstantIndexOp>(loc, N).getResult();
+    cN = builder.create<arith::ConstantIndexOp>(loc, N);
   }
 
-  // Simple copy for now - in a real implementation, this would be
-  // a more sophisticated packing operation
+  // Pack into VNNI format
+  // For each row pair (row_pair = 0, 1, 2, ..., K/2-1):
+  //   k0 = row_pair * 2
+  //   k1 = row_pair * 2 + 1
+  //   For each column n:
+  //     B_packed[row_pair, 2*n]   = B[k0, n]
+  //     B_packed[row_pair, 2*n+1] = B[k1, n]
   builder.create<scf::ForOp>(
-      loc, c0, cK, c1, ValueRange{},
-      [&](OpBuilder &builder, Location loc, Value i, ValueRange) {
+      loc, c0, cKDiv2, c1, ValueRange{},
+      [&](OpBuilder &builder, Location loc, Value rowPair, ValueRange) {
+        // Compute k0 = row_pair * 2 and k1 = k0 + 1
+        Value k0 = builder.create<arith::MulIOp>(loc, rowPair, c2);
+        Value k1 = builder.create<arith::AddIOp>(loc, k0, c1);
+
         builder.create<scf::ForOp>(
             loc, c0, cN, c1, ValueRange{},
-            [&](OpBuilder &builder, Location loc, Value j, ValueRange) {
-              Value val =
-                  builder.create<memref::LoadOp>(loc, B, ValueRange{i, j});
-              builder.create<memref::StoreOp>(loc, val, packedB,
-                                              ValueRange{i, j});
+            [&](OpBuilder &builder, Location loc, Value n, ValueRange) {
+              // Load B[k0, n] and B[k1, n]
+              Value val0 =
+                  builder.create<memref::LoadOp>(loc, B, ValueRange{k0, n});
+              Value val1 =
+                  builder.create<memref::LoadOp>(loc, B, ValueRange{k1, n});
+
+              // Compute column indices: col0 = n*2, col1 = n*2+1
+              Value col0 = builder.create<arith::MulIOp>(loc, n, c2);
+              Value col1 = builder.create<arith::AddIOp>(loc, col0, c1);
+
+              // Store in VNNI format: interleaved
+              builder.create<memref::StoreOp>(loc, val0, packedB,
+                                              ValueRange{rowPair, col0});
+              builder.create<memref::StoreOp>(loc, val1, packedB,
+                                              ValueRange{rowPair, col1});
+
               builder.create<scf::YieldOp>(loc);
             });
         builder.create<scf::YieldOp>(loc);
@@ -203,8 +237,8 @@ public:
 
     if (!isAMXDataTypeCompatible(A, B, C)) {
       return rewriter.notifyMatchFailure(
-          op, "Data types not compatible with AMX BF16: A,B must be bf16, C "
-              "must be f32");
+          op, "Data types not compatible with AMX BF16: A,B must be bf16, "
+              "C must be bf16 or f32");
     }
 
     // Additional validation for memref types
@@ -257,8 +291,21 @@ public:
     // Create AMX tile types
     auto bf16Type = rewriter.getBF16Type();
     auto f32Type = rewriter.getF32Type();
-    auto tileTypeBF16 = TileType::get({16, 32}, bf16Type);
+    auto tileTypeBF16A = TileType::get({16, 32}, bf16Type);
+    auto tileTypeBF16B = TileType::get({16, 32}, bf16Type);
     auto tileTypeF32 = TileType::get({16, 16}, f32Type);
+
+    // Check if output is bf16 (need conversion) or f32 (direct)
+    Type CElemType = CMemRefType.getElementType();
+    bool needsBF16Conversion = CElemType.isBF16();
+
+    // If output is bf16, create temporary f32 buffer for AMX computation
+    Value CTemp = C;
+    if (needsBF16Conversion) {
+      auto CShape = CMemRefType.getShape();
+      auto f32MemRefType = MemRefType::get(CShape, f32Type);
+      CTemp = rewriter.create<memref::AllocOp>(loc, f32MemRefType);
+    }
 
     // Generate AMX tile computation loops
     // Outer loops: iterate over M and N dimensions in 16x16 tiles
@@ -270,30 +317,42 @@ public:
               [&](OpBuilder &builder, Location loc, Value n, ValueRange) {
                 // Initialize accumulator tile to zero
                 Value zeroTile = builder.create<TileZeroOp>(loc, tileTypeF32);
-                builder.create<TileStoreOp>(loc, C, ValueRange{m, n}, zeroTile);
+                builder.create<TileStoreOp>(loc, CTemp, ValueRange{m, n},
+                                            zeroTile);
 
                 // Inner loop: iterate over K dimension in chunks of 32
                 builder.create<scf::ForOp>(
                     loc, c0, cK, c32, ValueRange{},
                     [&](OpBuilder &builder, Location loc, Value k, ValueRange) {
-                      // Load A tile: 16x32xbf16 from [%m, %k]
+                      // Load A tile: 16x32xbf16 from [m, k]
                       Value tA = builder.create<TileLoadOp>(
-                          loc, tileTypeBF16, A, ValueRange{m, k});
+                          loc, tileTypeBF16A, A, ValueRange{m, k});
 
-                      // Load B tile (pre-packed): 16x32xbf16 from [%k, %n]
+                      // Load B tile from VNNI-packed format
+                      // B_packed is [K/2 x N*2] in VNNI format
+                      // For tile at (m, n, k), we need B[k:k+32, n:n+16]
+                      // In B_packed, this is at [k/2:k/2+16, n*2:n*2+32]
+                      Value c2Val =
+                          builder.create<arith::ConstantIndexOp>(loc, 2);
+                      Value kDiv2 =
+                          builder.create<arith::DivUIOp>(loc, k, c2Val);
+                      Value nMul2 =
+                          builder.create<arith::MulIOp>(loc, n, c2Val);
+
+                      // Load from B_packed[k/2, n*2] (16x32 tile)
                       Value tB = builder.create<TileLoadOp>(
-                          loc, tileTypeBF16, Bpack, ValueRange{k, n});
+                          loc, tileTypeBF16B, Bpack, ValueRange{kDiv2, nMul2});
 
-                      // Load current accumulator from C
+                      // Load current accumulator from CTemp (f32)
                       Value tAcc = builder.create<TileLoadOp>(
-                          loc, tileTypeF32, C, ValueRange{m, n});
+                          loc, tileTypeF32, CTemp, ValueRange{m, n});
 
                       // Perform tile multiplication with accumulation
                       Value tAcc2 = builder.create<TileMulFOp>(loc, tileTypeF32,
                                                                tA, tB, tAcc);
 
-                      // Store result back to C
-                      builder.create<TileStoreOp>(loc, C, ValueRange{m, n},
+                      // Store result back to CTemp (f32)
+                      builder.create<TileStoreOp>(loc, CTemp, ValueRange{m, n},
                                                   tAcc2);
 
                       builder.create<scf::YieldOp>(loc);
@@ -302,6 +361,36 @@ public:
               });
           builder.create<scf::YieldOp>(loc);
         });
+
+    // If output is bf16, convert f32 -> bf16
+    if (needsBF16Conversion) {
+      // Create nested loops to convert each element
+      rewriter.create<scf::ForOp>(
+          loc, c0, cM, c1, ValueRange{},
+          [&](OpBuilder &builder, Location loc, Value i, ValueRange) {
+            builder.create<scf::ForOp>(
+                loc, c0, cN, c1, ValueRange{},
+                [&](OpBuilder &builder, Location loc, Value j, ValueRange) {
+                  // Load f32 value from CTemp
+                  Value f32Val = builder.create<memref::LoadOp>(
+                      loc, CTemp, ValueRange{i, j});
+
+                  // Convert f32 -> bf16
+                  Value bf16Val =
+                      builder.create<arith::TruncFOp>(loc, bf16Type, f32Val);
+
+                  // Store bf16 value to C
+                  builder.create<memref::StoreOp>(loc, bf16Val, C,
+                                                  ValueRange{i, j});
+
+                  builder.create<scf::YieldOp>(loc);
+                });
+            builder.create<scf::YieldOp>(loc);
+          });
+
+      // Deallocate temporary f32 buffer
+      rewriter.create<memref::DeallocOp>(loc, CTemp);
+    }
 
     // Remove the original linalg.matmul operation
     rewriter.eraseOp(op);
