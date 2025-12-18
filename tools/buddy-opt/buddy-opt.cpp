@@ -178,10 +178,9 @@ int main(int argc, char **argv) {
                   buddy::vector_exp::VectorExpDialect,
                   buddy::vir::VIRDialect,
                   buddy::gemmini::GemminiDialect,
-                  buddy::ime::IMEDialect>();
                   buddy::tile::TileDialect,
                   buddy::buckyball::BuckyballDialect,
-                  buddy::gemmini::GemminiDialect>();
+                  buddy::ime::IMEDialect>();
   // clang-format on
 
   mlir::buddy::registerBuddyGPUTransformOps(registry);
