@@ -222,7 +222,7 @@ class GraphDriver:
             func_node = FuncOp()
             func_node.name = subgraph_name
             func_node.tensor_meta = {"shape": [], "dtype": []}
-            for inp in self._subgraphs[subgraph_name].input_tm:
+            for inp in self._subgraphs[subgraph_name].inputs_shapes:
                 func_node.add_argument(inp)
             for output in self._subgraphs_outputs[subgraph_name]:
                 func_node.tensor_meta["shape"].append(
@@ -286,8 +286,8 @@ class GraphDriver:
         with ir.Location.unknown(ir.Context()):
             main_importer = GraphImporter(
                 main_graph.body,
-                main_graph.params_tm,
-                main_graph.input_tm,
+                main_graph.params_shapes,
+                main_graph.inputs_shapes,
                 main_graph._func_name,
                 main_graph._ops_registry,
                 do_param_pack,
