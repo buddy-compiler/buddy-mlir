@@ -233,7 +233,7 @@ class GraphDriver:
                 )
             main_graph.add_node(func_node)
 
-        
+        # Adding placeholder operations from the original graph        
         for op in self._graph.inputs:
             main_graph.add_node(op, node_type=NodeType.InputNode)
         for op in self._graph.params:
