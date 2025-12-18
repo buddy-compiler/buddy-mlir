@@ -186,10 +186,12 @@ class Graph:
         return [self.get_input(i) for i in range(len(self._inputs))]
 
     @property
-    def input_tm(self) -> list[TensorMeta]:
+    def inputs_shapes(self) -> list[TensorMeta]:
         tm_list = []
         for input in self.inputs:
             input_tm_dict = input.tensor_meta
+            # FIXME: for backwards compatibility reasons we have to
+            # check the actual type of the tm stored in the node
             if isinstance(input_tm_dict, TensorMeta):
                 tm_list.append(input_tm_dict)
                 continue
@@ -208,10 +210,12 @@ class Graph:
         return [self.get_fake_params(i) for i in range(len(self._fake_params))]
     
     @property
-    def params_tm(self) -> list[TensorMeta]:
+    def params_shapes(self) -> list[TensorMeta]:
         tm_list = []
         for param in self.params:
             param_tm_dict = param.tensor_meta
+            # FIXME: for backwards compatibility reasons we have to
+            # check the actual type of the tm stored in the node
             if isinstance(param_tm_dict, TensorMeta):
                 tm_list.append(param_tm_dict)
                 continue
@@ -403,8 +407,8 @@ class Graph:
         with ir.Location.unknown(self._ctx):
             fx_importer = GraphImporter(
                 self._body,
-                self.params_tm,
-                self.input_tm,
+                self.params_shapes,
+                self.inputs_shapes,
                 self._func_name,
                 self._ops_registry,
                 False,
