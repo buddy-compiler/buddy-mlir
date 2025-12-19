@@ -18,7 +18,6 @@
 // RUN:     -convert-vector-to-scf \
 // RUN:     -lower-affine \
 // RUN:     -convert-scf-to-openmp \
-// RUN:     -func-bufferize-dynamic-offset \
 // RUN:     -cse \
 // RUN:     -memref-expand \
 // RUN:     -arith-expand \
@@ -51,12 +50,13 @@ func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 func.func @kernel(%arg0: tensor<151936x1536xf32>, %arg1: tensor<1x1024x1536xf32>) -> tensor<1x1024x151936xf32> {
   %t_start = call @rtclock() : () -> f64
 
-  %3959 = "tosa.const"() <{value = dense<[1, 0]> : tensor<2xi32>}> : () -> tensor<2xi32>
-  %3960 = tosa.transpose %arg0, %3959 : (tensor<151936x1536xf32>, tensor<2xi32>) -> tensor<1536x151936xf32>
-  %3961 = tosa.reshape %arg1 {new_shape = array<i64: 1024, 1536>} : (tensor<1x1024x1536xf32>) -> tensor<1024x1536xf32>
+  %3960 = tosa.transpose %arg0 {perms = array<i32: 1, 0>} : (tensor<151936x1536xf32>) -> tensor<1536x151936xf32>
+  %s0 = tosa.const_shape {values = dense<[1024, 1536]> : tensor<2xindex>} : () -> !tosa.shape<2>
+  %3961 = tosa.reshape %arg1, %s0 : (tensor<1x1024x1536xf32>, !tosa.shape<2>) -> tensor<1024x1536xf32>
   %cst_842 = arith.constant dense<0.000000e+00> : tensor<1024x151936xf32>
   %3962 = linalg.matmul {cast = #linalg.type_fn<cast_signed>} ins(%3961, %3960 : tensor<1024x1536xf32>, tensor<1536x151936xf32>) outs(%cst_842 : tensor<1024x151936xf32>) -> tensor<1024x151936xf32>
-  %3963 = tosa.reshape %3962 {new_shape = array<i64: 1, 1024, 151936>} : (tensor<1024x151936xf32>) -> tensor<1x1024x151936xf32>
+  %s1 = tosa.const_shape {values = dense<[1, 1024, 151936]> : tensor<3xindex>} : () -> !tosa.shape<3>
+  %3963 = tosa.reshape %3962, %s1 : (tensor<1024x151936xf32>, !tosa.shape<3>) -> tensor<1x1024x151936xf32>
 
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64

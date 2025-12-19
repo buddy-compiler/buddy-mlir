@@ -32,10 +32,8 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK-LABEL: func.func @forward
-#       CHECK: %[[const_1:.*]] = "tosa.const"
 #       CHECK: %[[transpose_1:.*]] = tosa.transpose
 #       CHECK: %[[max_pool2d:.*]] = tosa.max_pool2d
-#       CHECK: %[[const_2:.*]] = "tosa.const"
 #       CHECK: %[[transpose_2:.*]] = tosa.transpose
 #       CHECK: return %[[transpose_2]]
 

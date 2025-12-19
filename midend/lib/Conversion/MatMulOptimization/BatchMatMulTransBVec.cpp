@@ -77,7 +77,8 @@ public:
     IntegerType i1 = IntegerType::get(ctx, 1);
     VectorType vectorMaskTy = mlir::VectorType::get({vecSize}, i1);
     // Acquire the element type of input tensors.
-    Type elementType = A.getType().cast<MemRefType>().getElementType();
+    Type elementType =
+    mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
     VectorType vectorTy = mlir::VectorType::get({vecSize}, elementType);
 
     // Define constants.

@@ -19,7 +19,7 @@
 # ===---------------------------------------------------------------------------
 
 import array, copy
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Sequence, Tuple, Union
 import numpy
 import sys
 
@@ -101,11 +101,11 @@ def _gen_arith_binary_op(input1, input2, op_func):
         broadcasted_result_shp.append(max(dim1, dim2))
     if input1_shape != norm_input1_shape:
         input1 = tosa.ReshapeOp(
-            input1, memoryview(array.array("i", norm_input1_shape))
+            input1, _create_shape_operand(norm_input1_shape)
         ).result
     if input2_shape != norm_input2_shape:
         input2 = tosa.ReshapeOp(
-            input2, memoryview(array.array("i", norm_input2_shape))
+            input2, _create_shape_operand(norm_input2_shape)
         ).result
 
     result_element_type = ir.RankedTensorType(input1.type).element_type
@@ -168,6 +168,48 @@ def _normalize_binary_operator_args(arg1, arg2):
         raise ValueError(
             "Invalid input types %s and %s" % (type(arg1), type(arg2))
         )
+
+
+def _create_shape_operand(shape: Sequence[int]) -> ir.Value:
+    """Create a tosa.shape value for reshape-like ops."""
+    dims = [int(dim) for dim in shape]
+    rank = len(dims)
+    shape_type = ir.Type.parse(f"!tosa.shape<{rank}>")
+    index_type = ir.IndexType.get()
+    shape_attr = ir.DenseElementsAttr.get(
+        array.array("q", dims),
+        type=index_type,
+        shape=[rank],
+    )
+    return tosa.ConstShapeOp(shape_type, shape_attr).result
+
+
+def _create_zero_point_tensor(value: ir.Value) -> ir.Value:
+    """Create a zero-point tensor (tensor<1xT>) matching the value element type."""
+    element_type = ir.RankedTensorType(value.type).element_type
+    tensor_type = ir.RankedTensorType.get([1], element_type)
+    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+        element_type
+    ):
+        zero_attr = ir.FloatAttr.get(element_type, 0.0)
+    else:
+        zero_attr = ir.IntegerAttr.get(element_type, 0)
+    dense_attr = ir.DenseElementsAttr.get_splat(tensor_type, zero_attr)
+    return tosa.ConstOp(dense_attr).results[0]
+
+
+def _create_mul_shift_operand() -> ir.Value:
+    """Create the required shift operand for tosa.MulOp."""
+    i8_type = ir.IntegerType.get_signless(8)
+    tensor_type = ir.RankedTensorType.get([1], i8_type)
+    zero_attr = ir.IntegerAttr.get(i8_type, 0)
+    dense_attr = ir.DenseElementsAttr.get_splat(tensor_type, zero_attr)
+    return tosa.ConstOp(dense_attr).results[0]
+
+
+def _create_permutation_attr(perm: Sequence[int]) -> ir.Attribute:
+    """Create DenseI32ArrayAttr permutation for tosa.transpose."""
+    return ir.DenseI32ArrayAttr.get([int(dim) for dim in perm])
 
 
 def addmm_op(
@@ -308,7 +350,9 @@ def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
     sizes = [input_shp[0], input_shp[1], mat2_shp[2]]
     result_element_type = ir.RankedTensorType(input_.type).element_type
     result_type = ir.RankedTensorType.get(sizes, result_element_type)
-    op = tosa.MatMulOp(result_type, input_, mat2)
+    input_zp = _create_zero_point_tensor(input_)
+    weight_zp = _create_zero_point_tensor(mat2)
+    op = tosa.MatMulOp(result_type, input_, mat2, input_zp, weight_zp)
     return op
 
 
@@ -360,12 +404,8 @@ def mul_op(node: MulOp, symbol_table):
     """
 
     def _inner_op(result_type, input1, input2):
-        return tosa.MulOp(
-            result_type,
-            input1,
-            input2,
-            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
-        )
+        shift = _create_mul_shift_operand()
+        return tosa.MulOp(result_type, input1, input2, shift)
 
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
@@ -420,12 +460,9 @@ def div_op(node: DivOp, symbol_table):
     """
 
     def _inner_op(result_type, input1, input2):
-        return tosa.MulOp(
-            result_type,
-            input1,
-            tosa.ReciprocalOp(input2.type, input2).result,
-            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
-        )
+        shift = _create_mul_shift_operand()
+        reciprocal = tosa.ReciprocalOp(input2.type, input2).result
+        return tosa.MulOp(result_type, input1, reciprocal, shift)
 
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
@@ -531,9 +568,8 @@ def reshape_op(node: ReshapeOp, symbol_table):
     ):
         return input1
 
-    new_shape_content = array.array("i", new_shape)
-    new_shape_content = memoryview(new_shape_content)
-    op = tosa.ReshapeOp(input1, new_shape_content)
+    shape_operand = _create_shape_operand(new_shape)
+    op = tosa.ReshapeOp(input1, shape_operand)
 
     return op
 
@@ -551,9 +587,8 @@ def unsqueeze_op(node: UnsqueezeOp, symbol_table):
         sizes.append(1)
     else:
         sizes.insert(dim, 1)
-    new_shape_content = array.array("i", sizes)
-    new_shape_content = memoryview(new_shape_content)
-    op = tosa.ReshapeOp(input_tensor, new_shape_content)
+    shape_operand = _create_shape_operand(sizes)
+    op = tosa.ReshapeOp(input_tensor, shape_operand)
     return op
 
 
@@ -570,20 +605,18 @@ def select_op(node: SelectOp, symbol_table):
     sizes = ir.RankedTensorType(input_tensor.type).shape
 
     new_sizes = sizes[:dim] + [1] + sizes[dim + 1 :]
-    new_sizes_attr = ir._denseI64ArrayAttr(new_sizes, None)
-
     start = [0] * len(sizes)
     start[dim] = index
-    start_attr = ir._denseI64ArrayAttr(start, None)
 
     result_element_type = ir.RankedTensorType(input_tensor.type).element_type
     output_type = ir.RankedTensorType.get(new_sizes, result_element_type)
-    op = tosa.SliceOp(output_type, input_tensor, start_attr, new_sizes_attr)
+    start_operand = _create_shape_operand(start)
+    size_operand = _create_shape_operand(new_sizes)
+    op = tosa.SliceOp(output_type, input_tensor, start_operand, size_operand)
 
     reshape_sizes = sizes[:dim] + sizes[dim + 1 :]
-    reshape_sizes_content = array.array("i", reshape_sizes)
-    reshape_sizes_content = memoryview(reshape_sizes_content)
-    op = tosa.ReshapeOp(op.results[0], reshape_sizes_content)
+    reshape_operand = _create_shape_operand(reshape_sizes)
+    op = tosa.ReshapeOp(op.results[0], reshape_operand)
 
     return op
 
@@ -606,10 +639,10 @@ def slice_op(node: SliceOp, symbol_table):
 
     rank_diff = len(output_shape) - len(sizes)
     if rank_diff > 0:
-        input_tensor = tosa.ReshapeOp(
-            input_tensor, memoryview(array.array("i", [1] * rank_diff + sizes))
-        )
-        sizes = [1] * rank_diff + sizes
+        expanded_shape = [1] * rank_diff + list(sizes)
+        shape_operand = _create_shape_operand(expanded_shape)
+        input_tensor = tosa.ReshapeOp(input_tensor, shape_operand).result
+        sizes = expanded_shape
 
     if start_idx < 0:
         start_idx += sizes[dim]
@@ -785,12 +818,8 @@ def var_mean_op(node: VarMeanOp, symbol_table):
     """
 
     def _inner_op(result_type, input1, input2):
-        return tosa.MulOp(
-            result_type,
-            input1,
-            input2,
-            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
-        )
+        shift = _create_mul_shift_operand()
+        return tosa.MulOp(result_type, input1, input2, shift)
 
     def mean_dim_op(_input_tensor: ir.Value, _dim) -> ir.Operation:
         if isinstance(_dim, int):
@@ -840,10 +869,9 @@ def var_mean_op(node: VarMeanOp, symbol_table):
         )
 
         # get (\bar{x} - x_i) ^ 2
+        shift = _create_mul_shift_operand()
         mul_op: ir.Operation = tosa.MulOp(
-            _input_tensor.type,
-            sub_op.results[0],
-            sub_op.results[0],
+            _input_tensor.type, sub_op.results[0], sub_op.results[0], shift
         )
 
         # the result of `mul_op` is the first tensor we need to reduce
@@ -900,12 +928,9 @@ def var_mean_op(node: VarMeanOp, symbol_table):
     if not keepdim:
         result_shp = ir.RankedTensorType(var_op.results[0].type).shape
         result_shp = [siz for siz in result_shp if siz != 1]
-        var_op = tosa.ReshapeOp(
-            var_op.results[0], memoryview(array.array("i", result_shp))
-        )
-        mean_op = tosa.ReshapeOp(
-            mean_op.results[0], memoryview(array.array("i", result_shp))
-        )
+        shape_operand = _create_shape_operand(result_shp)
+        var_op = tosa.ReshapeOp(var_op.results[0], shape_operand)
+        mean_op = tosa.ReshapeOp(mean_op.results[0], shape_operand)
 
     return var_op, mean_op
 
@@ -918,9 +943,7 @@ def permute_op(node: PermuteOp, symbol_table):
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     perm = node.args[1]
-    perm_const_op = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm)))
-    )
+    perms_attr = _create_permutation_attr(perm)
     result_element_type = ir.RankedTensorType(input_tensor.type).element_type
     init_shape = ir.RankedTensorType(input_tensor.type).shape
     new_shape = []
@@ -930,9 +953,7 @@ def permute_op(node: PermuteOp, symbol_table):
     permute_result_type = ir.RankedTensorType.get(
         new_shape, result_element_type
     )
-    permute_op = tosa.TransposeOp(
-        permute_result_type, input_tensor, perm_const_op.results[0]
-    )
+    permute_op = tosa.TransposeOp(permute_result_type, input_tensor, perms_attr)
     return permute_op
 
 
@@ -960,9 +981,8 @@ def embedding_op(node: EmbeddingOp, symbol_table):
         total_size = 1
         for x in indices_size:
             total_size *= x
-        indices_reshape_op = tosa.ReshapeOp(
-            indices, memoryview(array.array("i", [1, total_size]))
-        )
+        reshape_operand = _create_shape_operand([1, total_size])
+        indices_reshape_op = tosa.ReshapeOp(indices, reshape_operand)
         indices = indices_reshape_op.result
         gather_result_type = ir.RankedTensorType.get(
             [1, total_size, weight_size[1]], result_element_type
@@ -982,9 +1002,8 @@ def embedding_op(node: EmbeddingOp, symbol_table):
             indices,
         )
 
-    weight_reshape_op = tosa.ReshapeOp(
-        weight, memoryview(array.array("i", [1, *weight_size]))
-    )
+    weight_shape_operand = _create_shape_operand([1, *weight_size])
+    weight_reshape_op = tosa.ReshapeOp(weight, weight_shape_operand)
 
     gather_op = tosa.GatherOp(
         gather_result_type, weight_reshape_op.result, indices
@@ -998,10 +1017,8 @@ def embedding_op(node: EmbeddingOp, symbol_table):
     if gather_output_shape == target_shape:
         return gather_op.output
 
-    op = tosa.ReshapeOp(
-        gather_op.output,
-        memoryview(array.array("i", target_shape)),
-    )
+    target_shape_operand = _create_shape_operand(target_shape)
+    op = tosa.ReshapeOp(gather_op.output, target_shape_operand)
 
     return op
 
@@ -1092,14 +1109,12 @@ def t_op(node: TOp, symbol_table):
     input_shape = list(ir.RankedTensorType(input1.type).shape)
     output_shape = list(node.tensor_meta["shape"])
     assert len(input_shape) == 2, "Input tensor must be 2D"
-    perm_const_op = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", [1, 0])))
-    )
+    perms_attr = _create_permutation_attr([1, 0])
     result_element_type = ir.RankedTensorType(input1.type).element_type
     permute_result_type = ir.RankedTensorType.get(
         output_shape, result_element_type
     )
-    op = tosa.TransposeOp(permute_result_type, input1, perm_const_op.results[0])
+    op = tosa.TransposeOp(permute_result_type, input1, perms_attr)
 
     return op
 
@@ -1122,14 +1137,12 @@ def transpose_op(node: TransposeOp, symbol_table):
     perm_list[dim1] = perm_list[dim2]
     perm_list[dim2] = temp
     output_shape = list(node.tensor_meta["shape"])
-    perm_const_op = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-    )
+    perms_attr = _create_permutation_attr(perm_list)
     result_element_type = ir.RankedTensorType(input1.type).element_type
     permute_result_type = ir.RankedTensorType.get(
         output_shape, result_element_type
     )
-    op = tosa.TransposeOp(permute_result_type, input1, perm_const_op.results[0])
+    op = tosa.TransposeOp(permute_result_type, input1, perms_attr)
 
     return op
 
@@ -1150,31 +1163,50 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
         pad = [0 for _ in kernel]
     dtype = node.tensor_meta["dtype"]
     result_element_type = mlir_element_type_get(dtype)
+
+    original_shape = list(ir.RankedTensorType(input1.type).shape)
     if node._layout.find("NCHW") != -1:
+        n, c, h, w = original_shape
         perm_list = [0, 2, 3, 1]
-        perm_const_op = tosa.ConstOp(
-            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-        )
-        out_shape = list(ir.RankedTensorType(input1.type).shape)
-        perm_shape = []
-        perm_shape.append(out_shape[0])
-        perm_shape.append(out_shape[2])
-        perm_shape.append(out_shape[3])
-        perm_shape.append(out_shape[1])
+        perms_attr = _create_permutation_attr(perm_list)
         permute_result_type = ir.RankedTensorType.get(
-            perm_shape, result_element_type
+            [n, h, w, c], result_element_type
         )
-        input1 = tosa.TransposeOp(
-            permute_result_type, input1, perm_const_op.results[0]
-        ).result
+        input1 = tosa.TransposeOp(permute_result_type, input1, perms_attr).result
+    else:
+        n, h, w, c = original_shape
+    in_n, in_c, in_h, in_w = n, c, h, w
+
     out_shape = node.tensor_meta["shape"]
     if len(pad) == 1:
         pad = [pad[0]] * 4
     elif len(pad) == 2:
         pad = [pad[0]] * 2 + [pad[1]] * 2
+
+    def _ceil_div(a, b):
+        return (a + b - 1) // b
+
+    k_h, k_w = kernel[0], kernel[1]
+    s_h, s_w = stride[0], stride[1]
+    pt, pb, pl, pr = pad
+
+    def _divisible(i, p0, p1, k, s):
+        return ((i + p0 + p1 - k) % s) == 0
+
+    if not _divisible(in_h, pt, pb, k_h, s_h):
+        out_h_same = _ceil_div(in_h, s_h)
+        pad_total_h = max((out_h_same - 1) * s_h + k_h - in_h, 0)
+        pt = pad_total_h // 2
+        pb = pad_total_h - pt
+    if not _divisible(in_w, pl, pr, k_w, s_w):
+        out_w_same = _ceil_div(in_w, s_w)
+        pad_total_w = max((out_w_same - 1) * s_w + k_w - in_w, 0)
+        pl = pad_total_w // 2
+        pr = pad_total_w - pl
+
     kernel_attr = ir._denseI64ArrayAttr(kernel, None)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
-    pad_attr = ir._denseI64ArrayAttr(pad, None)
+    pad_attr = ir._denseI64ArrayAttr([pt, pb, pl, pr], None)
     if node._layout.find("NCHW") != -1:
         perm_shape = []
         perm_shape.append(out_shape[0])
@@ -1182,24 +1214,23 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
         perm_shape.append(out_shape[3])
         perm_shape.append(out_shape[1])
         out_shape = perm_shape
-    output = ir.RankedTensorType.get(out_shape, result_element_type)
+    out_h = (in_h + pt + pb - k_h) // s_h + 1
+    out_w = (in_w + pl + pr - k_w) // s_w + 1
+    out_shape_nhwc = [in_n, out_h, out_w, in_c]
+    output = ir.RankedTensorType.get(out_shape_nhwc, result_element_type)
     op = tosa.MaxPool2dOp(output, input1, kernel_attr, stride_attr, pad_attr)
     if node._layout.find("NCHW") != -1:
         perm_list = [0, 3, 1, 2]
-        perm_const_op = tosa.ConstOp(
-            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-        )
+        perms_attr = _create_permutation_attr(perm_list)
         perm_shape = []
-        perm_shape.append(out_shape[0])
-        perm_shape.append(out_shape[3])
-        perm_shape.append(out_shape[1])
-        perm_shape.append(out_shape[2])
+        perm_shape.append(out_shape_nhwc[0])
+        perm_shape.append(out_shape_nhwc[3])
+        perm_shape.append(out_shape_nhwc[1])
+        perm_shape.append(out_shape_nhwc[2])
         permute_result_type = ir.RankedTensorType.get(
             perm_shape, result_element_type
         )
-        op = tosa.TransposeOp(
-            permute_result_type, op.result, perm_const_op.results[0]
-        )
+        op = tosa.TransposeOp(permute_result_type, op.result, perms_attr)
     return op
 
 
@@ -1276,16 +1307,50 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             input_padding = [input_padding[0]] * 4
         elif len(input_padding) == 2:
             input_padding = [input_padding[0]] * 2 + [input_padding[1]] * 2
+
+        t, b, l, r = input_padding
+        sy, sx = int(stride[0]), int(stride[1])
+        dy, dx = int(dilation[0]), int(dilation[1])
+        kernel_h = int(list(weight_shape)[2])
+        kernel_w = int(list(weight_shape)[3])
+
+        extra_out_h = 0
+        extra_out_w = 0
+        if node._layout.find("NCHW") != -1:
+            input_h = int(input_shape[2])
+            input_w = int(input_shape[3])
+        else:
+            input_h = int(input_shape[1])
+            input_w = int(input_shape[2])
+
+        def _adjust_padding(input_size, kernel, dil, stride_val, pad0, pad1):
+            """Ensure stride divisibility by adding pad to the second side."""
+            base = input_size - 1 - (kernel - 1) * dil
+            total = base + pad0 + pad1
+            remainder = total % stride_val
+            if remainder == 0:
+                return pad0, pad1, 0
+            pad_needed = stride_val - remainder
+            pad1 += pad_needed
+            return pad0, pad1, 1
+
+        if not is_kernel_transposed:
+            t, b, extra_h = _adjust_padding(
+                input_h, kernel_h, dy, sy, int(t), int(b)
+            )
+            l, r, extra_w = _adjust_padding(
+                input_w, kernel_w, dx, sx, int(l), int(r)
+            )
+            extra_out_h += extra_h
+            extra_out_w += extra_w
+        input_padding = [t, b, l, r]
+
         # Prepare input_padding attributes.
         input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
         # If the input layout is NCHW, then convert to NHWC.
         if node._layout.find("NCHW") != -1:
             perm_list = [0, 2, 3, 1]
-            perm_const_op = tosa.ConstOp(
-                ir.DenseElementsAttr.get(
-                    memoryview(array.array("i", perm_list))
-                )
-            )
+            perms_attr = _create_permutation_attr(perm_list)
             perm_shape = []
             perm_shape.append(input_shape[0])
             perm_shape.append(input_shape[2])
@@ -1295,7 +1360,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 perm_shape, result_element_type
             )
             input_val = tosa.TransposeOp(
-                permute_result_type, input_val, perm_const_op.results[0]
+                permute_result_type, input_val, perms_attr
             ).result
         # If the output layout is NCHW, then convert to NHWC
         if node._layout.find("NCHW") != -1:
@@ -1305,18 +1370,20 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             perm_shape.append(out_shape[3])
             perm_shape.append(out_shape[1])
             out_shape = perm_shape
-        output_type = ir.RankedTensorType.get(out_shape, result_element_type)
+        conv_out_shape = list(out_shape)
+        if extra_out_h:
+            conv_out_shape[1] += extra_out_h
+        if extra_out_w:
+            conv_out_shape[2] += extra_out_w
+        output_type = ir.RankedTensorType.get(conv_out_shape, result_element_type)
 
         # Depthwise Conv2D Operation.
         if is_depthwise is True:
             # If groups == in_channels,out_channels == in_channels
+            weight_depthwise = weight_val
             if node._layout.find("FCHW") != -1:
                 perm_list = [2, 3, 0, 1]
-                perm_const_op = tosa.ConstOp(
-                    ir.DenseElementsAttr.get(
-                        memoryview(array.array("i", perm_list))
-                    )
-                )
+                perms_attr = _create_permutation_attr(perm_list)
                 perm_shape = []
                 perm_shape.append(weight_shape[2])
                 perm_shape.append(weight_shape[3])
@@ -1326,18 +1393,23 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                     perm_shape, result_element_type
                 )
                 weight_depthwise = tosa.TransposeOp(
-                    permute_result_type, weight_val, perm_const_op.results[0]
+                    permute_result_type, weight_val, perms_attr
                 ).result
-            op = tosa.DepthwiseConv2DOp(
+            input_zp = _create_zero_point_tensor(input_val)
+            weight_zp = _create_zero_point_tensor(weight_depthwise)
+            depthwise_op = tosa.DepthwiseConv2DOp(
                 output_type,
                 input_val,
                 weight_depthwise,
                 bias_tensor,
+                input_zp,
+                weight_zp,
                 input_padding_attr,
                 stride_attr,
                 dilation_attr,
                 acc_type,
             )
+            op = depthwise_op
         else:
             # Transpose Conv2D Operation.
             if is_kernel_transposed:
@@ -1346,25 +1418,24 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 for i in range(len(out_padding), 4):
                     out_padding = [0] + out_padding
                 out_padding_attr = ir._denseI64ArrayAttr(out_padding, None)
-                out_shape_attr = ir._denseI64ArrayAttr(out_shape, None)
+                input_zp = _create_zero_point_tensor(input_val)
+                weight_zp = _create_zero_point_tensor(weight_val)
                 op = tosa.TransposeConv2DOp(
                     output_type,
                     input_val,
                     weight_val,
                     bias_tensor,
+                    input_zp,
+                    weight_zp,
                     out_padding_attr,
                     stride_attr,
-                    out_shape_attr,
+                    acc_type,
                 )
             # Generic Conv2D Operation.
             else:
                 if node._layout.find("FCHW") != -1:
                     perm_list = [0, 2, 3, 1]
-                    perm_const_op = tosa.ConstOp(
-                        ir.DenseElementsAttr.get(
-                            memoryview(array.array("i", perm_list))
-                        )
-                    )
+                    perms_attr = _create_permutation_attr(perm_list)
                     perm_shape = []
                     perm_shape.append(weight_shape[0])
                     perm_shape.append(weight_shape[2])
@@ -1376,26 +1447,35 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                     weight_val = tosa.TransposeOp(
                         permute_result_type,
                         weight_val,
-                        perm_const_op.results[0],
+                        perms_attr,
                     ).result
-                op = tosa.Conv2DOp(
+                input_zp = _create_zero_point_tensor(input_val)
+                weight_zp = _create_zero_point_tensor(weight_val)
+                conv_op = tosa.Conv2DOp(
                     output_type,
                     input_val,
                     weight_val,
                     bias_tensor,
+                    input_zp,
+                    weight_zp,
                     input_padding_attr,
                     stride_attr,
                     dilation_attr,
                     acc_type,
                 )
+                op = conv_op
+
+        if extra_out_h or extra_out_w:
+            # Slice off the padded rows/cols that exceed the expected output.
+            slice_start = _create_shape_operand([0, 0, 0, 0])
+            slice_size = _create_shape_operand(out_shape)
+            slice_type = ir.RankedTensorType.get(out_shape, result_element_type)
+            slice_op = tosa.SliceOp(slice_type, op.result, slice_start, slice_size)
+            op = slice_op
         # Output transpose
         if node._layout.find("NCHW") != -1:
             perm_list = [0, 3, 1, 2]
-            perm_const_op = tosa.ConstOp(
-                ir.DenseElementsAttr.get(
-                    memoryview(array.array("i", perm_list))
-                )
-            )
+            perms_attr = _create_permutation_attr(perm_list)
             perm_shape = []
             perm_shape.append(out_shape[0])
             perm_shape.append(out_shape[3])
@@ -1404,9 +1484,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             permute_result_type = ir.RankedTensorType.get(
                 perm_shape, result_element_type
             )
-            op = tosa.TransposeOp(
-                permute_result_type, op.result, perm_const_op.results[0]
-            )
+            op = tosa.TransposeOp(permute_result_type, op.result, perms_attr)
     # Convolution 1D
     elif len(weight_shape) == 3:
         # Prepare input with padding.
@@ -1433,7 +1511,13 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             )
             shape_type = ir.Type.parse("!tosa.shape<6>")
             pad_constant = tosa.const_shape(shape_type, pad_values_attr)
-            input_val = tosa.PadOp(padded_type, input_val, pad_constant)
+            ty = ir.Type.parse("tensor<1xf32>")
+            pad_zp = tosa.ConstOp(
+                ir.DenseElementsAttr.get_splat(
+                    ty, ir.FloatAttr.get_f32(0.0)
+                )
+            ).result
+            input_val = tosa.PadOp(padded_type, input_val, pad_constant, pad_zp)
         output_type = ir.RankedTensorType.get(out_shape, result_element_type)
         output_conv = tensor.EmptyOp(list(out_shape), result_element_type)
         assert groups == 1, "only support one group"
@@ -1567,12 +1651,8 @@ def mean_op(node: MeanOp, symbol_table):
     """
 
     def _inner_op(result_type, input1, input2):
-        return tosa.MulOp(
-            result_type,
-            input1,
-            input2,
-            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
-        )
+        shift = _create_mul_shift_operand()
+        return tosa.MulOp(result_type, input1, input2, shift)
 
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     keepdim = node.args[2]
@@ -1613,9 +1693,8 @@ def mean_op(node: MeanOp, symbol_table):
     if not keepdim:
         result_shp = ir.RankedTensorType(ret.results[0].type).shape
         result_shp = [siz for siz in result_shp if siz != 1]
-        ret = tosa.ReshapeOp(
-            ret.results[0], memoryview(array.array("i", result_shp))
-        )
+        reshape_operand = _create_shape_operand(result_shp)
+        ret = tosa.ReshapeOp(ret.results[0], reshape_operand)
 
     return ret
 
@@ -1638,12 +1717,20 @@ def clamp_min_op(node: ClampMinOp, symbol_table):
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     min_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
     tensor_type = input1.type
-    min_value_int = round(min_value)
-    min_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), min_value_int)
-    max_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), sys.maxsize)
-    min_fp = ir.FloatAttr.get(ir.F32Type.get(), min_value)
-    max_fp = ir.FloatAttr.get(ir.F32Type.get(), float("inf"))
-    op = tosa.ClampOp(tensor_type, input1, min_int, max_int, min_fp, max_fp)
+    element_type = ir.RankedTensorType(tensor_type).element_type
+    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+        element_type
+    ):
+        min_attr = ir.FloatAttr.get(element_type, float(min_value))
+        max_attr = ir.FloatAttr.get(element_type, float("inf"))
+    else:
+        bitwidth = element_type.width
+        max_limit = (1 << (bitwidth - 1)) - 1
+        min_attr = ir.IntegerAttr.get(
+            element_type, int(round(float(min_value)))
+        )
+        max_attr = ir.IntegerAttr.get(element_type, max_limit)
+    op = tosa.ClampOp(tensor_type, input1, min_attr, max_attr)
     return op
 
 
@@ -1665,12 +1752,20 @@ def clamp_max_op(node: ClampMaxOp, symbol_table):
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     max_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
     tensor_type = input1.type
-    min_value_int = round(max_value)
-    min_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), -sys.maxsize)
-    max_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), min_value_int)
-    min_fp = ir.FloatAttr.get(ir.F32Type.get(), -float("inf"))
-    max_fp = ir.FloatAttr.get(ir.F32Type.get(), max_value)
-    op = tosa.ClampOp(tensor_type, input1, min_int, max_int, min_fp, max_fp)
+    element_type = ir.RankedTensorType(tensor_type).element_type
+    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+        element_type
+    ):
+        min_attr = ir.FloatAttr.get(element_type, -float("inf"))
+        max_attr = ir.FloatAttr.get(element_type, float(max_value))
+    else:
+        bitwidth = element_type.width
+        min_limit = -(1 << (bitwidth - 1))
+        min_attr = ir.IntegerAttr.get(element_type, min_limit)
+        max_attr = ir.IntegerAttr.get(
+            element_type, int(round(float(max_value)))
+        )
+    op = tosa.ClampOp(tensor_type, input1, min_attr, max_attr)
     return op
 
 
@@ -1781,83 +1876,70 @@ def scaled_dot_product_flash_attention_for_cpu_op(
             minus_inf_tensor = arith.ConstantOp(
                 attn_mask.type,
                 ir.DenseElementsAttr.get_splat(
-                    attn_mask.type, ir.FloatAttr.get(f32_type, float("-inf"))
+                    attn_mask.type, ir.FloatAttr.get(ir.F32Type.get(), float("-inf"))
                 ),
             )
             attn_bias = tensor.SelectOp(attn_mask, minus_inf_tensor, attn_bias)
         else:
             if attn_mask.type.shape != attn_bias.result.type.shape:
-                attn_mask = tosa.ReshapeOp(
-                    attn_mask,
-                    memoryview(array.array("i", attn_bias.result.type.shape)),
+                reshape_operand = _create_shape_operand(
+                    attn_bias.result.type.shape
                 )
+                attn_mask = tosa.ReshapeOp(attn_mask, reshape_operand)
             attn_bias = tosa.AddOp(attn_bias.result.type, attn_bias, attn_mask)
 
     # Transpose key tensor
     key_shape = list(key.type.shape)
     perm_list = list(range(len(key_shape)))
     perm_list[-1], perm_list[-2] = perm_list[-2], perm_list[-1]
-    perm_const_op = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-    )
+    perms_attr = _create_permutation_attr(perm_list)
     perm_shape = []
     perm_shape.append(key_shape[0])
     perm_shape.append(key_shape[1])
     perm_shape.append(key_shape[3])
     perm_shape.append(key_shape[2])
     permute_result_type = ir.RankedTensorType.get(perm_shape, mlir_dtype)
-    key = tosa.TransposeOp(
-        permute_result_type, key, perm_const_op.results[0]
-    ).result
+    key = tosa.TransposeOp(permute_result_type, key, perms_attr).result
 
     # Matrix multiplication of query and key
-    query_reshape_op = tosa.ReshapeOp(
-        query,
-        memoryview(
-            array.array(
-                "i",
-                [
-                    query_shape[0] * query_shape[1],
-                    query_shape[2],
-                    query_shape[3],
-                ],
-            )
-        ),
-    )
-    key_reshape_op = tosa.ReshapeOp(
-        key,
-        memoryview(
-            array.array(
-                "i", [key_shape[0] * key_shape[1], key_shape[3], key_shape[2]]
-            )
-        ),
-    )
+    query_flat_shape = [
+        query_shape[0] * query_shape[1],
+        query_shape[2],
+        query_shape[3],
+    ]
+    query_shape_operand = _create_shape_operand(query_flat_shape)
+    query_reshape_op = tosa.ReshapeOp(query, query_shape_operand)
+    key_flat_shape = [
+        key_shape[0] * key_shape[1],
+        key_shape[3],
+        key_shape[2],
+    ]
+    key_shape_operand = _create_shape_operand(key_flat_shape)
+    key_reshape_op = tosa.ReshapeOp(key, key_shape_operand)
     matmul_result_shp = [
         key_shape[0] * key_shape[1],
         query_shape[2],
         key_shape[2],
     ]
     matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
+    query_zp = _create_zero_point_tensor(query_reshape_op.result)
+    key_zp = _create_zero_point_tensor(key_reshape_op.result)
     matmul_op = tosa.MatMulOp(
-        matmul_result_type, query_reshape_op.result, key_reshape_op.result
+        matmul_result_type,
+        query_reshape_op.result,
+        key_reshape_op.result,
+        query_zp,
+        key_zp,
     )
     if mlir_dtype == ir.F16Type.get():
         f16_max_val = 65504.0
         f16_min_val = -65504.0
-        min_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), -sys.maxsize
-        )
-        max_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), sys.maxsize
-        )
-        min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_min_val)
-        max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_max_val)
+        min_fp_attr = ir.FloatAttr.get(ir.F16Type.get(), f16_min_val)
+        max_fp_attr = ir.FloatAttr.get(ir.F16Type.get(), f16_max_val)
 
         matmul_op = tosa.ClampOp(
             matmul_op.result.type,
             matmul_op,
-            min_int_attr,
-            max_int_attr,
             min_fp_attr,
             max_fp_attr,
         )
@@ -1865,31 +1947,20 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         # BF16 has the same range as F32 but lower precision
         bf16_max_val = 3.4028235e+38
         bf16_min_val = -3.4028235e+38
-        min_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), -sys.maxsize
-        )
-        max_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), sys.maxsize
-        )
-        min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_min_val)
-        max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_max_val)
+        min_fp_attr = ir.FloatAttr.get(ir.BF16Type.get(), bf16_min_val)
+        max_fp_attr = ir.FloatAttr.get(ir.BF16Type.get(), bf16_max_val)
 
         matmul_op = tosa.ClampOp(
             matmul_op.result.type,
             matmul_op,
-            min_int_attr,
-            max_int_attr,
             min_fp_attr,
             max_fp_attr,
         )
     # Multiply result by scale factor
     scale_factor_constant = arith.ConstantOp(mlir_dtype, scale_factor)
     scale_factor = tensor.SplatOp(matmul_result_type, scale_factor_constant, [])
-    mul_op = tosa.MulOp(
-        matmul_result_type,
-        matmul_op,
-        scale_factor,
-    )
+    shift = _create_mul_shift_operand()
+    mul_op = tosa.MulOp(matmul_result_type, matmul_op, scale_factor, shift)
 
     # Add attention bias to the result
     add_op = _gen_arith_binary_op(mul_op.result, attn_bias.result, tosa.AddOp)
@@ -1908,46 +1979,42 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
     log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
-    log_sumexp = tosa.ReshapeOp(
-        log_sumexp,
-        memoryview(
-            array.array(
-                "i",
-                output_shape[1],
-            )
-        ),
-    )
+    log_sumexp_shape = _create_shape_operand(output_shape[1])
+    log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_shape)
 
     # This step includes dropout during training.
     # Multiply the result by the value tensor.
-    value_reshape_op = tosa.ReshapeOp(
-        value,
-        memoryview(
-            array.array(
-                "i",
-                [key_shape[0] * key_shape[1], value_shape[2], value_shape[3]],
-            )
-        ),
-    )
+    value_flat_shape = [
+        key_shape[0] * key_shape[1],
+        value_shape[2],
+        value_shape[3],
+    ]
+    value_shape_operand = _create_shape_operand(value_flat_shape)
+    value_reshape_op = tosa.ReshapeOp(value, value_shape_operand)
     matmul_result_shp = matmul_result_shp = [
         key_shape[0] * key_shape[1],
         query_shape[2],
         value_shape[3],
     ]
     matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
+    softmax_zp = _create_zero_point_tensor(softmax_result.result)
+    value_zp = _create_zero_point_tensor(value_reshape_op.result)
     matmul_op = tosa.MatMulOp(
-        matmul_result_type, softmax_result.result, value_reshape_op.result
+        matmul_result_type,
+        softmax_result.result,
+        value_reshape_op.result,
+        softmax_zp,
+        value_zp,
     )
 
-    result_reshape_op = tosa.ReshapeOp(
-        matmul_op.result,
-        memoryview(
-            array.array(
-                "i",
-                [key_shape[0], key_shape[1], query_shape[2], value_shape[3]],
-            )
-        ),
-    )
+    final_shape = [
+        key_shape[0],
+        key_shape[1],
+        query_shape[2],
+        value_shape[3],
+    ]
+    final_shape_operand = _create_shape_operand(final_shape)
+    result_reshape_op = tosa.ReshapeOp(matmul_op.result, final_shape_operand)
 
     return result_reshape_op, log_sumexp
 
@@ -1982,7 +2049,7 @@ def le_op(
     input_dtype = ir.RankedTensorType(input1.type).element_type
 
     def broadcast_tensor(tensor, target_shape):
-        if list(tensor.type.shape) == target_shape:
+        if list(ir.RankedTensorType(tensor.type).shape) == target_shape:
             return tensor
 
         if input_dtype in (

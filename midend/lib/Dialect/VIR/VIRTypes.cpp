@@ -27,6 +27,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/Casting.h"
 
 #include "VIR/VIRAttrs.h"
 #include "VIR/VIRDialect.h"
@@ -102,13 +103,13 @@ void VIRDialect::registerTypes() {
     // If attribute is parsed successfully, it must be ScalingFactorAttr.
     auto attrResult = parser.parseOptionalAttribute(attr);
     if (attrResult.has_value()) {
-      if (!attr || !attr.isa<ScalingFactorAttr>()) {
+      if (!llvm::isa<ScalingFactorAttr>(attr)) {
         return parser.emitError(
                    parser.getNameLoc(),
                    "expected scaling attribute of type '#vir.sf<...>'"),
                ::mlir::Type();
       }
-      scalingFactor = attr.cast<ScalingFactorAttr>();
+      scalingFactor = llvm::cast<ScalingFactorAttr>(attr);
     } else {
       llvm::StringRef tok;
       if (parser.parseKeyword(&tok))

@@ -107,10 +107,10 @@ public:
         [&](tosa::ReshapeOp rop) { reshapeOps.push_back(rop.getOperation()); });
 
     GreedyRewriteConfig config;
-    config.enableRegionSimplification = GreedySimplifyRegionLevel::Disabled;
-    config.fold = false;         // avoid materializing constants
-    config.cseConstants = false; // avoid constant CSE reordering
-    config.strictMode = GreedyRewriteStrictness::ExistingOps;
+    config.setRegionSimplificationLevel(GreedySimplifyRegionLevel::Disabled);
+    config.enableFolding(false);        // avoid materializing constants
+    config.enableConstantCSE(false);    // avoid constant CSE reordering
+    config.setStrictness(GreedyRewriteStrictness::ExistingOps);
 
     bool changed = false;
     (void)applyOpPatternsGreedily(reshapeOps, std::move(patterns), config,

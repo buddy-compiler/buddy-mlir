@@ -6,6 +6,7 @@
 // RUN: 	-convert-cf-to-llvm \
 // RUN:   -convert-vector-to-llvm \
 // RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-ub-to-llvm \
 // RUN:   -finalize-memref-to-llvm \
 // RUN:   -convert-func-to-llvm \
 // RUN:   -reconcile-unrealized-casts \

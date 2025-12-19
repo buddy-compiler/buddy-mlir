@@ -52,9 +52,9 @@ public:
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
     // Get shape of input and output
-    ShapedType inputShapeType = input.getType().cast<ShapedType>();
-    ShapedType filterShapeType = kernel.getType().cast<ShapedType>();
-    ShapedType outputShapeType = output.getType().cast<ShapedType>();
+    ShapedType inputShapeType = mlir::cast<mlir::ShapedType>(input.getType());
+    ShapedType filterShapeType = mlir::cast<mlir::ShapedType>(kernel.getType());
+    ShapedType outputShapeType = mlir::cast<mlir::ShapedType>(output.getType());
 
     auto inputShape = inputShapeType.getShape();
     auto filterShape = filterShapeType.getShape();

@@ -18,7 +18,6 @@
 // RUN:     -convert-vector-to-scf \
 // RUN:     -lower-affine \
 // RUN:     -convert-scf-to-openmp \
-// RUN:     -func-bufferize-dynamic-offset \
 // RUN:     -cse \
 // RUN:     -memref-expand \
 // RUN:     -arith-expand \
@@ -45,9 +44,11 @@ func.func @kernel(%arg0: tensor<151936x1536xf32>, %arg1: tensor<1x1024xi64>) -> 
   %t_start = call @rtclock() : () -> f64
 
     %0 = tosa.cast %arg1 : (tensor<1x1024xi64>) -> tensor<1x1024xi32>
-    %1 = tosa.reshape %arg0 {new_shape = array<i64: 1, 151936, 1536>} : (tensor<151936x1536xf32>) -> tensor<1x151936x1536xf32>
+    %s0 = tosa.const_shape {values = dense<[1, 151936, 1536]> : tensor<3xindex>} : () -> !tosa.shape<3>
+    %1 = tosa.reshape %arg0, %s0 : (tensor<151936x1536xf32>, !tosa.shape<3>) -> tensor<1x151936x1536xf32>
     %2 = tosa.gather %1, %0 : (tensor<1x151936x1536xf32>, tensor<1x1024xi32>) -> tensor<1x1024x1536xf32>
-    %3 = tosa.reshape %2 {new_shape = array<i64: 1, 1024, 1536>} : (tensor<1x1024x1536xf32>) -> tensor<1x1024x1536xf32>
+    %s1 = tosa.const_shape {values = dense<[1, 1024, 1536]> : tensor<3xindex>} : () -> !tosa.shape<3>
+    %3 = tosa.reshape %2, %s1 : (tensor<1x1024x1536xf32>, !tosa.shape<3>) -> tensor<1x1024x1536xf32>
 
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64

@@ -1,4 +1,4 @@
-// RUN: buddy-opt -transpose-optimize="vector-size=16" -verify-diagnostics -lower-affine -expand-strided-metadata -convert-vector-to-scf -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf -convert-cf-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -lower-affine -llvm-request-c-wrappers -convert-arith-to-llvm -reconcile-unrealized-casts %s \
+// RUN: buddy-opt -transpose-optimize="vector-size=16" -verify-diagnostics -lower-affine -expand-strided-metadata -convert-vector-to-scf -convert-vector-to-llvm -finalize-memref-to-llvm -convert-scf-to-cf -convert-cf-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -lower-affine -llvm-request-c-wrappers -convert-arith-to-llvm -convert-ub-to-llvm -reconcile-unrealized-casts %s \
 // RUN: | mlir-runner -O0 -e buddy_transpose_f32 -entry-point-result=void \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s

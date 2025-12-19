@@ -142,10 +142,18 @@ def unsqueeze_op(
     axis = int(node.args[1])
     input_shape = ir.RankedTensorType(input_node.type).shape
     input_shape.insert(axis, 1)
-    tensor_type = ir._denseI64ArrayAttr(
-        numpy.array(input_shape, dtype=numpy.int64), None
-    )
-    op = tosa.ReshapeOp(input_node, tensor_type)
+
+    shape_ty = ir.Type.parse(f"!tosa.shape<{len(input_shape)}>")
+    index_ty = ir.IndexType.get()
+    shape_val = tosa.ConstShapeOp(
+        shape_ty,
+        ir.DenseElementsAttr.get(
+            array.array("q", input_shape),
+            type=index_ty,
+            shape=[len(input_shape)],
+        ),
+    ).result
+    op = tosa.ReshapeOp(input_node, shape_val)
 
     return op
 
@@ -183,11 +191,18 @@ def view_op(
     for i, s in enumerate(output_shape):
         if s == -1:
             output_shape[i] = nums
+    shape_ty = ir.Type.parse(f"!tosa.shape<{len(output_shape)}>")
+    index_ty = ir.IndexType.get()
+    shape_val = tosa.ConstShapeOp(
+        shape_ty,
+        ir.DenseElementsAttr.get(
+            array.array("q", output_shape),
+            type=index_ty,
+            shape=[len(output_shape)],
+        ),
+    ).result
 
-    tensor_type = ir._denseI64ArrayAttr(
-        numpy.array(output_shape, dtype=numpy.int64), None
-    )
-    op = tosa.ReshapeOp(input_node, tensor_type)
+    op = tosa.ReshapeOp(input_node, shape_val)
 
     return op
 
@@ -1105,10 +1120,17 @@ def mul_op(
     if input1 is None or input2 is None:
         return
     mul_result_tensor_type = ir.RankedTensorType.get(shape, mlir_dtype)
+    shift = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            ir.Type.parse("tensor<1xi8>"),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        )
+    ).result
     op = tosa.MulOp(
         mul_result_tensor_type,
         input1,
         input2,
+        shift,
     )
     return op.result
 
@@ -1673,10 +1695,17 @@ def div_op(
     if input1 is None or input2 is None:
         return
     div_result_tensor_type = ir.RankedTensorType.get(shape, mlir_dtype)
+    shift = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            ir.Type.parse("tensor<1xi8>"),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
+        )
+    ).result
     op = tosa.MulOp(
         div_result_tensor_type,
         input1,
         tosa.ReciprocalOp(input2.type, input2).result,
+        shift,
     )
     return op.result
 
@@ -2100,9 +2129,17 @@ def max_op(node: MaxOp, symbol_table):
     total_size = 1
     for x in input_shape:
         total_size *= x
-    reshape_op = tosa.ReshapeOp(
-        input1, memoryview(array.array("i", [total_size]))
-    )
+    shape_ty = ir.Type.parse(f"!tosa.shape<{len([total_size])}>")
+    index_ty = ir.IndexType.get()
+    shape_val = tosa.ConstShapeOp(
+        shape_ty,
+        ir.DenseElementsAttr.get(
+            array.array("q", [total_size]),
+            type=index_ty,
+            shape=[len([total_size])],
+        ),
+    ).result
+    reshape_op = tosa.ReshapeOp(input1, shape_val)
 
     argmax_result = ir.RankedTensorType.get([], ir.IntegerType.get_signless(64))
     argmax_op = tosa.ArgMaxOp(argmax_result, reshape_op.result, 0)
@@ -2414,9 +2451,19 @@ def unsafe_index_op(
                     total_size = 1
                     for x in input2_shape:
                         total_size *= x
-                    reshape_op = tosa.ReshapeOp(
-                        input2_, memoryview(array.array("i", [total_size]))
+                    shape_ty = ir.Type.parse(
+                        f"!tosa.shape<{len([total_size])}>"
                     )
+                    index_ty = ir.IndexType.get()
+                    shape_val = tosa.ConstShapeOp(
+                        shape_ty,
+                        ir.DenseElementsAttr.get(
+                            array.array("q", [total_size]),
+                            type=index_ty,
+                            shape=[len([total_size])],
+                        ),
+                    ).result
+                    reshape_op = tosa.ReshapeOp(input2_, shape_val)
                 operands.append(reshape_op.result)
 
         else:
@@ -2692,7 +2739,7 @@ def index_put_op(
     input1_memref_type = ir.MemRefType.get(
         input1_shape, input1_memref_element_type
     )
-    input1_memref = bufferization.ToMemrefOp(input1_memref_type, input1)
+    input1_memref = bufferization.ToBufferOp(input1_memref_type, input1)
 
     input2_memref = []
     for i in range(len(node.args[1])):
@@ -2703,13 +2750,13 @@ def index_put_op(
         shape = input2_.type.shape
         memref_element_type = input2_.type.element_type
         memref_type = ir.MemRefType.get(shape, memref_element_type)
-        input2_memref.append(bufferization.ToMemrefOp(memref_type, input2_))
+        input2_memref.append(bufferization.ToBufferOp(memref_type, input2_))
 
     input3_memref_element_type = input3.type.element_type
     input3_memref_type = ir.MemRefType.get(
         input3_shape, input3_memref_element_type
     )
-    input3_memref = bufferization.ToMemrefOp(input3_memref_type, input3)
+    input3_memref = bufferization.ToBufferOp(input3_memref_type, input3)
 
     if len(output_shape) == 4:
         lb = arith.ConstantOp(ir.IndexType.get(), 0)
@@ -2826,7 +2873,7 @@ def cumsum_op(
     input1_memref_type = ir.MemRefType.get(
         input1.type.shape, input1_memref_element_type
     )
-    input1_memref = bufferization.ToMemrefOp(input1_memref_type, input1)
+    input1_memref = bufferization.ToBufferOp(input1_memref_type, input1)
 
     dim = node.args[1]
     if dim == -1:
@@ -2988,10 +3035,17 @@ def as_strided_op(
     for i in output_shape:
         output_size *= i
     if input_size == output_size:
-        tensor_type = ir._denseI64ArrayAttr(
-            numpy.array(output_shape, dtype=numpy.int64), None
-        )
-        op = tosa.ReshapeOp(input_tensor, tensor_type)
+        shape_ty = ir.Type.parse(f"!tosa.shape<{len(output_shape)}>")
+        index_ty = ir.IndexType.get()
+        shape_val = tosa.ConstShapeOp(
+            shape_ty,
+            ir.DenseElementsAttr.get(
+                array.array("q", output_shape),
+                type=index_ty,
+                shape=[len(output_shape)],
+            ),
+        ).result
+        op = tosa.ReshapeOp(input_tensor, shape_val)
     else:
         assert False
 
