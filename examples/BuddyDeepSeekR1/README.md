@@ -83,7 +83,7 @@ $ ninja buddy-deepseek-r1-run
 $ ./bin/buddy-deepseek-r1-run
 
 // NUMA node binding
-numactl --cpunodebind=0,1 --membind=0,1 taskset -c 0-47 ./bin/buddy-deepseek-r1-run
+numactl --cpunodebind=0,1,2,3 --interleave=0,1,2,3 taskset -c 0-47 ./bin/buddy-deepseek-r1-run
 
 //f16
 $ ninja buddy-deepseek-r1-f16-run
@@ -94,7 +94,25 @@ $ ninja buddy-deepseek-r1-bf16-run
 $ ./bin/buddy-deepseek-r1-bf16-run
 ```
 
-5. Enjoy it!
+5. Streaming inference with buddy-deepseek-r1-cli
+
+`buddy-deepseek-r1-cli` reuses the inference flow from the example but focuses on a real-time streaming experience:
+
+```bash
+$ ninja buddy-deepseek-r1-cli
+$ echo "Hello." | ./bin/buddy-deepseek-r1-cli --max-tokens=128
+
+# Enter interactive conversation
+$ ./bin/buddy-deepseek-r1-cli --interactive --no-stats
+# Enter one user message at a time; the CLI streams a reply immediately. Type :exit or :quit to finish the session
+```
+
+- By default the CLI looks for `examples/BuddyDeepSeekR1/vocab.txt` and `build/examples/BuddyDeepSeekR1/arg0.data`. Override these with `--vocab` and `--model` if you use custom paths.
+- Provide prompts via `--prompt`, `--prompt-file`, or standard input. Generated text goes to STDOUT while logs and performance metrics go to STDERR.
+- Use options like `--max-tokens` and `--eos-id` to constrain the generation length/termination. Add `--no-stats` when you want pure text output without the performance summary.
+- `--interactive` starts a REPL similar to `buddy-deepseek-r1-main.cpp`, handling one prompt and one response at a time. `--prompt` can act as a system prefix prepended to every user entry.
+
+6. Enjoy it!
 
 ## How to run on RISC-V machine
 
@@ -128,10 +146,10 @@ cmake -G Ninja .. \
 ninja
 ```
 
-3. Follow the instructions in the last section *on X86 or ARM device*, you will got the files required to build the executable program of DeepSeekR1:
+3. Generate the required files by following the instructions in the previous section *on X86 or ARM device*. This will create the necessary files for building the DeepSeekR1 executable:
 
 ```text
-These files will be generated in `buddy-mlir/build/examples/BuddyDeepSeekR1/` :
+Files generated in `buddy-mlir/build/examples/BuddyDeepSeekR1/`:
 forward_prefill.mlir
 forward_decode.mlir
 subgraph0_prefill.mlir
@@ -139,286 +157,45 @@ subgraph0_decode.mlir
 arg0.data
 ```
 
-Then modify the build system so that we could build the executable program of the model. Here's what I did:
+**Recommended approach**: Create a compressed package for easy transfer:
 
-4. Transfer all of these files to the directory `buddy-mlir/examples/BuddyDeepSeekR1` in your RISC-V device with `scp`(recommended) or `rsync`.
-
-5. Modify `buddy-deepseek-r1-main.cpp`:
-
-```cpp
-// about line 278, modify `deepSeekR1BuildDir` to `deepSeekR1Dir`
-const std::string paramsDir = deepSeekR1Dir + "arg0.data";
+```sh
+# In buddy-mlir/build
+ninja buddy-deepseek-r1-package
 ```
 
-6. Modify `CMakeLists.txt`:
+This creates `buddy-deepseek-r1.tar.zst` containing all necessary files for cross-platform deployment.
 
-  - For convenience, you could delete all unrelated compile options in the file first. Say, if you're going to build FP32, then delete all compile options about FP16 or BF16.
-  - Add `-mattr=+m,+d,+v` for *all* `llc` command like this: `${LLVM_TOOLS_BINARY_DIR}/llc -mattr=+m,+d,+v -filetype=obj -relocation-model=pic -O3`.
-  - Change dependent directory for *four object file* like this: `DEPENDS buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/forward_prefill.mlir`.
-  - Add `arch` and `abi` related compile options for the main file. Just copy and paste these lines to CMakeLists:
+**Alternative approach**: Transfer the individual files listed above directly to your RISC-V device if you prefer not to use the compressed package.
 
-    ```cmake
-      target_compile_options(buddy-deepseek-r1-run PRIVATE
-        -march=rv64gcv
-        -mabi=lp64d
-        -O3
-        -Wall
-      )
+4. Transfer the files to your RISC-V device and prepare for building:
 
-      target_link_options(buddy-deepseek-r1-run PRIVATE
-        -march=rv64gcv
-        -mabi=lp64d
-      )
-    ```
+```sh
+# On RISC-V device
+cd buddy-mlir/build
+cmake -G Ninja .. -DBUDDY_DEEPSEEKR1_EXAMPLES=ON
+```
 
-  The complete modified CMakeLists file is attached in appendix, you could copy and paste it directly.
+**If using the compressed package (recommended)**:
 
-7. Build and run the model:
+```sh
+# Transfer the package
+rsync -avP --progress /path/to/buddy-deepseek-r1.tar.zst user@risc-v-host:buddy-mlir/build/examples/BuddyDeepSeekR1
+```
+
+Then extract on the RISC-V device:
+
+```sh
+# On RISC-V device
+cd buddy-mlir/build/examples/BuddyDeepSeekR1
+tar -I zstd -xvf buddy-deepseek-r1.tar.zst --strip-components=1
+```
+
+5. Build and run the model:
 
 ```sh
 # in buddy-mlir/build
-cmake -G Ninja .. -DBUDDY_DEEPSEEKR1_EXAMPLES=ON
+cd buddy-mlir/build/
 ninja buddy-deepseek-r1-run
-cd bin
-./buddy-deepseek-r1-run
-```
-
-## Appendix: The complete CMakeLists file for building on RISC-V
-
-```cmake
-set(BUFFERIZE_FULL_OPTS "unknown-type-conversion=identity-layout-map function-boundary-type-conversion=identity-layout-map bufferize-function-boundaries")
-set(BUFFERIZE_SIMPLE_OPTS "bufferize-function-boundaries")
-set(TOSA_PIPELINE "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))")
-
-add_custom_command(
-  OUTPUT forward_prefill.o
-  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/forward_prefill.mlir
-            -simplify-tosa-reshape |
-          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
-            -pass-pipeline ${TOSA_PIPELINE} |
-          ${BUDDY_BINARY_DIR}/buddy-opt
-            -eliminate-empty-tensors
-            -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
-            -expand-strided-metadata
-            -ownership-based-buffer-deallocation
-            -buffer-deallocation-simplification
-            -bufferization-lower-deallocations
-            -matmul-vectorization-blis
-            -batchmatmul-optimize
-            -convert-linalg-to-affine-loops
-            -affine-loop-fusion
-            -affine-parallelize
-            -convert-vector-to-scf
-            -lower-affine
-            -convert-scf-to-openmp=num-threads=32
-            -cse
-            -memref-expand
-            -arith-expand
-            -convert-vector-to-llvm
-            -convert-arith-to-llvm
-            -finalize-memref-to-llvm
-            -convert-scf-to-cf
-            -convert-cf-to-llvm
-            -llvm-request-c-wrappers
-            -convert-openmp-to-llvm
-            -convert-arith-to-llvm
-            -convert-math-to-llvm
-            -convert-math-to-libm
-            -convert-func-to-llvm
-            -reconcile-unrealized-casts |
-        ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-        ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -mattr=+m,+d,+v -filetype=obj -relocation-model=pic -O3
-          -o ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill.o
-  DEPENDS buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/forward_prefill.mlir
-  COMMENT "Building forward_prefill.o "
-  VERBATIM)
-
-add_custom_command(
-    OUTPUT subgraph_prefill.o
-    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/subgraph0_prefill.mlir
-              -simplify-tosa-reshape |
-            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
-              -pass-pipeline ${TOSA_PIPELINE} |
-            ${BUDDY_BINARY_DIR}/buddy-opt
-            -eliminate-empty-tensors
-            -empty-tensor-to-alloc-tensor
-            -convert-elementwise-to-linalg
-            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
-            -expand-strided-metadata
-            -ownership-based-buffer-deallocation
-            -buffer-deallocation-simplification
-            -bufferization-lower-deallocations
-            -matmul-vectorization-blis
-            -batchmatmul-optimize
-            -convert-linalg-to-affine-loops
-            -affine-loop-fusion
-            -affine-parallelize
-            -convert-vector-to-scf
-            -lower-affine
-            -convert-scf-to-openmp=num-threads=32
-            -func-bufferize-dynamic-offset
-            -cse
-            -memref-expand
-            -arith-expand
-            -convert-vector-to-llvm
-            -convert-arith-to-llvm
-            -finalize-memref-to-llvm
-            -convert-scf-to-cf
-            -convert-cf-to-llvm
-            -llvm-request-c-wrappers
-            -convert-openmp-to-llvm
-            -convert-arith-to-llvm
-            -convert-math-to-llvm
-            -convert-math-to-libm
-            -convert-func-to-llvm
-            -reconcile-unrealized-casts |
-          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -mattr=+m,+d,+v -filetype=obj -relocation-model=pic -O3
-            -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_prefill.o
-    DEPENDS buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/subgraph0_prefill.mlir
-    COMMENT "Building subgraph_prefill.o "
-    VERBATIM)
-
-add_custom_command(
-  OUTPUT forward_decode.o
-  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/forward_decode.mlir
-            -simplify-tosa-reshape |
-          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
-            -pass-pipeline ${TOSA_PIPELINE} |
-          ${BUDDY_BINARY_DIR}/buddy-opt
-            -eliminate-empty-tensors
-            -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
-            -expand-strided-metadata
-            -ownership-based-buffer-deallocation
-            -buffer-deallocation-simplification
-            -bufferization-lower-deallocations
-            -matmul-vectorization-blis
-            -batchmatmul-optimize
-            -convert-linalg-to-affine-loops
-            -affine-loop-fusion
-            -affine-parallelize
-            -convert-vector-to-scf
-            -lower-affine
-            -convert-scf-to-openmp=num-threads=32
-            -cse
-            -memref-expand
-            -arith-expand
-            -convert-vector-to-llvm
-            -convert-arith-to-llvm
-            -finalize-memref-to-llvm
-            -convert-scf-to-cf
-            -convert-cf-to-llvm
-            -llvm-request-c-wrappers
-            -convert-openmp-to-llvm
-            -convert-arith-to-llvm
-            -convert-math-to-llvm
-            -convert-math-to-libm
-            -convert-func-to-llvm
-            -reconcile-unrealized-casts |
-        ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-        ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -mattr=+m,+d,+v -filetype=obj -relocation-model=pic -O3
-          -o ${CMAKE_CURRENT_BINARY_DIR}/forward_decode.o
-  DEPENDS buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/forward_decode.mlir
-  COMMENT "Building forward_decode.o "
-  VERBATIM)
-
-add_custom_command(
-    OUTPUT subgraph_decode.o
-    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/subgraph0_decode.mlir
-              -simplify-tosa-reshape |
-            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
-              -pass-pipeline ${TOSA_PIPELINE} |
-            ${BUDDY_BINARY_DIR}/buddy-opt
-            -eliminate-empty-tensors
-            -empty-tensor-to-alloc-tensor
-            -convert-elementwise-to-linalg
-            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
-            -expand-strided-metadata
-            -ownership-based-buffer-deallocation
-            -buffer-deallocation-simplification
-            -bufferization-lower-deallocations
-            -matmul-vectorization-blis
-            -batchmatmul-optimize
-            -convert-linalg-to-affine-loops
-            -affine-loop-fusion
-            -affine-parallelize
-            -convert-vector-to-scf
-            -lower-affine
-            -convert-scf-to-openmp=num-threads=32
-            -func-bufferize-dynamic-offset
-            -cse
-            -memref-expand
-            -arith-expand
-            -convert-vector-to-llvm
-            -convert-arith-to-llvm
-            -finalize-memref-to-llvm
-            -convert-scf-to-cf
-            -convert-cf-to-llvm
-            -llvm-request-c-wrappers
-            -convert-openmp-to-llvm
-            -convert-arith-to-llvm
-            -convert-math-to-llvm
-            -convert-math-to-libm
-            -convert-func-to-llvm
-            -reconcile-unrealized-casts |
-          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
-          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -mattr=+m,+d,+v -filetype=obj -relocation-model=pic -O3
-            -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode.o
-    DEPENDS buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/subgraph0_decode.mlir
-    COMMENT "Building subgraph_decode.o "
-    VERBATIM)
-
-add_library(DEEPSEEKR1 STATIC forward_prefill.o subgraph_prefill.o forward_decode.o subgraph_decode.o)
-
-SET_SOURCE_FILES_PROPERTIES(
-  template.o
-  PROPERTIES
-  EXTERNAL_OBJECT true
-  GENERATED true)
-
-SET_TARGET_PROPERTIES(
-  DEEPSEEKR1
-  PROPERTIES
-  LINKER_LANGUAGE C)
-
-add_executable(buddy-deepseek-r1-run buddy-deepseek-r1-main.cpp)
-
-target_compile_options(buddy-deepseek-r1-run PRIVATE
-  -march=rv64gcv
-  -mabi=lp64d
-  -O3
-  -Wall
-)
-
-target_link_options(buddy-deepseek-r1-run PRIVATE
-  -march=rv64gcv
-  -mabi=lp64d
-)
-
-set(DEEPSEEKR1_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
-set(DEEPSEEKR1_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
-
-target_compile_definitions(buddy-deepseek-r1-run PRIVATE
-  DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}/"
-  DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}/"
-)
-
-target_link_directories(buddy-deepseek-r1-run PRIVATE ${LLVM_LIBRARY_DIR})
-
-set(BUDDY_DEEPSEEKR1_LIBS
-  DEEPSEEKR1
-  mlir_c_runner_utils
-  omp
-)
-if(BUDDY_MLIR_USE_MIMALLOC)
-  list(APPEND BUDDY_DEEPSEEKR1_LIBS mimalloc)
-endif()
-
-target_link_libraries(buddy-deepseek-r1-run ${BUDDY_DEEPSEEKR1_LIBS})
+./bin/buddy-deepseek-r1-run
 ```

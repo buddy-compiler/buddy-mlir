@@ -19,6 +19,7 @@ set(LinkedLibs
   LowerDIPPass
   LowerGemminiPass
   LowerLinalgToGemminiPass
+  LowerIMEPass
   LowerRVVPass
   LowerVectorExpPass
   MatMulOptimization
@@ -27,6 +28,7 @@ set(LinkedLibs
   TransposeOptimization
   TosaElementwiseFusion
   AssumeTightMemRefLayoutPass
+  GraphRedundancyElimination
 )
 
 

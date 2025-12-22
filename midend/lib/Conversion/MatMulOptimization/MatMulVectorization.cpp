@@ -43,9 +43,10 @@ namespace {
 class MatMulVectorizationPattern : public ConversionPattern {
 public:
   explicit MatMulVectorizationPattern(MLIRContext *context,
-                                      int64_t vecSizeParam)
+                                      int64_t vecSizeParam, bool scalableParam)
       : ConversionPattern(linalg::MatmulOp::getOperationName(), 1, context) {
     vecSize = vecSizeParam;
+    scalable = scalableParam;
   }
 
   LogicalResult
@@ -73,13 +74,17 @@ public:
     const Value n = rewriter.create<memref::DimOp>(loc, C, c1);
     const Value k = rewriter.create<memref::DimOp>(loc, A, c1);
 
-    // Define step.
-    const Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
-
     // Get element type and create vector type.
     ShapedType ATy = mlir::cast<mlir::ShapedType>(A.getType());
     Type eleTy = ATy.getElementType();
-    VectorType vectorTy = VectorType::get({vecSize}, eleTy);
+    VectorType vectorTy = VectorType::get({vecSize}, eleTy, {scalable});
+    
+    // Define step.
+    Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+    if (scalable) {
+      Value vscale = rewriter.create<vector::VectorScaleOp>(loc);
+      step = rewriter.create<arith::MulIOp>(loc, step, vscale);
+    }
     FloatType eleFloatTy =
         eleTy.isF32()
             ? static_cast<FloatType>(Float32Type::get(rewriter.getContext()))
@@ -220,6 +225,7 @@ public:
 
 private:
   int64_t vecSize;
+  bool scalable;
 };
 } // end anonymous namespace
 
@@ -248,6 +254,10 @@ public:
   Option<int64_t> vecSize{*this, "vector-size",
                           llvm::cl::desc("Specify vector type size."),
                           llvm::cl::init(32)};
+  Option<std::string> vectorType{
+      *this, "vector-type",
+      llvm::cl::desc("Specify vector type: fixed or scalable."),
+      llvm::cl::init("fixed")};
 };
 } // end anonymous namespace.
 
@@ -262,8 +272,11 @@ void MatMulVectorizationPass::runOnOperation() {
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
 
+  // Determine if scalable vectors are requested
+  bool isScalable = (vectorType == "scalable");
+
   RewritePatternSet patterns(context);
-  patterns.add<MatMulVectorizationPattern>(context, vecSize);
+  patterns.add<MatMulVectorizationPattern>(context, vecSize, isScalable);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();

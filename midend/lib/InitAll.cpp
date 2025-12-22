@@ -24,6 +24,7 @@
 #include "Dialect/DAP/DAPDialect.h"
 #include "Dialect/DIP/DIPDialect.h"
 #include "Dialect/Gemmini/GemminiDialect.h"
+#include "Dialect/IME/IMEDialect.h"
 #include "Dialect/RVV/RVVDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
 
@@ -38,6 +39,7 @@ void registerLowerDAPPass();
 void registerLowerDIPPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
+void registerLowerIMEPass();
 void registerLowerRVVPass();
 void registerLowerVectorExpPass();
 void registerBatchMatMulOptimizePass();
@@ -45,9 +47,12 @@ void registerMatMulOptimizePass();
 void registerMatMulParallelVectorizationPass();
 void registerMatMulVectorizationPass();
 void registerMatMulVectorizationDecodePass();
+void registerBatchMatMulVectorizationDecodePass();
 void registerTransposeOptimizationPass();
 void registerSiLUFusionPass();
 void registerAssumeTightMemRefLayoutPass();
+void registerSimplifyTosaReshapePass();
+void registerSimplifyTosaMatmulScalarPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -56,6 +61,7 @@ void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<::buddy::dap::DAPDialect>();
   registry.insert<::buddy::dip::DIPDialect>();
   registry.insert<::buddy::gemmini::GemminiDialect>();
+  registry.insert<::buddy::ime::IMEDialect>();
   registry.insert<::buddy::rvv::RVVDialect>();
   registry.insert<::buddy::vector_exp::VectorExpDialect>();
 }
@@ -70,6 +76,7 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerLowerDIPPass();
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
+  mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
   mlir::buddy::registerBatchMatMulOptimizePass();
@@ -77,7 +84,10 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerMatMulParallelVectorizationPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulVectorizationDecodePass();
+  mlir::buddy::registerBatchMatMulVectorizationDecodePass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerSiLUFusionPass();
   mlir::buddy::registerAssumeTightMemRefLayoutPass();
+  mlir::buddy::registerSimplifyTosaReshapePass();
+  mlir::buddy::registerSimplifyTosaMatmulScalarPass();
 }
