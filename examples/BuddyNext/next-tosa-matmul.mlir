@@ -18,7 +18,6 @@
 // RUN:     -affine-parallelize \
 // RUN:     -convert-vector-to-scf \
 // RUN:     -lower-affine \
-// RUN:     -func-bufferize-dynamic-offset \
 // RUN:     -cse \
 // RUN:     -memref-expand \
 // RUN:     -arith-expand \
@@ -45,7 +44,9 @@ module {
   func.func @kernel(%a : tensor<12x1x1024xf32>, %b : tensor<12x1024x128xf32>) -> tensor<12x1x128xf32> {
     %t_start = call @rtclock() : () -> f64
 
-    %res = tosa.matmul %a, %b : (tensor<12x1x1024xf32>, tensor<12x1024x128xf32>) -> tensor<12x1x128xf32>
+    %a_zp = "tosa.const"() <{values = dense<0.0> : tensor<1xf32>}> : () -> tensor<1xf32>
+    %b_zp = "tosa.const"() <{values = dense<0.0> : tensor<1xf32>}> : () -> tensor<1xf32>
+    %res = tosa.matmul %a, %b, %a_zp, %b_zp : (tensor<12x1x1024xf32>, tensor<12x1024x128xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<12x1x128xf32>
 
     %t_end = call @rtclock() : () -> f64
     %time = arith.subf %t_end, %t_start : f64

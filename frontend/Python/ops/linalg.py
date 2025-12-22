@@ -3473,7 +3473,7 @@ def cumprod_op(
     input1_memref_type = ir.MemRefType.get(
         input1.type.shape, input1_memref_element_type
     )
-    input1_memref = bufferization.ToMemrefOp(input1_memref_type, input1)
+    input1_memref = bufferization.ToBufferOp(input1_memref_type, input1)
 
     dim = node.args[1]
     if dim == -1:
@@ -3566,7 +3566,7 @@ def sort_op(
 
     # Convert input to memref for in-place sorting
     input_memref_type = ir.MemRefType.get(output_shape, mlir_dtype)
-    input_memref = bufferization.ToMemrefOp(input_memref_type, input1)
+    input_memref = bufferization.ToBufferOp(input_memref_type, input1)
 
     # Create indices memref
     indices_memref_type = ir.MemRefType.get(
@@ -3856,9 +3856,26 @@ def as_strided_op(
 
         # Step 2: Slice to get first output_size elements
         slice_type = ir.RankedTensorType.get([output_size], element_type)
-        start = memoryview(array.array("q", [0]))
-        size = memoryview(array.array("q", [output_size]))
-        sliced = tosa.SliceOp(slice_type, flattened.result, start, size)
+        # Create start and size operands using ConstShapeOp (similar to _create_shape_operand in tosa.py)
+        start_shape_ty = ir.Type.parse("!tosa.shape<1>")
+        start_shape_val = tosa.ConstShapeOp(
+            start_shape_ty,
+            ir.DenseElementsAttr.get(
+                array.array("q", [0]),
+                type=index_ty,
+                shape=[1],
+            ),
+        ).result
+        size_shape_ty = ir.Type.parse("!tosa.shape<1>")
+        size_shape_val = tosa.ConstShapeOp(
+            size_shape_ty,
+            ir.DenseElementsAttr.get(
+                array.array("q", [output_size]),
+                type=index_ty,
+                shape=[1],
+            ),
+        ).result
+        sliced = tosa.SliceOp(slice_type, flattened.result, start_shape_val, size_shape_val)
 
         # Step 3: Reshape to output shape
         output_shape_ty = ir.Type.parse(f"!tosa.shape<{len(output_shape)}>")
@@ -3871,7 +3888,7 @@ def as_strided_op(
             ),
         ).result
         op = tosa.ReshapeOp(sliced.result, output_shape_val)
-   else:
+    else:
         # Enlarging: flatten, pad with zeros, reshape
         padding_size = output_size - input_size
 
@@ -3963,17 +3980,17 @@ def scatter_src_op(
     input_memref_type = ir.MemRefType.get(
         input_shape, ir.RankedTensorType(input_tensor.type).element_type
     )
-    input_memref = bufferization.ToMemrefOp(input_memref_type, input_tensor)
+    input_memref = bufferization.ToBufferOp(input_memref_type, input_tensor)
 
     index_memref_type = ir.MemRefType.get(
         index_shape, ir.RankedTensorType(index_tensor.type).element_type
     )
-    index_memref = bufferization.ToMemrefOp(index_memref_type, index_tensor)
+    index_memref = bufferization.ToBufferOp(index_memref_type, index_tensor)
 
     src_memref_type = ir.MemRefType.get(
         src_shape, ir.RankedTensorType(src_tensor.type).element_type
     )
-    src_memref = bufferization.ToMemrefOp(src_memref_type, src_tensor)
+    src_memref = bufferization.ToBufferOp(src_memref_type, src_tensor)
 
     # Create loop bounds
     lb = arith.ConstantOp(ir.IndexType.get(), 0)
@@ -4074,12 +4091,12 @@ def scatter_value_op(
     input_memref_type = ir.MemRefType.get(
         input_shape, ir.RankedTensorType(input_tensor.type).element_type
     )
-    input_memref = bufferization.ToMemrefOp(input_memref_type, input_tensor)
+    input_memref = bufferization.ToBufferOp(input_memref_type, input_tensor)
 
     index_memref_type = ir.MemRefType.get(
         index_shape, ir.RankedTensorType(index_tensor.type).element_type
     )
-    index_memref = bufferization.ToMemrefOp(index_memref_type, index_tensor)
+    index_memref = bufferization.ToBufferOp(index_memref_type, index_tensor)
 
     # Create loop bounds
     lb = arith.ConstantOp(ir.IndexType.get(), 0)
@@ -4181,17 +4198,17 @@ def scatter_reduce_op(
     input_memref_type = ir.MemRefType.get(
         input_shape, ir.RankedTensorType(input_tensor.type).element_type
     )
-    input_memref = bufferization.ToMemrefOp(input_memref_type, input_tensor)
+    input_memref = bufferization.ToBufferOp(input_memref_type, input_tensor)
 
     index_memref_type = ir.MemRefType.get(
         index_shape, ir.RankedTensorType(index_tensor.type).element_type
     )
-    index_memref = bufferization.ToMemrefOp(index_memref_type, index_tensor)
+    index_memref = bufferization.ToBufferOp(index_memref_type, index_tensor)
 
     src_memref_type = ir.MemRefType.get(
         src_shape, ir.RankedTensorType(src_tensor.type).element_type
     )
-    src_memref = bufferization.ToMemrefOp(src_memref_type, src_tensor)
+    src_memref = bufferization.ToBufferOp(src_memref_type, src_tensor)
 
     # Create loop bounds
     lb = arith.ConstantOp(ir.IndexType.get(), 0)
@@ -4352,7 +4369,7 @@ def max_pool2d_with_indices_op(
     linalg.fill(zero_idx.result, outs=[indices_memref.result])
 
     # Convert input to memref
-    input_memref = bufferization.ToMemrefOp(
+    input_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(input_shape, input_dtype), input_tensor
     ).result
 
@@ -4644,7 +4661,7 @@ def max_pool3d_op(
     linalg.fill(zero_idx.result, outs=[indices_memref.result])
 
     # Convert input to memref
-    input_memref = bufferization.ToMemrefOp(
+    input_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(input_shape, input_dtype), input_tensor
     ).result
 
@@ -4943,16 +4960,16 @@ def scatter_add_op(
     output_memref = memref.AllocOp(output_memref_type, [], [])
 
     # Copy self to output
-    self_memref = bufferization.ToMemrefOp(
+    self_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(self_shape, self_dtype), self_tensor
     ).result
     linalg.copy(self_memref, outs=[output_memref.result])
 
     # Convert src and index to memrefs
-    src_memref = bufferization.ToMemrefOp(
+    src_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(src_shape, self_dtype), src_tensor
     ).result
-    index_memref = bufferization.ToMemrefOp(
+    index_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(src_shape, index_dtype), index_tensor
     ).result
 
@@ -5053,11 +5070,11 @@ def index_select_op(
     output_memref = memref.AllocOp(output_memref_type, [], [])
 
     # Convert input and index to memrefs
-    input_memref = bufferization.ToMemrefOp(
+    input_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(input_shape, input_dtype), input_tensor
     ).result
 
-    index_memref = bufferization.ToMemrefOp(
+    index_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(index_shape, index_dtype), index_tensor
     ).result
 
@@ -5186,7 +5203,7 @@ def avg_pool3d_op(
     linalg.fill(zero.result, outs=[output_memref.result])
 
     # Convert input to memref
-    input_memref = bufferization.ToMemrefOp(
+    input_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(input_shape, input_dtype), input_tensor
     ).result
 
@@ -5436,7 +5453,7 @@ def topk_op(
     indices_memref = memref.AllocOp(indices_memref_type, [], [])
 
     # Convert input to memref
-    input_memref = bufferization.ToMemrefOp(
+    input_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(input_shape, input_dtype), input_tensor
     ).result
 
@@ -5814,10 +5831,10 @@ def embedding_dense_backward_op(
     linalg.fill(zero.result, outs=[output_memref.result])
 
     # Convert input tensors to memrefs
-    grad_memref = bufferization.ToMemrefOp(
+    grad_memref = bufferization.ToBufferOp(
         ir.MemRefType.get([batch_size, embedding_dim], grad_dtype), grad_flat
     ).result
-    indices_memref = bufferization.ToMemrefOp(
+    indices_memref = bufferization.ToBufferOp(
         ir.MemRefType.get([batch_size], indices_dtype), indices_flat
     ).result
 
@@ -5912,10 +5929,10 @@ def max_pool2d_with_indices_backward_op(
     linalg.fill(zero.result, outs=[output_memref.result])
 
     # Convert input tensors to memrefs
-    grad_memref = bufferization.ToMemrefOp(
+    grad_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(grad_shape, input_dtype), grad_output
     ).result
-    indices_memref = bufferization.ToMemrefOp(
+    indices_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(grad_shape, indices_dtype), indices
     ).result
 
@@ -6024,17 +6041,17 @@ def gather_op(
     input_memref_type = ir.MemRefType.get(
         input_shape, ir.RankedTensorType(input_tensor.type).element_type
     )
-    input_memref = bufferization.ToMemrefOp(input_memref_type, input_tensor)
+    input_memref = bufferization.ToBufferOp(input_memref_type, input_tensor)
 
     index_memref_type = ir.MemRefType.get(
         index_shape, ir.RankedTensorType(index_tensor.type).element_type
     )
-    index_memref = bufferization.ToMemrefOp(index_memref_type, index_tensor)
+    index_memref = bufferization.ToBufferOp(index_memref_type, index_tensor)
 
     # Create output tensor
     output_tensor = tensor.EmptyOp(output_shape, mlir_dtype)
     output_memref_type = ir.MemRefType.get(output_shape, mlir_dtype)
-    output_memref = bufferization.ToMemrefOp(
+    output_memref = bufferization.ToBufferOp(
         output_memref_type, output_tensor.result
     )
 
@@ -6125,7 +6142,7 @@ def pdist_forward_op(
 
     # Convert input to memref for random access
     input_memref_type = ir.MemRefType.get(input_shape, element_type)
-    input_memref = bufferization.ToMemrefOp(input_memref_type, input_tensor)
+    input_memref = bufferization.ToBufferOp(input_memref_type, input_tensor)
 
     # Create output memref
     output_memref_type = ir.MemRefType.get(output_shape, element_type)
