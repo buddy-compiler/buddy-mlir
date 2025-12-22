@@ -217,7 +217,6 @@ add_custom_command(
             -batchmatmul-transpose-b-vectorization=vector-size=16
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
-            -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
