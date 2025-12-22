@@ -89,7 +89,7 @@ else:
 model.config.use_cache = False
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
-if args.precision == "f16":
+if args.precision == "f16" or args.precision == "bf16":
     dynamo_compiler_prefill = DynamoCompiler(
         primary_registry=tosa.ops_registry,
         aot_autograd_decomposition=inductor_decomp,
@@ -116,7 +116,7 @@ else:
 
 # Import the model into MLIR module and parameters.
 with torch.no_grad():
-    if args.precision == "f16":
+    if args.precision == "f16" or args.precision == "bf16":
         past_key_values_prefill = StaticCache(
             config=model.config, max_cache_len=20
         )
@@ -291,13 +291,13 @@ if args.precision == "f16":
         print(driver_decode.construct_main_graph(True), file=module_file)
 elif args.precision == "bf16":
     with open(
-        os.path.join(output_dir, "subgraph0-bf16.mlir"), "w"
+        os.path.join(output_dir, "subgraph0_prefill-bf16.mlir"), "w"
     ) as module_file:
-        print(driver.subgraphs[0]._imported_module, file=module_file)
+        print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
     with open(
-        os.path.join(output_dir, "forward-bf16.mlir"), "w"
+        os.path.join(output_dir, "forward_prefill-bf16.mlir"), "w"
     ) as module_file:
-        print(driver.construct_main_graph(True), file=module_file)
+        print(driver_prefill.construct_main_graph(True), file=module_file)
     # Convert BF16 parameters to float32 first, then to numpy
     all_param = numpy.concatenate(
         [param.detach().float().numpy().reshape([-1]) for param in params]
@@ -307,6 +307,15 @@ elif args.precision == "bf16":
         all_param.astype(numpy.float32).tobytes(), dtype=numpy.uint16
     )[1::2]
     all_param_bf16.tofile(os.path.join(output_dir, "arg0-bf16.data"))
+
+    with open(
+        os.path.join(output_dir, "subgraph0_decode-bf16.mlir"), "w"
+    ) as module_file:
+        print(driver_decode.subgraphs[0]._imported_module, file=module_file)
+    with open(
+        os.path.join(output_dir, "forward_decode-bf16.mlir"), "w"
+    ) as module_file:
+        print(driver_decode.construct_main_graph(True), file=module_file)
 else:
     with open(
         os.path.join(output_dir, "subgraph0_prefill.mlir"), "w"
