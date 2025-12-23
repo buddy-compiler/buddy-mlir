@@ -832,7 +832,7 @@ class GraphImporter:
                     operation, ir.OpView
                 ):
                     self._symbol_table[(str(node.name), i)] = operation.result
-                elif isinstance(operation, ir.OpResult):
+                elif isinstance(operation, (ir.OpResult, ir.BlockArgument)):
                     self._symbol_table[(str(node.name), i)] = operation
                 else:
                     raise NotImplementedError
