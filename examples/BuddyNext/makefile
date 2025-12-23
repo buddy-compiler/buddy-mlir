@@ -1109,6 +1109,42 @@ next-output-run:
 # Evaluation of Flash Attention
 # ==============================================================================
 
+next-flash-attention-prefill-run:
+	@${MLIR_OPT} ./next-flash-attention-prefill.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+		${BUDDY_OPT} \
+		-arith-expand \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=48 \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-libm  \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-flash-attention-prefill.out
+	./next-flash-attention-prefill.out || true
+
 next-flash-attention-aot-omp:
 	@${BUDDY_OPT} ./next-flash-attention.mlir \
 		-lower-affine \
