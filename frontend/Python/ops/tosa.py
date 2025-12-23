@@ -3175,13 +3175,24 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     ]
     query_shape_operand = _create_shape_operand(query_flat_shape)
     query_reshape_op = tosa.ReshapeOp(query, query_shape_operand)
+    # batch_matmul_transpose_b expects key in [batch, N, K] format before transpose
+    # key was transposed from [batch, heads, seq_len, head_dim] to [batch, heads, head_dim, seq_len]
+    # we need to transpose it back to [batch, heads, seq_len, head_dim] before reshape
+    key_transposed_back_shape = [
+        key_shape[0],
+        key_shape[1],
+        key_shape[2],
+        key_shape[3],
+    ]
+    key_transposed_back_type = ir.RankedTensorType.get(key_transposed_back_shape, mlir_dtype)
+    key_transposed_back = tosa.TransposeOp(key_transposed_back_type, key, perms_attr).result
     key_flat_shape = [
         key_shape[0] * key_shape[1],
-        key_shape[3],
         key_shape[2],
+        key_shape[3],
     ]
     key_shape_operand = _create_shape_operand(key_flat_shape)
-    key_reshape_op = tosa.ReshapeOp(key, key_shape_operand)
+    key_reshape_op = tosa.ReshapeOp(key_transposed_back, key_shape_operand)
     matmul_result_shp = [
         key_shape[0] * key_shape[1],
         query_shape[2],
@@ -3268,8 +3279,6 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         matmul_result_type,
         softmax_result.result,
         value_reshape_op.result,
-        softmax_zp,
-        value_zp,
         softmax_zp,
         value_zp,
     )
@@ -9479,7 +9488,6 @@ ops_registry = {
     "LogicalXorOp": logical_xor_op,
     "ProdOp": prod_op,
     "NegOp": neg_op,
-    "WhereOp": where_op,
     "EqTensorOp": eq_tensor_op,
     "NeTensorOp": ne_tensor_op,
     "GtTensorOp": gt_tensor_op,

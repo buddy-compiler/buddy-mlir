@@ -210,7 +210,7 @@ add_custom_command(
             -assume-tight-memref-layout
             -matmul-vectorization-decode
             -batchmatmul-optimize
-            -convert-linalg-to-llvm-ir
+            -convert-linalg-to-loops
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
@@ -239,8 +239,10 @@ add_custom_command(
     VERBATIM)
 
 add_custom_command(
-  OUTPUT forward-f16.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-f16.mlir
+  OUTPUT forward_prefill-f16.o
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-f16.mlir
+            -simplify-tosa-reshape |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
             -pass-pipeline ${TOSA_PIPELINE} |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
@@ -250,7 +252,7 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-parallel-vectorization-optimize
+            -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-parallelize
@@ -275,37 +277,127 @@ add_custom_command(
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
         ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
-          -o ${CMAKE_CURRENT_BINARY_DIR}/forward-f16.o
-  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-f16.mlir
-  COMMENT "Building forward.o "
+          -o ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-f16.o
+  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-f16.mlir
+  COMMENT "Building forward_prefill-f16.o "
   VERBATIM)
 
 add_custom_command(
-    OUTPUT subgraph-f16.o
-    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-f16.mlir
+    OUTPUT subgraph_prefill-f16.o
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-f16.mlir
+              -simplify-tosa-reshape |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
               -pass-pipeline ${TOSA_PIPELINE} |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -convert-elementwise-to-linalg
-            -canonicalize
-            -cse
             -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-parallel-vectorization-optimize
+            -matmul-vectorization-blis
             -batchmatmul-optimize
-            -canonicalize
-            -cse
-            -sccp
+            -batchmatmul-transpose-b-vectorization
             -convert-linalg-to-affine-loops
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp=num-threads=48
-            -canonicalize
+            -cse
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+            -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_prefill-f16.o
+    DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-f16.mlir
+    COMMENT "Building subgraph_prefill-f16.o "
+    VERBATIM)
+
+add_custom_command(
+  OUTPUT forward_decode-f16.o
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-f16.mlir
+            -simplify-tosa-reshape |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+            -pass-pipeline ${TOSA_PIPELINE} |
+          ${BUDDY_BINARY_DIR}/buddy-opt
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+            -expand-strided-metadata
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -assume-tight-memref-layout
+            -matmul-vectorization-blis
+            -batchmatmul-optimize
+            -convert-linalg-to-affine-loops
+            -affine-parallelize
+            -convert-vector-to-scf
+            -lower-affine
+            -convert-scf-to-openmp=num-threads=48
+            -cse
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+        ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+        ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          -o ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-f16.o
+  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-f16.mlir
+  COMMENT "Building forward_decode-f16.o "
+  VERBATIM)
+
+add_custom_command(
+    OUTPUT subgraph_decode-f16.o
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-f16.mlir
+              -simplify-tosa-reshape
+              -simplify-tosa-matmul-scalar |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+              -pass-pipeline ${TOSA_PIPELINE} |
+            ${BUDDY_BINARY_DIR}/buddy-opt
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -convert-elementwise-to-linalg
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+            -expand-strided-metadata
+            -ownership-based-buffer-deallocation
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -assume-tight-memref-layout
+            -matmul-vectorization-decode=vector-size=128
+            -batch-matmul-vectorization-decode=vector-size=128
+            -batchmatmul-transpose-b-vectorization
+            -convert-linalg-to-affine-loops
+            -affine-parallelize
+            -convert-vector-to-scf
+            -lower-affine
+            -convert-scf-to-openmp=num-threads=48
             -cse
             -memref-expand
             -arith-expand
