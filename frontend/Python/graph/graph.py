@@ -206,7 +206,7 @@ class Graph:
         return self._body[self._fake_params[i]]
 
     @property
-    def params(self):
+    def params(self) -> list[Op]:
         return [self.get_fake_params(i) for i in range(len(self._fake_params))]
     
     @property
