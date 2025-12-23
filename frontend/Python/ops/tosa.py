@@ -1545,6 +1545,62 @@ def where_op(node: WhereOp, symbol_table):
     result_element_type = mlir_element_type_get(dtype)
     output_type = ir.RankedTensorType.get(output_shape, result_element_type)
 
+    def _scalar_attr_for_output(value):
+        type_str = str(result_element_type)
+        if type_str.startswith("f") or type_str.startswith("bf"):
+            return ir.FloatAttr.get(result_element_type, float(value))
+        return ir.IntegerAttr.get(result_element_type, int(value))
+
+    def _zero_tensor_for_output():
+        zero_attr = ir.DenseElementsAttr.get_splat(
+            output_type, _scalar_attr_for_output(0)
+        )
+        return tosa.ConstOp(zero_attr).result
+
+    def _ensure_tensor(value):
+        if isinstance(value, ir.Value):
+            try:
+                value_shape = list(ir.RankedTensorType(value.type).shape)
+            except Exception:
+                return tensor.SplatOp(output_type, value, []).result
+
+            if value_shape == output_shape:
+                return value
+
+            if len(value_shape) < len(output_shape):
+                padded_shape = [1] * (len(output_shape) - len(value_shape))
+                padded_shape.extend(value_shape)
+                value = tosa.ReshapeOp(
+                    value, memoryview(array.array("i", padded_shape))
+                ).result
+                value_shape = padded_shape
+
+            if len(value_shape) != len(output_shape):
+                raise ValueError(
+                    "WhereOp: input rank %d does not match output rank %d"
+                    % (len(value_shape), len(output_shape))
+                )
+
+            for src_dim, tgt_dim in zip(value_shape, output_shape):
+                if src_dim in (-1,) or tgt_dim in (-1,):
+                    continue
+                if src_dim != 1 and src_dim != tgt_dim:
+                    raise ValueError(
+                        "WhereOp: input shape %s is not broadcastable to %s"
+                        % (value_shape, output_shape)
+                    )
+
+            zero_tensor = _zero_tensor_for_output()
+            return _gen_arith_binary_op(value, zero_tensor, tosa.AddOp).result
+
+        scalar_attr = ir.DenseElementsAttr.get_splat(
+            output_type, _scalar_attr_for_output(value)
+        )
+        return tosa.ConstOp(scalar_attr).result
+
+    input1 = _ensure_tensor(input1)
+    input2 = _ensure_tensor(input2)
+
     return tosa.SelectOp(output_type, condition, input1, input2)
 
 
@@ -1574,11 +1630,47 @@ def ne_tensor_op(node: NeTensorOp, symbol_table):
     return tosa.LogicalNotOp(result_type, equal_result)
 
 
-def _get_comparison_result_type(input1):
+def _broadcast_binary_operands(input1, input2):
+    input1, input2 = _normalize_binary_operator_args(input1, input2)
+    input1_shape = list(ir.RankedTensorType(input1.type).shape)
+    input2_shape = list(ir.RankedTensorType(input2.type).shape)
+
+    norm_input1_shape, norm_input2_shape = _normalize_binary_operator_shape(
+        input1_shape, input2_shape
+    )
+
+    broadcasted_result_shp = []
+    for dim1, dim2 in zip(norm_input1_shape, norm_input2_shape):
+        if dim1 == dim2:
+            broadcasted_result_shp.append(dim1)
+        elif dim1 == 1:
+            broadcasted_result_shp.append(dim2)
+        elif dim2 == 1:
+            broadcasted_result_shp.append(dim1)
+        elif dim1 < 0 or dim2 < 0:
+            broadcasted_result_shp.append(-1)
+        else:
+            raise ValueError(
+                "Incompatible broadcast shapes %s and %s"
+                % (input1_shape, input2_shape)
+            )
+
+    if input1_shape != norm_input1_shape:
+        input1 = tosa.ReshapeOp(
+            input1, ir.DenseI64ArrayAttr.get(norm_input1_shape)
+        ).result
+    if input2_shape != norm_input2_shape:
+        input2 = tosa.ReshapeOp(
+            input2, ir.DenseI64ArrayAttr.get(norm_input2_shape)
+        ).result
+
+    return input1, input2, broadcasted_result_shp
+
+
+def _get_comparison_result_type(broadcast_shape):
     """Helper to get the result type (i1 tensor) for comparison operations."""
-    input_type = ir.RankedTensorType(input1.type)
     result_element_type = ir.IntegerType.get_signless(1)
-    return ir.RankedTensorType.get(list(input_type.shape), result_element_type)
+    return ir.RankedTensorType.get(list(broadcast_shape), result_element_type)
 
 
 def gt_tensor_op(node: GtTensorOp, symbol_table):
@@ -1588,8 +1680,11 @@ def gt_tensor_op(node: GtTensorOp, symbol_table):
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    input1, input2 = _normalize_binary_operator_args(input1, input2)
-    result_type = _get_comparison_result_type(input1)
+    input1, input2, broadcasted_shape = _broadcast_binary_operands(
+        input1, input2
+    )
+    # Swap operands: a <= b is equivalent to b >= a
+    result_type = _get_comparison_result_type(broadcasted_shape)
     return tosa.GreaterOp(result_type, input1, input2)
 
 
@@ -1600,8 +1695,11 @@ def ge_tensor_op(node: GeTensorOp, symbol_table):
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    input1, input2 = _normalize_binary_operator_args(input1, input2)
-    result_type = _get_comparison_result_type(input1)
+    input1, input2, broadcasted_shape = _broadcast_binary_operands(
+        input1, input2
+    )
+    # Swap operands: a <= b is equivalent to b >= a
+    result_type = _get_comparison_result_type(broadcasted_shape)
     return tosa.GreaterEqualOp(result_type, input1, input2)
 
 
@@ -1613,9 +1711,11 @@ def lt_tensor_op(node: LtTensorOp, symbol_table):
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    input1, input2 = _normalize_binary_operator_args(input1, input2)
-    # Swap operands: a < b is equivalent to b > a
-    result_type = _get_comparison_result_type(input1)
+    input1, input2, broadcasted_shape = _broadcast_binary_operands(
+        input1, input2
+    )
+    # Swap operands: a <= b is equivalent to b >= a
+    result_type = _get_comparison_result_type(broadcasted_shape)
     return tosa.GreaterOp(result_type, input2, input1)
 
 
@@ -1627,9 +1727,11 @@ def le_tensor_op(node: LeTensorOp, symbol_table):
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    input1, input2 = _normalize_binary_operator_args(input1, input2)
+    input1, input2, broadcasted_shape = _broadcast_binary_operands(
+        input1, input2
+    )
     # Swap operands: a <= b is equivalent to b >= a
-    result_type = _get_comparison_result_type(input1)
+    result_type = _get_comparison_result_type(broadcasted_shape)
     return tosa.GreaterEqualOp(result_type, input2, input1)
 
 
