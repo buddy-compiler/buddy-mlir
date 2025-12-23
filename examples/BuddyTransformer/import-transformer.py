@@ -46,7 +46,11 @@ sys.path.append(mlir_python_path)
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.graph.transform import (
+    simply_fuse,
+    eliminate_transpose,
+    eliminate_matmul_transpose_reshape,
+)
 
 from transformer_model import create_transformer_model, create_sample_inputs
 
@@ -75,7 +79,19 @@ def main():
         default=40,
         help="Sequence length for input tensors.",
     )
+    parser.add_argument(
+        "--stage",
+        type=str,
+        default="prefill",
+        choices=["prefill", "decode"],
+        help="Stage of inference: 'prefill' (default, seq_len tokens) or 'decode' (1 token).",
+    )
     args = parser.parse_args()
+
+    # Override seq_len for decode stage
+    if args.stage == "decode":
+        args.seq_len = 1
+        print(f"Decode stage: setting seq_len to 1")
 
     # Ensure the output directory exists
     output_dir = args.output_dir
@@ -144,6 +160,10 @@ def main():
             )
 
     # Apply graph transformations
+    # First, perform transpose and matmul fusion optimizations
+    graphs[0].perform(
+        [eliminate_transpose, eliminate_matmul_transpose_reshape]
+    )
     pattern_list = [simply_fuse]
     graphs[0].fuse_ops(pattern_list)
 
@@ -178,20 +198,24 @@ def main():
     driver = GraphDriver(graphs[0])
     driver.subgraphs[0].lower_to_top_level_ir()
 
+    # Determine file suffix based on stage
+    stage_suffix = "_decode" if args.stage == "decode" else ""
+
     # Save the generated files to the specified output directory
     # Save MLIR files
-    with open(os.path.join(output_dir, "subgraph0.mlir"), "w") as module_file:
+    with open(os.path.join(output_dir, f"subgraph0{stage_suffix}.mlir"), "w") as module_file:
         print(driver.subgraphs[0]._imported_module, file=module_file)
-    with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
+    with open(os.path.join(output_dir, f"forward{stage_suffix}.mlir"), "w") as module_file:
         print(driver.construct_main_graph(True), file=module_file)
 
-    # Save parameters
+    # Save parameters (same for both stages)
     all_param = numpy.concatenate(
         [param.detach().numpy().reshape([-1]) for param in params]
     )
     all_param.tofile(os.path.join(output_dir, "arg0.data"))
 
     print(f"Generated f32 MLIR files and parameters in {output_dir}")
+    print(f"Stage: {args.stage}")
     print(f"Generated Buddy Graph logs: graph.log and graph_fused.log")
 
     # Print summary information
