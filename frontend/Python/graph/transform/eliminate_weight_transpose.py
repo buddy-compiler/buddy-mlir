@@ -129,7 +129,7 @@ def eliminate_transpose(graph: Graph):
         transpose_info = None
         node_dtype = input_node.tensor_meta.get("dtype")
 
-        for idx, tensor_meta in enumerate(graph._fake_params):
+        for idx, tensor_meta in enumerate(graph.params_shapes):
             if (
                 list(tensor_meta.shape) == current_shape
                 and tensor_meta.dtype == node_dtype
@@ -153,7 +153,7 @@ def eliminate_transpose(graph: Graph):
             transpose_info = {"type": "transpose", "dims": [dim1, dim2]}
 
         if param_idx is not None:
-            tensor_meta = graph._fake_params[param_idx]
+            tensor_meta = graph.params_shapes[param_idx]
             if (
                 list(tensor_meta.shape) == current_shape
                 and tensor_meta.dtype == node_dtype
