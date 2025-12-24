@@ -185,7 +185,9 @@ void fillRandomData(MemRef<float, 3> &memref, float min_val = -1.0f,
 int main(int argc, char **argv) {
   // Configuration
   const int64_t batch_size = 1;
-  const int64_t seq_len = 40;
+  // Get seq_len from environment variable or default to 40 (prefill)
+  const char* seq_len_env = std::getenv("TRANSFORMER_SEQ_LEN");
+  const int64_t seq_len = seq_len_env ? std::atoi(seq_len_env) : 40;
   const int64_t hidden_size = 1536;
   const int64_t intermediate_size = 8960;
   const int64_t num_attention_heads = 12;
@@ -197,7 +199,7 @@ int main(int argc, char **argv) {
   std::cout << "DeepSeek R1 Transformer Block Performance Test\n";
   std::cout << "===============================================\n";
   std::cout << "Batch size: " << batch_size << "\n";
-  std::cout << "Sequence length: " << seq_len << "\n";
+  std::cout << "Sequence length: " << seq_len << (seq_len == 1 ? " (decode stage)" : " (prefill stage)") << "\n";
   std::cout << "Hidden size: " << hidden_size << "\n";
   std::cout << "Intermediate size: " << intermediate_size << "\n";
   std::cout << "Attention heads: " << num_attention_heads << "\n";
@@ -237,20 +239,20 @@ int main(int argc, char **argv) {
               q_weight.getData());
     offset += q_size;
 
-    // K projection: 256 x 1536 (GQA: 2 heads * 128 dim)
+    // K projection: 1536 x 256 (GQA: 2 heads * 128 dim) - transpose eliminated
     const size_t kv_proj_size =
         num_key_value_heads * (hidden_size / num_attention_heads) * hidden_size;
     MemRef<float, 2> k_weight(
-        {num_key_value_heads * (hidden_size / num_attention_heads),
-         hidden_size});
+        {hidden_size,
+         num_key_value_heads * (hidden_size / num_attention_heads)});
     std::copy(params_data + offset, params_data + offset + kv_proj_size,
               k_weight.getData());
     offset += kv_proj_size;
 
-    // V projection: 256 x 1536 (GQA: 2 heads * 128 dim)
+    // V projection: 1536 x 256 (GQA: 2 heads * 128 dim) - transpose eliminated
     MemRef<float, 2> v_weight(
-        {num_key_value_heads * (hidden_size / num_attention_heads),
-         hidden_size});
+        {hidden_size,
+         num_key_value_heads * (hidden_size / num_attention_heads)});
     std::copy(params_data + offset, params_data + offset + kv_proj_size,
               v_weight.getData());
     offset += kv_proj_size;
@@ -268,15 +270,15 @@ int main(int argc, char **argv) {
               post_attention_layernorm_weight.getData());
     offset += hidden_size;
 
-    // FFN gate projection: 8960 x 1536
+    // FFN gate projection: 1536 x 8960 - transpose eliminated
     const size_t ffn_proj_size = intermediate_size * hidden_size;
-    MemRef<float, 2> gate_proj_weight({intermediate_size, hidden_size});
+    MemRef<float, 2> gate_proj_weight({hidden_size, intermediate_size});
     std::copy(params_data + offset, params_data + offset + ffn_proj_size,
               gate_proj_weight.getData());
     offset += ffn_proj_size;
 
-    // FFN up projection: 8960 x 1536
-    MemRef<float, 2> up_proj_weight({intermediate_size, hidden_size});
+    // FFN up projection: 1536 x 8960 - transpose eliminated
+    MemRef<float, 2> up_proj_weight({hidden_size, intermediate_size});
     std::copy(params_data + offset, params_data + offset + ffn_proj_size,
               up_proj_weight.getData());
     offset += ffn_proj_size;
