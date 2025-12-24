@@ -212,6 +212,7 @@ add_custom_command(
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
             -assume-tight-memref-layout
+            -matmul-vectorization-ggml
             -matmul-vectorization-decode=vector-size=128
             -batch-matmul-vectorization-decode=vector-size=128
             -batchmatmul-transpose-b-vectorization=vector-size=16

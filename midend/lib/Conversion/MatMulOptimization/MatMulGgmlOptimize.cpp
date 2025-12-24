@@ -304,7 +304,7 @@ class MatMulLlamaMode
     : public PassWrapper<MatMulLlamaMode, OperationPass<ModuleOp>> {
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MatMulLlamaMode)
-  StringRef getArgument() const final { return "matmul-vectorization-ggm"; }
+  StringRef getArgument() const final { return "matmul-vectorization-ggml"; }
   StringRef getDescription() const final {
     return "Llama mode matmul (full chunk + tile parallelization, matches "
            "try.mlir)";
