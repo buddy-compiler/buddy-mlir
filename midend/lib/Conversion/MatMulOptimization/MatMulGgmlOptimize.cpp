@@ -160,11 +160,17 @@ public:
 
                       int vecSize = 8;
                       VectorType vectorTy = VectorType::get({vecSize}, elemTy);
-                      Value accMem = parInnerBuilder.create<memref::AllocOp>(loc, MemRefType::get({vecSize}, elemTy));
-                      Value zeroF = parInnerBuilder.create<arith::ConstantOp>(loc, elemTy, parInnerBuilder.getFloatAttr(elemTy, 0.0));
-                      Value c0 = parInnerBuilder.create<arith::ConstantOp>(loc, parInnerBuilder.getIndexAttr(0));
-                      Value c1 = parInnerBuilder.create<arith::ConstantOp>(loc, parInnerBuilder.getIndexAttr(1));
-                      Value vecStep = parInnerBuilder.create<arith::ConstantOp>(loc, parInnerBuilder.getIndexAttr(vecSize));
+                      Value accMem = parInnerBuilder.create<memref::AllocOp>(
+                          loc, MemRefType::get({vecSize}, elemTy));
+                      Value zeroF = parInnerBuilder.create<arith::ConstantOp>(
+                          loc, elemTy,
+                          parInnerBuilder.getFloatAttr(elemTy, 0.0));
+                      Value c0 = parInnerBuilder.create<arith::ConstantOp>(
+                          loc, parInnerBuilder.getIndexAttr(0));
+                      Value c1 = parInnerBuilder.create<arith::ConstantOp>(
+                          loc, parInnerBuilder.getIndexAttr(1));
+                      Value vecStep = parInnerBuilder.create<arith::ConstantOp>(
+                          loc, parInnerBuilder.getIndexAttr(vecSize));
 
                       parInnerBuilder.create<scf::ForOp>(
                           loc, iir1, iir1_end, num_rows_per_vec_dot,
@@ -176,9 +182,11 @@ public:
                                 ValueRange{},
                                 [&](OpBuilder &b3, Location loc, Value ir0,
                                     ValueRange) {
-                                  Value vecIters = b3.create<arith::DivUIOp>(loc, K, vecStep);
-                                  Value vecLimit = b3.create<arith::MulIOp>(loc, vecIters, vecStep);
-                                  
+                                  Value vecIters = b3.create<arith::DivUIOp>(
+                                      loc, K, vecStep);
+                                  Value vecLimit = b3.create<arith::MulIOp>(
+                                      loc, vecIters, vecStep);
+
                                   auto initLoop = b3.create<scf::ForOp>(
                                       loc, c0, vecStep, c1, ValueRange{},
                                       [&](OpBuilder &initBuilder, Location loc,
@@ -197,20 +205,39 @@ public:
                                                 loc, vectorTy, A,
                                                 ValueRange{ir0, kk});
 
-                
-                                        Value bTemp = vecBuilder.create<memref::AllocOp>(
-                                            loc, MemRefType::get({vecSize}, elemTy));
-                                        auto bLoadLoop = vecBuilder.create<scf::ForOp>(
+                                        Value bTemp =
+                                            vecBuilder.create<memref::AllocOp>(
+                                                loc, MemRefType::get({vecSize},
+                                                                     elemTy));
+                                        auto bLoadLoop = vecBuilder.create<
+                                            scf::ForOp>(
                                             loc, c0, vecStep, c1, ValueRange{},
-                                            [&](OpBuilder &bBuilder, Location loc, Value i, ValueRange) {
-                                              Value kk_i = bBuilder.create<arith::AddIOp>(loc, kk, i);
-                                              Value bVal = bBuilder.create<memref::LoadOp>(loc, B, ValueRange{kk_i, ir1});
-                                              bBuilder.create<memref::StoreOp>(loc, bVal, bTemp, ValueRange{i});
-                                              bBuilder.create<scf::YieldOp>(loc);
+                                            [&](OpBuilder &bBuilder,
+                                                Location loc, Value i,
+                                                ValueRange) {
+                                              Value kk_i =
+                                                  bBuilder
+                                                      .create<arith::AddIOp>(
+                                                          loc, kk, i);
+                                              Value bVal =
+                                                  bBuilder
+                                                      .create<memref::LoadOp>(
+                                                          loc, B,
+                                                          ValueRange{kk_i,
+                                                                     ir1});
+                                              bBuilder.create<memref::StoreOp>(
+                                                  loc, bVal, bTemp,
+                                                  ValueRange{i});
+                                              bBuilder.create<scf::YieldOp>(
+                                                  loc);
                                             });
-                                        Value bvec = vecBuilder.create<vector::LoadOp>(loc, vectorTy, bTemp, ValueRange{c0});
-                                        vecBuilder.create<memref::DeallocOp>(loc, bTemp);
-                                        
+                                        Value bvec =
+                                            vecBuilder.create<vector::LoadOp>(
+                                                loc, vectorTy, bTemp,
+                                                ValueRange{c0});
+                                        vecBuilder.create<memref::DeallocOp>(
+                                            loc, bTemp);
+
                                         Value currentAcc =
                                             vecBuilder.create<vector::LoadOp>(
                                                 loc, vectorTy, accMem,
@@ -284,11 +311,10 @@ public:
                                 });
                             b2.create<scf::YieldOp>(loc);
                           });
-                    parInnerBuilder.create<memref::DeallocOp>(loc, accMem);
-                        });
-                        
-                        b1.create<scf::YieldOp>(loc);
-                        
+                      parInnerBuilder.create<memref::DeallocOp>(loc, accMem);
+                    });
+
+                b1.create<scf::YieldOp>(loc);
               });
         });
 
