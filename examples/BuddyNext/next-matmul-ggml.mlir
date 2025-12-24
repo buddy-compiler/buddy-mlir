@@ -20,21 +20,18 @@ module {
   func.func private @rtclock() -> f64
 
   // dot kernel，Ret = dot(A_row, B_col) + C[ir0, ir1]
-  func.func @dot_add(%A: memref<?x?xf32>, %a_row: index, %B: memref<?x?xf32>, %b_col: index, %K: index, %C: memref<?x?xf32>, %c_row: index, %c_col: index) -> f32 {
-    %c0 = arith.constant 0 : index
+  func.func @dot_add(%A: memref<?x?xf32>, %a_row: index, %B: memref<?x?xf32>, %b_col: index, %K: index, %C: memref<?x?xf32>, %c_row: index, %c_col: index, %acc_mem: memref<8xf32>) -> f32 {    %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %vn = arith.constant 8 : index
     %zero_f = arith.constant 0.0 : f32
 
     %vec_iters = arith.divui %K, %vn : index
     %vec_limit = arith.muli %vec_iters, %vn : index
-    %acc_mem = memref.alloc() : memref<8xf32>
-    scf.for %i = %c0 to %vn step %c1 {
-      memref.store %zero_f, %acc_mem[%i] : memref<8xf32>
-    }
+    
     
     scf.for %kk = %c0 to %vec_limit step %vn {
       %avec = vector.load %A[%a_row, %kk] : memref<?x?xf32>, vector<8xf32>
+      
       %bvec_temp = memref.alloc() : memref<8xf32>
       scf.for %i = %c0 to %vn step %c1 {
         %kk_i = arith.addi %kk, %i : index
@@ -48,21 +45,20 @@ module {
       vector.store %sumvec, %acc_mem[%c0] : memref<8xf32>, vector<8xf32>
     }
     
-    %acc_scalar = scf.for %i = %c0 to %vn step %c1 iter_args(%s = %zero_f) -> (f32) {
-      %vitem = memref.load %acc_mem[%i] : memref<8xf32>
-      %s2 = arith.addf %s, %vitem : f32
-      scf.yield %s2 : f32
-    }
+   %acc_scalar = scf.for %i = %c0 to %vn step %c1 iter_args(%s = %zero_f) -> (f32) {
+  %vitem = memref.load %acc_mem[%i] : memref<8xf32>
+  %s2 = arith.addf %s, %vitem : f32
+  scf.yield %s2 : f32
+}
+
+%tail_sum = scf.for %kk = %vec_limit to %K step %c1 iter_args(%s = %acc_scalar) -> (f32) {
+  %a = memref.load %A[%a_row, %kk] : memref<?x?xf32>
+  %b = memref.load %B[%kk, %b_col] : memref<?x?xf32>
+  %prod = arith.mulf %a, %b : f32
+  %s2 = arith.addf %s, %prod : f32
+  scf.yield %s2 : f32
+}
     
-    %tail_sum = scf.for %kk = %vec_limit to %K step %c1 iter_args(%s = %acc_scalar) -> (f32) {
-      %a = memref.load %A[%a_row, %kk] : memref<?x?xf32>
-      %b = memref.load %B[%kk, %b_col] : memref<?x?xf32>
-      %prod = arith.mulf %a, %b : f32
-      %s2 = arith.addf %s, %prod : f32
-      scf.yield %s2 : f32
-    }
-    
-    memref.dealloc %acc_mem : memref<8xf32>
     // Add C[ir0, ir1]
     %c_orig = memref.load %C[%c_row, %c_col] : memref<?x?xf32>
     %result = arith.addf %tail_sum, %c_orig : f32
@@ -82,7 +78,9 @@ module {
     %blck_1 = arith.constant 16 : index
     %C0=arith.constant 0 : index
     %C1=arith.constant 1 : index
-
+    %acc_mem = memref.alloc() : memref<8xf32>
+    %zero_f = arith.constant 0.0 : f32
+    %vn = arith.constant 8 : index
     scf.for %iir1 = %ir1_start to %ir1_end step %blck_1 {
       %iir1_end_tmp = arith.addi %iir1, %blck_1 : index
       %iir1_lt = arith.cmpi slt, %iir1_end_tmp, %ir1_end : index
@@ -95,13 +93,17 @@ module {
         %iir0_end = arith.select %iir0_lt, %iir0_end_tmp, %ir0_end : index
         scf.for %ir1 = %iir1 to %iir1_end step %num_rows_per_vec_dot {
           scf.for %ir0 = %iir0 to %iir0_end step %num_rows_per_vec_dot {
-            %dotval = func.call @dot_add(%A, %ir0, %B, %ir1, %K, %C, %ir0, %ir1)
-              : (memref<?x?xf32>, index, memref<?x?xf32>, index, index, memref<?x?xf32>, index, index) -> f32
+            scf.for %i = %C0 to %vn step %C1 {
+              memref.store %zero_f, %acc_mem[%i] : memref<8xf32>
+            }
+            %dotval = func.call @dot_add(%A, %ir0, %B, %ir1, %K, %C, %ir0, %ir1, %acc_mem)
+              : (memref<?x?xf32>, index, memref<?x?xf32>, index, index, memref<?x?xf32>, index, index, memref<8xf32>) -> f32
             memref.store %dotval, %C[%ir0, %ir1] : memref<?x?xf32>
           }
         }
       }
     }
+    memref.dealloc %acc_mem : memref<8xf32>
     func.return
   }
 
@@ -177,14 +179,16 @@ module {
     linalg.fill ins(%cf1_32 : f32) outs(%A_f32 : memref<?x?xf32>)
     linalg.fill ins(%cf2_32 : f32) outs(%B_f32 : memref<?x?xf32>)
     linalg.fill ins(%cf1_32 : f32) outs(%C_f32 : memref<?x?xf32>)
-
+    
     %t_start = call @rtclock() : () -> f64
+    // linalg.matmul ins(%A_f32, %B_f32: memref<?x?xf32>, memref<?x?xf32>)
+    //  outs(%C_f32 :  memref<?x?xf32>)
     call @ggml_mul_mat_mlir(%A_f32, %B_f32, %C_f32) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>) -> ()
     %t_end = call @rtclock() : () -> f64
     %time = arith.subf %t_end, %t_start : f64
 
-    // %print_C_f32 = memref.cast %C_f32 : memref<?x?xf32> to memref<*xf32>
-    // call @printMemrefF32(%print_C_f32) : (memref<*xf32>) -> ()
+    %print_C_f32 = memref.cast %C_f32 : memref<?x?xf32> to memref<*xf32>
+    call @printMemrefF32(%print_C_f32) : (memref<*xf32>) -> ()
 
     vector.print %time : f64
     // CHECK: {{[0-9]+\.[0-9]+}}

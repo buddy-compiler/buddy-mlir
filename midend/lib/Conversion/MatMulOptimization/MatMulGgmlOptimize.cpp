@@ -158,6 +158,14 @@ public:
                       Value iir0_end = parInnerBuilder.create<arith::SelectOp>(
                           loc, iir0_lt, iir0_end_tmp, ir0_end);
 
+                      int vecSize = 8;
+                      VectorType vectorTy = VectorType::get({vecSize}, elemTy);
+                      Value accMem = parInnerBuilder.create<memref::AllocOp>(loc, MemRefType::get({vecSize}, elemTy));
+                      Value zeroF = parInnerBuilder.create<arith::ConstantOp>(loc, elemTy, parInnerBuilder.getFloatAttr(elemTy, 0.0));
+                      Value c0 = parInnerBuilder.create<arith::ConstantOp>(loc, parInnerBuilder.getIndexAttr(0));
+                      Value c1 = parInnerBuilder.create<arith::ConstantOp>(loc, parInnerBuilder.getIndexAttr(1));
+                      Value vecStep = parInnerBuilder.create<arith::ConstantOp>(loc, parInnerBuilder.getIndexAttr(vecSize));
+
                       parInnerBuilder.create<scf::ForOp>(
                           loc, iir1, iir1_end, num_rows_per_vec_dot,
                           ValueRange{},
@@ -168,28 +176,9 @@ public:
                                 ValueRange{},
                                 [&](OpBuilder &b3, Location loc, Value ir0,
                                     ValueRange) {
-                                  int vecSize = 8;
-                                  VectorType vectorTy =
-                                      VectorType::get({vecSize}, elemTy);
-                                  Value c0 = b3.create<arith::ConstantOp>(
-                                      loc, b3.getIndexAttr(0));
-                                  Value c1 = b3.create<arith::ConstantOp>(
-                                      loc, b3.getIndexAttr(1));
-                                  Value vecStep = b3.create<arith::ConstantOp>(
-                                      loc, b3.getIndexAttr(vecSize));
-
-                                  Value vecIters = b3.create<arith::DivUIOp>(
-                                      loc, K, vecStep);
-                                  Value vecLimit = b3.create<arith::MulIOp>(
-                                      loc, vecIters, vecStep);
-
-                                  Value accMem = b3.create<memref::AllocOp>(
-                                      loc, MemRefType::get({vecSize}, elemTy));
-                                  Value zeroF = b3.create<arith::ConstantOp>(
-                                      loc, elemTy,
-                                      b3.getFloatAttr(elemTy, 0.0));
-
-                                  // 初始化累加器
+                                  Value vecIters = b3.create<arith::DivUIOp>(loc, K, vecStep);
+                                  Value vecLimit = b3.create<arith::MulIOp>(loc, vecIters, vecStep);
+                                  
                                   auto initLoop = b3.create<scf::ForOp>(
                                       loc, c0, vecStep, c1, ValueRange{},
                                       [&](OpBuilder &initBuilder, Location loc,
@@ -208,39 +197,20 @@ public:
                                                 loc, vectorTy, A,
                                                 ValueRange{ir0, kk});
 
-                                        Value bTemp =
-                                            vecBuilder.create<memref::AllocOp>(
-                                                loc, MemRefType::get({vecSize},
-                                                                     elemTy));
-                                        auto bLoadLoop = vecBuilder.create<
-                                            scf::ForOp>(
+                
+                                        Value bTemp = vecBuilder.create<memref::AllocOp>(
+                                            loc, MemRefType::get({vecSize}, elemTy));
+                                        auto bLoadLoop = vecBuilder.create<scf::ForOp>(
                                             loc, c0, vecStep, c1, ValueRange{},
-                                            [&](OpBuilder &bBuilder,
-                                                Location loc, Value i,
-                                                ValueRange) {
-                                              Value kk_i =
-                                                  bBuilder
-                                                      .create<arith::AddIOp>(
-                                                          loc, kk, i);
-                                              Value bVal =
-                                                  bBuilder
-                                                      .create<memref::LoadOp>(
-                                                          loc, B,
-                                                          ValueRange{kk_i,
-                                                                     ir1});
-                                              bBuilder.create<memref::StoreOp>(
-                                                  loc, bVal, bTemp,
-                                                  ValueRange{i});
-                                              bBuilder.create<scf::YieldOp>(
-                                                  loc);
+                                            [&](OpBuilder &bBuilder, Location loc, Value i, ValueRange) {
+                                              Value kk_i = bBuilder.create<arith::AddIOp>(loc, kk, i);
+                                              Value bVal = bBuilder.create<memref::LoadOp>(loc, B, ValueRange{kk_i, ir1});
+                                              bBuilder.create<memref::StoreOp>(loc, bVal, bTemp, ValueRange{i});
+                                              bBuilder.create<scf::YieldOp>(loc);
                                             });
-                                        Value bvec =
-                                            vecBuilder.create<vector::LoadOp>(
-                                                loc, vectorTy, bTemp,
-                                                ValueRange{c0});
-                                        vecBuilder.create<memref::DeallocOp>(
-                                            loc, bTemp);
-
+                                        Value bvec = vecBuilder.create<vector::LoadOp>(loc, vectorTy, bTemp, ValueRange{c0});
+                                        vecBuilder.create<memref::DeallocOp>(loc, bTemp);
+                                        
                                         Value currentAcc =
                                             vecBuilder.create<vector::LoadOp>(
                                                 loc, vectorTy, accMem,
@@ -310,14 +280,15 @@ public:
                                   b3.create<memref::StoreOp>(
                                       loc, cNew, C, ValueRange{ir0, ir1});
 
-                                  b3.create<memref::DeallocOp>(loc, accMem);
-
                                   b3.create<scf::YieldOp>(loc);
                                 });
                             b2.create<scf::YieldOp>(loc);
                           });
-                    });
-                b1.create<scf::YieldOp>(loc);
+                    parInnerBuilder.create<memref::DeallocOp>(loc, accMem);
+                        });
+                        
+                        b1.create<scf::YieldOp>(loc);
+                        
               });
         });
 
@@ -333,7 +304,7 @@ class MatMulLlamaMode
     : public PassWrapper<MatMulLlamaMode, OperationPass<ModuleOp>> {
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MatMulLlamaMode)
-  StringRef getArgument() const final { return "matmul-vectorization-ggml"; }
+  StringRef getArgument() const final { return "matmul-vectorization-ggm"; }
   StringRef getDescription() const final {
     return "Llama mode matmul (full chunk + tile parallelization, matches "
            "try.mlir)";
