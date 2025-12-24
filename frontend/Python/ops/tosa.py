@@ -4224,9 +4224,10 @@ def gt_scalar_op(node: GtOp, symbol_table):
     input_dtype = ir.RankedTensorType(input1.type).element_type
 
     # Create a constant tensor filled with the scalar value
+    element = _get_scalar_attr(input_dtype, scalar_value)
     splat_attr = ir.DenseElementsAttr.get_splat(
         ir.RankedTensorType.get(input_shape, input_dtype),
-        ir.FloatAttr.get(input_dtype, float(scalar_value)),
+        element,
     )
     scalar_tensor = tosa.ConstOp(splat_attr).result
 
@@ -4391,9 +4392,10 @@ def ne_scalar_op(node: NeScalarOp, symbol_table):
     input_dtype = ir.RankedTensorType(input1.type).element_type
 
     # Create a constant tensor filled with the scalar value
+    element = _get_scalar_attr(input_dtype, scalar_value)
     splat_attr = ir.DenseElementsAttr.get_splat(
         ir.RankedTensorType.get(input_shape, input_dtype),
-        ir.FloatAttr.get(input_dtype, float(scalar_value)),
+        element,
     )
     scalar_tensor = tosa.ConstOp(splat_attr).result
 

@@ -51,10 +51,29 @@ output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
 
 device = torch.device("cpu")
-model_id = "stabilityai/stable-diffusion-2-1-base"
+
+
+def resolve_model_source():
+    env_model_dir = os.environ.get("STABLE_DIFFUSION_MODEL_PATH")
+    if env_model_dir:
+        candidate = Path(env_model_dir).expanduser()
+        if candidate.exists():
+            return str(candidate.resolve()), True
+        return env_model_dir, False
+
+    for candidate in (
+        Path(__file__).resolve().parents[2] / "stable-diffusion-2-1-base",
+    ):
+        if candidate.exists():
+            return str(candidate.resolve()), True
+
+    return "stabilityai/stable-diffusion-2-1-base", False
+
+
+model_source, local_files_only = resolve_model_source()
 
 pipe = StableDiffusionPipeline.from_pretrained(
-    model_id, torch_dtype=torch.float32
+    model_source, torch_dtype=torch.float32, local_files_only=local_files_only
 )
 pipe = pipe.to(device)
 pipe.text_encoder.eval()
