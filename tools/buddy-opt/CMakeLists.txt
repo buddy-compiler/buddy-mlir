@@ -38,7 +38,6 @@ target_link_libraries(buddy-opt
   BuddyIME
   BuddyIMETransforms
   LowerIMEPass
-  FuncBufferizeDynamicOffset
   MLIRGPUPasses
   BuddyGPUTransformOPs
   MLIRTestTransforms

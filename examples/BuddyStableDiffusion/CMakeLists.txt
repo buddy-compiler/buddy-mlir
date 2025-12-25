@@ -70,7 +70,6 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -func-bufferize-dynamic-offset
             -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
             # -batchmatmul-optimize

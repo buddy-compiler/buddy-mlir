@@ -12,6 +12,20 @@ from mlir import ir
 import array
 
 
+def _create_shape_operand(shape):
+    """Create a tosa.shape value for reshape-like ops."""
+    dims = [int(dim) for dim in shape]
+    rank = len(dims)
+    shape_type = ir.Type.parse(f"!tosa.shape<{rank}>")
+    index_type = ir.IndexType.get()
+    shape_attr = ir.DenseElementsAttr.get(
+        array.array("q", dims),
+        type=index_type,
+        shape=[rank],
+    )
+    return tosa.ConstShapeOp(shape_type, shape_attr).result
+
+
 def test_local_scalar_dense_1d():
     """Test reshaping [1] tensor to 0-D tensor."""
     with Context() as ctx, Location.unknown():
@@ -28,8 +42,9 @@ def test_local_scalar_dense_1d():
 
             with InsertionPoint(entry_block):
                 input_tensor = entry_block.arguments[0]
+                shape_operand = _create_shape_operand([])
                 result = tosa.ReshapeOp(
-                    input_tensor, memoryview(array.array("q", []))
+                    input_tensor, shape_operand
                 )
                 func.ReturnOp([result.result])
 
@@ -53,8 +68,9 @@ def test_local_scalar_dense_2d():
 
             with InsertionPoint(entry_block):
                 input_tensor = entry_block.arguments[0]
+                shape_operand = _create_shape_operand([])
                 result = tosa.ReshapeOp(
-                    input_tensor, memoryview(array.array("q", []))
+                    input_tensor, shape_operand
                 )
                 func.ReturnOp([result.result])
 
@@ -82,8 +98,9 @@ def test_local_scalar_dense_int():
 
             with InsertionPoint(entry_block):
                 input_tensor = entry_block.arguments[0]
+                shape_operand = _create_shape_operand([])
                 result = tosa.ReshapeOp(
-                    input_tensor, memoryview(array.array("q", []))
+                    input_tensor, shape_operand
                 )
                 func.ReturnOp([result.result])
 
@@ -99,15 +116,18 @@ if __name__ == "__main__":
 # CHECK: === Test 1D single-element tensor ===
 # CHECK: module {
 # CHECK-LABEL: func.func @forward_1d
-# CHECK: tosa.reshape %{{.*}} {new_shape = array<i64>} : (tensor<1xf32>) -> tensor<f32>
+# CHECK: tosa.const_shape
+# CHECK: tosa.reshape %{{.*}}, %{{.*}} : (tensor<1xf32>, !tosa.shape<0>) -> tensor<f32>
 # CHECK: }
 # CHECK: === Test 2D single-element tensor ===
 # CHECK: module {
 # CHECK-LABEL: func.func @forward_2d
-# CHECK: tosa.reshape %{{.*}} {new_shape = array<i64>} : (tensor<1x1xf32>) -> tensor<f32>
+# CHECK: tosa.const_shape
+# CHECK: tosa.reshape %{{.*}}, %{{.*}} : (tensor<1x1xf32>, !tosa.shape<0>) -> tensor<f32>
 # CHECK: }
 # CHECK: === Test integer tensor ===
 # CHECK: module {
 # CHECK-LABEL: func.func @forward_int
-# CHECK: tosa.reshape %{{.*}} {new_shape = array<i64>} : (tensor<1xi64>) -> tensor<i64>
+# CHECK: tosa.const_shape
+# CHECK: tosa.reshape %{{.*}}, %{{.*}} : (tensor<1xi64>, !tosa.shape<0>) -> tensor<i64>
 # CHECK: }

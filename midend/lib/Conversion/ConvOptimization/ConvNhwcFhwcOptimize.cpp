@@ -86,7 +86,7 @@ public:
                      [convOp.getDilations().getValues<int64_t>().size() - 1];
     }
 
-    ShapedType inputTy = input.getType().cast<ShapedType>();
+    ShapedType inputTy = cast<ShapedType>(input.getType());
     Type elemTy = inputTy.getElementType();
     VectorType vecTy = VectorType::get(vecSize, elemTy);
 

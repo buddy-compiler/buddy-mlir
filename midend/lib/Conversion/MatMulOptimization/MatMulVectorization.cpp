@@ -75,7 +75,7 @@ public:
     const Value k = rewriter.create<memref::DimOp>(loc, A, c1);
 
     // Get element type and create vector type.
-    ShapedType ATy = cast<ShapedType>(A.getType());
+    ShapedType ATy = mlir::cast<mlir::ShapedType>(A.getType());
     Type eleTy = ATy.getElementType();
     VectorType vectorTy = VectorType::get({vecSize}, eleTy, {scalable});
     

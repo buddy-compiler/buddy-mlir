@@ -167,8 +167,6 @@ DiagnosedSilenceableFailure buddy::gpu::VectorToMMAConversionOp::applyToOne(
 
   MLIRContext *ctx = target->getContext();
   mlir::transform::ErrorCheckingTrackingListener listener(state, *this);
-  GreedyRewriteConfig config;
-  config.listener = &listener;
 
   // Unrolling to native vector size must have previously occurred.
   // TODO: Add pattern to propagate the extract through the scf.for
@@ -176,8 +174,9 @@ DiagnosedSilenceableFailure buddy::gpu::VectorToMMAConversionOp::applyToOne(
   RewritePatternSet patterns(ctx);
   mlir::vector::populateCastAwayVectorLeadingOneDimPatterns(patterns);
   populatePrepareVectorToMMAPatterns(patterns, getUseMmaSync());
-  if (failed(
-          applyPatternsAndFoldGreedily(target, std::move(patterns), config))) {
+  if (failed(applyPatternsAndFoldGreedily(
+          target, std::move(patterns),
+          GreedyRewriteConfig().setListener(&listener)))) {
     target->emitOpError("vector to mma preparation patterns failed to apply");
     return emitDefaultDefiniteFailure(target);
   }
@@ -198,8 +197,9 @@ DiagnosedSilenceableFailure buddy::gpu::VectorToMMAConversionOp::applyToOne(
   RewritePatternSet f32ToTF32patterns(funcOp.getContext());
   nvgpu::populateMmaSyncF32ToTF32Patterns(f32ToTF32patterns,
                                           nvgpu::MmaSyncF32Lowering::TF32);
-  if (failed(applyPatternsAndFoldGreedily(funcOp, std::move(f32ToTF32patterns),
-                                          config)))
+  if (failed(applyPatternsAndFoldGreedily(
+          funcOp, std::move(f32ToTF32patterns),
+          GreedyRewriteConfig().setListener(&listener))))
     return mlir::emitDefiniteFailure(
         target, "vector to mma F32ToTF32 patterns failed to apply");
 

@@ -31,6 +31,7 @@
 #include <mlir/IR/Value.h>
 #include <mlir/IR/ValueRange.h>
 #include <mlir/Pass/Pass.h>
+#include <optional>
 
 #include "Utils/Utils.h"
 
@@ -63,7 +64,7 @@ public:
     Value C = op->getOperand(2);
 
     // Get shape of input and output.
-    ShapedType ATy = cast<ShapedType>(A.getType());
+    ShapedType ATy = mlir::cast<mlir::ShapedType>(A.getType());
     Type eleTy = ATy.getElementType();
 
     // the element type for mask vector.
@@ -93,6 +94,8 @@ public:
     AffineExpr d0, d1;
     bindDims(ctx, d0, d1);
     AffineMap permMap1D = AffineMap::get(2, 0, {d1}, ctx);
+    AffineMapAttr permMapAttr = AffineMapAttr::get(permMap1D);
+    ArrayAttr inBoundsAttr = rewriter.getBoolArrayAttr({true});
 
     // Create outer parallel loop for row dimension using scf.parallel
     auto outerParallelLoop = rewriter.create<scf::ParallelOp>(
@@ -125,10 +128,10 @@ public:
                       Value acc = itrArgs[0];
                       auto aVec = nestedBuilder.create<vector::TransferReadOp>(
                           nestedLoc, vectorTy, A, ValueRange{rowIdx, iv},
-                          permMap1D);
+                          std::nullopt, permMapAttr, inBoundsAttr);
                       auto bVec = nestedBuilder.create<vector::TransferReadOp>(
                           nestedLoc, vectorTy, B, ValueRange{colIdx, iv},
-                          permMap1D);
+                          std::nullopt, permMapAttr, inBoundsAttr);
                       Value newAcc = nestedBuilder.create<vector::FMAOp>(
                           nestedLoc, aVec, bVec, acc);
                       nestedBuilder.create<scf::YieldOp>(nestedLoc, newAcc);
