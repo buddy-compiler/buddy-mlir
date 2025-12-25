@@ -3241,6 +3241,58 @@ def index_put_op(
     )
     input1_memref = bufferization.ToBufferOp(input1_memref_type, input1)
 
+    def _broadcast_index_tensor(value, target_shape):
+        try:
+            value_type = ir.RankedTensorType(value.type)
+            value_shape = list(value_type.shape)
+            elem_type = value_type.element_type
+        except Exception:
+            elem_type = value.type
+            target_type = ir.RankedTensorType.get(target_shape, elem_type)
+            return tensor.SplatOp(target_type, value, []).result
+
+        if len(value_shape) == 0 and len(target_shape) > 0:
+            scalar_val = tensor.ExtractOp(value, []).result
+            target_type = ir.RankedTensorType.get(target_shape, elem_type)
+            return tensor.SplatOp(target_type, scalar_val, []).result
+
+        if len(value_shape) < len(target_shape):
+            padded_shape = [1] * (len(target_shape) - len(value_shape))
+            padded_shape.extend(value_shape)
+            value = tosa.ReshapeOp(
+                value, memoryview(array.array("i", padded_shape))
+            ).result
+            value_shape = padded_shape
+
+        if len(value_shape) != len(target_shape):
+            raise ValueError(
+                "IndexPutOp: index rank %d does not match target rank %d"
+                % (len(value_shape), len(target_shape))
+            )
+
+        for src_dim, tgt_dim in zip(value_shape, target_shape):
+            if src_dim in (-1,) or tgt_dim in (-1,):
+                continue
+            if src_dim != 1 and src_dim != tgt_dim:
+                raise ValueError(
+                    "IndexPutOp: index shape %s is not broadcastable to %s"
+                    % (value_shape, target_shape)
+                )
+
+        if value_shape != target_shape:
+            if str(elem_type).startswith("f") or str(elem_type).startswith(
+                "bf"
+            ):
+                zero_elem = ir.FloatAttr.get(elem_type, 0.0)
+            else:
+                zero_elem = ir.IntegerAttr.get(elem_type, 0)
+            zero_type = ir.RankedTensorType.get(target_shape, elem_type)
+            zero_attr = ir.DenseElementsAttr.get_splat(zero_type, zero_elem)
+            zero_tensor = tosa.ConstOp(zero_attr).result
+            value = tosa.AddOp(zero_type, value, zero_tensor).result
+
+        return value
+
     # Convert index tensors to memrefs
     input2_memref = []
     for i in range(len(input2)):
@@ -3248,10 +3300,14 @@ def index_put_op(
             input2_memref.append(None)
             continue
         input2_ = symbol_table.get((str(input2[i]), 0))
-        shape = list(input2_.type.shape)
-        memref_element_type = input2_.type.element_type
-        memref_type = ir.MemRefType.get(shape, memref_element_type)
-        input2_memref.append(bufferization.ToBufferOp(memref_type, input2_))
+        if input2_ is None:
+            return
+        index_tensor = _broadcast_index_tensor(input2_, input3_shape)
+        index_elem_type = ir.RankedTensorType(index_tensor.type).element_type
+        memref_type = ir.MemRefType.get(input3_shape, index_elem_type)
+        input2_memref.append(
+            bufferization.ToBufferOp(memref_type, index_tensor)
+        )
 
     input3_memref_element_type = input3.type.element_type
     input3_memref_type = ir.MemRefType.get(
@@ -4946,7 +5002,10 @@ def scatter_add_op(
     self_shape = list(ir.RankedTensorType(self_tensor.type).shape)
     src_shape = list(ir.RankedTensorType(src_tensor.type).shape)
     self_dtype = ir.RankedTensorType(self_tensor.type).element_type
-    index_dtype = ir.RankedTensorType(index_tensor.type).element_type
+    try:
+        index_dtype = ir.RankedTensorType(index_tensor.type).element_type
+    except Exception:
+        index_dtype = index_tensor.type
 
     ndim = len(self_shape)
 
@@ -4969,6 +5028,58 @@ def scatter_add_op(
     src_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(src_shape, self_dtype), src_tensor
     ).result
+
+    def _broadcast_index_tensor(value, target_shape):
+        try:
+            value_shape = list(ir.RankedTensorType(value.type).shape)
+        except Exception:
+            target_type = ir.RankedTensorType.get(target_shape, index_dtype)
+            return tensor.SplatOp(target_type, value, []).result
+
+        if len(value_shape) < len(target_shape):
+            padded_shape = [1] * (len(target_shape) - len(value_shape))
+            padded_shape.extend(value_shape)
+            value = tosa.ReshapeOp(
+                value, memoryview(array.array("i", padded_shape))
+            ).result
+            value_shape = padded_shape
+
+        if len(value_shape) != len(target_shape):
+            raise ValueError(
+                "Index rank %d does not match target rank %d"
+                % (len(value_shape), len(target_shape))
+            )
+
+        for src_dim, tgt_dim in zip(value_shape, target_shape):
+            if src_dim in (-1,) or tgt_dim in (-1,):
+                continue
+            if src_dim != 1 and src_dim != tgt_dim:
+                raise ValueError(
+                    "Index shape %s is not broadcastable to %s"
+                    % (value_shape, target_shape)
+                )
+
+        if value_shape != target_shape:
+            if str(index_dtype).startswith("f") or str(index_dtype).startswith(
+                "bf"
+            ):
+                zero_elem = ir.FloatAttr.get(index_dtype, 0.0)
+            else:
+                zero_elem = ir.IntegerAttr.get(index_dtype, 0)
+            zero_type = ir.RankedTensorType.get(target_shape, index_dtype)
+            zero_attr = ir.DenseElementsAttr.get_splat(zero_type, zero_elem)
+            zero_tensor = tosa.ConstOp(zero_attr).result
+            value = tosa.AddOp(zero_type, value, zero_tensor).result
+
+        return value
+
+    try:
+        index_shape = list(ir.RankedTensorType(index_tensor.type).shape)
+    except Exception:
+        index_shape = []
+    if index_shape != src_shape:
+        index_tensor = _broadcast_index_tensor(index_tensor, src_shape)
+
     index_memref = bufferization.ToBufferOp(
         ir.MemRefType.get(src_shape, index_dtype), index_tensor
     ).result
