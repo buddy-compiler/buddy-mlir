@@ -34,6 +34,96 @@ endif
 # Evaluation of Modules in DeepSeek-R1 Distill Qwen 1.5B
 # ==============================================================================
 
+next-gqa-attention-fusion-run:
+	@${BUDDY_OPT} ./next-gqa-attention-fusion.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-expand-strided-metadata \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-assume-tight-memref-layout \
+		-matmul-vectorization-decode=vector-size=128 \
+		-batch-matmul-vectorization-decode=vector-size=128 \
+		-batchmatmul-transpose-b-vectorization=vector-size=16 \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=48 \
+		-func-bufferize-dynamic-offset \
+		-convert-bufferization-to-memref \
+		-cse \
+		-memref-expand \
+		-arith-expand \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-gqa-attention-fusion.out
+	./next-gqa-attention-fusion.out || true
+
+next-gqa-attention-run:
+	@${BUDDY_OPT} ./next-gqa-attention.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-expand-strided-metadata \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-assume-tight-memref-layout \
+		-matmul-vectorization-decode=vector-size=128 \
+		-batch-matmul-vectorization-decode=vector-size=128 \
+		-batchmatmul-transpose-b-vectorization=vector-size=16 \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=48 \
+		-func-bufferize-dynamic-offset \
+		-convert-bufferization-to-memref \
+		-cse \
+		-memref-expand \
+		-arith-expand \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-gqa-attention-run.out
+	./next-gqa-attention-run.out || true
+
 next-batchmatmul-decode-size-vec-omp-run:
 	@${BUDDY_OPT} ./next-batchmatmul-decode-size.mlir\
 		-batchmatmul-optimize \
