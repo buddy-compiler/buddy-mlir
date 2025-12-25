@@ -1623,9 +1623,8 @@ def where_op(node: WhereOp, symbol_table):
             if len(value_shape) < len(output_shape):
                 padded_shape = [1] * (len(output_shape) - len(value_shape))
                 padded_shape.extend(value_shape)
-                value = tosa.ReshapeOp(
-                    value, memoryview(array.array("i", padded_shape))
-                ).result
+                shape_operand = _create_shape_operand(padded_shape)
+                value = tosa.ReshapeOp(value, shape_operand).result
                 value_shape = padded_shape
 
             if len(value_shape) != len(output_shape):
@@ -1709,13 +1708,11 @@ def _broadcast_binary_operands(input1, input2):
             )
 
     if input1_shape != norm_input1_shape:
-        input1 = tosa.ReshapeOp(
-            input1, ir.DenseI64ArrayAttr.get(norm_input1_shape)
-        ).result
+        shape_operand = _create_shape_operand(norm_input1_shape)
+        input1 = tosa.ReshapeOp(input1, shape_operand).result
     if input2_shape != norm_input2_shape:
-        input2 = tosa.ReshapeOp(
-            input2, ir.DenseI64ArrayAttr.get(norm_input2_shape)
-        ).result
+        shape_operand = _create_shape_operand(norm_input2_shape)
+        input2 = tosa.ReshapeOp(input2, shape_operand).result
 
     return input1, input2, broadcasted_result_shp
 
@@ -3456,20 +3453,20 @@ def flash_attention_for_cpu_prefill_op(
     step_1 = arith.ConstantOp(index, 1, loc=loc)
 
     # === bufferization ===
-    Q_memref = bufferization.ToMemrefOp(
+    Q_memref = bufferization.ToBufferOp(
         memref.MemRefType.get(query_shape, dtype_qkv), query, loc=loc
     )
-    K_memref = bufferization.ToMemrefOp(
+    K_memref = bufferization.ToBufferOp(
         memref.MemRefType.get(key_shape, dtype_qkv), key, loc=loc
     )
-    V_memref = bufferization.ToMemrefOp(
+    V_memref = bufferization.ToBufferOp(
         memref.MemRefType.get(value_shape, dtype_qkv), value, loc=loc
     )
 
     mask_memref = None
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
-        mask_memref = bufferization.ToMemrefOp(
+        mask_memref = bufferization.ToBufferOp(
             memref.MemRefType.get(attn_mask.type.shape, dtype_qkv),
             attn_mask,
             loc=loc,
