@@ -3259,9 +3259,17 @@ def index_put_op(
         if len(value_shape) < len(target_shape):
             padded_shape = [1] * (len(target_shape) - len(value_shape))
             padded_shape.extend(value_shape)
-            value = tosa.ReshapeOp(
-                value, memoryview(array.array("i", padded_shape))
+            shape_ty = ir.Type.parse(f"!tosa.shape<{len(padded_shape)}>")
+            index_ty = ir.IndexType.get()
+            shape_val = tosa.ConstShapeOp(
+                shape_ty,
+                ir.DenseElementsAttr.get(
+                    array.array("q", padded_shape),
+                    type=index_ty,
+                    shape=[len(padded_shape)],
+                ),
             ).result
+            value = tosa.ReshapeOp(value, shape_val).result
             value_shape = padded_shape
 
         if len(value_shape) != len(target_shape):
@@ -5039,9 +5047,17 @@ def scatter_add_op(
         if len(value_shape) < len(target_shape):
             padded_shape = [1] * (len(target_shape) - len(value_shape))
             padded_shape.extend(value_shape)
-            value = tosa.ReshapeOp(
-                value, memoryview(array.array("i", padded_shape))
+            shape_ty = ir.Type.parse(f"!tosa.shape<{len(padded_shape)}>")
+            index_ty = ir.IndexType.get()
+            shape_val = tosa.ConstShapeOp(
+                shape_ty,
+                ir.DenseElementsAttr.get(
+                    array.array("q", padded_shape),
+                    type=index_ty,
+                    shape=[len(padded_shape)],
+                ),
             ).result
+            value = tosa.ReshapeOp(value, shape_val).result
             value_shape = padded_shape
 
         if len(value_shape) != len(target_shape):
