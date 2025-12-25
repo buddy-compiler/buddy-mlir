@@ -51,7 +51,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -code-model=large -O3
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward_text_encoder.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_text_encoder.mlir
   COMMENT "Building forward_text_encoder.o "
@@ -99,7 +99,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -code-model=large -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_text_encoder.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_text_encoder.mlir
     COMMENT "Building subgraph0_text_encoder.o "
@@ -141,7 +141,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -code-model=large -O3
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward_unet.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_unet.mlir
   COMMENT "Building forward_unet.o "
@@ -188,7 +188,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -code-model=large -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_unet.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_unet.mlir
     COMMENT "Building subgraph0_unet.o "
@@ -231,7 +231,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -code-model=large -O3
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward_vae.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_vae.mlir
   COMMENT "Building forward_vae.o "
@@ -278,7 +278,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -code-model=large -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_vae.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_vae.mlir
     COMMENT "Building subgraph0_vae.o "
@@ -294,6 +294,9 @@ SET_TARGET_PROPERTIES(UNET PROPERTIES LINKER_LANGUAGE C)
 SET_TARGET_PROPERTIES(VAE PROPERTIES LINKER_LANGUAGE C)
 
 add_executable(buddy-stable-diffusion-run buddy-stable-diffusion-main.cpp)
+
+target_compile_options(buddy-stable-diffusion-run PRIVATE -mcmodel=large)
+target_link_options(buddy-stable-diffusion-run PRIVATE -mcmodel=large)
 
 set(STABLE_DIFFUSION_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 set(STABLE_DIFFUSION_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})

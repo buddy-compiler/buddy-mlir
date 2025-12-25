@@ -1556,11 +1556,15 @@ def _index_op_all_tensors(
         block.append(indexcast_op)
         index.append(indexcast_op.result)
 
-    # If we have fewer index tensors than input dimensions, we need to add
-    # linalg.index ops for the remaining dimensions
+    # If we have fewer index tensors than input dimensions, add linalg.index ops
+    # for the remaining dimensions. These must be mapped to output loop dims,
+    # not input dims, to avoid out-of-range linalg.index on lower-rank outputs.
     num_index_tensors = len(input2)
+    remaining_dims = len(input_shape) - num_index_tensors
+    broadcast_rank = out_rank - remaining_dims
     for i in range(num_index_tensors, len(input_shape)):
-        index_op_inst = linalg.IndexOp(ir._i64Attr(i, None))
+        output_dim = broadcast_rank + (i - num_index_tensors)
+        index_op_inst = linalg.IndexOp(ir._i64Attr(output_dim, None))
         block.append(index_op_inst)
         index.append(index_op_inst.result)
 
