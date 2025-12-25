@@ -46,10 +46,10 @@ func.func @kernel(
   %zero = arith.constant 0.000000e+00 : f32
   %zero_vec = vector.splat %zero : vector<16xf32>
   %cst_25 = arith.constant -1.000000e+30 : f32
-  %Q_memref = bufferization.to_memref %Q : tensor<1x12x1024x128xf32> to memref<1x12x1024x128xf32>
-  %K_memref = bufferization.to_memref %K : tensor<1x12x1024x128xf32> to memref<1x12x1024x128xf32>
-  %V_memref = bufferization.to_memref %V : tensor<1x12x1024x128xf32> to memref<1x12x1024x128xf32>
-  %attention_mask_memref = bufferization.to_memref %attention_mask : tensor<1x1x1024x1024xf32> to memref<1x1x1024x1024xf32>
+  %Q_memref = bufferization.to_buffer %Q : tensor<1x12x1024x128xf32> to memref<1x12x1024x128xf32>
+  %K_memref = bufferization.to_buffer %K : tensor<1x12x1024x128xf32> to memref<1x12x1024x128xf32>
+  %V_memref = bufferization.to_buffer %V : tensor<1x12x1024x128xf32> to memref<1x12x1024x128xf32>
+  %attention_mask_memref = bufferization.to_buffer %attention_mask : tensor<1x1x1024x1024xf32> to memref<1x1x1024x1024xf32>
   %batch_size = arith.constant 1 : index
   %num_heads = arith.constant 12 : index
   %q_seq_len = arith.constant 1024 : index
