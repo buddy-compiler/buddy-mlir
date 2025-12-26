@@ -11,16 +11,25 @@ from typing import Callable
 class QuantizationState:
     pass
 
-@dataclass
 class Quantized(QuantizationState):
     axis: int = None
     callback: Callable | None = None
 
+    def __init__(self, axis: int | None = None, callback: Callable[[int], None] | None = None):
+        if axis:
+            self.axis = axis
+            if callback:
+                callback(self.axis)
+            
+        self.callback = callback
+
     def set_axis(self, axis: int):
+        assert self.axis is None, "Axis cannot be set twice on the same Quantized."
+
         self.axis = axis
 
         if self.callback:
-            self.callback()
+            self.callback(self.axis)
 
     def check_axis(self, axis: int) -> bool:
         """
