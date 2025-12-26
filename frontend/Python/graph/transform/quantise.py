@@ -304,7 +304,10 @@ def _quantize_addmm_uuq(node: Op, context: QuantizationContext) -> None | Quanti
 
     context.graph.replace_as_child([node._parents[0]], node, add_op)
 
+    add_op._children = node._children
     scaling_op._children = [add_op_name]
+
+    context.graph.replace_as_parent(node, node._children, add_op)
 
     context.graph.add_node(add_op)
 
