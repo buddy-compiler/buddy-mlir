@@ -201,7 +201,18 @@ def _quantize_permute_q(op: Op, context: QuantizationContext) -> None | Quantiza
         context.graph.node_table[op_scaler_name] = context.graph.node_table[parent_scaler_name]
         return Quantized()
     elif context.quantization_mode == QuantizationMode.WOChannelWise:
-        return Unquantized()
+        parent_name = op._parents[0]
+        parent_scaler_name = "scaler_" + parent_name
+        op_scaler_name = "scaler_" + op._name
+
+        permute_dims: list[int] = op.args[1]
+        
+        context.graph.node_table[op_scaler_name] = context.graph.node_table[parent_scaler_name]
+        # If the previous node had its quantization axis set, we can define quantization by axis.
+        if (axis := context.quantization_table[parent_name].axis):
+            return Quantized(axis=permute_dims.index(axis))
+        # If not, we define quantization with callback, so that if an axis is determined, we can propagate that back
+        return Quantized(callback=lambda a: context.quantization_table[parent_name].set_axis(permute_dims[a]))
     
     return Unquantized()
 
