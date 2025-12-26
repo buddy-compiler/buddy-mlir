@@ -27,8 +27,7 @@ func.func private @printMemrefF32(tensor<*xf32>)
 
 func.func @kernel(%a : tensor<1024x1536xf32>, %b : tensor<1536x1536xf32>, %c : tensor<1024x1536xf32>) -> (tensor<1024x1536xf32>) {
   %t_start = call @rtclock() : () -> f64
-  %50 = "tosa.const"() <{value = dense<[1, 0]> : tensor<2xi32>}> : () -> tensor<2xi32>
-  %51 = tosa.transpose %b, %50 : (tensor<1536x1536xf32>, tensor<2xi32>) -> tensor<1536x1536xf32>
+  %51 = tosa.transpose %b {perms = array<i32: 1, 0>} : (tensor<1536x1536xf32>) -> tensor<1536x1536xf32>
   %52 = linalg.matmul {cast = #linalg.type_fn<cast_signed>} ins(%a, %51 : tensor<1024x1536xf32>, tensor<1536x1536xf32>) outs(%c : tensor<1024x1536xf32>) -> tensor<1024x1536xf32>
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64

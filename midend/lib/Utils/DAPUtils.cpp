@@ -70,16 +70,11 @@ SmallVector<Value, 5> generateSOSParams(OpBuilder &rewriter, Location loc,
         Value a2 =
             builder.create<memref::LoadOp>(loc, kernel, ValueRange{iv, c5});
 
-        Value b0Next =
-            builder.create<vector::InsertElementOp>(loc, b0, iargs[0], iv);
-        Value b1Next =
-            builder.create<vector::InsertElementOp>(loc, b1, iargs[1], iv);
-        Value b2Next =
-            builder.create<vector::InsertElementOp>(loc, b2, iargs[2], iv);
-        Value a1Next =
-            builder.create<vector::InsertElementOp>(loc, a1, iargs[3], iv);
-        Value a2Next =
-            builder.create<vector::InsertElementOp>(loc, a2, iargs[4], iv);
+        Value b0Next = vector::InsertOp::create(builder, loc, b0, iargs[0], iv);
+        Value b1Next = vector::InsertOp::create(builder, loc, b0, iargs[1], iv);
+        Value b2Next = vector::InsertOp::create(builder, loc, b0, iargs[2], iv);
+        Value a1Next = vector::InsertOp::create(builder, loc, b0, iargs[3], iv);
+        Value a2Next = vector::InsertOp::create(builder, loc, b0, iargs[4], iv);
 
         builder.create<scf::YieldOp>(
             loc, std::vector<Value>{b0Next, b1Next, b2Next, a1Next, a2Next});
@@ -111,8 +106,8 @@ void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
         Value inElem = builder.create<memref::LoadOp>(loc, input, iv);
         Value vecInMoveRight = builder.create<vector::ShuffleOp>(
             loc, iargs[0], iargs[0], arrayRef);
-        Value vecInNext = builder.create<vector::InsertElementOp>(
-            loc, inElem, vecInMoveRight, c0);
+        Value vecInNext =
+            vector::InsertOp::create(builder, loc, inElem, vecInMoveRight, c0);
         Value vecOutNext =
             builder.create<vector::FMAOp>(loc, vecB0, vecInNext, iargs[1]);
 
@@ -141,12 +136,12 @@ void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
         Value inElem = builder.create<memref::LoadOp>(loc, input, index);
         Value vecInMoveRight = builder.create<vector::ShuffleOp>(
             loc, iargs[0], iargs[0], arrayRef);
-        Value vecInNext = builder.create<vector::InsertElementOp>(
-            loc, inElem, vecInMoveRight, c0);
+        Value vecInNext =
+            vector::InsertOp::create(builder, loc, inElem, vecInMoveRight, c0);
         Value vecOutNext =
             builder.create<vector::FMAOp>(loc, vecB0, vecInNext, iargs[1]);
-        Value outElem = builder.create<vector::ExtractElementOp>(
-            loc, vecOutNext, iUpperBound);
+        Value outElem =
+            vector::ExtractOp::create(builder, loc, vecOutNext, iUpperBound);
         builder.create<memref::StoreOp>(loc, outElem, output, iv);
 
         Value vecS1Lhs =
@@ -170,12 +165,12 @@ void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
       [&](OpBuilder &builder, Location loc, Value iv, ValueRange iargs) {
         Value vecInMoveRight = builder.create<vector::ShuffleOp>(
             loc, iargs[0], iargs[0], arrayRef);
-        Value vecInNext = builder.create<vector::InsertElementOp>(
-            loc, f0, vecInMoveRight, c0);
+        Value vecInNext =
+            vector::InsertOp::create(builder, loc, f0, vecInMoveRight, c0);
         Value vecOutNext =
             builder.create<vector::FMAOp>(loc, vecB0, vecInNext, iargs[1]);
-        Value outElem = builder.create<vector::ExtractElementOp>(
-            loc, vecOutNext, iUpperBound);
+        Value outElem =
+            vector::ExtractOp::create(builder, loc, vecOutNext, iUpperBound);
         builder.create<memref::StoreOp>(loc, outElem, output, iv);
 
         Value vecS1Lhs =

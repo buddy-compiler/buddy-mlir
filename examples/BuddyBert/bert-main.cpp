@@ -87,7 +87,8 @@ int main() {
   pureStrContainer.tokenizeBert(vocabDir, 5);
 
   /// Initialize data containers.
-  MemRef<float, 2> result({1, 6});
+  intptr_t outSizes[2] = {1, 6};
+  MemRef<float, 2> result(outSizes, /*needMalloc=*/false, /*offset=*/0);
   MemRef<long long, 2> attention_mask({1, 5}, 1LL);
   MemRef<long long, 2> token_type_ids({1, 5}, 0LL);
 

@@ -27,7 +27,12 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK: func.func
+# CHECK: arith.constant
+# CHECK: tensor.splat
+# CHECK: arith.cmpf
 # CHECK: tosa.log
 # CHECK: tosa.mul
-# CHECK: tosa.select
+# CHECK: tensor.empty
+# CHECK: linalg.generic
+# CHECK: arith.select
 # CHECK: return

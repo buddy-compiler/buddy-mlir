@@ -33,14 +33,20 @@ print(graph._imported_module)
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.reciprocal
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
 # CHECK: %{{.*}} = tosa.sub
 # CHECK: %{{.*}} = tosa.mul
 # CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.reciprocal
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.reshape
@@ -56,11 +62,16 @@ print(graphs[0]._imported_module)
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.reciprocal
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
 # CHECK: %{{.*}} = tosa.sub
 # CHECK: %{{.*}} = tosa.mul
+# CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.reciprocal
@@ -78,11 +89,16 @@ print(graphs[1]._imported_module)
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.reciprocal
+# CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.mul
 # CHECK: %{{.*}} = tosa.sub
 # CHECK: %{{.*}} = tosa.mul
+# CHECK: %{{.*}} = tosa.reduce_sum
+# CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = tosa.reduce_sum
 # CHECK: %{{.*}} = "tosa.const"
 # CHECK: %{{.*}} = tosa.reciprocal

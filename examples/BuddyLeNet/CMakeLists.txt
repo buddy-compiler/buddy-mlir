@@ -34,7 +34,6 @@ add_custom_command(
             -bufferization-lower-deallocations
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
-            -func-bufferize-dynamic-offset
             -convert-vector-to-scf
             -expand-strided-metadata
             -lower-affine
@@ -84,7 +83,7 @@ set(CONVERT_MEMCPY_TO_GPU_OPTION_DISABLE_PROCESS_ARG "process-args=0")
 add_custom_command(
   OUTPUT forward_gpu.o
   COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
-          -buffer-deallocation
+          -buffer-hoisting
           -canonicalize -cse -expand-strided-metadata -convert-memcpy-to-gpu -gpu-async-region |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-opt -llvm-request-c-wrappers --gpu-to-llvm |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
@@ -100,7 +99,6 @@ add_custom_command(
             -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
           ${BUDDY_BINARY_DIR}/buddy-opt
           -one-shot-bufferize="bufferize-function-boundaries"
-          -func-bufferize-dynamic-offset
           -ownership-based-buffer-deallocation
           -buffer-deallocation-simplification
           -bufferization-lower-deallocations
@@ -109,7 +107,7 @@ add_custom_command(
           -gpu-map-parallel-loops
           -convert-parallel-loops-to-gpu
           -gpu-kernel-outlining
-          -buffer-deallocation
+          -buffer-hoisting
           -canonicalize
           -cse |
           ${BUDDY_BINARY_DIR}/buddy-opt -convert-memcpy-to-gpu=${CONVERT_MEMCPY_TO_GPU_OPTION_DISABLE_PROCESS_ARG} -gpu-async-region -canonicalize |

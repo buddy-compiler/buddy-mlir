@@ -49,6 +49,7 @@ tablegen(LLVM RISCVGenRegisterInfo.inc -gen-register-info)
 tablegen(LLVM RISCVGenSearchableTables.inc -gen-searchable-tables)
 tablegen(LLVM RISCVGenSubtargetInfo.inc -gen-subtarget)
 tablegen(LLVM RISCVGenExegesis.inc -gen-exegesis)
+tablegen(LLVM RISCVGenSDNodeInfo.inc -gen-sd-node-info)
 
 set(LLVM_TARGET_DEFINITIONS ${LLVM_TARGET_RISCV_DIR}/RISCVGISel.td)
 tablegen(LLVM RISCVGenGlobalISel.inc -gen-global-isel)
@@ -92,26 +93,30 @@ buddy_add_llvm_target(BuddyRISCVCodeGen
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVCodeGenPrepare.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVConstantPoolValue.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVDeadRegisterDefinitions.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMakeCompressible.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVExpandAtomicPseudoInsts.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVExpandPseudoInsts.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVFoldMemOffset.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVFrameLowering.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVGatherScatterLowering.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVIndirectBranchTracking.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVInsertVSETVLI.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInsertReadWriteCSR.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVInsertVSETVLI.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInsertWriteVXRM.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInstrInfo.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVInterleavedAccess.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVISelDAGToDAG.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVISelLowering.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVLandingPadSetup.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVLateBranchOpt.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVLoadStoreOptimizer.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMachineFunctionInfo.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMakeCompressible.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMergeBaseOffset.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMoveMerger.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVOptWInstrs.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVPostRAExpandPseudoInsts.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVRedundantCopyElimination.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMoveMerger.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVPushPopOptimizer.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVRedundantCopyElimination.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVRegisterInfo.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVSelectionDAGInfo.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVSubtarget.cpp
@@ -121,6 +126,7 @@ buddy_add_llvm_target(BuddyRISCVCodeGen
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVVectorMaskDAGMutation.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVVectorPeephole.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVVLOptimizer.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVVMV0Elimination.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVZacasABIFix.cpp
 
   LINK_COMPONENTS
@@ -192,16 +198,15 @@ add_llvm_component_library(LLVMBuddyRISCVDesc
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVAsmBackend.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVBaseInfo.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVELFObjectWriter.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVELFStreamer.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInstPrinter.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMatInt.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCAsmInfo.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCCodeEmitter.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCExpr.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCObjectFileInfo.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetStreamer.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCTargetDesc.cpp
-
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMatInt.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetStreamer.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVELFStreamer.cpp
 
   # Add *.h files to track the copies above.
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVAsmBackend.h
@@ -211,10 +216,9 @@ add_llvm_component_library(LLVMBuddyRISCVDesc
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVInstPrinter.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMatInt.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCAsmInfo.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCExpr.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCObjectFileInfo.h
-  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetStreamer.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCTargetDesc.h
+  ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetStreamer.h
 
 
   LINK_COMPONENTS

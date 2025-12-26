@@ -137,11 +137,11 @@ def VectorExp_LoadOp : VectorExp_Op<"load", [AttrSizedOperandSegments]> {
 
   let extraClassDeclaration = [{
     mlir::MemRefType getMemRefType() {
-      return getBase().getType().cast<mlir::MemRefType>();
+      return mlir::cast<mlir::MemRefType>(getBase().getType());
     }
 
     mlir::VectorType getVectorType() {
-      return getResult().getType().cast<mlir::VectorType>();
+      return mlir::cast<mlir::VectorType>(getResult().getType());
     }
   }];
 

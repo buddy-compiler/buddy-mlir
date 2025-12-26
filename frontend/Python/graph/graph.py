@@ -317,7 +317,6 @@ class Graph:
             child_op = self.node_table[child_name]
             child_op._parents[child_op._parents.index(parent_name)] = new_parent_name
 
-
     def init_op_group(self):
         """
         Initializes operation groups within the graph.
