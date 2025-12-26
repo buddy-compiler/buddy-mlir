@@ -219,13 +219,19 @@ def _quantize_permute_q(op: Op, context: QuantizationContext) -> None | Quantiza
 @mask_guard_factory(op_type=MatmulOp, quantization_mask=[
     Unquantized, Quantized
 ])
-def _quantize_matmul_uuq(node: Op, context: QuantizationContext) -> None | QuantizationState:
+def _quantize_matmul_uq(node: Op, context: QuantizationContext) -> None | QuantizationState:
     """
         This method replaces the pattern
         (mm arg1:unquantized, arg2:quantized)
         with
         (mul (mm arg1, arg2), scaler_arg2)
     """
+
+    # If the matrix is quantized along the wrong axis, return None.
+    # Note: `check_axis` is defined on `Quantized` only, but the 
+    #   mask guard guarantees that this argument is of the correct type.
+    if context.quantization_table[node._parents[1]].check_axis(1):
+        return None
 
     mul_op = MulOp()
     node_name = node._name
@@ -240,7 +246,7 @@ def _quantize_matmul_uuq(node: Op, context: QuantizationContext) -> None | Quant
     # reported but are not fatal.
     assert scaler_op_name in context.graph.node_table.keys(), "Scalar op missing."
 
-    mul_op._parents = [node_name]
+    mul_op._parents = [node_name, scaler_op_name]
 
     for child_name in node._children:
         mul_op._parents.append(child_name)
@@ -252,9 +258,9 @@ def _quantize_matmul_uuq(node: Op, context: QuantizationContext) -> None | Quant
     return Unquantized()
 
 @mask_guard_factory(op_type=AddMMOp, quantization_mask=[
-    Unquantized, Unquantized, Quantized
+    Quantized, Unquantized, Quantized
 ])
-def _quantize_addmm_uuq(node: Op, context: QuantizationContext):
+def _quantize_addmm_uuq(node: Op, context: QuantizationContext) -> None | QuantizationState:
     """
     Convert the dag
     (addmm arg1:u, arg2:u, arg3:q)
@@ -264,10 +270,20 @@ def _quantize_addmm_uuq(node: Op, context: QuantizationContext):
     
     node_name = node._name
 
+    # If the matrix is quantized along the wrong axis, return None.
+    # Note: `check_axis` is defined on `Quantized` only, but the 
+    #   mask guard guarantees that this argument is of the correct type.
+    if not context.quantization_table[node._parents[2]].check_axis(1):
+        return None
+
     mm_op = MatmulOp()
     mm_op_name = "pre_scaled_" + node_name
     mm_op._name = mm_op_name
     mm_op._parents = node._parents[1:]
+
+    context.graph.replace_as_child(node._parents[1:], node, mm_op)
+
+    context.graph.add_node(mm_op)
 
     scaling_op = MulOp()
     scaling_op_name = "scaled_" + node_name
@@ -276,21 +292,23 @@ def _quantize_addmm_uuq(node: Op, context: QuantizationContext):
 
     assert scaler_op_name in context.graph.node_table.keys(), "Scalar op missing."
 
-    scaling_op._parents = [mm_op_name, scaling_op_name]
+    scaling_op._parents = [mm_op_name, scaler_op_name]
     mm_op._children = [scaling_op_name]
+
+    context.graph.add_node(scaling_op)
 
     add_op = AddOp()
     add_op_name = "biased_" + node_name
     add_op._name = add_op_name
     add_op._parents = [scaling_op_name, node._parents[0]]
 
+    context.graph.replace_as_child([node._parents[0]], node, add_op)
+
     scaling_op._children = [add_op_name]
 
-    # This is conceptually correct, but is not yet inserted into the graph
-    # which should potentially be done by som helper.
-    
-    #return Unquantized()
-    return False
+    context.graph.add_node(add_op)
+
+    return Unquantized()
 
 def get_op_mask(op: Op, context: QuantizationContext) -> str:
     """
