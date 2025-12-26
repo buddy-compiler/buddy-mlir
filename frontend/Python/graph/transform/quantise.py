@@ -14,7 +14,36 @@ class QuantizationState:
 @dataclass
 class Quantized(QuantizationState):
     axis: int = None
+    callback: Callable | None = None
 
+    def set_axis(self, axis: int):
+        self.axis = axis
+
+        if self.callback:
+            self.callback()
+
+    def check_axis(self, axis: int) -> bool:
+        """
+        Check if the quantization of the tensor is compatible
+        with the given axis.
+
+        When the quantization of the tensor is not set apriori,
+        then it is supposed to be determined based on context,
+        so if `axis is None`, then it is compatible.
+
+        Args:
+            axis (int): axis to determine compatibility with.
+
+        Returns:
+            bool: Whether the quantization is compatible.
+        """
+
+        if self.axis is None:
+            self.set_axis(axis=axis)
+            return True
+
+        return self.axis == axis
+    
 class Unquantized(QuantizationState):
     pass
 
