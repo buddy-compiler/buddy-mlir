@@ -4,12 +4,20 @@ from .. import DeviceType
 from torch.fx.immutable_collections import immutable_list
 from ..type import TensorDType
 
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Callable
 
-class QuantizationState(Enum):
-    Quantized = auto()
-    Unquantized = auto()
+class QuantizationState:
+    pass
+
+@dataclass
+class Quantized(QuantizationState):
+    axis: int = None
+
+class Unquantized(QuantizationState):
+    pass
+
 
 class QuantizationMode(Enum):
     WOTensorWise = auto() # adds a single scaler per tensor
@@ -68,7 +76,7 @@ QuantizationFunctionRegistry: dict[type, dict[str, Callable[[Op, QuantizationCon
 
 def mask_guard_factory(
         op_type: type,
-        quantization_mask: list[QuantizationState],
+        quantization_mask: list[type],
         #quant_state_on_success: QuantizationState
 ):
     """
@@ -80,15 +88,18 @@ def mask_guard_factory(
 
     TODO: This should also allow declaring the QuantizationState of the result
     """
-    def mask_guard(fn: Callable[[Op, QuantizationContext], bool]):
-        def guarded_fn(op: Op, context: QuantizationContext) -> bool:
+    def mask_guard(fn: Callable[[Op, QuantizationContext], None | QuantizationState]):
+        def guarded_fn(op: Op, context: QuantizationContext) -> None | QuantizationState:
             assert isinstance(op, op_type)
             assert len(quantization_mask) == len(op._parents), "Op should have as many arguments as quantization mask entries."
-            assert all([context.quantization_table[parent] == quantization_state for (parent, quantization_state) in zip(op._parents, quantization_mask)]), \
+            assert all([
+                    isinstance(context.quantization_table[parent], quantization_state)
+                    for (parent, quantization_state) in zip(op._parents, quantization_mask)
+                ]), \
                 "Op argument quantization should match quantization mask."
             return fn(op, context)
 
-        quantizer_mask_str = ''.join(['q' if mask == QuantizationState.Quantized else 'u' for mask in quantization_mask])
+        quantizer_mask_str = ''.join(['q' if mask == Quantized else 'u' for mask in quantization_mask])
 
         # Register function in `QuantizationFunctionRegistry`
         QuantizationFunctionRegistry.setdefault(op_type, {})[quantizer_mask_str] = guarded_fn
@@ -107,7 +118,7 @@ def mask_guard_factory(
 # type and the quantization mask happens in the `mask_guard_factory`.
 
 @mask_guard_factory(op_type=ViewOp, quantization_mask=[
-    QuantizationState.Quantized
+    Quantized
 ])
 def _quantize_view_q(op: Op, context: QuantizationContext) -> None | QuantizationState:
     """
@@ -125,16 +136,16 @@ def _quantize_view_q(op: Op, context: QuantizationContext) -> None | Quantizatio
 
         # FIXME: this might introduce some dependencies.
         context.graph.node_table[op_scaler_name] = context.graph.node_table[parent_scaler_name]
-        return QuantizationState.Quantized
+        return Quantized()
     elif context.quantization_mode == QuantizationMode.WOChannelWise:
         # TODO: once status reporting is determined, add reporting here.
         # TODO: in some cases this is still fine, but for now we don't support it
-        return QuantizationState.Unquantized
+        return Unquantized()
     else:
-        return QuantizationState.Unquantized
+        return Unquantized()
 
 @mask_guard_factory(op_type=PermuteOp, quantization_mask=[
-    QuantizationState.Quantized
+    Quantized
 ])
 def _quantize_permute_q(op: Op, context: QuantizationContext) -> None | QuantizationState:
     """
@@ -150,14 +161,14 @@ def _quantize_permute_q(op: Op, context: QuantizationContext) -> None | Quantiza
 
         # FIXME: this might introduce some dependencies.
         context.graph.node_table[op_scaler_name] = context.graph.node_table[parent_scaler_name]
-        return QuantizationState.Quantized
+        return Quantized()
     elif context.quantization_mode == QuantizationMode.WOChannelWise:
-        return QuantizationState.Unquantized
+        return Unquantized()
     
-    return QuantizationState.Unquantized
+    return Unquantized()
 
 @mask_guard_factory(op_type=MatmulOp, quantization_mask=[
-    QuantizationState.Unquantized, QuantizationState.Quantized
+    Unquantized, Quantized
 ])
 def _quantize_matmul_uuq(node: Op, context: QuantizationContext) -> None | QuantizationState:
     """
@@ -189,10 +200,10 @@ def _quantize_matmul_uuq(node: Op, context: QuantizationContext) -> None | Quant
     
     node._children = [mul_op_name]
 
-    return QuantizationState.Unquantized
+    return Unquantized()
 
 @mask_guard_factory(op_type=AddMMOp, quantization_mask=[
-    QuantizationState.Unquantized, QuantizationState.Unquantized, QuantizationState.Quantized
+    Unquantized, Unquantized, Quantized
 ])
 def _quantize_addmm_uuq(node: Op, context: QuantizationContext):
     """
@@ -229,7 +240,7 @@ def _quantize_addmm_uuq(node: Op, context: QuantizationContext):
     # This is conceptually correct, but is not yet inserted into the graph
     # which should potentially be done by som helper.
     
-    #return QuantizationState.Unquantized
+    #return Unquantized()
     return False
 
 def get_op_mask(op: Op, context: QuantizationContext) -> str:
@@ -246,7 +257,7 @@ def get_op_mask(op: Op, context: QuantizationContext) -> str:
     states = []
     # TODO: add error handling when for some reason a parent is missing.
     for parent in op._parents:
-        states.append('u' if context.quantization_table[parent] == QuantizationState.Unquantized else 'q')
+        states.append('u' if isinstance(context.quantization_table[parent], Unquantized) else 'q')
 
     return ''.join(states)
 
@@ -297,7 +308,7 @@ def quantize_node(node: Op, context: QuantizationContext):
 
     # Record all quantized parents
     for idx, parent_name in enumerate(node._parents):
-        if context.quantization_table[parent_name] == QuantizationState.Quantized:
+        if isinstance(context.quantization_table[parent_name], Quantized):
             quantized_parent_nodes.append((idx, parent_name))
 
     for idx, parent_name in quantized_parent_nodes:
@@ -323,7 +334,7 @@ def quantize_node(node: Op, context: QuantizationContext):
 
         context.graph.add_node(dequantize_op)
     
-    context.quantization_table[node._name] = QuantizationState.Unquantized
+    context.quantization_table[node._name] = Unquantized()
 
 def quantise_graph(
         graph: Graph,
@@ -361,7 +372,7 @@ def quantise_graph(
 
     for in_node in graph.inputs:
         node_name = in_node.name
-        context.quantization_table[node_name] = QuantizationState.Unquantized
+        context.quantization_table[node_name] = Unquantized()
     
         check_ready_children(node=in_node, context=context)
     
@@ -381,7 +392,7 @@ def quantise_graph(
         node._tensor_meta["dtype"] = target_dtype
 
         graph.add_node(scaler_node, node_type=NodeType.FakeNode)
-        context.quantization_table[node_name] = QuantizationState.Quantized
+        context.quantization_table[node_name] = Quantized()
         
         check_ready_children(node, context)
 
