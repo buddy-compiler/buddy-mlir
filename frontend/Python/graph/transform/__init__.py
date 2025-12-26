@@ -28,3 +28,6 @@ from .onednn_replace import (
     replace_matmul_with_onednn,
     replace_matmul_with_onednn_selective,
 )
+from .quantise import (
+    quantise_graph
+)
