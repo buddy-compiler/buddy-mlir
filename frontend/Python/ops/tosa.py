@@ -217,6 +217,7 @@ from ..graph import (
     LocalScalarDenseOp,
     ResizeOp,
     SplitWithSizesOp,
+    GQAAttentionFusedOp,
 )
 from .utils import *
 
@@ -9932,6 +9933,233 @@ def diagonal_op(node: DiagonalOp, symbol_table):
         return output_tensor
 
 
+def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
+    """
+    Import the GQA attention fused operation from the graph to MLIR.
+
+    This operation takes a query, a key, a value, a mask, and a scale, and performs a GQA attention operation.
+    """
+    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    k_cache = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    v_cache = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    key = k_cache
+    value = v_cache
+
+    loc = ir.Location.unknown()
+    index = IndexType.get()
+
+    # === input parse ===
+    dtype = node.tensor_meta["dtype"][0]
+    dtype = mlir_element_type_get(dtype)
+
+    attn_mask = node.kwargs.get("attn_mask", None)
+    scale = node.kwargs.get("scale", None)
+
+    c0 = arith.ConstantOp(index, 0, loc=loc)
+    query_shape = query.type.shape
+    key_shape = key.type.shape
+    value_shape = value.type.shape
+    output_shape = list(node.tensor_meta["shape"])
+
+    one = arith.ConstantOp(dtype, 1.0).result
+
+    # scale = 1/sqrt(H)
+    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    scale_val = arith.ConstantOp(dtype, float(scale_val)).result
+
+    zero = arith.ConstantOp(dtype, 0.0, loc=loc).result
+    v16_f32 = ir.VectorType.get([16], dtype)
+    zero_vec = vector.SplatOp(v16_f32, zero, loc=loc).result
+
+    if dtype == ir.F16Type.get():
+        neg_inf = arith.ConstantOp(dtype, -65504.0, loc=loc).result
+    else:
+        neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+
+    # === bufferization ===
+    Q_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(query_shape, dtype), query, loc=loc
+    )
+    K_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(key_shape, dtype), key, loc=loc
+    )
+    V_memref = bufferization.ToMemrefOp(
+        memref.MemRefType.get(value_shape, dtype), value, loc=loc
+    )
+
+    mask_memref = None
+    if attn_mask is not None:
+        attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
+        mask_memref = bufferization.ToMemrefOp(
+            memref.MemRefType.get(attn_mask.type.shape, dtype),
+            attn_mask,
+            loc=loc,
+        )
+
+    batch_dim = arith.ConstantOp(index, query_shape[0], loc=loc)
+    q_dim0 = arith.ConstantOp(index, query_shape[1], loc=loc)
+    q_dim1 = arith.ConstantOp(index, query_shape[2], loc=loc)
+    q_dim2 = arith.ConstantOp(index, query_shape[3], loc=loc)
+
+    out_memref = memref.AllocOp(
+        memref.MemRefType.get(list(output_shape[0]), dtype), [], [], loc=loc
+    )
+    out_exp_sum_memref = memref.AllocOp(
+        memref.MemRefType.get(
+            [query_shape[0], query_shape[1], query_shape[2]], dtype
+        ),
+        [],
+        [],
+        loc=loc,
+    )
+
+    accum = memref.AllocOp(
+        memref.MemRefType.get([query_shape[-1]], dtype), [], [], loc=loc
+    )
+    # batch loop
+
+    loop_batch = affine.AffineForOp(0, batch_dim.result, 1)
+    with ir.InsertionPoint(loop_batch.body):
+        batch = loop_batch.induction_variable
+
+        # h loop
+        loop_h = affine.AffineForOp(0, q_dim0.result, 1)
+        with ir.InsertionPoint(loop_h.body):
+            h = loop_h.induction_variable
+            c6i = arith.ConstantOp(index, 6, loc=loc).result
+            h_kv = arith.DivSIOp(h, c6i, loc=loc).result
+
+            # i loop
+            loop_i = affine.AffineForOp(0, q_dim1.result, 1)
+            with ir.InsertionPoint(loop_i.body):
+                i = loop_i.induction_variable
+
+                # initialize accum to zero
+                loop_init = affine.AffineForOp(0, q_dim2.result, 1)
+                temp_h = loop_init.induction_variable
+                with ir.InsertionPoint(loop_init.body):
+                    memref.StoreOp(zero, accum, [temp_h])
+                    affine.yield_([])
+
+                # attention j loop
+                key_len = key_shape[2]
+                query_len = query_shape[2]
+                loop_js_bound = key_len if key_len > query_len else query_len
+                loop_js = affine.AffineForOp(
+                    0,
+                    arith.ConstantOp(index, loop_js_bound).result,
+                    iter_args=[neg_inf, zero],
+                )
+                j = loop_js.induction_variable
+                iter_args = loop_js.inner_iter_args
+                with ir.InsertionPoint(loop_js.body):
+                    max_iter = iter_args[0]
+                    sum_exp_iter = iter_args[1]
+
+                    # ========== 1. calculate q·k ==========
+                    loop_qk = affine.AffineForOp(
+                        0, q_dim2.result, 16, [zero_vec]
+                    )
+                    s = loop_qk.induction_variable
+                    temp_s = loop_qk.inner_iter_args[0]
+                    with ir.InsertionPoint(loop_qk.body):
+                        qv = vector.LoadOp(
+                            v16_f32, Q_memref, [batch, h, i, s], loc=loc
+                        )
+                        kv = vector.LoadOp(
+                            v16_f32, K_memref, [batch, h_kv, j, s], loc=loc
+                        )
+                        ns = vector.FMAOp(qv.result, kv.result, temp_s, loc=loc)
+                        affine.yield_([ns.result])
+
+                    score = vector.ReductionOp(
+                        dtype, "add", loop_qk.result, loc=loc
+                    ).result
+                    normalized = arith.MulFOp(score, scale_val, loc=loc).result
+                    if mask_memref is not None:
+                        mask_val = memref.LoadOp(
+                            mask_memref, [batch, c0.result, i, j]
+                        )
+                        score_masked = arith.AddFOp(
+                            normalized, mask_val, loc=loc
+                        ).result
+                    else:
+                        score_masked = normalized
+
+                    # === FlashAttention online softmax ===
+                    cond_max = arith.CmpFOp(
+                        arith.CmpFPredicate.OGT, score_masked, max_iter, loc=loc
+                    )
+                    new_max = arith.SelectOp(
+                        cond_max, score_masked, max_iter, loc=loc
+                    )
+
+                    sub1 = arith.SubFOp(max_iter, score_masked, loc=loc).result
+                    exp1 = math.ExpOp(sub1, loc=loc).result
+                    mul1 = arith.MulFOp(exp1, sum_exp_iter, loc=loc).result
+                    add1 = arith.AddFOp(mul1, one, loc=loc).result
+
+                    sub2 = arith.SubFOp(score_masked, max_iter, loc=loc).result
+                    exp2 = math.ExpOp(sub2, loc=loc).result
+                    add2 = arith.AddFOp(sum_exp_iter, exp2, loc=loc).result
+
+                    sum_exp_update = arith.SelectOp(
+                        cond_max, add1, add2, loc=loc
+                    )
+                    # === V accumulate ===
+                    loop_d = affine.AffineForOp(0, q_dim2.result, 1)
+                    d = loop_d.induction_variable
+                    with ir.InsertionPoint(loop_d.body):
+                        vvec = memref.LoadOp(
+                            V_memref, [batch, h_kv, j, d], loc=loc
+                        )
+                        acc_old = memref.LoadOp(accum, [d], loc=loc).result
+
+                        accum_mul1 = arith.MulFOp(acc_old, exp1, loc=loc).result
+                        r1 = arith.AddFOp(accum_mul1, vvec, loc=loc).result
+
+                        accum_mul2 = arith.MulFOp(exp2, vvec, loc=loc).result
+                        r2 = arith.AddFOp(accum_mul2, acc_old, loc=loc).result
+                        acc_new = arith.SelectOp(
+                            cond_max, r1, r2, loc=loc
+                        ).result
+
+                        memref.StoreOp(acc_new, accum, [d], loc=loc)
+                        affine.yield_([])
+
+                    affine.yield_([new_max.result, sum_exp_update.result])
+
+                final_sum = loop_js.results[1]
+                memref.StoreOp(final_sum, out_exp_sum_memref, [batch, h, i])
+
+                # === write back result ===
+                loop_back = affine.AffineForOp(0, q_dim2.result, 1)
+                d_back = loop_back.induction_variable
+                with ir.InsertionPoint(loop_back.body):
+                    accv = memref.LoadOp(accum, [d_back], loc=loc).result
+                    outv = arith.DivFOp(accv, final_sum, loc=loc)
+                    memref.StoreOp(
+                        outv, out_memref, [batch, h, i, d_back], loc=loc
+                    )
+                    affine.yield_([])
+
+                affine.yield_([])
+            affine.yield_([])
+        affine.yield_([])
+
+    tensor_ty = ir.RankedTensorType.get(list(output_shape[0]), dtype)
+    result_tensor = bufferization.ToTensorOp(
+        tensor_ty, out_memref, restrict=ir.BoolAttr.get(True)
+    )
+    tensor_lg = ir.RankedTensorType.get(
+        [query_shape[0], query_shape[1], query_shape[2]], dtype
+    )
+    log_sumexp = bufferization.ToTensorOp(
+        tensor_lg, out_exp_sum_memref, restrict=ir.BoolAttr.get(True)
+    )
+    return result_tensor, log_sumexp
+
+
 # Import func ops registry for CallOp support
 from . import func as func_ops
 
@@ -10141,4 +10369,5 @@ ops_registry = {
     # FftR2cOp is implemented in linalg.py using DFT matrix multiplication
     "LocalScalarDenseOp": local_scalar_dense_op,
     "ResizeOp": resize_op,
+    "GQAAttentionFusedOp": gqa_attention_fused_op,
 }
