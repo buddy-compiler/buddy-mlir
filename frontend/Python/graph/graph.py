@@ -338,7 +338,7 @@ class Graph:
         node_idx = self._body.index(node)
         self._body = self.body[:node_idx] + chain + self.body[node_idx + 1 :]
 
-    def replace_as_child(self, parent_ops: list[Op], child_op: Op, new_op: Op):
+    def replace_as_child(self, parent_ops: list[Op] | Op, child_op: Op, new_op: Op):
         """
         Replace `child_op`, a child of the `parent_ops` with `new_op`.
 
@@ -348,6 +348,9 @@ class Graph:
             new_op (Op): See above
         """
 
+        if not isinstance(parent_ops, list):
+            parent_ops = [parent_ops]
+
         child_name = child_op._name
         new_child_name = new_op._name
 
@@ -355,7 +358,7 @@ class Graph:
             parent_op = self.node_table[parent_name]
             parent_op._children[parent_op._children.index(child_name)] = new_child_name
             
-    def replace_as_parent(self, parent_op: Op, child_ops: list[Op], new_op: Op):
+    def replace_as_parent(self, parent_op: Op, child_ops: list[Op] | Op, new_op: Op):
         """
         Replace `parent_op` with `new_op` as the the parent node of the `child_ops` list.
 
@@ -365,6 +368,9 @@ class Graph:
             new_op (Op): op to replace `parent_op` with
         """
 
+        if not isinstance(child_ops, list):
+            child_ops = [child_ops]
+
         parent_name = parent_op._name
         new_parent_name = new_op._name
 
@@ -372,6 +378,8 @@ class Graph:
             child_op = self.node_table[child_name]
             child_op._parents[child_op._parents.index(parent_name)] = new_parent_name
 
+            if parent_name in child_op._arguments:
+                child_op._arguments[child_op._arguments.index(parent_name)] = new_parent_name
 
     def init_op_group(self):
         """
