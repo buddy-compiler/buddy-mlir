@@ -243,23 +243,6 @@ class Graph:
             return True
         return False
 
-    def check_delete_node(self, node: Op) -> bool:
-        """
-        Determines if a node exists in the graph and has no child nodes.
-
-        Args:
-            node (Op): The operation node to check for deletion eligibility.
-
-        Returns:
-            bool: True if the node exists in the graph and has no children.
-        """
-        if not (node.name in self.node_table):
-            raise KeyError("node{0} not in graph".format(node.name))
-
-        if len(node._children) == 0:
-            return True
-        return False
-
     def delete_node(self, node: Op, parents: List[Op]):
         """
         Removes a node from the graph and updates its parent nodes accordingly.
@@ -271,7 +254,7 @@ class Graph:
         Returns:
             None
         """
-        
+
         node_idx = self._body.index(node)
 
         if node_idx in self._inputs:
