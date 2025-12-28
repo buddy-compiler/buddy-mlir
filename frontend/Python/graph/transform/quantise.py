@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Callable
 
+import torch
+
 class QuantizationState:
     pass
 
@@ -203,11 +205,21 @@ def _quantize_permute_q(op: Op, context: QuantizationContext) -> None | Quantiza
     elif context.quantization_mode == QuantizationMode.WOChannelWise:
         parent_name = op._parents[0]
         parent_scaler_name = "scaler_" + parent_name
-        op_scaler_name = "scaler_" + op._name
+        parent_scaler_op = context.graph.node_table[parent_scaler_name]
 
         permute_dims: list[int] = op.args[1]
+
+        op_scaler_name = "scaler_" + op._name
+        permute_scaler = PermuteOp()
+        permute_scaler._name = op_scaler_name
+        permute_scaler._tensor_meta["dtype"] = parent_scaler_op.tensor_meta["dtype"]
+        permute_scaler._tensor_meta["shape"] = [parent_scaler_op._tensor_meta["shape"][i] for i in permute_dims]
+        permute_scaler._arguments = [parent_scaler_name, permute_dims]
+        permute_scaler._parents = [parent_scaler_name]
+        parent_scaler_op._children.append(op_scaler_name)
         
-        context.graph.node_table[op_scaler_name] = context.graph.node_table[parent_scaler_name]
+        context.graph.add_node(permute_scaler)
+
         # If the previous node had its quantization axis set, we can define quantization by axis.
         if (axis := context.quantization_table[parent_name].axis):
             return Quantized(axis=permute_dims.index(axis))
@@ -280,6 +292,8 @@ def _quantize_addmm_uuq(node: Op, context: QuantizationContext) -> None | Quanti
     mm_op_name = "pre_scaled_" + node_name
     mm_op._name = mm_op_name
     mm_op._parents = node._parents[1:]
+    mm_op._arguments = node._parents[1:]
+    mm_op._tensor_meta = node.tensor_meta
 
     context.graph.replace_as_child(node._parents[1:], node, mm_op)
 
@@ -289,10 +303,12 @@ def _quantize_addmm_uuq(node: Op, context: QuantizationContext) -> None | Quanti
     scaling_op_name = "scaled_" + node_name
     scaling_op._name = scaling_op_name
     scaler_op_name = "scaler_" + node._parents[2]
+    scaling_op._tensor_meta = node.tensor_meta
 
     assert scaler_op_name in context.graph.node_table.keys(), "Scalar op missing."
 
     scaling_op._parents = [mm_op_name, scaler_op_name]
+    scaling_op._arguments = [mm_op_name, scaler_op_name]
     mm_op._children = [scaling_op_name]
 
     context.graph.add_node(scaling_op)
@@ -301,6 +317,8 @@ def _quantize_addmm_uuq(node: Op, context: QuantizationContext) -> None | Quanti
     add_op_name = "biased_" + node_name
     add_op._name = add_op_name
     add_op._parents = [scaling_op_name, node._parents[0]]
+    add_op._arguments = [scaling_op_name, node._parents[0]]
+    add_op._tensor_meta = node.tensor_meta
 
     context.graph.replace_as_child([node._parents[0]], node, add_op)
 
@@ -310,6 +328,10 @@ def _quantize_addmm_uuq(node: Op, context: QuantizationContext) -> None | Quanti
     context.graph.replace_as_parent(node, node._children, add_op)
 
     context.graph.add_node(add_op)
+
+    node._parents = []
+    node._children = []
+    context.graph.delete_node(node, [])
 
     return Unquantized()
 
