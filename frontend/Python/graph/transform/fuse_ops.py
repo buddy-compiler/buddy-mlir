@@ -278,7 +278,7 @@ def replace_gqa_attention_with_fused_op(
     pattern: str,
 ):
     """
-    Fuse GQA subgraph (Reshape -> Expand -> Clone -> Reshape)
+    Fuse GQA subgraph
     into one GQAAttentionFusedOp.
     """
     fused_cls = classicfuse_register.get(pattern)
@@ -296,7 +296,6 @@ def replace_gqa_attention_with_fused_op(
     fused_op.args.pop(fused_op.args.index(v_view.name))
     fused_op._parents.pop(fused_op._parents.index(v_view.name))
 
-    # 将输入重定向到 KV 分支的最顶端（Cache 的原始输入）
     for k_parent in k_cache_unsqueeze._parents:
         fused_op._parents.append(k_parent)
         fused_op.args.append(k_parent)

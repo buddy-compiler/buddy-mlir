@@ -9977,20 +9977,20 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
         neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
 
     # === bufferization ===
-    Q_memref = bufferization.ToMemrefOp(
+    Q_memref = bufferization.ToBufferOp(
         memref.MemRefType.get(query_shape, dtype), query, loc=loc
     )
-    K_memref = bufferization.ToMemrefOp(
+    K_memref = bufferization.ToBufferOp(
         memref.MemRefType.get(key_shape, dtype), key, loc=loc
     )
-    V_memref = bufferization.ToMemrefOp(
+    V_memref = bufferization.ToBufferOp(
         memref.MemRefType.get(value_shape, dtype), value, loc=loc
     )
 
     mask_memref = None
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
-        mask_memref = bufferization.ToMemrefOp(
+        mask_memref = bufferization.ToBufferOp(
             memref.MemRefType.get(attn_mask.type.shape, dtype),
             attn_mask,
             loc=loc,
