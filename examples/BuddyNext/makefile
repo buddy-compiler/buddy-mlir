@@ -55,7 +55,6 @@ next-gqa-attention-fusion-run:
 		-convert-vector-to-scf \
 		-lower-affine \
 		-convert-scf-to-openmp=num-threads=48 \
-		-func-bufferize-dynamic-offset \
 		-convert-bufferization-to-memref \
 		-cse \
 		-memref-expand \
@@ -100,7 +99,6 @@ next-gqa-attention-run:
 		-convert-vector-to-scf \
 		-lower-affine \
 		-convert-scf-to-openmp=num-threads=48 \
-		-func-bufferize-dynamic-offset \
 		-convert-bufferization-to-memref \
 		-cse \
 		-memref-expand \

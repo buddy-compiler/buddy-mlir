@@ -43,10 +43,10 @@ func.func @kernel(%q : tensor<1x12x1x128xf32>, %k_cache : tensor<1x2x1024x128xf3
   %cst_23 = arith.constant 0.0883883461 : f32
   %cst_24 = arith.constant 0.000000e+00 : f32
   %cst_25 = arith.constant -1.000000e+30 : f32
-  %q_mem = bufferization.to_memref %q : tensor<1x12x1x128xf32> to memref<1x12x1x128xf32>
-  %k_cache_mem = bufferization.to_memref %k_cache : tensor<1x2x1024x128xf32> to memref<1x2x1024x128xf32>
-  %v_cache_mem = bufferization.to_memref %v_cache : tensor<1x2x1024x128xf32> to memref<1x2x1024x128xf32>
-  %mask_mem = bufferization.to_memref %mask : tensor<1x1x1x1024xf32> to memref<1x1x1x1024xf32>
+  %q_mem = bufferization.to_buffer %q : tensor<1x12x1x128xf32> to memref<1x12x1x128xf32>
+  %k_cache_mem = bufferization.to_buffer %k_cache : tensor<1x2x1024x128xf32> to memref<1x2x1024x128xf32>
+  %v_cache_mem = bufferization.to_buffer %v_cache : tensor<1x2x1024x128xf32> to memref<1x2x1024x128xf32>
+  %mask_mem = bufferization.to_buffer %mask : tensor<1x1x1x1024xf32> to memref<1x1x1x1024xf32>
   %batch = arith.constant 1 : index
   %head_num = arith.constant 12 : index
   %seq_len = arith.constant 1 : index

@@ -36,52 +36,73 @@ func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 func.func private @rtclock() -> f64
 func.func @kernel(%q : tensor<1x12x1x128xf32>, %k_cache : tensor<1x2x1024x128xf32>, %v_cache : tensor<1x2x1024x128xf32>, %mask : tensor<1x1x1x1024xf32>) -> tensor<1x12x1x128xf32> {
 
-   %89 = tosa.reshape %k_cache {new_shape = array<i64: 1, 2, 1, 1024, 128>} : (tensor<1x2x1024x128xf32>) -> tensor<1x2x1x1024x128xf32>
-    %90 = "tosa.const"() <{value = dense<0.000000e+00> : tensor<1x2x6x1024x128xf32>}> : () -> tensor<1x2x6x1024x128xf32>
-    %91 = tosa.add %89, %90 : (tensor<1x2x1x1024x128xf32>, tensor<1x2x6x1024x128xf32>) -> tensor<1x2x6x1024x128xf32>
-    %92 = tosa.reshape %91 {new_shape = array<i64: 1, 12, 1024, 128>} : (tensor<1x2x6x1024x128xf32>) -> tensor<1x12x1024x128xf32>
-    %93 = tosa.reshape %v_cache {new_shape = array<i64: 1, 2, 1, 1024, 128>} : (tensor<1x2x1024x128xf32>) -> tensor<1x2x1x1024x128xf32>
-    %94 = "tosa.const"() <{value = dense<0.000000e+00> : tensor<1x2x6x1024x128xf32>}> : () -> tensor<1x2x6x1024x128xf32>
-    %95 = tosa.add %93, %94 : (tensor<1x2x1x1024x128xf32>, tensor<1x2x6x1024x128xf32>) -> tensor<1x2x6x1024x128xf32>
-    %96 = tosa.reshape %95 {new_shape = array<i64: 1, 12, 1024, 128>} : (tensor<1x2x6x1024x128xf32>) -> tensor<1x12x1024x128xf32>
+  // ===========GQA cache reshape =====
+  %136 = tosa.const_shape  {values = dense<[1, 2, 1, 1024, 128]> : tensor<5xindex>} : () -> !tosa.shape<5>
+  %137 = tosa.reshape %k_cache, %136 : (tensor<1x2x1024x128xf32>, !tosa.shape<5>) -> tensor<1x2x1x1024x128xf32>
+  %138 = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1x2x6x1024x128xf32>}> : () -> tensor<1x2x6x1024x128xf32>
+  %139 = tosa.add %137, %138 : (tensor<1x2x1x1024x128xf32>, tensor<1x2x6x1024x128xf32>) -> tensor<1x2x6x1024x128xf32>
+  %140 = tosa.const_shape  {values = dense<[1, 12, 1024, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %141 = tosa.reshape %139, %140 : (tensor<1x2x6x1024x128xf32>, !tosa.shape<4>) -> tensor<1x12x1024x128xf32>
 
+  %142 = tosa.const_shape  {values = dense<[1, 2, 1, 1024, 128]> : tensor<5xindex>} : () -> !tosa.shape<5>
+  %143 = tosa.reshape %v_cache, %142 : (tensor<1x2x1024x128xf32>, !tosa.shape<5>) -> tensor<1x2x1x1024x128xf32>
+  %144 = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1x2x6x1024x128xf32>}> : () -> tensor<1x2x6x1024x128xf32>
+  %145 = tosa.add %143, %144 : (tensor<1x2x1x1024x128xf32>, tensor<1x2x6x1024x128xf32>) -> tensor<1x2x6x1024x128xf32>
+  %146 = tosa.const_shape  {values = dense<[1, 12, 1024, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %147 = tosa.reshape %145, %146 : (tensor<1x2x6x1024x128xf32>, !tosa.shape<4>) -> tensor<1x12x1024x128xf32>
 
-    %cst_21 = arith.constant 0.000000e+00 : f32
-    %splat_22 = tensor.splat %cst_21 : tensor<1x1024xf32>
-    %100 = tosa.reshape %mask {new_shape = array<i64: 1, 1024>} : (tensor<1x1x1x1024xf32>) -> tensor<1x1024xf32>
-    %101 = tosa.add %splat_22, %100 : (tensor<1x1024xf32>, tensor<1x1024xf32>) -> tensor<1x1024xf32>
-    %102 = tosa.reshape %q {new_shape = array<i64: 12, 1, 128>} : (tensor<1x12x1x128xf32>) -> tensor<12x1x128xf32>
-    %103 = tosa.reshape %92 {new_shape = array<i64: 12, 1024, 128>} : (tensor<1x12x1024x128xf32>) -> tensor<12x1024x128xf32>
-            // ===== Attention QK^T =====
+  // ==============mask======
+  %cst_21 = arith.constant 0.000000e+00 : f32
+  %splat_22 = tensor.splat %cst_21 : tensor<1x1024xf32>
+  %152 = tosa.const_shape  {values = dense<[1, 1024]> : tensor<2xindex>} : () -> !tosa.shape<2>
+  %153 = tosa.reshape %mask, %152 : (tensor<1x1x1x1024xf32>, !tosa.shape<2>) -> tensor<1x1024xf32>
+  %154 = tosa.add %splat_22, %153 : (tensor<1x1024xf32>, tensor<1x1024xf32>) -> tensor<1x1024xf32>
+  %155 = tosa.transpose %141 {perms = array<i32: 0, 1, 3, 2>} : (tensor<1x12x1024x128xf32>) -> tensor<1x12x128x1024xf32>
+  %156 = tosa.const_shape  {values = dense<[12, 1, 128]> : tensor<3xindex>} : () -> !tosa.shape<3>
 
-    %cst_23 = arith.constant dense<0.000000e+00> : tensor<12x1x1024xf32>
-    %104 = linalg.batch_matmul_transpose_b ins(%102, %103 : tensor<12x1x128xf32>, tensor<12x1024x128xf32>) outs(%cst_23 : tensor<12x1x1024xf32>) -> tensor<12x1x1024xf32>
-    %cst_24 = arith.constant 0.0883883461 : f32
-    %splat_25 = tensor.splat %cst_24 : tensor<12x1x1024xf32>
-    %105 = tosa.mul %104, %splat_25 : (tensor<12x1x1024xf32>, tensor<12x1x1024xf32>) -> tensor<12x1x1024xf32>
-    %106 = tosa.reshape %101 {new_shape = array<i64: 1, 1, 1024>} : (tensor<1x1024xf32>) -> tensor<1x1x1024xf32>
-    %107 = tosa.add %105, %106 : (tensor<12x1x1024xf32>, tensor<1x1x1024xf32>) -> tensor<12x1x1024xf32>
+  // =============q reshape============
+  %157 = tosa.reshape %q, %156 : (tensor<1x12x1x128xf32>, !tosa.shape<3>) -> tensor<12x1x128xf32>
+  %158 = tosa.transpose %155 {perms = array<i32: 0, 1, 3, 2>} : (tensor<1x12x128x1024xf32>) -> tensor<1x12x1024x128xf32>
+  %159 = tosa.const_shape  {values = dense<[12, 1024, 128]> : tensor<3xindex>} : () -> !tosa.shape<3>
+  %160 = tosa.reshape %158, %159 : (tensor<1x12x1024x128xf32>, !tosa.shape<3>) -> tensor<12x1024x128xf32>
 
-    // ===== Attention Softmax =====
+    // ===== Attention QK^T =====
 
-    %108 = tosa.reduce_max %107 {axis = 2 : i32} : (tensor<12x1x1024xf32>) -> tensor<12x1x1xf32>
-    %109 = tosa.sub %107, %108 : (tensor<12x1x1024xf32>, tensor<12x1x1xf32>) -> tensor<12x1x1024xf32>
-    %110 = math.exp %109 : tensor<12x1x1024xf32>
-    %111 = tosa.reduce_sum %110 {axis = 2 : i32} : (tensor<12x1x1024xf32>) -> tensor<12x1x1xf32>
-    %112 = tosa.log %111 : (tensor<12x1x1xf32>) -> tensor<12x1x1xf32>
-    %113 = tosa.add %108, %112 : (tensor<12x1x1xf32>, tensor<12x1x1xf32>) -> tensor<12x1x1xf32>
-    %114 = tosa.sub %107, %113 : (tensor<12x1x1024xf32>, tensor<12x1x1xf32>) -> tensor<12x1x1024xf32>
-    %115 = math.exp %114 : tensor<12x1x1024xf32>
+  %cst_23 = arith.constant dense<0.000000e+00> : tensor<12x1x1024xf32>
+  %161 = linalg.batch_matmul_transpose_b ins(%157, %160 : tensor<12x1x128xf32>, tensor<12x1024x128xf32>) outs(%cst_23 : tensor<12x1x1024xf32>) -> tensor<12x1x1024xf32>
+  %cst_24 = arith.constant 0.0883883461 : f32
+  %splat_25 = tensor.splat %cst_24 : tensor<12x1x1024xf32>
+  %162 = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+  %163 = tosa.mul %161, %splat_25, %162 : (tensor<12x1x1024xf32>, tensor<12x1x1024xf32>, tensor<1xi8>) -> tensor<12x1x1024xf32>
+  %164 = tosa.const_shape  {values = dense<[1, 1, 1024]> : tensor<3xindex>} : () -> !tosa.shape<3>
+  %165 = tosa.reshape %154, %164 : (tensor<1x1024xf32>, !tosa.shape<3>) -> tensor<1x1x1024xf32>
+  %166 = tosa.add %163, %165 : (tensor<12x1x1024xf32>, tensor<1x1x1024xf32>) -> tensor<12x1x1024xf32>
 
-    // ===== Attention * V =====
+  // ===== Attention Softmax =====
 
-    %116 = tosa.reshape %113 {new_shape = array<i64: 1, 12, 1>} : (tensor<12x1x1xf32>) -> tensor<1x12x1xf32>
-    %117 = tosa.reshape %96 {new_shape = array<i64: 12, 1024, 128>} : (tensor<1x12x1024x128xf32>) -> tensor<12x1024x128xf32>
-    %118 = tosa.matmul %115, %117 : (tensor<12x1x1024xf32>, tensor<12x1024x128xf32>) -> tensor<12x1x128xf32>
-    %119 = tosa.reshape %118 {new_shape = array<i64: 1, 12, 1, 128>} : (tensor<12x1x128xf32>) -> tensor<1x12x1x128xf32>
+  %167 = tosa.reduce_max %166 {axis = 2 : i32} : (tensor<12x1x1024xf32>) -> tensor<12x1x1xf32>
+  %168 = tosa.sub %166, %167 : (tensor<12x1x1024xf32>, tensor<12x1x1xf32>) -> tensor<12x1x1024xf32>
+  %169 = math.exp %168 : tensor<12x1x1024xf32>
+  %170 = tosa.reduce_sum %169 {axis = 2 : i32} : (tensor<12x1x1024xf32>) -> tensor<12x1x1xf32>
+  %171 = tosa.log %170 : (tensor<12x1x1xf32>) -> tensor<12x1x1xf32>
+  %172 = tosa.add %167, %171 : (tensor<12x1x1xf32>, tensor<12x1x1xf32>) -> tensor<12x1x1xf32>
+  %173 = tosa.sub %166, %172 : (tensor<12x1x1024xf32>, tensor<12x1x1xf32>) -> tensor<12x1x1024xf32>
+  %174 = math.exp %173 : tensor<12x1x1024xf32>
 
-    return %119 : tensor<1x12x1x128xf32>
-  }
+  // ===== Attention * V =====
+
+  %175 = tosa.const_shape  {values = dense<[1, 12, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
+  %176 = tosa.reshape %172, %175 : (tensor<12x1x1xf32>, !tosa.shape<3>) -> tensor<1x12x1xf32>
+  %177 = tosa.const_shape  {values = dense<[12, 1024, 128]> : tensor<3xindex>} : () -> !tosa.shape<3>
+  %178 = tosa.reshape %147, %177 : (tensor<1x12x1024x128xf32>, !tosa.shape<3>) -> tensor<12x1024x128xf32>
+  %179 = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+  %180 = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+  %181 = tosa.matmul %174, %178, %179, %180 : (tensor<12x1x1024xf32>, tensor<12x1024x128xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<12x1x128xf32>
+  %182 = tosa.const_shape  {values = dense<[1, 12, 1, 128]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %183 = tosa.reshape %181, %182 : (tensor<12x1x128xf32>, !tosa.shape<4>) -> tensor<1x12x1x128xf32>
+
+  return %183 : tensor<1x12x1x128xf32>
+}
 
 func.func @main() {
 
