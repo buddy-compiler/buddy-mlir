@@ -13,7 +13,7 @@ module {
     llvm.mlir.global private constant @op_name_k_proj("k_projection\00") {addr_space = 0 : i32}
     llvm.mlir.global private constant @op_name_v_proj("v_projection\00") {addr_space = 0 : i32}
     llvm.mlir.global private constant @op_name_kv_update("attn_kv_cache_update\00") {addr_space = 0 : i32}
-    llvm.mlir.global private constant @op_name_attn("qga and attention\00") {addr_space = 0 : i32}
+    llvm.mlir.global private constant @op_name_attn("GQA and attention\00") {addr_space = 0 : i32}
     llvm.mlir.global private constant @op_name_o_proj("o_projection\00") {addr_space = 0 : i32}
     llvm.mlir.global private constant @op_name_post_attn_layernorm("post_attention_layernorm\00") {addr_space = 0 : i32}
     llvm.mlir.global private constant @op_name_ffn_gate("ffn_gate_projection\00") {addr_space = 0 : i32}
