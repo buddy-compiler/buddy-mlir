@@ -70,7 +70,7 @@ vmadot-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v \
+		-mattr=+m,+v,+buddyext \
 		-o log.s
 
 
@@ -117,9 +117,8 @@ vmadotu-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v \
+		-mattr=+m,+v,+buddyext \
 		-o log.s
-
 
 vmadotsu-lower:
 	@${BUDDY_OPT} ./vmadotsu.mlir \
@@ -164,7 +163,7 @@ vmadotsu-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v \
+		-mattr=+m,+v,+buddyext \
 		-o log.s
 
 
@@ -211,7 +210,7 @@ vmadotus-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v \
+		-mattr=+m,+v,+buddyext \
 		-o log.s
 
 
@@ -258,5 +257,5 @@ vfmadot-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v \
+		-mattr=+m,+v,+buddyext \
 		-o log.s
