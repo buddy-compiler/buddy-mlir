@@ -806,80 +806,48 @@ CUSTOM_TEMPLATES.update(
     }
 )
 
-for name in [
-    "bitwise_and.Tensor",
-    "bitwise_or.Tensor",
-    "bitwise_xor.Tensor",
-    "bitwise_left_shift.Tensor",
-    "bitwise_right_shift.Tensor",
-]:
-    CUSTOM_TEMPLATES[name] = _bitwise_tensor_tensor
-
-for name in [
-    "bitwise_and.Tensor_out",
-    "bitwise_or.Tensor_out",
-    "bitwise_xor.Tensor_out",
-    "bitwise_left_shift.Tensor_out",
-    "bitwise_right_shift.Tensor_out",
-]:
-    CUSTOM_TEMPLATES[name] = _bitwise_tensor_tensor_out
-
-for name in [
-    "bitwise_and.Scalar",
-    "bitwise_or.Scalar",
-    "bitwise_xor.Scalar",
-    "bitwise_left_shift.Tensor_Scalar",
-    "bitwise_right_shift.Tensor_Scalar",
-]:
-    CUSTOM_TEMPLATES[name] = _bitwise_tensor_scalar
-
-for name in [
-    "bitwise_and.Scalar_out",
-    "bitwise_or.Scalar_out",
-    "bitwise_xor.Scalar_out",
-    "bitwise_left_shift.Tensor_Scalar_out",
-    "bitwise_right_shift.Tensor_Scalar_out",
-]:
-    CUSTOM_TEMPLATES[name] = _bitwise_tensor_scalar_out
-
-for name in [
-    "bitwise_and.Scalar_Tensor",
-    "bitwise_or.Scalar_Tensor",
-    "bitwise_xor.Scalar_Tensor",
-    "bitwise_left_shift.Scalar_Tensor",
-    "bitwise_right_shift.Scalar_Tensor",
-]:
-    CUSTOM_TEMPLATES[name] = _bitwise_scalar_tensor
-
-for name in [
-    "bitwise_and.Scalar_Tensor_out",
-    "bitwise_or.Scalar_Tensor_out",
-    "bitwise_xor.Scalar_Tensor_out",
-    "bitwise_left_shift.Scalar_Tensor_out",
-    "bitwise_right_shift.Scalar_Tensor_out",
-]:
-    CUSTOM_TEMPLATES[name] = _bitwise_scalar_tensor_out
-
-for name in [
-    "bitwise_and_.Tensor",
-    "bitwise_or_.Tensor",
-    "bitwise_xor_.Tensor",
-    "bitwise_left_shift_.Tensor",
-    "bitwise_right_shift_.Tensor",
-]:
-    CUSTOM_TEMPLATES[name] = _bitwise_inplace_tensor_tensor
-
-for name in [
-    "bitwise_and_.Scalar",
-    "bitwise_or_.Scalar",
-    "bitwise_xor_.Scalar",
-    "bitwise_left_shift_.Tensor_Scalar",
-    "bitwise_right_shift_.Tensor_Scalar",
-]:
-    CUSTOM_TEMPLATES[name] = _bitwise_inplace_tensor_scalar
-
 CUSTOM_TEMPLATES.update(
     {
+        "bitwise_and.Tensor": _bitwise_tensor_tensor,
+        "bitwise_or.Tensor": _bitwise_tensor_tensor,
+        "bitwise_xor.Tensor": _bitwise_tensor_tensor,
+        "bitwise_left_shift.Tensor": _bitwise_tensor_tensor,
+        "bitwise_right_shift.Tensor": _bitwise_tensor_tensor,
+        "bitwise_and.Tensor_out": _bitwise_tensor_tensor_out,
+        "bitwise_or.Tensor_out": _bitwise_tensor_tensor_out,
+        "bitwise_xor.Tensor_out": _bitwise_tensor_tensor_out,
+        "bitwise_left_shift.Tensor_out": _bitwise_tensor_tensor_out,
+        "bitwise_right_shift.Tensor_out": _bitwise_tensor_tensor_out,
+        "bitwise_and.Scalar": _bitwise_tensor_scalar,
+        "bitwise_or.Scalar": _bitwise_tensor_scalar,
+        "bitwise_xor.Scalar": _bitwise_tensor_scalar,
+        "bitwise_left_shift.Tensor_Scalar": _bitwise_tensor_scalar,
+        "bitwise_right_shift.Tensor_Scalar": _bitwise_tensor_scalar,
+        "bitwise_and.Scalar_out": _bitwise_tensor_scalar_out,
+        "bitwise_or.Scalar_out": _bitwise_tensor_scalar_out,
+        "bitwise_xor.Scalar_out": _bitwise_tensor_scalar_out,
+        "bitwise_left_shift.Tensor_Scalar_out": _bitwise_tensor_scalar_out,
+        "bitwise_right_shift.Tensor_Scalar_out": _bitwise_tensor_scalar_out,
+        "bitwise_and.Scalar_Tensor": _bitwise_scalar_tensor,
+        "bitwise_or.Scalar_Tensor": _bitwise_scalar_tensor,
+        "bitwise_xor.Scalar_Tensor": _bitwise_scalar_tensor,
+        "bitwise_left_shift.Scalar_Tensor": _bitwise_scalar_tensor,
+        "bitwise_right_shift.Scalar_Tensor": _bitwise_scalar_tensor,
+        "bitwise_and.Scalar_Tensor_out": _bitwise_scalar_tensor_out,
+        "bitwise_or.Scalar_Tensor_out": _bitwise_scalar_tensor_out,
+        "bitwise_xor.Scalar_Tensor_out": _bitwise_scalar_tensor_out,
+        "bitwise_left_shift.Scalar_Tensor_out": _bitwise_scalar_tensor_out,
+        "bitwise_right_shift.Scalar_Tensor_out": _bitwise_scalar_tensor_out,
+        "bitwise_and_.Tensor": _bitwise_inplace_tensor_tensor,
+        "bitwise_or_.Tensor": _bitwise_inplace_tensor_tensor,
+        "bitwise_xor_.Tensor": _bitwise_inplace_tensor_tensor,
+        "bitwise_left_shift_.Tensor": _bitwise_inplace_tensor_tensor,
+        "bitwise_right_shift_.Tensor": _bitwise_inplace_tensor_tensor,
+        "bitwise_and_.Scalar": _bitwise_inplace_tensor_scalar,
+        "bitwise_or_.Scalar": _bitwise_inplace_tensor_scalar,
+        "bitwise_xor_.Scalar": _bitwise_inplace_tensor_scalar,
+        "bitwise_left_shift_.Tensor_Scalar": _bitwise_inplace_tensor_scalar,
+        "bitwise_right_shift_.Tensor_Scalar": _bitwise_inplace_tensor_scalar,
         "bitwise_not.default": _bitwise_not,
         "bitwise_not.out": _bitwise_not_out,
         "bitwise_not_.default": _bitwise_not_inplace,
