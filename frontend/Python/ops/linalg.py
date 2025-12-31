@@ -7151,11 +7151,6 @@ def kthvalue_op(
     return values, indices
 
 
-# =============================================================================
-# Backward Operations (Gradient Computation)
-# =============================================================================
-
-
 def embedding_dense_backward_op(
     node: EmbeddingDenseBackwardOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
