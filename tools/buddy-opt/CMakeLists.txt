@@ -49,4 +49,5 @@ target_link_libraries(buddy-opt
   VIRToVectorPass
   TosaElementwiseFusion
   AssumeTightMemRefLayoutPass
+  StaticizeMemRefLayoutPass
   )

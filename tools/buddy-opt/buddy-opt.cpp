@@ -87,6 +87,7 @@ void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
 void registerLowerIMEPass();
 void registerAssumeTightMemRefLayoutPass();
+void registerStaticizeMemRefLayoutPass();
 void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
@@ -141,6 +142,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerConvNhwcFhwcTileOptimizePass();
   mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
   mlir::buddy::registerAssumeTightMemRefLayoutPass();
+  mlir::buddy::registerStaticizeMemRefLayoutPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
   mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerLinalgToVIRPass();

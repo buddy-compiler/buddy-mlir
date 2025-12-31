@@ -28,6 +28,7 @@ set(LinkedLibs
   TransposeOptimization
   TosaElementwiseFusion
   AssumeTightMemRefLayoutPass
+  StaticizeMemRefLayoutPass
   GraphRedundancyElimination
 )
 
