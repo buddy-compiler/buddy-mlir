@@ -242,6 +242,47 @@ class Graph:
         self.node_table.pop(node.name)
         self.node_table[newnode.name] = newnode
 
+    
+    def displace_node_with_chain(self, node: Op, chain: list[Op]):
+        """
+        Replaces an existing node with a chain of new nodes.
+        - The first node is taken to be the "head" of the chain, and all parents of the
+            current node will have this node as their child instead of `node`
+        - The last node is taken to be the "tail" of the chain, and all children of `node`
+            will have this node as their parent instead.
+        
+        Args:
+            node (Op): The operation to be replaced.
+            chain (list[Op]): The a list of nodes to be inserted instead of Op
+        """
+
+        # chain[0] is to be head of the chain:
+        chain[0]._arguments = node.args
+        chain[0]._keyword_arguments = node.kwargs
+        # we do not set the op type, because it might have changed.
+
+        for i in node._parents:
+            chain[0].add_parent(i)
+        parents = [self.node_table[i] for i in node._parents]
+        for parent in parents:
+            parent._children[parent._children.index(node.name)] = chain[0].name
+        node._parents.clear()
+
+        # chain[-1] is to be the tail of the chain
+        chain[-1].tensor_meta = node.tensor_meta
+
+        for i in node._children:
+            chain[-1].add_children(i)
+        users = [self.node_table[i] for i in node._children]
+        for user in users:
+            if node.name in user._parents:
+                user._parents[user._parents.index(node.name)] = chain[-1].name
+            user.args[user.args.index(node.name)] = chain[-1].name
+        node._children.clear()
+
+        node_idx = self._body.index(node)
+        self._body = self.body[:node_idx] + chain + self.body[node_idx+1:]
+
     def init_op_group(self):
         """
         Initializes operation groups within the graph.

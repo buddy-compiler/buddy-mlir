@@ -29,7 +29,7 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = bufferization.to_memref
+# CHECK: %{{.*}} = bufferization.to_buffer
 # CHECK: scf.for
 # CHECK: scf.for
 # CHECK: memref.load

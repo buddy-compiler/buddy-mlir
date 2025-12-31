@@ -18,7 +18,6 @@
 // RUN:     -convert-vector-to-scf \
 // RUN:     -lower-affine \
 // RUN:     -convert-scf-to-openmp \
-// RUN:     -func-bufferize-dynamic-offset \
 // RUN:     -cse \
 // RUN:     -memref-expand \
 // RUN:     -arith-expand \
@@ -51,15 +50,14 @@ func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 func.func @kernel(%arg0: tensor<1536x8960xf32>, %arg1: tensor<1024x1536xf32>, %arg2: tensor<1536x8960xf32>, %arg3: tensor<8960x1536xf32>, %arg4: tensor<1536xf32>, %arg5: tensor<1536x1536xf32>) -> tensor<1024x1536xf32> {
   %t_start = call @rtclock() : () -> f64
 
+  %shift = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
   %cst_52 = arith.constant dense<0.000000e+00> : tensor<1024x8960xf32>
   %177 = linalg.matmul ins(%arg1, %arg0 : tensor<1024x1536xf32>, tensor<1536x8960xf32>) outs(%cst_52 : tensor<1024x8960xf32>) -> tensor<1024x8960xf32>
   %179 = tosa.sigmoid %177 : (tensor<1024x8960xf32>) -> tensor<1024x8960xf32>
-  %180 = tosa.mul %177, %179 : (tensor<1024x8960xf32>, tensor<1024x8960xf32>) -> tensor<1024x8960xf32>
-  %181 = "tosa.const"() <{value = dense<[1, 0]> : tensor<2xi32>}> : () -> tensor<2xi32>
+  %180 = tosa.mul %177, %179, %shift : (tensor<1024x8960xf32>, tensor<1024x8960xf32>, tensor<1xi8>) -> tensor<1024x8960xf32>
   %cst_53 = arith.constant dense<0.000000e+00> : tensor<1024x8960xf32>
   %184 = linalg.matmul {cast = #linalg.type_fn<cast_signed>} ins(%arg1, %arg2 : tensor<1024x1536xf32>, tensor<1536x8960xf32>) outs(%cst_53 : tensor<1024x8960xf32>) -> tensor<1024x8960xf32>
-  %186 = tosa.mul %180, %184 : (tensor<1024x8960xf32>, tensor<1024x8960xf32>) -> tensor<1024x8960xf32>
-  %187 = "tosa.const"() <{value = dense<[1, 0]> : tensor<2xi32>}> : () -> tensor<2xi32>
+  %186 = tosa.mul %180, %184, %shift : (tensor<1024x8960xf32>, tensor<1024x8960xf32>, tensor<1xi8>) -> tensor<1024x8960xf32>
   %cst_54 = arith.constant dense<0.000000e+00> : tensor<1024x1536xf32>
   %190 = linalg.matmul {cast = #linalg.type_fn<cast_signed>} ins(%186, %arg3 : tensor<1024x8960xf32>, tensor<8960x1536xf32>) outs(%cst_54 : tensor<1024x1536xf32>) -> tensor<1024x1536xf32>
   %192 = tosa.add %arg1, %190 : (tensor<1024x1536xf32>, tensor<1024x1536xf32>) -> tensor<1024x1536xf32>
@@ -71,16 +69,18 @@ func.func @kernel(%arg0: tensor<1536x8960xf32>, %arg1: tensor<1024x1536xf32>, %a
     linalg.yield %3964 : f32
   } -> tensor<1024x1536xf32>
   %195 = tosa.reduce_sum %194 {axis = 1 : i32} : (tensor<1024x1536xf32>) -> tensor<1024x1xf32>
-  %196 = "tosa.const"() <{value = dense<1.536000e+03> : tensor<1xf32>}> : () -> tensor<1xf32>
+  %196 = "tosa.const"() <{values = dense<1.536000e+03> : tensor<1xf32>}> : () -> tensor<1xf32>
   %197 = tosa.reciprocal %196 : (tensor<1xf32>) -> tensor<1xf32>
-  %198 = tosa.reshape %197 {new_shape = array<i64: 1, 1>} : (tensor<1xf32>) -> tensor<1x1xf32>
-  %199 = tosa.mul %198, %195 : (tensor<1x1xf32>, tensor<1024x1xf32>) -> tensor<1024x1xf32>
-  %200 = "tosa.const"() <{value = dense<9.99999997E-7> : tensor<1024x1xf32>}> : () -> tensor<1024x1xf32>
+  %s0 = tosa.const_shape {values = dense<[1, 1]> : tensor<2xindex>} : () -> !tosa.shape<2>
+  %198 = tosa.reshape %197, %s0 : (tensor<1xf32>, !tosa.shape<2>) -> tensor<1x1xf32>
+  %199 = tosa.mul %198, %195, %shift : (tensor<1x1xf32>, tensor<1024x1xf32>, tensor<1xi8>) -> tensor<1024x1xf32>
+  %200 = "tosa.const"() <{values = dense<9.99999997E-7> : tensor<1024x1xf32>}> : () -> tensor<1024x1xf32>
   %201 = tosa.add %199, %200 : (tensor<1024x1xf32>, tensor<1024x1xf32>) -> tensor<1024x1xf32>
   %202 = tosa.rsqrt %201 : (tensor<1024x1xf32>) -> tensor<1024x1xf32>
-  %203 = tosa.mul %192, %202 : (tensor<1024x1536xf32>, tensor<1024x1xf32>) -> tensor<1024x1536xf32>
-  %204 = tosa.reshape %arg4 {new_shape = array<i64: 1, 1536>} : (tensor<1536xf32>) -> tensor<1x1536xf32>
-  %205 = tosa.mul %204, %203 : (tensor<1x1536xf32>, tensor<1024x1536xf32>) -> tensor<1024x1536xf32>
+  %203 = tosa.mul %192, %202, %shift : (tensor<1024x1536xf32>, tensor<1024x1xf32>, tensor<1xi8>) -> tensor<1024x1536xf32>
+  %s1 = tosa.const_shape {values = dense<[1, 1536]> : tensor<2xindex>} : () -> !tosa.shape<2>
+  %204 = tosa.reshape %arg4, %s1 : (tensor<1536xf32>, !tosa.shape<2>) -> tensor<1x1536xf32>
+  %205 = tosa.mul %204, %203, %shift : (tensor<1x1536xf32>, tensor<1024x1536xf32>, tensor<1xi8>) -> tensor<1024x1536xf32>
 
   %cst_55 = arith.constant dense<0.000000e+00> : tensor<1024x1536xf32>
   %211 = linalg.matmul ins(%205, %arg5 : tensor<1024x1536xf32>, tensor<1536x1536xf32>) outs(%cst_55 : tensor<1024x1536xf32>) -> tensor<1024x1536xf32>

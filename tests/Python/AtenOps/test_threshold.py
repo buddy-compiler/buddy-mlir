@@ -29,7 +29,11 @@ def test_threshold():
 
 # CHECK: func.func
 # CHECK: arith.cmpf
-# CHECK: tosa.select
+# CHECK: arith.constant
+# CHECK: tensor.empty
+# CHECK: tensor.splat
+# CHECK: linalg.generic
+# CHECK: arith.select
 # CHECK: return
 
 test_threshold()

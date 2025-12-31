@@ -841,6 +841,12 @@ class ScaledDotProductFlashAttentionForCpuOp(Op):
         self._op_type = OpType.ElementwiseType
 
 
+class FlashAttentionForCpuPrefillOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
 class GeOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -2445,3 +2451,9 @@ class ResizeOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
+
+
+class GQAAttentionFusedOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType

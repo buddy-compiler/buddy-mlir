@@ -28,7 +28,7 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tosa.reduce_prod
+# CHECK: %{{.*}} = tosa.reduce_product
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

@@ -74,7 +74,6 @@ add_custom_command(
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
-            -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
@@ -121,12 +120,10 @@ add_custom_command(
             -batchmatmul-optimize
             -batchmatmul-transpose-b-vectorization
             -convert-linalg-to-affine-loops
-            -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
-            -func-bufferize-dynamic-offset
+            -convert-scf-to-openmp=num-threads=48
             -cse
             -memref-expand
             -arith-expand
@@ -167,7 +164,6 @@ add_custom_command(
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
-            -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
@@ -216,12 +212,9 @@ add_custom_command(
             -batch-matmul-vectorization-decode=vector-size=128
             -batchmatmul-transpose-b-vectorization=vector-size=16
             -convert-linalg-to-affine-loops
-            -affine-loop-fusion
-            -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
-            -func-bufferize-dynamic-offset
             -cse
             -memref-expand
             -arith-expand
@@ -239,7 +232,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode.mlir
     COMMENT "Building subgraph_decode.o "
@@ -262,7 +255,6 @@ add_custom_command(
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
-            -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
@@ -309,12 +301,10 @@ add_custom_command(
             -batchmatmul-optimize
             -batchmatmul-transpose-b-vectorization
             -convert-linalg-to-affine-loops
-            -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp=num-threads=48
-            -func-bufferize-dynamic-offset
             -cse
             -memref-expand
             -arith-expand
@@ -356,7 +346,6 @@ add_custom_command(
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
-            -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
@@ -405,12 +394,10 @@ add_custom_command(
             -batch-matmul-vectorization-decode=vector-size=128
             -batchmatmul-transpose-b-vectorization
             -convert-linalg-to-affine-loops
-            -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp=num-threads=48
-            -func-bufferize-dynamic-offset
             -cse
             -memref-expand
             -arith-expand
@@ -449,7 +436,6 @@ add_custom_command(
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
-            -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
@@ -493,12 +479,10 @@ add_custom_command(
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
-            -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
             -cse
             -memref-expand
             -arith-expand
