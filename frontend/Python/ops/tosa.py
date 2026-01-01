@@ -8541,9 +8541,10 @@ def _cummaxmin_op(node, symbol_table, is_max: bool):
 
     def _build_loops(depth: int):
         if depth == rank:
+            _scan_dim()
             return
         if depth == dim:
-            _scan_dim()
+            _build_loops(depth + 1)
             return
         loop = scf.ForOp(zero.result, bounds[depth], one.result)
         with ir.InsertionPoint(loop.body):
