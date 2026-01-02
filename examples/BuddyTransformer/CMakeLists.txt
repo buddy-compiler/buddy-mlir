@@ -1,3 +1,26 @@
+# Define bufferize options as variables to avoid CMake quote parsing issues
+set(BUFFERIZE_FULL_OPTS "unknown-type-conversion=identity-layout-map function-boundary-type-conversion=identity-layout-map bufferize-function-boundaries")
+set(BUFFERIZE_SIMPLE_OPTS "bufferize-function-boundaries")
+set(TOSA_PIPELINE "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))")
+
+# Detect RISC-V Vector (RVV) platform
+# Use HAVE_LOCAL_RVV from check_simd.cmake which is already called in the main CMakeLists.txt
+if(HAVE_LOCAL_RVV)
+  set(IS_RVV_PLATFORM ON)
+  message(STATUS "RISC-V Vector (RVV) platform detected")
+endif()
+
+# Set platform-specific variables
+if(IS_RVV_PLATFORM)
+  set(OPENMP_NUM_THREADS "num-threads=32")
+  set(LLC_RISCV_ATTRS "-mattr=+m,+d,+v")
+  set(RISCV_COMPILE_OPTS "-march=rv64gcv;-mabi=lp64d;-O3;-Wall")
+  set(RISCV_LINK_OPTS "-march=rv64gcv;-mabi=lp64d")
+else()
+  set(OPENMP_NUM_THREADS "num-threads=48")
+  set(LLC_RISCV_ATTRS "")
+endif()
+
 # Frontend: Generate MLIR files from PyTorch model
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
@@ -14,11 +37,11 @@ add_custom_command(
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward-onestep.o
   COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
-            -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+            -pass-pipeline ${TOSA_PIPELINE} |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize="bufferize-function-boundaries"
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
@@ -30,7 +53,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -cse
             -memref-expand
             -arith-expand
@@ -48,7 +71,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward-onestep.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
   COMMENT "Building forward-onestep.o (one-step compilation)"
@@ -149,25 +172,30 @@ add_custom_command(
 # Subgraph Decode Timed: One-step compilation with timing instrumentation (seq_len=1)
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/subgraph-decode-timed.o
-    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_SOURCE_DIR}/subgraph0_decode_timed.mlir
-              -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/subgraph0_decode_timed.mlir
+              -simplify-tosa-reshape
+              -simplify-tosa-matmul-scalar |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+              -pass-pipeline ${TOSA_PIPELINE} |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -convert-elementwise-to-linalg
-            -one-shot-bufferize="bufferize-function-boundaries"
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -matmul-vectorization-blis
-            -batchmatmul-optimize
+            -assume-tight-memref-layout
+            -matmul-vectorization-decode=vector-size=128
+            -batch-matmul-vectorization-decode=vector-size=128
+            -batchmatmul-transpose-b-vectorization=vector-size=16
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -func-bufferize-dynamic-offset
             -cse
             -memref-expand
@@ -186,7 +214,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph-decode-timed.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_SOURCE_DIR}/subgraph0_decode_timed.mlir
     COMMENT "Building subgraph-decode-timed.o (decode stage with timing, seq_len=1)"
