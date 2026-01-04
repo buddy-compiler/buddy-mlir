@@ -18,6 +18,7 @@
 #
 # ===---------------------------------------------------------------------------
 
+import torch
 from typing import Dict, Tuple, List
 
 import mlir.ir as ir
@@ -850,7 +851,7 @@ def pow_op(
     if input1 is None:
         return
     value = node.args[1]
-    output_shape = list(node.tensor_meta["shape"])
+    output_shape = ir.RankedTensorType(input1.type).shape
     dtype = node.tensor_meta["dtype"]
     dtype = mlir_element_type_get(dtype)
 
@@ -1273,7 +1274,9 @@ def matmul_op(
     if input1 is None or input2 is None:
         return
 
-    output_shape = list(node.tensor_meta["shape"])
+    input1_shape = ir.RankedTensorType(input1.type).shape
+    input2_shape = ir.RankedTensorType(input2.type).shape
+    output_shape = [input1_shape[0], input2_shape[1]]
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
@@ -1770,7 +1773,8 @@ def neg_op(
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
         return
-    output_shape = list(node.tensor_meta["shape"])
+    input1_shape = ir.RankedTensorType(input1.type).shape
+    output_shape = list(input1_shape)
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     output = tensor.EmptyOp(output_shape, mlir_dtype)
@@ -1858,7 +1862,9 @@ def cat_op_legacy(
     if input1 is None or input2 is None:
         return
 
-    output_shape = list(node.tensor_meta["shape"])
+    input1_shape = ir.RankedTensorType(input1.type).shape
+    input2_shape = ir.RankedTensorType(input2.type).shape
+    output_shape = input1_shape[:-1] + [input2_shape[-1] + input1_shape[-1]]
     if dim < 0:
         dim = len(output_shape) + dim
     dtype = node.tensor_meta["dtype"]
@@ -1866,7 +1872,7 @@ def cat_op_legacy(
     output = tensor.EmptyOp(output_shape, mlir_dtype)
     offset = [0 for x in output_shape]
     offset_attr = ir._denseI64ArrayAttr(offset, None)
-    input1_shape = ir.RankedTensorType(input1.type).shape
+    # input1_shape = ir.RankedTensorType(input1.type).shape
     size_attr = ir._denseI64ArrayAttr(input1_shape, None)
     stride_attr = ir._denseI64ArrayAttr([1] * len(offset), None)
     insert_input1 = tensor.InsertSliceOp(
@@ -1881,7 +1887,7 @@ def cat_op_legacy(
     )
     offset[dim] += input1_shape[dim]
     offset_attr = ir._denseI64ArrayAttr(offset, None)
-    input2_shape = ir.RankedTensorType(input2.type).shape
+    # input2_shape = ir.RankedTensorType(input2.type).shape
     size_attr = ir._denseI64ArrayAttr(input2_shape, None)
     insert_input2 = tensor.InsertSliceOp(
         input2,
