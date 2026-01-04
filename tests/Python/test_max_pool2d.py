@@ -36,4 +36,3 @@ print(graph._imported_module)
 #       CHECK: %[[max_pool2d:.*]] = tosa.max_pool2d
 #       CHECK: %[[transpose_2:.*]] = tosa.transpose
 #       CHECK: return %[[transpose_2]]
-
