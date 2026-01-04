@@ -471,7 +471,9 @@ def rewrite_placeholder(node: Op, context: QuantizationContext) -> None:
     # We apply channel(row)-wise normalization.
     # This tensor stores the column normalization constants
     node_shape = node.tensor_meta["shape"]
-    scaler_node._tensor_meta["shape"] = (node_shape[0], 1)
+    quantization_state: Quantizable = context.quantization_table[node_name]
+    quantization_axis = quantization_state.axis
+    scaler_node._tensor_meta["shape"] = [1 if i != quantization_axis else axis_dim for i, axis_dim in enumerate(node_shape)]
     scaler_node._tensor_meta["dtype"] = node._tensor_meta["dtype"]
 
     node._tensor_meta["dtype"] = context.target_dtype
