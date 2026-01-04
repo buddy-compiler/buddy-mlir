@@ -179,7 +179,68 @@ def LOOP_CONV_WS_CONFIG6 : RVInstR<0b0010101, 0b011, OPC_CUSTOM_3, (outs),
     let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in
+//===----------------------------------------------------------------------===//
+// IME Extension Instructions
+//===----------------------------------------------------------------------===//
+
+class RVInstIME<bits<7> funct7, bits<3> funct3, dag outs, dag ins,
+                string opcodestr, string argstr>
+    : RVInst<outs, ins, opcodestr, argstr, [], InstFormatR> {
+  bits<5> vs2;
+  bits<5> vs1;
+  bits<5> vd;
+
+  let Inst{31-25} = funct7;
+  let Inst{24-20} = vs2;
+  let Inst{19-15} = vs1;
+  let Inst{14-12} = funct3;
+  let Inst{11-7} = vd;
+  let Inst{6-0} = OPC_CUSTOM_1.Value;
+
+  let Uses = [VTYPE, VL];
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT : RVInstIME<0b1110001, 0b000,
+                           (outs VRM4:$vd), 
+                           (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
+                           "vmadot", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTU : RVInstIME<0b1110001, 0b011,
+                            (outs VRM4:$vd),
+                            (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
+                            "vmadotu", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTSU : RVInstIME<0b1110001, 0b001,
+                             (outs VRM4:$vd),
+                             (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
+                             "vmadotsu", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTUS : RVInstIME<0b1110001, 0b010,
+                             (outs VRM4:$vd),
+                             (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
+                             "vmadotus", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VFMADOT : RVInstIME<0b1110101, 0b000,
+                            (outs VRM4:$vd),
+                            (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
+                            "vfmadot", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt] in 
 def : Pat<(int_riscv_mvin GPR:$rs1, GPR:$rs2), (MVIN GPR:$rs1, GPR:$rs2)>;
 
 let Predicates = [HasBuddyExt] in
@@ -253,3 +314,32 @@ def : Pat<(int_riscv_loop_conv_ws_config5 GPR:$rs1, GPR:$rs2), (LOOP_CONV_WS_CON
 
 let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_conv_ws_config6 GPR:$rs1, GPR:$rs2), (LOOP_CONV_WS_CONFIG6 GPR:$rs1, GPR:$rs2)>;
+
+//===----------------------------------------------------------------------===//
+// IME Extension Patterns
+//===----------------------------------------------------------------------===//
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot nxv8i32:$vd, nxv32i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadotu nxv8i32:$vd, nxv32i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOTU VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadotsu nxv8i32:$vd, nxv32i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOTSU VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadotus nxv8i32:$vd, nxv32i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOTUS VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv16f16 (int_riscv_ime_vfmadot nxv16f16:$vd, nxv16f16:$vs1, nxv16f16:$vs2)),
+            (IME_VFMADOT VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}

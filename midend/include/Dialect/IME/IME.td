@@ -97,9 +97,6 @@ def VfmadotOp : IME_Op<"vfmadot"> {
 //===----------------------------------------------------------------------===//
 // IME Intrinsic operation definitions
 //===----------------------------------------------------------------------===//
-// These intrinsic operations are used as the lowering target for high-level
-// IME operations. They will be further translated to LLVM IR intrinsics.
-
 class IME_IntrOpBase<string mnemonic, list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/IME_Dialect,
                   /*string opName=*/"intr." # mnemonic,
@@ -110,8 +107,6 @@ class IME_IntrOpBase<string mnemonic, list<Trait> traits = []> :
                   /*int numResults=*/0>;
 
 // Integer matrix multiply-accumulate intrinsics
-// All take 3 i64 arguments: vd_ptr, vs1_ptr, vs2_ptr
-
 def IME_Vmadot_IntrOp : IME_IntrOpBase<"vmadot">,
   Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
 

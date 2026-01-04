@@ -8,3 +8,6 @@ vmadot-basic.mlir
 vmadot-variants.mlir
 README.md
 *-out.mlir
+*.o
+*.s
+*_test
