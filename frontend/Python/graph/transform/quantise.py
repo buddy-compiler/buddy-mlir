@@ -152,6 +152,34 @@ QuantizationFunctionRegistry: dict[type, dict[str, Callable[[Op, QuantizationCon
 # Quantization methods.
 # ----
 
+def get_dequantized(node: Op, context: QuantizationContext):
+
+    node_name = node.name
+    dequantized_name = "dequantized_" + node_name 
+
+    try:
+        return context.graph.node_table[dequantized_name]
+    except KeyError:
+        pass
+
+    scaler_name = "scaler_" + node_name
+
+    assert scaler_name in context.graph.node_table.keys(), f"Dequantization constant should exist for {node_name}."
+
+    scaler_node = context.graph.node_table[scaler_name]
+
+    mul_op = MulOp()
+    mul_op._name = dequantized_name
+    mul_op._arguments = \
+    mul_op._parents = [node_name, scaler_name]
+    mul_op._tensor_meta["shape"] = node.tensor_meta["shape"]
+    mul_op._tensor_meta["dtype"] = scaler_node.tensor_meta["dtype"]
+    
+    node._children.append(mul_op)
+
+    return mul_op
+
+
 def prod(*lists):
     return [''.join(p) for p in product(*lists)]
 
@@ -273,7 +301,7 @@ def _rewrite_matmul(node: Op, context: QuantizationContext) -> None:
 
             parent_scaler_name = "scaler_" + parent_name
 
-            # check that this actually exists.
+            assert parent_scaler_name in context.graph.node_table.keys()
 
             mul_op = MulOp()
             mul_op_name = f"scale{i}_" + node_name
@@ -295,7 +323,6 @@ def _rewrite_matmul(node: Op, context: QuantizationContext) -> None:
 
     node._children = [op_chain[1].name]
 
-# TODO: this is actually `aa` but dispatch system does not support it yet.
 @mask_guard_factory(op_type=MatmulOp, quantization_mask=[
     All, All
 ])
@@ -338,7 +365,7 @@ def _rewrite_addmm(node: Op, context: QuantizationContext) -> None:
 
     op_chain = [mm_op]
 
-    for i, parent_name in enumerate(mm_op._parents[1:], 1):
+    for i, parent_name in enumerate(mm_op._parents, 1):
         if isinstance(context.quantization_table[parent_name], Quantized):
             
             prev_node = op_chain[-1]
@@ -405,6 +432,105 @@ def _quantize_addmm_aaa(node: Op, context: QuantizationContext) -> None | Quanti
 
     if quantizable:
         return Consumer(rewrite=_rewrite_addmm)
+
+    return None
+
+@mask_guard_factory(op_type=BatchMatmulOp, quantization_mask=[
+    All, All    
+])
+def _quantize_batchmatmul(node: Op, context: QuantizationContext) -> None | QuantizationState:
+
+    quantizable = False
+
+    if isinstance((state := context.quantization_table[node._parents[0]]), Quantizable):
+        if state.check_axis(1):
+            quantizable = True
+
+    if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
+        if state.check_axis(2):
+            quantizable = True
+
+    if quantizable:
+        return Consumer(rewrite=_rewrite_matmul)
+
+    return None
+
+def _rewrite_baddbmm(node: Op, context: QuantizationContext):
+    
+    node_name = node.name
+
+    batchmatmul_op = BatchMatmulOp()
+    batchmatmul_op_name = "pre_scaled_" + node_name
+
+    batchmatmul_op._name = batchmatmul_op_name
+    batchmatmul_op._parents = node._parents[1:]
+    batchmatmul_op._tensor_meta = node.tensor_meta
+
+    context.graph.replace_as_child(node._parents[1:], node, batchmatmul_op)
+
+    op_chain = [batchmatmul_op]
+
+    for i, parent_name in enumerate(batchmatmul_op._parents, 1):
+        if isinstance(context.quantization_table[parent_name], Quantized):
+
+            prev_op = op_chain[-1]
+            prev_op_name = prev_op.name
+
+            mul_op = MulOp()
+            mul_op._name = f"scale{i}_" + node_name
+
+            scaler_name = "scaler_" + parent_name
+            assert scaler_name in context.graph.node_table.keys(), f"Scaler node `{scaler_name}` should exist."
+            scaler_node = context.graph.node_table[scaler_name]
+            mul_op._tensor_meta["shape"] = node.tensor_meta["shape"]
+            mul_op._tensor_meta["dtype"] = scaler_node["dtype"]
+
+            mul_op._parents = \
+            mul_op._arguments = [prev_op_name, scaler_name]
+            
+            if len(op_chain) > 0:
+                prev_op._children = [mul_op]
+
+            op_chain.append(mul_op)
+            context.graph.add_node(mul_op)
+
+    add_op = AddOp()
+    add_op._name = "biased_" + node_name
+    
+    bias_node_name = node._parents[0]
+    bias_node = context.graph.node_table[bias_node_name]
+
+    if isinstance(context.quantization_table[bias_node_name], Quantized):
+       bias_node = get_dequantized(bias_node)
+       bias_node_name = bias_node.name
+    
+    add_op._parents = [op_chain[-1].name, bias_node_name]
+    add_op.tensor_meta["shape"] = node.tensor_meta["shape"]
+    add_op.tensor_meta["dtype"] = context.graph.node_table[bias_node_name].tensor_meta["dtype"]
+
+    context.graph.add_node(add_op)
+
+    context.graph.replace_as_child(node._parents[0], node, add_op)
+    context.graph.replace_as_parent(node._children, node, add_op)
+
+        
+@mask_guard_factory(op_type=BaddbmmOp, quantization_mask=[
+    All, All, All,
+])
+def _quantize_baddbmm(node: Op, context: QuantizationContext):
+    
+    quantizable = False
+
+    if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
+        if state.check_axis(1):
+            quantizable = True
+
+    if isinstance((state := context.quantization_table[node._parents[2]]), Quantizable):
+        if state.check_axis(2):
+            quantizable = True
+
+    if quantizable:
+        return Consumer(rewrite=_rewrite_baddbmm)
 
     return None
 
