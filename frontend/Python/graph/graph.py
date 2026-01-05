@@ -242,7 +242,6 @@ class Graph:
         self.node_table.pop(node.name)
         self.node_table[newnode.name] = newnode
 
-    
     def displace_node_with_chain(self, node: Op, chain: list[Op]):
         """
         Replaces an existing node with a chain of new nodes.
@@ -250,7 +249,7 @@ class Graph:
             current node will have this node as their child instead of `node`
         - The last node is taken to be the "tail" of the chain, and all children of `node`
             will have this node as their parent instead.
-        
+
         Args:
             node (Op): The operation to be replaced.
             chain (list[Op]): The a list of nodes to be inserted instead of Op
@@ -281,7 +280,7 @@ class Graph:
         node._children.clear()
 
         node_idx = self._body.index(node)
-        self._body = self.body[:node_idx] + chain + self.body[node_idx+1:]
+        self._body = self.body[:node_idx] + chain + self.body[node_idx + 1 :]
 
     def init_op_group(self):
         """
@@ -421,7 +420,8 @@ class Graph:
             pm.add("empty-tensor-to-alloc-tensor")
             pm.add("convert-elementwise-to-linalg")
             pm.add("one-shot-bufferize{bufferize-function-boundaries}")
-            pm.add("func.func(convert-linalg-to-affine-loops)")
+            pm.add("func.func(linalg-generalize-named-ops)")
+            pm.add("func.func(convert-linalg-to-loops)")
             pm.add("affine-loop-fusion")
             pm.add("func.func(affine-parallelize)")
             pm.add("convert-scf-to-openmp")

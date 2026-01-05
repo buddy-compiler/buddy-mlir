@@ -25,6 +25,10 @@ from .fuse_ops import (
     gqa_attention_fusion,
 )
 from .useless_op_eliminate import maxpool2d_simplify
+from .affine_grid_simplify import (
+    affine_grid_generator_homogeneous_base_simplify,
+    affine_grid_generator_simplify,
+)
 from .eliminate_weight_transpose import eliminate_transpose
 from .eliminate_matmul_transpose_reshape import (
     eliminate_matmul_transpose_reshape,
@@ -33,3 +37,5 @@ from .onednn_replace import (
     replace_matmul_with_onednn,
     replace_matmul_with_onednn_selective,
 )
+from .bernoulli_replace import replace_bernoulli_with_runtime_rng
+from .out_functionalize import functionalize_out_overloads

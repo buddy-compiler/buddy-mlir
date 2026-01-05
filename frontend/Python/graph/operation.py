@@ -584,10 +584,12 @@ class CallExternalOp(Op):
         tensor_meta: dict,
         name: str = None,
     ) -> None:
-        super().__init__(name)
+        super().__init__()
+        if name is not None:
+            self._name = name
         self.call_func_name = call_func_name
-        self.args = args
-        self._args_index = args_index
+        self._arguments = list(args)
+        self._args_index = list(args_index)
         self.tensor_meta = tensor_meta
         self._op_type = OpType.Unfusable
 
@@ -2813,3 +2815,14 @@ class UniformOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
+
+
+class BernoulliOp(Op):
+    """
+    Bernoulli sampling operation.
+    Implements aten.bernoulli.* variants (functional forms).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType

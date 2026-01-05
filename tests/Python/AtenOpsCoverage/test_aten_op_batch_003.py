@@ -1037,6 +1037,7 @@ if __name__ == "__main__":
         batch_label="test_batch_3",
         max_fails=20,
         templates=CUSTOM_TEMPLATES,
+        templates_source=__file__,
         show_skips=True,
     )
 # CHECK: SUMMARY pass=

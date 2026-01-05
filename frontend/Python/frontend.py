@@ -27,6 +27,8 @@ import operator
 import os
 import ctypes
 import platform
+import functools
+import numpy as np
 
 import mlir.ir as ir
 import mlir.dialects.func as func
@@ -44,7 +46,13 @@ from .ops.math import ops_registry as math_ops_registry
 from .ops.func import ops_registry as func_ops_registry
 from .graph import Graph, TensorDType, TensorMeta
 from .graph.operation import *
-from .graph.transform import maxpool2d_simplify
+from .graph.transform import (
+    affine_grid_generator_homogeneous_base_simplify,
+    affine_grid_generator_simplify,
+    replace_bernoulli_with_runtime_rng,
+    maxpool2d_simplify,
+    functionalize_out_overloads,
+)
 from .graph.type import *
 
 
@@ -66,6 +74,7 @@ class DynamoCompiler:
         aot_autograd_decomposition: Optional[dict] = None,
         verbose=False,
         enable_external_calls: bool = False,
+        enable_out_functionalize: bool = False,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -100,6 +109,12 @@ class DynamoCompiler:
         self._aot_autograd_decomposition = aot_autograd_decomposition
         self._verbose = verbose
         self._enable_external_calls = enable_external_calls
+        env_out = (
+            os.getenv("BUDDY_ENABLE_OUT_FUNCTIONALIZE", "").strip().lower()
+        )
+        self._enable_out_functionalize = enable_out_functionalize or (
+            env_out in ("1", "true", "yes", "y", "on")
+        )
         self._imported_graphs = []
         self._ops_registry = {}
         self._imported_params = {}
@@ -139,7 +154,9 @@ class DynamoCompiler:
             "div.default": DivOp,
             "div.Tensor": DivOp,
             "div.Tensor_mode": DivTensorModeOp,
+            "div.Tensor_mode": DivTensorModeOp,
             "_softmax.default": SoftmaxOp,
+            "_log_softmax.default": LogSoftmaxOp,
             "_log_softmax.default": LogSoftmaxOp,
             "clone.default": CloneOp,
             "silu.default": SiluOp,
@@ -360,6 +377,8 @@ class DynamoCompiler:
             "uniform.default": UniformOp,
             "uniform.out": UniformOp,
             "uniform_.default": UniformOp,
+            "bernoulli.Tensor": BernoulliOp,
+            "bernoulli.default": BernoulliOp,
             "topk.default": TopkOp,
             "unbind.int": UnbindOp,
             # Batched matrix operations
@@ -586,6 +605,8 @@ class DynamoCompiler:
         buddy_node._name = node_name
         if gm_node_name == "output":
             for input_arg in node_input[0]:
+                if input_arg is None:
+                    continue
                 buddy_node.add_argument(str(input_arg))
             return buddy_node
 
@@ -861,8 +882,30 @@ class DynamoCompiler:
                         node_dtype,
                         node_kwargs=gm_node.kwargs,
                     )
+                    buddy_node._torch_op = str(gm_node.target.__name__)
+                    out_kwarg_names: List[str] = []
+                    schema = getattr(gm_node.target, "_schema", None)
+                    if schema is not None:
+                        for arg in getattr(schema, "arguments", ()):
+                            if getattr(arg, "is_out", False):
+                                t = str(getattr(arg, "type", "")).lower()
+                                if "tensor" in t:
+                                    out_kwarg_names.append(arg.name)
+                    buddy_node._torch_out_kwarg_names = out_kwarg_names
                 graph.add_node(buddy_node)
-            transform_list = [maxpool2d_simplify]
+            transform_list = [
+                maxpool2d_simplify,
+                affine_grid_generator_simplify,
+                affine_grid_generator_homogeneous_base_simplify,
+                replace_bernoulli_with_runtime_rng,
+            ]
+            if self._enable_out_functionalize:
+                transform_list.insert(
+                    0,
+                    functools.partial(
+                        functionalize_out_overloads, ops_map=self._ops_map
+                    ),
+                )
             graph.perform(transform_list)
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
@@ -972,6 +1015,14 @@ class DynamoCompiler:
             os.path.join(lib_base_path, lib_name + lib_extension)
             for lib_name in lib_names
         ]
+        buddy_lib_base_path = os.path.abspath(
+            os.path.join(path_prefix, "../../../lib")
+        )
+        buddy_rng_lib = os.path.join(
+            buddy_lib_base_path, "libbuddy_rng_utils" + lib_extension
+        )
+        if os.path.exists(buddy_rng_lib):
+            shared_libs.append(buddy_rng_lib)
         # Define execution engine.
         ee = ExecutionEngine(
             graph._imported_module, opt_level=3, shared_libs=shared_libs
@@ -1040,12 +1091,38 @@ class DynamoCompiler:
                 The result of executing the graph, represented as a list of
                 output tensors.
             """
+
+            def _bf16_tensor_to_numpy_uint16(
+                tensor: torch.Tensor,
+            ) -> np.ndarray:
+                """
+                Convert a CPU bfloat16 tensor to a NumPy uint16 array containing
+                raw BF16 bit patterns (to avoid torch.bfloat16 -> numpy errors).
+                """
+                if tensor.device.type != "cpu":
+                    tensor = tensor.cpu()
+                # BF16 stores the top 16 bits of float32. Casting BF16->F32 is exact.
+                f32 = tensor.to(dtype=torch.float32).contiguous().numpy()
+                u32 = f32.view(np.uint32)
+                return (u32 >> 16).astype(np.uint16, copy=False)
+
+            def _bf16_uint16_numpy_to_f32(npy: np.ndarray) -> np.ndarray:
+                """
+                Convert a NumPy uint16 array (BF16 bit patterns) to float32 NumPy.
+                """
+                u32 = np.asarray(npy, dtype=np.uint32) << 16
+                return u32.view(np.float32)
+
             # A list of ctypes pointers representing memory references for input
             # tensors.
             input_memref = [
                 ctypes.pointer(
                     ctypes.pointer(
-                        rt.get_ranked_memref_descriptor(tensor.numpy())
+                        rt.get_ranked_memref_descriptor(
+                            _bf16_tensor_to_numpy_uint16(tensor)
+                            if tensor.dtype == torch.bfloat16
+                            else tensor.numpy()
+                        )
                     )
                 )
                 for tensor in args
@@ -1069,7 +1146,10 @@ class DynamoCompiler:
                 data_ptr = cast_c_ptr(outdata_ptr, output_ptr[0])
                 # Convert the C data pointer to a NumPy array and append it to
                 # the output_tensor list
-                output_tensor.append(rt.ranked_memref_to_numpy(data_ptr))
+                out = rt.ranked_memref_to_numpy(data_ptr)
+                if isinstance(out, np.ndarray) and out.dtype == np.uint16:
+                    out = _bf16_uint16_numpy_to_f32(out)
+                output_tensor.append(out)
                 # Move to the next element in memory based on the size of the
                 # current output type
                 outdata_ptr = move_c_ptr(outdata_ptr, output_ptr[0])

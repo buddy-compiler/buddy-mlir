@@ -790,11 +790,29 @@ def logical_not_op(node: LogicalNotOp, symbol_table):
     From buddy graph ir's `LogicalNotOp` operator to MLIR TOSA `logical_not` operation.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    sizes = ir.RankedTensorType(input1.type).shape
-    result_element_type = ir.RankedTensorType(input1.type).element_type
-    result_tensor_type = ir.RankedTensorType.get(sizes, result_element_type)
-    op = tosa.LogicalNotOp(result_tensor_type, input1)
-    return op
+    input_type = ir.RankedTensorType(input1.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+    bool_type = ir.IntegerType.get_signless(1)
+
+    # torch.logical_not: for numeric tensors, it's equivalent to (x == 0).
+    if input_dtype != bool_type:
+        zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
+        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
+            input_dtype
+        ):
+            zero_attr = ir.DenseElementsAttr.get_splat(
+                zero_type, ir.FloatAttr.get(input_dtype, 0.0)
+            )
+        else:
+            zero_attr = ir.DenseElementsAttr.get_splat(
+                zero_type, ir.IntegerAttr.get(input_dtype, 0)
+            )
+        zero_tensor = tosa.ConstOp(zero_attr).result
+        return tosa.EqualOp(input1, zero_tensor).result
+
+    result_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
+    return tosa.LogicalNotOp(result_tensor_type, input1).result
 
 
 def clamp_op(node: ClampOp, symbol_table):
@@ -2154,14 +2172,9 @@ def constant_pad_nd_op(node: ConstantPadNdOp, symbol_table):
         tosa_padding.append(before)
         tosa_padding.append(after)
 
-    # Create padding tensor
-    pad_shape = [ndim, 2]
-    pad_type = ir.RankedTensorType.get(
-        pad_shape, ir.IntegerType.get_signless(64)
-    )
-    pad_content = array.array("q", tosa_padding)
-    pad_attr = ir.DenseElementsAttr.get(memoryview(pad_content), type=pad_type)
-    pad_const = tosa.ConstOp(pad_attr)
+    # Create padding shape operand for tosa.pad.
+    # TOSA expects a `!tosa.shape<2*rank>` value with Index element type.
+    pad_const = _create_shape_operand(tosa_padding)
 
     # Create pad value constant
     pad_val_type = ir.RankedTensorType.get([1], input_dtype)
@@ -2184,7 +2197,7 @@ def constant_pad_nd_op(node: ConstantPadNdOp, symbol_table):
 
     output_type = ir.RankedTensorType.get(output_shape, input_dtype)
     return tosa.PadOp(
-        output_type, input1, pad_const.result, pad_const=pad_val_const.result
+        output_type, input1, pad_const, pad_const=pad_val_const.result
     )
 
 
@@ -2425,6 +2438,18 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
     if str(to_cast_type).find("i") != -1 and str(input_type).find("f") != -1:
         output_shape = list(node.tensor_meta["shape"])
         tensor_type = ir.RankedTensorType.get(output_shape, to_cast_type)
+        if not output_shape:
+            extracted = tensor.ExtractOp(input_tensor, []).result
+            if str(to_cast_type) == "i1":
+                false_val = arith.ConstantOp(to_cast_type, 0).result
+                true_val = arith.ConstantOp(to_cast_type, 1).result
+                zero_val = arith.ConstantOp(input_type, 0.0).result
+                is_zero = arith.CmpFOp(1, extracted, zero_val).result
+                converted = arith.SelectOp(is_zero, false_val, true_val).result
+            else:
+                converted = arith.FPToSIOp(to_cast_type, extracted).result
+            return tensor.FromElementsOp(tensor_type, [converted]).result
+
         output = tensor.EmptyOp(output_shape, to_cast_type)
 
         if str(to_cast_type) == "i1":
@@ -2799,21 +2824,25 @@ def sum_op(node: SumDimOp, symbol_table):
     if reduce_sum_dims is None:
         reduce_sum_dims = list(range(dim_cnt))
 
+    if isinstance(reduce_sum_dims, int):
+        reduce_sum_dims = [reduce_sum_dims]
+
     reduce_sum_dims = [
-        dim if dim >= 0 else dim_cnt + dim for dim in reduce_sum_dims
+        dim if dim >= 0 else dim_cnt + dim for dim in list(reduce_sum_dims)
     ]
-    _reduce_sum_input_tensor = input_tensor
-    reduce_sum_op = None
+    result = input_tensor
     for dim in reduce_sum_dims:
         reduce_dim_attr = ir.IntegerAttr.get(
             ir.IntegerType.get_signless(32), dim
         )
-        reduce_sum_op = tosa.ReduceSumOp(
-            _reduce_sum_input_tensor, reduce_dim_attr
-        )
-        _reduce_sum_input_tensor = reduce_sum_op.results[0]
+        result = tosa.ReduceSumOp(result, reduce_dim_attr).results[0]
 
-    return reduce_sum_op
+    output_shape = list(node.tensor_meta["shape"])
+    if list(ir.RankedTensorType(result.type).shape) != output_shape:
+        result = tosa.ReshapeOp(
+            result, _create_shape_operand(output_shape)
+        ).result
+    return result
 
 
 def t_op(node: TOp, symbol_table):
@@ -3610,6 +3639,7 @@ def argmax_op(node: ArgMaxOp, symbol_table):
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
     dim = node.args[1] if len(node.args) > 1 else None
+    keepdim = node.args[2] if len(node.args) > 2 else False
 
     input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
     if dim is None:
@@ -3625,19 +3655,28 @@ def argmax_op(node: ArgMaxOp, symbol_table):
     if dim < 0:
         dim += len(input_shape)
 
-    output_shape = list(node.tensor_meta["shape"])
-    output_dtype = mlir_element_type_get(node.tensor_meta["dtype"])
-    argmax_type = ir.RankedTensorType.get(
-        output_shape, ir.IntegerType.get_signless(32)
-    )
+    # TOSA argmax reduces rank by 1 (removes the axis dimension).
+    tosa_output_shape = input_shape[:dim] + input_shape[dim + 1 :]
+    i32_type = ir.IntegerType.get_signless(32)
+    argmax_type = ir.RankedTensorType.get(tosa_output_shape, i32_type)
     axis_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), dim)
     argmax = tosa.ArgMaxOp(argmax_type, input_tensor, axis_attr).result
-    if output_dtype != ir.IntegerType.get_signless(32):
-        result_type = ir.RankedTensorType.get(output_shape, output_dtype)
+
+    output_shape = list(node.tensor_meta["shape"])
+    output_dtype = mlir_element_type_get(node.tensor_meta["dtype"])
+    if output_dtype != i32_type:
+        cast_type = ir.RankedTensorType.get(tosa_output_shape, output_dtype)
         if ir.IntegerType(output_dtype).width > 32:
-            argmax = arith.ExtSIOp(result_type, argmax).result
+            argmax = arith.ExtSIOp(cast_type, argmax).result
         else:
-            argmax = arith.TruncIOp(result_type, argmax).result
+            argmax = arith.TruncIOp(cast_type, argmax).result
+
+    if keepdim and dim is not None:
+        pass
+    if list(ir.RankedTensorType(argmax.type).shape) != output_shape:
+        argmax = tosa.ReshapeOp(
+            argmax, _create_shape_operand(output_shape)
+        ).result
     return argmax
 
 
@@ -4442,22 +4481,42 @@ def all_op(node: AllOp, symbol_table):
     From buddy graph ir's `AllOp` operator to MLIR TOSA `reduce_all` operation.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    input_shape = list(ir.RankedTensorType(input1.type).shape)
+    input_type = ir.RankedTensorType(input1.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+    dim = node.args[1] if len(node.args) > 1 else None
+    keepdim = node.args[2] if len(node.args) > 2 else False
 
-    # Get dimension if specified
-    if len(node.args) > 1:
-        dim = node.args[1]
-        if dim < 0:
-            dim = len(input_shape) + dim
-        dim_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), dim)
-        return tosa.ReduceAllOp(input1, dim_attr)
-    else:
-        # Reduce all dimensions
-        result = input1
-        for dim in range(len(input_shape)):
-            dim_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0)
-            result = tosa.ReduceAllOp(result, dim_attr).results[0]
-        return result
+    bool_type = ir.IntegerType.get_signless(1)
+    bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
+    if input_dtype != bool_type:
+        zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
+        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
+            input_dtype
+        ):
+            zero_attr = ir.DenseElementsAttr.get_splat(
+                zero_type, ir.FloatAttr.get(input_dtype, 0.0)
+            )
+        else:
+            zero_attr = ir.DenseElementsAttr.get_splat(
+                zero_type, ir.IntegerAttr.get(input_dtype, 0)
+            )
+        zero_tensor = tosa.ConstOp(zero_attr).result
+        eq_zero = tosa.EqualOp(input1, zero_tensor).result
+        input1 = tosa.LogicalNotOp(bool_tensor_type, eq_zero).result
+
+    dims = _normalize_reduce_dims(dim, len(input_shape))
+    result = input1
+    for axis in sorted(dims, reverse=True):
+        axis_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), axis)
+        result = tosa.ReduceAllOp(result, axis_attr).results[0]
+
+    output_shape = list(node.tensor_meta["shape"])
+    if list(ir.RankedTensorType(result.type).shape) != output_shape:
+        result = tosa.ReshapeOp(
+            result, _create_shape_operand(output_shape)
+        ).result
+    return result
 
 
 def any_op(node: AnyOp, symbol_table):
@@ -4466,22 +4525,42 @@ def any_op(node: AnyOp, symbol_table):
     From buddy graph ir's `AnyOp` operator to MLIR TOSA `reduce_any` operation.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    input_shape = list(ir.RankedTensorType(input1.type).shape)
+    input_type = ir.RankedTensorType(input1.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+    dim = node.args[1] if len(node.args) > 1 else None
+    keepdim = node.args[2] if len(node.args) > 2 else False
 
-    # Get dimension if specified
-    if len(node.args) > 1:
-        dim = node.args[1]
-        if dim < 0:
-            dim = len(input_shape) + dim
-        dim_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), dim)
-        return tosa.ReduceAnyOp(input1, dim_attr)
-    else:
-        # Reduce all dimensions
-        result = input1
-        for dim in range(len(input_shape)):
-            dim_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 0)
-            result = tosa.ReduceAnyOp(result, dim_attr).results[0]
-        return result
+    bool_type = ir.IntegerType.get_signless(1)
+    bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
+    if input_dtype != bool_type:
+        zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
+        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
+            input_dtype
+        ):
+            zero_attr = ir.DenseElementsAttr.get_splat(
+                zero_type, ir.FloatAttr.get(input_dtype, 0.0)
+            )
+        else:
+            zero_attr = ir.DenseElementsAttr.get_splat(
+                zero_type, ir.IntegerAttr.get(input_dtype, 0)
+            )
+        zero_tensor = tosa.ConstOp(zero_attr).result
+        eq_zero = tosa.EqualOp(input1, zero_tensor).result
+        input1 = tosa.LogicalNotOp(bool_tensor_type, eq_zero).result
+
+    dims = _normalize_reduce_dims(dim, len(input_shape))
+    result = input1
+    for axis in sorted(dims, reverse=True):
+        axis_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), axis)
+        result = tosa.ReduceAnyOp(result, axis_attr).results[0]
+
+    output_shape = list(node.tensor_meta["shape"])
+    if list(ir.RankedTensorType(result.type).shape) != output_shape:
+        result = tosa.ReshapeOp(
+            result, _create_shape_operand(output_shape)
+        ).result
+    return result
 
 
 def isinf_op(node: IsInfOp, symbol_table):
@@ -5354,20 +5433,28 @@ def argmin_op(node: ArgMinOp, symbol_table):
         neg_result_type, input1, input1_zp, output_zp
     ).result
 
-    # Use TOSA argmax on negated input
-    output_shape = list(node.tensor_meta["shape"])
-    output_dtype = mlir_element_type_get(node.tensor_meta["dtype"])
-    argmin_type = ir.RankedTensorType.get(
-        output_shape, ir.IntegerType.get_signless(32)
-    )
+    # Use TOSA argmax on negated input (tosa.argmax reduces rank by 1).
+    tosa_output_shape = input_shape[:dim] + input_shape[dim + 1 :]
+    i32_type = ir.IntegerType.get_signless(32)
+    argmin_type = ir.RankedTensorType.get(tosa_output_shape, i32_type)
     axis_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), dim)
     result = tosa.ArgMaxOp(argmin_type, neg_input, axis_attr).result
-    if output_dtype != ir.IntegerType.get_signless(32):
-        output_type = ir.RankedTensorType.get(output_shape, output_dtype)
+
+    output_shape = list(node.tensor_meta["shape"])
+    output_dtype = mlir_element_type_get(node.tensor_meta["dtype"])
+    if output_dtype != i32_type:
+        cast_type = ir.RankedTensorType.get(tosa_output_shape, output_dtype)
         if ir.IntegerType(output_dtype).width > 32:
-            result = arith.ExtSIOp(output_type, result).result
+            result = arith.ExtSIOp(cast_type, result).result
         else:
-            result = arith.TruncIOp(output_type, result).result
+            result = arith.TruncIOp(cast_type, result).result
+
+    if keepdim and dim is not None:
+        pass
+    if list(ir.RankedTensorType(result.type).shape) != output_shape:
+        result = tosa.ReshapeOp(
+            result, _create_shape_operand(output_shape)
+        ).result
     return result
 
 
@@ -5646,22 +5733,27 @@ def add_scalar_op(node: AddScalarOp, symbol_table):
     alpha = node.args[2] if len(node.args) > 2 else 1
 
     input_shape = list(ir.RankedTensorType(input1.type).shape)
-    input_dtype = ir.RankedTensorType(input1.type).element_type
+    dtype = node.tensor_meta["dtype"]
+    input_dtype = mlir_element_type_get(dtype)
+    if ir.RankedTensorType(input1.type).element_type != input_dtype:
+        input1 = tosa.CastOp(
+            ir.RankedTensorType.get(input_shape, input_dtype), input1
+        ).result
 
-    # Multiply scalar by alpha: other * alpha
-    effective_scalar = float(scalar) * float(alpha)
+    if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
+        input_dtype
+    ):
+        effective_scalar = float(scalar) * float(alpha)
+    else:
+        effective_scalar = int(round(float(scalar) * float(alpha)))
 
-    # Create scalar tensor
-    scalar_attr = ir.DenseElementsAttr.get(
-        memoryview(array.array("f", [effective_scalar])),
-        type=ir.RankedTensorType.get([], input_dtype),
+    scalar_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    scalar_attr = ir.DenseElementsAttr.get_splat(
+        scalar_type, mlir_element_attr_get(dtype, effective_scalar)
     )
     scalar_tensor = tosa.ConstOp(scalar_attr).result
 
-    # Add scalar to input
-    return tosa.AddOp(
-        ir.RankedTensorType.get(input_shape, input_dtype), input1, scalar_tensor
-    ).result
+    return tosa.AddOp(scalar_type, input1, scalar_tensor).result
 
 
 def sub_scalar_op(node: SubScalarOp, symbol_table):
@@ -5676,22 +5768,27 @@ def sub_scalar_op(node: SubScalarOp, symbol_table):
     alpha = node.args[2] if len(node.args) > 2 else 1
 
     input_shape = list(ir.RankedTensorType(input1.type).shape)
-    input_dtype = ir.RankedTensorType(input1.type).element_type
+    dtype = node.tensor_meta["dtype"]
+    input_dtype = mlir_element_type_get(dtype)
+    if ir.RankedTensorType(input1.type).element_type != input_dtype:
+        input1 = tosa.CastOp(
+            ir.RankedTensorType.get(input_shape, input_dtype), input1
+        ).result
 
-    # Multiply scalar by alpha: other * alpha
-    effective_scalar = float(scalar) * float(alpha)
+    if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
+        input_dtype
+    ):
+        effective_scalar = float(scalar) * float(alpha)
+    else:
+        effective_scalar = int(round(float(scalar) * float(alpha)))
 
-    # Create scalar tensor
-    scalar_attr = ir.DenseElementsAttr.get(
-        memoryview(array.array("f", [effective_scalar])),
-        type=ir.RankedTensorType.get([], input_dtype),
+    scalar_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    scalar_attr = ir.DenseElementsAttr.get_splat(
+        scalar_type, mlir_element_attr_get(dtype, effective_scalar)
     )
     scalar_tensor = tosa.ConstOp(scalar_attr).result
 
-    # Subtract scalar from input
-    return tosa.SubOp(
-        ir.RankedTensorType.get(input_shape, input_dtype), input1, scalar_tensor
-    ).result
+    return tosa.SubOp(scalar_type, input1, scalar_tensor).result
 
 
 def div_scalar_op(node: DivScalarOp, symbol_table):
@@ -5858,13 +5955,12 @@ def mean_default_op(node: MeanDefaultOp, symbol_table):
     total_elements = functools.reduce(lambda a, b: a * b, input_shape, 1)
 
     # Divide by total elements
-    divisor_attr = ir.DenseElementsAttr.get(
-        memoryview(array.array("f", [1.0 / total_elements])),
-        type=ir.RankedTensorType.get([], input_dtype),
+    result_shape = list(ir.RankedTensorType(result.type).shape)
+    divisor_type = ir.RankedTensorType.get(result_shape, input_dtype)
+    divisor_attr = ir.DenseElementsAttr.get_splat(
+        divisor_type, ir.FloatAttr.get(input_dtype, 1.0 / float(total_elements))
     )
     divisor = tosa.ConstOp(divisor_attr).result
-
-    result_shape = list(ir.RankedTensorType(result.type).shape)
     shift = _create_mul_shift_operand()
     result = tosa.MulOp(
         ir.RankedTensorType.get(result_shape, input_dtype),
@@ -6059,70 +6155,40 @@ def any_dims_op(node: AnyDimsOp, symbol_table):
     dims = node.args[1] if len(node.args) > 1 else None
     keepdim = node.args[2] if len(node.args) > 2 else False
 
-    input_shape = list(ir.RankedTensorType(input1.type).shape)
-    input_dtype = ir.RankedTensorType(input1.type).element_type
+    input_type = ir.RankedTensorType(input1.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+
     bool_type = ir.IntegerType.get_signless(1)
-
-    if dims is None:
-        dims = list(range(len(input_shape)))
-    elif isinstance(dims, int):
-        dims = [dims]
-
-    dims = [d if d >= 0 else len(input_shape) + d for d in dims]
-
-    # Convert to bool if needed
+    bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
     if input_dtype != bool_type:
-        zero_attr = ir.DenseElementsAttr.get(
-            memoryview(array.array("f", [0.0])),
-            type=ir.RankedTensorType.get([], input_dtype),
-        )
+        zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
+        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
+            input_dtype
+        ):
+            zero_attr = ir.DenseElementsAttr.get_splat(
+                zero_type, ir.FloatAttr.get(input_dtype, 0.0)
+            )
+        else:
+            zero_attr = ir.DenseElementsAttr.get_splat(
+                zero_type, ir.IntegerAttr.get(input_dtype, 0)
+            )
         zero_tensor = tosa.ConstOp(zero_attr).result
+        eq_zero = tosa.EqualOp(input1, zero_tensor).result
+        input1 = tosa.LogicalNotOp(bool_tensor_type, eq_zero).result
 
-        abs_type = ir.RankedTensorType.get(input_shape, input_dtype)
-        bool_input = tosa.GreaterOp(
-            ir.RankedTensorType.get(input_shape, bool_type),
-            tosa.AbsOp(abs_type, input1).result,
-            zero_tensor,
-        ).result
-    else:
-        bool_input = input1
-
-    # For any, we use reduce_any which can be emulated with max
-    # any = max(input) > 0
-    # First convert bool to int for reduction
-    float_type = ir.F32Type.get()
-    float_input = tosa.CastOp(
-        ir.RankedTensorType.get(input_shape, float_type), bool_input
-    ).result
-
-    # Reduce max along dims
-    result = float_input
+    dims = _normalize_reduce_dims(dims, len(input_shape))
+    result = input1
     for axis in sorted(dims, reverse=True):
-        current_shape = list(ir.RankedTensorType(result.type).shape)
-        new_shape = (
-            current_shape[:axis]
-            + ([1] if keepdim else [])
-            + current_shape[axis + 1 :]
-        )
         axis_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), axis)
-        reduce_op = tosa.ReduceMaxOp(result, axis_attr)
-        result = reduce_op.result
-        # Reshape if needed
-        if list(ir.RankedTensorType(result.type).shape) != new_shape:
-            new_shape_operand = _create_shape_operand(new_shape)
-            result = tosa.ReshapeOp(result, new_shape_operand).result
+        result = tosa.ReduceAnyOp(result, axis_attr).results[0]
 
-    # Convert back to bool
-    result_shape = list(ir.RankedTensorType(result.type).shape)
-    zero_attr = ir.DenseElementsAttr.get(
-        memoryview(array.array("f", [0.0])),
-        type=ir.RankedTensorType.get([], float_type),
-    )
-    zero_tensor = tosa.ConstOp(zero_attr).result
-
-    return tosa.GreaterOp(
-        ir.RankedTensorType.get(result_shape, bool_type), result, zero_tensor
-    ).result
+    output_shape = list(node.tensor_meta["shape"])
+    if list(ir.RankedTensorType(result.type).shape) != output_shape:
+        result = tosa.ReshapeOp(
+            result, _create_shape_operand(output_shape)
+        ).result
+    return result
 
 
 def fill_scalar_op(node: FillScalarOp, symbol_table):
@@ -6557,12 +6623,36 @@ def sum_default_op(node: SumDefaultOp, symbol_table):
     input_shape = list(ir.RankedTensorType(input1.type).shape)
     input_dtype = ir.RankedTensorType(input1.type).element_type
 
+    # Respect dtype promotion rules:
+    # - If dtype kwarg is provided, cast to that dtype before reduction.
+    # - Otherwise, bool/integer inputs promote to int64 (PyTorch behavior).
+    target_dtype = None
+    if getattr(node, "kwargs", None):
+        target_dtype = node.kwargs.get("dtype", None)
+    target_element_type = input_dtype
+    if isinstance(target_dtype, TensorDType):
+        target_element_type = mlir_element_type_get(target_dtype)
+    else:
+        if ir.IntegerType.isinstance(input_dtype):
+            # Promote all integer/bool sums to i64 by default.
+            target_element_type = ir.IntegerType.get_signless(64)
+
+    if target_element_type != input_dtype:
+        cast_type = ir.RankedTensorType.get(input_shape, target_element_type)
+        input1 = tosa.CastOp(cast_type, input1).result
+        input_dtype = target_element_type
+
     # Reduce sum over all dimensions
     result = input1
     for axis in range(len(input_shape) - 1, -1, -1):
         axis_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), axis)
         result = tosa.ReduceSumOp(result, axis_attr).results[0]
 
+    output_shape = list(node.tensor_meta["shape"])
+    if list(ir.RankedTensorType(result.type).shape) != output_shape:
+        result = tosa.ReshapeOp(
+            result, _create_shape_operand(output_shape)
+        ).result
     return result
 
 
@@ -6576,22 +6666,39 @@ def all_dims_op(node: AllDimsOp, symbol_table):
     dim = node.args[1] if len(node.args) > 1 else None
     keepdim = node.args[2] if len(node.args) > 2 else False
 
-    input_shape = list(ir.RankedTensorType(input1.type).shape)
-    input_dtype = ir.RankedTensorType(input1.type).element_type
+    input_type = ir.RankedTensorType(input1.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
 
-    if dim is None:
-        dim = list(range(len(input_shape)))
-    elif isinstance(dim, int):
-        dim = [dim]
+    bool_type = ir.IntegerType.get_signless(1)
+    bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
+    if input_dtype != bool_type:
+        zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
+        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
+            input_dtype
+        ):
+            zero_attr = ir.DenseElementsAttr.get_splat(
+                zero_type, ir.FloatAttr.get(input_dtype, 0.0)
+            )
+        else:
+            zero_attr = ir.DenseElementsAttr.get_splat(
+                zero_type, ir.IntegerAttr.get(input_dtype, 0)
+            )
+        zero_tensor = tosa.ConstOp(zero_attr).result
+        eq_zero = tosa.EqualOp(input1, zero_tensor).result
+        input1 = tosa.LogicalNotOp(bool_tensor_type, eq_zero).result
 
-    dim = [d if d >= 0 else len(input_shape) + d for d in dim]
-
-    # Reduce all over dims
+    dims = _normalize_reduce_dims(dim, len(input_shape))
     result = input1
-    for axis in sorted(dim, reverse=True):
+    for axis in sorted(dims, reverse=True):
         axis_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), axis)
         result = tosa.ReduceAllOp(result, axis_attr).results[0]
 
+    output_shape = list(node.tensor_meta["shape"])
+    if list(ir.RankedTensorType(result.type).shape) != output_shape:
+        result = tosa.ReshapeOp(
+            result, _create_shape_operand(output_shape)
+        ).result
     return result
 
 
@@ -10195,14 +10302,9 @@ def _create_tosa_padding(input_shape, padding, ndim_to_pad):
             tosa_padding[dim_idx * 2] + tosa_padding[dim_idx * 2 + 1]
         )
 
-    # Create padding tensor [ndim, 2]
-    pad_shape = [rank, 2]
-    pad_type = ir.RankedTensorType.get(
-        pad_shape, ir.IntegerType.get_signless(64)
-    )
-    pad_content = array.array("q", tosa_padding)
-    pad_attr = ir.DenseElementsAttr.get(memoryview(pad_content), type=pad_type)
-    pad_tensor = tosa.ConstOp(pad_attr).result
+    # Create padding shape operand for tosa.pad.
+    # TOSA expects a `!tosa.shape<2*rank>` value with Index element type.
+    pad_tensor = _create_shape_operand(tosa_padding)
 
     return pad_tensor, output_shape
 
