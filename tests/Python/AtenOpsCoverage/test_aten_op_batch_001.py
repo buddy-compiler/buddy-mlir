@@ -95,6 +95,13 @@ def _template_bernoulli_float():
     return [x.clone(), 0.5], {}
 
 
+def _template_bernoulli_inplace_float():
+    # Keep shape small to reduce execution overhead in numeric mode.
+    # Numeric validation resets RNG seed per op, so results are reproducible.
+    x = torch.empty((2, 3), dtype=torch.float32)
+    return [x, 0.5], {}
+
+
 def _template_block_diag():
     a = torch.eye(2, dtype=torch.float32)
     b = torch.ones(1, 1, dtype=torch.float32)
@@ -428,6 +435,18 @@ def _template_bce_backward_grad_input():
     return [grad_output, inp, target], {"grad_input": grad_input}
 
 
+def _template_binary_cross_entropy_default():
+    inp = torch.tensor([0.2, 0.7], dtype=torch.float32)
+    target = torch.tensor([1.0, 0.0], dtype=torch.float32)
+    return [inp, target, None, 1], {}
+
+
+def _template_binary_cross_entropy_out():
+    args, _ = _template_binary_cross_entropy_default()
+    out = torch.empty((), dtype=torch.float32)
+    return args, {"out": out}
+
+
 def _template_count_nonzero_out():
     x = torch.tensor([[0, 1], [1, 1]], dtype=torch.float32)
     out = torch.empty((), dtype=torch.int64)
@@ -698,7 +717,9 @@ def _template_copy_dict_complex():
 
 CUSTOM_TEMPLATES.update(
     {
-        "bernoulli_.float": _skip("missing_lowering"),
+        "bernoulli_.float": _template_bernoulli_inplace_float,
+        "binary_cross_entropy.default": _template_binary_cross_entropy_default,
+        "binary_cross_entropy.out": _template_binary_cross_entropy_out,
         "binary_cross_entropy_backward.grad_input": _template_bce_backward_grad_input,
         "bincount.default": _skip("missing_lowering"),
         "bincount.out": _skip("missing_lowering"),
@@ -706,8 +727,8 @@ CUSTOM_TEMPLATES.update(
         "block_diag.out": _template_block_diag_out,
         "bmm.default": _template_bmm,
         "bmm.out": _template_bmm_out,
-        "bmm.dtype": _skip("unsupported_cpu_dtype"),
-        "bmm.dtype_out": _skip("unsupported_cpu_dtype"),
+        "bmm.dtype": _template_bmm_dtype,
+        "bmm.dtype_out": _template_bmm_dtype_out,
         "broadcast_tensors.default": _template_broadcast_tensors,
         "bucketize.Tensor": _template_bucketize_tensor,
         "bucketize.Tensor_out": _template_bucketize_tensor_out,
@@ -1064,6 +1085,7 @@ if __name__ == "__main__":
         batch_label="test_batch_1",
         max_fails=20,
         templates=CUSTOM_TEMPLATES,
+        templates_source=__file__,
         show_skips=True,
     )
 # CHECK: SUMMARY pass=
