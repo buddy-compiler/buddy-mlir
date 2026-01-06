@@ -133,8 +133,8 @@ struct IMEVmadotLowering : public ConvertOpToLLVMPattern<VmadotOp> {
 
     auto i8Type = IntegerType::get(ctx, 8);
     auto i32Type = IntegerType::get(ctx, 32);
-    auto i8VecType = LLVM::LLVMScalableVectorType::get(i8Type, 32);
-    auto i32VecType = LLVM::LLVMScalableVectorType::get(i32Type, 8);
+    auto i8VecType = VectorType::get({32}, i8Type, /*scalableDims=*/true);
+    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, i8VecType,
                                        "llvm.riscv.vle.nxv32i8");
@@ -170,8 +170,8 @@ struct IMEVmadotuLowering : public ConvertOpToLLVMPattern<VmadotuOp> {
 
     auto i8Type = IntegerType::get(ctx, 8);
     auto i32Type = IntegerType::get(ctx, 32);
-    auto i8VecType = LLVM::LLVMScalableVectorType::get(i8Type, 32);
-    auto i32VecType = LLVM::LLVMScalableVectorType::get(i32Type, 8);
+    auto i8VecType = VectorType::get({32}, i8Type, /*scalableDims=*/true);
+    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, i8VecType,
                                        "llvm.riscv.vle.nxv32i8");
@@ -207,8 +207,8 @@ struct IMEVmadotsuLowering : public ConvertOpToLLVMPattern<VmadotsuOp> {
 
     auto i8Type = IntegerType::get(ctx, 8);
     auto i32Type = IntegerType::get(ctx, 32);
-    auto i8VecType = LLVM::LLVMScalableVectorType::get(i8Type, 32);
-    auto i32VecType = LLVM::LLVMScalableVectorType::get(i32Type, 8);
+    auto i8VecType = VectorType::get({32}, i8Type, /*scalableDims=*/true);
+    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, i8VecType,
                                        "llvm.riscv.vle.nxv32i8");
@@ -244,8 +244,8 @@ struct IMEVmadotusLowering : public ConvertOpToLLVMPattern<VmadotusOp> {
 
     auto i8Type = IntegerType::get(ctx, 8);
     auto i32Type = IntegerType::get(ctx, 32);
-    auto i8VecType = LLVM::LLVMScalableVectorType::get(i8Type, 32);
-    auto i32VecType = LLVM::LLVMScalableVectorType::get(i32Type, 8);
+    auto i8VecType = VectorType::get({32}, i8Type, /*scalableDims=*/true);
+    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, i8VecType,
                                        "llvm.riscv.vle.nxv32i8");
@@ -280,7 +280,7 @@ struct IMEVfmadotLowering : public ConvertOpToLLVMPattern<VfmadotOp> {
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
     auto f16Type = Float16Type::get(ctx);
-    auto f16VecType = LLVM::LLVMScalableVectorType::get(f16Type, 32);
+    auto f16VecType = VectorType::get({32}, f16Type, /*scalableDims=*/true);
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        f16VecType, "llvm.riscv.vle.nxv32f16");
