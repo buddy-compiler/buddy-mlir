@@ -106,6 +106,7 @@ Use this option to build executables that can run on SpacemiT hardware with prin
 
 **Build a single test executable:**
 ```bash
+export PATH=$PWD/spacemit-toolchain-linux-glibc-x86_64-v1.1.2/bin:$PATH
 make vmadot-run    # Generates vmadot.s and vmadot_test executable
 make vmadotu-run   # Generates vmadotu.s and vmadotu_test executable
 make vmadotsu-run  # Generates vmadotsu.s and vmadotsu_test executable
