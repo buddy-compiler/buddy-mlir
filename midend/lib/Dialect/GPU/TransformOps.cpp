@@ -197,9 +197,11 @@ DiagnosedSilenceableFailure buddy::gpu::VectorToMMAConversionOp::applyToOne(
   RewritePatternSet f32ToTF32patterns(funcOp.getContext());
   nvgpu::populateMmaSyncF32ToTF32Patterns(f32ToTF32patterns,
                                           nvgpu::MmaSyncF32Lowering::TF32);
+
   if (failed(applyPatternsAndFoldGreedily(
           funcOp, std::move(f32ToTF32patterns),
           GreedyRewriteConfig().setListener(&listener))))
+
     return mlir::emitDefiniteFailure(
         target, "vector to mma F32ToTF32 patterns failed to apply");
 
