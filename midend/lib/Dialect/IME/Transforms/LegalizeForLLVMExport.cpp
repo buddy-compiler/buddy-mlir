@@ -53,7 +53,7 @@ static Value createRVVVectorLoad(ConversionPatternRewriter &rewriter,
   auto *ctx = rewriter.getContext();
   auto i64Type = IntegerType::get(ctx, 64);
   auto ptrType = LLVM::LLVMPointerType::get(ctx);
-  std::string mangledName = (baseIntrinsicName + ".i64").str();
+  std::string mangledName = (baseIntrinsicName + ".p0.i64").str();
   auto funcType = LLVM::LLVMFunctionType::get(
       vectorType, {vectorType, ptrType, i64Type}, false);
   auto funcRef = getOrInsertIntrinsic(rewriter, module, mangledName, funcType);
@@ -74,7 +74,7 @@ static void createRVVVectorStore(ConversionPatternRewriter &rewriter,
   auto ptrType = LLVM::LLVMPointerType::get(ctx);
   auto vectorType = vector.getType();
   auto voidType = LLVM::LLVMVoidType::get(ctx);
-  std::string mangledName = (baseIntrinsicName + ".i64").str();
+  std::string mangledName = (baseIntrinsicName + ".p0.i64").str();
   auto funcType = LLVM::LLVMFunctionType::get(
       voidType, {vectorType, ptrType, i64Type}, false);
   auto funcRef = getOrInsertIntrinsic(rewriter, module, mangledName, funcType);
