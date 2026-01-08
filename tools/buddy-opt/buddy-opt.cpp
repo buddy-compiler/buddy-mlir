@@ -84,6 +84,8 @@ void registerConvNhwcFhwcTileOptimizePass();
 void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
+void registerLowerGemminiToFuncPass();
+void registerLowerGemminiToLLVMPass();
 void registerLowerLinalgToGemminiPass();
 void registerLowerIMEPass();
 void registerAssumeTightMemRefLayoutPass();
@@ -120,6 +122,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
   mlir::buddy::registerLowerGemminiPass();
+  mlir::buddy::registerLowerGemminiToFuncPass();
+  mlir::buddy::registerLowerGemminiToLLVMPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
   mlir::buddy::registerLowerIMEPass();
 
