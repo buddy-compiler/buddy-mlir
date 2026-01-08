@@ -1,6 +1,6 @@
 # SpacemiT IME Dialect
 
-This document provides a comprehensive guide for using the IME (Intelligent Matrix Extension) dialect in buddy-mlir.
+This document provides a comprehensive guide for using the IME (Integrated Matrix Extension) dialect in buddy-mlir.
 
 ## Table of Contents
 
