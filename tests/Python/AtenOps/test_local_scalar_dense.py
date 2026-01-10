@@ -43,9 +43,7 @@ def test_local_scalar_dense_1d():
             with InsertionPoint(entry_block):
                 input_tensor = entry_block.arguments[0]
                 shape_operand = _create_shape_operand([])
-                result = tosa.ReshapeOp(
-                    input_tensor, shape_operand
-                )
+                result = tosa.ReshapeOp(input_tensor, shape_operand)
                 func.ReturnOp([result.result])
 
         print("=== Test 1D single-element tensor ===")
@@ -69,9 +67,7 @@ def test_local_scalar_dense_2d():
             with InsertionPoint(entry_block):
                 input_tensor = entry_block.arguments[0]
                 shape_operand = _create_shape_operand([])
-                result = tosa.ReshapeOp(
-                    input_tensor, shape_operand
-                )
+                result = tosa.ReshapeOp(input_tensor, shape_operand)
                 func.ReturnOp([result.result])
 
         print("\n=== Test 2D single-element tensor ===")
@@ -99,9 +95,7 @@ def test_local_scalar_dense_int():
             with InsertionPoint(entry_block):
                 input_tensor = entry_block.arguments[0]
                 shape_operand = _create_shape_operand([])
-                result = tosa.ReshapeOp(
-                    input_tensor, shape_operand
-                )
+                result = tosa.ReshapeOp(input_tensor, shape_operand)
                 func.ReturnOp([result.result])
 
         print("\n=== Test integer tensor ===")

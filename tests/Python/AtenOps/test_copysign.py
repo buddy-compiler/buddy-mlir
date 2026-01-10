@@ -26,8 +26,7 @@ graph = graphs[0]
 graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
-# CHECK: func.func
-# CHECK: sym_name = "forward"
+# CHECK-LABEL: {{\"?}}func.func{{\"?}}{{.*}}forward
 # CHECK: tosa.abs
 # CHECK: tosa.select
 # CHECK: tosa.mul
