@@ -3282,20 +3282,12 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     if mlir_dtype == ir.F16Type.get():
         f16_max_val = 65504.0
         f16_min_val = -65504.0
-        min_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), -sys.maxsize
-        )
-        max_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), sys.maxsize
-        )
-        min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_min_val)
-        max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_max_val)
+        min_fp_attr = ir.FloatAttr.get(ir.F16Type.get(), f16_min_val)
+        max_fp_attr = ir.FloatAttr.get(ir.F16Type.get(), f16_max_val)
 
         matmul_op = tosa.ClampOp(
             matmul_op.type,
             matmul_op,
-            min_int_attr,
-            max_int_attr,
             min_fp_attr,
             max_fp_attr,
         )
@@ -3303,20 +3295,12 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         # BF16 has the same range as F32 but lower precision
         bf16_max_val = 3.4028235e38
         bf16_min_val = -3.4028235e38
-        min_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), -sys.maxsize
-        )
-        max_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), sys.maxsize
-        )
-        min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_min_val)
-        max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_max_val)
+        min_fp_attr = ir.FloatAttr.get(ir.BF16Type.get(), bf16_min_val)
+        max_fp_attr = ir.FloatAttr.get(ir.BF16Type.get(), bf16_max_val)
 
         matmul_op = tosa.ClampOp(
             matmul_op.result.type,
             matmul_op,
-            min_int_attr,
-            max_int_attr,
             min_fp_attr,
             max_fp_attr,
         )
