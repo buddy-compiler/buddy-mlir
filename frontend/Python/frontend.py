@@ -42,7 +42,7 @@ from .ops.linalg import ops_registry as linalg_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
 from .ops.math import ops_registry as math_ops_registry
 from .ops.func import ops_registry as func_ops_registry
-from .graph import Graph, TensorDType, TensorMeta
+from .graph import Graph, TensorDType, TensorMeta, NodeType
 from .graph.operation import *
 from .graph.transform import maxpool2d_simplify
 from .graph.type import *
@@ -514,25 +514,7 @@ class DynamoCompiler:
             num_cached_kv = 0
             if self._model_config.decode_with_cache:
                 num_cached_kv = self._model_config.num_hidden_layers * 2
-            func_inputs = []
-            for i in inputs_pos:
-                # for inp in _inputs[len(params_flat) :]:
-                inp = _inputs[i + num_cached_kv]
-                inp_shape = inp.shape
-                inp_dtype = self._torch_dtype_translate(str(inp.dtype))
-                func_inputs.append(TensorMeta(inp_shape, inp_dtype))
-            for inp in _inputs[:num_cached_kv]:
-                inp = _inputs[i]
-                inp_shape = inp.shape
-                inp_dtype = self._torch_dtype_translate(str(inp.dtype))
-                func_inputs.append(TensorMeta(inp_shape, inp_dtype))
-            fake_params = []
-            for param in params_flat:
-                param_dtype = self._torch_dtype_translate(str(param.dtype))
-                fake_params.append(TensorMeta(param.shape, param_dtype))
             graph = Graph(
-                func_inputs,
-                fake_params,
                 self._ops_registry,
                 self._func_name,
                 DeviceType.CPU,
@@ -556,60 +538,100 @@ class DynamoCompiler:
                 else:
                     other_nodes.append(node)
             input_nodes.extend(list(_gm.graph.nodes)[:num_cached_kv])
-            gm_nodes = param_nodes + buffers_nodes + input_nodes + other_nodes
-
-            for gm_node in gm_nodes:
-                node_users = []
-                for user in gm_node.users.keys():
-                    node_users.append(str(user))
-                if gm_node.op == "placeholder":
-                    node_dtype = self._torch_dtype_translate(
-                        str(gm_node.meta["tensor_meta"].dtype)
-                    )
-                    buddy_node = self._create_node(
-                        gm_node.op,
-                        gm_node.name,
-                        gm_node.args,
-                        node_users,
-                        gm_node.meta["tensor_meta"].shape,
-                        node_dtype,
-                    )
-
-                elif gm_node.op == "output":
-                    buddy_node = self._create_node(
-                        gm_node.op, gm_node.name, gm_node.args, node_users
-                    )
-
-                elif gm_node.target is operator.getitem:
-                    node_dtype = self._torch_dtype_translate(
-                        str(gm_node.meta["tensor_meta"].dtype)
-                    )
-                    buddy_node = self._create_node(
-                        str(gm_node.target.__name__),
-                        gm_node.name,
-                        gm_node.args,
-                        node_users,
-                        gm_node.meta["tensor_meta"].shape,
-                        node_dtype,
-                    )
-                elif gm_node.op == "get_attr":
-                    if "_tensor_constant" in gm_node.name:
-                        import re
-
-                        stack_trace = gm_node.meta.get("stack_trace")
-                        match = re.search(
-                            r"torch\.tensor\(([-+]?\d+(\.\d+)?), dtype=[a-zA-Z]+\)",
-                            stack_trace,
+            gm_nodes = [
+                (NodeType.FakeNode, param_nodes),
+                (NodeType.FakeNode, buffers_nodes),
+                (NodeType.InputNode, input_nodes),
+                (NodeType.OtherNode, other_nodes)
+            ]
+            
+            for node_type, gm_nodes_sublist in gm_nodes:
+                for gm_node in gm_nodes_sublist:
+                    node_users = []
+                    for user in gm_node.users.keys():
+                        node_users.append(str(user))
+                    if gm_node.op == "placeholder":
+                        node_dtype = self._torch_dtype_translate(
+                            str(gm_node.meta["tensor_meta"].dtype)
                         )
-                        if not match:
-                            assert False
-                        value = float(match.group(1))
-                        gm_node.insert_arg(len(gm_node.args), value)
-                        val = gm_node.meta.get("val")
-                        node_shape = val.shape
-                        node_dtype = self._torch_dtype_translate(str(val.dtype))
                         buddy_node = self._create_node(
-                            "_tensor_constant",
+                            gm_node.op,
+                            gm_node.name,
+                            gm_node.args,
+                            node_users,
+                            gm_node.meta["tensor_meta"].shape,
+                            node_dtype,
+                        )
+
+                    elif gm_node.op == "output":
+                        buddy_node = self._create_node(
+                            gm_node.op, gm_node.name, gm_node.args, node_users
+                        )
+
+                    elif gm_node.target is operator.getitem:
+                        node_dtype = self._torch_dtype_translate(
+                            str(gm_node.meta["tensor_meta"].dtype)
+                        )
+                        buddy_node = self._create_node(
+                            str(gm_node.target.__name__),
+                            gm_node.name,
+                            gm_node.args,
+                            node_users,
+                            gm_node.meta["tensor_meta"].shape,
+                            node_dtype,
+                        )
+                    elif gm_node.op == "get_attr":
+                        if "_tensor_constant" in gm_node.name:
+                            import re
+
+                            stack_trace = gm_node.meta.get("stack_trace")
+                            match = re.search(
+                                r"torch\.tensor\(([-+]?\d+(\.\d+)?), dtype=[a-zA-Z]+\)",
+                                stack_trace,
+                            )
+                            if not match:
+                                assert False
+                            value = float(match.group(1))
+                            gm_node.insert_arg(len(gm_node.args), value)
+                            val = gm_node.meta.get("val")
+                            node_shape = val.shape
+                            node_dtype = self._torch_dtype_translate(str(val.dtype))
+                            buddy_node = self._create_node(
+                                "_tensor_constant",
+                                gm_node.name,
+                                gm_node.args,
+                                node_users,
+                                node_shape,
+                                node_dtype,
+                                node_kwargs=gm_node.kwargs,
+                            )
+                    else:
+                        tensor_meta = gm_node.meta.get("tensor_meta")
+                        val = gm_node.meta.get("val")
+                        # num_returns = len(gm_node.target._schema.returns)
+                        num_returns = (
+                            len(val)
+                            if isinstance(val, list)
+                            else len(gm_node.target._schema.returns)
+                        )
+                        if num_returns == 1:
+                            node_dtype = self._torch_dtype_translate(
+                                str(tensor_meta.dtype)
+                            )
+                            node_shape = tensor_meta.shape
+                        elif num_returns > 1:
+                            node_dtype = tuple(
+                                [
+                                    self._torch_dtype_translate(str(val_item.dtype))
+                                    for val_item in val
+                                ]
+                            )
+                            node_shape = tuple([val_item.shape for val_item in val])
+                        else:
+                            raise RuntimeError("Zero returns is not supported.")
+
+                        buddy_node = self._create_node(
+                            str(gm_node.target.__name__),
                             gm_node.name,
                             gm_node.args,
                             node_users,
@@ -617,41 +639,7 @@ class DynamoCompiler:
                             node_dtype,
                             node_kwargs=gm_node.kwargs,
                         )
-                else:
-                    tensor_meta = gm_node.meta.get("tensor_meta")
-                    val = gm_node.meta.get("val")
-                    # num_returns = len(gm_node.target._schema.returns)
-                    num_returns = (
-                        len(val)
-                        if isinstance(val, list)
-                        else len(gm_node.target._schema.returns)
-                    )
-                    if num_returns == 1:
-                        node_dtype = self._torch_dtype_translate(
-                            str(tensor_meta.dtype)
-                        )
-                        node_shape = tensor_meta.shape
-                    elif num_returns > 1:
-                        node_dtype = tuple(
-                            [
-                                self._torch_dtype_translate(str(val_item.dtype))
-                                for val_item in val
-                            ]
-                        )
-                        node_shape = tuple([val_item.shape for val_item in val])
-                    else:
-                        raise RuntimeError("Zero returns is not supported.")
-
-                    buddy_node = self._create_node(
-                        str(gm_node.target.__name__),
-                        gm_node.name,
-                        gm_node.args,
-                        node_users,
-                        node_shape,
-                        node_dtype,
-                        node_kwargs=gm_node.kwargs,
-                    )
-                graph.add_node(buddy_node)
+                    graph.add_node(node=buddy_node, node_type=node_type)
             transform_list = [maxpool2d_simplify]
             graph.perform(transform_list)
             self._imported_graphs.append(graph)
