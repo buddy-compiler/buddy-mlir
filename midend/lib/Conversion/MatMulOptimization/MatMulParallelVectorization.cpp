@@ -73,7 +73,7 @@ public:
 
     // Acquire the element type of input tensors.
     Type elementType =
-    mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
+        mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
 
     // Define constants.
     const Value zeroIndex =
@@ -140,11 +140,15 @@ public:
         loc, A, AffineMap::get(2, 0, {d0, d1}, rewriter.getContext()),
         ArrayRef<Value>{aRow, bRow}, false, 3, true);
 
-    // Compile time branch detection.
-    if (mlir::cast<mlir::MemRefType>(C.getType()).isDynamicDim(1) or
-    mlir::cast<mlir::MemRefType>(A.getType()).getDimSize(1) %
-            affineVectorSize !=
-        0) {
+    // Compile-time tail detection.
+    //
+    // We vectorize along the column dimension `N` (B dim 1 / C dim 1). If `N`
+    // is not a multiple of `affineVectorSize`, the last vector tile must be
+    // handled with a mask, otherwise the generated vector load/store will go
+    // out-of-bounds.
+    auto cType = mlir::cast<mlir::MemRefType>(C.getType());
+    if (cType.isDynamicDim(1) ||
+        (cType.getDimSize(1) % affineVectorSize) != 0) {
       // Depending on the position, use either full vectors or tail vectors.
       affine::AffineIfOp branchingOp = rewriter.create<affine::AffineIfOp>(
           loc,
