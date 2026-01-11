@@ -3288,8 +3288,6 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         matmul_op = tosa.ClampOp(
             matmul_op.type,
             matmul_op,
-            # min_int_attr,
-            # max_int_attr,
             min_fp_attr,
             max_fp_attr,
         )
