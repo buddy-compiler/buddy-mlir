@@ -3867,9 +3867,21 @@ def flash_attention_for_cpu_prefill_op(
     vec_len = arith.ConstantOp(index, vector_width, loc=loc)
 
     # === input parse ===
-    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    key = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    def lookup_input(name):
+        if name in symbol_table:
+            return symbol_table[name]
+        elif (str(name), 0) in symbol_table:
+            return symbol_table[(str(name), 0)]
+        else:
+            raise KeyError(f"FlashAttention input '{name}' not found in symbol_table.")
+        
+    # query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    # key = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    # value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    query = lookup_input(node.args[0])
+    key = lookup_input(node.args[1])
+    value = lookup_input(node.args[2])
+    
     attn_mask = node.kwargs.get("attn_mask", None)
     scale = node.kwargs.get("scale", None)
 
