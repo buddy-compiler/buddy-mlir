@@ -30,6 +30,7 @@ from mlir.dialects import (
     bufferization,
     memref,
     scf,
+    vector,
 )
 import copy, array, sys
 import numpy
@@ -3210,6 +3211,121 @@ def slice_scatter_op(node: SliceScatterOp, symbol_table):
     return insert_op.result
 
 
+def _is_kv_cache_pattern(input1_shape, input2, input3_shape, accumulate):
+    """
+    Check if this index_put is a KV Cache update pattern.
+    
+    KV Cache pattern characteristics:
+    - input1 (cache) is rank-4: [batch, num_heads, max_seq_len, head_dim]
+    - input2 has only dim2 indexed (cache_position), dim0, dim1, dim3 are None
+    - input3 (value) is rank-4: [batch, num_heads, seq_len, head_dim]
+    - No accumulate (direct store)
+    
+    Returns:
+        bool: True if this is a KV Cache pattern
+    """
+    if accumulate:
+        return False
+    if len(input1_shape) != 4 or len(input3_shape) != 4:
+        return False
+    if len(input2) < 3:
+        return False
+    # Check: only dim2 has index tensor, others are None
+    if input2[0] is not None or input2[1] is not None:
+        return False
+    if input2[2] is None:
+        return False
+    # If there's a 4th index, it should be None
+    if len(input2) > 3 and input2[3] is not None:
+        return False
+    return True
+
+
+def _generate_kv_cache_vectorized_update(
+    input1_memref, input1_shape, input2, input3_memref, input3_shape, 
+    mlir_dtype, symbol_table
+):
+    """
+    Generate vectorized KV Cache update using vector.transfer_read/write.
+    
+    Instead of scalar load/store in inner loop, we use vector operations
+    to copy the entire head_dim slice at once.
+    """
+    batch_size = input3_shape[0]
+    num_heads = input3_shape[1]
+    seq_len = input3_shape[2]
+    head_dim = input3_shape[3]
+    
+    # Get cache_position index tensor
+    cache_pos_tensor = symbol_table.get((str(input2[2]), 0))
+    cache_pos_elem_type = ir.RankedTensorType(cache_pos_tensor.type).element_type
+    cache_pos_memref_type = ir.MemRefType.get([seq_len], cache_pos_elem_type)
+    cache_pos_memref = bufferization.ToBufferOp(cache_pos_memref_type, cache_pos_tensor)
+    
+    lb = arith.ConstantOp(ir.IndexType.get(), 0)
+    step = arith.ConstantOp(ir.IndexType.get(), 1)
+    
+    ub_batch = arith.ConstantOp(ir.IndexType.get(), batch_size)
+    ub_heads = arith.ConstantOp(ir.IndexType.get(), num_heads)
+    ub_seq = arith.ConstantOp(ir.IndexType.get(), seq_len)
+    
+    # Vector type for head_dim elements
+    vector_type = ir.VectorType.get([head_dim], mlir_dtype)
+    
+    # Padding value for out-of-bounds access (not expected, but required by API)
+    if str(mlir_dtype).startswith("f"):
+        padding = arith.ConstantOp(mlir_dtype, ir.FloatAttr.get(mlir_dtype, 0.0))
+    else:
+        padding = arith.ConstantOp(mlir_dtype, ir.IntegerAttr.get(mlir_dtype, 0))
+    
+    # AffineMap for 1D vector from 4D memref: (d0, d1, d2, d3) -> (d3)
+    # This maps the last dimension to the vector
+    identity_map_attr = ir.AffineMapAttr.get(ir.AffineMap.get_minor_identity(4, 1))
+    
+    # Create nested loops for batch, num_heads, seq_len (but NOT head_dim)
+    loop_batch = scf.ForOp(lb, ub_batch, step)
+    with ir.InsertionPoint(loop_batch.body):
+        i0 = loop_batch.induction_variable
+        
+        loop_heads = scf.ForOp(lb, ub_heads, step)
+        with ir.InsertionPoint(loop_heads.body):
+            i1 = loop_heads.induction_variable
+            
+            loop_seq = scf.ForOp(lb, ub_seq, step)
+            with ir.InsertionPoint(loop_seq.body):
+                i2 = loop_seq.induction_variable
+                
+                # Load cache_position for this sequence position
+                cache_pos_val = memref.LoadOp(cache_pos_memref, [i2]).result
+                cache_pos_idx = arith.IndexCastOp(ir.IndexType.get(), cache_pos_val)
+                
+                # Vector read from input3 (value) at [i0, i1, i2, 0:head_dim]
+                vec_val = vector.TransferReadOp(
+                    vector_type,
+                    input3_memref,
+                    [i0, i1, i2, lb],
+                    identity_map_attr,
+                    padding,
+                    [True]  # in_bounds for the vector dimension
+                )
+                
+                # Vector write to input1 (cache) at [i0, i1, cache_pos, 0:head_dim]
+                # TransferWriteOp signature: (result, valueToStore, base, indices, permutation_map, in_bounds, ...)
+                # result=None since transfer_write doesn't return anything
+                vector.TransferWriteOp(
+                    None,  # result type (none for write)
+                    vec_val.result,  # vector to store
+                    input1_memref,
+                    [i0, i1, cache_pos_idx, lb],
+                    identity_map_attr,
+                    [True]  # in_bounds for the vector dimension
+                )
+                
+                scf.YieldOp(loop_seq.inner_iter_args)
+            scf.YieldOp(loop_heads.inner_iter_args)
+        scf.YieldOp(loop_batch.inner_iter_args)
+
+
 def index_put_op(
     node: IndexPutOp,
     symbol_table: Dict[Tuple[str, int], ir.Operation],
@@ -3244,6 +3360,25 @@ def index_put_op(
         input1_shape, input1_memref_element_type
     )
     input1_memref = bufferization.ToBufferOp(input1_memref_type, input1)
+
+    # Check for KV Cache pattern and use optimized path
+    if _is_kv_cache_pattern(input1_shape, input2, input3_shape, accumulate):
+        input3_memref_element_type = input3.type.element_type
+        input3_memref_type = ir.MemRefType.get(
+            input3_shape, input3_memref_element_type
+        )
+        input3_memref = bufferization.ToBufferOp(input3_memref_type, input3)
+        
+        _generate_kv_cache_vectorized_update(
+            input1_memref, input1_shape, input2, input3_memref, input3_shape,
+            mlir_dtype, symbol_table
+        )
+        
+        output_tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+        op = bufferization.ToTensorOp(
+            output_tensor_type, input1_memref, restrict=True
+        )
+        return op
 
     def _broadcast_index_tensor(value, target_shape):
         try:
