@@ -82,10 +82,6 @@ class Graph:
     Attributes:
     - _body: List[Op]
         The sequence of operation nodes in the graph.
-    - _inputs: List[TensorMeta]
-        The model inputs represented as TensorMeta objects.
-    - _fake_params: List[TensorMeta]
-        The fake parameters represented as TensorMeta objects.
     - device: str
         The hardware for graph runtime.
     - _imported_module: Union[None, ImportedModuleType]
@@ -116,10 +112,6 @@ class Graph:
         Initializes the Graph.
 
         Args:
-            inputs: List[TensorMeta]
-                The model inputs represented as TensorMeta objects.
-            fake_params: List[TensorMeta]
-                The fake parameters represented as TensorMeta objects.
             ops_registry: dict
                 The ops lower strategy for the graph.
             func_name: str
@@ -165,7 +157,7 @@ class Graph:
         None
 
         Example:
-        graph_instance = Graph(inputs, fake_params, ops_registry, func_name)
+        graph_instance = Graph(inputs, func_name)
         op_node = Op()
         graph_instance.add_node(op_node)
         # The op_node is now part of the graph's body
