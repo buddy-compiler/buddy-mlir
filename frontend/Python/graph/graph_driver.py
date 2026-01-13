@@ -217,6 +217,12 @@ class GraphDriver:
             verbose=self._graph._verbose,
         )
 
+        # Adding placeholder operations from the original graph        
+        for op in self._graph.params:
+            main_graph.add_node(op, node_type=NodeType.FakeNode)
+        for op in self._graph.inputs:
+            main_graph.add_node(op, node_type=NodeType.InputNode)
+
         # Adding FuncOp nodes for each subgraph
         for subgraph_name in self._subgraphs.keys():
             func_node = FuncOp()
@@ -232,12 +238,6 @@ class GraphDriver:
                     self._graph.node_table[output].tensor_meta["dtype"]
                 )
             main_graph.add_node(func_node)
-
-        # Adding placeholder operations from the original graph        
-        for op in self._graph.inputs:
-            main_graph.add_node(op, node_type=NodeType.InputNode)
-        for op in self._graph.params:
-            main_graph.add_node(op, node_type=NodeType.FakeNode)
 
         # Analysis topology order to sort subgraph call.
         topo_order = self.topological_sort_subgraph()
