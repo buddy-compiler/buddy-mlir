@@ -3211,119 +3211,238 @@ def slice_scatter_op(node: SliceScatterOp, symbol_table):
     return insert_op.result
 
 
-def _is_kv_cache_pattern(input1_shape, input2, input3_shape, accumulate):
+def _get_vectorizable_trailing_dims(input2, input3_shape, accumulate):
     """
-    Check if this index_put is a KV Cache update pattern.
+    Check if the trailing dimensions can be vectorized.
     
-    KV Cache pattern characteristics:
-    - input1 (cache) is rank-4: [batch, num_heads, max_seq_len, head_dim]
-    - input2 has only dim2 indexed (cache_position), dim0, dim1, dim3 are None
-    - input3 (value) is rank-4: [batch, num_heads, seq_len, head_dim]
-    - No accumulate (direct store)
+    A dimension can be vectorized if:
+    1. It has no index tensor (input2[d] is None or d >= len(input2))
+    2. accumulate is False (or we could support vectorized accumulate later)
     
     Returns:
-        bool: True if this is a KV Cache pattern
+        tuple: (num_vectorizable_dims, vector_length)
+               num_vectorizable_dims: Number of trailing dims that can be vectorized
+               vector_length: Product of those dimensions' sizes
+               Returns (0, 0) if vectorization is not beneficial
     """
     if accumulate:
-        return False
-    if len(input1_shape) != 4 or len(input3_shape) != 4:
-        return False
-    if len(input2) < 3:
-        return False
-    # Check: only dim2 has index tensor, others are None
-    if input2[0] is not None or input2[1] is not None:
-        return False
-    if input2[2] is None:
-        return False
-    # If there's a 4th index, it should be None
-    if len(input2) > 3 and input2[3] is not None:
-        return False
-    return True
+        return 0, 0
+    
+    # Count trailing dimensions without index tensors
+    num_vectorizable_dims = 0
+    for d in range(len(input3_shape) - 1, -1, -1):
+        if d < len(input2) and input2[d] is not None:
+            break  # This dimension has an index tensor, stop
+        num_vectorizable_dims += 1
+    
+    if num_vectorizable_dims == 0:
+        return 0, 0
+    
+    # Calculate vector length (product of vectorizable dimensions)
+    vector_length = 1
+    for d in range(len(input3_shape) - num_vectorizable_dims, len(input3_shape)):
+        vector_length *= input3_shape[d]
+    
+    # Only vectorize if beneficial (at least 4 elements)
+    if vector_length < 4:
+        return 0, 0
+    
+    return num_vectorizable_dims, vector_length
 
 
-def _generate_kv_cache_vectorized_update(
-    input1_memref, input1_shape, input2, input3_memref, input3_shape, 
-    mlir_dtype, symbol_table
+def _broadcast_index_tensor_for_vec(value, target_shape):
+    """
+    Broadcast an index tensor to target shape for vectorized index_put.
+    
+    This is a simplified version that handles common cases for KV cache patterns.
+    """
+    try:
+        value_type = ir.RankedTensorType(value.type)
+        value_shape = list(value_type.shape)
+        elem_type = value_type.element_type
+    except Exception:
+        # Scalar value - splat to target shape
+        elem_type = value.type
+        target_type = ir.RankedTensorType.get(target_shape, elem_type)
+        return tensor.SplatOp(target_type, value, []).result
+
+    # If shapes match, return as-is
+    if value_shape == list(target_shape):
+        return value
+
+    # Handle rank-1 index tensor (common case: cache_position is 1D)
+    if len(value_shape) == 1 and len(target_shape) >= 1:
+        # Check if the index tensor can broadcast
+        # For KV cache: index is [seq_len], target might be [batch, heads, seq_len]
+        # We need to find which dimension matches
+        for d in range(len(target_shape)):
+            if value_shape[0] == target_shape[d]:
+                # Reshape to match target rank with 1s in other dims
+                new_shape = [1] * len(target_shape)
+                new_shape[d] = value_shape[0]
+                shape_ty = ir.Type.parse(f"!tosa.shape<{len(new_shape)}>")
+                index_ty = ir.IndexType.get()
+                shape_val = tosa.ConstShapeOp(
+                    shape_ty,
+                    ir.DenseElementsAttr.get(
+                        array.array("q", new_shape),
+                        type=index_ty,
+                        shape=[len(new_shape)],
+                    ),
+                ).result
+                reshaped = tosa.ReshapeOp(value, shape_val).result
+                
+                # Broadcast to target shape
+                if new_shape != list(target_shape):
+                    if str(elem_type).startswith("f") or str(elem_type).startswith("bf"):
+                        zero_elem = ir.FloatAttr.get(elem_type, 0.0)
+                    else:
+                        zero_elem = ir.IntegerAttr.get(elem_type, 0)
+                    zero_type = ir.RankedTensorType.get(target_shape, elem_type)
+                    zero_attr = ir.DenseElementsAttr.get_splat(zero_type, zero_elem)
+                    zero_tensor = tosa.ConstOp(zero_attr).result
+                    return tosa.AddOp(zero_type, reshaped, zero_tensor).result
+                return reshaped
+    
+    # Fallback: try direct broadcast via add with zeros
+    if len(value_shape) <= len(target_shape):
+        padded_shape = [1] * (len(target_shape) - len(value_shape))
+        padded_shape.extend(value_shape)
+        shape_ty = ir.Type.parse(f"!tosa.shape<{len(padded_shape)}>")
+        index_ty = ir.IndexType.get()
+        shape_val = tosa.ConstShapeOp(
+            shape_ty,
+            ir.DenseElementsAttr.get(
+                array.array("q", padded_shape),
+                type=index_ty,
+                shape=[len(padded_shape)],
+            ),
+        ).result
+        value = tosa.ReshapeOp(value, shape_val).result
+        
+        if padded_shape != list(target_shape):
+            if str(elem_type).startswith("f") or str(elem_type).startswith("bf"):
+                zero_elem = ir.FloatAttr.get(elem_type, 0.0)
+            else:
+                zero_elem = ir.IntegerAttr.get(elem_type, 0)
+            zero_type = ir.RankedTensorType.get(target_shape, elem_type)
+            zero_attr = ir.DenseElementsAttr.get_splat(zero_type, zero_elem)
+            zero_tensor = tosa.ConstOp(zero_attr).result
+            return tosa.AddOp(zero_type, value, zero_tensor).result
+        return value
+    
+    raise ValueError(f"Cannot broadcast shape {value_shape} to {target_shape}")
+
+
+def _generate_vectorized_index_put(
+    input1_memref, input1_shape, input2, input2_memref_list, input3_memref, input3_shape,
+    mlir_dtype, symbol_table, num_vec_dims, vector_length
 ):
     """
-    Generate vectorized KV Cache update using vector.transfer_read/write.
+    Generate vectorized index_put operation.
     
-    Instead of scalar load/store in inner loop, we use vector operations
-    to copy the entire head_dim slice at once.
+    This creates nested loops for the non-vectorized dimensions and uses
+    vector.transfer_read/write for the vectorized trailing dimensions.
+    
+    Args:
+        input1_memref: Destination memref (cache)
+        input1_shape: Shape of destination
+        input2: List of index tensors (may contain None)
+        input2_memref_list: List of memref ops for index tensors
+        input3_memref: Source memref (values)
+        input3_shape: Shape of source
+        mlir_dtype: Element type
+        symbol_table: Symbol table for lookups
+        num_vec_dims: Number of trailing dims to vectorize
+        vector_length: Total vector length
     """
-    batch_size = input3_shape[0]
-    num_heads = input3_shape[1]
-    seq_len = input3_shape[2]
-    head_dim = input3_shape[3]
-    
-    # Get cache_position index tensor
-    cache_pos_tensor = symbol_table.get((str(input2[2]), 0))
-    cache_pos_elem_type = ir.RankedTensorType(cache_pos_tensor.type).element_type
-    cache_pos_memref_type = ir.MemRefType.get([seq_len], cache_pos_elem_type)
-    cache_pos_memref = bufferization.ToBufferOp(cache_pos_memref_type, cache_pos_tensor)
+    rank = len(input3_shape)
+    num_loop_dims = rank - num_vec_dims  # Dimensions that need loops
     
     lb = arith.ConstantOp(ir.IndexType.get(), 0)
     step = arith.ConstantOp(ir.IndexType.get(), 1)
     
-    ub_batch = arith.ConstantOp(ir.IndexType.get(), batch_size)
-    ub_heads = arith.ConstantOp(ir.IndexType.get(), num_heads)
-    ub_seq = arith.ConstantOp(ir.IndexType.get(), seq_len)
+    # Create upper bounds for loop dimensions
+    ub_ops = []
+    for d in range(num_loop_dims):
+        ub_ops.append(arith.ConstantOp(ir.IndexType.get(), input3_shape[d]))
     
-    # Vector type for head_dim elements
-    vector_type = ir.VectorType.get([head_dim], mlir_dtype)
+    # Vector type for the trailing dimensions
+    vector_type = ir.VectorType.get([vector_length], mlir_dtype)
     
-    # Padding value for out-of-bounds access (not expected, but required by API)
+    # Padding value for transfer_read
     if str(mlir_dtype).startswith("f"):
         padding = arith.ConstantOp(mlir_dtype, ir.FloatAttr.get(mlir_dtype, 0.0))
     else:
         padding = arith.ConstantOp(mlir_dtype, ir.IntegerAttr.get(mlir_dtype, 0))
     
-    # AffineMap for 1D vector from 4D memref: (d0, d1, d2, d3) -> (d3)
-    # This maps the last dimension to the vector
-    identity_map_attr = ir.AffineMapAttr.get(ir.AffineMap.get_minor_identity(4, 1))
+    # AffineMap: map from rank-D memref to 1D vector (last num_vec_dims -> 1)
+    # For a rank-4 memref with 1 vec dim: (d0, d1, d2, d3) -> (d3)
+    identity_map_attr = ir.AffineMapAttr.get(
+        ir.AffineMap.get_minor_identity(rank, 1)
+    )
     
-    # Create nested loops for batch, num_heads, seq_len (but NOT head_dim)
-    loop_batch = scf.ForOp(lb, ub_batch, step)
-    with ir.InsertionPoint(loop_batch.body):
-        i0 = loop_batch.induction_variable
-        
-        loop_heads = scf.ForOp(lb, ub_heads, step)
-        with ir.InsertionPoint(loop_heads.body):
-            i1 = loop_heads.induction_variable
+    def create_nested_loops_vectorized(dim, idx_vars):
+        """Recursively create nested loops and perform vectorized operation at innermost level."""
+        if dim >= num_loop_dims:
+            # All loop dimensions processed, now do vectorized read/write
             
-            loop_seq = scf.ForOp(lb, ub_seq, step)
-            with ir.InsertionPoint(loop_seq.body):
-                i2 = loop_seq.induction_variable
-                
-                # Load cache_position for this sequence position
-                cache_pos_val = memref.LoadOp(cache_pos_memref, [i2]).result
-                cache_pos_idx = arith.IndexCastOp(ir.IndexType.get(), cache_pos_val)
-                
-                # Vector read from input3 (value) at [i0, i1, i2, 0:head_dim]
-                vec_val = vector.TransferReadOp(
-                    vector_type,
-                    input3_memref,
-                    [i0, i1, i2, lb],
-                    identity_map_attr,
-                    padding,
-                    [True]  # in_bounds for the vector dimension
-                )
-                
-                # Vector write to input1 (cache) at [i0, i1, cache_pos, 0:head_dim]
-                # TransferWriteOp signature: (result, valueToStore, base, indices, permutation_map, in_bounds, ...)
-                # result=None since transfer_write doesn't return anything
-                vector.TransferWriteOp(
-                    None,  # result type (none for write)
-                    vec_val.result,  # vector to store
-                    input1_memref,
-                    [i0, i1, cache_pos_idx, lb],
-                    identity_map_attr,
-                    [True]  # in_bounds for the vector dimension
-                )
-                
-                scf.YieldOp(loop_seq.inner_iter_args)
-            scf.YieldOp(loop_heads.inner_iter_args)
-        scf.YieldOp(loop_batch.inner_iter_args)
+            # Build source indices: [idx_var_0, idx_var_1, ..., idx_var_{num_loop_dims-1}, 0]
+            src_indices = list(idx_vars) + [lb]
+            
+            # Build destination indices: use index tensors where available, loop vars otherwise
+            dst_indices = []
+            for d in range(len(input1_shape)):
+                if d < len(input2) and input2[d] is not None:
+                    # Use index tensor value
+                    # Index tensor should be indexed by loop variables
+                    if d < num_loop_dims:
+                        # This dimension has both a loop var and an index tensor
+                        # Load from index tensor using loop vars as indices
+                        idx_load_indices = list(idx_vars)
+                        idx_val = memref.LoadOp(input2_memref_list[d], idx_load_indices).result
+                        idx_cast = arith.IndexCastOp(ir.IndexType.get(), idx_val)
+                        dst_indices.append(idx_cast)
+                    else:
+                        # Vectorized dimension with index - this shouldn't happen
+                        # as we don't vectorize dimensions with indices
+                        dst_indices.append(lb)
+                elif d < len(idx_vars):
+                    dst_indices.append(idx_vars[d])
+                else:
+                    # This is a vectorized dimension, use 0 as starting index
+                    dst_indices.append(lb)
+            
+            # Vector read from source
+            vec_val = vector.TransferReadOp(
+                vector_type,
+                input3_memref,
+                src_indices,
+                identity_map_attr,
+                padding,
+                [True]  # in_bounds
+            )
+            
+            # Vector write to destination
+            vector.TransferWriteOp(
+                None,
+                vec_val.result,
+                input1_memref,
+                dst_indices,
+                identity_map_attr,
+                [True]
+            )
+            return
+        
+        # Create loop for this dimension
+        loop = scf.ForOp(lb, ub_ops[dim], step)
+        with ir.InsertionPoint(loop.body):
+            new_idx_vars = idx_vars + [loop.induction_variable]
+            create_nested_loops_vectorized(dim + 1, new_idx_vars)
+            scf.YieldOp(loop.inner_iter_args)
+    
+    # Start creating nested loops
+    create_nested_loops_vectorized(0, [])
 
 
 def index_put_op(
@@ -3361,25 +3480,59 @@ def index_put_op(
     )
     input1_memref = bufferization.ToBufferOp(input1_memref_type, input1)
 
-    # Check for KV Cache pattern and use optimized path
-    if _is_kv_cache_pattern(input1_shape, input2, input3_shape, accumulate):
+    # Check if we can vectorize trailing dimensions
+    num_vec_dims, vector_length = _get_vectorizable_trailing_dims(
+        input2, input3_shape, accumulate
+    )
+    
+    if num_vec_dims > 0:
+        # Use vectorized path
         input3_memref_element_type = input3.type.element_type
         input3_memref_type = ir.MemRefType.get(
             input3_shape, input3_memref_element_type
         )
         input3_memref = bufferization.ToBufferOp(input3_memref_type, input3)
         
-        _generate_kv_cache_vectorized_update(
-            input1_memref, input1_shape, input2, input3_memref, input3_shape,
-            mlir_dtype, symbol_table
-        )
+        # Convert index tensors to memrefs (only for non-None ones in loop dims)
+        input2_memref_list = []
+        num_loop_dims = len(input3_shape) - num_vec_dims
+        for i in range(len(input2)):
+            if input2[i] is None:
+                input2_memref_list.append(None)
+                continue
+            input2_ = symbol_table.get((str(input2[i]), 0))
+            if input2_ is None:
+                input2_memref_list.append(None)
+                continue
+            # For vectorized path, index tensors should have shape of loop dims
+            # Broadcast to loop dimensions shape
+            loop_shape = input3_shape[:num_loop_dims]
+            try:
+                index_tensor = _broadcast_index_tensor_for_vec(input2_, loop_shape)
+                index_elem_type = ir.RankedTensorType(index_tensor.type).element_type
+                memref_type = ir.MemRefType.get(loop_shape, index_elem_type)
+                input2_memref_list.append(
+                    bufferization.ToBufferOp(memref_type, index_tensor)
+                )
+            except:
+                # If broadcasting fails, fall back to scalar path
+                num_vec_dims = 0
+                break
         
-        output_tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-        op = bufferization.ToTensorOp(
-            output_tensor_type, input1_memref, restrict=True
-        )
-        return op
+        if num_vec_dims > 0:
+            _generate_vectorized_index_put(
+                input1_memref, input1_shape, input2, input2_memref_list, 
+                input3_memref, input3_shape, mlir_dtype, symbol_table,
+                num_vec_dims, vector_length
+            )
+            
+            output_tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+            op = bufferization.ToTensorOp(
+                output_tensor_type, input1_memref, restrict=True
+            )
+            return op
 
+    # Fallback to scalar path
     def _broadcast_index_tensor(value, target_shape):
         try:
             value_type = ir.RankedTensorType(value.type)
