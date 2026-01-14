@@ -62,8 +62,8 @@ set(BUDDY_EXAMPLES_DEPENDS
   mlir-runner
   )
 
-if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
-  list(APPEND BUDDY_TEST_DEPENDS BuddyMLIRPythonModules)
+if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES AND MLIR_ENABLE_BINDINGS_PYTHON)
+  list(APPEND BUDDY_TEST_DEPENDS python-package-buddy-mlir)
 endif()
 
 add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."
