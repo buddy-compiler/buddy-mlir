@@ -1813,28 +1813,36 @@ def cat_op(
 
     # Get all input tensors
     input_tensors = []
+    input_shapes = []
+
     for inp in inputs:
         t = symbol_table.get((str(inp), 0))
         if t is None:
             return
         input_tensors.append(t)
+        input_shapes.append(list(ir.RankedTensorType(t.type).shape))
 
     if len(input_tensors) == 0:
         return
 
-    output_shape = list(node.tensor_meta["shape"])
+    rank = len(input_shapes[0])
     if dim < 0:
-        dim = len(output_shape) + dim
+        dim += rank
+
+    output_shape = list(input_shapes[0])
+    output_shape[dim] = sum(s[dim] for s in input_shapes)
+
+    # dtype
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     output = tensor.EmptyOp(output_shape, mlir_dtype)
 
-    offset = [0 for x in output_shape]
-    current_result = output.result
-    stride_attr = ir._denseI64ArrayAttr([1] * len(offset), None)
+    offset = [0] * rank
+    stride_attr = ir._denseI64ArrayAttr([1] * rank, None)
 
-    for input_tensor in input_tensors:
-        input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+    current_result = output.result
+
+    for input_tensor, input_shape in zip(input_tensors, input_shapes):
         offset_attr = ir._denseI64ArrayAttr(offset, None)
         size_attr = ir._denseI64ArrayAttr(input_shape, None)
         insert_op = tensor.InsertSliceOp(

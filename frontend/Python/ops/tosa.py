@@ -3889,7 +3889,7 @@ def flash_attention_for_cpu_prefill_op(
     query_shape = query.type.shape
     key_shape = key.type.shape
     value_shape = value.type.shape
-    output_shape = list(node.tensor_meta["shape"])
+    output_shape = list(query_shape)
 
     # scale = 1/sqrt(H)
     scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
@@ -3935,7 +3935,7 @@ def flash_attention_for_cpu_prefill_op(
     block_size_kv = arith.ConstantOp(index, block_size_kv_num, loc=loc)
 
     out_memref = memref.AllocOp(
-        memref.MemRefType.get(list(output_shape[0]), dtype_qkv), [], [], loc=loc
+        memref.MemRefType.get(output_shape, dtype_qkv), [], [], loc=loc
     )
     out_scores_memref = memref.AllocOp(
         memref.MemRefType.get(
@@ -4277,7 +4277,7 @@ def flash_attention_for_cpu_prefill_op(
             affine.yield_([])
         affine.yield_([])
     out_tensor = bufferization.ToTensorOp(
-        ir.RankedTensorType.get(list(output_shape[0]), dtype_qkv),
+        ir.RankedTensorType.get(output_shape, dtype_qkv),
         out_memref,
         restrict=ir.BoolAttr.get(True),
     )
