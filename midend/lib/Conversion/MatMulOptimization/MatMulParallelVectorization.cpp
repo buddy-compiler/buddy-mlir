@@ -140,12 +140,12 @@ public:
         loc, A, AffineMap::get(2, 0, {d0, d1}, rewriter.getContext()),
         ArrayRef<Value>{aRow, bRow}, false, 3, true);
 
-    // Compile-time tail detection.
+    // Tail handling (compile-time + runtime checks).
     //
     // We vectorize along the column dimension `N` (B dim 1 / C dim 1). If `N`
-    // is not a multiple of `affineVectorSize`, the last vector tile must be
-    // handled with a mask, otherwise the generated vector load/store will go
-    // out-of-bounds.
+    // is dynamic (unknown at compile time) or not a multiple of
+    // `affineVectorSize`, the last vector tile may be partial and must be
+    // handled with a mask to avoid out-of-bounds access.
     auto cType = mlir::cast<mlir::MemRefType>(C.getType());
     if (cType.isDynamicDim(1) ||
         (cType.getDimSize(1) % affineVectorSize) != 0) {
