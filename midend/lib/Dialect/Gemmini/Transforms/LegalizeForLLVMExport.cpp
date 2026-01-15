@@ -157,7 +157,7 @@ struct GemminiConfigStLowering : public ConvertOpToLLVMPattern<ConfigStOp> {
         loc, rewriter.getI64IntegerAttr(rs1));
     Value value2 = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(arg));
-    rewriter.replaceOpWithNewOp<ConfigSt_IntrOp>(configStOp, value1, value2);
+    rewriter.replaceOpWithNewOp<Config_IntrOp>(configStOp, value1, value2);
     return success();
   }
 };
@@ -183,8 +183,7 @@ struct GemminiConfigLdLowering : public ConvertOpToLLVMPattern<ConfigLdOp> {
     Location loc = configLdOp.getLoc();
     Value rs1value = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(rs1));
-    rewriter.replaceOpWithNewOp<ConifgLd_IntrOp>(configLdOp, rs1value,
-                                                 rs2Value);
+    rewriter.replaceOpWithNewOp<Config_IntrOp>(configLdOp, rs1value, rs2Value);
     return success();
   }
 
@@ -211,8 +210,7 @@ struct GemminiConfigExLowering : public ConvertOpToLLVMPattern<ConfigExOp> {
     IntegerAttr rs2Attr = rewriter.getI64IntegerAttr(rs2);
     Value rs1Value = rewriter.create<arith::ConstantOp>(loc, i64Type, rs1Attr);
     Value rs2Value = rewriter.create<arith::ConstantOp>(loc, i64Type, rs2Attr);
-    rewriter.replaceOpWithNewOp<ConfigEX_IntrOp>(configExOp, rs1Value,
-                                                 rs2Value);
+    rewriter.replaceOpWithNewOp<Config_IntrOp>(configExOp, rs1Value, rs2Value);
     return success();
   }
 };
@@ -234,8 +232,8 @@ struct GemminiConfigNormLowering : public ConvertOpToLLVMPattern<ConfigNormOp> {
         loc, rewriter.getI64IntegerAttr(rs1));
     Value rs2Value = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(rs2));
-    rewriter.replaceOpWithNewOp<ConfigNorm_IntrOp>(configNormOp, rs1Value,
-                                                   rs2Value);
+    rewriter.replaceOpWithNewOp<Config_IntrOp>(configNormOp, rs1Value,
+                                               rs2Value);
     return success();
   }
 };
@@ -2117,15 +2115,14 @@ void mlir::populateGemminiLegalizeForLLVMExportPatterns(
 void mlir::configureGemminiLegalizeForExportTarget(
     LLVMConversionTarget &target) {
   target.addLegalOp<
-      Flush_IntrOp, ConfigSt_IntrOp, ConifgLd_IntrOp, ConfigEX_IntrOp,
-      Mvin_IntrOp, Mvin2_IntrOp, Mvin3_IntrOp, Mvout_IntrOp, Preload_IntrOp,
-      ComputePreloaded_IntrOp, ComputeAccumulated_IntrOp,
-      LoopWsConfigBounds_IntrOp, LoopWsConfigAddrsAB_IntrOp,
-      LoopWsConfigAddrsDC_IntrOp, LoopWsConfigStridesAB_IntrOp,
-      LoopWsConfigStridesDC_IntrOp, LoopWs_IntrOp, LoopConvWsConfig1_IntrOp,
-      LoopConvWsConfig2_IntrOp, LoopConvWsConfig3_IntrOp,
-      LoopConvWsConfig4_IntrOp, LoopConvWsConfig5_IntrOp,
-      LoopConvWsConfig6_IntrOp, LoopConvWs_IntrOp, ConfigNorm_IntrOp>();
+      Flush_IntrOp, Config_IntrOp, Mvin_IntrOp, Mvin2_IntrOp, Mvin3_IntrOp,
+      Mvout_IntrOp, Preload_IntrOp, ComputePreloaded_IntrOp,
+      ComputeAccumulated_IntrOp, LoopWsConfigBounds_IntrOp,
+      LoopWsConfigAddrsAB_IntrOp, LoopWsConfigAddrsDC_IntrOp,
+      LoopWsConfigStridesAB_IntrOp, LoopWsConfigStridesDC_IntrOp, LoopWs_IntrOp,
+      LoopConvWsConfig1_IntrOp, LoopConvWsConfig2_IntrOp,
+      LoopConvWsConfig3_IntrOp, LoopConvWsConfig4_IntrOp,
+      LoopConvWsConfig5_IntrOp, LoopConvWsConfig6_IntrOp, LoopConvWs_IntrOp>();
   target.addIllegalOp<FlushOp, ConfigStOp, ConfigLdOp, ConfigExOp, MvinOp,
                       Mvin2Op, Mvin3Op, MvoutOp, PrintOp, PreloadZerosOp,
                       PreloadOp, ComputePreloadedOp, ComputeAccumulatedOp,

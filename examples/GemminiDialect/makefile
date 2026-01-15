@@ -765,14 +765,6 @@ gemmini-linalg-conv2d-nhwc-fhwc-f32-lower:
 		-lower-gemmini="dim=4 acc_t=f32 elem_t=f32" \
 		-o log.mlir
 
-gemmini-linalg-conv2d-nhwc-fhwc-i8-translate:
-	@${BUDDY_OPT} ./conv_2d_nhwc_fhwc_f32.mlir \
-		-convert-linalg-to-gemmini="acc_t=f32" \
-		-convert-linalg-to-loops \
-		-lower-gemmini="dim=4 acc_t=f32 elem_t=f32" | \
-	${BUDDY_TRANSLATE} -buddy-to-llvmir \
-		-o log.ll
-
 gemmini-linalg-conv2d-nhwc-fhwc-f32-asm:
 	@${BUDDY_OPT} ./conv_2d_nhwc_fhwc_f32.mlir \
 		-convert-linalg-to-gemmini="acc_t=f32" \
