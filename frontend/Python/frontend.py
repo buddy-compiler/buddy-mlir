@@ -28,11 +28,11 @@ import os
 import ctypes
 import platform
 
-import mlir.ir as ir
-import mlir.dialects.func as func
-from mlir.passmanager import *
-from mlir.execution_engine import *
-from mlir import runtime as rt
+import buddy_mlir.ir as ir
+import buddy_mlir.dialects.func as func
+from buddy_mlir.passmanager import *
+from buddy_mlir.execution_engine import *
+from buddy_mlir import runtime as rt
 import torch
 import torch._dynamo as dynamo
 from torch._functorch.aot_autograd import aot_module_simplified
