@@ -29,6 +29,7 @@ set(LinkedLibs
   TosaElementwiseFusion
   AssumeTightMemRefLayoutPass
   StaticizeMemRefLayoutPass
+  EliminateMemRefCopyPass
   GraphRedundancyElimination
 )
 
