@@ -11275,7 +11275,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     query_shape = query.type.shape
     key_shape = k_cache.type.shape
     value_shape = v_cache.type.shape
-    output_shape = list(node.tensor_meta["shape"])
+    output_shape = list(query_shape)
 
     scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
     scale_val = arith.ConstantOp(mlir_dtype, float(scale_val)).result
@@ -11414,7 +11414,8 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
     log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
-    log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
+    # log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
+    log_sumexp_operand = _create_shape_operand([query_shape[0], query_shape[1], query_shape[2]])
     log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
 
     # ========= Prob * V =========

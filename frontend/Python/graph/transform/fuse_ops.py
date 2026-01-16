@@ -161,7 +161,7 @@ def replace_attention_op(graph: Graph):
     """
     replace ScaledDotProductFlashAttentionForCpuOp with FlashAttentionForCpuPrefillOp.
     """
-    cnt = 0
+    cnt = 1
     for op in list(graph.body):
         if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
             new_op = classicfuse_register.get(
@@ -196,7 +196,7 @@ def gqa_attention_fusion(graph: Graph):
 
 
 def gqa_attention_fusion_check(graph: Graph):
-    cnt = 0
+    cnt = 1
     for op in graph.body:
         # === GQA Attention pattern ===
         if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
@@ -281,7 +281,7 @@ def replace_gqa_attention_with_fused_op(
     v_slice2: Op,
     v_cache_unsqueeze: Op,
     pattern: str,
-    unique_index: int = 0
+    unique_index: int = 1
 ):
     """
     Fuse GQA subgraph
