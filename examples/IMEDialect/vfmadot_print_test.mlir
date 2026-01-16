@@ -1,4 +1,5 @@
-// IME vfmadot test - floating-point matrix multiply-accumulate (fp16)
+// RUN: buddy-opt %s | FileCheck %s
+// CHECK: func.func @main
 //
 // vfmadot computes: C[i,j] += sum_k(A[i,k] * B[j,k]) for fp16 values
 //

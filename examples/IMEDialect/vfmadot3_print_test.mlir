@@ -1,4 +1,5 @@
-// IME vfmadot3 test: floating-point matrix multiply-accumulate with fixed slide=3
+// RUN: buddy-opt %s | FileCheck %s
+// CHECK: func.func @main
 //
 // vfmadot3 computes: C[i,j] += sum_k(A[3+i,k] * B[j,k])
 //

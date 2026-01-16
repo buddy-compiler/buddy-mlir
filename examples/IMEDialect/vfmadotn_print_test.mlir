@@ -1,4 +1,5 @@
-// IME vfmadotn test: floating-point matrix multiply-accumulate with dynamic slide
+// RUN: buddy-opt %s | FileCheck %s
+// CHECK: func.func @main
 //
 // vfmadotn computes: C[i,j] += sum_k(A[slide+i,k] * B[j,k])
 //

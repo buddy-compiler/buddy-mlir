@@ -1,4 +1,5 @@
-// IME vmadotn test: signed × signed matrix multiply-accumulate with dynamic slide
+// RUN: buddy-opt %s | FileCheck %s
+// CHECK: func.func @main
 //
 // vmadotn computes: C[i,j] += sum_k(signed(A[slide+i,k]) * signed(B[j,k]))
 //

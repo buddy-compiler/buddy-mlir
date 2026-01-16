@@ -1,4 +1,5 @@
-// IME vmadotsu test: signed × unsigned matrix multiply-accumulate
+// RUN: buddy-opt %s | FileCheck %s
+// CHECK: func.func @main
 //
 // vmadotsu computes: C[i,j] += sum_k(signed(A[i,k]) * unsigned(B[j,k]))
 //

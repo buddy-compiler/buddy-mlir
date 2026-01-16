@@ -76,11 +76,6 @@ config.excludes = [
     "log.mlir",
     "lit.cfg.py",
     "BuddyPython",
-    "vmadot_print_test.mlir",
-    "vmadotu_print_test.mlir",
-    "vmadotsu_print_test.mlir",
-    "vmadotus_print_test.mlir",
-    "vfmadot_print_test.mlir",
 ]
 
 config.buddy_tools_dir = os.path.join(config.buddy_obj_root, "bin")

@@ -1,4 +1,5 @@
-// IME vmadotnsu test: signed × unsigned matrix multiply-accumulate with dynamic slide
+// RUN: buddy-opt %s | FileCheck %s
+// CHECK: func.func @main
 //
 // vmadotnsu computes: C[i,j] += sum_k(signed(A[slide+i,k]) * unsigned(B[j,k]))
 //
