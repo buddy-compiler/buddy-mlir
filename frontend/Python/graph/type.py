@@ -54,7 +54,7 @@ class TensorDType(Enum):
     Bool = "bool"
 
 
-class TensorMeta:
+class TensorMeta(dict):
     """
     Store tensor metadata, including shape and data type, while overlooking raw
     data.
@@ -75,7 +75,7 @@ class TensorMeta:
     # Access metadata attributes: meta.shape, meta.dtype
     """
 
-    def __init__(self, shape, dtype) -> None:
+    def __init__(self, shape, dtype):
         """
         Initialize a new instance of the TensorMeta class.
 
@@ -85,8 +85,23 @@ class TensorMeta:
         - dtype: str
             Represents the data type of the tensor.
         """
-        self.shape = shape
-        self.dtype = dtype
+        super().__init__(shape=shape, dtype=dtype)
+
+    @property
+    def shape(self):
+        return self["shape"]
+    
+    @shape.setter
+    def shape(self, value):
+        self["shape"] = value
+    
+    @property
+    def dtype(self):
+        return self["dtype"]
+    
+    @dtype.setter
+    def dtype(self, value):
+        self["dtype"] = value
 
 
 class DeviceType(Enum):
