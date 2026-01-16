@@ -207,6 +207,7 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -eliminate-memref-copy
             -assume-tight-memref-layout
             -staticize-memref-layout
             -matmul-vectorization-decode=vector-size=128
