@@ -20,6 +20,7 @@ module {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %val = memref.load %alloc[%c0, %c0, %c0, %c0] : memref<1x2x1024x128xf32>
+    memref.store %val, %alloc[%c0, %c0, %c0, %c0] : memref<1x2x1024x128xf32>
     return %alloc : memref<1x2x1024x128xf32>
   }
 
@@ -59,6 +60,7 @@ module {
 // CHECK: memref.cast
 // CHECK-SAME: memref<1x2x1024x128xf32>
 // CHECK: memref.load
+// CHECK: memref.store
 // CHECK: return
 
 // CHECK-LABEL: func.func @test_with_ops
