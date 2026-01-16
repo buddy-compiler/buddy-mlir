@@ -136,6 +136,7 @@ class DynamoCompiler:
             "neg.default": NegOp,
             "cat.default": CatOp,
             "bmm.default": BatchMatmulOp,
+            "div.default": DivOp,
             "div.Tensor": DivOp,
             "div.Tensor_mode": DivTensorModeOp,
             "_softmax.default": SoftmaxOp,
@@ -161,6 +162,8 @@ class DynamoCompiler:
             "max_pool1d_with_indices.default": MaxPool1dOp,
             "max_pool3d.default": MaxPool3dOp,
             "max_pool3d_with_indices.default": MaxPool3dOp,
+            "fractional_max_pool2d.default": FractionalMaxPool2dOp,
+            "fractional_max_pool2d.output": FractionalMaxPool2dOp,
             "avg_pool1d.default": AvgPool1dOp,
             "avg_pool3d.default": AvgPool3dOp,
             "adaptive_max_pool1d.default": AdaptiveMaxPool1dOp,
@@ -171,6 +174,9 @@ class DynamoCompiler:
             "relu.default": ReluOp,
             "iota.default": IotaOp,
             "sigmoid.default": SigmoidOp,
+            "glu.default": GluOp,
+            "glu.out": GluOp,
+            "gru.input": GruOp,
             "scalar_tensor.default": ScalarTensorOp,
             "where.self": WhereOp,
             "sqrt.default": SqrtOp,
@@ -187,13 +193,21 @@ class DynamoCompiler:
             "logical_or.default": LogicalOrOp,
             "bitwise_or.Tensor": BitwiseOrOp,
             "bitwise_xor.Tensor": BitwiseXorOp,
+            "bitwise_or.Scalar_Tensor": BitwiseOrOp,
+            "bitwise_xor.Scalar_Tensor": BitwiseXorOp,
+            "bitwise_left_shift.Tensor": BitwiseLeftShiftOp,
+            "bitwise_left_shift.Tensor_Scalar": BitwiseLeftShiftOp,
+            "bitwise_left_shift.Scalar_Tensor": BitwiseLeftShiftOp,
+            "bitwise_right_shift.Tensor": BitwiseRightShiftOp,
+            "bitwise_right_shift.Tensor_Scalar": BitwiseRightShiftOp,
+            "bitwise_right_shift.Scalar_Tensor": BitwiseRightShiftOp,
             "amin.default": AminOp,
+            "min.default": AminOp,
+            "min.unary_out": AminOp,
             "avg_pool2d.default": AvgPool2dOp,
             "logical_xor.default": LogicalXorOp,
             "prod.default": ProdOp,
             "prod.dim_int": ProdOp,
-            "neg.default": NegOp,
-            "where.self": WhereOp,
             "eq.Tensor": EqTensorOp,
             "ne.Tensor": NeTensorOp,
             "gt.Tensor": GtTensorOp,
@@ -205,7 +219,6 @@ class DynamoCompiler:
             "log1p.default": Log1pOp,
             "expm1.default": Expm1Op,
             "constant_pad_nd.default": ConstantPadNdOp,
-            "masked_fill.Scalar": MaskedFillOp,
             "reciprocal.default": ReciprocalOp,
             "clamp_min.default": ClampMinOp,
             "clamp_max.default": ClampMaxOp,
@@ -218,23 +231,62 @@ class DynamoCompiler:
             "gt.Scalar": GtOp,
             "_scaled_dot_product_flash_attention_for_cpu.default": ScaledDotProductFlashAttentionForCpuOp,
             "ge.Scalar": GeOp,
+            "gcd.default": GcdOp,
+            "gcd.out": GcdOp,
+            "gcd_.default": GcdOp,
+            "kthvalue.default": KthValueOp,
+            "kthvalue.values": KthValueOp,
+            "kthvalue.dimname": KthValueOp,
+            "kthvalue.dimname_out": KthValueOp,
             "_unsafe_index.Tensor": UnsafeIndexOp,
             "eq.Scalar": EqualOp,
             "copy.default": CopyOp,
             "slice_scatter.default": SliceScatterOp,
             "bitwise_and.Tensor": BitwiseAndTensorOp,
+            "bitwise_and.Scalar_Tensor": BitwiseAndTensorOp,
+            "bitwise_or.Scalar_Tensor_out": BitwiseOrOp,
+            "bitwise_xor.Scalar_Tensor_out": BitwiseXorOp,
+            "bitwise_left_shift.Tensor_out": BitwiseLeftShiftOp,
+            "bitwise_left_shift.Tensor_Scalar_out": BitwiseLeftShiftOp,
+            "bitwise_left_shift.Scalar_Tensor_out": BitwiseLeftShiftOp,
+            "bitwise_right_shift.Tensor_out": BitwiseRightShiftOp,
+            "bitwise_right_shift.Tensor_Scalar_out": BitwiseRightShiftOp,
+            "bitwise_right_shift.Scalar_Tensor_out": BitwiseRightShiftOp,
             "index_put.default": IndexPutOp,
             "ne.Scalar": NeScalarOp,
             "cumsum.default": CumsumOp,
             "cumprod.default": CumProdOp,
             "sort.default": SortOp,
+            "sort.stable": SortOp,
+            "sort.values_stable": SortOp,
+            "searchsorted.Tensor": SearchSortedOp,
+            "searchsorted.Tensor_out": SearchSortedOp,
+            "searchsorted.Scalar": SearchSortedOp,
+            "searchsorted.Scalar_out": SearchSortedOp,
             "_tensor_constant": TensorConstantOp,
             "lift_fresh_copy.default": LiftFreshCopyOp,
             "repeat.default": RepeatOp,
+            "repeat_interleave.Tensor": RepeatInterleaveOp,
+            "repeat_interleave.Tensor_out": RepeatInterleaveOp,
+            "repeat_interleave.self_Tensor": RepeatInterleaveOp,
+            "repeat_interleave.self_int": RepeatInterleaveOp,
             "as_strided.default": AsStridedOp,
+            "as_strided_copy.default": AsStridedOp,
+            "as_strided_copy.out": AsStridedOp,
+            "as_strided_scatter.default": AsStridedScatterOp,
+            "as_strided_scatter.out": AsStridedScatterOp,
             "scatter.src": ScatterSrcOp,
             "scatter.value": ScatterValueOp,
+            "scatter.reduce": ScatterReduceOp,
+            "scatter.value_reduce": ScatterReduceOp,
+            "scatter.reduce_out": ScatterReduceOp,
+            "scatter.value_reduce_out": ScatterReduceOp,
+            "scatter_.reduce": ScatterReduceOp,
+            "scatter_.value_reduce": ScatterReduceOp,
             "scatter_reduce.two": ScatterReduceOp,
+            "index_reduce.default": ScatterReduceOp,
+            "index_reduce.out": ScatterReduceOp,
+            "index_reduce_.default": ScatterReduceOp,
             "gather.default": GatherOp,
             "native_layer_norm.default": NativeLayerNormOp,
             "native_group_norm.default": NativeGroupNormOp,
@@ -245,6 +297,8 @@ class DynamoCompiler:
             "upsample_bilinear2d.vec": UpsampleBilinear2dVecOp,
             "upsample_nearest2d.vec": UpsampleNearest2dVecOp,
             "grid_sampler_2d.default": GridSampler2dOp,
+            "grid_sampler_3d.default": GridSampler3dOp,
+            "grid_sampler_3d.out": GridSampler3dOp,
             "col2im.default": Col2imOp,
             "sym_size.int": SymSizeOp,
             "sym_stride.int": SymStrideOp,
@@ -256,6 +310,8 @@ class DynamoCompiler:
             "hardtanh.default": HardtanhOp,
             "elu.default": EluOp,
             "sign.default": SignOp,
+            "signbit.default": SignbitOp,
+            "signbit.out": SignbitOp,
             "round.default": RoundOp,
             "trunc.default": TruncOp,
             "sinh.default": SinhOp,
@@ -277,6 +333,8 @@ class DynamoCompiler:
             "fmod.Scalar": FmodOp,
             "remainder.Tensor": RemainderOp,
             "remainder.Scalar": RemainderOp,
+            "remainder.Scalar_Tensor": RemainderOp,
+            "remainder.Scalar_Tensor_out": RemainderOp,
             "pow.Tensor_Tensor": PowTensorTensorOp,
             "softplus.default": SoftplusOp,
             "hardswish.default": HardswishOp,
@@ -291,11 +349,15 @@ class DynamoCompiler:
             "scatter_add.default": ScatterAddOp,
             "arange.start_step": ArangeStartStepOp,
             "min.dim": MinDimOp,
+            "min.dim_min": MinDimOp,
             "argmin.default": ArgMinOp,
             "squeeze.default": SqueezeOp,
             "squeeze.dim": SqueezeDimOp,
             "squeeze.dims": SqueezeDimsOp,
             "unfold.default": UnfoldOp,
+            "uniform.default": UniformOp,
+            "uniform.out": UniformOp,
+            "uniform_.default": UniformOp,
             "topk.default": TopkOp,
             "unbind.int": UnbindOp,
             # Batched matrix operations
@@ -303,8 +365,65 @@ class DynamoCompiler:
             # Special math functions
             "lgamma.default": LgammaOp,
             "digamma.default": DigammaOp,
+            "logcumsumexp.default": LogCumsumExpOp,
+            "logcumsumexp.out": LogCumsumExpOp,
+            "logcumsumexp.dimname": LogCumsumExpOp,
+            "logcumsumexp.dimname_out": LogCumsumExpOp,
+            "frexp.Tensor": FrexpOp,
+            "frexp.Tensor_out": FrexpOp,
+            "histc.default": HistcOp,
+            "histc.out": HistcOp,
+            "igamma.default": IgammaOp,
+            "igamma.out": IgammaOp,
+            "igamma_.default": IgammaOp,
+            "igammac.default": IgammacOp,
+            "igammac.out": IgammacOp,
+            "igammac_.default": IgammacOp,
+            "median.default": MedianOp,
+            "median.dim": MedianOp,
+            "median.dim_values": MedianOp,
+            "median.names_dim": MedianOp,
+            "median.names_dim_values": MedianOp,
+            "median.out": MedianOp,
+            "nanmedian.default": NanMedianOp,
+            "nanmedian.dim": NanMedianOp,
+            "nanmedian.dim_values": NanMedianOp,
+            "nanmedian.names_dim": NanMedianOp,
+            "nanmedian.names_dim_values": NanMedianOp,
+            "nanmedian.out": NanMedianOp,
+            "mode.default": ModeOp,
+            "mode.values": ModeOp,
+            "mode.dimname": ModeOp,
+            "mode.dimname_out": ModeOp,
+            "new_empty_strided.default": NewEmptyStridedOp,
+            "nonzero_static.default": NonzeroStaticOp,
+            "min.other": MinimumOp,
+            "min.out": MinimumOp,
             "i0.default": I0Op,
             "erfc.default": ErfcOp,
+            "erfinv.default": ErfinvOp,
+            "special_entr.default": SpecialEntrOp,
+            "special_entr.out": SpecialEntrOp,
+            "special_i0e.default": SpecialI0eOp,
+            "special_i0e.out": SpecialI0eOp,
+            "special_i1.default": SpecialI1Op,
+            "special_i1.out": SpecialI1Op,
+            "special_i1e.default": SpecialI1eOp,
+            "special_i1e.out": SpecialI1eOp,
+            "special_modified_bessel_i0.default": I0Op,
+            "special_modified_bessel_i0.out": I0Op,
+            "special_modified_bessel_i1.default": SpecialI1Op,
+            "special_modified_bessel_i1.out": SpecialI1Op,
+            "special_erfcx.default": SpecialErfcxOp,
+            "special_erfcx.out": SpecialErfcxOp,
+            "special_ndtr.default": SpecialNdtrOp,
+            "special_ndtr.out": SpecialNdtrOp,
+            "special_log_ndtr.default": SpecialLogNdtrOp,
+            "special_log_ndtr.out": SpecialLogNdtrOp,
+            "special_ndtri.default": SpecialNdtriOp,
+            "special_ndtri.out": SpecialNdtriOp,
+            "special_spherical_bessel_j0.default": SpecialSphericalBesselJ0Op,
+            "special_spherical_bessel_j0.out": SpecialSphericalBesselJ0Op,
             # Cumulative operations
             "cummax.default": CummaxOp,
             "cummin.default": CumminOp,
@@ -314,6 +433,9 @@ class DynamoCompiler:
             # Additional elementwise operations
             "hypot.default": HypotOp,
             "copysign.Tensor": CopysignOp,
+            "copysign.Scalar": CopysignOp,
+            "copysign.Scalar_out": CopysignOp,
+            "copysign_.Scalar": CopysignOp,
             "nextafter.default": NextafterOp,
             "masked_scatter.default": MaskedScatterOp,
             "rev.default": RevOp,
@@ -339,11 +461,14 @@ class DynamoCompiler:
             # Other operations
             "fill.Scalar": FillScalarOp,
             "diagonal.default": DiagonalOp,
+            "diagonal_scatter.default": DiagonalScatterOp,
+            "diagonal_scatter.out": DiagonalScatterOp,
             "alias.default": AliasOp,
             "empty.memory_format": EmptyOp,
             "rand.default": RandOp,
             "randn.default": RandnOp,
             "select_scatter.default": SelectScatterOp,
+            "select_scatter.out": SelectScatterOp,
             "split_with_sizes.default": SplitWithSizesOp,
             "max.dim": MaxDimOp,
             "nonzero.default": NonzeroOp,
@@ -370,6 +495,17 @@ class DynamoCompiler:
             "bitwise_and.Scalar": BitwiseAndScalarOp,
             "bitwise_or.Scalar": BitwiseOrScalarOp,
             "bitwise_xor.Scalar": BitwiseXorScalarOp,
+            "bitwise_and.Scalar_Tensor_out": BitwiseAndTensorOp,
+            "bitwise_and_.Tensor": BitwiseAndTensorOp,
+            "bitwise_and_.Scalar": BitwiseAndScalarOp,
+            "bitwise_or_.Tensor": BitwiseOrOp,
+            "bitwise_or_.Scalar": BitwiseOrScalarOp,
+            "bitwise_xor_.Tensor": BitwiseXorOp,
+            "bitwise_xor_.Scalar": BitwiseXorScalarOp,
+            "bitwise_left_shift_.Tensor": BitwiseLeftShiftOp,
+            "bitwise_left_shift_.Tensor_Scalar": BitwiseLeftShiftOp,
+            "bitwise_right_shift_.Tensor": BitwiseRightShiftOp,
+            "bitwise_right_shift_.Tensor_Scalar": BitwiseRightShiftOp,
             # Padding operations
             "reflection_pad1d.default": ReflectionPad1dOp,
             "reflection_pad2d.default": ReflectionPad2dOp,
@@ -596,14 +732,28 @@ class DynamoCompiler:
                     if "_tensor_constant" in gm_node.name:
                         import re
 
-                        stack_trace = gm_node.meta.get("stack_trace")
+                        stack_trace = gm_node.meta.get("stack_trace") or ""
                         match = re.search(
                             r"torch\.tensor\(([-+]?\d+(\.\d+)?), dtype=[a-zA-Z]+\)",
                             stack_trace,
                         )
-                        if not match:
-                            assert False
-                        value = float(match.group(1))
+                        value = None
+                        if match:
+                            value = float(match.group(1))
+                        if value is None:
+                            val = gm_node.meta.get("val")
+                            if isinstance(val, torch.Tensor):
+                                if val.numel() != 1:
+                                    raise NotImplementedError(
+                                        "_tensor_constant only supports scalar tensors"
+                                    )
+                                value = val.item()
+                            elif isinstance(val, (int, float)):
+                                value = val
+                        if value is None:
+                            raise NotImplementedError(
+                                "Unsupported _tensor_constant format"
+                            )
                         gm_node.insert_arg(len(gm_node.args), value)
                         val = gm_node.meta.get("val")
                         node_shape = val.shape
@@ -623,14 +773,63 @@ class DynamoCompiler:
                     # num_returns = len(gm_node.target._schema.returns)
                     num_returns = (
                         len(val)
-                        if isinstance(val, list)
+                        if isinstance(val, (list, tuple))
                         else len(gm_node.target._schema.returns)
                     )
                     if num_returns == 1:
-                        node_dtype = self._torch_dtype_translate(
-                            str(tensor_meta.dtype)
-                        )
-                        node_shape = tensor_meta.shape
+                        if tensor_meta is None:
+                            if isinstance(val, torch.Tensor):
+                                node_dtype = self._torch_dtype_translate(
+                                    str(val.dtype)
+                                )
+                                node_shape = val.shape
+                            elif str(gm_node.target) == "aten.unbind.int":
+                                input_node = gm_node.args[0]
+                                dim = (
+                                    gm_node.args[1]
+                                    if len(gm_node.args) > 1
+                                    else 0
+                                )
+                                input_meta = input_node.meta.get("tensor_meta")
+                                input_val = input_node.meta.get("val")
+                                if input_meta is None:
+                                    if not isinstance(input_val, torch.Tensor):
+                                        raise RuntimeError(
+                                            "Missing input meta for aten.unbind.int"
+                                        )
+                                    input_shape = list(input_val.shape)
+                                    input_dtype = input_val.dtype
+                                else:
+                                    input_shape = list(input_meta.shape)
+                                    input_dtype = input_meta.dtype
+                                if dim < 0:
+                                    dim += len(input_shape)
+                                length = input_shape[dim]
+                                if length < 0:
+                                    raise RuntimeError(
+                                        "Dynamic unbind dimension not supported"
+                                    )
+                                out_shape = tuple(
+                                    input_shape[:dim] + input_shape[dim + 1 :]
+                                )
+                                node_shape = tuple([out_shape] * length)
+                                node_dtype = tuple(
+                                    [
+                                        self._torch_dtype_translate(
+                                            str(input_dtype)
+                                        )
+                                    ]
+                                    * length
+                                )
+                            else:
+                                raise RuntimeError(
+                                    f"Missing tensor_meta for {gm_node.target}"
+                                )
+                        else:
+                            node_dtype = self._torch_dtype_translate(
+                                str(tensor_meta.dtype)
+                            )
+                            node_shape = tensor_meta.shape
                     elif num_returns > 1:
                         node_dtype = tuple(
                             [
