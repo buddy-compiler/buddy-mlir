@@ -217,23 +217,6 @@ if(BUDDY_MLIR_ENABLE_RISCV_GNU_TOOLCHAIN)
 endif()
 
 #-------------------------------------------------------------------------------
-# Initialize Python packages
-#-------------------------------------------------------------------------------
-if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
-  # Find the Python interpreter and development components,
-  # requiring a minimum version of 3.10
-  find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter Development)
-  # Create directories for the BUDDY-MLIR Python packages
-  file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy)
-  file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler)
-  # Create empty __init__.py files to make these directories Python packages
-  file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/__init__.py "")
-  file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/__init__.py "")
-
-  install(DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy DESTINATION python_packages)
-endif()
-
-#-------------------------------------------------------------------------------
 # Directory setup
 #-------------------------------------------------------------------------------
 
