@@ -19,7 +19,7 @@
 # ===---------------------------------------------------------------------------
 
 from typing import Dict
-import mlir.ir as ir
+import buddy_mlir.ir as ir
 
 from ..graph import TensorDType
 
