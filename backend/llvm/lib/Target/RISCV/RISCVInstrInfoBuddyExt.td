@@ -240,6 +240,134 @@ def IME_VFMADOT : RVInstIME<0b1110101, 0b000,
   let Constraints = "$vd = $vd_in";
 }
 
+//===----------------------------------------------------------------------===//
+// IME Sliding-Window Instructions
+//===----------------------------------------------------------------------===//
+
+// Integer slide-1 instructions
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT1 : RVInstIME<0b1110010, 0b000,
+                            (outs VRM4:$vd),
+                            (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                            "vmadot1", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT1U : RVInstIME<0b1110010, 0b011,
+                             (outs VRM4:$vd),
+                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                             "vmadot1u", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT1SU : RVInstIME<0b1110010, 0b001,
+                              (outs VRM4:$vd),
+                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                              "vmadot1su", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT1US : RVInstIME<0b1110010, 0b010,
+                              (outs VRM4:$vd),
+                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                              "vmadot1us", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+// Integer slide-2 instructions
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT2 : RVInstIME<0b1110011, 0b000,
+                            (outs VRM4:$vd),
+                            (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                            "vmadot2", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT2U : RVInstIME<0b1110011, 0b011,
+                             (outs VRM4:$vd),
+                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                             "vmadot2u", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT2SU : RVInstIME<0b1110011, 0b001,
+                              (outs VRM4:$vd),
+                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                              "vmadot2su", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT2US : RVInstIME<0b1110011, 0b010,
+                              (outs VRM4:$vd),
+                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                              "vmadot2us", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+// Integer slide-3 instructions
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT3 : RVInstIME<0b1110100, 0b000,
+                            (outs VRM4:$vd),
+                            (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                            "vmadot3", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT3U : RVInstIME<0b1110100, 0b011,
+                             (outs VRM4:$vd),
+                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                             "vmadot3u", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT3SU : RVInstIME<0b1110100, 0b001,
+                              (outs VRM4:$vd),
+                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                              "vmadot3su", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT3US : RVInstIME<0b1110100, 0b010,
+                              (outs VRM4:$vd),
+                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                              "vmadot3us", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+// Floating-point slide instructions
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VFMADOT1 : RVInstIME<0b1110110, 0b000,
+                             (outs VRM4:$vd),
+                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                             "vfmadot1", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VFMADOT2 : RVInstIME<0b1110111, 0b000,
+                             (outs VRM4:$vd),
+                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                             "vfmadot2", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VFMADOT3 : RVInstIME<0b1111000, 0b000,
+                             (outs VRM4:$vd),
+                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
+                             "vfmadot3", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
 let Predicates = [HasBuddyExt] in 
 def : Pat<(int_riscv_mvin GPR:$rs1, GPR:$rs2), (MVIN GPR:$rs1, GPR:$rs2)>;
 
@@ -342,4 +470,161 @@ let Predicates = [HasBuddyExt] in {
 let Predicates = [HasBuddyExt] in {
   def : Pat<(nxv16f16 (int_riscv_ime_vfmadot nxv16f16:$vd, nxv16f16:$vs1, nxv16f16:$vs2)),
             (IME_VFMADOT VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot1 nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT1 VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot1u nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT1U VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot1su nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT1SU VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot1us nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT1US VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot2 nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT2 VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot2u nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT2U VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot2su nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT2SU VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot2us nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT2US VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot3 nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT3 VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot3u nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT3U VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot3su nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT3SU VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot3us nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT3US VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv16f16 (int_riscv_ime_vfmadot1 nxv16f16:$vd, nxv32f16:$vs1, nxv16f16:$vs2)),
+            (IME_VFMADOT1 VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv16f16 (int_riscv_ime_vfmadot2 nxv16f16:$vd, nxv32f16:$vs1, nxv16f16:$vs2)),
+            (IME_VFMADOT2 VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv16f16 (int_riscv_ime_vfmadot3 nxv16f16:$vd, nxv32f16:$vs1, nxv16f16:$vs2)),
+            (IME_VFMADOT3 VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
+}
+
+class RVInstIMEN<bits<7> funct7, bits<3> funct3, dag outs, dag ins,
+                 string opcodestr, string argstr>
+    : RVInst<outs, ins, opcodestr, argstr, [], InstFormatR> {
+  bits<5> vs2;
+  bits<5> rs1;  // GPR for dynamic slide value
+  bits<5> vd;
+
+  let Inst{31-25} = funct7;
+  let Inst{24-20} = vs2;
+  let Inst{19-15} = rs1;
+  let Inst{14-12} = funct3;
+  let Inst{11-7} = vd;
+  let Inst{6-0} = OPC_CUSTOM_1.Value;
+
+  let Uses = [VTYPE, VL];
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTN : RVInstIMEN<0b1111001, 0b000,
+                             (outs VRM4:$vd),
+                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
+                             "vmadotn", "$vd, $vs1, $vs2, $rs1"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTNU : RVInstIMEN<0b1111001, 0b011,
+                              (outs VRM4:$vd),
+                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
+                              "vmadotnu", "$vd, $vs1, $vs2, $rs1"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTNSU : RVInstIMEN<0b1111001, 0b001,
+                               (outs VRM4:$vd),
+                               (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
+                               "vmadotnsu", "$vd, $vs1, $vs2, $rs1"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTNUS : RVInstIMEN<0b1111001, 0b010,
+                               (outs VRM4:$vd),
+                               (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
+                               "vmadotnus", "$vd, $vs1, $vs2, $rs1"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VFMADOTN : RVInstIMEN<0b1111010, 0b000,
+                              (outs VRM4:$vd),
+                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
+                              "vfmadotn", "$vd, $vs1, $vs2, $rs1"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadotn nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2, GPR:$rs1)),
+            (IME_VMADOTN VRM4:$vd, VRM8:$vs1, VRM4:$vs2, GPR:$rs1)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadotnu nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2, GPR:$rs1)),
+            (IME_VMADOTNU VRM4:$vd, VRM8:$vs1, VRM4:$vs2, GPR:$rs1)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadotnsu nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2, GPR:$rs1)),
+            (IME_VMADOTNSU VRM4:$vd, VRM8:$vs1, VRM4:$vs2, GPR:$rs1)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadotnus nxv8i32:$vd, nxv64i8:$vs1, nxv32i8:$vs2, GPR:$rs1)),
+            (IME_VMADOTNUS VRM4:$vd, VRM8:$vs1, VRM4:$vs2, GPR:$rs1)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv16f16 (int_riscv_ime_vfmadotn nxv16f16:$vd, nxv32f16:$vs1, nxv16f16:$vs2, GPR:$rs1)),
+            (IME_VFMADOTN VRM4:$vd, VRM8:$vs1, VRM4:$vs2, GPR:$rs1)>;
 }
