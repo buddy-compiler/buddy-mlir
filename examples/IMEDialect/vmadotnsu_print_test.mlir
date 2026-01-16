@@ -26,7 +26,7 @@ memref.global "private" @matA : memref<8x8xi8> = dense<[
 ]>
 
 // Packed B (4x8): all ones (unsigned)
-memref.global "private" @matB : memref<4x8xi8> = dense<[
+memref.global "private" @matB : memref<4x8xui8> = dense<[
   [1, 1, 1, 1, 1, 1, 1, 1],
   [1, 1, 1, 1, 1, 1, 1, 1],
   [1, 1, 1, 1, 1, 1, 1, 1],
@@ -40,7 +40,7 @@ func.func private @print_header()
 
 func.func @main() -> i32 {
   %a = memref.get_global @matA : memref<8x8xi8>
-  %b = memref.get_global @matB : memref<4x8xi8>
+  %b = memref.get_global @matB : memref<4x8xui8>
   
   %c = memref.alloc() : memref<4x4xi32>
   
@@ -52,7 +52,7 @@ func.func @main() -> i32 {
   %slide = arith.constant 1 : i64
   
   // Perform vmadotnsu with slide=1
-  ime.vmadotnsu %c, %a, %b, %slide : memref<4x4xi32>, memref<8x8xi8>, memref<4x8xi8>
+  ime.vmadotnsu %c, %a, %b, %slide : memref<4x4xi32>, memref<8x8xi8>, memref<4x8xui8>
   
   // Print results
   call @print_header() : () -> ()

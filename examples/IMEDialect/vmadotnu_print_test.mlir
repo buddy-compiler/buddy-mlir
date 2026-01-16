@@ -14,7 +14,7 @@
 // Row 4 = [5,6,7,8,9,10,11,12], sum = 68
 // Row 5 = [6,7,8,9,10,11,12,13], sum = 76
 
-memref.global "private" @matA : memref<8x8xi8> = dense<[
+memref.global "private" @matA : memref<8x8xui8> = dense<[
   [1, 2, 3, 4, 5, 6, 7, 8],
   [2, 3, 4, 5, 6, 7, 8, 9],
   [3, 4, 5, 6, 7, 8, 9, 10],
@@ -26,7 +26,7 @@ memref.global "private" @matA : memref<8x8xi8> = dense<[
 ]>
 
 // Packed B (4x8): all ones for easy verification
-memref.global "private" @matB : memref<4x8xi8> = dense<[
+memref.global "private" @matB : memref<4x8xui8> = dense<[
   [1, 1, 1, 1, 1, 1, 1, 1],
   [1, 1, 1, 1, 1, 1, 1, 1],
   [1, 1, 1, 1, 1, 1, 1, 1],
@@ -39,8 +39,8 @@ func.func private @print_row(i32, i32, i32, i32, i32)
 func.func private @print_header()
 
 func.func @main() -> i32 {
-  %a = memref.get_global @matA : memref<8x8xi8>
-  %b = memref.get_global @matB : memref<4x8xi8>
+  %a = memref.get_global @matA : memref<8x8xui8>
+  %b = memref.get_global @matB : memref<4x8xui8>
   
   %c = memref.alloc() : memref<4x4xi32>
   
@@ -52,7 +52,7 @@ func.func @main() -> i32 {
   %slide = arith.constant 2 : i64
   
   // Perform vmadotnu with slide=2
-  ime.vmadotnu %c, %a, %b, %slide : memref<4x4xi32>, memref<8x8xi8>, memref<4x8xi8>
+  ime.vmadotnu %c, %a, %b, %slide : memref<4x4xi32>, memref<8x8xui8>, memref<4x8xui8>
   
   // Print results
   call @print_header() : () -> ()
