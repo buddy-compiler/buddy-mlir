@@ -26,6 +26,9 @@ class Quantized(QuantizationState):
 class Quantizable(QuantizationState):
     axis: int = None
     callback: Callable | None = None
+    # TODO: Currently we assume that having an op that sets
+    # the quantization axis is sufficient reason for
+    # quantization. But this should be detached.
 
     def __init__(
             self,
@@ -218,8 +221,6 @@ def prod(*lists):
 
 def mask_guard_factory(
         op_type: type,
-        quantization_mask: list[type],
-        #quant_state_on_success: QuantizationState
 ):
     """
     This factory creates a custom decorator for each node quantization function based on the op type
@@ -227,53 +228,32 @@ def mask_guard_factory(
 
     It also adds the function the `QuantizationFunctionRegistry`, which automatically dispatches
     op quantizations to supported node types and quantitation masks.
-
-    TODO: This should also allow declaring the QuantizationState of the result
     """
     def mask_guard(fn: Callable[[Op, QuantizationContext], None | QuantizationState]):
         def guarded_fn(op: Op, context: QuantizationContext) -> None | QuantizationState:
             assert isinstance(op, op_type)
-            assert len(quantization_mask) == len(op._parents), "Op should have as many arguments as quantization mask entries."
-            assert all([
-                    isinstance(context.quantization_table[parent], quantization_state)
-                    for (parent, quantization_state) in zip(op._parents, quantization_mask)
-                ]), \
-                "Op argument quantization should match quantization mask."
             return fn(op, context)
 
-        operand_masks = []
-        for mask in quantization_mask:
-            if mask == Quantizable:
-                operand_masks.append(["q"])
-            if mask == Unquantized:
-                operand_masks.append(["u"])
-            if mask == All:
-                operand_masks.append(["q", "u"])
-            
-        compatible_mask_strs = prod(*operand_masks)
 
-        # Register function in `QuantizationFunctionRegistry`
-        for compatible_mask in compatible_mask_strs:
-            # TODO: check that we are not inserting duplicates.
-            QuantizationFunctionRegistry.setdefault(op_type, {})[compatible_mask] = guarded_fn
-
-        # TODO: Maybe we should delete this function from user space by not returning
-        return guarded_fn
+        assert op_type not in QuantizationFunctionRegistry.keys(), f"Only one quantization function should be declared per operation ({op_type} has two)"
+        QuantizationFunctionRegistry[op_type] = guarded_fn
+        # Delete this function from user name space by not returning it.
     
     return mask_guard
 
-# All quantization functions take their target op, and the QuantizationContext
-# as their inputs, and return True or False based on the success of the operation.
-# ** if False is returned, the method SHOULD NOT MODIFY the graph.
-#
-# These methods should only be called by `dispatch_op_quantization`, and thus their signature
-# should be fixed to Callable[[Op, QuantizationContext], bool]. The enforcement of the input op
-# type and the quantization mask happens in the `mask_guard_factory`.
+"""
+All op should have 2 quantization functions:
+1. _quantize_{op}: This is used to determine IF the operation CAN be quantized
+    That is, they take an op, with state markers like `Quantizable` or `Unquantized`
+    and decide if the op can be quantized. They might also enforce that the operations they
+    need quantized WILL be quantized.
 
-@mask_guard_factory(op_type=ViewOp, quantization_mask=[
-    Quantizable,
-])
-def _quantize_view_q(op: Op, context: QuantizationContext) -> None | QuantizationState:
+2. _rewrite_{op}: A callback, that `_quantize_op` wraps up with the chosen quantization state.
+    This op is is purely responsible for rewriting the operation
+"""
+
+@mask_guard_factory(op_type=ViewOp)
+def _quantize_view(op: Op, context: QuantizationContext) -> None | QuantizationState:
     """
     Quantizing the view op of a quantized input.
 
@@ -284,7 +264,7 @@ def _quantize_view_q(op: Op, context: QuantizationContext) -> None | Quantizatio
     """
     return None
 
-def _rewrite_permute_q(node: Op, context: QuantizationContext) -> None:
+def _rewrite_permute(node: Op, context: QuantizationContext) -> None:
     parent_name = node._parents[0]
     permute_dims: list[int] = node.args[1]
 
@@ -302,10 +282,8 @@ def _rewrite_permute_q(node: Op, context: QuantizationContext) -> None:
     
     context.graph.add_node(permute_scaler)
 
-@mask_guard_factory(op_type=PermuteOp, quantization_mask=[
-    Quantizable
-])
-def _quantize_permute_q(node: Op, context: QuantizationContext) -> None | QuantizationState:
+@mask_guard_factory(op_type=PermuteOp)
+def _quantize_permute(node: Op, context: QuantizationContext) -> None | QuantizationState:
     """
     Quantizing the permute op of a quantized tensor.
 
@@ -318,9 +296,9 @@ def _quantize_permute_q(node: Op, context: QuantizationContext) -> None | Quanti
 
     # If the previous node had its quantization axis set, we can define quantization by axis.
     if (axis := context.quantization_table[parent_name].axis):
-        return Quantizable(axis=permute_dims.index(axis), rewrite=_rewrite_permute_q)
+        return Quantizable(axis=permute_dims.index(axis), rewrite=_rewrite_permute)
     # If not, we define quantization with callback, so that if an axis is determined, we can propagate that back
-    return Quantizable(callback=lambda a: context.quantization_table[parent_name].set_axis(permute_dims[a]), rewrite=_rewrite_permute_q)
+    return Quantizable(callback=lambda a: context.quantization_table[parent_name].set_axis(permute_dims[a]), rewrite=_rewrite_permute)
 
 def _rewrite_matmul(node: Op, context: QuantizationContext) -> None:
 
@@ -356,17 +334,8 @@ def _rewrite_matmul(node: Op, context: QuantizationContext) -> None:
 
     node._children = [op_chain[1].name]
 
-@mask_guard_factory(op_type=MatmulOp, quantization_mask=[
-    All, All
-])
-def _quantize_matmul_aa(node: Op, context: QuantizationContext) -> None | QuantizationState:
-    """
-        This method replaces the pattern
-        (mm arg1:unquantized, arg2:quantized)
-        with
-        (mul (mm arg1, arg2), scaler_arg2)
-    """
-
+@mask_guard_factory(op_type=MatmulOp)
+def _quantize_matmul(node: Op, context: QuantizationContext) -> None | QuantizationState:
     quantizable = False
 
     if isinstance((state := context.quantization_table[node._parents[0]]), Quantizable):
@@ -442,10 +411,8 @@ def _rewrite_addmm(node: Op, context: QuantizationContext) -> None:
     node._children = []
     context.graph.delete_node(node, [])
 
-@mask_guard_factory(op_type=AddMMOp, quantization_mask=[
-    All, All, All
-])
-def _quantize_addmm_aaa(node: Op, context: QuantizationContext) -> None | QuantizationState:
+@mask_guard_factory(op_type=AddMMOp)
+def _quantize_addmm(node: Op, context: QuantizationContext) -> None | QuantizationState:
     """
     Convert the dag
     (addmm arg1:u, arg2:u, arg3:q)
@@ -468,9 +435,7 @@ def _quantize_addmm_aaa(node: Op, context: QuantizationContext) -> None | Quanti
 
     return None
 
-@mask_guard_factory(op_type=BatchMatmulOp, quantization_mask=[
-    All, All    
-])
+@mask_guard_factory(op_type=BatchMatmulOp)
 def _quantize_batchmatmul(node: Op, context: QuantizationContext) -> None | QuantizationState:
 
     quantizable = False
@@ -547,9 +512,7 @@ def _rewrite_baddbmm(node: Op, context: QuantizationContext):
     context.graph.replace_as_parent(node._children, node, add_op)
 
         
-@mask_guard_factory(op_type=BaddbmmOp, quantization_mask=[
-    All, All, All,
-])
+@mask_guard_factory(op_type=BaddbmmOp)
 def _quantize_baddbmm(node: Op, context: QuantizationContext):
     
     quantizable = False
@@ -588,8 +551,8 @@ def get_op_mask(op: Op, context: QuantizationContext) -> str:
 def dispatch_op_quantization(op: Op, context: QuantizationContext) -> None | QuantizationState:
     """
     Function for finding a `_quantize` function for `op`. If a suitable
-    function is found, it is called, otherwise `False` is returned to
-    signal the failure of quantizing the operation.
+    function is found, it is called, otherwise `None` is returned to
+    signal that the operation will not be changed by the quantization pass
     
     Args:
         op (Op): Op to find quantization for.
@@ -598,9 +561,8 @@ def dispatch_op_quantization(op: Op, context: QuantizationContext) -> None | Qua
     Returns:
         bool: whether quantizing the op was successful.
     """
-    mask = get_op_mask(op, context)
     try:
-        return QuantizationFunctionRegistry[type(op)][mask](op, context)
+        return QuantizationFunctionRegistry[type(op)](op, context)
     except KeyError:
         return None
 
@@ -722,6 +684,9 @@ def quantise_graph(
         target_dtype=target_dtype,
     )
 
+    # This pass is responsible for determining
+    # a) which operations CAN be quantized,
+    # b) which operations SHOULD be quantized.
     evaluator_pass = Pass(
         processor=quantize_node,
         context=context,
