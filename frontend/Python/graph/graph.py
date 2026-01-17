@@ -321,7 +321,9 @@ class Graph:
 
         for child_name in child_ops:
             child_op = self.node_table[child_name]
-            child_op._parents[child_op._parents.index(parent_name)] = new_parent_name
+
+            if parent_name in child_op._parents:
+                child_op._parents[child_op._parents.index(parent_name)] = new_parent_name
 
             if parent_name in child_op._arguments:
                 child_op._arguments[child_op._arguments.index(parent_name)] = new_parent_name
