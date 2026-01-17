@@ -6,53 +6,65 @@ from ..type import TensorDType
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Callable
+from typing import Callable, TypeVar
 from itertools import product
+from abc import ABC, abstractmethod
 
 import torch
 
 class QuantizationState:
     pass
 
-# Convenience shorthand for mask type definitions
-All = QuantizationState
+class QuantizationConstraint(ABC):
+    
+    @abstractmethod
+    def check(self, other: "QuantizationConstraint") -> bool:
+        """
+        Check if `other` is compatible with `self`.
+        """
+        pass
+
+class Rewritable:
+    rewrite: Callable[[Op, "QuantizationContext"], None]
+
+    def set_rewrite(self, rewrite: Callable[[Op, "QuantizationContext"], None]):
+        self.rewrite = rewrite
+
 
 class Quantized(QuantizationState):
     axis: int
+    quantization_constraint: QuantizationConstraint
 
     def __init__(self, axis):
         self.axis = axis
 
-class Quantizable(QuantizationState):
-    axis: int = None
+class Quantizable(QuantizationState, Rewritable):
     callback: Callable | None = None
-    # TODO: Currently we assume that having an op that sets
-    # the quantization axis is sufficient reason for
-    # quantization. But this should be detached.
+    constraint: QuantizationConstraint
 
     def __init__(
             self,
             rewrite: Callable[[], None],
-            axis: int | None = None,
+            constraint: QuantizationConstraint | None = None,
             callback: Callable[[int], None] | None = None,
         ):
-        if axis:
-            self.axis = axis
+        if constraint:
+            self.constraint = [constraint]
             if callback:
-                callback(self.axis)
+                callback(self.constraint)
         
         self.callback = callback
-        self.rewrite = rewrite
+        self.set_rewrite(rewrite)
 
-    def set_axis(self, axis: int):
-        assert self.axis is None, "Axis cannot be set twice on the same Quantized."
+    def set_constraint(self, constraint: QuantizationConstraint):
+        assert self.constraint is None, "Axis cannot be set twice on the same Quantized."
 
-        self.axis = axis
+        self.constraint = constraint
 
         if self.callback:
-            self.callback(self.axis)
+            self.callback(self.constraint)
 
-    def check_axis(self, axis: int) -> bool:
+    def check_constraint(self, constraint: QuantizationConstraint) -> bool:
         """
         Check if the quantization of the tensor is compatible
         with the given axis.
@@ -68,30 +80,27 @@ class Quantizable(QuantizationState):
             bool: Whether the quantization is compatible.
         """
 
-        if self.axis is None:
-            self.set_axis(axis=axis)
+        if self.constraint is None:
+            self.set_constraint(constraint=constraint)
             return True
 
-        return self.axis == axis
+        return self.constraint.check(constraint)
     
 class Unquantized(QuantizationState):
     pass
 
 # TODO: this might need a better name.
-class Consumer(Unquantized):
+class Consumer(Unquantized, Rewritable):
     """
     Nodes marked consumer are operations, that have `Unquantized` output,
     but do need to be changed, as one or more of their inputs is quantized.
     """
-    rewriter: Callable[[], None] | None = None
 
     def __init__(self, rewrite: Callable[[], None]):
-        self.rewrite = rewrite
+        self.set_rewrite(rewrite)
 
-
-class QuantizationMode(Enum):
-    WOTensorWise = auto() # adds a single scaler per tensor
-    WOChannelWise = auto() # adds a scaler each channel of the tensor.
+class QuantizationMethod(ABC):
+    pass
 
 class QuantizationContext:
     """
@@ -106,17 +115,17 @@ class QuantizationContext:
     """
     graph: Graph
     quantization_table: dict[str, QuantizationState]
-    quantization_mode: QuantizationMode
+    quantization_method: QuantizationMethod
     target_dtype: TensorDType
 
     def __init__(
             self,
             graph: Graph,
-            quantization_mode: QuantizationMode,
+            quantization_method: QuantizationMethod,
             target_dtype: TensorDType,
 ):
         self.graph = graph
-        self.quantization_mode = quantization_mode
+        self.quantization_method = quantization_method
         self.target_dtype = target_dtype
         self.quantization_table = {}
 
@@ -171,75 +180,43 @@ class Pass:
             self.processed.append(node_name)
             self.check_ready_children(node)
 
+class MethodRegistry(dict[OpType, Callable[[Op, QuantizationContext], None | QuantizationState]]):
+    dequantizer: Callable[[Op, QuantizationContext], Op] = None
 
-QuantizationFunctionRegistry: dict[type, dict[str, Callable[[Op, QuantizationContext], None | QuantizationState]]] = {}
+# quantizationmethod -> op
+MethodType = TypeVar("Method", bound=QuantizationMethod)
+OpType = TypeVar("OpType", bound=Op)
+QuantizationFunctionRegistry: dict[MethodType, MethodRegistry] = {}
 
-# ----
-# Quantization methods.
-# ----
+def validate_registry():
+    for method, method_registry in QuantizationFunctionRegistry.items():
+        assert method_registry.dequantizer is not None, f"Each quantization method must register a dequantization function ({method})"
 
-def get_dequantized(node: Op, context: QuantizationContext) -> MulOp:
-    """
-    Return a dequantized version of `node`.
-
-    Args:
-        node (Op): Node to dequantize
-        context (QuantizationContext): Quantization context.
-    
-    Returns:
-        Op: dequantized node.
-    """
-
-    node_name = node.name
-    dequantized_name = "dequantized_" + node_name 
-
-    try:
-        return context.graph.node_table[dequantized_name]
-    except KeyError:
-        pass
-
-    scaler_name = "scaler_" + node_name
-
-    assert scaler_name in context.graph.node_table.keys(), f"Dequantization constant should exist for {node_name}."
-
-    scaler_node = context.graph.node_table[scaler_name]
-
-    mul_op = MulOp()
-    mul_op._name = dequantized_name
-    mul_op._arguments = \
-    mul_op._parents = [node_name, scaler_name]
-    mul_op._tensor_meta["shape"] = node.tensor_meta["shape"]
-    mul_op._tensor_meta["dtype"] = scaler_node.tensor_meta["dtype"]
-    
-    node._children.append(mul_op)
-
-    return mul_op
-
-
-def prod(*lists):
-    return [''.join(p) for p in product(*lists)]
-
-def mask_guard_factory(
-        op_type: type,
-):
-    """
-    This factory creates a custom decorator for each node quantization function based on the op type
-    they process, and the quantization mask they accept.
-
-    It also adds the function the `QuantizationFunctionRegistry`, which automatically dispatches
-    op quantizations to supported node types and quantitation masks.
-    """
-    def mask_guard(fn: Callable[[Op, QuantizationContext], None | QuantizationState]):
+def register_quantizer(quantization_method: MethodType, op_type: OpType):
+    def guard(fn: Callable[[Op, QuantizationContext], None | QuantizationState]):
         def guarded_fn(op: Op, context: QuantizationContext) -> None | QuantizationState:
             assert isinstance(op, op_type)
+            assert isinstance(context.quantization_method, quantization_method)
             return fn(op, context)
 
 
         assert op_type not in QuantizationFunctionRegistry.keys(), f"Only one quantization function should be declared per operation ({op_type} has two)"
-        QuantizationFunctionRegistry[op_type] = guarded_fn
+        QuantizationFunctionRegistry.setdefault(quantization_method, MethodRegistry())[op_type] = guarded_fn
         # Delete this function from user name space by not returning it.
     
-    return mask_guard
+    return guard
+
+def register_dequantizer(quantization_method: MethodType):
+    def guard(fn: Callable[[Op, QuantizationContext], None | QuantizationState]):
+        def guarded_fn(op: Op, context: QuantizationContext) -> None | QuantizationState:
+            assert isinstance(context.quantization_method, quantization_method)
+            return fn(op, context)
+
+
+        assert QuantizationFunctionRegistry.setdefault(quantization_method, MethodRegistry()).dequantizer is None, f"Only one dequantizer is allowed per quantization method ({quantization_method})"
+        QuantizationFunctionRegistry.setdefault(quantization_method, MethodRegistry()).dequantizer = guarded_fn
+        # Delete this function from user name space by not returning it.
+    return guard
 
 """
 All op should have 2 quantization functions:
@@ -252,283 +229,6 @@ All op should have 2 quantization functions:
     This op is is purely responsible for rewriting the operation
 """
 
-@mask_guard_factory(op_type=ViewOp)
-def _quantize_view(op: Op, context: QuantizationContext) -> None | QuantizationState:
-    """
-    Quantizing the view op of a quantized input.
-
-    - In WOTensorWise mode, we reuse the scaler from the parent node.
-    - In WOChannelWise in general there is no way to quantize the result. In can be done
-        if the view is only eliminating axes, or other similar operations, but for now 
-        we don't support it.
-    """
-    return None
-
-def _rewrite_permute(node: Op, context: QuantizationContext) -> None:
-    parent_name = node._parents[0]
-    permute_dims: list[int] = node.args[1]
-
-    parent_scaler_name = "scaler_" + parent_name
-    parent_scaler_op = context.graph.node_table[parent_scaler_name]
-
-    op_scaler_name = "scaler_" + node._name
-    permute_scaler = PermuteOp()
-    permute_scaler._name = op_scaler_name
-    permute_scaler._tensor_meta["dtype"] = parent_scaler_op.tensor_meta["dtype"]
-    permute_scaler._tensor_meta["shape"] = [parent_scaler_op._tensor_meta["shape"][i] for i in permute_dims]
-    permute_scaler._arguments = [parent_scaler_name, permute_dims]
-    permute_scaler._parents = [parent_scaler_name]
-    parent_scaler_op._children.append(op_scaler_name)
-    
-    context.graph.add_node(permute_scaler)
-
-@mask_guard_factory(op_type=PermuteOp)
-def _quantize_permute(node: Op, context: QuantizationContext) -> None | QuantizationState:
-    """
-    Quantizing the permute op of a quantized tensor.
-
-    - In WOTensorWise mode, we reuse the scaler from the parent node.
-    - In WOChannelWise mode, the result will have a new quantization axis.
-    """
-    
-    parent_name = node._parents[0]
-    permute_dims: list[int] = node.args[1]
-
-    # If the previous node had its quantization axis set, we can define quantization by axis.
-    if (axis := context.quantization_table[parent_name].axis):
-        return Quantizable(axis=permute_dims.index(axis), rewrite=_rewrite_permute)
-    # If not, we define quantization with callback, so that if an axis is determined, we can propagate that back
-    return Quantizable(callback=lambda a: context.quantization_table[parent_name].set_axis(permute_dims[a]), rewrite=_rewrite_permute)
-
-def _rewrite_matmul(node: Op, context: QuantizationContext) -> None:
-
-    node_name = node.name
-    op_chain = [node]
-
-    for i, parent_name in enumerate(node._parents, 1):
-        if isinstance(context.quantization_table[parent_name], Quantized):
-            
-            prev_node = op_chain[-1]
-
-            parent_scaler_name = "scaler_" + parent_name
-
-            assert parent_scaler_name in context.graph.node_table.keys()
-
-            mul_op = MulOp()
-            mul_op_name = f"scale{i}_" + node_name
-            mul_op._name = mul_op_name
-            mul_op._arguments  = mul_op._parents = [parent_name, parent_scaler_name]
-            mul_op.tensor_meta["shape"] = prev_node.tensor_meta["shape"]
-            mul_op.tensor_meta["dtype"] = prev_node.tensor_meta["dtype"]
-            if len(op_chain) > 1:
-                prev_node._children.append(mul_op_name)
-
-            context.graph.add_node(mul_op)
-            op_chain.append(mul_op)
-
-    context.graph.replace_as_parent(
-        parent_op=node,
-        child_ops=node._children,
-        new_op=op_chain[-1],
-    )
-
-    node._children = [op_chain[1].name]
-
-@mask_guard_factory(op_type=MatmulOp)
-def _quantize_matmul(node: Op, context: QuantizationContext) -> None | QuantizationState:
-    quantizable = False
-
-    if isinstance((state := context.quantization_table[node._parents[0]]), Quantizable):
-        if state.check_axis(0):
-            quantizable = True
-
-    if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-        if state.check_axis(1):
-            quantizable = True
-
-    if quantizable:
-        return Consumer(rewrite=_rewrite_matmul)
-
-    return Unquantized()
-
-def _rewrite_addmm(node: Op, context: QuantizationContext) -> None:
-    node_name = node.name
-
-    mm_op = MatmulOp()
-    mm_op_name = "pre_scaled_" + node_name
-    mm_op._name = mm_op_name
-    mm_op._parents = node._parents[1:]
-    mm_op._arguments = node._parents[1:]
-    mm_op._tensor_meta = node.tensor_meta
-
-    context.graph.replace_as_child(node._parents[1:], node, mm_op)
-
-    context.graph.add_node(mm_op)
-
-    op_chain = [mm_op]
-
-    for i, parent_name in enumerate(mm_op._parents, 1):
-        if isinstance(context.quantization_table[parent_name], Quantized):
-            
-            prev_node = op_chain[-1]
-
-            parent_scaler_name = "scaler_" + parent_name
-
-            assert parent_scaler_name in context.graph.node_table.keys(), f"Scaler {parent_scaler_name} should exist."
-
-            mul_op = MulOp()
-            mul_op_name = f"scale{i}_" + node_name
-            mul_op._name = mul_op_name
-            mul_op._arguments = \
-            mul_op._parents = [parent_name, parent_scaler_name]
-            mul_op.tensor_meta["shape"] = prev_node.tensor_meta["shape"]
-            mul_op.tensor_meta["dtype"] = prev_node.tensor_meta["dtype"]
-            if len(op_chain) > 1:
-                prev_node._children.append(mul_op_name)
-
-            context.graph.add_node(mul_op)
-            op_chain.append(mul_op)
-
-    # TODO: this should check the quantization state of the bias.
-
-    add_op = AddOp()
-    add_op_name = "biased_" + node_name
-    add_op._name = add_op_name
-    add_op._arguments = \
-    add_op._parents = [op_chain[-1].name, node._parents[0]]
-    add_op._tensor_meta = node.tensor_meta
-
-    context.graph.replace_as_child([node._parents[0]], node, add_op)
-
-    add_op._children = node._children
-    op_chain[-1]._children = [add_op_name]
-
-    context.graph.replace_as_parent(node, node._children, add_op)
-
-    context.graph.add_node(add_op)
-
-    node._parents = []
-    node._children = []
-    context.graph.delete_node(node, [])
-
-@mask_guard_factory(op_type=AddMMOp)
-def _quantize_addmm(node: Op, context: QuantizationContext) -> None | QuantizationState:
-    """
-    Convert the dag
-    (addmm arg1:u, arg2:u, arg3:q)
-    to
-    (add (mul (mm arg2, arg3), scalar_arg3), arg1)
-    """
-
-    quantizable = False
-
-    if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-        if state.check_axis(0):
-            quantizable = True
-
-    if isinstance((state := context.quantization_table[node._parents[2]]), Quantizable):
-        if state.check_axis(1):
-            quantizable = True
-
-    if quantizable:
-        return Consumer(rewrite=_rewrite_addmm)
-
-    return None
-
-@mask_guard_factory(op_type=BatchMatmulOp)
-def _quantize_batchmatmul(node: Op, context: QuantizationContext) -> None | QuantizationState:
-
-    quantizable = False
-
-    if isinstance((state := context.quantization_table[node._parents[0]]), Quantizable):
-        if state.check_axis(1):
-            quantizable = True
-
-    if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-        if state.check_axis(2):
-            quantizable = True
-
-    if quantizable:
-        return Consumer(rewrite=_rewrite_matmul)
-
-    return None
-
-def _rewrite_baddbmm(node: Op, context: QuantizationContext):
-    
-    node_name = node.name
-
-    batchmatmul_op = BatchMatmulOp()
-    batchmatmul_op_name = "pre_scaled_" + node_name
-
-    batchmatmul_op._name = batchmatmul_op_name
-    batchmatmul_op._parents = node._parents[1:]
-    batchmatmul_op._tensor_meta = node.tensor_meta
-
-    context.graph.replace_as_child(node._parents[1:], node, batchmatmul_op)
-
-    op_chain = [batchmatmul_op]
-
-    for i, parent_name in enumerate(batchmatmul_op._parents, 1):
-        if isinstance(context.quantization_table[parent_name], Quantized):
-
-            prev_op = op_chain[-1]
-            prev_op_name = prev_op.name
-
-            mul_op = MulOp()
-            mul_op._name = f"scale{i}_" + node_name
-
-            scaler_name = "scaler_" + parent_name
-            assert scaler_name in context.graph.node_table.keys(), f"Scaler node `{scaler_name}` should exist."
-            scaler_node = context.graph.node_table[scaler_name]
-            mul_op._tensor_meta["shape"] = node.tensor_meta["shape"]
-            mul_op._tensor_meta["dtype"] = scaler_node["dtype"]
-
-            mul_op._parents = \
-            mul_op._arguments = [prev_op_name, scaler_name]
-            
-            if len(op_chain) > 0:
-                prev_op._children = [mul_op]
-
-            op_chain.append(mul_op)
-            context.graph.add_node(mul_op)
-
-    add_op = AddOp()
-    add_op._name = "biased_" + node_name
-    
-    bias_node_name = node._parents[0]
-    bias_node = context.graph.node_table[bias_node_name]
-
-    if isinstance(context.quantization_table[bias_node_name], Quantized):
-       bias_node = get_dequantized(bias_node)
-       bias_node_name = bias_node.name
-    
-    add_op._parents = [op_chain[-1].name, bias_node_name]
-    add_op.tensor_meta["shape"] = node.tensor_meta["shape"]
-    add_op.tensor_meta["dtype"] = context.graph.node_table[bias_node_name].tensor_meta["dtype"]
-
-    context.graph.add_node(add_op)
-
-    context.graph.replace_as_child(node._parents[0], node, add_op)
-    context.graph.replace_as_parent(node._children, node, add_op)
-
-        
-@mask_guard_factory(op_type=BaddbmmOp)
-def _quantize_baddbmm(node: Op, context: QuantizationContext):
-    
-    quantizable = False
-
-    if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-        if state.check_axis(1):
-            quantizable = True
-
-    if isinstance((state := context.quantization_table[node._parents[2]]), Quantizable):
-        if state.check_axis(2):
-            quantizable = True
-
-    if quantizable:
-        return Consumer(rewrite=_rewrite_baddbmm)
-
-    return None
 
 def dispatch_op_quantization(op: Op, context: QuantizationContext) -> None | QuantizationState:
     """
@@ -544,7 +244,7 @@ def dispatch_op_quantization(op: Op, context: QuantizationContext) -> None | Qua
         bool: whether quantizing the op was successful.
     """
     try:
-        return QuantizationFunctionRegistry[type(op)](op, context)
+        return QuantizationFunctionRegistry[type(context.quantization_method)][type(op)](op, context)
     except KeyError:
         return None
 
@@ -581,6 +281,13 @@ def rewrite_placeholder(node: Op, context: QuantizationContext) -> None:
 
     node._tensor_meta["dtype"] = context.target_dtype
     context.graph.add_node(scaler_node, node_type=NodeType.FakeNode)
+
+def get_dequantized(op: Op, context: QuantizationContext) -> Op:
+    try:
+        return QuantizationFunctionRegistry[type(context.quantization_method)].dequantizer(op, context)
+    except KeyError:
+        print("Unreachable")
+        exit(1)
 
 def rewrite_node(node: Op, context: QuantizationContext):
     node_name = node.name
@@ -620,8 +327,8 @@ def rewrite_node(node: Op, context: QuantizationContext):
 
 def quantise_graph(
         graph: Graph,
+        quantization_method: QuantizationMethod,
         target_dtype: TensorDType = TensorDType.Int8,
-        quantization_mode: QuantizationMode = QuantizationMode.WOChannelWise
 ):
     """
     TODO
@@ -631,9 +338,11 @@ def quantise_graph(
         target_dtype (TensorDType): dtype to quantize the model weights to
     """
 
+    validate_registry()
+
     context = QuantizationContext(
         graph=graph,
-        quantization_mode=quantization_mode,
+        quantization_method=quantization_method,
         target_dtype=target_dtype,
     )
 
