@@ -178,7 +178,7 @@ QuantizationFunctionRegistry: dict[type, dict[str, Callable[[Op, QuantizationCon
 # Quantization methods.
 # ----
 
-def get_dequantized(node: Op, context: QuantizationContext) -> Op:
+def get_dequantized(node: Op, context: QuantizationContext) -> MulOp:
     """
     Return a dequantized version of `node`.
 
@@ -595,11 +595,12 @@ def rewrite_node(node: Op, context: QuantizationContext):
             context.quantization_table[node_name] = Unquantized()
         return
 
+    # Consumer nodes force quantization, so they are also quantised.
     elif isinstance(node_status, Consumer):
         node_status.rewrite(node, context)
         return
 
-    # Otherwise, we check default to dequantizing all quantized parents,
+    # Otherwise, we default to dequantizing all quantized parents,
     # and leaving the original op intact.
     quantized_parent_nodes: list[tuple[int, str]] = []
 
@@ -610,26 +611,12 @@ def rewrite_node(node: Op, context: QuantizationContext):
 
     for idx, parent_name in quantized_parent_nodes:
         parent_op = context.graph.node_table[parent_name]
-        dequantize_op = MulOp()
-        dequantize_op_name = "dequantize_" + parent_op._name
-        dequantize_op._name = dequantize_op_name
-
-        parent_scaler_name = "scaler_" + parent_name
-        parent_scaler_node = context.graph.node_table[parent_scaler_name]
-
-        dequantize_op._tensor_meta = {
-            "shape" : parent_op._tensor_meta["shape"],
-            "dtype" : parent_scaler_node._tensor_meta["dtype"]
-        }
-
-        dequantize_op._parents = [parent_name, parent_scaler_name]
-        dequantize_op._children = [node._name]
-
+        dequantize_op = get_dequantized(parent_op, context)
+        
+        dequantize_op._children.append(node._name)
         parent_op._children.remove(node._name)
         parent_op._children.append(dequantize_op)
-        node._parents[idx] = dequantize_op_name
-
-        context.graph.add_node(dequantize_op)
+        node._parents[idx] = dequantize_op.name
 
 def quantise_graph(
         graph: Graph,
@@ -637,23 +624,7 @@ def quantise_graph(
         quantization_mode: QuantizationMode = QuantizationMode.WOChannelWise
 ):
     """
-    Weight only quantization.
-
-    The following algorithm is used:
-    1. Preparation stage.
-        Each input node is marked as `Unquantized` and each
-        param node is marked `Quantized`. For each param node
-        we also insert a scaler param, which is its weight only
-        scaler. TODO: add reference.
-
-        For each node processed, we check if any children can already be
-        quantized (i.e. all their parents are marked with either `Quantized`
-        or `Unquantized`).
-        We add these to a queue (list).
-
-    2. Graph quantization
-        For each element of the queue, we call the `quantize_node` function
-        to attempt quantizing it.
+    TODO
 
     Args:
         graph (Graph): Graph to quantize
@@ -674,6 +645,7 @@ def quantise_graph(
         context=context,
     )
 
+    # Inputs cannot be assumed to be quantized.
     for in_node in graph.inputs:
         node_name = in_node.name
 
@@ -683,7 +655,7 @@ def quantise_graph(
         evaluator_pass.check_ready_children(node)
     
                 
-    # Insert quantization scaler weights for each weight and mark them quantized.
+    # Mark all params as quantizable.
     for node in graph.params:
         node_name = node.name
 
