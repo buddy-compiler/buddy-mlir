@@ -76,6 +76,10 @@ class Unquantized(QuantizationState):
 
 # TODO: this might need a better name.
 class Consumer(Unquantized):
+    """
+    Nodes marked consumer are operations, that have `Unquantized` output,
+    but do need to be changed, as one or more of their inputs is quantized.
+    """
     rewriter: Callable[[], None] | None = None
 
     def __init__(self, rewrite: Callable[[], None]):
@@ -113,8 +117,17 @@ class QuantizationContext:
         self.target_dtype = target_dtype
         self.quantization_table = {}
 
-# TODO: maybe this should be called "GraphWalker" or smtn
 class Pass:
+    """
+    Class for dependently walking a Graph.
+    Only processes on a node if all its parents have already 
+    been processed.
+
+    Args:
+        processor (Callable[[Op, Context], None]): Callback to process
+            the nodes of the graph
+        context (QuantizationContext): Quantization context.
+    """
 
     def __init__(
             self,
@@ -127,6 +140,13 @@ class Pass:
         self.processed = []
 
     def check_ready_children(self, node: Op):
+        """
+        Check the children of `node` if they have all their
+        parents already processed, and add them to the queue.
+
+        Args:
+            node (Op): Node to check the children of.
+        """
         for child_name in node._children:
             child_node = self.context.graph.node_table[child_name]
 
@@ -137,6 +157,9 @@ class Pass:
                 self.queue.append(child_name)
 
     def run_pass(self):
+        """
+        Run quantization pass.    
+        """
         while len(self.queue) > 0:
             node_name = self.queue.pop()
             node = self.context.graph.node_table[node_name]
@@ -152,7 +175,17 @@ QuantizationFunctionRegistry: dict[type, dict[str, Callable[[Op, QuantizationCon
 # Quantization methods.
 # ----
 
-def get_dequantized(node: Op, context: QuantizationContext):
+def get_dequantized(node: Op, context: QuantizationContext) -> Op:
+    """
+    Return a dequantized version of `node`.
+
+    Args:
+        node (Op): Node to dequantize
+        context (QuantizationContext): Quantization context.
+    
+    Returns:
+        Op: dequantized node.
+    """
 
     node_name = node.name
     dequantized_name = "dequantized_" + node_name 
