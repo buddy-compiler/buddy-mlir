@@ -32,15 +32,14 @@ class Rewritable:
 
 
 class Quantized(QuantizationState):
-    axis: int
-    quantization_constraint: QuantizationConstraint
+    constraint: QuantizationConstraint
 
-    def __init__(self, axis):
-        self.axis = axis
+    def __init__(self, constraint: QuantizationConstraint):
+        self.constraint = constraint
 
 class Quantizable(QuantizationState, Rewritable):
     callback: Callable | None = None
-    constraint: QuantizationConstraint
+    constraint: QuantizationConstraint | None
 
     def __init__(
             self,
@@ -54,10 +53,11 @@ class Quantizable(QuantizationState, Rewritable):
                 callback(self.constraint)
         
         self.callback = callback
+        self.constraint = constraint
         self.set_rewrite(rewrite)
 
     def set_constraint(self, constraint: QuantizationConstraint):
-        assert self.constraint is None, "Axis cannot be set twice on the same Quantized."
+        assert self.constraint is None, "Constraint cannot be set twice on the same Quantized."
 
         self.constraint = constraint
 
@@ -67,14 +67,14 @@ class Quantizable(QuantizationState, Rewritable):
     def check_constraint(self, constraint: QuantizationConstraint) -> bool:
         """
         Check if the quantization of the tensor is compatible
-        with the given axis.
+        with the given constraint.
 
         When the quantization of the tensor is not set apriori,
         then it is supposed to be determined based on context,
-        so if `axis is None`, then it is compatible.
+        so if `constraint is None`, then it is compatible.
 
         Args:
-            axis (int): axis to determine compatibility with.
+            constraint (QuantizationConstraint): constraint to determine compatibility with.
 
         Returns:
             bool: Whether the quantization is compatible.
@@ -266,22 +266,6 @@ def quantize_node(node: Op, context: QuantizationContext):
     
     context.quantization_table[node._name] = Unquantized()
 
-def rewrite_placeholder(node: Op, context: QuantizationContext) -> None:
-    node_name = node.name
-    scaler_node = PlaceholderOp()
-    scaler_node._name = "scaler_" + node_name
-    
-    # We apply channel(row)-wise normalization.
-    # This tensor stores the column normalization constants
-    node_shape = node.tensor_meta["shape"]
-    quantization_state: Quantizable = context.quantization_table[node_name]
-    quantization_axis = quantization_state.axis
-    scaler_node._tensor_meta["shape"] = [1 if i != quantization_axis else axis_dim for i, axis_dim in enumerate(node_shape)]
-    scaler_node._tensor_meta["dtype"] = node._tensor_meta["dtype"]
-
-    node._tensor_meta["dtype"] = context.target_dtype
-    context.graph.add_node(scaler_node, node_type=NodeType.FakeNode)
-
 def get_dequantized(op: Op, context: QuantizationContext) -> Op:
     try:
         return QuantizationFunctionRegistry[type(context.quantization_method)].dequantizer(op, context)
@@ -295,8 +279,8 @@ def rewrite_node(node: Op, context: QuantizationContext):
     # We check if needs to be rewritten with a specified pattern
     node_status = context.quantization_table[node_name]
     if isinstance(node_status, Quantizable):
-        if node_status.axis is not None:
-            context.quantization_table[node_name] = Quantized(axis=node_status.axis)
+        if node_status.constraint is not None:
+            context.quantization_table[node_name] = Quantized(constraint=node_status.constraint)
             node_status.rewrite(node, context)
         else:
             context.quantization_table[node_name] = Unquantized()
@@ -354,25 +338,8 @@ def quantise_graph(
         context=context,
     )
 
-    # Inputs cannot be assumed to be quantized.
-    for in_node in graph.inputs:
-        node_name = in_node.name
-
-        context.quantization_table[node_name] = Unquantized()
-        evaluator_pass.processed.append(node_name)
-        node = context.graph.node_table[node_name]
-        evaluator_pass.check_ready_children(node)
-    
-                
-    # Mark all params as quantizable.
-    for node in graph.params:
-        node_name = node.name
-
-        context.quantization_table[node_name] = Quantizable(rewrite=rewrite_placeholder)
-        evaluator_pass.processed.append(node_name)
-
-        node = context.graph.node_table[node_name]
-        evaluator_pass.check_ready_children(node)
+    for placeholder_op in graph.inputs + graph.params:
+        evaluator_pass.queue.append(placeholder_op.name)
 
     evaluator_pass.run_pass()
 

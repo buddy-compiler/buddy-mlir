@@ -17,6 +17,14 @@ from ...operation import *
 class ChannelWiseQuantizationConstraint(QuantizationConstraint):
     axis: int
 
+    def __init__(self, axis: int):
+        self.axis = axis
+
+    def check(self, other: "ChannelWiseQuantizationConstraint") -> bool:
+        return other.axis == self.axis
+    
+Constraint = ChannelWiseQuantizationConstraint
+
 class WeightOnlyQuantization(QuantizationMethod):
     pass
 
@@ -25,12 +33,32 @@ def register_wo_quantizer(op_type: OpType):
 
 
 def _rewrite_placeholder(node: Op, context: QuantizationContext):
-    pass
+    node_name = node.name
+    scaler_node = PlaceholderOp()
+    scaler_node._name = "scaler_" + node_name
+    
+    # We apply channel(row)-wise normalization.
+    # This tensor stores the column normalization constants
+    node_shape = node.tensor_meta["shape"]
+    quantization_state: Quantizable = context.quantization_table[node_name]
+    quantization_axis = quantization_state.constraint.axis
+    scaler_node._tensor_meta["shape"] = [1 if i != quantization_axis else axis_dim for i, axis_dim in enumerate(node_shape)]
+    scaler_node._tensor_meta["dtype"] = node._tensor_meta["dtype"]
+
+    node._tensor_meta["dtype"] = context.target_dtype
+    context.graph.add_node(scaler_node, node_type=NodeType.FakeNode)
 
 
 @register_wo_quantizer(op_type=PlaceholderOp)
 def _quantize_placeholder(op: Op, context: QuantizationContext) -> None | QuantizationState:
-    pass
+    
+    input_names = [inp.name for inp in context.graph.inputs]
+    if op.name in input_names:
+        return Unquantized()
+    
+    param_names = [param.name for param in context.graph.params]
+    if op.name in param_names:
+        return Quantizable(rewrite=_rewrite_placeholder)
 
 
 @register_wo_quantizer(op_type=ViewOp)
@@ -115,7 +143,9 @@ def _quantize_permute(node: Op, context: QuantizationContext) -> None | Quantiza
     permute_dims: list[int] = node.args[1]
 
     # If the previous node had its quantization axis set, we can define quantization by axis.
+    constraint: ChannelWiseQuantizationConstraint = None
     if (axis := context.quantization_table[parent_name].axis):
+        
         return Quantizable(axis=permute_dims.index(axis), rewrite=_rewrite_permute)
     # If not, we define quantization with callback, so that if an axis is determined, we can propagate that back
     return Quantizable(callback=lambda a: context.quantization_table[parent_name].set_axis(permute_dims[a]), rewrite=_rewrite_permute)
@@ -159,11 +189,11 @@ def _quantize_matmul(node: Op, context: QuantizationContext) -> None | Quantizat
     quantizable = False
 
     if isinstance((state := context.quantization_table[node._parents[0]]), Quantizable):
-        if state.check_axis(0):
+        if state.check_constraint(Constraint(axis=0)):
             quantizable = True
 
     if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-        if state.check_axis(1):
+        if state.check_constraint(Constraint(axis=1)):
             quantizable = True
 
     if quantizable:
@@ -243,11 +273,11 @@ def _quantize_addmm(node: Op, context: QuantizationContext) -> None | Quantizati
     quantizable = False
 
     if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-        if state.check_axis(0):
+        if state.check_constraint(Constraint(axis=0)):
             quantizable = True
 
     if isinstance((state := context.quantization_table[node._parents[2]]), Quantizable):
-        if state.check_axis(1):
+        if state.check_constraint(Constraint(axis=1)):
             quantizable = True
 
     if quantizable:
@@ -261,11 +291,11 @@ def _quantize_batchmatmul(node: Op, context: QuantizationContext) -> None | Quan
     quantizable = False
 
     if isinstance((state := context.quantization_table[node._parents[0]]), Quantizable):
-        if state.check_axis(1):
+        if state.check_constraint(Constraint(axis=1)):
             quantizable = True
 
     if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-        if state.check_axis(2):
+        if state.check_constraint(Constraint(axis=2)):
             quantizable = True
 
     if quantizable:
@@ -338,11 +368,11 @@ def _quantize_baddbmm(node: Op, context: QuantizationContext):
     quantizable = False
 
     if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-        if state.check_axis(1):
+        if state.check_constraint(Constraint(axis=1)):
             quantizable = True
 
     if isinstance((state := context.quantization_table[node._parents[2]]), Quantizable):
-        if state.check_axis(2):
+        if state.check_constraint(Constraint(axis=2)):
             quantizable = True
 
     if quantizable:
