@@ -530,24 +530,6 @@ def _quantize_baddbmm(node: Op, context: QuantizationContext):
 
     return None
 
-def get_op_mask(op: Op, context: QuantizationContext) -> str:
-    """
-    Docstring for get_op_mask
-    
-    Args:
-        op (Op): The op to compute the mask for.
-        context (QuantizationContext): The context.
-
-    Returns:
-        str: Quantization mask for the op.
-    """
-    states = []
-    # TODO: add error handling when for some reason a parent is missing.
-    for parent in op._parents:
-        states.append('u' if isinstance(context.quantization_table[parent], Unquantized) else 'q')
-
-    return ''.join(states)
-
 def dispatch_op_quantization(op: Op, context: QuantizationContext) -> None | QuantizationState:
     """
     Function for finding a `_quantize` function for `op`. If a suitable
