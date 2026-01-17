@@ -9919,229 +9919,254 @@ def diagonal_op(node: DiagonalOp, symbol_table):
 
 def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     """
-    Import the GQA attention fused operation from the graph to MLIR.
-
-    This operation takes a query, a key, a value, a mask, and a scale, and performs a GQA attention operation.
+    Import attention kernel (QK^T + softmax + V) from graph to MLIR.
     """
+
+    # ========= inputs =========
     query = symbol_table.get((str(node.args[0]), 0), node.args[0])
     k_cache = symbol_table.get((str(node.args[1]), 0), node.args[1])
     v_cache = symbol_table.get((str(node.args[2]), 0), node.args[2])
-    key = k_cache
-    value = v_cache
-
-    loc = ir.Location.unknown()
-    index = IndexType.get()
-
-    # === input parse ===
-    dtype = node.tensor_meta["dtype"][0]
-    dtype = mlir_element_type_get(dtype)
-
     attn_mask = node.kwargs.get("attn_mask", None)
     scale = node.kwargs.get("scale", None)
 
-    c0 = arith.ConstantOp(index, 0, loc=loc)
+    # === type ===
+    loc = ir.Location.unknown()
+    index = ir.IndexType.get()
+    f32 = ir.F32Type.get()
+    dtype = node.tensor_meta["dtype"][0]
+    mlir_dtype = mlir_element_type_get(dtype)
+
+    # ========= shape =========
     query_shape = query.type.shape
-    key_shape = key.type.shape
-    value_shape = value.type.shape
+    key_shape = k_cache.type.shape
+    value_shape = v_cache.type.shape
     output_shape = list(node.tensor_meta["shape"])
 
-    one = arith.ConstantOp(dtype, 1.0).result
-
-    # scale = 1/sqrt(H)
     scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
-    scale_val = arith.ConstantOp(dtype, float(scale_val)).result
+    scale_val = arith.ConstantOp(mlir_dtype, float(scale_val)).result
 
-    zero = arith.ConstantOp(dtype, 0.0, loc=loc).result
-    v16_f32 = ir.VectorType.get([16], dtype)
+    neg_inf = arith.ConstantOp(mlir_dtype, -1.0e30, loc=loc).result
+    zero = arith.ConstantOp(mlir_dtype, 0.0, loc=loc).result
+    one = arith.ConstantOp(mlir_dtype, 1.0, loc=loc).result
+    v16_f32 = ir.VectorType.get([16], mlir_dtype)
     zero_vec = vector.SplatOp(v16_f32, zero, loc=loc).result
 
-    if dtype == ir.F16Type.get():
-        neg_inf = arith.ConstantOp(dtype, -65504.0, loc=loc).result
-    else:
-        neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+    c0 = arith.ConstantOp(index, 0, loc=loc)
+    c1 = arith.ConstantOp(index, 1, loc=loc)
 
-    # === bufferization ===
-    Q_memref = bufferization.ToBufferOp(
-        memref.MemRefType.get(query_shape, dtype), query, loc=loc
-    )
-    K_memref = bufferization.ToBufferOp(
-        memref.MemRefType.get(key_shape, dtype), key, loc=loc
-    )
-    V_memref = bufferization.ToBufferOp(
-        memref.MemRefType.get(value_shape, dtype), value, loc=loc
-    )
+    batch_dim = arith.ConstantOp(index, query_shape[0], loc=loc).result
+    q_dim1 = arith.ConstantOp(index, query_shape[1], loc=loc).result
+    q_dim2 = arith.ConstantOp(index, query_shape[2], loc=loc).result
+    q_dim3 = arith.ConstantOp(index, query_shape[3], loc=loc).result
+    k_dim2 = arith.ConstantOp(index, key_shape[2], loc=loc).result
+    vec_len = arith.ConstantOp(index, 16, loc=loc).result
+    v16_f32 = ir.VectorType.get([16], mlir_dtype)
 
-    mask_memref = None
+    # ========= mask preprocess =========
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
-        mask_memref = bufferization.ToBufferOp(
-            memref.MemRefType.get(attn_mask.type.shape, dtype),
-            attn_mask,
-            loc=loc,
-        )
 
-    batch_dim = arith.ConstantOp(index, query_shape[0], loc=loc)
-    q_dim0 = arith.ConstantOp(index, query_shape[1], loc=loc)
-    q_dim1 = arith.ConstantOp(index, query_shape[2], loc=loc)
-    q_dim2 = arith.ConstantOp(index, query_shape[3], loc=loc)
-
-    out_memref = memref.AllocOp(
-        memref.MemRefType.get(list(output_shape[0]), dtype), [], [], loc=loc
+    # ========= QK^T =========
+    score_init_tensor_type = ir.RankedTensorType.get(
+        [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
+        mlir_dtype,
     )
-    out_exp_sum_memref = memref.AllocOp(
-        memref.MemRefType.get(
-            [query_shape[0], query_shape[1], query_shape[2]], dtype
-        ),
-        [],
-        [],
-        loc=loc,
-    )
+    element = mlir_element_attr_get(dtype, 0.0)
+    attr = ir.DenseElementsAttr.get_splat(score_init_tensor_type, element)
+    score_init = arith.ConstantOp(score_init_tensor_type, attr).result
 
-    accum = memref.AllocOp(
-        memref.MemRefType.get([query_shape[-1]], dtype), [], [], loc=loc
-    )
-    # batch loop
+    score = scf.ForOp(c0, batch_dim, c1, iter_args=[score_init])
+    with ir.InsertionPoint(score.body):
+        b = score.induction_variable
+        acc_b = score.inner_iter_args[0]
 
-    loop_batch = affine.AffineForOp(0, batch_dim.result, 1)
-    with ir.InsertionPoint(loop_batch.body):
-        batch = loop_batch.induction_variable
-
-        # h loop
-        loop_h = affine.AffineForOp(0, q_dim0.result, 1)
+        loop_h = scf.ForOp(c0, q_dim1, c1, iter_args=[acc_b])
         with ir.InsertionPoint(loop_h.body):
             h = loop_h.induction_variable
+            acc_hv = loop_h.inner_iter_args[0]
             c6i = arith.ConstantOp(index, 6, loc=loc).result
             h_kv = arith.DivSIOp(h, c6i, loc=loc).result
 
-            # i loop
-            loop_i = affine.AffineForOp(0, q_dim1.result, 1)
-            with ir.InsertionPoint(loop_i.body):
-                i = loop_i.induction_variable
+            loop_q = scf.ForOp(c0, q_dim2, c1, iter_args=[acc_hv])
+            with ir.InsertionPoint(loop_q.body):
+                q = loop_q.induction_variable
+                acc_qv = loop_q.inner_iter_args[0]
 
-                # initialize accum to zero
-                loop_init = affine.AffineForOp(0, q_dim2.result, 1)
-                temp_h = loop_init.induction_variable
-                with ir.InsertionPoint(loop_init.body):
-                    memref.StoreOp(zero, accum, [temp_h])
-                    affine.yield_([])
+                loop_k = scf.ForOp(c0, k_dim2, c1, iter_args=[acc_qv])
+                with ir.InsertionPoint(loop_k.body):
+                    k = loop_k.induction_variable
+                    acc_kv = loop_k.inner_iter_args[0]
 
-                # attention j loop
-                key_len = key_shape[2]
-                query_len = query_shape[2]
-                loop_js_bound = key_len if key_len > query_len else query_len
-                loop_js = affine.AffineForOp(
-                    0,
-                    arith.ConstantOp(index, loop_js_bound).result,
-                    iter_args=[neg_inf, zero],
-                )
-                j = loop_js.induction_variable
-                iter_args = loop_js.inner_iter_args
-                with ir.InsertionPoint(loop_js.body):
-                    max_iter = iter_args[0]
-                    sum_exp_iter = iter_args[1]
+                    prev = tensor.ExtractOp(acc_kv, [b, h, q, k])
 
-                    # ========== 1. calculate q·k ==========
-                    loop_qk = affine.AffineForOp(
-                        0, q_dim2.result, 16, [zero_vec]
+                    vec_loop = scf.ForOp(
+                        c0, q_dim3, vec_len, iter_args=[zero_vec]
                     )
-                    s = loop_qk.induction_variable
-                    temp_s = loop_qk.inner_iter_args[0]
-                    with ir.InsertionPoint(loop_qk.body):
-                        qv = vector.LoadOp(
-                            v16_f32, Q_memref, [batch, h, i, s], loc=loc
+                    with ir.InsertionPoint(vec_loop.body):
+                        d = vec_loop.induction_variable
+                        va = vec_loop.inner_iter_args[0]
+                        vec_ty = ir.VectorType.get([16], f32)
+                        perm_map = ir.AffineMap.get(
+                            4, 0, [ir.AffineDimExpr.get(3)]
                         )
-                        kv = vector.LoadOp(
-                            v16_f32, K_memref, [batch, h_kv, j, s], loc=loc
-                        )
-                        ns = vector.FMAOp(qv.result, kv.result, temp_s, loc=loc)
-                        affine.yield_([ns.result])
+                        qv = vector.TransferReadOp(
+                            vec_ty,  # vector<16xf32>
+                            query,  # tensor<1x12x1x128xf32>
+                            [b, h, q, d],  # indices
+                            perm_map,  # (d0,d1,d2,d3)->(d3)
+                            zero,  # padding
+                            [True],  # in_bounds
+                            loc=loc,
+                        ).result
+                        kv = vector.TransferReadOp(
+                            vec_ty,  # vector<16xf32>
+                            k_cache,  # tensor<1x2x1024x128xf32>
+                            [b, h_kv, k, d],  # indices
+                            perm_map,  # (d0,d1,d2,d3)->(d3)
+                            zero,  # padding
+                            [True],  # in_bounds
+                            loc=loc,
+                        ).result
 
-                    score = vector.ReductionOp(
-                        dtype, "add", loop_qk.result, loc=loc
+                        va1 = vector.FMAOp(qv, kv, va)
+                        scf.YieldOp([va1.result])
+
+                    red = vector.ReductionOp(
+                        f32, "add", vec_loop.result, loc=loc
                     ).result
-                    normalized = arith.MulFOp(score, scale_val, loc=loc).result
-                    if mask_memref is not None:
-                        mask_val = memref.LoadOp(
-                            mask_memref, [batch, c0.result, i, j]
-                        )
-                        score_masked = arith.AddFOp(
-                            normalized, mask_val, loc=loc
-                        ).result
-                    else:
-                        score_masked = normalized
 
-                    # === FlashAttention online softmax ===
-                    cond_max = arith.CmpFOp(
-                        arith.CmpFPredicate.OGT, score_masked, max_iter, loc=loc
-                    )
-                    new_max = arith.SelectOp(
-                        cond_max, score_masked, max_iter, loc=loc
+                    acc = arith.AddFOp(prev.result, red)
+                    next_tensor = tensor.InsertOp(
+                        acc.result, acc_kv, [b, h, q, k]
                     )
 
-                    sub1 = arith.SubFOp(max_iter, score_masked, loc=loc).result
-                    exp1 = math.ExpOp(sub1, loc=loc).result
-                    mul1 = arith.MulFOp(exp1, sum_exp_iter, loc=loc).result
-                    add1 = arith.AddFOp(mul1, one, loc=loc).result
+                    scf.YieldOp([next_tensor.result])
 
-                    sub2 = arith.SubFOp(score_masked, max_iter, loc=loc).result
-                    exp2 = math.ExpOp(sub2, loc=loc).result
-                    add2 = arith.AddFOp(sum_exp_iter, exp2, loc=loc).result
+                scf.YieldOp([loop_k.result])
 
-                    sum_exp_update = arith.SelectOp(
-                        cond_max, add1, add2, loc=loc
-                    )
-                    # === V accumulate ===
-                    loop_d = affine.AffineForOp(0, q_dim2.result, 1)
+            scf.YieldOp([loop_q.result])
+
+        scf.YieldOp([loop_h.result])
+
+    score_tensor = score.result
+    score_tensor_shape = ir.RankedTensorType.get(
+        [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
+        mlir_dtype,
+    )
+
+    # ========= scale + mask =========
+    scale_splat = tensor.SplatOp(
+        score_tensor_shape,
+        scale_val,
+        [],
+    ).result
+
+    shift = _create_mul_shift_operand()
+    scaled = tosa.MulOp(
+        score_tensor_shape, score_tensor, scale_splat, shift
+    ).result
+    add_op = _gen_arith_binary_op(scaled, attn_mask, tosa.AddOp)
+
+    # ========= softmax =========
+    softmax_output_shape = list(add_op.result.type.shape)
+    softmax_dim = len(softmax_output_shape) - 1
+    max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
+    sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
+    exp_op = math.ExpOp(sub_op.result)
+    reduce_sum_op = tosa.ReduceSumOp(exp_op, softmax_dim)
+    log_op = tosa.LogOp(reduce_sum_op.result.type, reduce_sum_op)
+    log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
+    log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
+    softmax_result = math.ExpOp(log_weights.result)
+    log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
+    log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
+
+    # ========= Prob * V =========
+    out_init_tensor_type = ir.RankedTensorType.get(
+        [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
+        mlir_dtype,
+    )
+    element = mlir_element_attr_get(dtype, 0.0)
+    attr = ir.DenseElementsAttr.get_splat(out_init_tensor_type, element)
+    out_init = arith.ConstantOp(out_init_tensor_type, attr).result
+
+    out = scf.ForOp(c0, batch_dim, c1, iter_args=[out_init], loc=loc)
+    with ir.InsertionPoint(out.body):
+        b = out.induction_variable
+        out_b = out.inner_iter_args[0]
+
+        loop_h = scf.ForOp(c0, q_dim1, c1, iter_args=[out_b], loc=loc)
+        with ir.InsertionPoint(loop_h.body):
+            h = loop_h.induction_variable
+            out_hv = loop_h.inner_iter_args[0]
+            c6i = arith.ConstantOp(index, 6, loc=loc).result
+            hk = arith.DivSIOp(h, c6i, loc=loc).result
+
+            loop_q = scf.ForOp(c0, q_dim2, c1, iter_args=[out_hv], loc=loc)
+            with ir.InsertionPoint(loop_q.body):
+                q = loop_q.induction_variable
+                out_qv = loop_q.inner_iter_args[0]
+
+                loop_d = scf.ForOp(
+                    c0, q_dim3, vec_len, iter_args=[out_qv], loc=loc
+                )
+                with ir.InsertionPoint(loop_d.body):
                     d = loop_d.induction_variable
-                    with ir.InsertionPoint(loop_d.body):
-                        vvec = memref.LoadOp(
-                            V_memref, [batch, h_kv, j, d], loc=loc
-                        )
-                        acc_old = memref.LoadOp(accum, [d], loc=loc).result
+                    out_dv = loop_d.inner_iter_args[0]
 
-                        accum_mul1 = arith.MulFOp(acc_old, exp1, loc=loc).result
-                        r1 = arith.AddFOp(accum_mul1, vvec, loc=loc).result
+                    vec_loop = scf.ForOp(
+                        c0, k_dim2, c1, iter_args=[zero_vec], loc=loc
+                    )
+                    with ir.InsertionPoint(vec_loop.body):
+                        k = vec_loop.induction_variable
+                        va = vec_loop.inner_iter_args[0]
 
-                        accum_mul2 = arith.MulFOp(exp2, vvec, loc=loc).result
-                        r2 = arith.AddFOp(accum_mul2, acc_old, loc=loc).result
-                        acc_new = arith.SelectOp(
-                            cond_max, r1, r2, loc=loc
+                        p = tensor.ExtractOp(
+                            softmax_result, [b, h, q, k], loc=loc
                         ).result
 
-                        memref.StoreOp(acc_new, accum, [d], loc=loc)
-                        affine.yield_([])
+                        pv = vector.SplatOp(
+                            ir.VectorType.get([16], f32), p, loc=loc
+                        ).result
+                        vec_ty = ir.VectorType.get([16], f32)
+                        perm_map = ir.AffineMap.get(
+                            4, 0, [ir.AffineDimExpr.get(3)]
+                        )
 
-                    affine.yield_([new_max.result, sum_exp_update.result])
+                        vv = vector.TransferReadOp(
+                            vec_ty,
+                            v_cache,
+                            [b, hk, k, d],
+                            perm_map,
+                            zero,
+                            [True],
+                            loc=loc,
+                        ).result
 
-                final_sum = loop_js.results[1]
-                memref.StoreOp(final_sum, out_exp_sum_memref, [batch, h, i])
+                        va1 = vector.FMAOp(pv, vv, va, loc=loc).result
 
-                # === write back result ===
-                loop_back = affine.AffineForOp(0, q_dim2.result, 1)
-                d_back = loop_back.induction_variable
-                with ir.InsertionPoint(loop_back.body):
-                    accv = memref.LoadOp(accum, [d_back], loc=loc).result
-                    outv = arith.DivFOp(accv, final_sum, loc=loc)
-                    memref.StoreOp(
-                        outv, out_memref, [batch, h, i, d_back], loc=loc
+                        scf.YieldOp([va1])
+
+                    next_tensor = vector.TransferWriteOp(
+                        out_dv.type,
+                        vec_loop.result,
+                        out_dv,
+                        [b, h, q, d],
+                        perm_map,
+                        [True],
+                        loc=loc,
                     )
-                    affine.yield_([])
 
-                affine.yield_([])
-            affine.yield_([])
-        affine.yield_([])
+                    scf.YieldOp([next_tensor])
 
-    tensor_ty = ir.RankedTensorType.get(list(output_shape[0]), dtype)
-    result_tensor = bufferization.ToTensorOp(
-        tensor_ty, out_memref, restrict=ir.BoolAttr.get(True)
-    )
-    tensor_lg = ir.RankedTensorType.get(
-        [query_shape[0], query_shape[1], query_shape[2]], dtype
-    )
-    log_sumexp = bufferization.ToTensorOp(
-        tensor_lg, out_exp_sum_memref, restrict=ir.BoolAttr.get(True)
-    )
-    return result_tensor, log_sumexp
+                scf.YieldOp([loop_d.result])
+
+            scf.YieldOp([loop_q.result])
+
+        scf.YieldOp([loop_h.result])
+
+    out_tensor = out.result
+    return out_tensor, log_sumexp
 
 
 # Import func ops registry for CallOp support

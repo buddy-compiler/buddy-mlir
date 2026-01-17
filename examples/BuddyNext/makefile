@@ -47,6 +47,7 @@ next-gqa-attention-fusion-run:
 		-buffer-deallocation-simplification \
 		-bufferization-lower-deallocations \
 		-assume-tight-memref-layout \
+		-staticize-memref-layout \
 		-matmul-vectorization-decode=vector-size=128 \
 		-batch-matmul-vectorization-decode=vector-size=128 \
 		-batchmatmul-transpose-b-vectorization=vector-size=16 \
