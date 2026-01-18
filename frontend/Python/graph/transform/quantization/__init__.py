@@ -6,5 +6,5 @@ def weight_only_channel_wise(
 ):
     quantise_graph(
         graph=graph,
-        quantization_method=WeightOnlyQuantization(),
+        quantization=WeightOnlyQuantization(),
     )

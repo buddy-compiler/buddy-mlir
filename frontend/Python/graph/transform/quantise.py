@@ -43,7 +43,6 @@ class Quantizable(QuantizationState, Rewritable):
 
     def __init__(
             self,
-            rewrite: Callable[[], None],
             constraint: QuantizationConstraint | None = None,
             callback: Callable[[int], None] | None = None,
         ):
@@ -54,7 +53,6 @@ class Quantizable(QuantizationState, Rewritable):
         
         self.callback = callback
         self.constraint = constraint
-        self.set_rewrite(rewrite)
 
     def set_constraint(self, constraint: QuantizationConstraint):
         assert self.constraint is None, "Constraint cannot be set twice on the same Quantized."
@@ -96,10 +94,7 @@ class Consumer(Unquantized, Rewritable):
     but do need to be changed, as one or more of their inputs is quantized.
     """
 
-    def __init__(self, rewrite: Callable[[], None]):
-        self.set_rewrite(rewrite)
-
-class QuantizationMethod(ABC):
+class Quantization(ABC):
     pass
 
 class QuantizationContext:
@@ -115,17 +110,17 @@ class QuantizationContext:
     """
     graph: Graph
     quantization_table: dict[str, QuantizationState]
-    quantization_method: QuantizationMethod
+    quantization: Quantization
     target_dtype: TensorDType
 
     def __init__(
             self,
             graph: Graph,
-            quantization_method: QuantizationMethod,
+            quantization: Quantization,
             target_dtype: TensorDType,
 ):
         self.graph = graph
-        self.quantization_method = quantization_method
+        self.quantization = quantization
         self.target_dtype = target_dtype
         self.quantization_table = {}
 
@@ -180,33 +175,91 @@ class Pass:
             self.processed.append(node_name)
             self.check_ready_children(node)
 
-class MethodRegistry(dict[OpType, Callable[[Op, QuantizationContext], None | QuantizationState]]):
+class QuantizationMethod(ABC):
+    """
+    Function object for installing 
+    """
+    @staticmethod
+    @abstractmethod
+    def rewriter(node: Op, context: QuantizationContext):
+        """
+        Rewrite node in graph.
+
+        (Must be implemented by any quantization method)
+        """
+        pass
+    
+    @staticmethod
+    def callback(constraint: QuantizationConstraint, node: Op, context: QuantizationContext):
+        """
+        Determine the quantization state from the quantization of downstream ops.
+
+        E.g. parameter ops are quantizable along any axis apriori, but given the 
+        quantization of a child, we can determine the quantization of the placeholder.
+
+        (Optionally implementable by quantization methods)
+        """
+        return None
+
+
+    @staticmethod
+    @abstractmethod
+    def forward(node: Op, context: QuantizationState) -> QuantizationState | None:
+        """
+        Determine the quantization state from the quantization state of the parents. (E.g. 
+        given that a parent op is quantized along axis 1, the result of a transpose op can
+        only be quantized along a specific axis)
+
+        Can still leave a callback, if necessary (e.g. multiple different quantization options
+        available, and can only decide based on consumer information.
+
+        (Must be implemented by quantization methods)
+        """
+        pass
+
+    def __call__(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
+        quantization = self.__class__.forward(node, context)
+
+        if isinstance(quantization, Quantizable):
+            if quantization.constraint is None:
+                # load the node and context into the callback before passing it.
+                quantization.callback = lambda constr: self.__class__.callback(constr, node, context)
+        
+        if isinstance(quantization, Rewritable):
+            quantization.set_rewrite(self.__class__.rewriter)
+        
+        return quantization
+
+QuantizationMethodType = TypeVar("QuantizationMethodType", bound=QuantizationMethod)
+
+class MethodRegistry(dict[OpType, QuantizationMethod]):
     dequantizer: Callable[[Op, QuantizationContext], Op] = None
 
 # quantizationmethod -> op
-MethodType = TypeVar("Method", bound=QuantizationMethod)
+QuantizationType = TypeVar("Method", bound=Quantization)
 OpType = TypeVar("OpType", bound=Op)
-QuantizationFunctionRegistry: dict[MethodType, MethodRegistry] = {}
+QuantizationFunctionRegistry: dict[QuantizationType, MethodRegistry] = {}
 
 def validate_registry():
     for method, method_registry in QuantizationFunctionRegistry.items():
         assert method_registry.dequantizer is not None, f"Each quantization method must register a dequantization function ({method})"
 
-def register_quantizer(quantization_method: MethodType, op_type: OpType):
-    def guard(fn: Callable[[Op, QuantizationContext], None | QuantizationState]):
-        def guarded_fn(op: Op, context: QuantizationContext) -> None | QuantizationState:
-            assert isinstance(op, op_type)
-            assert isinstance(context.quantization_method, quantization_method)
-            return fn(op, context)
+def register_quantizer(quantization: QuantizationType, op_type: OpType):
+    def guard(cls: QuantizationMethodType):
+        fn_obj = cls()
+        #def guarded_fn(op: Op, context: QuantizationContext) -> None | QuantizationState:
+        #    assert isinstance(op, op_type)
+        #    assert isinstance(context.quantization_method, quantization)
+        #    return fn(op, context)
 
 
         assert op_type not in QuantizationFunctionRegistry.keys(), f"Only one quantization function should be declared per operation ({op_type} has two)"
-        QuantizationFunctionRegistry.setdefault(quantization_method, MethodRegistry())[op_type] = guarded_fn
+        QuantizationFunctionRegistry.setdefault(quantization, MethodRegistry())[op_type] = fn_obj
         # Delete this function from user name space by not returning it.
     
     return guard
 
-def register_dequantizer(quantization_method: MethodType):
+def register_dequantizer(quantization_method: QuantizationMethodType):
     def guard(fn: Callable[[Op, QuantizationContext], None | QuantizationState]):
         def guarded_fn(op: Op, context: QuantizationContext) -> None | QuantizationState:
             assert isinstance(context.quantization_method, quantization_method)
@@ -244,7 +297,7 @@ def dispatch_op_quantization(op: Op, context: QuantizationContext) -> None | Qua
         bool: whether quantizing the op was successful.
     """
     try:
-        return QuantizationFunctionRegistry[type(context.quantization_method)][type(op)](op, context)
+        return QuantizationFunctionRegistry[type(context.quantization)][type(op)](op, context)
     except KeyError:
         return None
 
@@ -309,9 +362,17 @@ def rewrite_node(node: Op, context: QuantizationContext):
         parent_op._children.append(dequantize_op)
         node._parents[idx] = dequantize_op.name
 
+def sort_graph(graph: Graph):
+    """
+    Sorts all the PlaceholderOp's to the 
+    front of graph._body. See Issue #667
+    """
+
+    pass
+
 def quantise_graph(
         graph: Graph,
-        quantization_method: QuantizationMethod,
+        quantization: Quantization,
         target_dtype: TensorDType = TensorDType.Int8,
 ):
     """
@@ -326,7 +387,7 @@ def quantise_graph(
 
     context = QuantizationContext(
         graph=graph,
-        quantization_method=quantization_method,
+        quantization=quantization,
         target_dtype=target_dtype,
     )
 
@@ -353,3 +414,4 @@ def quantise_graph(
 
     rewriter_pass.run_pass()
         
+    sort_graph(context.graph)
