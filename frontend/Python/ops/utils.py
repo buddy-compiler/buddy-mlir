@@ -37,6 +37,8 @@ def mlir_element_type_get(type_name):
             return ir.BF16Type.get()
         case TensorDType.Float32:
             return ir.F32Type.get()
+        case TensorDType.Int8:
+            return ir.IntegerType.get_signless(8)
         case TensorDType.Int32:
             return ir.IntegerType.get_signless(32)
         case TensorDType.Int64:
