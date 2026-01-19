@@ -31,6 +31,56 @@ using namespace vector;
 // Rewrite Pattern
 //===----------------------------------------------------------------------===//
 
+static std::pair<int64_t, int64_t>
+getConvStrides(linalg::Conv2DNhwcFhwcOp convOp) {
+  int64_t strideH, strideW;
+  if (!convOp.getStrides()) {
+    strideH = 1;
+    strideW = 1;
+  } else {
+    SmallVector<int64_t> strides =
+        llvm::to_vector(convOp.getStrides().getValues<int64_t>());
+    strideH = strides.front();
+    strideW = strides.back();
+  }
+  return {strideH, strideW};
+}
+
+static std::pair<int64_t, int64_t>
+getConvDilations(linalg::Conv2DNhwcFhwcOp convOp) {
+  int64_t dilHeight, dilWidth;
+  if (!convOp.getDilations()) {
+    dilHeight = 1;
+    dilWidth = 1;
+  } else {
+    SmallVector<int64_t> dilations =
+        llvm::to_vector(convOp.getDilations().getValues<int64_t>());
+    dilHeight = dilations.front();
+    dilWidth = dilations.back();
+  }
+  return {dilHeight, dilWidth};
+}
+
+static Value getDimValue(OpBuilder &b, Location loc, Value input,
+                         ShapedType type, int64_t dim) {
+  if (type.isDynamicDim(dim)) {
+    return b.create<memref::DimOp>(loc, input, dim);
+  }
+  return b.create<arith::ConstantIndexOp>(loc, type.getDimSize(dim));
+}
+
+static Value fmaOrMulAdd(OpBuilder &b, Location loc, Value lhs, Value rhs,
+                         Value acc, Type elemTy) {
+  if (isa<IntegerType>(elemTy)) {
+    return b.create<arith::AddIOp>(loc, acc,
+                                   b.create<arith::MulIOp>(loc, lhs, rhs));
+  }
+  if (isa<FloatType>(elemTy)) {
+    return b.create<vector::FMAOp>(loc, lhs, rhs, acc);
+  }
+  llvm_unreachable("unsupported element type in fmaOrMulAdd");
+}
+
 namespace {
 
 class ConvNhwcFhwcOptimizePattern : public ConversionPattern {
@@ -46,169 +96,133 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     auto convOp = dyn_cast_or_null<mlir::linalg::Conv2DNhwcFhwcOp>(op);
-    auto loc = op->getLoc();
+    if (!convOp || !convOp.hasPureBufferSemantics()) {
+      return failure();
+    }
+    Location loc = convOp->getLoc();
+    Value input = convOp.getDpsInputs()[0];
+    Value kernel = convOp.getDpsInputs()[1];
+    Value output = convOp.getDpsInits()[0];
 
-    // Some constant we need.
-    const Value c0 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
-    const Value c1 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+    ShapedType outputTy = cast<ShapedType>(output.getType());
+    ShapedType kernelTy = cast<ShapedType>(kernel.getType());
+    Type elemTy = kernelTy.getElementType();
+    VectorType compVecTy = VectorType::get({vecSize}, elemTy);
+    VectorType maskVecTy = VectorType::get({vecSize}, rewriter.getI1Type());
 
-    const Value vecSizeValue =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(vecSize));
+    const Value allZero = rewriter.create<arith::ConstantOp>(
+        loc, DenseElementsAttr::get(compVecTy, rewriter.getZeroAttr(elemTy)));
+    const Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    const Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    const Value vecStep = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+
+    auto [strideH, strideW] = getConvStrides(convOp);
+    auto [dilHeight, dilWidth] = getConvDilations(convOp);
+
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
     const AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
 
-    Value input = op->getOperand(0);
-    Value filter = op->getOperand(1);
-    Value output = op->getOperand(2);
+    // Create map for vector mask generation and input indexing.
+    AffineMap vectorMaskMap =
+        AffineMap::get(2, 1, {-d0 + d1, s0}, rewriter.getContext());
+    AffineMap inputMap = AffineMap::get(2, 0, {d0 * strideH + d1 * dilHeight},
+                                        rewriter.getContext());
 
-    int strHeight, strWidth, dilHeight, dilWidth;
+    const Value N = getDimValue(rewriter, loc, output, outputTy, 0);
+    const Value OH = getDimValue(rewriter, loc, output, outputTy, 1);
+    const Value OW = getDimValue(rewriter, loc, output, outputTy, 2);
+    const Value OC = getDimValue(rewriter, loc, output, outputTy, 3);
+    const Value FH = getDimValue(rewriter, loc, kernel, kernelTy, 1);
+    const Value FW = getDimValue(rewriter, loc, kernel, kernelTy, 2);
+    const Value IC = getDimValue(rewriter, loc, kernel, kernelTy, 3);
 
-    // Strides.
-    if (!convOp.getStrides()) {
-      strHeight = 1;
-      strWidth = 1;
+    auto forallOp = rewriter.create<scf::ForallOp>(
+        loc, ArrayRef<OpFoldResult>({N, OH, OW, OC}), ValueRange{},
+        std::nullopt);
+    Value ivN = forallOp.getInductionVar(0);
+    Value ivOH = forallOp.getInductionVar(1);
+    Value ivOW = forallOp.getInductionVar(2);
+    Value ivOC = forallOp.getInductionVar(3);
+
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(forallOp.getBody());
+
+    // clang-format off
+    //
+    // Insert three nested loops for FH, FW, IC:
+    // %FHRes = scf.for %ivFH = 0 to FH step 1 iter_args(%accFH = allZero) {
+    //  %FWRes = scf.for %ivFW = 0 to FW step 1 iter_args(%accFW = %accFH) {
+    //    %ICRes = scf.for %ivIC = 0 to IC step vecSize iter_args(%accIC = %accFW) {
+    //      %mask = vector.create_mask ...
+    //      %inputData = vector.masked_load %input[...] {mask} , %zero
+    //      %kernelData = vector.masked_load %kernel[...] {mask} , %zero
+    //      %acc = fma/mul_add(%inputData, %kernelData, %accIC)
+    //      scf.yield %acc
+    //    }
+    //    scf.yield %ICRes
+    //  }
+    //  scf.yield %FWRes
+    // }
+    // vector.reduce_add %FHRes
+    // Load output data, add and store.
+    //
+    // clang-format on
+
+    auto FHForOp =
+        rewriter.create<scf::ForOp>(loc, zero, FH, one, ValueRange{allZero});
+    rewriter.setInsertionPointToStart(FHForOp.getBody());
+    auto FWForOp = rewriter.create<scf::ForOp>(
+        loc, zero, FW, one, ValueRange{FHForOp.getRegionIterArgs()});
+    rewriter.setInsertionPointToStart(FWForOp.getBody());
+    auto ICForOp = rewriter.create<scf::ForOp>(
+        loc, zero, IC, vecStep, ValueRange{FWForOp.getRegionIterArgs()});
+    rewriter.setInsertionPointToStart(ICForOp.getBody());
+
+    Value ivFH = FHForOp.getInductionVar();
+    Value ivFW = FWForOp.getInductionVar();
+    Value ivIC = ICForOp.getInductionVar();
+    Value actualLoadLength = rewriter.create<affine::AffineMinOp>(
+        loc, vectorMaskMap, ValueRange{ivIC, IC, vecStep});
+    Value vectorMask = rewriter.create<vector::CreateMaskOp>(
+        loc, maskVecTy, ValueShapeRange{actualLoadLength});
+
+    // VectorLoad input and kernel.
+    Value inputData = rewriter.create<vector::MaskedLoadOp>(
+        loc, compVecTy, input,
+        ValueRange{ivN,
+                   rewriter.create<affine::AffineApplyOp>(
+                       loc, inputMap, ValueRange{ivOH, ivFH}),
+                   rewriter.create<affine::AffineApplyOp>(
+                       loc, inputMap, ValueRange{ivOW, ivFW}),
+                   ivIC},
+        vectorMask, allZero);
+    Value kernelData = rewriter.create<vector::MaskedLoadOp>(
+        loc, compVecTy, kernel, ValueRange{ivOC, ivFH, ivFW, ivIC}, vectorMask,
+        allZero);
+    Value acc = fmaOrMulAdd(rewriter, loc, inputData, kernelData,
+                            ICForOp.getRegionIterArgs()[0], elemTy);
+
+    // Yield acc of each loop.
+    rewriter.create<scf::YieldOp>(loc, acc);
+    rewriter.setInsertionPointAfter(ICForOp);
+    rewriter.create<scf::YieldOp>(loc, ICForOp->getResult(0));
+    rewriter.setInsertionPointAfter(FWForOp);
+    rewriter.create<scf::YieldOp>(loc, FWForOp->getResult(0));
+    rewriter.setInsertionPointAfter(FHForOp);
+
+    // Compute reduction add, load output, add and store.
+    Value reduceAdd = rewriter.create<vector::ReductionOp>(
+        loc, vector::CombiningKind::ADD, FHForOp->getResult(0));
+    Value outputData = rewriter.create<memref::LoadOp>(
+        loc, output, ValueRange{ivN, ivOH, ivOW, ivOC});
+    if (isa<IntegerType>(elemTy)) {
+      outputData = rewriter.create<arith::AddIOp>(loc, outputData, reduceAdd);
     } else {
-      strHeight = convOp.getStrides().getValues<int64_t>()[0];
-      strWidth = convOp.getStrides().getValues<int64_t>()
-                     [convOp.getStrides().getValues<int64_t>().size() - 1];
+      outputData = rewriter.create<arith::AddFOp>(loc, outputData, reduceAdd);
     }
-
-    // Dilations.
-    if (!convOp.getDilations()) {
-      dilHeight = 1;
-      dilWidth = 1;
-    } else {
-      dilHeight = convOp.getDilations().getValues<int64_t>()[0];
-      dilWidth = convOp.getDilations().getValues<int64_t>()
-                     [convOp.getDilations().getValues<int64_t>().size() - 1];
-    }
-
-    ShapedType inputTy = cast<ShapedType>(input.getType());
-    Type elemTy = inputTy.getElementType();
-    VectorType vecTy = VectorType::get(vecSize, elemTy);
-
-    const Value zeroElementType =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(elemTy));
-
-    // Dims
-    Value N = rewriter.create<memref::DimOp>(loc, output, 0);  // N
-    Value OH = rewriter.create<memref::DimOp>(loc, output, 1); // OH
-    Value OW = rewriter.create<memref::DimOp>(loc, output, 2); // OW
-    Value OC = rewriter.create<memref::DimOp>(loc, output, 3); // OC
-    Value IC = rewriter.create<memref::DimOp>(loc, input, 3);  // IC
-    Value FH = rewriter.create<memref::DimOp>(loc, filter, 1); // FH
-    Value FW = rewriter.create<memref::DimOp>(loc, filter, 2); // FW
-
-    // clang format off
-    //  Step 1: Create outer most loops.
-    // Create the scf::ForallOp operation For N,OH,OW,OC
-    rewriter.create<scf::ForallOp>(
-        loc, SmallVector<OpFoldResult, 4>({N, OH, OW, OC}), ValueRange{},
-        std::nullopt, // No mapping specified in this example
-        [&](OpBuilder &nestedBuilder, Location nestedLoc,
-            ValueRange loopIndices) {
-          Value ivN = loopIndices[0];  // Index for the first dimension N
-          Value ivOH = loopIndices[1]; // Index for the second dimension OH
-          Value ivOW = loopIndices[2]; // Index for the third dimension OW
-          Value ivOC = loopIndices[3]; // Index for the third dimension OC
-
-          Value addRes = nestedBuilder.create<memref::LoadOp>(
-              loc, output, ValueRange{ivN, ivOH, ivOW, ivOC});
-          // IC
-          auto forOp = nestedBuilder.create<scf::ForOp>(
-              nestedLoc, c0, IC, vecSizeValue, ValueRange{addRes},
-              [&](OpBuilder &builder, Location loc, Value ivIC,
-                  ValueRange iargs) {
-                Value tVec;
-                if (isa<IntegerType>(elemTy)) {
-                  tVec = builder.create<vector::BroadcastOp>(loc, vecTy,
-                                                             zeroElementType);
-                } else {
-                  tVec = builder.create<vector::SplatOp>(loc, vecTy,
-                                                         zeroElementType);
-                }
-
-                Value remainLen = builder.create<affine::AffineMinOp>(
-                    loc,
-                    AffineMap::get(2, 1, {-d0 + s0, d1}, builder.getContext()),
-                    ValueRange{ivIC, vecSizeValue, IC});
-                Value remainMask = builder.create<vector::CreateMaskOp>(
-                    loc, VectorType::get({vecSize}, rewriter.getI1Type()),
-                    ValueRange{remainLen});
-
-                // FH
-                auto forOp = builder.create<scf::ForOp>(
-                    loc, c0, FH, c1, ValueRange{tVec},
-                    [&](OpBuilder &builder, Location loc, Value ivFH,
-                        ValueRange iargs) {
-                      Value rowInput = builder.create<affine::AffineApplyOp>(
-                          loc,
-                          AffineMap::get(2, 0, d0 * strHeight + d1 * dilHeight),
-                          ValueRange{ivOH, ivFH});
-                      Value rowFilter = ivFH;
-                      // FW
-                      auto forOp = builder.create<scf::ForOp>(
-                          loc, c0, FW, c1, ValueRange{iargs[0]},
-                          [&](OpBuilder &builder, Location loc, Value ivFW,
-                              ValueRange iargs) {
-                            Value columnInput =
-                                builder.create<affine::AffineApplyOp>(
-                                    loc,
-                                    AffineMap::get(
-                                        2, 0, d0 * strWidth + d1 * dilWidth),
-                                    ValueRange{ivOW, ivFW});
-                            Value columnFilter = ivFW;
-                            Value iVec = builder.create<vector::LoadOp>(
-                                loc, vecTy, input,
-                                ValueRange{ivN, rowInput, columnInput, ivIC});
-                            Value fVec = builder.create<vector::LoadOp>(
-                                loc, vecTy, filter,
-                                ValueRange{ivOC, rowFilter, columnFilter,
-                                           ivIC});
-                            Value tVecNext;
-                            if (isa<IntegerType>(elemTy)) {
-                              Value mulVec = builder.create<arith::MulIOp>(
-                                  loc, iVec, fVec);
-                              tVecNext = builder.create<arith::AddIOp>(
-                                  loc, mulVec, iargs[0]);
-                            } else {
-                              tVecNext = builder.create<vector::FMAOp>(
-                                  loc, vecTy, iVec, fVec, iargs[0]);
-                            }
-
-                            builder.create<scf::YieldOp>(loc,
-                                                         ValueRange{tVecNext});
-                          });
-                      builder.create<scf::YieldOp>(
-                          loc, ValueRange{forOp.getResult(0)});
-                    });
-                auto reduceVecOp = builder.create<vector::ReductionOp>(
-                    loc, vector::CombiningKind::ADD, forOp.getResult(0));
-                auto maskedOp =
-                    cast<vector::MaskOp>(mlir::vector::maskOperation(
-                        builder, reduceVecOp, remainMask));
-                Value reduceVec = maskedOp->getResult(0);
-                Value addNext;
-                if (isa<IntegerType>(elemTy)) {
-                  addNext =
-                      builder.create<arith::AddIOp>(loc, iargs[0], reduceVec);
-                } else {
-                  addNext =
-                      builder.create<arith::AddFOp>(loc, iargs[0], reduceVec);
-                }
-                builder.create<scf::YieldOp>(loc, ValueRange{addNext});
-              });
-
-          nestedBuilder.create<memref::StoreOp>(
-              loc, forOp.getResult(0), output,
-              ValueRange{ivN, ivOH, ivOW, ivOC});
-          nestedBuilder.create<scf::InParallelOp>(nestedLoc);
-        });
-    // clang format on
-
+    rewriter.create<memref::StoreOp>(loc, outputData, output,
+                                     ValueRange{ivN, ivOH, ivOW, ivOC});
     rewriter.eraseOp(op);
     return success();
   }
