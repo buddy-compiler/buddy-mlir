@@ -69,8 +69,12 @@ add_custom_command(
             -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
+            -canonicalize
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -78,7 +82,6 @@ add_custom_command(
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
-            -cse
             -memref-expand
             -arith-expand
             -convert-vector-to-llvm
@@ -114,8 +117,12 @@ add_custom_command(
             -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
+            -canonicalize
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -batchmatmul-transpose-b-vectorization
@@ -159,8 +166,12 @@ add_custom_command(
             -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
+            -canonicalize
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -168,7 +179,6 @@ add_custom_command(
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
-            -cse
             -memref-expand
             -arith-expand
             -convert-vector-to-llvm
@@ -205,8 +215,12 @@ add_custom_command(
             -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
+            -canonicalize
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
             -eliminate-memref-copy
             -assume-tight-memref-layout
             -staticize-memref-layout
@@ -252,8 +266,12 @@ add_custom_command(
             -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
+            -canonicalize
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -297,8 +315,12 @@ add_custom_command(
             -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
+            -canonicalize
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -batchmatmul-transpose-b-vectorization
@@ -342,8 +364,12 @@ add_custom_command(
             -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
+            -canonicalize
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
             -assume-tight-memref-layout
             -matmul-vectorization-blis
             -batchmatmul-optimize
@@ -389,8 +415,12 @@ add_custom_command(
             -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
+            -canonicalize
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
             -assume-tight-memref-layout
             -matmul-vectorization-decode=vector-size=128
             -batch-matmul-vectorization-decode=vector-size=128
@@ -433,8 +463,12 @@ add_custom_command(
             -one-shot-bufferize="bufferize-function-boundaries"
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
+            -canonicalize
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -476,8 +510,12 @@ add_custom_command(
             -one-shot-bufferize="bufferize-function-boundaries"
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
+            -canonicalize
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
             -matmul-parallel-vectorization-optimize
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
