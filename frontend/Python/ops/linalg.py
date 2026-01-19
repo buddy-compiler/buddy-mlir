@@ -876,10 +876,12 @@ def pow_op(
             dtype,
             ir.FloatAttr.get(dtype, exp_value),
         )
-        # Extract scalar, compute pow, then create tensor
-        tensor_type = ir.RankedTensorType.get([], dtype)
-        result = math.PowFOp(input1, exp_const.result)
-        return result
+        # Extract scalar element, compute pow, then wrap back to 0-d tensor.
+        extracted = tensor.ExtractOp(input1, [])
+        powf = math.PowFOp(extracted.result, exp_const.result)
+        return tensor.FromElementsOp(
+            ir.RankedTensorType.get([], dtype), [powf.result]
+        ).result
 
     # Check if value is an integer-valued number (not string)
     is_integer_valued = (
@@ -1487,15 +1489,19 @@ def _index_op_all_tensors(
 
     # General broadcast handling: all index tensors broadcast to output_shape
     if not applied_special_broadcast:
+        num_index_tensors = len(input2)
+        remaining_dims = len(input_shape) - num_index_tensors
+        broadcast_rank = out_rank - remaining_dims
+
         # Check if all index tensors can broadcast to output_shape
         all_broadcastable = True
         for idx_shape in index_shapes:
-            if len(idx_shape) > out_rank:
+            if len(idx_shape) > broadcast_rank:
                 all_broadcastable = False
                 break
             # Check broadcast compatibility
             for j in range(len(idx_shape)):
-                out_dim_idx = out_rank - len(idx_shape) + j
+                out_dim_idx = broadcast_rank - len(idx_shape) + j
                 if (
                     idx_shape[j] != 1
                     and idx_shape[j] != output_shape[out_dim_idx]
@@ -1510,10 +1516,12 @@ def _index_op_all_tensors(
             for idx_shape in index_shapes:
                 idx_rank = len(idx_shape)
                 # Build affine expressions for this index tensor
-                # Align to the right of output dimensions
+                # Align to the right within the broadcasted index dimensions
+                # (prefix of the output). The remaining trailing dimensions are
+                # full slices handled via linalg.index later.
                 exprs = []
                 for j in range(idx_rank):
-                    out_dim_idx = out_rank - idx_rank + j
+                    out_dim_idx = broadcast_rank - idx_rank + j
                     if idx_shape[j] == 1:
                         # Broadcast dimension: use constant 0
                         exprs.append(ir.AffineConstantExpr.get(0))
@@ -1638,6 +1646,69 @@ def _index_op_with_none_indices(
             index_tensor_operands.append(operand)
             index_tensor_shapes.append(list(operand.type.shape))
             index_positions.append(i)
+
+    # Common fast path: a single 1D index tensor selecting one dimension, all other
+    # dimensions are None (slice all). This matches patterns such as roll implemented
+    # via advanced indexing (e.g., x[index, :]).
+    if (
+        len(index_tensor_operands) == 1
+        and len(index_positions) == 1
+        and len(index_tensor_shapes[0]) == 1
+        and len(output_shape) == len(input_shape)
+        and all(
+            d == index_positions[0] or d >= len(input2) or input2[d] is None
+            for d in range(len(input_shape))
+        )
+    ):
+        indexed_dim = int(index_positions[0])
+        idx_operand = index_tensor_operands[0]
+
+        tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+        output = tensor.EmptyOp(output_shape, mlir_dtype)
+
+        iter_count = len(output_shape)
+        idx_rank = 1
+        idx_map = ir.AffineMap.get(
+            iter_count, 0, [ir.AffineDimExpr.get(indexed_dim)]
+        )
+        out_map = _safe_get_permutation([i for i in range(iter_count)])
+
+        op = linalg.GenericOp(
+            [tensor_type],
+            [idx_operand],
+            [output],
+            ir.ArrayAttr.get(
+                [ir.AffineMapAttr.get(idx_map), ir.AffineMapAttr.get(out_map)]
+            ),
+            ir.ArrayAttr.get(
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                * iter_count
+            ),
+        )
+
+        block = ir.Block.create_at_start(
+            op.region,
+            [
+                ir.RankedTensorType(idx_operand.type).element_type,
+                ir.RankedTensorType(output.result.type).element_type,
+            ],
+        )
+        idx_cast = arith.IndexCastOp(ir.IndexType.get(), block.arguments[0])
+        block.append(idx_cast)
+
+        extract_indices = []
+        for dim in range(len(input_shape)):
+            if dim == indexed_dim:
+                extract_indices.append(idx_cast.result)
+            else:
+                index_op_inst = linalg.IndexOp(ir._i64Attr(dim, None))
+                block.append(index_op_inst)
+                extract_indices.append(index_op_inst.result)
+
+        value = tensor.ExtractOp(input1, extract_indices)
+        block.append(value)
+        block.append(linalg.YieldOp([value.result]))
+        return op
 
     # For iteration space, use output_shape dimensions
     iter_count = len(output_shape)

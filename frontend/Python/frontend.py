@@ -67,6 +67,34 @@ class DynamoCompiler:
         imported_params: The imported parameters from the model.
     """
 
+    @staticmethod
+    def _sanitize_decompositions(
+        decompositions: Optional[dict],
+    ) -> Optional[dict]:
+        """Patch aot_autograd decompositions to avoid decomposed graphs we cannot lower correctly."""
+        if decompositions is None:
+            return None
+        if not isinstance(decompositions, dict):
+            return decompositions
+
+        patched = dict(decompositions)
+
+        def _no_decomp(*args, **kwargs):
+            return NotImplemented
+
+        # Some Inductor decompositions rewrite 1D pooling into a
+        # unsqueeze/avg_pool2d/squeeze pattern with negative dims that do not
+        # round-trip after the rank change. Keep the original ATen ops so Buddy
+        # can lower them directly.
+        for key in (
+            torch.ops.aten.avg_pool1d.default,
+            torch.ops.aten.adaptive_avg_pool1d.default,
+        ):
+            if key in patched:
+                patched[key] = _no_decomp
+
+        return patched
+
     def __init__(
         self,
         func_name: str = "forward",
@@ -106,7 +134,9 @@ class DynamoCompiler:
         if primary_registry is None:
             primary_registry = {}
         self._func_name = func_name
-        self._aot_autograd_decomposition = aot_autograd_decomposition
+        self._aot_autograd_decomposition = self._sanitize_decompositions(
+            aot_autograd_decomposition
+        )
         self._verbose = verbose
         self._enable_external_calls = enable_external_calls
         env_out = (
@@ -1028,56 +1058,6 @@ class DynamoCompiler:
             graph._imported_module, opt_level=3, shared_libs=shared_libs
         )
 
-        def cast_c_ptr(outdata_ptr, memref_ptr):
-            """
-            Casts a C pointer (`outdata_ptr`) to the type of another C pointer
-            (`memref_ptr`).
-
-            Args:
-                outdata_ptr: ctypes.POINTER
-                The C pointer whose type needs to be cast.
-                memref_ptr: ctypes.POINTER
-                The reference C pointer whose type will be used for casting.
-
-            Returns:
-            ctypes.POINTER
-                A new C pointer with the type of `memref_ptr`, representing the
-                same memory location as `outdata_ptr`.
-
-            Example:
-            outdata = ctypes.pointer(ctypes.c_int())
-            memref = ctypes.pointer(ctypes.c_float())
-            casted_ptr = cast_c_ptr(outdata, memref)
-            # Now `casted_ptr` points to the same memory location as `outdata`,
-            but with the type of `memref`.
-            """
-            outdata_addr = ctypes.addressof(outdata_ptr.contents)
-            out_ptr = ctypes.cast(outdata_addr, type(memref_ptr))
-            return out_ptr
-
-        def move_c_ptr(outdata_ptr, memref_ptr):
-            """
-            Moves a C pointer (`outdata_ptr`) to the next element in memory,
-            based on the size of the referenced type in another C pointer
-            (`memref_ptr`).
-
-            Args:
-                outdata_ptr: ctypes.POINTER
-                The C pointer whose position needs to be moved.
-                memref_ptr: ctypes.POINTER
-                The reference C pointer whose type determines the size of each
-                element for the move.
-
-            Returns:
-            ctypes.POINTER
-                A new C pointer pointing to the next element in memory, based on
-                the size of the type referenced by `memref_ptr`.
-            """
-            elem_size = ctypes.sizeof(memref_ptr.contents)
-            outdata_addr = ctypes.addressof(outdata_ptr.contents)
-            out_ptr = ctypes.cast(outdata_addr + elem_size, type(memref_ptr))
-            return out_ptr
-
         def exec_buddy_graph(*args):
             """
             Execute a graph using TorchDynamo with the provided input tensors.
@@ -1113,48 +1093,41 @@ class DynamoCompiler:
                 u32 = np.asarray(npy, dtype=np.uint32) << 16
                 return u32.view(np.float32)
 
-            # A list of ctypes pointers representing memory references for input
-            # tensors.
-            input_memref = [
-                ctypes.pointer(
-                    ctypes.pointer(
-                        rt.get_ranked_memref_descriptor(
-                            _bf16_tensor_to_numpy_uint16(tensor)
-                            if tensor.dtype == torch.bfloat16
-                            else tensor.numpy()
-                        )
-                    )
-                )
-                for tensor in args
-            ]
-            # A list of ctypes pointers representing memory references for
-            # output tensors.
-            output_memref = [
-                ctypes.pointer(ctypes.pointer(graph._output_descriptor()))
-            ]
-            args_memref = output_memref + input_memref
-            # Invoke the graph's function using the provided execution engine
-            # and memory references
-            ee.invoke(graph._func_name, *args_memref)
+            def _tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
+                if tensor.device.type != "cpu":
+                    tensor = tensor.cpu()
+                tensor = tensor.contiguous()
+                if tensor.dtype == torch.bfloat16:
+                    return _bf16_tensor_to_numpy_uint16(tensor)
+                return tensor.numpy()
 
-            output_tensor = []
-            outdata_ptr = args_memref[0][0]
-            # Iterate through each output memory reference in the graph
-            for output_ptr in graph._output_memref:
-                # Cast the output data pointer to the type of the current output
-                # memory reference
-                data_ptr = cast_c_ptr(outdata_ptr, output_ptr[0])
-                # Convert the C data pointer to a NumPy array and append it to
-                # the output_tensor list
-                out = rt.ranked_memref_to_numpy(data_ptr)
+            input_arrays = []
+            input_descs = []
+            input_slots = []
+            for tensor in args:
+                npy = _tensor_to_numpy(tensor)
+                npy = np.array(npy, copy=True)
+                input_arrays.append(npy)
+                desc = rt.get_ranked_memref_descriptor(npy)
+                input_descs.append(desc)
+                input_slots.append(ctypes.pointer(ctypes.pointer(desc)))
+
+            output_struct = graph._output_descriptor()
+            output_ptr = ctypes.pointer(output_struct)
+            output_slot = ctypes.pointer(output_ptr)
+
+            ee.invoke(graph._func_name, output_slot, *input_slots)
+
+            output_tensors = []
+            for i in range(len(graph._output_memref)):
+                out_desc = getattr(output_struct, str(i))
+                out = rt.ranked_memref_to_numpy(ctypes.pointer(out_desc))
                 if isinstance(out, np.ndarray) and out.dtype == np.uint16:
                     out = _bf16_uint16_numpy_to_f32(out)
-                output_tensor.append(out)
-                # Move to the next element in memory based on the size of the
-                # current output type
-                outdata_ptr = move_c_ptr(outdata_ptr, output_ptr[0])
-            # Convert each NumPy array to a PyTorch tensor and return the list
-            # of tensors
-            return [torch.from_numpy(tensor) for tensor in output_tensor]
+                if isinstance(out, np.ndarray):
+                    output_tensors.append(torch.from_numpy(out))
+                else:
+                    output_tensors.append(torch.tensor(out))
+            return output_tensors
 
         return exec_buddy_graph
