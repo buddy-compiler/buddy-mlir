@@ -597,7 +597,8 @@ CUSTOM_TEMPLATES.update(
         "bernoulli.Tensor_out": _template_bernoulli_tensor_out,
         "bernoulli.float_out": _template_bernoulli_float_out,
         "bernoulli_.Tensor": _template_bernoulli_inplace_tensor,
-        # Complex types not supported
+        # Complex scalar overloads: Dynamo fake tensor currently cannot trace
+        # these signatures (expects Scalar complex, but receives FakeTensor).
         "acos.complex": _skip("complex_not_supported"),
         "acosh.complex": _skip("complex_not_supported"),
         "add.complex": _skip("complex_not_supported"),

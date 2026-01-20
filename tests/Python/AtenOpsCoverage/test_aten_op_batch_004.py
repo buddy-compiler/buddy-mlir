@@ -69,6 +69,18 @@ def _template_linalg_cross_out():
     return args, {"out": out}
 
 
+def _template_logical_binary():
+    a = torch.tensor([True, False, True], dtype=torch.bool)
+    b = torch.tensor([False, False, True], dtype=torch.bool)
+    return [a, b], {}
+
+
+def _template_logical_binary_out():
+    args, _ = _template_logical_binary()
+    out = torch.empty_like(args[0])
+    return args, {"out": out}
+
+
 def _template_linalg_matrix():
     A = _mat2x2()
     return [A], {}
@@ -560,6 +572,15 @@ CUSTOM_TEMPLATES.update(
         "linalg_cholesky_ex.L": _skip("linalg_not_supported"),
         "linalg_cross.default": _template_linalg_cross,
         "linalg_cross.out": _template_linalg_cross_out,
+        "logical_and.default": _template_logical_binary,
+        "logical_and.out": _template_logical_binary_out,
+        "logical_and_.default": _template_logical_binary,
+        "logical_or.default": _template_logical_binary,
+        "logical_or.out": _template_logical_binary_out,
+        "logical_or_.default": _template_logical_binary,
+        "logical_xor.default": _template_logical_binary,
+        "logical_xor.out": _template_logical_binary_out,
+        "logical_xor_.default": _template_logical_binary,
         "linalg_eig.default": _skip("linalg_not_supported"),
         "linalg_eig.out": _skip("linalg_not_supported"),
         "linalg_eigvals.default": _skip("linalg_not_supported"),

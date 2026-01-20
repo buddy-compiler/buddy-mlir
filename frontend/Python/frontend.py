@@ -50,6 +50,9 @@ from .graph.transform import (
     affine_grid_generator_homogeneous_base_simplify,
     affine_grid_generator_simplify,
     replace_bernoulli_with_runtime_rng,
+    replace_exponential_with_runtime_rng,
+    replace_geometric_with_runtime_rng,
+    replace_rand_with_runtime_rng,
     maxpool2d_simplify,
     functionalize_out_overloads,
 )
@@ -161,6 +164,7 @@ class DynamoCompiler:
             "arange.default": ArangeOp,
             "unsqueeze.default": UnsqueezeOp,
             "view.default": ViewOp,
+            "view.dtype": ViewDtypeOp,
             "ones.default": OnesOp,
             "full.default": FullOp,
             "embedding.default": EmbeddingOp,
@@ -265,6 +269,9 @@ class DynamoCompiler:
             "log2.default": Log2Op,
             "log1p.default": Log1pOp,
             "expm1.default": Expm1Op,
+            "exponential.default": ExponentialOp,
+            "exponential.out": ExponentialOp,
+            "exponential_.default": ExponentialOp,
             "constant_pad_nd.default": ConstantPadNdOp,
             "reciprocal.default": ReciprocalOp,
             "clamp_min.default": ClampMinOp,
@@ -516,6 +523,9 @@ class DynamoCompiler:
             "empty.memory_format": EmptyOp,
             "rand.default": RandOp,
             "randn.default": RandnOp,
+            "geometric.default": GeometricOp,
+            "geometric.out": GeometricOp,
+            "geometric_.default": GeometricOp,
             "select_scatter.default": SelectScatterOp,
             "select_scatter.out": SelectScatterOp,
             "split_with_sizes.default": SplitWithSizesOp,
@@ -601,6 +611,10 @@ class DynamoCompiler:
                 return TensorDType.Float32
             case "torch.float64":
                 return TensorDType.Float64
+            case "torch.complex64":
+                return TensorDType.Complex64
+            case "torch.complex128":
+                return TensorDType.Complex128
             case "torch.bool":
                 return TensorDType.Bool
             case _:
@@ -917,6 +931,9 @@ class DynamoCompiler:
                 affine_grid_generator_simplify,
                 affine_grid_generator_homogeneous_base_simplify,
                 replace_bernoulli_with_runtime_rng,
+                replace_exponential_with_runtime_rng,
+                replace_geometric_with_runtime_rng,
+                replace_rand_with_runtime_rng,
             ]
             if self._enable_out_functionalize:
                 transform_list.insert(

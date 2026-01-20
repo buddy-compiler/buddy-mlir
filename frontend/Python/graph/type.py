@@ -42,6 +42,10 @@ class TensorDType(Enum):
         Represents the 64-bit floating-point data type.
     - Bool: str
         Represents the boolean data type.
+    - Complex64: str
+        Represents the complex64 data type (complex<f32>).
+    - Complex128: str
+        Represents the complex128 data type (complex<f64>).
     """
 
     Int8 = "int8"
@@ -52,6 +56,8 @@ class TensorDType(Enum):
     Float32 = "float32"
     Float64 = "float64"
     Bool = "bool"
+    Complex64 = "complex64"
+    Complex128 = "complex128"
 
 
 class TensorMeta:

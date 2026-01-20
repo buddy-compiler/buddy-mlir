@@ -826,7 +826,7 @@ CUSTOM_TEMPLATES.update(
         "new_ones.default": _template_new_ones,
         "new_ones.out": _skip("dynamo_out_overload_bug"),
         "new_zeros.default": _template_new_zeros,
-        "new_zeros.out": _skip("dynamo_out_overload_bug"),
+        "new_zeros.out": _template_new_zeros_out,
         "nll_loss.default": _template_nll_loss,
         "nll_loss.out": _template_nll_loss_out,
         "nll_loss_forward.default": _template_nll_loss_forward,
