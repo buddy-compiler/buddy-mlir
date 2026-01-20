@@ -6,7 +6,7 @@ from ..type import TensorDType
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Callable, TypeVar
+from typing import Callable, TypeVar, Any
 from itertools import product
 from abc import ABC, abstractmethod
 
@@ -179,9 +179,8 @@ class QuantizationMethod(ABC):
     """
     Function object for installing 
     """
-    @staticmethod
     @abstractmethod
-    def rewriter(node: Op, context: QuantizationContext):
+    def rewriter(self, node: Op, context: QuantizationContext):
         """
         Rewrite node in graph.
 
@@ -189,8 +188,7 @@ class QuantizationMethod(ABC):
         """
         pass
     
-    @staticmethod
-    def callback(constraint: QuantizationConstraint, node: Op, context: QuantizationContext):
+    def callback(self, constraint: QuantizationConstraint, node: Op, context: QuantizationContext):
         """
         Determine the quantization state from the quantization of downstream ops.
 
@@ -201,10 +199,8 @@ class QuantizationMethod(ABC):
         """
         return None
 
-
-    @staticmethod
     @abstractmethod
-    def forward(node: Op, context: QuantizationState) -> QuantizationState | None:
+    def forward(self, node: Op, context: QuantizationContext) -> QuantizationState | None:
         """
         Determine the quantization state from the quantization state of the parents. (E.g. 
         given that a parent op is quantized along axis 1, the result of a transpose op can
@@ -218,15 +214,15 @@ class QuantizationMethod(ABC):
         pass
 
     def __call__(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
-        quantization = self.__class__.forward(node, context)
+        quantization = self.forward(node, context)
 
         if isinstance(quantization, Quantizable):
             if quantization.constraint is None:
                 # load the node and context into the callback before passing it.
-                quantization.callback = lambda constr: self.__class__.callback(constr, node, context)
+                quantization.callback = lambda constr: self.callback(constr, node, context)
         
         if isinstance(quantization, Rewritable):
-            quantization.set_rewrite(self.__class__.rewriter)
+            quantization.set_rewrite(self.rewriter)
         
         return quantization
 
@@ -258,6 +254,20 @@ def register_quantizer(quantization: QuantizationType, op_type: OpType):
         # Delete this function from user name space by not returning it.
     
     return guard
+
+def register_parameterized(quantization: QuantizationType, params: list[tuple[OpType, Dict[str, Any]]]):
+    def parameterized(cls: QuantizationMethodType):
+        for op_type, param_dict in params:
+
+            param_dict["buddy_op"] = op_type
+
+            subclass_name = f"{cls.__name__}_{op_type.__name__}"
+            new_cls = type(subclass_name, (cls,), param_dict)
+
+            guard = register_quantizer(quantization=quantization, op_type=op_type)
+            guard(new_cls)
+    
+    return parameterized
 
 def register_dequantizer(quantization_method: QuantizationMethodType):
     def guard(fn: Callable[[Op, QuantizationContext], None | QuantizationState]):
