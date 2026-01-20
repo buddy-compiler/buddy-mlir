@@ -34,17 +34,19 @@ class Rewritable:
 class Quantized(QuantizationState):
     constraint: QuantizationConstraint
 
-    def __init__(self, constraint: QuantizationConstraint):
+    def __init__(self, constraint: QuantizationConstraint = None):
         self.constraint = constraint
 
 class Quantizable(QuantizationState, Rewritable):
     callback: Callable | None = None
+    callbacks_on_population: list[Callable]
     constraint: QuantizationConstraint | None
 
     def __init__(
             self,
             constraint: QuantizationConstraint | None = None,
             callback: Callable[[int], None] | None = None,
+            callbacks_on_population: list[Callable] = [],
         ):
         if constraint:
             self.constraint = [constraint]
@@ -53,14 +55,15 @@ class Quantizable(QuantizationState, Rewritable):
         
         self.callback = callback
         self.constraint = constraint
+        self.callbacks_on_population = callbacks_on_population
 
     def set_constraint(self, constraint: QuantizationConstraint):
         assert self.constraint is None, "Constraint cannot be set twice on the same Quantized."
 
         self.constraint = constraint
 
-        if self.callback:
-            self.callback(self.constraint)
+        for callback in self.callbacks_on_population:
+            callback(self.constraint)
 
     def check_constraint(self, constraint: QuantizationConstraint) -> bool:
         """
@@ -83,6 +86,9 @@ class Quantizable(QuantizationState, Rewritable):
             return True
 
         return self.constraint.check(constraint)
+
+    def add_callback(self, callback: Callable):
+        self.callbacks_on_population.append(callback)
     
 class Unquantized(QuantizationState):
     pass
@@ -197,6 +203,7 @@ class QuantizationMethod(ABC):
 
         (Optionally implementable by quantization methods)
         """
+        print("Placeholder is requested for a QuantizationMethod that has not implemented it!")
         return None
 
     @abstractmethod
@@ -219,7 +226,10 @@ class QuantizationMethod(ABC):
         if isinstance(quantization, Quantizable):
             if quantization.constraint is None:
                 # load the node and context into the callback before passing it.
-                quantization.callback = lambda constr: self.callback(constr, node, context)
+                print(self.callback, type(self))
+                def callback_wrapper(constr):
+                    return self.callback(constr, node, context)
+                quantization.callback = callback_wrapper
         
         if isinstance(quantization, Rewritable):
             quantization.set_rewrite(self.rewriter)
