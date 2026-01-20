@@ -198,6 +198,12 @@ class ViewOp(Op):
         self._op_type = OpType.ReshapeType
 
 
+class ViewDtypeOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
 class EmbeddingOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -2052,6 +2058,28 @@ class RandnOp(Op):
     """
     Random normal tensor operation.
     Implements aten.randn.default: Creates a tensor with normal random values.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class GeometricOp(Op):
+    """
+    Geometric distribution sampling.
+    Implements aten.geometric.default / aten.geometric.out / aten.geometric_.default.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class ExponentialOp(Op):
+    """
+    Exponential distribution sampling.
+    Implements aten.exponential.default / aten.exponential.out / aten.exponential_.default.
     """
 
     def __init__(self) -> None:

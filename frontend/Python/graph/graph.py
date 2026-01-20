@@ -384,6 +384,12 @@ class Graph:
                     np_type = np.dtype(np.uint16)
                 case "f32":
                     np_type = np.dtype(np.float32)
+                case "f64":
+                    np_type = np.dtype(np.float64)
+                case "complex<f32>":
+                    np_type = np.dtype(np.complex64)
+                case "complex<f64>":
+                    np_type = np.dtype(np.complex128)
                 case _:
                     raise NotImplementedError(f"Unsupported dtype {dtype}")
             self._output_memref.append(
@@ -430,6 +436,7 @@ class Graph:
             pm.add("convert-vector-to-llvm")
             pm.add("memref-expand")
             pm.add("arith-expand")
+            pm.add("convert-complex-to-llvm")
             pm.add("convert-arith-to-llvm")
             pm.add("finalize-memref-to-llvm")
             pm.add("convert-scf-to-cf")
@@ -529,8 +536,14 @@ class GraphImporter:
                 return ir.BF16Type.get()
             case TensorDType.Float32:
                 return ir.F32Type.get()
+            case TensorDType.Float64:
+                return ir.F64Type.get()
             case TensorDType.Bool:
                 return ir.IntegerType.get_signless(1)
+            case TensorDType.Complex64:
+                return ir.ComplexType.get(ir.F32Type.get())
+            case TensorDType.Complex128:
+                return ir.ComplexType.get(ir.F64Type.get())
             case _:
                 raise NotImplementedError(f"Unsupported dtype {dtype}")
 

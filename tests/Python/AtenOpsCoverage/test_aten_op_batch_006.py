@@ -232,6 +232,12 @@ def _template_prod_out():
     return [x], {"out": out}
 
 
+def _template_rand_default():
+    # Keep the size small to avoid large constant materialization in the
+    # current runtime RNG path.
+    return [[2, 2]], {"dtype": torch.float32, "device": torch.device("cpu")}
+
+
 def _template_repeat_default():
     x = torch.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=torch.float32)
     repeats = [2, 3]
@@ -263,6 +269,14 @@ def _template_repeat_interleave_self_tensor():
     repeats = torch.tensor([1, 3, 2], dtype=torch.int64)
     dim = 0
     output_size = 6
+    return [self_tensor, repeats, dim], {"output_size": output_size}
+
+
+def _template_repeat_interleave_self_int():
+    self_tensor = torch.tensor([10, 20, 30], dtype=torch.int64)
+    repeats = 2
+    dim = 0
+    output_size = int(self_tensor.numel() * repeats)
     return [self_tensor, repeats, dim], {"output_size": output_size}
 
 
@@ -577,7 +591,7 @@ CUSTOM_TEMPLATES.update(
         "prod.out": _template_prod_out,
         "prod.dim_Dimname": _skip("named_tensor_torchscript"),
         "prod.Dimname_out": _skip("named_tensor_torchscript"),
-        "rand.default": _skip("backend_missing_rand"),
+        "rand.default": _template_rand_default,
         "rand.generator": _skip("backend_missing_rand"),
         "rand.names": _skip("backend_missing_rand"),
         "rand.generator_with_names": _skip("backend_missing_rand"),
@@ -656,6 +670,7 @@ CUSTOM_TEMPLATES.update(
         "repeat.out": _template_repeat_out,
         "repeat_interleave.Tensor": _template_repeat_interleave_tensor,
         "repeat_interleave.self_Tensor": _template_repeat_interleave_self_tensor,
+        "repeat_interleave.self_int": _template_repeat_interleave_self_int,
         "repeat_interleave.Tensor_out": _template_repeat_interleave_tensor_out,
         "replication_pad1d.default": _template_replication_pad1d_default,
         "replication_pad1d.out": _template_replication_pad1d_out,

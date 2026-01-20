@@ -51,6 +51,10 @@ def _dtype_tolerances(dtype: Any) -> Tuple[float, float]:
 
     if dtype in (torch.float16, torch.bfloat16):
         return 1e-2, 1e-2
+    if dtype == torch.complex64:
+        return 1e-4, 1e-5
+    if dtype == torch.complex128:
+        return 1e-6, 1e-8
     if dtype == torch.float64:
         return 1e-6, 1e-8
     if dtype == torch.float32:
@@ -84,12 +88,21 @@ def _assert_tensor_close(expected: Any, actual: Any) -> None:
         if expected.is_floating_point() and actual.is_floating_point():
             expected = expected.to(torch.float32)
             actual = actual.to(torch.float32)
+        elif expected.is_complex() and actual.is_complex():
+            target = (
+                torch.complex128
+                if expected.dtype == torch.complex128
+                or actual.dtype == torch.complex128
+                else torch.complex64
+            )
+            expected = expected.to(target)
+            actual = actual.to(target)
         else:
             raise AssertionError(
                 f"dtype_mismatch expected={expected.dtype} actual={actual.dtype}"
             )
 
-    if expected.is_floating_point():
+    if expected.is_floating_point() or expected.is_complex():
         rtol, atol = _dtype_tolerances(expected.dtype)
         if not torch.allclose(
             actual, expected, rtol=rtol, atol=atol, equal_nan=True
@@ -130,6 +143,26 @@ def _collect_tensor_inputs(args: Sequence[Any]) -> List[Any]:
     return out
 
 
+def _same_tensor_metadata(expected: Any, actual: Any) -> Tuple[bool, str]:
+    import torch
+
+    if not isinstance(expected, torch.Tensor) or not isinstance(
+        actual, torch.Tensor
+    ):
+        return False, "output_type_mismatch"
+    if expected.shape != actual.shape:
+        return (
+            False,
+            f"shape_mismatch expected={tuple(expected.shape)} actual={tuple(actual.shape)}",
+        )
+    if expected.dtype != actual.dtype:
+        return (
+            False,
+            f"dtype_mismatch expected={expected.dtype} actual={actual.dtype}",
+        )
+    return True, ""
+
+
 @dataclasses.dataclass
 class _ImporterCall:
     compiler: Any
@@ -167,11 +200,6 @@ def _patch_compile_fx(compiled_inputs_by_id: dict[int, List[Any]]):
 
 def _run_one_inprocess(path: Path, *, verbose: bool = False) -> TestResult:
     _bootstrap_pythonpath()
-
-    if path.name == "test_embedding_bag.py":
-        return TestResult(
-            path=path, status="skip", reason="skip:known_segfault"
-        )
 
     import torch
 
@@ -234,6 +262,22 @@ def _run_one_inprocess(path: Path, *, verbose: bool = False) -> TestResult:
         setattr(DynamoCompiler, "_compile_fx", compile_original)
 
     if not calls:
+        if path.name == "test_local_scalar_dense.py":
+            out_s = buf_out.getvalue()
+            # This test intentionally does not go through DynamoCompiler.importer.
+            # Treat it as metadata-only validation by checking that it prints the
+            # expected MLIR patterns.
+            required = ("tosa.const_shape", "tosa.reshape")
+            if all(tok in out_s for tok in required):
+                return TestResult(
+                    path=path, status="pass", reason="pass:metadata_only"
+                )
+            missing = [tok for tok in required if tok not in out_s]
+            return TestResult(
+                path=path,
+                status="fail",
+                reason=f"metadata_missing:{','.join(missing)}",
+            )
         return TestResult(
             path=path, status="skip", reason="skip:no_importer_call"
         )
@@ -245,7 +289,7 @@ def _run_one_inprocess(path: Path, *, verbose: bool = False) -> TestResult:
         )
 
     tensor_inputs = _collect_tensor_inputs(call.args)
-    if not tensor_inputs:
+    if not tensor_inputs and path.name != "test_empty_strided.py":
         return TestResult(
             path=path, status="skip", reason="skip:no_tensor_inputs"
         )
@@ -274,6 +318,11 @@ def _run_one_inprocess(path: Path, *, verbose: bool = False) -> TestResult:
         actual_items = actual_items[: len(expected_items)]
         for idx, (exp, act) in enumerate(zip(expected_items, actual_items)):
             try:
+                if path.name == "test_empty_strided.py":
+                    ok, msg = _same_tensor_metadata(exp, act)
+                    if not ok:
+                        return False, f"output:{idx}:metadata:{msg}"
+                    continue
                 if (
                     path.name == "test_resize_enlarge.py"
                     and idx == 0

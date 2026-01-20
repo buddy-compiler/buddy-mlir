@@ -159,6 +159,12 @@ def _template_geometric_out():
     return args, {"out": out}
 
 
+def _template_geometric_inplace():
+    args, _ = _template_geometric()
+    x, p = args
+    return [x.clone(), p], {}
+
+
 def _template_glu():
     x = torch.randn(2, 2, dtype=torch.float32)
     return [x, 1], {}
@@ -700,9 +706,9 @@ CUSTOM_TEMPLATES.update(
         "gcd.out": _template_gcd_out,
         "gcd.int": _template_gcd_int,
         "gcd_.default": _template_gcd_inplace,
-        "geometric.default": _skip("random_op_not_supported"),
-        "geometric.out": _skip("random_op_not_supported"),
-        "geometric_.default": _skip("random_op_not_supported"),
+        "geometric.default": _template_geometric,
+        "geometric.out": _template_geometric_out,
+        "geometric_.default": _template_geometric_inplace,
         "glu.default": _template_glu,
         "glu.out": _template_glu_out,
         "glu_backward.default": _template_glu_backward,

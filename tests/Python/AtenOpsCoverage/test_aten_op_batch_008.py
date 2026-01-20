@@ -162,6 +162,19 @@ def _template_sum_complex():
     return [[1 + 2j, -3 + 0.5j, 4 - 1j]], {}
 
 
+def _special_ndtri_base() -> torch.Tensor:
+    return torch.tensor([0.2, 0.5, 0.8], dtype=torch.float32)
+
+
+def _template_special_ndtri_default():
+    return [_special_ndtri_base()], {}
+
+
+def _template_special_ndtri_out():
+    x = _special_ndtri_base()
+    return [x], {"out": torch.empty_like(x)}
+
+
 def _template_stft_default():
     x = torch.arange(8, dtype=torch.float32)
     n_fft = 4
@@ -406,6 +419,8 @@ CUSTOM_TEMPLATES.update(
         "special_zeta.out": _skip("missing_op_implementation"),
         "special_zeta.self_scalar_out": _skip("missing_op_implementation"),
         "special_zeta.other_scalar_out": _skip("missing_op_implementation"),
+        "special_ndtri.default": _template_special_ndtri_default,
+        "special_ndtri.out": _template_special_ndtri_out,
         "split.Tensor": _template_split_tensor,
         "split.sizes": _template_split_sizes,
         "split.str": _template_split_str,
