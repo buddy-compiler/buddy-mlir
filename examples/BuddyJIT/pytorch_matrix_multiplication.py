@@ -27,14 +27,14 @@ def execute(a, b):
 c = torch.rand(2048, 2048, dtype=torch.float32)
 d = torch.rand(2048, 2048, dtype=torch.float32)
 
-start_time = time.process_time()
+start_time = time.time()
 actual = execute(c, d)
-end_time = time.process_time()
+end_time = time.time()
 mlir_time = end_time - start_time
 
-start_time = time.process_time()
+start_time = time.time()
 expect = MatrixMultiply().forward(c, d)
-end_time = time.process_time()
+end_time = time.time()
 torch_time = end_time - start_time
 
 # CHECK: Is MLIR equal to Torch? True
