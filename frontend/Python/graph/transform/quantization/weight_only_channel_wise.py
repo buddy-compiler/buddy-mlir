@@ -97,8 +97,12 @@ class TransparentUnaryQuantizationMethod(QuantizationMethod):
         args = node.args[1:]
         result = self.torch_op(probe, *args)
 
-        state.check_constraint(constraint=Constraint(axis=result.shape[constraint.axis]))
-    
+        constraint = Constraint(axis=result.shape[constraint.axis])
+
+        parent_name = node._parents[0]
+        if context.quantization_table[parent_name].add_constraint(constraint):
+            return constraint
+
     def forward(self, node, context):
         
         parent_name = node._parents[0]
@@ -108,8 +112,8 @@ class TransparentUnaryQuantizationMethod(QuantizationMethod):
         
         # Since we can compute the axes backwards, we leave the callback of
         # the __parent node__ in the state.
-        if (constr := state.constraint) is None:
-            return Quantizable(callbacks_on_population=[state.callback])
+        if len((constr := state.constraints)) != 1:
+            return Quantizable()
 
         axis = constr.axis
 
@@ -297,12 +301,8 @@ class PlaceholderQuantizationMethod(QuantizationMethod):
       context.graph.add_node(scaler_node, node_type=NodeType.FakeNode)
       
   def callback(self, constraint, node, context):
-      state = context.quantization_table[node.name]
-      assert isinstance(state, Quantizable), "An unquantizable operation distributed a callback"
-
-      if not state.check_constraint(constraint):
-          print("Double quantization of weight.")
-
+      return constraint
+      
   def forward(self, op: Op, context: QuantizationContext) -> None | QuantizationState:
       
       input_names = [inp.name for inp in context.graph.inputs]
@@ -312,58 +312,6 @@ class PlaceholderQuantizationMethod(QuantizationMethod):
       param_names = [param.name for param in context.graph.params]
       if op.name in param_names:
           return Quantizable()
-
-""" @register_wo_quantizer(op_type=PermuteOp)
-class PermuteQuantizationMethod(QuantizationMethod):
-
-  def rewriter(self, node: Op, context: QuantizationContext) -> None:
-      parent_name = node._parents[0]
-      permute_dims: list[int] = node.args[1]
-
-      parent_scaler_name = "scaler_" + parent_name
-      parent_scaler_op = context.graph.node_table[parent_scaler_name]
-
-      op_scaler_name = "scaler_" + node._name
-      permute_scaler = PermuteOp()
-      permute_scaler._name = op_scaler_name
-      permute_scaler._tensor_meta["dtype"] = parent_scaler_op.tensor_meta["dtype"]
-      permute_scaler._tensor_meta["shape"] = [parent_scaler_op._tensor_meta["shape"][i] for i in permute_dims]
-      permute_scaler._arguments = [parent_scaler_name, permute_dims]
-      permute_scaler._parents = [parent_scaler_name]
-      parent_scaler_op._children.append(op_scaler_name)
-      
-      context.graph.add_node(permute_scaler)
-
-  def callback(self, constraint: Constraint, node: Op, context: QuantizationContext) -> None:
-      node_name = node.name
-      permute_dims = node.args[1]
-
-      state: QuantizationState = context.quantization_table[node_name]
-
-      assert isinstance(state, Quantizable)
-
-      state.set_constraint(Constraint(axis=permute_dims[constraint.axis]))
-
-  def forward(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
-      
-      Quantizing the permute op of a quantized tensor.
-
-      We track where the original quantized axis ends up.
-      
-      
-      parent_name = node._parents[0]
-      permute_dims: list[int] = node.args[1]
-
-      if not isinstance(context.quantization_table[parent_name], Quantizable):
-          return Unquantized()
-
-      # If the previous node had its quantization axis set, we can define quantization by axis.
-      if (axis := context.quantization_table[parent_name].axis):
-          return Quantizable(constraint=Constraint(axis=permute_dims.index(axis)))
-      # If not, we define quantization with callback, so that if an axis is determined, we can propagate that back
-      # FIXME: this is incorrect:
-      return Quantizable() """
-
 
 @register_wo_quantizer(op_type=MatmulOp)
 class MatmulQuantizeMethod(QuantizationMethod):
@@ -403,14 +351,12 @@ class MatmulQuantizeMethod(QuantizationMethod):
 
     def forward(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
         quantizable = False
+        
+        if context.quantization_table[node._parents[0]].propagate_constraint(Constraint(axis=0)):
+            quantizable = True
 
-        if isinstance((state := context.quantization_table[node._parents[0]]), Quantizable):
-            if state.check_constraint(Constraint(axis=0)):
-                quantizable = True
-
-        if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-            if state.check_constraint(Constraint(axis=1)):
-                quantizable = True
+        if context.quantization_table[node._parents[1]].propagate_constraint(Constraint(axis=1)):
+            quantizable = True
 
         if quantizable:
             return Consumer()

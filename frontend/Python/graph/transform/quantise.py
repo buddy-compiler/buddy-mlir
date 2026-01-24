@@ -12,9 +12,6 @@ from abc import ABC, abstractmethod
 
 import torch
 
-class QuantizationState:
-    pass
-
 class QuantizationConstraint(ABC):
     
     @abstractmethod
@@ -24,12 +21,21 @@ class QuantizationConstraint(ABC):
         """
         pass
 
+class QuantizationState:
+    def check_constraint(self, constraint: QuantizationConstraint) -> bool:
+        return False
+
+    def add_constraint(self, constraint: QuantizationConstraint):
+        pass
+    
+    def propagate_constraint(self, constraint: QuantizationConstraint) -> bool:
+        return False
+
 class Rewritable:
     rewrite: Callable[[Op, "QuantizationContext"], None]
 
     def set_rewrite(self, rewrite: Callable[[Op, "QuantizationContext"], None]):
         self.rewrite = rewrite
-
 
 class Quantized(QuantizationState):
     constraint: QuantizationConstraint
@@ -38,57 +44,32 @@ class Quantized(QuantizationState):
         self.constraint = constraint
 
 class Quantizable(QuantizationState, Rewritable):
-    callback: Callable | None = None
-    callbacks_on_population: list[Callable]
-    constraint: QuantizationConstraint | None
+    callback: Callable[[QuantizationConstraint], None] | None = None
+    constraints: list[QuantizationConstraint]
 
     def __init__(
             self,
-            constraint: QuantizationConstraint | None = None,
-            callback: Callable[[int], None] | None = None,
-            callbacks_on_population: list[Callable] = [],
+            constraints: list[QuantizationConstraint] = [],
         ):
-        if constraint:
-            self.constraint = [constraint]
-            if callback:
-                callback(self.constraint)
+        self.constraints = constraints
+
+    def backprop_constraint(self, constraint: QuantizationConstraint, add_on_success: bool) -> bool:
+        if ((backprop_constraint := self.callback(constraint)) is None):
+            return False
         
-        self.callback = callback
-        self.constraint = constraint
-        self.callbacks_on_population = callbacks_on_population
+        if add_on_success:
+            self.constraints.append(backprop_constraint)
 
-    def set_constraint(self, constraint: QuantizationConstraint):
-        assert self.constraint is None, "Constraint cannot be set twice on the same Quantized."
-
-        self.constraint = constraint
-
-        for callback in self.callbacks_on_population:
-            callback(self.constraint)
+        return True
+    
+    def add_constraint(self, constraint):
+        self.constraints.append(constraint)
 
     def check_constraint(self, constraint: QuantizationConstraint) -> bool:
-        """
-        Check if the quantization of the tensor is compatible
-        with the given constraint.
+        return self.backprop_constraint(constraint=constraint, add_on_success=False)
 
-        When the quantization of the tensor is not set apriori,
-        then it is supposed to be determined based on context,
-        so if `constraint is None`, then it is compatible.
-
-        Args:
-            constraint (QuantizationConstraint): constraint to determine compatibility with.
-
-        Returns:
-            bool: Whether the quantization is compatible.
-        """
-
-        if self.constraint is None:
-            self.set_constraint(constraint=constraint)
-            return True
-
-        return self.constraint.check(constraint)
-
-    def add_callback(self, callback: Callable):
-        self.callbacks_on_population.append(callback)
+    def propagate_constraint(self, constraint: QuantizationConstraint) -> bool:
+        return self.backprop_constraint(constraint=constraint, add_on_success=True)
     
 class Unquantized(QuantizationState):
     pass
@@ -194,7 +175,7 @@ class QuantizationMethod(ABC):
         """
         pass
     
-    def callback(self, constraint: QuantizationConstraint, node: Op, context: QuantizationContext):
+    def callback(self, constraint: QuantizationConstraint, node: Op, context: QuantizationContext) -> QuantizationConstraint | None:
         """
         Determine the quantization state from the quantization of downstream ops.
 
@@ -202,6 +183,14 @@ class QuantizationMethod(ABC):
         quantization of a child, we can determine the quantization of the placeholder.
 
         (Optionally implementable by quantization methods)
+
+        Args:
+            constraint (QuantizationConstraint): Quantization constraint on the output of the op.
+            node (Op): graph node in question
+            context (QuantizationContext): Quantization context
+
+        Returns:
+            QuantizationConstraint | None: The constraint, if the node supports it, or None if not.
         """
         print("Placeholder is requested for a QuantizationMethod that has not implemented it!")
         return None
@@ -224,12 +213,10 @@ class QuantizationMethod(ABC):
         quantization = self.forward(node, context)
 
         if isinstance(quantization, Quantizable):
-            if quantization.constraint is None:
-                # load the node and context into the callback before passing it.
-                print(self.callback, type(self))
-                def callback_wrapper(constr):
-                    return self.callback(constr, node, context)
-                quantization.callback = callback_wrapper
+            # load the node and context into the callback before passing it.
+            def callback_wrapper(constr):
+                return self.callback(constr, node, context)
+            quantization.callback = callback_wrapper
         
         if isinstance(quantization, Rewritable):
             quantization.set_rewrite(self.rewriter)
@@ -351,9 +338,11 @@ def rewrite_node(node: Op, context: QuantizationContext):
 
     # We check if needs to be rewritten with a specified pattern
     node_status = context.quantization_table[node_name]
+
     if isinstance(node_status, Quantizable):
-        if node_status.constraint is not None:
-            context.quantization_table[node_name] = Quantized(constraint=node_status.constraint)
+        if len(node_status.constraints) != 0:
+            # for now, we just use the 0th quantization option
+            context.quantization_table[node_name] = Quantized(constraint=node_status.constraints[0])
             node_status.rewrite(node, context)
         else:
             context.quantization_table[node_name] = Unquantized()
