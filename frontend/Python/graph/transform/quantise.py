@@ -10,14 +10,14 @@ from typing import Callable, TypeVar, Any
 from itertools import product
 from abc import ABC, abstractmethod
 
-import torch
-
 class QuantizationConstraint(ABC):
+
+    gain: int = 1
     
     @abstractmethod
     def check(self, other: "QuantizationConstraint") -> bool:
         """
-        Check if `other` is compatible with `self`.
+        Check if `other` is the same as self
         """
         pass
 
@@ -49,20 +49,26 @@ class Quantizable(QuantizationState, Rewritable):
 
     def __init__(
             self,
-            constraints: list[QuantizationConstraint] = [],
+            constraints: list[QuantizationConstraint] | None = None,
         ):
-        self.constraints = constraints
+        if constraints is None:
+            self.constraints = []
 
     def backprop_constraint(self, constraint: QuantizationConstraint, add_on_success: bool) -> bool:
         if ((backprop_constraint := self.callback(constraint)) is None):
             return False
         
         if add_on_success:
-            self.constraints.append(backprop_constraint)
+            self.add_constraint(backprop_constraint)
 
         return True
     
     def add_constraint(self, constraint):
+        for i in range(len(self.constraints)):
+            if self.constraints[i].check(constraint):
+                self.constraints[i].gain += constraint.gain
+                return
+
         self.constraints.append(constraint)
 
     def check_constraint(self, constraint: QuantizationConstraint) -> bool:
@@ -70,7 +76,39 @@ class Quantizable(QuantizationState, Rewritable):
 
     def propagate_constraint(self, constraint: QuantizationConstraint) -> bool:
         return self.backprop_constraint(constraint=constraint, add_on_success=True)
+
+class ToQuantize(Rewritable):
+    constraint: QuantizationConstraint
+
+    def __init__(
+        self,
+        constraint: QuantizationConstraint,
+        rewrite: Callable,
+    ):
+        self.constraint = constraint
+        self.rewrite = rewrite
+
+    @classmethod
+    def from_quantizable(
+        cls,
+        state: Quantizable,
+        constraint: QuantizationConstraint
+    ) -> "ToQuantize":
+        return cls(
+            constraint=constraint,
+            rewrite=state.rewrite,
+        )
+
+def max_gain_quantization(state: Quantizable) -> ToQuantize:
+    constraints = state.constraints
+    max_gain_constraint = constraints[0]
+
+    for constraint in constraints[1:]:
+        if constraint.gain > max_gain_constraint.gain:
+            max_gain_constraint = constraint
     
+    return ToQuantize.from_quantizable(state=state, constraint=max_gain_constraint)
+
 class Unquantized(QuantizationState):
     pass
 
@@ -342,7 +380,7 @@ def rewrite_node(node: Op, context: QuantizationContext):
     if isinstance(node_status, Quantizable):
         if len(node_status.constraints) != 0:
             # for now, we just use the 0th quantization option
-            context.quantization_table[node_name] = Quantized(constraint=node_status.constraints[0])
+            context.quantization_table[node_name] = max_gain_quantization(node_status)
             node_status.rewrite(node, context)
         else:
             context.quantization_table[node_name] = Unquantized()

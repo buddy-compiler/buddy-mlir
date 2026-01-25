@@ -10,6 +10,7 @@ from ..quantise import (
   Quantizable,
   Unquantized,
   Quantized,
+  ToQuantize,
   Consumer,
   QuantizationMethod
 )
@@ -22,8 +23,9 @@ from typing import Any, Callable
 class ChannelWiseQuantizationConstraint(QuantizationConstraint):
     axis: int
 
-    def __init__(self, axis: int):
+    def __init__(self, axis: int, gain: int = 1):
         self.axis = axis
+        self.gain = gain
 
     def check(self, other: "ChannelWiseQuantizationConstraint") -> bool:
         return other.axis == self.axis
@@ -97,11 +99,11 @@ class TransparentUnaryQuantizationMethod(QuantizationMethod):
         args = node.args[1:]
         result = self.torch_op(probe, *args)
 
-        constraint = Constraint(axis=result.shape[constraint.axis])
+        new_constraint = Constraint(axis=result.shape[constraint.axis], gain=constraint.gain + 1)
 
         parent_name = node._parents[0]
-        if context.quantization_table[parent_name].add_constraint(constraint):
-            return constraint
+        if context.quantization_table[parent_name].propagate_constraint(new_constraint):
+            return new_constraint
 
     def forward(self, node, context):
         
@@ -340,14 +342,15 @@ class MatmulQuantizeMethod(QuantizationMethod):
 
                 context.graph.add_node(mul_op)
                 op_chain.append(mul_op)
+                
+        if len(op_chain) > 1:
+          context.graph.replace_as_parent(
+              parent_op=node,
+              child_ops=node._children,
+              new_op=op_chain[-1],
+          )
 
-        context.graph.replace_as_parent(
-            parent_op=node,
-            child_ops=node._children,
-            new_op=op_chain[-1],
-        )
-
-        node._children = [op_chain[1].name]
+          node._children = [op_chain[1].name]
 
     def forward(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
         quantizable = False
