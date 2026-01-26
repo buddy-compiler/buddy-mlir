@@ -170,12 +170,13 @@ public:
         loopOp = loop.getOperation();
       rewriter.setInsertionPointToStart(loop.getBody());
     }
-    Value kernelDim =
-        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[1]);
+    Value kernelWidth =
+        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[2]);
     Value inChannels =
         rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[3]);
     // Conv kernel mapping (f,h,w,c) -> (h*w*c, f)
-    Value tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs[1], kernelDim);
+    // Calculate: h * (W*C) + w * C + c
+    Value tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs[1], kernelWidth);
     tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, inChannels);
     Value tmp1 = rewriter.create<arith::MulIOp>(loc, loopIvs[2], inChannels);
     tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
@@ -188,12 +189,12 @@ public:
     Value outRowDim = rewriter.create<arith::ConstantOp>(loc, attr);
     attr = rewriter.getI64IntegerAttr(outputShape[2]);
     Value outColDim = rewriter.create<arith::ConstantOp>(loc, attr);
-    kernelDim = rewriter.create<arith::ConstantOp>(loc, attr);
-    kernelDim = rewriter.create<arith::ConstantOp>(
+    Value kernelDim = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64Type(), rewriter.getI64IntegerAttr(kernelShape[1]));
     rewriter.create<gemmini::TileConvOp>(
         loc, input, kernelMat, bias, outputMat, outRowDim, outColDim, kernelDim,
-        llvm::APFloat(float(1.0)), strides, dilations);
+        llvm::APFloat(float(1.0)), strides, /*inputDilation=*/1,
+        /*kernelDilation=*/dilations);
     // After the conv operation is completed, the data in outputMat needs to be
     // transferred into output (2-D to 4-D).
     loopIvs.clear();
@@ -343,7 +344,8 @@ public:
         rewriter.getI64IntegerAttr(weightsShape[2]));
     rewriter.create<gemmini::TileConvOp>(
         loc, inputMat, weightsMat, bias, outputMat, outDim, outDim, kernelDim,
-        llvm::APFloat(float(1.0)), strides, dilations);
+        llvm::APFloat(float(1.0)), strides, /*inputDilation=*/1,
+        /*kernelDilation=*/dilations);
     rewriter.eraseOp(convOp);
     loopIvs0.clear();
     loopIvs1.clear();
@@ -470,7 +472,8 @@ public:
     kernelDim = rewriter.create<arith::ConstantOp>(loc, attr);
     rewriter.create<gemmini::TileConvOp>(
         loc, input, kernelMat, bias, outputMat, outDim, outDim, kernelDim,
-        llvm::APFloat(float(1.0)), strides, dilations);
+        llvm::APFloat(float(1.0)), strides, /*inputDilation=*/1,
+        /*kernelDilation=*/dilations);
     // after the conv operation is completed, the data in outputmat needs to be
     // transferred into output.
     loopIvs.clear();

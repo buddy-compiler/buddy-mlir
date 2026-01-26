@@ -62,6 +62,14 @@ scale_t_bits scale_t_to_scale_t_bits(scale_t x) {
   return un.b;
 }
 
+// This function is used to insert a fence operation to ensure that the
+// NPU and CPU memory operations are executed in the correct order.
+// Use sequentially consistent ordering for strongest memory guarantee.
+void insertFence(Location loc, ConversionPatternRewriter &rewriter) {
+  auto ordering = LLVM::AtomicOrdering::seq_cst;
+  rewriter.create<LLVM::FenceOp>(loc, ordering);
+}
+
 template <typename IntrOp = Mvin_IntrOp>
 void gemminiMvinOffset(const Value &mem, const size_t offset,
                        const uint32_t SpAddr, const size_t cols,
@@ -551,8 +559,12 @@ class GemminiTileMatMulLowering : public ConvertOpToLLVMPattern<TileMatMulOp> {
     rs2Value = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(cRowStride));
     rewriter.create<LoopWsConfigStridesDC_IntrOp>(loc, rs1Value, rs2Value);
-    rs1 = (uint64_t)act << 8 | lowD << 2 | (fullC) << 1 | exAccumulate;
-    rs2 = bTranspose << 1 | aTranspose;
+    const int aSpadId = 0;
+    const int bSpadId = 0;
+    const int isResadd = 0;
+    rs1 = (uint64_t)aSpadId << 18 | (uint64_t)bSpadId << 16 |
+          (uint64_t)act << 8 | lowD << 2 | (fullC) << 1 | exAccumulate;
+    rs2 = isResadd << 2 | bTranspose << 1 | aTranspose;
     rs1Value = rewriter.create<arith::ConstantOp>(
         loc, i64Type, rewriter.getI64IntegerAttr(rs1));
     rs2Value = rewriter.create<arith::ConstantOp>(
@@ -1069,6 +1081,9 @@ public:
                      tileI, tileJ, tileK, act, scale, bertScale, repeatingBias,
                      aTranspose, bTranspose, fullC, lowD, weightA, dataflow,
                      tileMatMulOp, rewriter);
+
+    insertFence(loc, rewriter);
+
     return success();
   };
 
@@ -1093,22 +1108,27 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
       Value &bias, Value &input, bool noBias, bool noPool, bool downsample,
       bool writ180, bool inputDilated, int act, bool transOutput1203,
       bool transWeight1203, bool transWeight0132, bool transInput3120,
-      int maxPixelsPerRow, bool dw, TileConvOp &tileConvOp,
+      int maxPixelsPerRow, int inStride, int weightStride, int outStride,
+      bool dw, TileConvOp &tileConvOp,
       ConversionPatternRewriter &rewriter) const {
     Location loc = tileConvOp.getLoc();
     // loopConvWsConfig1
     uint64_t rs1 = (uint64_t)outChannels << 48 | (uint64_t)inChannels << 32 |
                    (uint64_t)inDim << 16 | (uint64_t)batchSize;
-    uint64_t rs2 = (uint64_t)padding << 48 | (uint64_t)stride << 32 |
-                   (uint64_t)poolOutDim << 16 | (uint64_t)outDim;
+    // uint64_t rs2 = (uint64_t)padding << 48 | (uint64_t)stride << 32 |
+    //                (uint64_t)poolOutDim << 16 | (uint64_t)outDim;
+    uint64_t rs2 = (uint64_t)padding << 56 | (uint64_t)stride << 48 |
+                   (uint64_t)outDim << 32 | (uint64_t)poolOutDim << 16 |
+                   (uint64_t)outDim;
     TypedAttr rs1Attr = rewriter.getI64IntegerAttr(rs1);
     TypedAttr rs2Attr = rewriter.getI64IntegerAttr(rs2);
     Value rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr);
     Value rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr);
     rewriter.create<LoopConvWsConfig1_IntrOp>(loc, rs1Value, rs2Value);
     // loopConvWsConfig2
-    rs1 = (uint64_t)kernelDim << 48 | (uint64_t)poolSize << 32 |
-          (uint64_t)poolStride << 16 | (uint64_t)poolPadding;
+    rs1 = (uint64_t)kernelDim << 48 | (uint64_t)poolOutDim << 32 |
+          (uint64_t)poolSize << 16 | (uint64_t)poolStride << 8 |
+          (uint64_t)poolPadding;
     rs2 = (uint64_t)batches << 48 | (uint64_t)porows << 32 |
           (uint64_t)pocols << 16 | (uint64_t)pochs;
     rs1Attr = rewriter.getI64IntegerAttr(rs1);
@@ -1119,17 +1139,22 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     // loopConvWsConfig3
     rs1 = (uint64_t)krows << 48 | (uint64_t)kcols << 32 | (uint64_t)kchs << 16 |
           (uint64_t)lpad;
-    rs2 = (uint64_t)rpad << 48 | (uint64_t)upad << 32 | (uint64_t)dpad << 16 |
-          (uint64_t)plpad;
+    // rs2 = (uint64_t)rpad << 48 | (uint64_t)upad << 32 | (uint64_t)dpad << 16
+    // |
+    //       (uint64_t)plpad;
+    rs2 = (uint64_t)rpad << 48 | (uint64_t)upad << 32 | (uint64_t)dpad << 24 |
+          (uint64_t)plpad << 16 | (uint64_t)inDim;
     rs1Attr = rewriter.getI64IntegerAttr(rs1);
     rs2Attr = rewriter.getI64IntegerAttr(rs2);
     rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr);
     rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr);
     rewriter.create<LoopConvWsConfig3_IntrOp>(loc, rs1Value, rs2Value);
-    // loopConvWsConfig4
+    // loopConvWsconfig4
     rs1 = (uint64_t)orows << 48 | (uint64_t)prpad << 32 |
-          (uint64_t)pupad << 16 | (uint64_t)pdpad;
-    rs2 = (uint64_t)kernelDilation << 16 | (uint64_t)ocols;
+          (uint64_t)pupad << 21 | (uint64_t)pdpad << 10 |
+          (uint64_t)kernelDilation;
+    rs2 = (uint64_t)inStride << 48 | (uint64_t)weightStride << 32 |
+          (uint64_t)outStride << 16 | (uint64_t)ocols;
     rs1Attr = rewriter.getI64IntegerAttr(rs1);
     rs2Attr = rewriter.getI64IntegerAttr(rs2);
     rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr);
@@ -1140,7 +1165,10 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     // loopConvWsconfig6
     rewriter.create<LoopConvWsConfig6_IntrOp>(loc, bias, input);
     // loopConvWs
-    rs1 = (uint64_t)maxPixelsPerRow << 8 | dw << 6 | transInput3120 << 5 |
+    const int aSpadId = 0;
+    const int bSpadId = 0;
+    rs1 = (uint64_t)aSpadId << 18 | (uint64_t)bSpadId << 16 |
+          (uint64_t)maxPixelsPerRow << 8 | dw << 6 | transInput3120 << 5 |
           transWeight0132 << 4 | transWeight1203 << 3 | transOutput1203 << 2 |
           writ180 << 1 | noBias;
     rs2 = act << 3 | inputDilated << 2 | downsample << 1 | noPool;
@@ -1241,8 +1269,8 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
           kchs, lpad, rpad, upad, dpad, plpad, prpad, pupad, pdpad, orows,
           ocols, weights, output, bias, input, noBias, noPool, downsample,
           wrot180, inputDilated, act, transOutput1203, transWeight1203,
-          transWeight0132, transInput3120, maxPixelsPerRow, dw, tileConvOp,
-          rewriter);
+          transWeight0132, transInput3120, maxPixelsPerRow, inStride,
+          weightStride, outStride, dw, tileConvOp, rewriter);
       return;
     }
     if (!noPool) {
@@ -2074,6 +2102,9 @@ public:
               weightsIndexCastOp, biasIndexCastOp, outputIndexCastOp, act,
               scale, poolSize, noPool ? 0 : poolStride, poolPadding, tileConvOp,
               rewriter);
+
+    insertFence(loc, rewriter);
+
     return success();
   }
 
