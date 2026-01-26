@@ -30,6 +30,9 @@ class ChannelWiseQuantizationConstraint(QuantizationConstraint):
     def check(self, other: "ChannelWiseQuantizationConstraint") -> bool:
         return other.axis == self.axis
     
+    def hash(self):
+        return self.axis
+    
 Constraint = ChannelWiseQuantizationConstraint
 
 class WeightOnlyQuantization(Quantization):
@@ -64,6 +67,8 @@ class TransparentUnaryQuantizationMethod(QuantizationMethod):
     buddy_op: type = None
     
     def rewriter(self, node, context):
+        assert isinstance((state := context.quantization_table[node.name]), ToQuantize)
+
         parent_name = node._parents[0]
         args = node.args[1:]
 
@@ -86,6 +91,8 @@ class TransparentUnaryQuantizationMethod(QuantizationMethod):
         parent_scaler_op._children.append(op_scaler_name)
         
         context.graph.add_node(scaler)
+
+        context.quantization_table[node.name] = Quantized(constraint=state.constraint)
     
     def callback(self, constraint, node, context):
         assert isinstance(constraint, Constraint)
@@ -99,11 +106,11 @@ class TransparentUnaryQuantizationMethod(QuantizationMethod):
         args = node.args[1:]
         result = self.torch_op(probe, *args)
 
-        new_constraint = Constraint(axis=result.shape[constraint.axis], gain=constraint.gain + 1)
+        new_constraint = Constraint(axis=result.shape[constraint.axis], gain=constraint.gain)
 
         parent_name = node._parents[0]
         if context.quantization_table[parent_name].propagate_constraint(new_constraint):
-            return new_constraint
+            return constraint
 
     def forward(self, node, context):
         
@@ -114,10 +121,10 @@ class TransparentUnaryQuantizationMethod(QuantizationMethod):
         
         # Since we can compute the axes backwards, we leave the callback of
         # the __parent node__ in the state.
-        if len((constr := state.constraints)) != 1:
+        if not isinstance(state, Quantized):
             return Quantizable()
 
-        axis = constr.axis
+        axis = state.constraint.axis
 
         fake_shape = [1 if i == axis else 0 for i in range(len(node.tensor_meta["shape"]))]
         probe = torch.empty(fake_shape)
@@ -125,7 +132,7 @@ class TransparentUnaryQuantizationMethod(QuantizationMethod):
 
         result = self.torch_op(probe, *args)
 
-        Quantizable(Constraint(axis=torch.argmax(result.shape.index(1)))) 
+        return Quantizable([Constraint(axis=result.shape.index(1), gain=0)])
   
 @register_wo_parameterized([
     (ViewOp, {"torch_op" : torch.Tensor.view}),
@@ -223,12 +230,10 @@ class ViewReshapeQuantizationMethod(QuantizationMethod):
         if not isinstance((state := context.quantization_table[parent_name]), Quantizable):
             return Unquantized()
         
-        if (constr := state.constraint) is None:
-            return Unquantized()
+        if not isinstance(state, Quantized):
+            return Quantizable()
         
-        constr: Constraint
-
-        parent_axis = constr.axis
+        parent_axis = state.constraint.axis
 
         parent_node = context.graph.node_table[parent_name]
         old_shape = parent_node.tensor_meta["shape"]
@@ -287,6 +292,8 @@ def dequantizer(node: Op, context: QuantizationContext) -> MulOp:
 class PlaceholderQuantizationMethod(QuantizationMethod):
 
   def rewriter(self, node: Op, context: QuantizationContext):
+      assert isinstance((state := context.quantization_table[node.name]), ToQuantize)
+
       node_name = node.name
       scaler_node = PlaceholderOp()
       scaler_node._name = "scaler_" + node_name
@@ -301,6 +308,8 @@ class PlaceholderQuantizationMethod(QuantizationMethod):
 
       node._tensor_meta["dtype"] = context.target_dtype
       context.graph.add_node(scaler_node, node_type=NodeType.FakeNode)
+
+      context.quantization_table[node.name] = Quantized(constraint=state.constraint)
       
   def callback(self, constraint, node, context):
       return constraint
@@ -313,10 +322,20 @@ class PlaceholderQuantizationMethod(QuantizationMethod):
       
       param_names = [param.name for param in context.graph.params]
       if op.name in param_names:
-          return Quantizable()
+          return Quantizable(constraints=[Constraint(axis=i, gain=0) for i in range(len(op.tensor_meta["shape"]))])
 
 @register_wo_quantizer(op_type=MatmulOp)
 class MatmulQuantizeMethod(QuantizationMethod):
+    """
+    Matmul ops are consumers, as they benefit from quantization,
+    but the output is not quantizable in any situation.
+
+    Thus, we perform the mm on the possibly quantized inputs,
+    and dequantize along all quantized axes.
+
+
+    TODO: mark all produced nodes in the quantization_table.
+    """
     
     def rewriter(self, node: Op, context: QuantizationContext):
         node_name = node.name
@@ -342,23 +361,27 @@ class MatmulQuantizeMethod(QuantizationMethod):
 
                 context.graph.add_node(mul_op)
                 op_chain.append(mul_op)
-                
+
         if len(op_chain) > 1:
-          context.graph.replace_as_parent(
-              parent_op=node,
-              child_ops=node._children,
-              new_op=op_chain[-1],
-          )
+            context.graph.replace_as_parent(
+                parent_op=node,
+                child_ops=node._children,
+                new_op=op_chain[-1],
+            )
 
-          node._children = [op_chain[1].name]
+            node._children = [op_chain[1].name]
 
     def forward(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
         quantizable = False
         
-        if context.quantization_table[node._parents[0]].propagate_constraint(Constraint(axis=0)):
+        parent_op1_name, parent_op2_name = node._parents
+
+        op1_axis = max(0, len(context.graph.node_table[parent_op1_name].tensor_meta["shape"]) - 2)
+        if context.quantization_table[node._parents[0]].propagate_constraint(Constraint(axis=op1_axis)):
             quantizable = True
 
-        if context.quantization_table[node._parents[1]].propagate_constraint(Constraint(axis=1)):
+        op2_axis = max(0, len(context.graph.node_table[parent_op2_name].tensor_meta["shape"]) - 1)
+        if context.quantization_table[node._parents[1]].propagate_constraint(Constraint(axis=op2_axis)):
             quantizable = True
 
         if quantizable:
@@ -366,190 +389,4 @@ class MatmulQuantizeMethod(QuantizationMethod):
 
         return Unquantized()
 
-@register_wo_quantizer(op_type=AddMMOp)
-class AddMMQuantizationMethod(QuantizationMethod):
-
-  def rewriter(self, node: Op, context: QuantizationContext) -> None:
-      node_name = node.name
-
-      mm_op = MatmulOp()
-      mm_op_name = "pre_scaled_" + node_name
-      mm_op._name = mm_op_name
-      mm_op._parents = node._parents[1:]
-      mm_op._arguments = node._parents[1:]
-      mm_op._tensor_meta = node.tensor_meta
-
-      context.graph.replace_as_child(node._parents[1:], node, mm_op)
-
-      context.graph.add_node(mm_op)
-
-      op_chain = [mm_op]
-
-      for i, parent_name in enumerate(mm_op._parents, 1):
-          if isinstance(context.quantization_table[parent_name], Quantized):
-              
-              prev_node = op_chain[-1]
-
-              parent_scaler_name = "scaler_" + parent_name
-
-              assert parent_scaler_name in context.graph.node_table.keys(), f"Scaler {parent_scaler_name} should exist."
-
-              mul_op = MulOp()
-              mul_op_name = f"scale{i}_" + node_name
-              mul_op._name = mul_op_name
-              mul_op._arguments = \
-              mul_op._parents = [parent_name, parent_scaler_name]
-              mul_op.tensor_meta["shape"] = prev_node.tensor_meta["shape"]
-              mul_op.tensor_meta["dtype"] = prev_node.tensor_meta["dtype"]
-              if len(op_chain) > 1:
-                  prev_node._children.append(mul_op_name)
-
-              context.graph.add_node(mul_op)
-              op_chain.append(mul_op)
-
-      # TODO: this should check the quantization state of the bias.
-
-      add_op = AddOp()
-      add_op_name = "biased_" + node_name
-      add_op._name = add_op_name
-      add_op._arguments = \
-      add_op._parents = [op_chain[-1].name, node._parents[0]]
-      add_op._tensor_meta = node.tensor_meta
-
-      context.graph.replace_as_child([node._parents[0]], node, add_op)
-
-      add_op._children = node._children
-      op_chain[-1]._children = [add_op_name]
-
-      context.graph.replace_as_parent(node, node._children, add_op)
-
-      context.graph.add_node(add_op)
-
-      node._parents = []
-      node._children = []
-      context.graph.delete_node(node, [])
-
-  def forward(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
-      """
-      Convert the dag
-      (addmm arg1:u, arg2:u, arg3:q)
-      to
-      (add (mul (mm arg2, arg3), scalar_arg3), arg1)
-      """
-
-      quantizable = False
-
-      if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-          if state.check_constraint(Constraint(axis=0)):
-              quantizable = True
-
-      if isinstance((state := context.quantization_table[node._parents[2]]), Quantizable):
-          if state.check_constraint(Constraint(axis=1)):
-              quantizable = True
-
-      if quantizable:
-          return Consumer()
-
-      return None
-
-""" @register_wo_quantizer(op_type=BatchMatmulOp)
-class BatchMatmulQunatizationMethod(QuantizationMethod):
-
-    def rewriter(self, node: Op, context: QuantizationContext):
-      MatmulQuantizeMethod.rewriter(node, context)
-
-    def forward(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
-
-      quantizable = False
-
-      if isinstance((state := context.quantization_table[node._parents[0]]), Quantizable):
-          if state.check_constraint(Constraint(axis=1)):
-              quantizable = True
-
-      if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-          if state.check_constraint(Constraint(axis=2)):
-              quantizable = True
-
-      if quantizable:
-          return Consumer()
-
-      return Unquantized() """
-
-        
-@register_wo_quantizer(op_type=BaddbmmOp)
-class BatchAddMMQuantizationMethod(QuantizationMethod):
-    
-    def rewriter(self, node: Op, context: QuantizationContext):
-
-        node_name = node.name
-
-        batchmatmul_op = BatchMatmulOp()
-        batchmatmul_op_name = "pre_scaled_" + node_name
-
-        batchmatmul_op._name = batchmatmul_op_name
-        batchmatmul_op._parents = node._parents[1:]
-        batchmatmul_op._tensor_meta = node.tensor_meta
-
-        context.graph.replace_as_child(node._parents[1:], node, batchmatmul_op)
-
-        op_chain = [batchmatmul_op]
-
-        for i, parent_name in enumerate(batchmatmul_op._parents, 1):
-            if isinstance(context.quantization_table[parent_name], Quantized):
-
-                prev_op = op_chain[-1]
-                prev_op_name = prev_op.name
-
-                mul_op = MulOp()
-                mul_op._name = f"scale{i}_" + node_name
-
-                scaler_name = "scaler_" + parent_name
-                assert scaler_name in context.graph.node_table.keys(), f"Scaler node `{scaler_name}` should exist."
-                scaler_node = context.graph.node_table[scaler_name]
-                mul_op._tensor_meta["shape"] = node.tensor_meta["shape"]
-                mul_op._tensor_meta["dtype"] = scaler_node["dtype"]
-
-                mul_op._parents = \
-                mul_op._arguments = [prev_op_name, scaler_name]
-
-                if len(op_chain) > 0:
-                    prev_op._children = [mul_op]
-
-                op_chain.append(mul_op)
-                context.graph.add_node(mul_op)
-
-        add_op = AddOp()
-        add_op._name = "biased_" + node_name
-
-        bias_node_name = node._parents[0]
-        bias_node = context.graph.node_table[bias_node_name]
-
-        if isinstance(context.quantization_table[bias_node_name], Quantized):
-          bias_node = dequantizer(bias_node)
-          bias_node_name = bias_node.name
-
-        add_op._parents = [op_chain[-1].name, bias_node_name]
-        add_op.tensor_meta["shape"] = node.tensor_meta["shape"]
-        add_op.tensor_meta["dtype"] = context.graph.node_table[bias_node_name].tensor_meta["dtype"]
-
-        context.graph.add_node(add_op)
-
-        context.graph.replace_as_child(node._parents[0], node, add_op)
-        context.graph.replace_as_parent(node._children, node, add_op)
-            
-    def forward(self, node: Op, context: QuantizationContext):
-    
-        quantizable = False
-
-        if isinstance((state := context.quantization_table[node._parents[1]]), Quantizable):
-            if state.check_constraint(Constraint(axis=1)):
-                quantizable = True
-
-        if isinstance((state := context.quantization_table[node._parents[2]]), Quantizable):
-            if state.check_constraint(Constraint(axis=2)):
-                quantizable = True
-
-        if quantizable:
-            return Consumer()
-
-        return Unquantized()
+# AddMMOp, BatchMatmulOp, BaddbmmOp

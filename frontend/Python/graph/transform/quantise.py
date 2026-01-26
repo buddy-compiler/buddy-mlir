@@ -21,6 +21,10 @@ class QuantizationConstraint(ABC):
         """
         pass
 
+    @abstractmethod
+    def hash(self) -> Any:
+        pass
+
 class QuantizationState:
     def check_constraint(self, constraint: QuantizationConstraint) -> bool:
         return False
@@ -37,12 +41,6 @@ class Rewritable:
     def set_rewrite(self, rewrite: Callable[[Op, "QuantizationContext"], None]):
         self.rewrite = rewrite
 
-class Quantized(QuantizationState):
-    constraint: QuantizationConstraint
-
-    def __init__(self, constraint: QuantizationConstraint = None):
-        self.constraint = constraint
-
 class Quantizable(QuantizationState, Rewritable):
     callback: Callable[[QuantizationConstraint], None] | None = None
     constraints: list[QuantizationConstraint]
@@ -53,6 +51,8 @@ class Quantizable(QuantizationState, Rewritable):
         ):
         if constraints is None:
             self.constraints = []
+        else:
+            self.constraints = constraints
 
     def backprop_constraint(self, constraint: QuantizationConstraint, add_on_success: bool) -> bool:
         if ((backprop_constraint := self.callback(constraint)) is None):
@@ -99,15 +99,11 @@ class ToQuantize(Rewritable):
             rewrite=state.rewrite,
         )
 
-def max_gain_quantization(state: Quantizable) -> ToQuantize:
-    constraints = state.constraints
-    max_gain_constraint = constraints[0]
+class Quantized(Quantizable):
+    constraint: QuantizationConstraint
 
-    for constraint in constraints[1:]:
-        if constraint.gain > max_gain_constraint.gain:
-            max_gain_constraint = constraint
-    
-    return ToQuantize.from_quantizable(state=state, constraint=max_gain_constraint)
+    def __init__(self, constraint: QuantizationConstraint = None):
+        self.constraint = constraint    
 
 class Unquantized(QuantizationState):
     pass
@@ -148,6 +144,27 @@ class QuantizationContext:
         self.quantization = quantization
         self.target_dtype = target_dtype
         self.quantization_table = {}
+
+def max_gain_quantization(
+    backward_state: Quantizable,
+    forward_state: Quantizable
+) -> Unquantized | ToQuantize:
+    possible_quantizations = set([constraint.hash() for constraint in forward_state.constraints])
+    max_gain_constraint: QuantizationConstraint = None
+    for constraint in backward_state.constraints:
+        if not (constraint.hash() in possible_quantizations):
+            continue
+            
+        if (max_gain_constraint is None) or (constraint.gain > max_gain_constraint.gain):
+            max_gain_constraint = constraint
+
+    if max_gain_constraint is None:
+        return Unquantized()
+
+    return ToQuantize.from_quantizable(state=backward_state, constraint=max_gain_constraint)
+
+class Unquantized(QuantizationState):
+    pass
 
 class Pass:
     """
@@ -236,21 +253,23 @@ class QuantizationMethod(ABC):
     @abstractmethod
     def forward(self, node: Op, context: QuantizationContext) -> QuantizationState | None:
         """
-        Determine the quantization state from the quantization state of the parents. (E.g. 
-        given that a parent op is quantized along axis 1, the result of a transpose op can
-        only be quantized along a specific axis)
+        
+        1. Dry quantization (i.e. ignoring the )
 
-        Can still leave a callback, if necessary (e.g. multiple different quantization options
-        available, and can only decide based on consumer information.
-
-        (Must be implemented by quantization methods)
         """
         pass
 
-    def __call__(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
+    def __call__(self, node: Op, context: QuantizationContext, populate_constraints: bool) -> None | QuantizationState:
         quantization = self.forward(node, context)
 
         if isinstance(quantization, Quantizable):
+
+            # TODO: currently we just erase the computed constraints if any,
+            # but one should implement a way to incorporate this into `forward`
+            # seamlessly
+            if not populate_constraints:
+                quantization.constraints = []
+            
             # load the node and context into the callback before passing it.
             def callback_wrapper(constr):
                 return self.callback(constr, node, context)
@@ -266,7 +285,7 @@ QuantizationMethodType = TypeVar("QuantizationMethodType", bound=QuantizationMet
 class MethodRegistry(dict[OpType, QuantizationMethod]):
     dequantizer: Callable[[Op, QuantizationContext], Op] = None
 
-# quantizationmethod -> op
+# Quantization -> Op
 QuantizationType = TypeVar("Method", bound=Quantization)
 OpType = TypeVar("OpType", bound=Op)
 QuantizationFunctionRegistry: dict[QuantizationType, MethodRegistry] = {}
@@ -278,11 +297,6 @@ def validate_registry():
 def register_quantizer(quantization: QuantizationType, op_type: OpType):
     def guard(cls: QuantizationMethodType):
         fn_obj = cls()
-        #def guarded_fn(op: Op, context: QuantizationContext) -> None | QuantizationState:
-        #    assert isinstance(op, op_type)
-        #    assert isinstance(context.quantization_method, quantization)
-        #    return fn(op, context)
-
 
         assert op_type not in QuantizationFunctionRegistry.keys(), f"Only one quantization function should be declared per operation ({op_type} has two)"
         QuantizationFunctionRegistry.setdefault(quantization, MethodRegistry())[op_type] = fn_obj
@@ -307,7 +321,7 @@ def register_parameterized(quantization: QuantizationType, params: list[tuple[Op
 def register_dequantizer(quantization_method: QuantizationMethodType):
     def guard(fn: Callable[[Op, QuantizationContext], None | QuantizationState]):
         def guarded_fn(op: Op, context: QuantizationContext) -> None | QuantizationState:
-            assert isinstance(context.quantization_method, quantization_method)
+            assert isinstance(context.quantization, quantization_method)
             return fn(op, context)
 
 
@@ -316,19 +330,7 @@ def register_dequantizer(quantization_method: QuantizationMethodType):
         # Delete this function from user name space by not returning it.
     return guard
 
-"""
-All op should have 2 quantization functions:
-1. _quantize_{op}: This is used to determine IF the operation CAN be quantized
-    That is, they take an op, with state markers like `Quantizable` or `Unquantized`
-    and decide if the op can be quantized. They might also enforce that the operations they
-    need quantized WILL be quantized.
-
-2. _rewrite_{op}: A callback, that `_quantize_op` wraps up with the chosen quantization state.
-    This op is is purely responsible for rewriting the operation
-"""
-
-
-def dispatch_op_quantization(op: Op, context: QuantizationContext) -> None | QuantizationState:
+def dispatch_op_quantization(op: Op, context: QuantizationContext, populate_constraint: bool = False) -> None | QuantizationState:
     """
     Function for finding a `_quantize` function for `op`. If a suitable
     function is found, it is called, otherwise `None` is returned to
@@ -342,7 +344,7 @@ def dispatch_op_quantization(op: Op, context: QuantizationContext) -> None | Qua
         bool: whether quantizing the op was successful.
     """
     try:
-        return QuantizationFunctionRegistry[type(context.quantization)][type(op)](op, context)
+        return QuantizationFunctionRegistry[type(context.quantization)][type(op)](op, context, populate_constraints=populate_constraint)
     except KeyError:
         return None
 
@@ -358,7 +360,7 @@ def quantize_node(node: Op, context: QuantizationContext):
         context (Context): The quantization context.
     """
 
-    if (state := dispatch_op_quantization(node, context)):
+    if (state := dispatch_op_quantization(node, context, populate_constraint=False)):
         context.quantization_table[node._name] = state
         return
     
@@ -366,7 +368,7 @@ def quantize_node(node: Op, context: QuantizationContext):
 
 def get_dequantized(op: Op, context: QuantizationContext) -> Op:
     try:
-        return QuantizationFunctionRegistry[type(context.quantization_method)].dequantizer(op, context)
+        return QuantizationFunctionRegistry[type(context.quantization)].dequantizer(op, context)
     except KeyError:
         print("Unreachable")
         exit(1)
@@ -375,20 +377,21 @@ def rewrite_node(node: Op, context: QuantizationContext):
     node_name = node.name
 
     # We check if needs to be rewritten with a specified pattern
-    node_status = context.quantization_table[node_name]
+    node_requests = context.quantization_table[node_name]
 
-    if isinstance(node_status, Quantizable):
-        if len(node_status.constraints) != 0:
-            # for now, we just use the 0th quantization option
-            context.quantization_table[node_name] = max_gain_quantization(node_status)
-            node_status.rewrite(node, context)
-        else:
-            context.quantization_table[node_name] = Unquantized()
-        return
+    if isinstance(node_requests, Quantizable):
+        # If a node has no apriori constraints
+        # then no downstream op requested its quantization
+        if len(node_requests.constraints) != 0:
+            if isinstance(forward_quantizability := dispatch_op_quantization(node, context, populate_constraint=True), Quantizable):
 
+                context.quantization_table[node_name] = (reeval_state := max_gain_quantization(node_requests, forward_quantizability))
+                if isinstance(reeval_state, ToQuantize):
+                    reeval_state.rewrite(node, context)
+                    
     # Consumer nodes force quantization, so they are also quantised.
-    elif isinstance(node_status, Consumer):
-        node_status.rewrite(node, context)
+    elif isinstance(node_requests, Consumer):
+        node_requests.rewrite(node, context)
         return
 
     # Otherwise, we default to dequantizing all quantized parents,
