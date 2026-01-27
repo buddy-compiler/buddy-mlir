@@ -869,7 +869,13 @@ class ScaledDotProductFlashAttentionForCpuOp(Op):
         self._op_type = OpType.ElementwiseType
 
 
-class FlashAttentionForCpuPrefillOp(Op):
+class GQAFlashAttentionPrefillFusedOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class GQAAttentionDecodeFusedOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
@@ -2518,12 +2524,6 @@ class ResizeOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
-
-
-class GQAAttentionFusedOp(Op):
-    def __init__(self) -> None:
-        super().__init__()
-        self._op_type = OpType.ElementwiseType
 
 
 class AsStridedScatterOp(Op):

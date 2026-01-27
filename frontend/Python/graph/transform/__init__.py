@@ -21,8 +21,8 @@
 from .fuse_ops import (
     simply_fuse,
     apply_classic_fusion,
-    flash_attention_prefill,
-    gqa_attention_fusion,
+    gqa_flash_attention_prefill_fusion,
+    gqa_attention_decode_fusion,
 )
 from .useless_op_eliminate import maxpool2d_simplify
 from .eliminate_weight_transpose import eliminate_transpose

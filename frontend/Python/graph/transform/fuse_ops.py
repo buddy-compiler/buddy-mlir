@@ -25,8 +25,8 @@ from torch.fx.immutable_collections import immutable_list
 
 classicfuse_register = {
     "transpose_matmul_fusion": TransposeMatmulFusedOp,
-    "flash_attention_prefill_fusion": FlashAttentionForCpuPrefillOp,
-    "gqa_attention_fusion": GQAAttentionFusedOp,
+    "gqa_flash_attention_prefill_fusion": GQAFlashAttentionPrefillFusedOp,
+    "gqa_attention_decode_fusion": GQAAttentionDecodeFusedOp,
 }
 
 # TODO: classify op type for op fusion
@@ -140,13 +140,13 @@ def simply_fuse(graph: Graph):
     graph.group_map_device = {"subgraph0": device}
 
 
-def flash_attention_prefill(graph: Graph):
+def gqa_flash_attention_prefill_fusion(graph: Graph):
     """
-    Replace ScaledDotProductFlashAttentionForCpuOp with FlashAttentionForCpuPrefillOp.
+    Replace ScaledDotProductFlashAttentionForCpuOp with GQAFlashAttentionPrefillFusedOp.
     """
     new_op_group = []
     device = DeviceType.CPU
-    replace_attention_op(graph)
+    gqa_attention_fusion_check(graph, "gqa_flash_attention_prefill_fusion")
 
     for op in graph.body:
         if isinstance(op, PlaceholderOp):
@@ -157,20 +157,7 @@ def flash_attention_prefill(graph: Graph):
     graph.group_map_device = {"subgraph0": device}
 
 
-def replace_attention_op(graph: Graph):
-    """
-    replace ScaledDotProductFlashAttentionForCpuOp with FlashAttentionForCpuPrefillOp.
-    """
-    for op in list(graph.body):
-        if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
-            new_op = classicfuse_register.get(
-                "flash_attention_prefill_fusion"
-            )()
-            new_op.name = "FlashAttentionForCpuPrefillOp"
-            graph.displace_node(op, new_op)
-
-
-def gqa_attention_fusion(graph: Graph):
+def gqa_attention_decode_fusion(graph: Graph):
     """
     Function to fuse GQA Attention operations into one operation and fuse
     all operations into one graph.
@@ -183,7 +170,7 @@ def gqa_attention_fusion(graph: Graph):
     """
     new_op_group = []
     device = DeviceType.CPU
-    gqa_attention_fusion_check(graph)
+    gqa_attention_fusion_check(graph, "gqa_attention_decode_fusion")
     for op in graph.body:
         if isinstance(op, PlaceholderOp):
             continue
@@ -193,7 +180,7 @@ def gqa_attention_fusion(graph: Graph):
     graph.group_map_device = {"subgraph0": device}
 
 
-def gqa_attention_fusion_check(graph: Graph):
+def gqa_attention_fusion_check(graph: Graph, new_op):
     for op in graph.body:
         # === GQA Attention pattern ===
         if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
@@ -256,7 +243,7 @@ def gqa_attention_fusion_check(graph: Graph):
                 v_slice1,
                 v_slice2,
                 v_cache_unsqueeze,
-                "gqa_attention_fusion",
+                new_op,
             )
 
 
