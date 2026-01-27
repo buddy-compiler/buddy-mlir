@@ -248,7 +248,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode.mlir
     COMMENT "Building subgraph_decode.o "
