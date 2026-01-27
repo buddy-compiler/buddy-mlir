@@ -2759,8 +2759,9 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
           the result.
     """
     to_expand_tensor = symbol_table.get((str(node.args[0]), 0))
-    original_size = to_expand_tensor.type.shape
-    new_size = node.args[1]
+    original_size = list(ir.RankedTensorType(to_expand_tensor.type).shape)
+    new_size = list(node.args[1])
+
     result_element_type = ir.RankedTensorType(
         to_expand_tensor.type
     ).element_type
@@ -2777,14 +2778,32 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")
+
+    padded_original_size = original_size
+    if len(original_size) < len(new_size):
+        padded_original_size = [1] * (len(new_size) - len(original_size)) + original_size
+
     expanded_size = []
-    for dim, size in zip(original_size, new_size):
+    for dim, size in zip(padded_original_size, new_size):
         if size == -1:
             expanded_size.append(dim)
         else:
             expanded_size.append(size)
-    if original_size == expanded_size:
-        return to_expand_tensor
+
+    input_for_add = to_expand_tensor
+    if list(ir.RankedTensorType(to_expand_tensor.type).shape) != padded_original_size:
+        shape_type = ir.Type.parse(f"!tosa.shape<{len(padded_original_size)}>")
+        shape_val = tosa.ConstShapeOp(shape_type, padded_original_size).result
+
+
+        reshaped_ty = ir.RankedTensorType.get(padded_original_size, result_element_type)
+        input_for_add = tosa.ReshapeOp(to_expand_tensor, shape_val).result
+
+
+
+    if padded_original_size == expanded_size:
+        return input_for_add
+
     new_size_tensor_type = ir.RankedTensorType.get(
         expanded_size, result_element_type
     )
@@ -2792,7 +2811,7 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         new_size_tensor_type, element
     )
     new_size_tensor = tosa.ConstOp(new_size_attr).results[0]
-    op = _gen_arith_binary_op(to_expand_tensor, new_size_tensor, tosa.AddOp)
+    op = _gen_arith_binary_op(input_for_add, new_size_tensor, tosa.AddOp)
     return op
 
 
