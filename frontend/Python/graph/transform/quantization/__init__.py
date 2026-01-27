@@ -1,4 +1,4 @@
-from ..quantise import quantise_graph
+from .quantize import quantise_graph
 from .weight_only_channel_wise import WeightOnlyQuantization
 
 def weight_only_channel_wise(

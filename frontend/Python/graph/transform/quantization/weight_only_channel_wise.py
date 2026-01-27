@@ -1,4 +1,4 @@
-from ..quantise import (
+from .quantize import (
   QuantizationContext,
   QuantizationState,
   QuantizationConstraint,

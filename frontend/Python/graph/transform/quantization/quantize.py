@@ -1,8 +1,8 @@
-from .. import Graph, NodeType
-from ..operation import *
-from .. import DeviceType
+from ... import Graph, NodeType
+from ...operation import *
+from ... import DeviceType
 from torch.fx.immutable_collections import immutable_list
-from ..type import TensorDType
+from ...type import TensorDType
 
 from dataclasses import dataclass
 from enum import Enum, auto
