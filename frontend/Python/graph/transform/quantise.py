@@ -217,10 +217,127 @@ class Pass:
             self.processed.append(node_name)
             self.check_ready_children(node)
 
+class EligibilityPattern:
+    """
+    Base class for eligibility pattern matching.
+    Allows composable patterns using | operator.
+    """
+    def __init__(self, *state_types):
+        self.state_types = state_types
+
+    def matches(self, state: QuantizationState) -> bool:
+        """Check if state matches this pattern."""
+        return isinstance(state, self.state_types)
+
+    def __or__(self, other: "EligibilityPattern") -> "EligibilityPattern":
+        """Allow pattern1 | pattern2 syntax."""
+        return EligibilityPattern(*(self.state_types + other.state_types))
+
+# Predefined patterns for convenience
+AnyQuantizable = EligibilityPattern(Quantizable)
+AnyQuantized = EligibilityPattern(Quantized)
+AnyUnquantized = EligibilityPattern(Unquantized)
+AnyConsumer = EligibilityPattern(Consumer)
+
+def requires_parents(*patterns: EligibilityPattern):
+    """
+    Decorator to declaratively specify parent eligibility patterns for quantization.
+
+    This decorator separates the "possibly quantizable node detection" concern
+    from the forward quantization logic.
+
+    Can be applied multiple times to specify OR logic across patterns.
+
+    Examples:
+        @requires_parents(AnyQuantizable)
+            # Single parent must be Quantizable
+
+        @requires_parents(AnyQuantizable, AnyQuantizable)
+            # Two parents both must be Quantizable
+
+        @requires_parents(AnyQuantizable | AnyConsumer, AnyQuantizable)
+            # First parent can be Quantizable OR Consumer, second must be Quantizable
+
+        @requires_parents(AnyQuantizable, AnyQuantizable)
+        @requires_parents(AnyQuantizable, AnyUnquantized)
+        @requires_parents(AnyUnquantized, AnyQuantizable)
+            # Multiple decorators provide OR logic:
+            # (Quantizable, Quantizable) OR (Quantizable, Unquantized) OR (Unquantized, Quantizable)
+
+    Args:
+        *patterns: EligibilityPattern instances specifying required parent states
+
+    Returns:
+        Decorator that attaches _eligibility_patterns to the class
+    """
+    def decorator(cls):
+        # Support multiple decorators by storing a list of pattern tuples
+        if not hasattr(cls, '_eligibility_patterns'):
+            cls._eligibility_patterns = []
+        # If _eligibility_patterns is a tuple (old format), convert to list
+        elif isinstance(cls._eligibility_patterns, tuple):
+            cls._eligibility_patterns = [cls._eligibility_patterns]
+
+        cls._eligibility_patterns.append(patterns)
+        return cls
+    return decorator
+
 class QuantizationMethod(ABC):
     """
-    Function object for installing 
+    Function object for installing quantization behavior.
+
+    Responsibilities are now separated:
+    - Eligibility: Declared via @requires_parents decorator
+    - Backward propagation: callback() method
+    - Forward quantization: forward() method (exact quantization computation only)
+    - Rewrite: rewriter() method
     """
+    # Optional: subclasses can override for custom eligibility logic
+    _eligibility_patterns: tuple[EligibilityPattern, ...] | None = None
+
+    def check_eligibility(self, node: Op, context: QuantizationContext) -> bool:
+        """
+        Check if node is eligible for quantization based on parent states.
+
+        This implements the "possibly quantizable node detection" phase.
+        By default, uses the @requires_parents decorator patterns.
+        Can be overridden for custom eligibility logic.
+
+        Args:
+            node: Node to check eligibility for
+            context: Quantization context
+
+        Returns:
+            True if node is eligible, False otherwise
+        """
+        if self._eligibility_patterns is None:
+            # No patterns defined, assume always eligible
+            return True
+
+        # Handle both old tuple format and new list format
+        pattern_alternatives = self._eligibility_patterns
+        if isinstance(pattern_alternatives, tuple):
+            pattern_alternatives = [pattern_alternatives]
+
+        # Check if any pattern alternative matches (OR logic)
+        for patterns in pattern_alternatives:
+            # Check that number of parents matches pattern length
+            if len(node._parents) != len(patterns):
+                continue
+
+            # Check each parent against corresponding pattern
+            all_match = True
+            for parent_name, pattern in zip(node._parents, patterns):
+                parent_state = context.quantization_table[parent_name]
+                if not pattern.matches(parent_state):
+                    all_match = False
+                    break
+
+            if all_match:
+                return True
+
+        return False
+
     @abstractmethod
     def rewriter(self, node: Op, context: QuantizationContext):
         """
@@ -229,12 +346,12 @@ class QuantizationMethod(ABC):
         (Must be implemented by any quantization method)
         """
         pass
-    
+
     def callback(self, constraint: QuantizationConstraint, node: Op, context: QuantizationContext) -> QuantizationConstraint | None:
         """
         Determine the quantization state from the quantization of downstream ops.
 
-        E.g. parameter ops are quantizable along any axis apriori, but given the 
+        E.g. parameter ops are quantizable along any axis apriori, but given the
         quantization of a child, we can determine the quantization of the placeholder.
 
         (Optionally implementable by quantization methods)
@@ -253,9 +370,19 @@ class QuantizationMethod(ABC):
     @abstractmethod
     def forward(self, node: Op, context: QuantizationContext) -> QuantizationState | None:
         """
-        
-        1. Dry quantization (i.e. ignoring the )
+        Compute exact quantization options for node given parent quantization states.
 
+        This implements the "fix quantization" phase (step 3 from readme).
+        Called only after eligibility has been confirmed.
+        Should compute the specific quantization constraints available based on
+        the exact quantization state of parents.
+
+        Args:
+            node: Node to compute quantization for
+            context: Quantization context
+
+        Returns:
+            QuantizationState with exact constraints, or None if cannot be quantized
         """
         pass
 
@@ -330,18 +457,40 @@ def register_dequantizer(quantization_method: QuantizationMethodType):
         # Delete this function from user name space by not returning it.
     return guard
 
+def check_op_eligibility(op: Op, context: QuantizationContext) -> QuantizationMethod | None:
+    """
+    Check if an operation is eligible for quantization based on its quantization method.
+
+    This implements the "possibly quantizable node detection" phase (step 1 from readme).
+
+    Args:
+        op (Op): Op to check eligibility for.
+        context (Context): The quantization context.
+
+    Returns:
+        QuantizationMethod if eligible, None otherwise.
+    """
+    try:
+        method = QuantizationFunctionRegistry[type(context.quantization)][type(op)]
+        if method.check_eligibility(op, context):
+            return method
+        return None
+    except KeyError:
+        return None
+
 def dispatch_op_quantization(op: Op, context: QuantizationContext, populate_constraint: bool = False) -> None | QuantizationState:
     """
     Function for finding a `_quantize` function for `op`. If a suitable
     function is found, it is called, otherwise `None` is returned to
     signal that the operation will not be changed by the quantization pass
-    
+
     Args:
         op (Op): Op to find quantization for.
         context (Context): The quantization context.
+        populate_constraint (bool): Whether to compute forward constraints
 
     Returns:
-        bool: whether quantizing the op was successful.
+        QuantizationState | None: The quantization state, or None if not quantizable.
     """
     try:
         return QuantizationFunctionRegistry[type(context.quantization)][type(op)](op, context, populate_constraints=populate_constraint)
@@ -350,20 +499,23 @@ def dispatch_op_quantization(op: Op, context: QuantizationContext, populate_cons
 
 def quantize_node(node: Op, context: QuantizationContext):
     """
-    This method takes a node, all of whose parents have been analyzed, and 
-    tries to apply a quantization pattern from the defined patterns, and specify
-    the state of the node using the pattern. If not pattern is found, we return 
-    by specifying the op as unquantized.
+    This method takes a node, all of whose parents have been analyzed, and
+    determines if it is eligible for quantization.
+
+    This implements the "possibly quantizable node detection" phase (step 1 from readme).
 
     Args:
         op (Op): Op to find quantization for.
         context (Context): The quantization context.
     """
 
-    if (state := dispatch_op_quantization(node, context, populate_constraint=False)):
+    # Check eligibility first
+    if (method := check_op_eligibility(node, context)):
+        # Node is eligible, call the method to get initial state
+        state = method(node, context, populate_constraints=False)
         context.quantization_table[node._name] = state
         return
-    
+
     context.quantization_table[node._name] = Unquantized()
 
 def get_dequantized(op: Op, context: QuantizationContext) -> Op:
@@ -426,10 +578,11 @@ def quantise_graph(
         target_dtype: TensorDType = TensorDType.Int8,
 ):
     """
-    TODO
+    Driver method for quantizing a Buddy Graph.
 
     Args:
         graph (Graph): Graph to quantize
+        quantization (Quantization): The quantization method to use 
         target_dtype (TensorDType): dtype to quantize the model weights to
     """
 
@@ -442,8 +595,8 @@ def quantise_graph(
     )
 
     # This pass is responsible for determining
-    # a) which operations CAN be quantized,
-    # b) which operations SHOULD be quantized.
+    # a) Which operations can be quantized,
+    # b) What is the associated gain with each quantization of positive gain.
     evaluator_pass = Pass(
         processor=quantize_node,
         context=context,
@@ -454,6 +607,9 @@ def quantise_graph(
 
     evaluator_pass.run_pass()
 
+    # This pass is responsible for:
+    # a) choosing a quantization for each node (or its absence)
+    # b) performing the rewrites where applicable
     rewriter_pass = Pass(
         processor=rewrite_node,
         context=context,
