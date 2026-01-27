@@ -16,7 +16,7 @@ endif()
 
 # Set platform-specific variables
 if(IS_RVV_PLATFORM)
-  set(OPENMP_NUM_THREADS "num-threads=32")
+  set(OPENMP_NUM_THREADS "num-threads=8")
   set(LLC_RISCV_ATTRS "-mattr=+m,+d,+v")
   set(RISCV_COMPILE_OPTS "-march=rv64gcv;-mabi=lp64d;-O3;-Wall")
   set(RISCV_LINK_OPTS "-march=rv64gcv;-mabi=lp64d")
