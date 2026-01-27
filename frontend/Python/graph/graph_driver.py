@@ -362,6 +362,92 @@ class GraphDriver:
                     if target_shape:
                         node.tensor_meta["shape"] = target_shape
                         self._add_paral_op_shape(node.name, target_shape)
+                
+                elif isinstance(node, ReshapeOp):
+                    parent = node.args[0]
+                    if parent in self._paral_op_shape:
+                        old_shape = list(self._paral_op_shape[parent])  # e.g. [1,1,6,128]
+                    else:
+                        # self._add_paral_op_shape(node.name, self._paral_op_shape[arg])
+                        continue
+                    
+                    target_shape_args = list(node.args[1])
+
+                    # print("  Parent:", parent)
+                    # print("  Parent Shape:", old_shape)
+                    # print("  Target Shape:", target_shape_args)
+
+                    def prod(shape):
+                        p = 1
+                        for d in shape:
+                            if d == -1:
+                                continue
+                            p *= d
+                        return p
+
+                    old_total = prod(old_shape)
+                    new_shape = target_shape_args.copy()
+
+                    if -1 in new_shape:
+                        known = 1
+                        neg_idx = None
+                        for i, d in enumerate(new_shape):
+                            if d == -1:
+                                neg_idx = i
+                            else:
+                                known *= d
+                        
+                        if known != 0 and neg_idx is not None:
+                            new_shape[neg_idx] = old_total // known
+
+                    if len(old_shape) == len(new_shape):
+                        non1_slots = [i for i, d in enumerate(new_shape) if d != 1]
+                        
+                        old_non1_vals = [d for d in old_shape if d != 1]
+
+                        if len(non1_slots) == len(old_non1_vals) and len(non1_slots) > 0:
+                            
+                            locked = {}
+                            remaining_old = old_non1_vals.copy()
+
+                            for idx in non1_slots:
+                                want = new_shape[idx]
+                                
+                                if isinstance(want, int) and want > 1 and want in remaining_old:
+                                    locked[idx] = want
+                                    remaining_old.remove(want)
+
+                            
+                            filled = new_shape.copy()
+                            rem_iter = iter(remaining_old)
+                            for idx in non1_slots:
+                                if idx in locked:
+                                    filled[idx] = locked[idx]
+                                else:
+                                    filled[idx] = next(rem_iter)
+
+                            
+                            if prod(filled) == prod(old_shape):
+                                new_shape = filled
+
+                    
+                    old_candidates = [d for d in old_shape if d != 1]
+                    
+                    old_non_trailing = old_candidates[:-1] if len(old_candidates) > 1 else old_candidates
+
+                    for i, d in enumerate(new_shape):
+                        if d > 1 and d not in old_shape:
+                            if len(old_non_trailing) == 1:
+                                new_shape[i] = old_non_trailing[0]
+
+                    
+                    if prod(new_shape) != prod(old_shape):
+                        # print(f"[WARN] ReshapeOp {node.name} inferred shape mismatch: old={old_shape}, new={new_shape}. Keep old.")
+                        new_shape = old_shape
+
+                    # print("  Inferred Shape:", new_shape)
+                    self._add_paral_op_shape(node.name, new_shape)
+
 
                 # 8. ExpandOp
                 elif isinstance(node, ExpandOp) and node != self.op_groups[subgraph_name][-1]:
@@ -664,22 +750,14 @@ class GraphDriver:
         split_group = []
         param_size_group = []
         for i, subgraph_name in enumerate(self._subgraphs.keys()):
-            main_graph_name = f"{self._graph._func_name}{i}"           
-            current_param_info = {}
-            if self._parallelism > 1:  
-              main_graph = Graph(
-                  [],
-                  [],
-                  self._graph._ops_registry,
-                  main_graph_name,
-                  self._graph._verbose,
-              )
-            else:
-              main_graph = Graph(
-                self._graph._inputs,
-                self._graph._fake_params,
+            main_graph_name = f"{self._graph._func_name}{i}"
+            current_param_info = {} 
+            
+            main_graph = Graph(
+                [],
+                [],
                 self._graph._ops_registry,
-                self._graph._func_name,
+                main_graph_name,
                 self._graph._verbose,
               )
 
@@ -690,23 +768,21 @@ class GraphDriver:
                 func_node.add_argument(inp)
             
             outputs = self._subgraphs[subgraph_name]._outputs
-            if outputs is None or self._parallelism == 1:
-                for output in self._subgraphs_outputs[subgraph_name]:
-                    func_node.tensor_meta["shape"].append(
-                        self._graph.node_table[output.name].tensor_meta["shape"]
-                    )
-                    func_node.tensor_meta["dtype"].append(
-                        self._graph.node_table[output.name].tensor_meta["dtype"]
-                    )
-            else:
+            if outputs is not None and self._parallelism > 1:
                 for out_node in outputs:
                     out_type = ir.RankedTensorType(out_node.type)
                     output_shape = list(out_type.shape)
                     func_node.tensor_meta["shape"].append(torch.Size(output_shape))
+            else:
                 for output in self._subgraphs_outputs[subgraph_name]:
-                    func_node.tensor_meta["dtype"].append(
-                        self._graph.node_table[output.name].tensor_meta["dtype"]
+                    func_node.tensor_meta["shape"].append(
+                        self._graph.node_table[output.name].tensor_meta["shape"]
                     )
+            
+            for output in self._subgraphs_outputs[subgraph_name]:
+                func_node.tensor_meta["dtype"].append(
+                    self._graph.node_table[output.name].tensor_meta["dtype"]
+                )
             main_graph.add_node(func_node)
             
             # Adding placeholder operations from the original graph
@@ -724,7 +800,7 @@ class GraphDriver:
                 if isinstance(node, PlaceholderOp):
                     # if node in self._subgraphs_inputs[subgraph_name]:
                     if node.name in current_subgraph_input_names:
-                        if(len(self._graph._fake_params) > (ph_count) and self._parallelism > 1):
+                        if len(self._graph._fake_params) > ph_count:
                             main_graph._fake_params.append(self._graph._fake_params[ph_count])
                             if node.name in self._paral_op_shape.keys():
                                 node._newshape = self._paral_op_shape[node.name]
@@ -737,7 +813,7 @@ class GraphDriver:
                                 current_param_info["params"].append(
                                     {"index": ph_count, "split_degree": []}
                                 )
-                        elif(self._parallelism > 1):
+                        else:
                             if node.name in self._paral_op_shape:
                                 node_shape = self._paral_op_shape[node.name]
                             else:
@@ -746,9 +822,8 @@ class GraphDriver:
                             input_tensor_meta = TensorMeta(node_shape, node_dtype)
                             maingraph_input.append(input_tensor_meta)
                         main_graph.add_node(node)
-                        
-
                     ph_count += 1
+            
             param_size_group.append(self.get_pack_params_size(main_graph._fake_params))
 
             if issplit: 
@@ -759,26 +834,22 @@ class GraphDriver:
             name = f"{key}{i}"    
             self._subgraph_param_info[name] = current_param_info
 
-            # maingraph_input = list(inputs0) # 初始=self._graph._inputs
-            # Identify inputs for each subgraph
-            if self._parallelism > 1:
-                for node in self._subgraphs_inputs[subgraph_name]:
-                    if (node.name not in main_graph.node_table.keys()):
-                        if subgraph_name in self._subgraph_input_shape and \
-                           node.name in self._subgraph_input_shape[subgraph_name]:
-                            node_shape = self._subgraph_input_shape[subgraph_name][node.name]
-                            # issplit = True
-                        else:
-                            node_shape = node.tensor_meta["shape"]
-                        
-                        node_dtype = node.tensor_meta["dtype"]
-                        input_tensor_meta = TensorMeta(node_shape, node_dtype)
-                        maingraph_input.append(input_tensor_meta)
-                        
-                        placeholder_node = PlaceholderOp()
-                        placeholder_node.name = node.name
-                        placeholder_node.tensor_meta = input_tensor_meta
-                        main_graph.add_node(placeholder_node)
+            for node in self._subgraphs_inputs[subgraph_name]:
+                if (node.name not in main_graph.node_table.keys()):
+                    if subgraph_name in self._subgraph_input_shape and \
+                       node.name in self._subgraph_input_shape[subgraph_name]:
+                        node_shape = self._subgraph_input_shape[subgraph_name][node.name]
+                    else:
+                        node_shape = node.tensor_meta["shape"]
+                    
+                    node_dtype = node.tensor_meta["dtype"]
+                    input_tensor_meta = TensorMeta(node_shape, node_dtype)
+                    maingraph_input.append(input_tensor_meta)
+                    
+                    placeholder_node = PlaceholderOp()
+                    placeholder_node.name = node.name
+                    placeholder_node.tensor_meta = input_tensor_meta
+                    main_graph.add_node(placeholder_node)
             
             # Adding CallOp to invoke the single subgraph
             call_node = CallOp()
@@ -797,23 +868,22 @@ class GraphDriver:
                         )
                         break
             outputs = self._subgraphs[subgraph_name]._outputs
-            if outputs is None or self._parallelism == 1:
-                for output in self._subgraphs_outputs[subgraph_name]:
-                    call_node.tensor_meta["shape"].append(
-                        self._graph.node_table[output.name].tensor_meta["shape"]
-                    )
-                    call_node.tensor_meta["dtype"].append(
-                        self._graph.node_table[output.name].tensor_meta["dtype"]
-                    )
-            else:
+            if outputs is not None and self._parallelism > 1:
                 for out_node in outputs:
                     out_type = ir.RankedTensorType(out_node.type)
                     output_shape = list(out_type.shape)
                     call_node.tensor_meta["shape"].append(torch.Size(output_shape))
+            else:
                 for output in self._subgraphs_outputs[subgraph_name]:
-                    call_node.tensor_meta["dtype"].append(
-                        self._graph.node_table[output.name].tensor_meta["dtype"]
+                    call_node.tensor_meta["shape"].append(
+                        self._graph.node_table[output.name].tensor_meta["shape"]
                     )
+            
+            for output in self._subgraphs_outputs[subgraph_name]:
+                call_node.tensor_meta["dtype"].append(
+                    self._graph.node_table[output.name].tensor_meta["dtype"]
+                )
+            
             self._call_table[subgraph_name] = call_node
             main_graph.add_node(call_node)
 
@@ -841,18 +911,7 @@ class GraphDriver:
                     main_graph._ops_registry,
                     do_param_pack,
                 )
-                if self._parallelism == 1:
-                    return main_importer.import_main_graph()
-                # print("=== Debug main_graph before import ===")
-                # print("main_graph_name:", main_graph_name)
-                # print("len(maingraph_input):", len(maingraph_input))
-                # print("maingraph_input shapes/dtypes:", [ (m.shape, m.dtype) for m in maingraph_input ])
-                # print("len(main_graph._fake_params):", len(main_graph._fake_params))
-                # print("fake_params shapes:", [p['shape'] if isinstance(p, dict) and 'shape' in p else None for p in main_graph._fake_params])
-                # print("nodes in main_graph node_table:", list(main_graph.node_table.keys()))
-                # print("main_graph.body node count:", len(main_graph.body))
                 self._modules[main_graph_name] = main_importer.import_main_graph()
-                inputs0 = [] 
         
         print(f"split_group: {split_group}")
         print(f"param_size_group: {param_size_group}")
