@@ -31,6 +31,107 @@ using namespace buddy::ime;
 
 namespace {
 
+//===----------------------------------------------------------------------===//
+// IME Type Configuration
+//===----------------------------------------------------------------------===//
+
+/// Enumeration of supported IME data types
+enum class IMEDataType {
+  Int8,   // 8-bit integer (signed/unsigned)
+  Int16,  // 16-bit integer (signed/unsigned)
+  FP16    // 16-bit floating point
+};
+
+/// Configuration structure for IME operations based on data type
+struct IMETypeConfig {
+  int64_t targetVL;        // Vector length
+  int64_t sew;             // SEW encoding: 0=e8, 1=e16, 2=e32, 3=e64
+  int64_t lmul;            // LMUL encoding: 0=m1, 1=m2, 2=m4, 3=m8
+  int64_t extendedVL;      // Extended VL for sliding operations (2x targetVL)
+  Type elementType;        // Element type for input vectors
+  Type outputElementType;  // Element type for output vectors
+  VectorType inputVecType; // Input vector type (e.g., nxv32i8)
+  VectorType outputVecType;// Output vector type (e.g., nxv8i32)
+  VectorType extendedInputVecType; // Extended input vector for sliding ops
+  std::string inputVecSuffix;  // e.g., "nxv32i8"
+  std::string outputVecSuffix; // e.g., "nxv8i32"
+  std::string extendedInputVecSuffix; // e.g., "nxv64i8"
+};
+
+/// Get IME type configuration from memref element type
+static IMETypeConfig getIMETypeConfig(MLIRContext *ctx, Type elementType) {
+  IMETypeConfig config;
+  config.lmul = 0; // Always m1 for IME operations
+  
+  if (elementType.isInteger(8)) {
+    // int8: SEW=e8, VL=32, MAC unit 4x4x8
+    config.targetVL = 32;
+    config.sew = 0;  // e8
+    config.extendedVL = 64;
+    config.elementType = IntegerType::get(ctx, 8);
+    config.outputElementType = IntegerType::get(ctx, 32);
+    config.inputVecType = VectorType::get({32}, config.elementType, /*scalableDims=*/true);
+    config.outputVecType = VectorType::get({8}, config.outputElementType, /*scalableDims=*/true);
+    config.extendedInputVecType = VectorType::get({64}, config.elementType, /*scalableDims=*/true);
+    config.inputVecSuffix = "nxv32i8";
+    config.outputVecSuffix = "nxv8i32";
+    config.extendedInputVecSuffix = "nxv64i8";
+  } else if (elementType.isInteger(16)) {
+    // int16: SEW=e16, VL=16, MAC unit 4x4x4
+    config.targetVL = 16;
+    config.sew = 1;  // e16
+    config.extendedVL = 32;
+    config.elementType = IntegerType::get(ctx, 16);
+    config.outputElementType = IntegerType::get(ctx, 32);
+    config.inputVecType = VectorType::get({16}, config.elementType, /*scalableDims=*/true);
+    config.outputVecType = VectorType::get({8}, config.outputElementType, /*scalableDims=*/true);
+    config.extendedInputVecType = VectorType::get({32}, config.elementType, /*scalableDims=*/true);
+    config.inputVecSuffix = "nxv16i16";
+    config.outputVecSuffix = "nxv8i32";
+    config.extendedInputVecSuffix = "nxv32i16";
+  } else if (elementType.isF16()) {
+    // fp16: SEW=e16, VL=16, MAC unit 4x4x4
+    config.targetVL = 16;
+    config.sew = 1;  // e16
+    config.extendedVL = 32;
+    config.elementType = Float16Type::get(ctx);
+    config.outputElementType = Float16Type::get(ctx); // fp16 output is also f16
+    config.inputVecType = VectorType::get({16}, config.elementType, /*scalableDims=*/true);
+    config.outputVecType = VectorType::get({16}, config.outputElementType, /*scalableDims=*/true);
+    config.extendedInputVecType = VectorType::get({32}, config.elementType, /*scalableDims=*/true);
+    config.inputVecSuffix = "nxv16f16";
+    config.outputVecSuffix = "nxv16f16";
+    config.extendedInputVecSuffix = "nxv32f16";
+  } else {
+    // Default to int8 if unknown type
+    config.targetVL = 32;
+    config.sew = 0;
+    config.extendedVL = 64;
+    config.elementType = IntegerType::get(ctx, 8);
+    config.outputElementType = IntegerType::get(ctx, 32);
+    config.inputVecType = VectorType::get({32}, config.elementType, /*scalableDims=*/true);
+    config.outputVecType = VectorType::get({8}, config.outputElementType, /*scalableDims=*/true);
+    config.extendedInputVecType = VectorType::get({64}, config.elementType, /*scalableDims=*/true);
+    config.inputVecSuffix = "nxv32i8";
+    config.outputVecSuffix = "nxv8i32";
+    config.extendedInputVecSuffix = "nxv64i8";
+  }
+  
+  return config;
+}
+
+/// Get element type from a memref value
+static Type getMemRefElementType(Value memref) {
+  if (auto memrefType = dyn_cast<MemRefType>(memref.getType())) {
+    return memrefType.getElementType();
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// Helper Functions
+//===----------------------------------------------------------------------===//
+
 static FlatSymbolRefAttr
 getOrInsertIntrinsic(ConversionPatternRewriter &rewriter, ModuleOp module,
                      StringRef intrinsicName, LLVM::LLVMFunctionType funcType) {
@@ -47,9 +148,37 @@ getOrInsertIntrinsic(ConversionPatternRewriter &rewriter, ModuleOp module,
   return FlatSymbolRefAttr::get(ctx, intrinsicName);
 }
 
+// Create vsetvli intrinsic call to configure vector type
+// SEW encoding: 0=e8, 1=e16, 2=e32, 3=e64
+// LMUL encoding: 0=m1, 1=m2, 2=m4, 3=m8, 5=mf8, 6=mf4, 7=mf2
+static Value createVsetvli(ConversionPatternRewriter &rewriter, Location loc,
+                           ModuleOp module, int64_t avl, int64_t sew,
+                           int64_t lmul) {
+  auto *ctx = rewriter.getContext();
+  auto i64Type = IntegerType::get(ctx, 64);
+
+  // vsetvli intrinsic: i64 @llvm.riscv.vsetvli.i64(i64 avl, i64 sew, i64 lmul)
+  auto funcType =
+      LLVM::LLVMFunctionType::get(i64Type, {i64Type, i64Type, i64Type}, false);
+  auto funcRef =
+      getOrInsertIntrinsic(rewriter, module, "llvm.riscv.vsetvli.i64", funcType);
+
+  auto avlVal = rewriter.create<LLVM::ConstantOp>(
+      loc, i64Type, rewriter.getI64IntegerAttr(avl));
+  auto sewVal = rewriter.create<LLVM::ConstantOp>(
+      loc, i64Type, rewriter.getI64IntegerAttr(sew));
+  auto lmulVal = rewriter.create<LLVM::ConstantOp>(
+      loc, i64Type, rewriter.getI64IntegerAttr(lmul));
+
+  auto call = rewriter.create<LLVM::CallOp>(loc, TypeRange{i64Type}, funcRef,
+                                            ValueRange{avlVal, sewVal, lmulVal});
+  return call.getResult();
+}
+
 static Value createRVVVectorLoad(ConversionPatternRewriter &rewriter,
                                  Location loc, ModuleOp module, Value pointer,
-                                 Type vectorType, StringRef baseIntrinsicName) {
+                                 Type vectorType, StringRef baseIntrinsicName,
+                                 Value vl) {
   auto *ctx = rewriter.getContext();
   auto i64Type = IntegerType::get(ctx, 64);
   auto ptrType = LLVM::LLVMPointerType::get(ctx);
@@ -58,8 +187,6 @@ static Value createRVVVectorLoad(ConversionPatternRewriter &rewriter,
       vectorType, {vectorType, ptrType, i64Type}, false);
   auto funcRef = getOrInsertIntrinsic(rewriter, module, mangledName, funcType);
   auto undefPassthru = rewriter.create<LLVM::UndefOp>(loc, vectorType);
-  auto vl = rewriter.create<LLVM::ConstantOp>(loc, i64Type,
-                                              rewriter.getI64IntegerAttr(-1));
   auto call =
       rewriter.create<LLVM::CallOp>(loc, TypeRange{vectorType}, funcRef,
                                     ValueRange{undefPassthru, pointer, vl});
@@ -68,7 +195,8 @@ static Value createRVVVectorLoad(ConversionPatternRewriter &rewriter,
 
 static void createRVVVectorStore(ConversionPatternRewriter &rewriter,
                                  Location loc, ModuleOp module, Value vector,
-                                 Value pointer, StringRef baseIntrinsicName) {
+                                 Value pointer, StringRef baseIntrinsicName,
+                                 Value vl) {
   auto *ctx = rewriter.getContext();
   auto i64Type = IntegerType::get(ctx, 64);
   auto ptrType = LLVM::LLVMPointerType::get(ctx);
@@ -78,8 +206,6 @@ static void createRVVVectorStore(ConversionPatternRewriter &rewriter,
   auto funcType = LLVM::LLVMFunctionType::get(
       voidType, {vectorType, ptrType, i64Type}, false);
   auto funcRef = getOrInsertIntrinsic(rewriter, module, mangledName, funcType);
-  auto vl = rewriter.create<LLVM::ConstantOp>(loc, i64Type,
-                                              rewriter.getI64IntegerAttr(-1));
   rewriter.create<LLVM::CallOp>(loc, TypeRange{}, funcRef,
                                 ValueRange{vector, pointer, vl});
 }
@@ -148,26 +274,40 @@ struct IMEVmadotLowering : public ConvertOpToLLVMPattern<VmadotOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs1 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs1());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8VecType = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.inputVecSuffix + "." + config.inputVecSuffix;
 
-    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, i8VecType,
-                                       "llvm.riscv.vle.nxv32i8");
-    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, i8VecType,
-                                       "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, 
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, 
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot",
-        ".nxv8i32.nxv32i8.nxv32i8");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -185,26 +325,40 @@ struct IMEVmadotuLowering : public ConvertOpToLLVMPattern<VmadotuOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs1 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs1());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8VecType = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.inputVecSuffix + "." + config.inputVecSuffix;
 
-    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, i8VecType,
-                                       "llvm.riscv.vle.nxv32i8");
-    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, i8VecType,
-                                       "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, 
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, 
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadotu",
-        ".nxv8i32.nxv32i8.nxv32i8");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -222,26 +376,40 @@ struct IMEVmadotsuLowering : public ConvertOpToLLVMPattern<VmadotsuOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs1 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs1());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8VecType = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.inputVecSuffix + "." + config.inputVecSuffix;
 
-    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, i8VecType,
-                                       "llvm.riscv.vle.nxv32i8");
-    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, i8VecType,
-                                       "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, 
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, 
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadotsu",
-        ".nxv8i32.nxv32i8.nxv32i8");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -259,26 +427,40 @@ struct IMEVmadotusLowering : public ConvertOpToLLVMPattern<VmadotusOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs1 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs1());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8VecType = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.inputVecSuffix + "." + config.inputVecSuffix;
 
-    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, i8VecType,
-                                       "llvm.riscv.vle.nxv32i8");
-    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, i8VecType,
-                                       "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, 
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, 
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadotus",
-        ".nxv8i32.nxv32i8.nxv32i8");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -296,24 +478,40 @@ struct IMEVfmadotLowering : public ConvertOpToLLVMPattern<VfmadotOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs1 memref - should be f16
+    Type elemType = getMemRefElementType(op.getVs1());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type (fp16: vl=16, SEW=e16, LMUL=m1)
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto f16Type = Float16Type::get(ctx);
-    auto f16VecType = VectorType::get({32}, f16Type, /*scalableDims=*/true);
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.inputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       f16VecType, "llvm.riscv.vle.nxv32f16");
+                                       config.inputVecType, loadIntrinsic, vlValue);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       f16VecType, "llvm.riscv.vle.nxv32f16");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, f16VecType,
-                                      "llvm.riscv.vle.nxv32f16");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vfmadot",
-        ".nxv32f16.nxv32f16.nxv32f16");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv32f16");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -331,29 +529,45 @@ struct IMEVmadot1Lowering : public ConvertOpToLLVMPattern<Vmadot1Op> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    // For extended loads (2x elements for vs1)
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
-
-    // Load 64 i8 elements for VS1 (two consecutive vector registers)
+    // Load extended elements for VS1 (two consecutive vector registers)
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot1",
-        ".nxv8i32.nxv64i8.nxv32i8");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -371,27 +585,43 @@ struct IMEVmadot1uLowering : public ConvertOpToLLVMPattern<Vmadot1uOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot1u",
-        ".nxv8i32.nxv64i8.nxv32i8");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -409,27 +639,43 @@ struct IMEVmadot1suLowering : public ConvertOpToLLVMPattern<Vmadot1suOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
-        "llvm.riscv.ime.vmadot1su", ".nxv8i32.nxv64i8.nxv32i8");
+        "llvm.riscv.ime.vmadot1su", typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -447,27 +693,43 @@ struct IMEVmadot1usLowering : public ConvertOpToLLVMPattern<Vmadot1usOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
-        "llvm.riscv.ime.vmadot1us", ".nxv8i32.nxv64i8.nxv32i8");
+        "llvm.riscv.ime.vmadot1us", typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -485,27 +747,43 @@ struct IMEVmadot2Lowering : public ConvertOpToLLVMPattern<Vmadot2Op> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot2",
-        ".nxv8i32.nxv64i8.nxv32i8");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -523,27 +801,43 @@ struct IMEVmadot2uLowering : public ConvertOpToLLVMPattern<Vmadot2uOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot2u",
-        ".nxv8i32.nxv64i8.nxv32i8");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -561,27 +855,43 @@ struct IMEVmadot2suLowering : public ConvertOpToLLVMPattern<Vmadot2suOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
-        "llvm.riscv.ime.vmadot2su", ".nxv8i32.nxv64i8.nxv32i8");
+        "llvm.riscv.ime.vmadot2su", typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -599,27 +909,43 @@ struct IMEVmadot2usLowering : public ConvertOpToLLVMPattern<Vmadot2usOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
-        "llvm.riscv.ime.vmadot2us", ".nxv8i32.nxv64i8.nxv32i8");
+        "llvm.riscv.ime.vmadot2us", typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -637,27 +963,43 @@ struct IMEVmadot3Lowering : public ConvertOpToLLVMPattern<Vmadot3Op> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot3",
-        ".nxv8i32.nxv64i8.nxv32i8");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -675,27 +1017,43 @@ struct IMEVmadot3uLowering : public ConvertOpToLLVMPattern<Vmadot3uOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot3u",
-        ".nxv8i32.nxv64i8.nxv32i8");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -713,27 +1071,43 @@ struct IMEVmadot3suLowering : public ConvertOpToLLVMPattern<Vmadot3suOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
-        "llvm.riscv.ime.vmadot3su", ".nxv8i32.nxv64i8.nxv32i8");
+        "llvm.riscv.ime.vmadot3su", typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -751,27 +1125,43 @@ struct IMEVmadot3usLowering : public ConvertOpToLLVMPattern<Vmadot3usOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
-        "llvm.riscv.ime.vmadot3us", ".nxv8i32.nxv64i8.nxv32i8");
+        "llvm.riscv.ime.vmadot3us", typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -789,27 +1179,43 @@ struct IMEVfmadot1Lowering : public ConvertOpToLLVMPattern<Vfmadot1Op> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref - should be f16
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type (fp16: vl=16, SEW=e16, LMUL=m1)
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto f16Type = Float16Type::get(ctx);
-
-    auto f16Vec32Type = VectorType::get({32}, f16Type, /*scalableDims=*/true);
-
-    auto f16Vec16Type = VectorType::get({16}, f16Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       f16Vec32Type, "llvm.riscv.vle.nxv32f16");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       f16Vec16Type, "llvm.riscv.vle.nxv16f16");
+                                       config.inputVecType, loadIntrinsic, vlValue);
     Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
-                                      f16Vec16Type, "llvm.riscv.vle.nxv16f16");
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vfmadot1",
-        ".nxv16f16.nxv32f16.nxv16f16");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv16f16");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -827,27 +1233,43 @@ struct IMEVfmadot2Lowering : public ConvertOpToLLVMPattern<Vfmadot2Op> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref - should be f16
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type (fp16: vl=16, SEW=e16, LMUL=m1)
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto f16Type = Float16Type::get(ctx);
-
-    auto f16Vec32Type = VectorType::get({32}, f16Type, /*scalableDims=*/true);
-
-    auto f16Vec16Type = VectorType::get({16}, f16Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       f16Vec32Type, "llvm.riscv.vle.nxv32f16");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       f16Vec16Type, "llvm.riscv.vle.nxv16f16");
+                                       config.inputVecType, loadIntrinsic, vlValue);
     Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
-                                      f16Vec16Type, "llvm.riscv.vle.nxv16f16");
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vfmadot2",
-        ".nxv16f16.nxv32f16.nxv16f16");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv16f16");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -865,27 +1287,43 @@ struct IMEVfmadot3Lowering : public ConvertOpToLLVMPattern<Vfmadot3Op> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref - should be f16
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type (fp16: vl=16, SEW=e16, LMUL=m1)
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
 
-    auto f16Type = Float16Type::get(ctx);
-
-    auto f16Vec32Type = VectorType::get({32}, f16Type, /*scalableDims=*/true);
-
-    auto f16Vec16Type = VectorType::get({16}, f16Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       f16Vec32Type, "llvm.riscv.vle.nxv32f16");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       f16Vec16Type, "llvm.riscv.vle.nxv16f16");
+                                       config.inputVecType, loadIntrinsic, vlValue);
     Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
-                                      f16Vec16Type, "llvm.riscv.vle.nxv16f16");
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vfmadot3",
-        ".nxv16f16.nxv32f16.nxv16f16");
+        typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv16f16");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -903,28 +1341,44 @@ struct IMEVmadotnLowering : public ConvertOpToLLVMPattern<VmadotnOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
     Value slideVal = op.getSlide();
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotnIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, slideVal,
-        "llvm.riscv.ime.vmadotn", ".nxv8i32.nxv64i8.nxv32i8");
+        "llvm.riscv.ime.vmadotn", typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -942,28 +1396,44 @@ struct IMEVmadotnuLowering : public ConvertOpToLLVMPattern<VmadotnuOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
     Value slideVal = op.getSlide();
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotnIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, slideVal,
-        "llvm.riscv.ime.vmadotnu", ".nxv8i32.nxv64i8.nxv32i8");
+        "llvm.riscv.ime.vmadotnu", typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -981,28 +1451,44 @@ struct IMEVmadotnsuLowering : public ConvertOpToLLVMPattern<VmadotnsuOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
     Value slideVal = op.getSlide();
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotnIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, slideVal,
-        "llvm.riscv.ime.vmadotnsu", ".nxv8i32.nxv64i8.nxv32i8");
+        "llvm.riscv.ime.vmadotnsu", typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -1020,28 +1506,44 @@ struct IMEVmadotnusLowering : public ConvertOpToLLVMPattern<VmadotnusOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
     Value slideVal = op.getSlide();
 
-    auto i8Type = IntegerType::get(ctx, 8);
-    auto i32Type = IntegerType::get(ctx, 32);
-    auto i8Vec64Type = VectorType::get({64}, i8Type, /*scalableDims=*/true);
-    auto i8Vec32Type = VectorType::get({32}, i8Type, /*scalableDims=*/true);
-    auto i32VecType = VectorType::get({8}, i32Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       i8Vec64Type, "llvm.riscv.vle.nxv64i8");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       i8Vec32Type, "llvm.riscv.vle.nxv32i8");
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, i32VecType,
-                                      "llvm.riscv.vle.nxv8i32");
+                                       config.inputVecType, loadIntrinsic, vlValue);
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+                                      config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotnIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, slideVal,
-        "llvm.riscv.ime.vmadotnus", ".nxv8i32.nxv64i8.nxv32i8");
+        "llvm.riscv.ime.vmadotnus", typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv8i32");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }
@@ -1059,28 +1561,43 @@ struct IMEVfmadotnLowering : public ConvertOpToLLVMPattern<VfmadotnOp> {
     if (!module)
       return failure();
 
+    // Get element type from vs2 memref and configure accordingly
+    Type elemType = getMemRefElementType(op.getVs2());
+    if (!elemType)
+      return failure();
+    
+    IMETypeConfig config = getIMETypeConfig(ctx, elemType);
+    auto i64Type = IntegerType::get(ctx, 64);
+
+    // Configure vtype based on element type
+    createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
+    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
+    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
+
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
     Value vs1Ptr = extractPointerFromMemref(rewriter, loc, op.getVs1());
     Value vs2Ptr = extractPointerFromMemref(rewriter, loc, op.getVs2());
     Value slideVal = op.getSlide();
 
-    auto f16Type = Float16Type::get(ctx);
-
-    auto f16Vec32Type = VectorType::get({32}, f16Type, /*scalableDims=*/true);
-
-    auto f16Vec16Type = VectorType::get({16}, f16Type, /*scalableDims=*/true);
+    std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
+    std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
+    std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
+    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+                             config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
-                                       f16Vec32Type, "llvm.riscv.vle.nxv32f16");
+                                       config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
-                                       f16Vec16Type, "llvm.riscv.vle.nxv16f16");
+                                       config.inputVecType, loadIntrinsic, vlValue);
     Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
-                                      f16Vec16Type, "llvm.riscv.vle.nxv16f16");
+                                      config.outputVecType, loadIntrinsic, vlValue);
     Value result = createIMEVmadotnIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, slideVal,
-        "llvm.riscv.ime.vfmadotn", ".nxv16f16.nxv32f16.nxv16f16");
+        "llvm.riscv.ime.vfmadotn", typeSuffix);
     createRVVVectorStore(rewriter, loc, module, result, vdPtr,
-                         "llvm.riscv.vse.nxv16f16");
+                         storeIntrinsic, vlValue);
     rewriter.eraseOp(op);
     return success();
   }

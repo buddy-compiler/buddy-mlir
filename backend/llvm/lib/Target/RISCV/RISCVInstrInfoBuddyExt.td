@@ -452,6 +452,12 @@ let Predicates = [HasBuddyExt] in {
             (IME_VMADOT VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
 }
 
+// int16 vmadot patterns
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot nxv8i32:$vd, nxv16i16:$vs1, nxv16i16:$vs2)),
+            (IME_VMADOT VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}
+
 let Predicates = [HasBuddyExt] in {
   def : Pat<(nxv8i32 (int_riscv_ime_vmadotu nxv8i32:$vd, nxv32i8:$vs1, nxv32i8:$vs2)),
             (IME_VMADOTU VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
