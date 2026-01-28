@@ -51,6 +51,10 @@ def replace_bernoulli_with_runtime_rng(graph: Graph):
         if not isinstance(op, BernoulliOp):
             continue
 
+        dtype = op.tensor_meta.get("dtype", None)
+        if dtype != TensorDType.Float32:
+            continue
+
         shape = op.tensor_meta.get("shape", [])
         rank = len(list(shape)) if shape is not None else 0
         arity = len(op.args)
@@ -104,6 +108,10 @@ def replace_bernoulli_with_runtime_rng(graph: Graph):
 def replace_geometric_with_runtime_rng(graph: Graph):
     for op in list(graph.body):
         if not isinstance(op, GeometricOp):
+            continue
+
+        dtype = op.tensor_meta.get("dtype", None)
+        if dtype != TensorDType.Float32:
             continue
 
         if len(op.args) < 2:

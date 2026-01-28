@@ -671,7 +671,11 @@ class DynamoCompiler:
         return buddy_node
 
     def _compile_fx(
-        self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
+        self,
+        gm: torch.fx.GraphModule,
+        inputs: List[torch.Tensor],
+        *,
+        return_type: str = "eager",
     ) -> Any:
         """
         Compiles the provided FX Graph to Buddy Graph.
@@ -679,6 +683,10 @@ class DynamoCompiler:
         Args:
             gm (torch.fx.GraphModule): The GraphModule to be compiled.
             inputs (List[torch.Tensor]): The input tensors.
+            return_type (str): Controls the compiled callable that AOTAutograd
+                receives from the Buddy compiler.
+                - "eager": return the FX graph forward (legacy behavior).
+                - "buddy": return a Buddy MLIR execution callable.
 
         Returns:
             dynamo_run: The function of the ahead-of-time compiled module,
@@ -930,11 +938,16 @@ class DynamoCompiler:
                 maxpool2d_simplify,
                 affine_grid_generator_simplify,
                 affine_grid_generator_homogeneous_base_simplify,
-                replace_bernoulli_with_runtime_rng,
-                replace_exponential_with_runtime_rng,
-                replace_geometric_with_runtime_rng,
-                replace_rand_with_runtime_rng,
             ]
+            if self._enable_external_calls:
+                transform_list.extend(
+                    [
+                        replace_bernoulli_with_runtime_rng,
+                        replace_exponential_with_runtime_rng,
+                        replace_geometric_with_runtime_rng,
+                        replace_rand_with_runtime_rng,
+                    ]
+                )
             if self._enable_out_functionalize:
                 transform_list.insert(
                     0,
@@ -945,7 +958,21 @@ class DynamoCompiler:
             graph.perform(transform_list)
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
-            return _gm.forward
+            if return_type == "eager":
+                return _gm.forward
+            if return_type == "buddy":
+                exec_list = self._dynamo_run_for_graph(graph)
+
+                def _exec(*args):
+                    outs = exec_list(*args)
+                    if len(outs) == 1:
+                        return outs[0]
+                    return tuple(outs)
+
+                return _exec
+            raise ValueError(
+                f"Unsupported return_type={return_type!r}; expected 'eager' or 'buddy'."
+            )
 
         return aot_module_simplified(
             gm,
@@ -1021,13 +1048,9 @@ class DynamoCompiler:
         self._compile_fx(exported_program.graph_module, list(args))
         return self._imported_graphs
 
-    def dynamo_run(self):
+    def _dynamo_run_for_graph(self, graph):
         """
-        A callable method that wraps around the `exec_buddy_graph` method.
-
-        Returns:
-            exec_buddy_graph: The function of the ahead-of-time compiled module,
-            return for torchdynamo's call.
+        Build an execution callable for a specific Buddy graph.
         """
 
         def get_lib_extension():
@@ -1038,8 +1061,6 @@ class DynamoCompiler:
             else:
                 raise RuntimeError("Unsupported platform")
 
-        # Dynamo's graph break may import more than one graph.
-        graph = self._imported_graphs[-1]
         graph.compile()
         # Collect dependency libraries.
         lib_extension = get_lib_extension()
@@ -1057,7 +1078,7 @@ class DynamoCompiler:
         buddy_rng_lib = os.path.join(
             buddy_lib_base_path, "libbuddy_rng_utils" + lib_extension
         )
-        if os.path.exists(buddy_rng_lib):
+        if self._enable_external_calls:
             shared_libs.append(buddy_rng_lib)
         # Define execution engine.
         ee = ExecutionEngine(
@@ -1137,3 +1158,61 @@ class DynamoCompiler:
             return output_tensors
 
         return exec_buddy_graph
+
+    def dynamo_run(self):
+        """
+        A callable method that wraps around the `exec_buddy_graph` method.
+
+        Returns:
+            exec_buddy_graph: The function of the ahead-of-time compiled module,
+            return for torchdynamo's call.
+        """
+        # Dynamo's graph break may import more than one graph.
+        graph = self._imported_graphs[-1]
+        return self._dynamo_run_for_graph(graph)
+
+
+class TorchCompileBackend:
+    """
+    TorchDynamo backend wrapper for `torch.compile(backend=...)`.
+
+    The backend callable signature is:
+        backend(gm, example_inputs) -> callable
+    """
+
+    def __init__(self, compiler: DynamoCompiler) -> None:
+        self._compiler = compiler
+
+    def __call__(
+        self, gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]
+    ):
+        # Keep per-compile state bounded; torch.compile caches the returned
+        # callable per-graph, so this is safe for common use.
+        self._compiler._imported_graphs = []
+        self._compiler._imported_params = {}
+        return self._compiler._compile_fx(
+            gm, list(example_inputs), return_type="buddy"
+        )
+
+
+def make_default_torch_backend() -> TorchCompileBackend:
+    try:
+        import torch._inductor.lowering  # noqa: F401
+    except Exception:
+        # Some builds do not eagerly expose `torch._inductor.lowering` as an
+        # attribute. Inductor decompositions may access it via
+        # `torch._inductor.lowering`, so import the submodule explicitly to
+        # avoid runtime AttributeError.
+        pass
+
+    from torch._inductor.decomposition import decompositions as inductor_decomp
+
+    compiler = DynamoCompiler(
+        primary_registry=tosa_ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+    )
+    return TorchCompileBackend(compiler)
+
+
+# Public default backend instance for `torch.compile(backend=...)`.
+dynamo_compiler = make_default_torch_backend()
