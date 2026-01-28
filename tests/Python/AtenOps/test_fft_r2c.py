@@ -26,6 +26,6 @@ graph = graphs[0]
 graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
-# CHECK: func.func
-# CHECK-SAME: (tensor<4x8xf32>) -> tensor<4x5xcomplex<f32>>
+# CHECK-LABEL: func.func @forward
+# CHECK-SAME: tensor<4x8xf32>) -> tensor<4x5xcomplex<f32>>
 # CHECK: complex.create

@@ -13,12 +13,10 @@ Features:
 from __future__ import annotations
 
 import ctypes
-import itertools
 import json
 import os
 import re
 import sys
-import subprocess
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -1363,15 +1361,6 @@ def run_aten_op(
     return Result.passed(name)
 
 
-def _apply_numeric_overrides(validate_numeric: bool) -> bool:
-    env_numeric = os.getenv("BUDDY_OC_VALIDATE_NUMERIC", "").strip().lower()
-    if env_numeric in ("1", "true", "yes", "y", "on"):
-        return True
-    if env_numeric in ("0", "false", "no", "n", "off"):
-        return False
-    return validate_numeric
-
-
 FlatOutputItem = Tuple[str, Any]  # ("tensor"|"float"|"int"|"bool", value)
 
 
@@ -1775,60 +1764,6 @@ def _maybe_reorder_tensor_inputs_for_compiler(
     return reordered
 
 
-def _iter_meta_compatible_tensor_reorderings(
-    dynamo_compiler: DynamoCompiler,
-    tensor_inputs: List[torch.Tensor],
-    *,
-    max_candidates: int = 64,
-) -> Iterable[List[torch.Tensor]]:
-    """Enumerate reorderings compatible with compiler input metas.
-
-    This is used as a fallback when placeholder ordering differs from the
-    Python argument order, but shape/dtype matching is ambiguous (e.g., GRU
-    weights with identical shapes). We cap the search to avoid pathological
-    factorial blow-ups.
-    """
-    graphs = getattr(dynamo_compiler, "_imported_graphs", None)
-    if not isinstance(graphs, list) or not graphs:
-        return
-    graph = graphs[-1]
-    metas = getattr(graph, "_inputs", None)
-    if not isinstance(metas, list) or not metas:
-        return
-    if len(metas) != len(tensor_inputs):
-        return
-
-    def _matches(meta, t: torch.Tensor) -> bool:
-        shape = tuple(getattr(meta, "shape", ()))
-        want_dtype = _meta_dtype_to_torch(getattr(meta, "dtype", None))
-        if tuple(t.shape) != shape:
-            return False
-        if want_dtype is not None and t.dtype != want_dtype:
-            return False
-        return True
-
-    produced = 0
-
-    def backtrack(
-        pos: int, remaining: Tuple[int, ...], chosen: Tuple[int, ...]
-    ):
-        nonlocal produced
-        if produced >= max_candidates:
-            return
-        if pos == len(metas):
-            produced += 1
-            yield [tensor_inputs[i] for i in chosen]
-            return
-
-        meta = metas[pos]
-        candidates = [i for i in remaining if _matches(meta, tensor_inputs[i])]
-        for i in candidates:
-            new_remaining = tuple(j for j in remaining if j != i)
-            yield from backtrack(pos + 1, new_remaining, chosen + (i,))
-
-    yield from backtrack(0, tuple(range(len(tensor_inputs))), ())
-
-
 def run_aten_op_numeric(
     name: str,
     entry: CoverageEntry,
@@ -2152,61 +2087,7 @@ def run_aten_op_numeric(
         ]
         primary_out = exec_func(*exec_inputs)
         result = _check_outputs(primary_out)
-        if result is None:
-            return Result.passed(name)
-
-        tensor_keys = [(tuple(t.shape), t.dtype) for t in tensor_inputs]
-        ambiguous_inputs = len(tensor_inputs) >= 2 and (
-            len(set(tensor_keys)) != len(tensor_keys)
-        )
-        if ambiguous_inputs and result.status == "fail":
-            seen = {tuple(id(t) for t in tensor_inputs)}
-            for candidate in _iter_meta_compatible_tensor_reorderings(
-                dynamo_compiler, tensor_inputs, max_candidates=64
-            ):
-                key = tuple(id(t) for t in candidate)
-                if key in seen:
-                    continue
-                seen.add(key)
-                try:
-                    candidate_exec_inputs = [
-                        (
-                            t.detach()
-                            if isinstance(t, torch.Tensor) and t.requires_grad
-                            else t
-                        )
-                        for t in candidate
-                    ]
-                    candidate_out = exec_func(*candidate_exec_inputs)
-                except Exception:
-                    continue
-                candidate_result = _check_outputs(candidate_out)
-                if candidate_result is None:
-                    return Result.passed(name)
-
-            if len(tensor_inputs) <= 4:
-                for perm in itertools.permutations(range(len(tensor_inputs))):
-                    if perm == tuple(range(len(tensor_inputs))):
-                        continue
-                    perm_inputs = [tensor_inputs[i] for i in perm]
-                    try:
-                        perm_exec_inputs = [
-                            (
-                                t.detach()
-                                if isinstance(t, torch.Tensor)
-                                and t.requires_grad
-                                else t
-                            )
-                            for t in perm_inputs
-                        ]
-                        perm_out = exec_func(*perm_exec_inputs)
-                    except Exception:
-                        continue
-                    perm_result = _check_outputs(perm_out)
-                    if perm_result is None:
-                        return Result.passed(name)
-
-        return result
+        return Result.passed(name) if result is None else result
     except Exception as e:
         tb = traceback.format_exc()
         skip_reason = _classify_import_exception(tb, name)
@@ -2218,25 +2099,6 @@ def run_aten_op_numeric(
         return Result.fail(name, f"convert:{type(e).__name__}:{e}")
 
     return Result.passed(name)
-
-
-def _apply_env_overrides(
-    show_skips: bool, max_fails: int, show_passes: bool
-) -> Tuple[bool, int, bool]:
-    # Optional env overrides for reporting/debugging without touching batch files.
-    env_show_skips = os.getenv("BUDDY_OC_SHOW_SKIPS", "").strip().lower()
-    if env_show_skips in ("1", "true", "yes", "y", "on"):
-        show_skips = True
-    env_show_passes = os.getenv("BUDDY_OC_SHOW_PASSES", "").strip().lower()
-    if env_show_passes in ("1", "true", "yes", "y", "on"):
-        show_passes = True
-    env_max_fails = os.getenv("BUDDY_OC_MAX_FAILS", "").strip()
-    if env_max_fails:
-        try:
-            max_fails = int(env_max_fails)
-        except ValueError:
-            raise ValueError(f"Invalid BUDDY_OC_MAX_FAILS={env_max_fails!r}")
-    return show_skips, max_fails, show_passes
 
 
 def _resolve_entries(
@@ -2275,40 +2137,19 @@ def run_aten_op_batch(
     validate_numeric: bool = False,
     templates_source: Path | str | None = None,
 ) -> List[Result]:
-    show_passes = False
-    show_skips, max_fails, show_passes = _apply_env_overrides(
-        show_skips, max_fails, show_passes
-    )
-    validate_numeric = _apply_numeric_overrides(validate_numeric)
-
     coverage_map = load_coverage_map(coverage_json)
     entries = _resolve_entries(names, coverage_map)
 
-    if validate_numeric and templates_source is not None:
-        results = _run_aten_op_batch_numeric_isolated(
-            entries,
-            coverage_json=coverage_json,
-            templates_source=templates_source,
+    templates = templates or {}
+    dynamo_compiler = _make_compiler()
+    results: List[Result] = []
+    for name, entry in entries:
+        results.append(
+            run_aten_op_numeric(name, entry, dynamo_compiler, templates)
+            if validate_numeric
+            else run_aten_op(name, entry, dynamo_compiler, templates)
         )
-    else:
-        templates = templates or {}
-        dynamo_compiler = _make_compiler()
-        results = []
-        for name, entry in entries:
-            if validate_numeric:
-                results.append(
-                    run_aten_op_numeric(name, entry, dynamo_compiler, templates)
-                )
-            else:
-                results.append(
-                    run_aten_op(name, entry, dynamo_compiler, templates)
-                )
-            # Reset Dynamo after EVERY operation to prevent state pollution.
-            # Even successful compilations can leave cached state that interferes
-            # with subsequent operations (e.g., le.Tensor success pollutes le.Scalar).
-            # This is necessary because Dynamo's internal caching doesn't properly
-            # isolate different op patterns with similar function structures.
-            dynamo_compiler = _reset_dynamo_and_compiler()
+        dynamo_compiler = _reset_dynamo_and_compiler()
 
     stats = BatchStats.from_results(results)
     print(
@@ -2316,11 +2157,6 @@ def run_aten_op_batch(
         f"batch_label={batch_label} count={len(entries)} total={len(coverage_map)}"
     )
     print("# CHECK: SUMMARY pass=")
-
-    if validate_numeric and show_passes:
-        for r in results:
-            if r.status == "pass":
-                print(f"NUMERIC_PASS {r.name}")
 
     remaining = max_fails
     for r in results:
@@ -2331,159 +2167,8 @@ def run_aten_op_batch(
                 break
 
     if show_skips:
-        from collections import Counter
-
-        skip_reasons = Counter(r.reason for r in results if r.status == "skip")
-        for reason, count in skip_reasons.items():
-            print(f"SKIP {reason} count={count}")
         for r in results:
             if r.status == "skip":
                 print(f"SKIP {r.name} {r.reason}")
 
-    return results
-
-
-_WORKER_RESULT_PREFIX = "__BUDDY_OC_RESULT__ "
-
-
-def _abspath_pythonpath(value: str, *, base: Path) -> str:
-    parts: List[str] = []
-    for entry in value.split(os.pathsep):
-        if not entry:
-            continue
-        path = Path(entry)
-        if not path.is_absolute():
-            path = (base / path).resolve()
-        parts.append(str(path))
-    return os.pathsep.join(parts)
-
-
-def _start_numeric_worker(
-    coverage_json: Path | str, templates_source: Path | str
-) -> subprocess.Popen[str]:
-    worker = THIS_DIR / "aten_op_numeric_worker.py"
-    resolved_coverage = _resolve_coverage_path(coverage_json)
-    templates_path = Path(templates_source)
-    if not templates_path.is_absolute():
-        repo_root = _get_repo_root()
-        for cand in (
-            Path.cwd() / templates_path,
-            THIS_DIR / templates_path,
-            repo_root / templates_path,
-        ):
-            if cand.exists():
-                templates_path = cand.resolve()
-                break
-    else:
-        templates_path = templates_path.resolve()
-    cmd = [
-        sys.executable,
-        "-u",
-        str(worker),
-        "--coverage-json",
-        str(resolved_coverage),
-        "--templates-source",
-        str(templates_path),
-    ]
-    env = os.environ.copy()
-    env["PYTHONUNBUFFERED"] = "1"
-    parent_cwd = Path.cwd().resolve()
-    if "PYTHONPATH" in env:
-        env["PYTHONPATH"] = _abspath_pythonpath(
-            env["PYTHONPATH"], base=parent_cwd
-        )
-    return subprocess.Popen(
-        cmd,
-        cwd=str(parent_cwd),
-        env=env,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
-
-
-def _read_worker_result(
-    proc: subprocess.Popen[str],
-) -> Tuple[bool, str, Dict[str, str]]:
-    assert proc.stdout is not None
-    while True:
-        line = proc.stdout.readline()
-        if line == "":
-            return False, "runtime:worker_exit", {}
-        if line.startswith(_WORKER_RESULT_PREFIX):
-            payload = line[len(_WORKER_RESULT_PREFIX) :].strip()
-            try:
-                data = json.loads(payload)
-            except Exception as e:
-                return False, f"runtime:bad_worker_json:{e}", {}
-            return True, "", data
-
-
-def _run_aten_op_batch_numeric_isolated(
-    entries: List[Tuple[str, CoverageEntry]],
-    *,
-    coverage_json: Path | str,
-    templates_source: Path | str,
-) -> List[Result]:
-    results: List[Result] = []
-
-    proc: subprocess.Popen[str] | None = None
-
-    def ensure_worker() -> subprocess.Popen[str]:
-        nonlocal proc
-        if proc is None or proc.poll() is not None:
-            proc = _start_numeric_worker(coverage_json, templates_source)
-        return proc
-
-    for name, _entry in entries:
-        worker = ensure_worker()
-        assert worker.stdin is not None
-        try:
-            worker.stdin.write(name + "\n")
-            worker.stdin.flush()
-        except Exception:
-            results.append(Result.fail(name, "runtime:worker_broken_pipe"))
-            if worker.poll() is None:
-                worker.kill()
-            proc = None
-            continue
-
-        ok, msg, data = _read_worker_result(worker)
-        if not ok:
-            # If the worker process crashes, treat it as a skip in numeric mode.
-            # This keeps the batch running and avoids counting hard crashes as
-            # numeric "fail" until the underlying execution issue is fixed.
-            if msg.startswith("runtime:worker_exit") or msg.startswith(
-                "runtime:worker_broken_pipe"
-            ):
-                results.append(Result.skip(name, msg))
-            else:
-                results.append(Result.fail(name, msg))
-            if worker.poll() is None:
-                worker.kill()
-            proc = None
-            continue
-
-        status = data.get("status", "")
-        reason = data.get("reason", "")
-        if status == "pass":
-            results.append(Result.passed(name))
-        elif status == "skip":
-            results.append(Result.skip(name, reason))
-        elif status == "fail":
-            results.append(Result.fail(name, reason))
-        else:
-            results.append(
-                Result.fail(name, f"runtime:bad_worker_status:{status}")
-            )
-
-    if proc is not None:
-        try:
-            if proc.stdin is not None:
-                proc.stdin.close()
-            proc.terminate()
-        except Exception:
-            pass
     return results

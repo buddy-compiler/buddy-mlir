@@ -1,41 +1,32 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
 import dataclasses
-import json
-import os
-import re
 import runpy
 import sys
-import traceback
 import contextlib
 import io
-import subprocess
 from pathlib import Path
-from typing import Any, Iterable, List, Sequence, Tuple
+from typing import Any, List, Sequence, Tuple
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_TEST_DIR = Path(__file__).resolve().parent
 
 
-def _maybe_prepend_sys_path(path: Path) -> None:
-    path_str = str(path)
-    if path.exists() and path_str not in sys.path:
-        sys.path.insert(0, path_str)
-
-
 def _bootstrap_pythonpath() -> None:
-    _maybe_prepend_sys_path(REPO_ROOT / "build" / "python_packages")
-    _maybe_prepend_sys_path(
-        REPO_ROOT
-        / "llvm"
-        / "build"
-        / "tools"
-        / "mlir"
-        / "python_packages"
-        / "mlir_core"
+    sys.path.insert(0, str(REPO_ROOT / "build" / "python_packages"))
+    sys.path.insert(
+        0,
+        str(
+            REPO_ROOT
+            / "llvm"
+            / "build"
+            / "tools"
+            / "mlir"
+            / "python_packages"
+            / "mlir_core"
+        ),
     )
 
 
@@ -189,41 +180,28 @@ def _patch_compile_fx(compiled_inputs_by_id: dict[int, List[Any]]):
     original = DynamoCompiler._compile_fx
 
     def wrapped(self, gm, inputs):
-        try:
-            compiled_inputs_by_id[id(self)] = list(inputs)
-        except Exception:
-            compiled_inputs_by_id[id(self)] = []
+        compiled_inputs_by_id[id(self)] = list(inputs)
         return original(self, gm, inputs)
 
     return DynamoCompiler, original, wrapped
 
 
-def _run_one_inprocess(path: Path, *, verbose: bool = False) -> TestResult:
+def _run_one(path: Path) -> TestResult:
     _bootstrap_pythonpath()
 
     import torch
 
     calls: List[_ImporterCall] = []
     compiled_inputs_by_id: dict[int, List[Any]] = {}
-    try:
-        DynamoCompiler, importer_original, importer_wrapped = _patch_importer(
-            calls
-        )
-        _, compile_original, compile_wrapped = _patch_compile_fx(
-            compiled_inputs_by_id
-        )
-    except Exception as e:
-        return TestResult(
-            path=path, status="fail", reason=f"bootstrap:{type(e).__name__}:{e}"
-        )
+    DynamoCompiler, importer_original, importer_wrapped = _patch_importer(calls)
+    _, compile_original, compile_wrapped = _patch_compile_fx(
+        compiled_inputs_by_id
+    )
 
     torch.manual_seed(0)
-    try:
-        import torch._dynamo
+    import torch._dynamo
 
-        torch._dynamo.reset()
-    except Exception:
-        pass
+    torch._dynamo.reset()
 
     try:
         setattr(DynamoCompiler, "importer", importer_wrapped)
@@ -234,29 +212,8 @@ def _run_one_inprocess(path: Path, *, verbose: bool = False) -> TestResult:
             buf_err
         ):
             runpy.run_path(str(path), run_name="__main__")
-    except SystemExit as e:
-        # Some tests may call sys.exit; treat non-zero as failure.
-        code = int(e.code) if isinstance(e.code, int) else 0
-        if code != 0:
-            return TestResult(
-                path=path, status="fail", reason=f"script_exit:{code}"
-            )
     except Exception as e:
-        if verbose:
-            traceback.print_exc()
-        tail = ""
-        if verbose:
-            out_s = buf_out.getvalue().strip()
-            err_s = buf_err.getvalue().strip()
-            if out_s:
-                tail += f" stdout={out_s[-200:]}"
-            if err_s:
-                tail += f" stderr={err_s[-200:]}"
-        return TestResult(
-            path=path,
-            status="fail",
-            reason=f"script:{type(e).__name__}:{e}{tail}",
-        )
+        return TestResult(path=path, status="fail", reason=f"script:{e}")
     finally:
         setattr(DynamoCompiler, "importer", importer_original)
         setattr(DynamoCompiler, "_compile_fx", compile_original)
@@ -264,50 +221,23 @@ def _run_one_inprocess(path: Path, *, verbose: bool = False) -> TestResult:
     if not calls:
         if path.name == "test_local_scalar_dense.py":
             out_s = buf_out.getvalue()
-            # This test intentionally does not go through DynamoCompiler.importer.
-            # Treat it as metadata-only validation by checking that it prints the
-            # expected MLIR patterns.
             required = ("tosa.const_shape", "tosa.reshape")
-            if all(tok in out_s for tok in required):
-                return TestResult(
-                    path=path, status="pass", reason="pass:metadata_only"
-                )
-            missing = [tok for tok in required if tok not in out_s]
-            return TestResult(
-                path=path,
-                status="fail",
-                reason=f"metadata_missing:{','.join(missing)}",
+            return (
+                TestResult(path=path, status="pass")
+                if all(tok in out_s for tok in required)
+                else TestResult(path=path, status="fail", reason="metadata")
             )
-        return TestResult(
-            path=path, status="skip", reason="skip:no_importer_call"
-        )
+        return TestResult(path=path, status="fail", reason="no_importer_call")
 
     call = calls[-1]
-    if call.kwargs:
-        return TestResult(
-            path=path, status="skip", reason="skip:kwargs_not_supported"
-        )
-
     tensor_inputs = _collect_tensor_inputs(call.args)
-    if not tensor_inputs and path.name != "test_empty_strided.py":
-        return TestResult(
-            path=path, status="skip", reason="skip:no_tensor_inputs"
-        )
 
     try:
         expected = call.model(*call.args, **call.kwargs)
     except Exception as e:
-        if verbose:
-            traceback.print_exc()
-        return TestResult(
-            path=path, status="fail", reason=f"eager:{type(e).__name__}:{e}"
-        )
+        return TestResult(path=path, status="fail", reason=f"eager:{e}")
 
     expected_items = _flatten_outputs(expected)
-    if not expected_items:
-        return TestResult(
-            path=path, status="skip", reason="skip:non_tensor_output"
-        )
 
     def _compare(exec_out: Any) -> Tuple[bool, str]:
         actual_items = _flatten_outputs(exec_out)
@@ -341,54 +271,16 @@ def _run_one_inprocess(path: Path, *, verbose: bool = False) -> TestResult:
 
     try:
         exec_func = call.compiler.dynamo_run()
-        compiled_inputs = compiled_inputs_by_id.get(id(call.compiler), [])
-        compiled_tensors = [
-            x for x in compiled_inputs if isinstance(x, torch.Tensor)
+        compiled_inputs = compiled_inputs_by_id[id(call.compiler)]
+        exec_inputs = [
+            (x.detach().cpu() if isinstance(x, torch.Tensor) else x)
+            for x in compiled_inputs
         ]
-        # Some graphs (e.g. module calls) materialize parameters/buffers as extra
-        # function inputs during compilation. Prefer the compiler-captured tensor
-        # input list to avoid calling the JIT with too few arguments.
-        if compiled_tensors and len(compiled_tensors) >= len(tensor_inputs):
-            exec_inputs = [t.detach().cpu() for t in compiled_tensors]
-        else:
-            exec_inputs = [t.detach().cpu() for t in tensor_inputs]
         actual = exec_func(*exec_inputs)
     except Exception as e:
-        if verbose:
-            traceback.print_exc()
-        tail = ""
-        if verbose:
-            out_s = buf_out.getvalue().strip()
-            err_s = buf_err.getvalue().strip()
-            if out_s:
-                tail += f" stdout={out_s[-200:]}"
-            if err_s:
-                tail += f" stderr={err_s[-200:]}"
-        return TestResult(
-            path=path,
-            status="fail",
-            reason=f"execute:{type(e).__name__}:{e}{tail}",
-        )
+        return TestResult(path=path, status="fail", reason=f"execute:{e}")
 
     ok, msg = _compare(actual)
-    if not ok and 2 <= len(exec_inputs) <= 4:
-        import itertools
-
-        base_indices = tuple(range(len(exec_inputs)))
-        for perm_indices in itertools.permutations(base_indices):
-            if perm_indices == base_indices:
-                continue
-            try:
-                perm = [exec_inputs[i] for i in perm_indices]
-                perm_out = exec_func(*perm)
-            except Exception:
-                continue
-            ok2, _msg2 = _compare(perm_out)
-            if ok2:
-                return TestResult(
-                    path=path, status="pass", reason="pass:input_permuted"
-                )
-        return TestResult(path=path, status="fail", reason=msg)
     if not ok:
         return TestResult(path=path, status="fail", reason=msg)
 
@@ -407,101 +299,13 @@ def _iter_tests(paths: Sequence[Path]) -> List[Path]:
     return out
 
 
-def _run_one_subprocess(path: Path, *, verbose: bool = False) -> TestResult:
-    cmd = [sys.executable, str(Path(__file__).resolve()), "--worker", str(path)]
-    if verbose:
-        cmd.append("--verbose")
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    if proc.returncode in (139, -11):
-        detail = ""
-        if verbose and proc.stderr:
-            detail = f" stderr={proc.stderr.strip()[:200]}"
-        return TestResult(
-            path=path, status="fail", reason=f"crash:segfault{detail}"
-        )
-    if proc.returncode not in (0, 1):
-        detail = ""
-        if verbose and proc.stderr:
-            detail = f" stderr={proc.stderr.strip()[:200]}"
-        return TestResult(
-            path=path,
-            status="fail",
-            reason=f"crash:exitcode={proc.returncode}{detail}",
-        )
-
-    try:
-        payload = json.loads(proc.stdout.strip().splitlines()[-1])
-        return TestResult(
-            path=path,
-            status=payload["status"],
-            reason=payload.get("reason", ""),
-        )
-    except Exception as e:
-        detail = ""
-        if verbose:
-            detail = f" stdout={proc.stdout.strip()[:200]} stderr={proc.stderr.strip()[:200]}"
-        return TestResult(
-            path=path,
-            status="fail",
-            reason=f"worker_parse:{type(e).__name__}:{e}{detail}",
-        )
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Run numeric correctness checks for tests/Python/AtenOps tests."
-    )
-    parser.add_argument(
-        "paths",
-        nargs="*",
-        help="Test files or directories (default: tests/Python/AtenOps).",
-    )
-    parser.add_argument(
-        "--filter", default="", help="Regex to select tests by path."
-    )
-    parser.add_argument(
-        "--max-tests", type=int, default=0, help="Stop after N tests."
-    )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Print tracebacks on failure."
-    )
-    parser.add_argument(
-        "--fail-fast", action="store_true", help="Stop at first failure."
-    )
-    parser.add_argument(
-        "--worker",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    args = parser.parse_args(list(argv) if argv is not None else None)
-
-    if args.worker:
-        if not args.paths:
-            raise SystemExit(2)
-        path = Path(args.paths[0])
-        result = _run_one_inprocess(path, verbose=bool(args.verbose))
-        payload = {
-            "status": result.status,
-            "reason": result.reason,
-            "path": str(result.path),
-        }
-        print(json.dumps(payload, ensure_ascii=False))
-        raise SystemExit(0 if result.status != "fail" else 1)
-
-    paths = [Path(p) for p in (args.paths or [str(DEFAULT_TEST_DIR)])]
+def main() -> int:
+    paths = [Path(p) for p in sys.argv[1:]] or [DEFAULT_TEST_DIR]
     tests = _iter_tests(paths)
-    if args.filter:
-        rx = re.compile(args.filter)
-        tests = [p for p in tests if rx.search(str(p))]
-
-    max_tests = int(args.max_tests)
-    if max_tests > 0:
-        tests = tests[:max_tests]
-
     passed = skipped = failed = 0
     results: List[TestResult] = []
     for path in tests:
-        result = _run_one_subprocess(path, verbose=bool(args.verbose))
+        result = _run_one(path)
         results.append(result)
         if result.status == "pass":
             passed += 1
@@ -509,8 +313,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             skipped += 1
         else:
             failed += 1
-        if args.fail_fast and result.status == "fail":
-            break
 
     print(
         f"SUMMARY pass={passed} fail={failed} skip={skipped} count={len(results)}"
