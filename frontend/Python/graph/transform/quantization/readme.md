@@ -106,9 +106,7 @@ class ExampleMethod(QuantizationMethod):
     ...
 ```
 
-**Special handling.**
-
-In cases where the declarative syntax is not enough to express the intent, one can manually implement the `check_eligibility` method. This is the same method that is populated by the decorators
+Note that the the decorator syntax only allows to return the quantization states `Quantizable` and `Unqantized`. Thus, for any consumer operation, a custom implementation of `check_eligibility` is needed. The decorators above are actually just adding some information to the class, that allows the default implementation of the method to carry out the simples possible eligibility check.
 
 ```python
 class PlaceholderQuantizationMethod(QuantizationMethod):

@@ -270,13 +270,10 @@ def requires_parents(*patterns: EligibilityPattern):
     Returns:
         Decorator that attaches _eligibility_patterns to the class
     """
-    def decorator(cls):
+    def decorator(cls: QuantizationMethod):
         # Support multiple decorators by storing a list of pattern tuples
-        if not hasattr(cls, '_eligibility_patterns'):
+        if cls._eligibility_patterns is None:
             cls._eligibility_patterns = []
-        # If _eligibility_patterns is a tuple (old format), convert to list
-        elif isinstance(cls._eligibility_patterns, tuple):
-            cls._eligibility_patterns = [cls._eligibility_patterns]
 
         cls._eligibility_patterns.append(patterns)
         return cls
@@ -285,42 +282,45 @@ def requires_parents(*patterns: EligibilityPattern):
 class QuantizationMethod(ABC):
     """
     Function object for installing quantization behavior.
-
-    Responsibilities are now separated:
-    - Eligibility: Declared via @requires_parents decorator
-    - Backward propagation: callback() method
-    - Forward quantization: forward() method (exact quantization computation only)
-    - Rewrite: rewriter() method
     """
     # Optional: subclasses can override for custom eligibility logic
-    _eligibility_patterns: tuple[EligibilityPattern, ...] | None = None
+    _eligibility_patterns: list[EligibilityPattern] | None = None
 
-    def check_eligibility(self, node: Op, context: QuantizationContext) -> bool:
+    def _populate_info(self, node: Op, context: QuantizationContext, state: QuantizationState) -> QuantizationState:
+
+        if isinstance(state, Quantizable):
+            def callback_wrapper(constr):
+                return self.callback(constr, node, context)
+            state.callback = callback_wrapper
+
+        if isinstance(state, Rewritable):
+            state.rewrite = self.rewriter
+
+        return state
+
+    def _check_eligibility(self, node: Op, context: QuantizationContext) -> QuantizationState:
         """
-        Check if node is eligible for quantization based on parent states.
+        This is the base implementation of the `check_eligibility` function,
+        that can be utilized with the `required_parents` decorator. The default
+        implementation can only be used to propagate empty `Quantizable` states
+        using the decorator.
 
-        This implements the "possibly quantizable node detection" phase.
-        By default, uses the @requires_parents decorator patterns.
-        Can be overridden for custom eligibility logic.
+        NOTE: When overriding this method, any forward-time quantization
+        state can be returned.
 
         Args:
             node: Node to check eligibility for
             context: Quantization context
 
         Returns:
-            True if node is eligible, False otherwise
+            QuantizationState: The quantization state of the node.
         """
         if self._eligibility_patterns is None:
             # No patterns defined, assume always eligible
-            return True
-
-        # Handle both old tuple format and new list format
-        pattern_alternatives = self._eligibility_patterns
-        if isinstance(pattern_alternatives, tuple):
-            pattern_alternatives = [pattern_alternatives]
+            return Quantizable()
 
         # Check if any pattern alternative matches (OR logic)
-        for patterns in pattern_alternatives:
+        for patterns in self._eligibility_patterns:
             # Check that number of parents matches pattern length
             if len(node._parents) != len(patterns):
                 continue
@@ -328,15 +328,20 @@ class QuantizationMethod(ABC):
             # Check each parent against corresponding pattern
             all_match = True
             for parent_name, pattern in zip(node._parents, patterns):
+                pattern: EligibilityPattern
                 parent_state = context.quantization_table[parent_name]
                 if not pattern.matches(parent_state):
                     all_match = False
                     break
 
             if all_match:
-                return True
+                return Quantizable()
 
-        return False
+        return Unquantized()
+
+    def check_eligibility(self, node: Op, context: QuantizationContext):
+        state = self._check_eligibility(node, context)
+        return self._populate_info(node, context, state)
 
     @abstractmethod
     def rewriter(self, node: Op, context: QuantizationContext):
@@ -368,12 +373,11 @@ class QuantizationMethod(ABC):
         return None
 
     @abstractmethod
-    def forward(self, node: Op, context: QuantizationContext) -> QuantizationState | None:
+    def _forward(self, node: Op, context: QuantizationContext) -> QuantizationState | None:
         """
         Compute exact quantization options for node given parent quantization states.
 
         This implements the "fix quantization" phase (step 3 from readme).
-        Called only after eligibility has been confirmed.
         Should compute the specific quantization constraints available based on
         the exact quantization state of parents.
 
@@ -386,26 +390,9 @@ class QuantizationMethod(ABC):
         """
         pass
 
-    def __call__(self, node: Op, context: QuantizationContext, populate_constraints: bool) -> None | QuantizationState:
-        quantization = self.forward(node, context)
-
-        if isinstance(quantization, Quantizable):
-
-            # TODO: currently we just erase the computed constraints if any,
-            # but one should implement a way to incorporate this into `forward`
-            # seamlessly
-            if not populate_constraints:
-                quantization.constraints = []
-            
-            # load the node and context into the callback before passing it.
-            def callback_wrapper(constr):
-                return self.callback(constr, node, context)
-            quantization.callback = callback_wrapper
-        
-        if isinstance(quantization, Rewritable):
-            quantization.set_rewrite(self.rewriter)
-        
-        return quantization
+    def forward(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
+        state = self._forward(node, context)
+        return self._populate_info(node, context, state)
 
 QuantizationMethodType = TypeVar("QuantizationMethodType", bound=QuantizationMethod)
 
@@ -457,6 +444,13 @@ def register_dequantizer(quantization_method: QuantizationMethodType):
         # Delete this function from user name space by not returning it.
     return guard
 
+def get_quantization_method(op: Op, context: QuantizationContext) -> QuantizationMethod | None:
+    try:
+        method = QuantizationFunctionRegistry[type(context.quantization)][type(op)]
+        return method
+    except KeyError:
+        return None
+
 def check_op_eligibility(op: Op, context: QuantizationContext) -> QuantizationMethod | None:
     """
     Check if an operation is eligible for quantization based on its quantization method.
@@ -477,7 +471,7 @@ def check_op_eligibility(op: Op, context: QuantizationContext) -> QuantizationMe
         return None
     except KeyError:
         return None
-
+    
 def dispatch_op_quantization(op: Op, context: QuantizationContext, populate_constraint: bool = False) -> None | QuantizationState:
     """
     Function for finding a `_quantize` function for `op`. If a suitable
@@ -509,11 +503,8 @@ def quantize_node(node: Op, context: QuantizationContext):
         context (Context): The quantization context.
     """
 
-    # Check eligibility first
-    if (method := check_op_eligibility(node, context)):
-        # Node is eligible, call the method to get initial state
-        state = method(node, context, populate_constraints=False)
-        context.quantization_table[node._name] = state
+    if (method := get_quantization_method(node, context)):
+        context.quantization_table[node._name] = method.check_eligibility(node, context)
         return
 
     context.quantization_table[node._name] = Unquantized()
@@ -535,11 +526,13 @@ def rewrite_node(node: Op, context: QuantizationContext):
         # If a node has no apriori constraints
         # then no downstream op requested its quantization
         if len(node_requests.constraints) != 0:
-            if isinstance(forward_quantizability := dispatch_op_quantization(node, context, populate_constraint=True), Quantizable):
+            if (method := get_quantization_method(node, context)):
+                if isinstance(forward_quantizability := method.forward(node, context), Quantizable):
 
-                context.quantization_table[node_name] = (reeval_state := max_gain_quantization(node_requests, forward_quantizability))
-                if isinstance(reeval_state, ToQuantize):
-                    reeval_state.rewrite(node, context)
+                    context.quantization_table[node_name] = (reeval_state := max_gain_quantization(node_requests, forward_quantizability))
+                    if isinstance(reeval_state, ToQuantize):
+                        reeval_state.rewrite(node, context)
+                        return
                     
     # Consumer nodes force quantization, so they are also quantised.
     elif isinstance(node_requests, Consumer):

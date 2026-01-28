@@ -81,6 +81,9 @@ class TransparentUnaryQuantizationMethod(QuantizationMethod):
         parent_scaler_op = context.graph.node_table[parent_scaler_name]
         parent_scaler_shape = parent_scaler_op.tensor_meta["shape"]
 
+        parent_node = context.graph.node_table[parent_name]
+        node.tensor_meta["dtype"] = parent_node.tensor_meta["dtype"]
+
         op_scaler_name = "scaler_" + node._name
         scaler: Op = self.buddy_op()
         scaler._name = op_scaler_name
@@ -117,7 +120,7 @@ class TransparentUnaryQuantizationMethod(QuantizationMethod):
         if context.quantization_table[parent_name].propagate_constraint(new_constraint):
             return constraint
 
-    def forward(self, node, context):
+    def _forward(self, node, context):
         """
         Compute exact quantization for this node based on parent quantization.
 
@@ -129,7 +132,7 @@ class TransparentUnaryQuantizationMethod(QuantizationMethod):
         # Since we can compute the axes backwards, we leave the callback of
         # the __parent node__ in the state.
         if not isinstance(state, Quantized):
-            return Quantizable()
+            return Unquantized()
 
         axis = state.constraint.axis
 
@@ -230,7 +233,25 @@ class ViewReshapeQuantizationMethod(QuantizationMethod):
         
         context.graph.add_node(scaler)
     
-    def forward(self, node, context):
+    def callback(self, constraint, node, context):
+        assert isinstance(constraint, Constraint)
+
+        state = context.quantization_table[node.name]
+        assert isinstance(state, Quantizable)
+
+        probe_shape = [i for i in range(len(node.tensor_meta["shape"]))]
+        probe = torch.empty(probe_shape)
+
+        args = node.args[1:]
+        result = self.torch_op(probe, *args)
+
+        constraint = Constraint(axis=result.shape[constraint.axis])
+
+        parent_name = node._parents[0]
+        if context.quantization_table[parent_name].add_constraint(constraint):
+            return constraint
+    
+    def _forward(self, node, context):
         """
         Compute exact quantization for this node based on parent quantization.
 
@@ -240,7 +261,7 @@ class ViewReshapeQuantizationMethod(QuantizationMethod):
         state = context.quantization_table[parent_name]
 
         if not isinstance(state, Quantized):
-            return Quantizable()
+            return Unquantized()
 
         parent_axis = state.constraint.axis
 
@@ -248,7 +269,7 @@ class ViewReshapeQuantizationMethod(QuantizationMethod):
         old_shape = parent_node.tensor_meta["shape"]
         new_shape = node.tensor_meta["shape"]
 
-        axis = ViewReshapeQuantizationMethod.get_new_quantization_axis_or_none(
+        axis = self.get_new_quantization_axis_or_none(
             old_shape=old_shape,
             new_shape=new_shape,
             axis=parent_axis)
@@ -294,27 +315,29 @@ def dequantizer(node: Op, context: QuantizationContext) -> MulOp:
     mul_op._tensor_meta["dtype"] = scaler_node.tensor_meta["dtype"]
     
     node._children.append(mul_op)
+    context.graph.add_node(mul_op)
 
     return mul_op
 
 @register_wo_quantizer(op_type=PlaceholderOp)
-@requires_parents()  # Root node with no parents
 class PlaceholderQuantizationMethod(QuantizationMethod):
     """
     PlaceholderOps are root nodes (no parents).
     Only params are eligible for quantization, not inputs.
     """
 
-    def check_eligibility(self, node: Op, context: QuantizationContext) -> bool:
+    def _check_eligibility(self, node: Op, context: QuantizationContext) -> bool:
         """
         Custom eligibility for root nodes: only params are eligible, not inputs.
         """
         input_names = [inp.name for inp in context.graph.inputs]
         if node.name in input_names:
-            return False
+            return Unquantized()
 
         param_names = [param.name for param in context.graph.params]
-        return node.name in param_names
+        if node.name in param_names:
+            return Quantizable()
+        return Unquantized()
 
     def rewriter(self, node: Op, context: QuantizationContext):
         assert isinstance((state := context.quantization_table[node.name]), ToQuantize)
@@ -339,7 +362,7 @@ class PlaceholderQuantizationMethod(QuantizationMethod):
     def callback(self, constraint, node, context):
         return constraint
 
-    def forward(self, op: Op, context: QuantizationContext) -> None | QuantizationState:
+    def _forward(self, op: Op, context: QuantizationContext) -> None | QuantizationState:
         """
         Compute exact quantization for params.
 
@@ -348,9 +371,6 @@ class PlaceholderQuantizationMethod(QuantizationMethod):
         return Quantizable(constraints=[Constraint(axis=i, gain=0) for i in range(len(op.tensor_meta["shape"]))])
 
 @register_wo_quantizer(op_type=MatmulOp)
-@requires_parents(AnyQuantizable, AnyQuantizable)
-@requires_parents(AnyQuantizable, AnyUnquantized)
-@requires_parents(AnyUnquantized, AnyQuantizable)
 class MatmulQuantizeMethod(QuantizationMethod):
     """
     Matmul ops are consumers, as they benefit from quantization,
@@ -364,6 +384,24 @@ class MatmulQuantizeMethod(QuantizationMethod):
 
     TODO: mark all produced nodes in the quantization_table.
     """
+
+    def _check_eligibility(self, node, context):
+        quantizable = False
+
+        parent_op1_name, parent_op2_name = node._parents
+
+        op1_axis = max(0, len(context.graph.node_table[parent_op1_name].tensor_meta["shape"]) - 2)
+        if context.quantization_table[node._parents[0]].propagate_constraint(Constraint(axis=op1_axis)):
+            quantizable = True
+
+        op2_axis = max(0, len(context.graph.node_table[parent_op2_name].tensor_meta["shape"]) - 1)
+        if context.quantization_table[node._parents[1]].propagate_constraint(Constraint(axis=op2_axis)):
+            quantizable = True
+
+        if quantizable:
+            return Consumer()
+
+        return Unquantized()
 
     def rewriter(self, node: Op, context: QuantizationContext):
         node_name = node.name
@@ -399,7 +437,7 @@ class MatmulQuantizeMethod(QuantizationMethod):
 
             node._children = [op_chain[1].name]
 
-    def forward(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
+    def _forward(self, node: Op, context: QuantizationContext) -> None | QuantizationState:
         """
         Propagate quantization constraints to parents and return Consumer state.
 
@@ -412,17 +450,16 @@ class MatmulQuantizeMethod(QuantizationMethod):
 
         parent_op1_name, parent_op2_name = node._parents
 
-        op1_axis = max(0, len(context.graph.node_table[parent_op1_name].tensor_meta["shape"]) - 2)
-        if context.quantization_table[node._parents[0]].propagate_constraint(Constraint(axis=op1_axis)):
+        if isinstance(context.quantization_table[parent_op1_name], Quantized):
             quantizable = True
 
-        op2_axis = max(0, len(context.graph.node_table[parent_op2_name].tensor_meta["shape"]) - 1)
-        if context.quantization_table[node._parents[1]].propagate_constraint(Constraint(axis=op2_axis)):
+        if isinstance(context.quantization_table[parent_op2_name], Quantized):
             quantizable = True
 
         if quantizable:
             return Consumer()
 
         return Unquantized()
+        
 
 # AddMMOp, BatchMatmulOp, BaddbmmOp
