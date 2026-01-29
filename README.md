@@ -81,6 +81,23 @@ $ cmake -G Ninja .. -DBUDDY_ENABLE_E2E_TESTS=ON
 $ ninja check-e2e
 ```
 
+## Build Python Package
+
+We use `setuptools` to bundle CMake outputs (Python packages, `bin/`, and
+`lib/`) into a single wheel.
+
+run `./scripts/release_wheel_manylinux.sh`.
+
+This script calls `docker run` internally to enter the manylinux container, builds LLVM and buddy_mlir, and writes the wheel to `./build.docker/dist`.
+
+Install and test the wheel:
+
+```bash
+pip install buddy-*.whl --no-deps
+python -c "import buddy; import buddy_mlir; print('ok')"
+buddy-opt --help
+```
+
 ## Examples
 
 We provide examples to demonstrate how to use the passes and interfaces in `buddy-mlir`, including IR-level transformations, domain-specific applications, and testing demonstrations.
