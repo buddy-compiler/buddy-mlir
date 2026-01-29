@@ -29,7 +29,9 @@ BUDDY_LLC := ../../build/bin/buddy-llc
         vmadot3us-lower vmadot3us-translate vmadot3us-asm \
         vfmadot1-lower vfmadot1-translate vfmadot1-asm vfmadot1-run \
         vfmadot2-lower vfmadot2-translate vfmadot2-asm vfmadot2-run \
-        vfmadot3-lower vfmadot3-translate vfmadot3-asm vfmadot3-run
+        vfmadot3-lower vfmadot3-translate vfmadot3-asm vfmadot3-run \
+        linalg-matmul-lower linalg-matmul-translate linalg-matmul-asm \
+        linalg-conv-lower linalg-conv-translate linalg-conv-asm
 
 all: vmadot vmadotu vmadotsu vmadotus vfmadot vmadotn vmadotnu vmadotnsu vmadotnus vfmadotn
 
@@ -1512,3 +1514,94 @@ vfmadotn-run:
 		-o vfmadotn.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vfmadotn.s runtime_vfmadotn.c -o vfmadotn_test
 
+
+linalg-matmul-lower:
+	@echo "=== Lowering linalg.matmul to IME ==="
+	@${BUDDY_OPT} ./linalg-to-ime-matmul.mlir \
+		-lower-linalg-to-ime \
+		-o log.mlir
+	@echo "Output written to log.mlir"
+
+linalg-matmul-translate:
+	@echo "=== linalg.matmul -> IME -> LLVM IR ==="
+	@${BUDDY_OPT} ./linalg-to-ime-matmul.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+	@echo "Output written to log.ll"
+
+linalg-matmul-asm:
+	@echo "=== linalg.matmul -> IME -> Assembly ==="
+	@${BUDDY_OPT} ./linalg-to-ime-matmul.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+m,+v,+buddyext \
+		-o log.s
+	@echo "Output written to log.s"
+
+
+linalg-conv-lower:
+	@echo "=== Lowering linalg.conv_2d to IME ==="
+	@${BUDDY_OPT} ./linalg-to-ime-conv.mlir \
+		-lower-linalg-to-ime \
+		-o log.mlir
+	@echo "Output written to log.mlir"
+
+linalg-conv-translate:
+	@echo "=== linalg.conv_2d -> IME -> LLVM IR ==="
+	@${BUDDY_OPT} ./linalg-to-ime-conv.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+	@echo "Output written to log.ll"
+
+linalg-conv-asm:
+	@echo "=== linalg.conv_2d -> IME -> Assembly ==="
+	@${BUDDY_OPT} ./linalg-to-ime-conv.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+m,+v,+buddyext \
+		-o log.s
+	@echo "Output written to log.s"
