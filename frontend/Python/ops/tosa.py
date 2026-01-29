@@ -222,11 +222,6 @@ from ..graph import (
 )
 from .utils import *
 
-# Configuration for operator fusion behavior
-# Set BUDDY_DISABLE_MATMUL_FUSION=1 to disable batch_matmul_transpose_b fusion
-# This is useful for backends that don't support fused matmul variants (e.g., Gemmini)
-_DISABLE_MATMUL_FUSION = os.environ.get("BUDDY_DISABLE_MATMUL_FUSION", "0") == "1"
-
 
 def _normalize_binary_operator_shape(shp1, shp2):
     """Normalize the shape of two input tensors according to the broadcasting
@@ -3280,39 +3275,11 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     element = mlir_element_attr_get(dtype, 0.0)
     attr = ir.DenseElementsAttr.get_splat(matmul_result_type, element)
     matmul_result_buffer = arith.ConstantOp(matmul_result_type, attr).result
-
-    # Matrix multiplication of query and key
-    # Support two modes based on environment variable BUDDY_DISABLE_MATMUL_FUSION:
-    # 1. Fused mode (default): Use batch_matmul_transpose_b for better performance
-    # 2. Non-fused mode: Use transpose + batch_matmul for backends like Gemmini
-    if _DISABLE_MATMUL_FUSION:
-        # Non-fused mode: transpose + batch_matmul
-        # First transpose the key: [B, S, D] -> [B, D, S]
-        key_perm_attr = _create_permutation_attr([0, 2, 1])
-        key_transposed_shape = [
-            key_shape[0] * key_shape[1],
-            key_shape[3],
-            key_shape[2],
-        ]
-        key_transposed_type = ir.RankedTensorType.get(key_transposed_shape, mlir_dtype)
-        key_transpose_op = tosa.TransposeOp(
-            key_transposed_type,
-            key_reshape_op.result,
-            key_perm_attr,
-        )
-        # Then do batch_matmul: Q[B,L,D] x K^T[B,D,S] = [B,L,S]
-        matmul_op = linalg.batch_matmul(
-            query_reshape_op.result,
-            key_transpose_op.result,
-            outs=[matmul_result_buffer],
-        )
-    else:
-        # Fused mode: use batch_matmul_transpose_b directly
-        matmul_op = linalg.batch_matmul_transpose_b(
-            query_reshape_op.result,
-            key_reshape_op.result,
-            outs=[matmul_result_buffer],
-        )
+    matmul_op = linalg.batch_matmul_transpose_b(
+        query_reshape_op.result,
+        key_reshape_op.result,
+        outs=[matmul_result_buffer],
+    )
     if mlir_dtype == ir.F16Type.get():
         f16_max_val = 65504.0
         f16_min_val = -65504.0

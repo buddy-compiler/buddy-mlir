@@ -571,6 +571,105 @@ public:
   }
 };
 
+class BatchMatMulTransposeBLowering
+    : public OpRewritePattern<linalg::BatchMatmulTransposeBOp> {
+public:
+  explicit BatchMatMulTransposeBLowering(MLIRContext *context,
+                                         std::string accType)
+      : OpRewritePattern(context), accType(accType) {}
+  using OpRewritePattern<linalg::BatchMatmulTransposeBOp>::OpRewritePattern;
+  LogicalResult
+  matchAndRewrite(linalg::BatchMatmulTransposeBOp batchMatMulTransBOp,
+                  PatternRewriter &rewriter) const override {
+    Location loc = batchMatMulTransBOp.getLoc();
+    auto inputs = batchMatMulTransBOp.getInputs();
+    Value input0 = inputs[0];
+    Value input1 = inputs[1];
+    Value output = batchMatMulTransBOp.getOutputs()[0];
+    MemRefType input0Type = dyn_cast<MemRefType>(input0.getType());
+    MemRefType input1Type = dyn_cast<MemRefType>(input1.getType());
+    MemRefType outputType = dyn_cast<MemRefType>(output.getType());
+    if (!input0Type || !input1Type || !outputType)
+      return failure();
+    ArrayRef<int64_t> input0Shape = input0Type.getShape();
+    ArrayRef<int64_t> input1Shape = input1Type.getShape();
+    ArrayRef<int64_t> outputShape = outputType.getShape();
+    Type elemType = input0Type.getElementType();
+
+    // Process each batch
+    for (unsigned i = 0; i != input0Shape[0]; i++) {
+      SmallVector<int64_t> staticOffsets = {i, 0, 0};
+      SmallVector<int64_t> staticSizes = {1, input0Shape[1], input0Shape[2]};
+      SmallVector<int64_t> staticStrides = {1, 1, 1};
+      Value subInput0 = rewriter.create<memref::SubViewOp>(
+          loc, input0, staticOffsets, staticSizes, staticStrides);
+      // If rank is 3 with leading 1, collapse to 2D [M,K]
+      if (dyn_cast<MemRefType>(subInput0.getType()).getRank() == 3 &&
+          dyn_cast<MemRefType>(subInput0.getType()).getShape()[0] == 1) {
+        SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
+        subInput0 =
+            rewriter.create<memref::CollapseShapeOp>(loc, subInput0, reassoc);
+      }
+      // For BatchMatmulTransposeBOp, input1 has shape [batch, N, K]
+      // where batch dimension index is 0, N is at index 1, K is at index 2
+      staticSizes.assign({1, input1Shape[1], input1Shape[2]});
+      Value subInput1 = rewriter.create<memref::SubViewOp>(
+          loc, input1, staticOffsets, staticSizes, staticStrides);
+      if (dyn_cast<MemRefType>(subInput1.getType()).getRank() == 3 &&
+          dyn_cast<MemRefType>(subInput1.getType()).getShape()[0] == 1) {
+        SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
+        subInput1 =
+            rewriter.create<memref::CollapseShapeOp>(loc, subInput1, reassoc);
+      }
+      staticSizes.assign({1, outputShape[1], outputShape[2]});
+      Value subOutput = rewriter.create<memref::SubViewOp>(
+          loc, output, staticOffsets, staticSizes, staticStrides);
+      if (dyn_cast<MemRefType>(subOutput.getType()).getRank() == 3 &&
+          dyn_cast<MemRefType>(subOutput.getType()).getShape()[0] == 1) {
+        SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
+        subOutput =
+            rewriter.create<memref::CollapseShapeOp>(loc, subOutput, reassoc);
+      }
+
+      // Create bias memref
+      MemRefType subInput0Type = dyn_cast<MemRefType>(subInput0.getType());
+      MemRefType biasType =
+          MemRefType::get(subInput0Type.getShape(), rewriter.getI32Type());
+      TypedAttr fillOpInputAttr = rewriter.getI32IntegerAttr(0);
+      Type fillOpInsType = rewriter.getI32Type();
+      if (accType == "f32") {
+        biasType =
+            MemRefType::get(subInput0Type.getShape(), rewriter.getF32Type());
+        fillOpInputAttr = rewriter.getF32FloatAttr(0);
+        fillOpInsType = rewriter.getF32Type();
+      }
+      llvm::APFloat scale1((float)1.0);
+      llvm::APFloat scale0((float)0.0);
+      Value bias = rewriter.create<memref::AllocOp>(loc, biasType);
+      Value fillOpInputValue = rewriter.create<arith::ConstantOp>(
+          loc, fillOpInsType, fillOpInputAttr);
+      rewriter.create<linalg::FillOp>(loc, fillOpInputValue, bias);
+
+      // Create TileMatMulOp with bTranspose=true
+      rewriter.create<gemmini::TileMatMulOp>(
+          loc, subInput0, subInput1, subOutput, bias,
+          /*aScaleFactor = */ scale1,
+          /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1,
+          /*act = */ 0, /*accScale = */ scale1, /*bertScale = */ scale0,
+          /*repeatingBias = */ false, /*aTranspose = */ false,
+          /*bTranspose = */ true, /*fullC = */ false, /*lowD = */ false,
+          /*weightA = */ 0, /*dataflow = */ 1);
+
+      rewriter.create<memref::DeallocOp>(loc, bias);
+    }
+    rewriter.eraseOp(batchMatMulTransBOp.getOperation());
+    return success();
+  }
+
+private:
+  std::string accType;
+};
+
 } // namespace
 
 void populateLowerLinalgToGemminiConversionPatterns(RewritePatternSet &patterns,
@@ -580,6 +679,7 @@ void populateLowerLinalgToGemminiConversionPatterns(RewritePatternSet &patterns,
   patterns.add<Conv2DNchwFchwLowering>(patterns.getContext(), accType);
   patterns.add<Conv2DNhwcHwcfLowering>(patterns.getContext(), accType);
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
+  patterns.add<BatchMatMulTransposeBLowering>(patterns.getContext(), accType);
 }
 
 //===----------------------------------------------------------------------===//
