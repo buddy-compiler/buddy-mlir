@@ -661,3 +661,290 @@ add_custom_target(buddy-deepseek-r1-package
   USES_TERMINAL
   VERBATIM
 )
+
+# Build DeepSeekR1 with multiple KV cache sizes for dynamic cache selection
+# Generates both prefill and decode subgraphs for cache sizes: 32, 64, 128, 256, 512, 1024
+
+set(KV_CACHE_SIZES 32 64 128 256 512 1024)
+
+if(NOT IS_RVV_PLATFORM)
+  set(TIERED_KV_CACHE_OUTPUTS "")
+  foreach(CACHE_SIZE ${KV_CACHE_SIZES})
+    list(APPEND TIERED_KV_CACHE_OUTPUTS
+      ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_${CACHE_SIZE}.mlir
+      ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_${CACHE_SIZE}.mlir
+    )
+  endforeach()
+  foreach(CACHE_SIZE ${KV_CACHE_SIZES})
+    list(APPEND TIERED_KV_CACHE_OUTPUTS
+      ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_${CACHE_SIZE}.mlir
+      ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_${CACHE_SIZE}.mlir
+    )
+  endforeach()
+
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/arg0_mc.data
+           ${TIERED_KV_CACHE_OUTPUTS}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-tiered-kv-cache.py
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+            --cache-sizes "32,64,128,256,512,1024"
+            --max-cache-len 1024
+    COMMENT "Generating tiered-kv-cache MLIR files (prefill_32/64/128/256/512/1024 + decode_32/64/128/256/512/1024)..."
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+
+  add_custom_target(deepseekr1-tiered-kv-cache-import
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/arg0_mc.data
+            ${TIERED_KV_CACHE_OUTPUTS}
+  )
+endif()
+
+foreach(CACHE_SIZE ${KV_CACHE_SIZES})
+  add_custom_command(
+    OUTPUT forward_decode_${CACHE_SIZE}.o
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_${CACHE_SIZE}.mlir
+              -simplify-tosa-reshape |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+              -pass-pipeline ${TOSA_PIPELINE} |
+            ${BUDDY_BINARY_DIR}/buddy-opt
+              -eliminate-empty-tensors
+              -empty-tensor-to-alloc-tensor
+              -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+              -expand-strided-metadata
+              -ownership-based-buffer-deallocation
+              -buffer-deallocation-simplification
+              -bufferization-lower-deallocations
+              -matmul-vectorization-blis
+              -batchmatmul-optimize
+              -convert-linalg-to-affine-loops
+              -affine-parallelize
+              -convert-vector-to-scf
+              -lower-affine
+              -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
+              -cse
+              -memref-expand
+              -arith-expand
+              -convert-vector-to-llvm
+              -convert-arith-to-llvm
+              -finalize-memref-to-llvm
+              -convert-scf-to-cf
+              -convert-cf-to-llvm
+              -llvm-request-c-wrappers
+              -convert-openmp-to-llvm
+              -convert-arith-to-llvm
+              -convert-math-to-llvm
+              -convert-math-to-libm
+              -convert-func-to-llvm
+              -reconcile-unrealized-casts |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+            -o ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_${CACHE_SIZE}.o
+    DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_${CACHE_SIZE}.mlir
+    COMMENT "Building forward_decode_${CACHE_SIZE}.o"
+    VERBATIM)
+endforeach()
+
+foreach(CACHE_SIZE ${KV_CACHE_SIZES})
+  add_custom_command(
+    OUTPUT subgraph_decode_${CACHE_SIZE}.o
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_${CACHE_SIZE}.mlir
+              -simplify-tosa-reshape
+              -simplify-tosa-matmul-scalar |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+              -pass-pipeline ${TOSA_PIPELINE} |
+            ${BUDDY_BINARY_DIR}/buddy-opt
+              -eliminate-empty-tensors
+              -empty-tensor-to-alloc-tensor
+              -convert-elementwise-to-linalg
+              -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+              -expand-strided-metadata
+              -ownership-based-buffer-deallocation
+              -buffer-deallocation-simplification
+              -bufferization-lower-deallocations
+              -assume-tight-memref-layout
+              -staticize-memref-layout
+              -matmul-vectorization-decode=vector-size=128
+              -batch-matmul-vectorization-decode=vector-size=128
+              -batchmatmul-transpose-b-vectorization=vector-size=16
+              -convert-linalg-to-affine-loops
+              -convert-vector-to-scf
+              -lower-affine
+              -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
+              -cse
+              -memref-expand
+              -arith-expand
+              -convert-vector-to-llvm
+              -convert-arith-to-llvm
+              -finalize-memref-to-llvm
+              -convert-scf-to-cf
+              -convert-cf-to-llvm
+              -llvm-request-c-wrappers
+              -convert-openmp-to-llvm
+              -convert-arith-to-llvm
+              -convert-math-to-llvm
+              -convert-math-to-libm
+              -convert-func-to-llvm
+              -reconcile-unrealized-casts |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+            ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+            ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+              -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode_${CACHE_SIZE}.o
+    DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_${CACHE_SIZE}.mlir
+    COMMENT "Building subgraph_decode_${CACHE_SIZE}.o"
+    VERBATIM)
+endforeach()
+
+# Build prefill subgraphs for each cache size
+foreach(CACHE_SIZE ${KV_CACHE_SIZES})
+  add_custom_command(
+    OUTPUT forward_prefill_${CACHE_SIZE}.o
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_${CACHE_SIZE}.mlir
+              -simplify-tosa-reshape |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+              -pass-pipeline ${TOSA_PIPELINE} |
+            ${BUDDY_BINARY_DIR}/buddy-opt
+              -eliminate-empty-tensors
+              -empty-tensor-to-alloc-tensor
+              -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+              -expand-strided-metadata
+              -ownership-based-buffer-deallocation
+              -buffer-deallocation-simplification
+              -bufferization-lower-deallocations
+              -matmul-vectorization-blis
+              -batchmatmul-optimize
+              -convert-linalg-to-affine-loops
+              -affine-parallelize
+              -convert-vector-to-scf
+              -lower-affine
+              -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
+              -cse
+              -memref-expand
+              -arith-expand
+              -convert-vector-to-llvm
+              -convert-arith-to-llvm
+              -finalize-memref-to-llvm
+              -convert-scf-to-cf
+              -convert-cf-to-llvm
+              -llvm-request-c-wrappers
+              -convert-openmp-to-llvm
+              -convert-arith-to-llvm
+              -convert-math-to-llvm
+              -convert-math-to-libm
+              -convert-func-to-llvm
+              -reconcile-unrealized-casts |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+            -o ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_${CACHE_SIZE}.o
+    DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_${CACHE_SIZE}.mlir
+    COMMENT "Building forward_prefill_${CACHE_SIZE}.o"
+    VERBATIM)
+endforeach()
+
+foreach(CACHE_SIZE ${KV_CACHE_SIZES})
+  add_custom_command(
+    OUTPUT subgraph_prefill_${CACHE_SIZE}.o
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_${CACHE_SIZE}.mlir
+              -simplify-tosa-reshape |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+              -pass-pipeline ${TOSA_PIPELINE} |
+            ${BUDDY_BINARY_DIR}/buddy-opt
+              -eliminate-empty-tensors
+              -empty-tensor-to-alloc-tensor
+              -convert-elementwise-to-linalg
+              -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+              -expand-strided-metadata
+              -ownership-based-buffer-deallocation
+              -buffer-deallocation-simplification
+              -bufferization-lower-deallocations
+              -matmul-vectorization-blis
+              -batchmatmul-optimize
+              -batchmatmul-transpose-b-vectorization
+              -convert-linalg-to-affine-loops
+              -affine-parallelize
+              -convert-vector-to-scf
+              -lower-affine
+              -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
+              -cse
+              -memref-expand
+              -arith-expand
+              -convert-vector-to-llvm
+              -convert-arith-to-llvm
+              -finalize-memref-to-llvm
+              -convert-scf-to-cf
+              -convert-cf-to-llvm
+              -llvm-request-c-wrappers
+              -convert-openmp-to-llvm
+              -convert-arith-to-llvm
+              -convert-math-to-llvm
+              -convert-math-to-libm
+              -convert-func-to-llvm
+              -reconcile-unrealized-casts |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+            ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+            ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+              -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_prefill_${CACHE_SIZE}.o
+    DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_${CACHE_SIZE}.mlir
+    COMMENT "Building subgraph_prefill_${CACHE_SIZE}.o"
+    VERBATIM)
+endforeach()
+
+set(TIERED_KV_CACHE_DECODE_OBJS "")
+foreach(CACHE_SIZE ${KV_CACHE_SIZES})
+  list(APPEND TIERED_KV_CACHE_DECODE_OBJS
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_${CACHE_SIZE}.o
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode_${CACHE_SIZE}.o
+  )
+endforeach()
+
+set(TIERED_KV_CACHE_PREFILL_OBJS "")
+foreach(CACHE_SIZE ${KV_CACHE_SIZES})
+  list(APPEND TIERED_KV_CACHE_PREFILL_OBJS
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_${CACHE_SIZE}.o
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph_prefill_${CACHE_SIZE}.o
+  )
+endforeach()
+
+add_library(DEEPSEEKR1_TIERED_KV_CACHE STATIC
+  ${TIERED_KV_CACHE_PREFILL_OBJS}
+  ${TIERED_KV_CACHE_DECODE_OBJS}
+)
+
+SET_TARGET_PROPERTIES(
+  DEEPSEEKR1_TIERED_KV_CACHE
+  PROPERTIES
+  LINKER_LANGUAGE C
+)
+
+add_executable(buddy-deepseek-r1-tiered-kv-cache-run buddy-deepseek-r1-tiered-kv-cache-main.cpp)
+
+target_compile_definitions(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE
+  DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}/"
+  DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}/"
+)
+
+if(IS_RVV_PLATFORM)
+  target_compile_options(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE ${RISCV_COMPILE_OPTS})
+  target_link_options(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE ${RISCV_LINK_OPTS})
+endif()
+
+target_link_directories(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE ${LLVM_LIBRARY_DIR})
+
+set(BUDDY_DEEPSEEKR1_TIERED_KV_CACHE_LIBS
+  DEEPSEEKR1_TIERED_KV_CACHE
+  mlir_c_runner_utils
+  omp
+)
+if(BUDDY_MLIR_USE_MIMALLOC)
+  list(APPEND BUDDY_DEEPSEEKR1_TIERED_KV_CACHE_LIBS mimalloc)
+endif()
+
+target_link_libraries(buddy-deepseek-r1-tiered-kv-cache-run ${BUDDY_DEEPSEEKR1_TIERED_KV_CACHE_LIBS})
+
+add_custom_target(deepseekr1-tiered-kv-cache
+  DEPENDS buddy-deepseek-r1-tiered-kv-cache-run
+  COMMENT "Building DeepSeekR1 tiered-kv-cache inference"
+)
+
+message(STATUS "DeepSeekR1 Multi-Cache: Building prefill and decode subgraphs for cache sizes: ${KV_CACHE_SIZES}")
