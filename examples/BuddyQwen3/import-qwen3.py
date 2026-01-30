@@ -58,7 +58,7 @@ parser.add_argument(
     type=str,
     default="f32",
     choices=["f32"],
-    help="Precision mode for generated MLIR and input data. Choose from 'f32', 'f16', or 'bf16'.",
+    help="Precision mode for generated MLIR and input data. Choose from 'f32'.",
 )
 args = parser.parse_args()
 

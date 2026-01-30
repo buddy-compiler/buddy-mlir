@@ -158,8 +158,6 @@ private:
     this->setStrides();
   }
 
-  // Declares a helper function, maintaining consistency with the
-  // revertDeepSeekR1 style
   unsigned char revert_single_bpe_char(unsigned int code);
 
   // Converts the input raw string into a BPE-encoded string (handles spaces,
