@@ -22,6 +22,7 @@ import array, copy
 from typing import Dict, List, Sequence, Tuple, Union
 import numpy
 import sys
+import os
 
 import mlir.ir as ir
 from mlir.ir import IndexType, F32Type
