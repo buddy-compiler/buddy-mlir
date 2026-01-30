@@ -586,16 +586,25 @@ class DynamoCompiler:
             for input_arg in node_input[0]:
                 buddy_node.add_argument(str(input_arg))
             return buddy_node
-        for input_arg in node_input:
-            if isinstance(input_arg, torch.fx.Node):
-                buddy_node.add_argument(str(input_arg))
-                buddy_node.add_parent(str(input_arg))
-            elif isinstance(input_arg, torch.dtype):
-                buddy_node.add_argument(
-                    self._torch_dtype_translate(str(input_arg))
-                )
+
+        def _add_arg_and_parents(arg):
+            if isinstance(arg, torch.fx.Node):
+                buddy_node.add_argument(str(arg))
+                buddy_node.add_parent(str(arg))
+            elif isinstance(arg, torch.dtype):
+                buddy_node.add_argument(self._torch_dtype_translate(str(arg)))
+            elif isinstance(arg, (list, tuple)):
+                # Traverse elements to collect parent nodes but keep the container as a single argument
+                for item in arg:
+                    if isinstance(item, torch.fx.Node):
+                        buddy_node.add_parent(str(item))
+                buddy_node.add_argument(arg)
             else:
-                buddy_node.add_argument(input_arg)
+                buddy_node.add_argument(arg)
+            return arg
+
+        for input_arg in node_input:
+            _add_arg_and_parents(input_arg)
         for user in node_users:
             buddy_node.add_children(user)
         if node_kwargs is None:

@@ -2248,9 +2248,12 @@ def reshape_op(node: ReshapeOp, symbol_table):
     shape will be inferred automatically.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    new_shape = []
-    for i in node.args[1]:
-        new_shape.append(i)
+    # Support both single int or list/tuple for new_shape
+    shape_arg = node.args[1]
+    if isinstance(shape_arg, (list, tuple)):
+        new_shape = list(shape_arg)
+    else:
+        new_shape = [shape_arg]
     total_size = 1
     now_shape = ir.RankedTensorType(input1.type).shape
     for dim_siz in now_shape:
