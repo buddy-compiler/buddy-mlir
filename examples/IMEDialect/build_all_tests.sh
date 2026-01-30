@@ -58,6 +58,21 @@ build_test "vmadotus" "vmadotus_print_test.mlir" "runtime_vmadotus.c"
 # Build vfmadot (floating-point) - uses different print function
 # build_test "vfmadot" "vfmadot_print_test.mlir" "runtime_vfmadot.c"
 
+# Build vmadotn (signed x signed, dynamic slide)
+build_test "vmadotn" "vmadotn_print_test.mlir" "runtime_vmadotn.c"
+
+# Build vmadotnu (unsigned x unsigned, dynamic slide)
+build_test "vmadotnu" "vmadotnu_print_test.mlir" "runtime_vmadotnu.c"
+
+# Build vmadotnsu (signed x unsigned, dynamic slide)
+build_test "vmadotnsu" "vmadotnsu_print_test.mlir" "runtime_vmadotnsu.c"
+
+# Build vmadotnus (unsigned x signed, dynamic slide)
+build_test "vmadotnus" "vmadotnus_print_test.mlir" "runtime_vmadotnus.c"
+
+# Build vfmadotn (floating-point, dynamic slide) - uses different print function
+# build_test "vfmadotn" "vfmadotn_print_test.mlir" "runtime_vfmadotn.c"
+
 echo ""
 echo "All builds complete. Executables:"
 ls -la *_test 2>/dev/null || echo "No test executables found"
