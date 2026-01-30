@@ -29,7 +29,7 @@ if(BUDDY_MLIR_ENABLE_DIP_LIB)
 endif()
 
 if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
-  list(APPEND BUDDY_TEST_DEPENDS BuddyMLIRPythonModules)
+  list(APPEND BUDDY_TEST_DEPENDS python-package-buddy-mlir)
 endif()
 
 add_lit_testsuite(check-tests "Running the buddy regression tests..."
@@ -59,6 +59,7 @@ if(BUDDY_ENABLE_E2E_TESTS)
   buddy-translate
   mlir-runner
   buddy-lenet-run-test-cpu
+  python-package-buddy
   )
 
   add_lit_testsuite(check-e2e "Running E2E tests for Models directory..."
