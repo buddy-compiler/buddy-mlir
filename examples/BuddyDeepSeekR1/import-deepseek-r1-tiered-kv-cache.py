@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ===- import-deepseek-r1-tiered-kv-cache.py -------------------------------
+# ===- import-deepseek-r1-tiered-kv-cache.py -----------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -154,8 +154,8 @@ for prefill_size in cache_sizes:
     graphs_prefill[0].perform(
         [eliminate_transpose, eliminate_matmul_transpose_reshape]
     )
-    # Use flash attention only for prefill_size >= 64 
-	# flash attention requires block_size_kv=64
+    # Use flash attention only for prefill_size >= 64
+    # flash attention requires block_size_kv=64
     if prefill_size >= 64:
         graphs_prefill[0].fuse_ops(pattern_list_prefill_with_flash)
     else:

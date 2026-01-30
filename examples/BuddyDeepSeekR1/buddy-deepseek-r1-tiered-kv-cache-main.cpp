@@ -64,9 +64,9 @@ extern "C" double _mlir_ciface_rtclock() {
 #endif // _WIN32
 }
 
-// Template MemRefContainer for different cache sizes and logits sequence lengths
-// CacheLen: KV cache dimension (used in attention)
-// LogitsSeqLen: output logits sequence length (CacheLen for prefill, 1 for decode)
+// Template MemRefContainer for different cache sizes and logits sequence
+// lengths CacheLen: KV cache dimension (used in attention) LogitsSeqLen: output
+// logits sequence length (CacheLen for prefill, 1 for decode)
 template <size_t CacheLen, size_t LogitsSeqLen = 1> struct MemRefContainerT {
   MemRef<float, 4> kv0, kv1, kv2, kv3, kv4, kv5, kv6, kv7;
   MemRef<float, 4> kv8, kv9, kv10, kv11, kv12, kv13, kv14, kv15;
@@ -315,7 +315,8 @@ size_t selectPrefillSize(size_t tokenCount) {
 /// Copy KV cache from source to destination container.
 /// Works across different container types (prefill/decode) with potentially
 /// different cache sizes and logits sequence lengths.
-template <size_t SrcLen, size_t SrcLogitsLen, size_t DstLen, size_t DstLogitsLen>
+template <size_t SrcLen, size_t SrcLogitsLen, size_t DstLen,
+          size_t DstLogitsLen>
 void copyKVCache(const MemRefContainerT<SrcLen, SrcLogitsLen> &src,
                  MemRefContainerT<DstLen, DstLogitsLen> &dst,
                  size_t validTokens) {
@@ -414,11 +415,11 @@ int main() {
   // Tokenize with maximum length first to get token count
   Text<size_t, 2> inputContainerPrefill(inputStr);
   inputContainerPrefill.loadVocab(vocabDir);
-  
+
   // Perform tokenization to get actual token count
   tokenizeInput(vocabDir, inputContainerPrefill);
   size_t actualTokenCount = inputContainerPrefill.getTokenCnt();
-  
+
   // Select appropriate prefill size based on actual token count
   size_t selectedPrefillSize = selectPrefillSize(actualTokenCount);
   printLogLabel();
@@ -436,8 +437,7 @@ int main() {
             << std::endl;
 
   const float *prefillLogitsPtr = nullptr;
-  size_t prefillSeqLen = selectedPrefillSize;
-  
+
   const auto prefillStart = std::chrono::high_resolution_clock::now();
 
   switch (selectedPrefillSize) {
@@ -502,7 +502,8 @@ int main() {
   size_t currentCacheSize = selectedPrefillSize;
   printLogLabel();
   std::cout << "Initial cache position: " << currentPos
-            << ", selected decode cache size: " << currentCacheSize << std::endl;
+            << ", selected decode cache size: " << currentCacheSize
+            << std::endl;
 
   // Copy prefill KV cache to the matching decode container
   switch (selectedPrefillSize) {

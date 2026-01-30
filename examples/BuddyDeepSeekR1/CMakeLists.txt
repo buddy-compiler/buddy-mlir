@@ -931,6 +931,10 @@ endif()
 
 target_link_directories(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE ${LLVM_LIBRARY_DIR})
 
+# Each decode subgraph object contains a copy of dealloc_helper from MLIR
+# bufferization-lower-deallocations; allow multiple definitions when linking.
+target_link_options(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE -Wl,--allow-multiple-definition)
+
 set(BUDDY_DEEPSEEKR1_TIERED_KV_CACHE_LIBS
   DEEPSEEKR1_TIERED_KV_CACHE
   mlir_c_runner_utils
