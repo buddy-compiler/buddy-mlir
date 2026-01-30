@@ -16,8 +16,8 @@
 # ===---------------------------------------------------------------------------
 #
 # This is the tiered KV cache version of DeepSeekR1 model importer (F32 only).
-# It generates multiple decode subgraphs with different KV cache sizes
-# (32, 64, 128, 256, 512, 1024) to enable dynamic cache size selection at runtime.
+# It generates multiple prefill and decode subgraphs with different sizes
+# (32, 64, 128, 256, 512, 1024) to enable dynamic size selection at runtime.
 #
 # ===---------------------------------------------------------------------------
 
@@ -66,7 +66,7 @@ parser.add_argument(
     "--cache-sizes",
     type=str,
     default="32,64,128,256,512,1024",
-    help="Comma-separated list of cache sizes for decode subgraphs.",
+    help="Comma-separated list of cache sizes for prefill and decode subgraphs.",
 )
 args = parser.parse_args()
 
@@ -84,8 +84,8 @@ if model_path is None:
     model_path = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
 print(f"Loading model from: {model_path}")
-print(f"Cache sizes for decode: {cache_sizes}")
-print(f"Max cache length for prefill: {max_cache_len}")
+print(f"Cache sizes for prefill and decode: {cache_sizes}")
+print(f"Max cache length: {max_cache_len}")
 
 # Initialize the model (F32 only)
 model = AutoModelForCausalLM.from_pretrained(
@@ -93,66 +93,97 @@ model = AutoModelForCausalLM.from_pretrained(
 ).eval()
 model.config.use_cache = False
 
-# Initialize prefill compiler
-dynamo_compiler_prefill = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=inductor_decomp,
-    func_name="forward_prefill",
-)
-
-# Generate prefill graph (only once, with max cache length)
-print(f"\n=== Generating prefill subgraph (cache_len={max_cache_len}) ===")
-with torch.no_grad():
-    past_key_values_prefill = StaticCache(
-        config=model.config, max_cache_len=max_cache_len
-    )
-
-    data_prefill = {
-        "input_ids": torch.zeros((1, max_cache_len), dtype=torch.int64),
-    }
-
-    graphs_prefill = dynamo_compiler_prefill.importer(
-        model,
-        input_ids=data_prefill["input_ids"],
-        use_cache=True,
-        cache_implementation="static",
-    )
-
-    params = dynamo_compiler_prefill.imported_params[graphs_prefill[0]]
-
-# Process prefill graph
-assert len(graphs_prefill) == 1
-graph_prefill = graphs_prefill[0]
-
-graphs_prefill[0].perform(
-    [eliminate_transpose, eliminate_matmul_transpose_reshape]
-)
-
-pattern_list_prefill = [
+# Pattern lists for graph optimization
+# For prefill_size >= 64, use flash attention (block_size_kv=64 requires seq_len >= 64)
+pattern_list_prefill_with_flash = [
     simply_fuse,
     apply_classic_fusion,
     flash_attention_prefill,
 ]
-graphs_prefill[0].fuse_ops(pattern_list_prefill)
 
-graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop(
-    "subgraph0"
-)
-graph_prefill.group_map_device["subgraph0_prefill"] = DeviceType.CPU
+# For prefill_size < 64, use standard attention (flash attention has block_size_kv=64 constraint)
+pattern_list_prefill_no_flash = [
+    simply_fuse,
+    apply_classic_fusion,
+]
 
-driver_prefill = GraphDriver(graphs_prefill[0])
-driver_prefill.subgraphs[0].lower_to_top_level_ir()
+pattern_list_decode = [
+    simply_fuse,
+    apply_classic_fusion,
+    gqa_attention_fusion,
+]
 
-# Save prefill files
-with open(
-    os.path.join(output_dir, "subgraph0_prefill_mc.mlir"), "w"
-) as module_file:
-    print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
+params = None
 
-with open(
-    os.path.join(output_dir, "forward_prefill_mc.mlir"), "w"
-) as module_file:
-    print(driver_prefill.construct_main_graph(True), file=module_file)
+# Generate prefill graphs for each cache size
+for prefill_size in cache_sizes:
+    print(f"\n=== Generating prefill subgraph (seq_len={prefill_size}) ===")
+
+    torch._dynamo.reset()
+
+    dynamo_compiler_prefill = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name=f"forward_prefill_{prefill_size}",
+    )
+
+    with torch.no_grad():
+        past_key_values_prefill = StaticCache(
+            config=model.config, max_cache_len=prefill_size
+        )
+
+        data_prefill = {
+            "input_ids": torch.zeros((1, prefill_size), dtype=torch.int64),
+        }
+
+        graphs_prefill = dynamo_compiler_prefill.importer(
+            model,
+            input_ids=data_prefill["input_ids"],
+            use_cache=True,
+            cache_implementation="static",
+        )
+
+        # Extract params from the first prefill graph only
+        if params is None:
+            params = dynamo_compiler_prefill.imported_params[graphs_prefill[0]]
+
+    # Process prefill graph
+    assert len(graphs_prefill) == 1
+    graph_prefill = graphs_prefill[0]
+
+    graphs_prefill[0].perform(
+        [eliminate_transpose, eliminate_matmul_transpose_reshape]
+    )
+    # Use flash attention only for prefill_size >= 64 
+	# flash attention requires block_size_kv=64
+    if prefill_size >= 64:
+        graphs_prefill[0].fuse_ops(pattern_list_prefill_with_flash)
+    else:
+        graphs_prefill[0].fuse_ops(pattern_list_prefill_no_flash)
+
+    # Rename subgraph with size suffix
+    graph_prefill.op_groups[f"subgraph0_prefill_{prefill_size}"] = (
+        graph_prefill.op_groups.pop("subgraph0")
+    )
+    graph_prefill.group_map_device[f"subgraph0_prefill_{prefill_size}"] = (
+        DeviceType.CPU
+    )
+
+    driver_prefill = GraphDriver(graphs_prefill[0])
+    driver_prefill.subgraphs[0].lower_to_top_level_ir()
+
+    # Save prefill files with size suffix
+    with open(
+        os.path.join(output_dir, f"subgraph0_prefill_{prefill_size}.mlir"), "w"
+    ) as module_file:
+        print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
+
+    with open(
+        os.path.join(output_dir, f"forward_prefill_{prefill_size}.mlir"), "w"
+    ) as module_file:
+        print(driver_prefill.construct_main_graph(True), file=module_file)
+
+    print(f"Prefill subgraph (seq_len={prefill_size}) saved successfully!")
 
 # Save parameters (F32)
 all_param = numpy.concatenate(
@@ -160,18 +191,12 @@ all_param = numpy.concatenate(
 )
 all_param.tofile(os.path.join(output_dir, "arg0_mc.data"))
 
-print("Prefill subgraph saved successfully!")
+print("\nAll prefill subgraphs saved successfully!")
 
 # Generate decode graphs for each cache size
 data_decode = {
     "input_ids": torch.zeros((1, 1), dtype=torch.int64),
 }
-
-pattern_list_decode = [
-    simply_fuse,
-    apply_classic_fusion,
-    gqa_attention_fusion,
-]
 
 for cache_size in cache_sizes:
     print(f"\n=== Generating decode subgraph (cache_len={cache_size}) ===")
@@ -251,9 +276,13 @@ for cache_size in cache_sizes:
 print("\n=== All subgraphs generated successfully! ===")
 print(f"Output directory: {output_dir}")
 print("Generated files:")
-print("  - subgraph0_prefill_mc.mlir")
-print("  - forward_prefill_mc.mlir")
+print("  Prefill subgraphs:")
+for prefill_size in cache_sizes:
+    print(f"    - subgraph0_prefill_{prefill_size}.mlir")
+    print(f"    - forward_prefill_{prefill_size}.mlir")
+print("  Decode subgraphs:")
 for cache_size in cache_sizes:
-    print(f"  - subgraph0_decode_{cache_size}.mlir")
-    print(f"  - forward_decode_{cache_size}.mlir")
-print("  - arg0_mc.data")
+    print(f"    - subgraph0_decode_{cache_size}.mlir")
+    print(f"    - forward_decode_{cache_size}.mlir")
+print("  Parameters:")
+print("    - arg0_mc.data")

@@ -15,10 +15,12 @@
 //===----------------------------------------------------------------------===//
 //
 // This is the tiered KV cache version of DeepSeekR1 inference runtime.
-// It dynamically selects the appropriate decode subgraph based on the current
-// KV cache position to minimize computation waste.
+// It dynamically selects the appropriate prefill and decode subgraph based on
+// the input sequence length and current KV cache position to minimize
+// computation waste.
 //
-// Supported cache sizes: 32, 64, 128, 256, 512, 1024
+// Supported cache sizes for both prefill and decode: 32, 64, 128, 256, 512,
+// 1024
 //
 //===----------------------------------------------------------------------===//
 
@@ -62,8 +64,10 @@ extern "C" double _mlir_ciface_rtclock() {
 #endif // _WIN32
 }
 
-// Template MemRefContainer for different cache sizes
-template <size_t CacheLen> struct MemRefContainerT {
+// Template MemRefContainer for different cache sizes and logits sequence lengths
+// CacheLen: KV cache dimension (used in attention)
+// LogitsSeqLen: output logits sequence length (CacheLen for prefill, 1 for decode)
+template <size_t CacheLen, size_t LogitsSeqLen = 1> struct MemRefContainerT {
   MemRef<float, 4> kv0, kv1, kv2, kv3, kv4, kv5, kv6, kv7;
   MemRef<float, 4> kv8, kv9, kv10, kv11, kv12, kv13, kv14, kv15;
   MemRef<float, 4> kv16, kv17, kv18, kv19, kv20, kv21, kv22, kv23;
@@ -131,7 +135,7 @@ template <size_t CacheLen> struct MemRefContainerT {
         kv53({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv54({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv55({1, HeadNum, CacheLen, HiddenSize}, 0),
-        logits({1, 1, MaxVocabSize}),
+        logits({1, LogitsSeqLen, MaxVocabSize}),
         kv_ptrs{&kv0,  &kv1,  &kv2,  &kv3,  &kv4,  &kv5,  &kv6,  &kv7,
                 &kv8,  &kv9,  &kv10, &kv11, &kv12, &kv13, &kv14, &kv15,
                 &kv16, &kv17, &kv18, &kv19, &kv20, &kv21, &kv22, &kv23,
@@ -141,28 +145,47 @@ template <size_t CacheLen> struct MemRefContainerT {
                 &kv48, &kv49, &kv50, &kv51, &kv52, &kv53, &kv54, &kv55} {}
 
   static constexpr size_t getCacheLen() { return CacheLen; }
+  static constexpr size_t getLogitsSeqLen() { return LogitsSeqLen; }
 };
 
-// Original MemRefContainer for prefill (uses MaxTokenLength)
-using MemRefContainer = MemRefContainerT<MaxTokenLength>;
+// Original MemRefContainer for backward compatibility (uses MaxTokenLength)
+using MemRefContainer = MemRefContainerT<MaxTokenLength, MaxTokenLength>;
 
-// Alias types for each cache size
-using MemRefContainer32 = MemRefContainerT<32>;
-using MemRefContainer64 = MemRefContainerT<64>;
-using MemRefContainer128 = MemRefContainerT<128>;
-using MemRefContainer256 = MemRefContainerT<256>;
-using MemRefContainer512 = MemRefContainerT<512>;
-using MemRefContainer1024 = MemRefContainerT<1024>;
+// Prefill containers (logits seq_len = cache_len)
+using PrefillContainer32 = MemRefContainerT<32, 32>;
+using PrefillContainer64 = MemRefContainerT<64, 64>;
+using PrefillContainer128 = MemRefContainerT<128, 128>;
+using PrefillContainer256 = MemRefContainerT<256, 256>;
+using PrefillContainer512 = MemRefContainerT<512, 512>;
+using PrefillContainer1024 = MemRefContainerT<1024, 1024>;
 
-/// Declare DeepSeekR1 prefill forward function.
-extern "C" void _mlir_ciface_forward_prefill(MemRefContainer *result,
-                                             MemRef<float, 1> *arg0,
-                                             Text<size_t, 2> *arg1);
+// Decode containers (logits seq_len = 1)
+using DecodeContainer32 = MemRefContainerT<32, 1>;
+using DecodeContainer64 = MemRefContainerT<64, 1>;
+using DecodeContainer128 = MemRefContainerT<128, 1>;
+using DecodeContainer256 = MemRefContainerT<256, 1>;
+using DecodeContainer512 = MemRefContainerT<512, 1>;
+using DecodeContainer1024 = MemRefContainerT<1024, 1>;
+
+// Declare prefill functions for each cache size
+#define DECLARE_PREFILL_FUNC(SIZE)                                             \
+  extern "C" void _mlir_ciface_forward_prefill_##SIZE(                         \
+      PrefillContainer##SIZE *result, MemRef<float, 1> *arg0,                  \
+      Text<size_t, 2> *arg1)
+
+DECLARE_PREFILL_FUNC(32);
+DECLARE_PREFILL_FUNC(64);
+DECLARE_PREFILL_FUNC(128);
+DECLARE_PREFILL_FUNC(256);
+DECLARE_PREFILL_FUNC(512);
+DECLARE_PREFILL_FUNC(1024);
+
+#undef DECLARE_PREFILL_FUNC
 
 // Declare decode functions for each cache size
 #define DECLARE_DECODE_FUNC(SIZE)                                              \
   extern "C" void _mlir_ciface_forward_decode_##SIZE(                          \
-      MemRefContainer##SIZE *result, MemRef<float, 1> *arg0,                   \
+      DecodeContainer##SIZE *result, MemRef<float, 1> *arg0,                   \
       MemRef<long long, 2> *arg1, MemRef<long long, 1> *arg2,                  \
       MemRef<float, 4> *kv0, MemRef<float, 4> *kv1, MemRef<float, 4> *kv2,     \
       MemRef<float, 4> *kv3, MemRef<float, 4> *kv4, MemRef<float, 4> *kv5,     \
@@ -269,7 +292,7 @@ int findMaxIndex(const float *start, const float *end) {
   return std::distance(start, std::max_element(start, end));
 }
 
-/// Select appropriate cache size based on current position.
+/// Select appropriate cache size based on current position (for decode stage).
 size_t selectCacheSize(size_t currentPos) {
   for (size_t size : KV_CACHE_SIZES) {
     if (currentPos < size) {
@@ -279,10 +302,23 @@ size_t selectCacheSize(size_t currentPos) {
   return KV_CACHE_SIZES.back();
 }
 
-/// Copy KV cache from source (larger) to destination (different size).
-template <size_t SrcLen, size_t DstLen>
-void copyKVCache(const MemRefContainerT<SrcLen> &src,
-                 MemRefContainerT<DstLen> &dst, size_t validTokens) {
+/// Select appropriate prefill size based on actual token count.
+size_t selectPrefillSize(size_t tokenCount) {
+  for (size_t size : KV_CACHE_SIZES) {
+    if (tokenCount <= size) {
+      return size;
+    }
+  }
+  return KV_CACHE_SIZES.back();
+}
+
+/// Copy KV cache from source to destination container.
+/// Works across different container types (prefill/decode) with potentially
+/// different cache sizes and logits sequence lengths.
+template <size_t SrcLen, size_t SrcLogitsLen, size_t DstLen, size_t DstLogitsLen>
+void copyKVCache(const MemRefContainerT<SrcLen, SrcLogitsLen> &src,
+                 MemRefContainerT<DstLen, DstLogitsLen> &dst,
+                 size_t validTokens) {
   constexpr int num_kv = 56;
   size_t copy_len = std::min({validTokens, SrcLen, DstLen});
 
@@ -298,6 +334,10 @@ void copyKVCache(const MemRefContainerT<SrcLen> &src,
     }
   }
 }
+
+// Macro to generate prefill call for specific size
+#define CALL_PREFILL(SIZE, container, paramsPtr, inputPtr)                     \
+  _mlir_ciface_forward_prefill_##SIZE(&container, paramsPtr, inputPtr)
 
 // Macro to generate decode call for specific size
 #define CALL_DECODE(SIZE, container, paramsPtr, inputPtr, cachePtr)            \
@@ -347,91 +387,147 @@ int main() {
 
   /// Initialize data containers
   Text<size_t, 2> outputContainer;
-  Text<size_t, 2> inputContainerPrefill(inputStr);
   MemRef<long long, 2> inputContainerDecode({1, 1}, 0LL);
   MemRef<float, 1> ParamsContainer({ParamsSize});
   MemRef<long long, 1> cachePosition({1}, 0LL);
 
-  // Prefill logits (full size)
-  MemRef<float, 3> logits_prefill({1, MaxTokenLength, MaxVocabSize});
+  // Create prefill containers for each cache size (logits seq_len = cache_len)
+  PrefillContainer32 prefillContainer32;
+  PrefillContainer64 prefillContainer64;
+  PrefillContainer128 prefillContainer128;
+  PrefillContainer256 prefillContainer256;
+  PrefillContainer512 prefillContainer512;
+  PrefillContainer1024 prefillContainer1024;
 
-  // Create prefill container (uses MaxTokenLength = 1024)
-  MemRefContainer prefillContainer;
-  prefillContainer.logits = logits_prefill;
+  // Create decode containers for each cache size (logits seq_len = 1)
+  DecodeContainer32 decodeContainer32;
+  DecodeContainer64 decodeContainer64;
+  DecodeContainer128 decodeContainer128;
+  DecodeContainer256 decodeContainer256;
+  DecodeContainer512 decodeContainer512;
+  DecodeContainer1024 decodeContainer1024;
 
-  // Create decode containers for each cache size
-  MemRefContainer32 decodeContainer32;
-  MemRefContainer64 decodeContainer64;
-  MemRefContainer128 decodeContainer128;
-  MemRefContainer256 decodeContainer256;
-  MemRefContainer512 decodeContainer512;
-  MemRefContainer1024 decodeContainer1024;
-
-  /// Fill data into containers
-  tokenizeInput(vocabDir, inputContainerPrefill);
+  /// Load vocab first to count tokens
   outputContainer.loadVocab(vocabDir);
   loadParameters(paramsDir, ParamsContainer);
 
-  /// Run prefill
+  // Tokenize with maximum length first to get token count
+  Text<size_t, 2> inputContainerPrefill(inputStr);
+  inputContainerPrefill.loadVocab(vocabDir);
+  
+  // Perform tokenization to get actual token count
+  tokenizeInput(vocabDir, inputContainerPrefill);
+  size_t actualTokenCount = inputContainerPrefill.getTokenCnt();
+  
+  // Select appropriate prefill size based on actual token count
+  size_t selectedPrefillSize = selectPrefillSize(actualTokenCount);
+  printLogLabel();
+  std::cout << "Actual token count: " << actualTokenCount
+            << ", selected prefill size: " << selectedPrefillSize << std::endl;
+
+  // Re-tokenize with the selected prefill size
+  Text<size_t, 2> inputContainerTiered(inputStr);
+  inputContainerTiered.tokenizeDeepSeekR1(vocabDir, selectedPrefillSize);
+
+  /// Run prefill with dynamically selected size
   double prefillTokensPerSec = 0.0;
   printLogLabel();
-  std::cout << "Running prefill..." << std::endl;
+  std::cout << "Running prefill with size " << selectedPrefillSize << "..."
+            << std::endl;
+
+  const float *prefillLogitsPtr = nullptr;
+  size_t prefillSeqLen = selectedPrefillSize;
+  
   const auto prefillStart = std::chrono::high_resolution_clock::now();
-  _mlir_ciface_forward_prefill(&prefillContainer, &ParamsContainer,
-                               &inputContainerPrefill);
+
+  switch (selectedPrefillSize) {
+  case 32:
+    CALL_PREFILL(32, prefillContainer32, &ParamsContainer,
+                 &inputContainerTiered);
+    prefillLogitsPtr = prefillContainer32.logits.getData();
+    break;
+  case 64:
+    CALL_PREFILL(64, prefillContainer64, &ParamsContainer,
+                 &inputContainerTiered);
+    prefillLogitsPtr = prefillContainer64.logits.getData();
+    break;
+  case 128:
+    CALL_PREFILL(128, prefillContainer128, &ParamsContainer,
+                 &inputContainerTiered);
+    prefillLogitsPtr = prefillContainer128.logits.getData();
+    break;
+  case 256:
+    CALL_PREFILL(256, prefillContainer256, &ParamsContainer,
+                 &inputContainerTiered);
+    prefillLogitsPtr = prefillContainer256.logits.getData();
+    break;
+  case 512:
+    CALL_PREFILL(512, prefillContainer512, &ParamsContainer,
+                 &inputContainerTiered);
+    prefillLogitsPtr = prefillContainer512.logits.getData();
+    break;
+  case 1024:
+    CALL_PREFILL(1024, prefillContainer1024, &ParamsContainer,
+                 &inputContainerTiered);
+    prefillLogitsPtr = prefillContainer1024.logits.getData();
+    break;
+  default:
+    throw std::runtime_error("Unsupported prefill size");
+  }
+
   const auto prefillEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> prefillTime =
       prefillEnd - prefillStart;
 
-  int tokenIndex = inputContainerPrefill.getTokenCnt() - 1;
-  const float *startPtr =
-      prefillContainer.logits.getData() + tokenIndex * MaxVocabSize;
+  int tokenIndex = inputContainerTiered.getTokenCnt() - 1;
+  const float *startPtr = prefillLogitsPtr + tokenIndex * MaxVocabSize;
   const float *endPtr = startPtr + MaxVocabSize;
   int maxIndex = findMaxIndex(startPtr, endPtr);
-  std::string tok = inputContainerPrefill.getStr(maxIndex);
-  printIterInfo(0, tok, prefillTime.count() / 1000);
+
+  std::string tok = inputContainerTiered.getStr(maxIndex);
+  printIterInfo(0, tok, prefillTime.count() / 1000, selectedPrefillSize);
   const double prefillSeconds = prefillTime.count() / 1000.0;
   if (prefillSeconds > 0.0) {
-    prefillTokensPerSec = static_cast<double>(MaxTokenLength) / prefillSeconds;
+    prefillTokensPerSec =
+        static_cast<double>(selectedPrefillSize) / prefillSeconds;
   }
   inputContainerDecode.getData()[0] = (long long)maxIndex;
   outputContainer.appendTokenIdx(maxIndex);
 
   /// Initialize cache position
-  size_t currentPos = inputContainerPrefill.getTokenCnt();
+  size_t currentPos = inputContainerTiered.getTokenCnt();
   cachePosition.getData()[0] = currentPos;
 
-  /// Select initial cache size and copy KV cache from prefill
-  size_t currentCacheSize = selectCacheSize(currentPos);
+  /// Select initial decode cache size and copy KV cache from prefill
+  size_t currentCacheSize = selectedPrefillSize;
   printLogLabel();
   std::cout << "Initial cache position: " << currentPos
-            << ", selected cache size: " << currentCacheSize << std::endl;
+            << ", selected decode cache size: " << currentCacheSize << std::endl;
 
-  // Copy prefill KV cache to the appropriate decode container
-  // We always copy from prefill (1024) to the selected size
-  switch (currentCacheSize) {
+  // Copy prefill KV cache to the matching decode container
+  switch (selectedPrefillSize) {
   case 32:
-    copyKVCache(prefillContainer, decodeContainer32, currentPos);
+    copyKVCache(prefillContainer32, decodeContainer32, currentPos);
     break;
   case 64:
-    copyKVCache(prefillContainer, decodeContainer64, currentPos);
+    copyKVCache(prefillContainer64, decodeContainer64, currentPos);
     break;
   case 128:
-    copyKVCache(prefillContainer, decodeContainer128, currentPos);
+    copyKVCache(prefillContainer128, decodeContainer128, currentPos);
     break;
   case 256:
-    copyKVCache(prefillContainer, decodeContainer256, currentPos);
+    copyKVCache(prefillContainer256, decodeContainer256, currentPos);
     break;
   case 512:
-    copyKVCache(prefillContainer, decodeContainer512, currentPos);
+    copyKVCache(prefillContainer512, decodeContainer512, currentPos);
     break;
   case 1024:
-    copyKVCache(prefillContainer, decodeContainer1024, currentPos);
+    copyKVCache(prefillContainer1024, decodeContainer1024, currentPos);
     break;
   }
 
   /// Decode loop with dynamic cache size selection
-  int generateLen = MaxTokenLength - inputContainerPrefill.getTokenCnt();
+  int generateLen = MaxTokenLength - inputContainerTiered.getTokenCnt();
   double decodeTimeAccumMs = 0.0;
   size_t decodeTokens = 0;
   size_t prevCacheSize = currentCacheSize;
@@ -568,7 +664,7 @@ int main() {
     // Determine the generated token
     endPtr = logitsPtr + MaxVocabSize;
     maxIndex = findMaxIndex(logitsPtr, endPtr);
-    tok = inputContainerPrefill.getStr(maxIndex);
+    tok = inputContainerTiered.getStr(maxIndex);
 
     // Print the generated token with cache size info
     printIterInfo(i, tok, inferenceTime.count() / 1000, currentCacheSize);

@@ -82,7 +82,7 @@ $ cmake -G Ninja .. -DBUDDY_DEEPSEEKR1_EXAMPLES=ON
 $ ninja buddy-deepseek-r1-run
 $ ./bin/buddy-deepseek-r1-run
 
-//f32 tiered-kv-cache
+//f32 tiered-kv-cache (dynamic prefill & decode optimization)
 $ ninja buddy-deepseek-r1-tiered-kv-cache-run
 $ ./bin/buddy-deepseek-r1-tiered-kv-cache-run
 
