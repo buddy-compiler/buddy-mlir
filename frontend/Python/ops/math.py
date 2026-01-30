@@ -18,7 +18,7 @@
 #
 # ===---------------------------------------------------------------------------
 
-from mlir.dialects import math
+from buddy_mlir.dialects import math
 
 
 def erf_op(node, symbol_table):
@@ -209,7 +209,7 @@ def trunc_op(node, symbol_table):
 
 def abs_op(node, symbol_table):
     """abs(x) using math.AbsFOp for float, math.AbsIOp for int"""
-    import mlir.ir as ir
+    import buddy_mlir.ir as ir
 
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     element_type = ir.RankedTensorType(input_tensor.type).element_type

@@ -20,7 +20,7 @@
 #
 # ===---------------------------------------------------------------------------
 
-from mlir import ir
+from buddy_mlir import ir
 from collections import deque, defaultdict
 
 from .graph import Graph, GraphImporter, TensorMeta
