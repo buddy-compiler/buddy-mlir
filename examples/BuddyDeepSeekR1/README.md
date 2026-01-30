@@ -203,20 +203,20 @@ ninja buddy-deepseek-r1-run
 ## How to cross compile RISC-V architecture on x86_64 machine
 
 0. Clone code and initialize
-  Refer to steps 0 in the docs/RVVEnvironment.md
+  Refer to steps 0. Prepare `buddy-mlir` and Submodules in the [docs/RVVEnvironment.md](https://github.com/buddy-compiler/buddy-mlir/blob/main/docs/RVVEnvironment.md).
 
 1. Build and test LLVM/MLIR
-  Refer to steps 1 in the docs/RVVEnvironment.md and
+  Refer to steps 1. Build Local LLVM/MLIR in the [docs/RVVEnvironment.md](https://github.com/buddy-compiler/buddy-mlir/blob/main/docs/RVVEnvironment.md).
 
 2. Build buddy-mlir
-  Refer to steps 2 in the docs/RVVEnvironment.md and add `export BUDDY_MLIR_BUILD_DIR=$PWD`、`export PYTHONPATH=${BUILD_LOCAL_LLVM_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}` after execution.
+  Refer to steps 2. Build Local `buddy-mlir` in the [docs/RVVEnvironment.md](https://github.com/buddy-compiler/buddy-mlir/blob/main/docs/RVVEnvironment.md) and add `export BUDDY_MLIR_BUILD_DIR=$PWD`、`export PYTHONPATH=${BUILD_LOCAL_LLVM_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}` after execution.
 
 3. Build Cross-Compiled MLIR
-  Refer to steps 4 in the docs/RVVEnvironment.md.
+  Refer to steps 4. Build Cross-Compiled MLIR in the [docs/RVVEnvironment.md](https://github.com/buddy-compiler/buddy-mlir/blob/main/docs/RVVEnvironment.md).
   Note: Add the `-DMLIR_IRDL_TO_CPP_EXE=${BUILD_LOCAL_LLVM_DIR}/bin/mlir-irdl-to-cpp` parameter at the end of cmake.
        Add `export BUDDY_DEEPSEEKR1_LLVMOPT=${BUILD_CROSS_MLIR_DIR}/lib/libLLVMSupport.a` 、`export RISCV_MLIR_C_RUNNER_UTILS=${BUILD_CROSS_MLIR_DIR}/lib/libmlir_c_runner_utils.so.22.0git` parameter after execution.
 
-4. Pull the OpenMp shared library of Risc-v
+4. Pull the OpenMP shared library of RISC-V
    Since the repository depends on OpenMP shared libraries, follow the steps below to set up the OpenMP dependency:
 ```bash
 $ cd ${BUILD_LOCAL_LLVM_DIR}/../

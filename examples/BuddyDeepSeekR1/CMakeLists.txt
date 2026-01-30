@@ -16,7 +16,7 @@ endif()
 
 # Set platform-specific variables
 if(IS_RVV_PLATFORM)
-  set(OPENMP_NUM_THREADS "num-threads=8")
+  set(OPENMP_NUM_THREADS "num-threads=32")
   set(LLC_RISCV_ATTRS "-mattr=+m,+d,+v")
   set(RISCV_COMPILE_OPTS "-march=rv64gcv;-mabi=lp64d;-O3;-Wall")
   set(RISCV_LINK_OPTS "-march=rv64gcv;-mabi=lp64d")
@@ -27,7 +27,7 @@ endif()
 
 if(IS_RVV_CROSSCOMPILING)
   message(STATUS "CROSSCOMPILING RISC-V Vector (RVV) platform")
-  set(OPENMP_NUM_THREADS "num-threads=32")
+  set(OPENMP_NUM_THREADS "num-threads=8")
   set(LLC_RISCV_ATTRS "-march=riscv64;-mattr=+m,+d,+v")
   set(RISCV_COMPILE_OPTS
       -march=rv64gcv
