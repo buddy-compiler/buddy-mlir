@@ -27,7 +27,6 @@ import operator
 import os
 import ctypes
 import platform
-import functools
 import numpy as np
 
 import mlir.ir as ir
@@ -47,14 +46,11 @@ from .ops.func import ops_registry as func_ops_registry
 from .graph import Graph, TensorDType, TensorMeta
 from .graph.operation import *
 from .graph.transform import (
-    affine_grid_generator_homogeneous_base_simplify,
-    affine_grid_generator_simplify,
     replace_bernoulli_with_runtime_rng,
     replace_exponential_with_runtime_rng,
     replace_geometric_with_runtime_rng,
     replace_rand_with_runtime_rng,
     maxpool2d_simplify,
-    functionalize_out_overloads,
 )
 from .graph.type import *
 
@@ -105,7 +101,6 @@ class DynamoCompiler:
         aot_autograd_decomposition: Optional[dict] = None,
         verbose=False,
         enable_external_calls: bool = False,
-        enable_out_functionalize: bool = False,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -142,12 +137,6 @@ class DynamoCompiler:
         )
         self._verbose = verbose
         self._enable_external_calls = enable_external_calls
-        env_out = (
-            os.getenv("BUDDY_ENABLE_OUT_FUNCTIONALIZE", "").strip().lower()
-        )
-        self._enable_out_functionalize = enable_out_functionalize or (
-            env_out in ("1", "true", "yes", "y", "on")
-        )
         self._imported_graphs = []
         self._ops_registry = {}
         self._imported_params = {}
@@ -947,8 +936,6 @@ class DynamoCompiler:
                 graph.add_node(buddy_node)
             transform_list = [
                 maxpool2d_simplify,
-                affine_grid_generator_simplify,
-                affine_grid_generator_homogeneous_base_simplify,
             ]
             if self._enable_external_calls:
                 transform_list.extend(
@@ -958,13 +945,6 @@ class DynamoCompiler:
                         replace_geometric_with_runtime_rng,
                         replace_rand_with_runtime_rng,
                     ]
-                )
-            if self._enable_out_functionalize:
-                transform_list.insert(
-                    0,
-                    functools.partial(
-                        functionalize_out_overloads, ops_map=self._ops_map
-                    ),
                 )
             graph.perform(transform_list)
             self._imported_graphs.append(graph)
