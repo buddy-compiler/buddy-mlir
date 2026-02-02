@@ -11265,6 +11265,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     k_dim2 = arith.ConstantOp(index, key_shape[2], loc=loc).result
     vec_len = arith.ConstantOp(index, 16, loc=loc).result
     v16_f32 = ir.VectorType.get([16], mlir_dtype)
+    group_size = query_shape[1] // key_shape[1]
 
     # ========= mask preprocess =========
     if attn_mask is not None:
@@ -11288,8 +11289,8 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
         with ir.InsertionPoint(loop_h.body):
             h = loop_h.induction_variable
             acc_hv = loop_h.inner_iter_args[0]
-            c6i = arith.ConstantOp(index, 6, loc=loc).result
-            h_kv = arith.DivSIOp(h, c6i, loc=loc).result
+            group_size_i = arith.ConstantOp(index, group_size, loc=loc).result
+            h_kv = arith.DivSIOp(h, group_size_i, loc=loc).result
 
             loop_q = scf.ForOp(c0, q_dim2, c1, iter_args=[acc_hv])
             with ir.InsertionPoint(loop_q.body):
@@ -11403,8 +11404,8 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
         with ir.InsertionPoint(loop_h.body):
             h = loop_h.induction_variable
             out_hv = loop_h.inner_iter_args[0]
-            c6i = arith.ConstantOp(index, 6, loc=loc).result
-            hk = arith.DivSIOp(h, c6i, loc=loc).result
+            group_size_i = arith.ConstantOp(index, group_size, loc=loc).result
+            hk = arith.DivSIOp(h, group_size_i, loc=loc).result
 
             loop_q = scf.ForOp(c0, q_dim2, c1, iter_args=[out_hv], loc=loc)
             with ir.InsertionPoint(loop_q.body):
