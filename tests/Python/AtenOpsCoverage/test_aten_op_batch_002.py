@@ -353,7 +353,7 @@ def _template_elu_backward_out():
 
 
 def _template_exponential():
-    # 数值模式通过 MLIR ExecutionEngine 执行：输入保持小尺寸，避免引入不稳定的模板行为。
+    # Numeric mode runs via MLIR ExecutionEngine; keep inputs small to avoid unstable template behavior.
     x = torch.empty((2, 3), dtype=torch.float32)
     return [x, 1.0], {}
 
