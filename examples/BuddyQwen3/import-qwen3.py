@@ -153,6 +153,7 @@ pattern_list_prefill = [
 pattern_list_decode = [
     simply_fuse,
     apply_classic_fusion,
+    gqa_attention_fusion,
 ]
 
 graphs_prefill[0].fuse_ops(pattern_list_prefill)
