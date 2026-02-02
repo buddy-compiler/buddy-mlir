@@ -21,6 +21,11 @@ def _template_max_dim_max():
     return [x, dim, False], {"max": values, "max_values": indices}
 
 
+def _template_max_dim():
+    x = torch.tensor([[1.0, 2.0], [3.0, 0.5]], dtype=torch.float32)
+    return [x, 1, False], {}
+
+
 def _template_min_dim_min():
     x = torch.tensor([[1.0, 2.0], [3.0, 0.5]], dtype=torch.float32)
     dim = 1
@@ -723,6 +728,7 @@ CUSTOM_TEMPLATES.update(
         # TorchDynamo cannot compile these statically.
         "masked_select.default": _skip("dynamic_shape_op"),
         "masked_select.out": _skip("dynamic_shape_op"),
+        "max.dim": _template_max_dim,
         "max.dim_max": _template_max_dim_max,
         "max.names_dim": _skip("named_tensor_torchscript"),
         "max.names_dim_max": _skip("named_tensor_torchscript"),
