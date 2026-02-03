@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
-from buddy.compiler.graph.transform import gqa_attention_decode_fusion
+from buddy.compiler.graph.transform import gqa_flash_attention_prefill_fusion
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
@@ -51,29 +51,26 @@ graphs = dynamo_compiler.importer(foo, in1, in2, in3, in4, in5)
 assert len(graphs) == 1
 graph = graphs[0]
 
-pattern_list = [gqa_attention_decode_fusion]
+pattern_list = [gqa_flash_attention_prefill_fusion]
 graphs[0].fuse_ops(pattern_list)
 
 graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK-LABEL: func.func @forward
-# CHECK: arith.divsi
+# CHECK: %[[C6:.*]] = arith.constant 6 : index
+# CHECK: %[[HEAD_IDX:.*]] = arith.divsi %{{.*}}, %[[C6]] : index
 # CHECK: scf.for
-# CHECK:   vector.transfer_read
-# CHECK:   vector.transfer_read
-# CHECK:   vector.fma
-# CHECK: vector.reduction <add>
-# CHECK: tosa.reduce_max
+# CHECK:   scf.for
+# CHECK:     vector.load %{{.*}}[%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}] : memref<1x12x1x128xf32>, vector<16xf32>
+# CHECK:     vector.load %{{.*}}[%{{.*}}, %[[HEAD_IDX]], %{{.*}}, %{{.*}}] : memref<1x2x1024x128xf32>, vector<16xf32>
+# CHECK:     vector.fma
+# CHECK:   vector.reduction <add>
+# CHECK:   arith.mulf
+# CHECK:   arith.addf
+# CHECK: arith.cmpf ogt
+# CHECK: arith.select
 # CHECK: math.exp
-# CHECK: tosa.reduce_sum
-# CHECK: tosa.log
-# CHECK: tosa.sub
-# CHECK: math.exp
-# CHECK: scf.for
-# CHECK:   tensor.extract
-# CHECK:   vector.splat
-# CHECK:   vector.transfer_read
-# CHECK:   vector.fma
-# CHECK:   vector.transfer_write
+# CHECK: vector.fma
+# CHECK: arith.divf
 # CHECK: return %{{.*}} : tensor<1x12x1x128xf32>
