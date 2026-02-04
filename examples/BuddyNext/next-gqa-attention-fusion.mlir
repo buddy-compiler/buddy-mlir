@@ -1,27 +1,37 @@
 // RUN: buddy-opt %s \
 // RUN:     -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" \
 // RUN: | buddy-opt \
-// RUN:     -arith-expand \
 // RUN:     -eliminate-empty-tensors \
 // RUN:     -empty-tensor-to-alloc-tensor \
 // RUN:     -convert-elementwise-to-linalg \
 // RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
+// RUN:     -expand-strided-metadata \
+// RUN:     -ownership-based-buffer-deallocation \
+// RUN:     -buffer-deallocation-simplification \
+// RUN:     -bufferization-lower-deallocations \
+// RUN:     -assume-tight-memref-layout \
+// RUN:     -staticize-memref-layout \
+// RUN:     -matmul-vectorization-decode=vector-size=128 \
+// RUN:     -batch-matmul-vectorization-decode=vector-size=128 \
+// RUN:     -batchmatmul-transpose-b-vectorization=vector-size=16 \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -affine-loop-fusion \
-// RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf \
-// RUN:     -expand-strided-metadata \
-// RUN:     -convert-vector-to-llvm \
+// RUN:     -lower-affine \
+// RUN:     -convert-scf-to-openmp=num-threads=48 \
+// RUN:     -convert-bufferization-to-memref \
+// RUN:     -cse \
 // RUN:     -memref-expand \
 // RUN:     -arith-expand \
+// RUN:     -convert-vector-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -finalize-memref-to-llvm \
 // RUN:     -convert-scf-to-cf \
 // RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-openmp-to-llvm \
 // RUN:     -convert-arith-to-llvm \
-// RUN:     -convert-math-to-libm  \
 // RUN:     -convert-math-to-llvm \
+// RUN:     -convert-math-to-libm \
 // RUN:     -convert-func-to-llvm \
 // RUN:     -reconcile-unrealized-casts | \
 // RUN: mlir-runner -e main -entry-point-result=void \
@@ -36,86 +46,86 @@
 #map2 = affine_map<(d0) -> (d0)>
 func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 func.func private @rtclock() -> f64
-func.func @kernel(%q : tensor<1x12x1x128xf32>, %k_cache : tensor<1x2x1024x128xf32>, %v_cache : tensor<1x2x1024x128xf32>, %mask : tensor<1x1x1x1024xf32>) -> tensor<1x12x1x128xf32> {
+func.func @kernel(%q_data : tensor<1x12x1x128xf32>, %k_cache : tensor<1x2x1024x128xf32>, %v_cache : tensor<1x2x1024x128xf32>, %mask : tensor<1x1x1x1024xf32>) -> tensor<1x12x1x128xf32> {
 
-  %c0_21 = arith.constant 0 : index
-  %cst_22 = arith.constant 1.000000e+00 : f32
-  %cst_23 = arith.constant 0.0883883461 : f32
-  %cst_24 = arith.constant 0.000000e+00 : f32
-  %cst_25 = arith.constant -1.000000e+30 : f32
-  %q_mem = bufferization.to_buffer %q : tensor<1x12x1x128xf32> to memref<1x12x1x128xf32>
-  %k_cache_mem = bufferization.to_buffer %k_cache : tensor<1x2x1024x128xf32> to memref<1x2x1024x128xf32>
-  %v_cache_mem = bufferization.to_buffer %v_cache : tensor<1x2x1024x128xf32> to memref<1x2x1024x128xf32>
-  %mask_mem = bufferization.to_buffer %mask : tensor<1x1x1x1024xf32> to memref<1x1x1x1024xf32>
-  %batch = arith.constant 1 : index
-  %head_num = arith.constant 12 : index
-  %seq_len = arith.constant 1 : index
-  %head_dim = arith.constant 128 : index
-  %out_mem = memref.alloc() : memref<1x12x1x128xf32>
-  %value_mem = memref.alloc() : memref<1x12x1xf32>
-  %accum_mem = memref.alloc() : memref<128xf32>
-
+  // ===== Attention QK^T =====
+  %c6 = arith.constant 6 : index
+  %c1 = arith.constant 1 : index
+  %c0 = arith.constant 0 : index
+  %c12 = arith.constant 12 : index
+  %c128 = arith.constant 128 : index
+  %c1024 = arith.constant 1024 : index
   %vec_len = arith.constant 16 : index
-  %vec_f32 = vector.splat %cst_24 : vector<16xf32>
+  %zero_val = arith.constant 0.0 : f32
+  %zero_vec = vector.splat %zero_val : vector<16xf32>
+  %t_start = call @rtclock() : () -> f64
 
-  affine.for %b = 0 to #map2(%batch) {
-    affine.for %h = 0 to #map2(%head_num) {
-      %c6 = arith.constant 6 : index
-      %h_kv = arith.divsi %h, %c6 : index
-      affine.for %i = 0 to #map2(%seq_len) {
-        affine.for %k= 0 to #map2(%head_dim) {
-          %cst_1253 = arith.constant 0.000000e+00 : f32
-          memref.store %cst_1253, %accum_mem[%k] : memref<128xf32>
-        }
-        %k_seq_len = arith.constant 1024 : index
-        %2738:2 = affine.for %k= 0 to #map2(%k_seq_len) iter_args(%m_temp = %cst_25, %l_temp = %cst_24) -> (f32, f32) {
-          %acc = affine.for %k1 = 0 to #map2(%head_dim) step 16 iter_args(%acc = %vec_f32) -> (vector<16xf32>) {
-            %q_data = vector.load %q_mem[%b, %h, %i, %k1] : memref<1x12x1x128xf32>, vector<16xf32>
-            %k_data = vector.load %k_cache_mem[%b, %h_kv, %k, %k1] : memref<1x2x1024x128xf32>, vector<16xf32>
-            %new_acc = vector.fma %q_data, %k_data, %acc : vector<16xf32>
-            affine.yield %new_acc : vector<16xf32>
+  %score_init=arith.constant dense<0.0>:tensor<1x12x1x1024xf32>
+  %score=scf.for %b=%c0 to %c1 step %c1 iter_args(%acc_b=%score_init)->tensor<1x12x1x1024xf32>{
+    %acc_h=scf.for %h=%c0 to %c12 step %c1 iter_args(%acc_hv=%acc_b)->tensor<1x12x1x1024xf32>{
+      %hk=arith.floordivsi %h,%c6:index
+      %acc_q=scf.for %q=%c0 to %c1 step %c1 iter_args(%acc_qv=%acc_hv)->tensor<1x12x1x1024xf32>{
+        %acc_k=scf.for %k=%c0 to %c1024 step %c1 iter_args(%acc_kv=%acc_qv)->tensor<1x12x1x1024xf32>{
+          %prev=tensor.extract %acc_kv[%b,%h,%q,%k]:tensor<1x12x1x1024xf32>
+          %vec_acc=scf.for %d=%c0 to %c128 step %vec_len iter_args(%va=%zero_vec)->vector<16xf32>{
+            %qv=vector.transfer_read %q_data[%b,%h,%q,%d],%zero_val:tensor<1x12x1x128xf32>,vector<16xf32>
+            %kv=vector.transfer_read %k_cache[%b,%hk,%k,%d],%zero_val:tensor<1x2x1024x128xf32>,vector<16xf32>
+            %va1=vector.fma %qv,%kv,%va:vector<16xf32>
+            scf.yield %va1:vector<16xf32>
           }
-          %score_sum = vector.reduction <add>, %acc : vector<16xf32> into f32
-          %score_scaled = arith.mulf %score_sum, %cst_23 : f32
-          %mask_val = affine.load %mask_mem[%b, %c0_21, %i, %k] : memref<1x1x1x1024xf32>
-          %score_masked = arith.addf %score_scaled, %mask_val : f32
-          %cond_max = arith.cmpf ogt, %score_masked, %m_temp : f32
-          %new_max = arith.select %cond_max, %score_masked, %m_temp : f32
-          %sub1 = arith.subf %m_temp, %score_masked : f32
-          %exp1 = math.exp %sub1 : f32
-          %mul1 = arith.mulf %exp1, %l_temp : f32
-          %add1 = arith.addf %mul1, %cst_22 : f32
-
-          %sub2 = arith.subf %score_masked, %m_temp : f32
-          %exp2 = math.exp %sub2 : f32
-          %add2 = arith.addf %l_temp, %exp2 : f32
-
-          %sum_exp_update = arith.select %cond_max, %add1, %add2 : f32
-          affine.for %k1 = 0 to #map2(%head_dim) step 16{
-            %v_data = memref.load %v_cache_mem[%b, %h_kv, %k, %k1] : memref<1x2x1024x128xf32>
-            %acc_old = memref.load %accum_mem[%k1] : memref<128xf32>
-            %acc_mul1 = arith.mulf %acc_old, %exp1 : f32
-            %r1 = arith.addf %acc_mul1, %v_data : f32
-            %acc_mul2 = arith.mulf %exp2, %v_data : f32
-            %r2 = arith.addf %acc_mul2, %acc_old : f32
-            %acc_new = arith.select %cond_max, %r1, %r2 : f32
-            memref.store %acc_new, %accum_mem[%k1] : memref<128xf32>
-          }
-          affine.yield %new_max, %sum_exp_update : f32, f32
+          %red=vector.reduction<add>,%vec_acc:vector<16xf32>into f32
+          %acc=arith.addf %prev,%red:f32
+          %next=tensor.insert %acc into %acc_kv[%b,%h,%q,%k]:tensor<1x12x1x1024xf32>
+          scf.yield %next:tensor<1x12x1x1024xf32>
         }
-        memref.store %2738#1, %value_mem[%b, %h, %i] : memref<1x12x1xf32>
-        affine.for %k= 0 to #map2(%head_dim) step 16{
-          %accum_temp = memref.load %accum_mem[%k] : memref<128xf32>
-          %accum_temp_div = arith.divf %accum_temp, %2738#1 : f32
-          memref.store %accum_temp_div, %out_mem[%b, %h, %i, %k] : memref<1x12x1x128xf32>
-        }
+        scf.yield %acc_k:tensor<1x12x1x1024xf32>
       }
+      scf.yield %acc_q:tensor<1x12x1x1024xf32>
     }
+    scf.yield %acc_h:tensor<1x12x1x1024xf32>
   }
-  %result = bufferization.to_tensor %out_mem restrict : memref<1x12x1x128xf32> to tensor<1x12x1x128xf32>
 
-    return %result : tensor<1x12x1x128xf32>
+  %scale = arith.constant 0.0883883461 : f32
+  %scale_splat = tensor.splat %scale : tensor<1x12x1x1024xf32>
+  %mul_shift = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+  %scaled = tosa.mul %score, %scale_splat, %mul_shift : (tensor<1x12x1x1024xf32>, tensor<1x12x1x1024xf32>, tensor<1xi8>) -> tensor<1x12x1x1024xf32>
+  %score_masked = tosa.add %scaled, %mask : (tensor<1x12x1x1024xf32>, tensor<1x1x1x1024xf32>) -> tensor<1x12x1x1024xf32>
+
+  // ===== Attention Softmax =====
+  %max = tosa.reduce_max %score_masked {axis = 3 : i32} : (tensor<1x12x1x1024xf32>) -> tensor<1x12x1x1xf32>
+  %shifted = tosa.sub %score_masked, %max : (tensor<1x12x1x1024xf32>, tensor<1x12x1x1xf32>) -> tensor<1x12x1x1024xf32>
+  %exp = math.exp %shifted : tensor<1x12x1x1024xf32>
+  %sum = tosa.reduce_sum %exp {axis = 3 : i32} : (tensor<1x12x1x1024xf32>) -> tensor<1x12x1x1xf32>
+  %logsum = tosa.log %sum : (tensor<1x12x1x1xf32>) -> tensor<1x12x1x1xf32>
+  %norm = tosa.add %max, %logsum : (tensor<1x12x1x1xf32>, tensor<1x12x1x1xf32>) -> tensor<1x12x1x1xf32>
+  %softmax = tosa.sub %score_masked, %norm : (tensor<1x12x1x1024xf32>, tensor<1x12x1x1xf32>) -> tensor<1x12x1x1024xf32>
+  %prob = math.exp %softmax : tensor<1x12x1x1024xf32>
+
+  // ===== Attention * V =====
+  %out_init=arith.constant dense<0.0>:tensor<1x12x1x128xf32>
+  %out=scf.for %b=%c0 to %c1 step %c1 iter_args(%out_b=%out_init)->tensor<1x12x1x128xf32>{
+    %out_h=scf.for %h=%c0 to %c12 step %c1 iter_args(%out_hv=%out_b)->tensor<1x12x1x128xf32>{
+      %hk=arith.floordivsi %h,%c6:index
+      %out_q=scf.for %q=%c0 to %c1 step %c1 iter_args(%out_qv=%out_hv)->tensor<1x12x1x128xf32>{
+        %out_d=scf.for %d=%c0 to %c128 step %vec_len iter_args(%out_dv=%out_qv)->tensor<1x12x1x128xf32>{
+          %vec_acc=scf.for %k=%c0 to %c1024 step %c1 iter_args(%va=%zero_vec)->vector<16xf32>{
+            %p=tensor.extract %prob[%b,%h,%q,%k]:tensor<1x12x1x1024xf32>
+            %pv=vector.splat %p:vector<16xf32>
+            %vv=vector.transfer_read %v_cache[%b,%hk,%k,%d],%zero_val:tensor<1x2x1024x128xf32>,vector<16xf32>
+            %va1=vector.fma %pv,%vv,%va:vector<16xf32>
+            scf.yield %va1:vector<16xf32>
+          }
+          %next = vector.transfer_write %vec_acc, %out_dv[%b, %h, %q, %d] : vector<16xf32>, tensor<1x12x1x128xf32>
+          scf.yield %next:tensor<1x12x1x128xf32>
+        }
+        scf.yield %out_d:tensor<1x12x1x128xf32>
+      }
+      scf.yield %out_q:tensor<1x12x1x128xf32>
+    }
+    scf.yield %out_h:tensor<1x12x1x128xf32>
   }
+  return %out : tensor<1x12x1x128xf32>
+}
 
 func.func @main() {
 

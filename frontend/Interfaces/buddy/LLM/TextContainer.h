@@ -80,6 +80,9 @@ public:
   // DeepSeekR1 Tokenizer
   // This function is designed for tokenizing input text for DeepSeekR1 models.
   void tokenizeDeepSeekR1(const std::string &vocab, size_t length);
+  // Qwen3 Tokenizer
+  // This function is designed for tokenizing input text for Qwen3 models.
+  void tokenizeQwen3(const std::string &vocab, size_t length);
 
   // Revert the ids into tokens.
   // This function initializes the conversion from Text memref to a string.
@@ -88,6 +91,7 @@ public:
   std::string revertLlama();
   std::string revertWhisper();
   std::string revertDeepSeekR1();
+  std::string revertQwen3();
 
   // Get sequence length
   size_t getTokenCnt() { return this->tokenCnt; }
@@ -153,6 +157,12 @@ private:
     this->sizes[1] = size;
     this->setStrides();
   }
+
+  unsigned char revert_single_bpe_char(unsigned int code);
+
+  // Converts the input raw string into a BPE-encoded string (handles spaces,
+  // newlines, and multi-byte characters)
+  std::string bytes_to_bpe_string(const std::string &input);
 
   // Process a token and store its corresponding value in the container.
   // This function takes a token as input and find its corresponding value in
@@ -433,7 +443,7 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
   const int userToken = 151644;
   const int assistantToken = 151645;
   const int thinkToken = 151648;
-  
+
   tokenCnt = 0;
   this->aligned[tokenCnt++] = bos;
   this->aligned[tokenCnt++] = bos;
@@ -498,6 +508,154 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
   for (size_t i = tokenCnt; i < length; i++) {
     this->aligned[i] = pad;
   }
+}
+
+// Qwen3 Tokenizer
+template <typename T, size_t N>
+void Text<T, N>::tokenizeQwen3(const std::string &vocab, size_t length) {
+  // 1. Initialize container members
+  this->offset = 0;
+  this->sizes[0] = 1;
+  this->sizes[1] = length;
+  this->setStrides();
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
+  this->aligned = this->allocated;
+
+  // Standard Special Token IDs for the Qwen series
+  this->bos = 151644;
+  this->eos = 151645;
+  this->pad = 151643;
+  const int userToken = 872;
+  const int assistantToken = 77091;
+  const int newlineToken = 198;
+
+  tokenCnt = 0;
+  this->aligned[tokenCnt++] = bos;
+  this->aligned[tokenCnt++] = userToken;
+  this->aligned[tokenCnt++] = newlineToken;
+
+  // 2. Load the vocabulary
+  loadVocab(vocab);
+
+  // 3. Core Step: Convert raw UTF-8 string to BPE-encoded string
+  // e.g., converts "你好 😊" to a format like "ä½ å¥½ðŁĺĬ"
+  std::string bpeEncodedStr = this->bytes_to_bpe_string(this->str);
+
+  // 4. Tokenization using Dynamic Programming (Forward Pass)
+  int n = bpeEncodedStr.length();
+  std::vector<float> score(n + 1, -1e10); // Initialize with a very small value
+  std::vector<size_t> prev_token_id(n + 1, 0);
+  std::vector<int> prev_pos(n + 1, 0);
+
+  score[0] = 0;
+
+  for (int i = 0; i < n; i++) {
+    if (score[i] < -1e9)
+      continue; // Skip unreachable paths
+
+    // Try to match all possible substrings within the dictionary
+    // For performance, the maximum substring length is usually limited (e.g.,
+    // 32 or 64)
+    for (int sub_len = 1; sub_len <= std::min(64, n - i); sub_len++) {
+      std::string sub = bpeEncodedStr.substr(i, sub_len);
+      auto it = tokenToIdMap.find(sub);
+      if (it != tokenToIdMap.end()) {
+        // Scoring strategy: longer matches receive higher scores (square of
+        // length favors long words)
+        float token_score = (float)sub_len * sub_len;
+        float current_score = score[i] + token_score;
+
+        int next_idx = i + sub_len;
+        if (current_score > score[next_idx]) {
+          score[next_idx] = current_score;
+          prev_token_id[next_idx] = it->second;
+          prev_pos[next_idx] = i;
+        }
+      }
+    }
+  }
+
+  // 5. Backtracking (Backward Pass)
+  std::vector<size_t> res;
+  int curr = n;
+  while (curr > 0) {
+    if (score[curr] < -1e9) {
+      // If a section cannot be matched, fall back one byte (to prevent infinite
+      // loops)
+      curr--;
+      continue;
+    }
+    res.push_back(prev_token_id[curr]);
+    curr = prev_pos[curr];
+  }
+
+  // 6. Fill in results (reverse the backward sequence)
+  for (auto it = res.rbegin(); it != res.rend(); ++it) {
+    if (tokenCnt < length - 5) { // Reserve space for the termination sequence
+      this->aligned[tokenCnt++] = *it;
+    }
+  }
+
+  // 7. Append Assistant Prompt tokens
+  this->aligned[tokenCnt++] = eos;
+  this->aligned[tokenCnt++] = newlineToken;
+  this->aligned[tokenCnt++] = bos;
+  this->aligned[tokenCnt++] = assistantToken;
+  this->aligned[tokenCnt++] = newlineToken;
+
+  // 8. Padding
+  for (size_t i = tokenCnt; i < length; i++) {
+    this->aligned[i] = pad;
+  }
+}
+
+template <typename T, size_t N>
+std::string Text<T, N>::bytes_to_bpe_string(const std::string &input) {
+  // Byte-to-BPE character mapping logic (strictly corresponds to Python's
+  // bytes_to_unicode)
+  auto get_byte_to_unicode = [](unsigned char b) -> std::string {
+    static const std::unordered_map<unsigned char, std::string> b2u = []() {
+      std::unordered_map<unsigned char, std::string> m;
+      auto bytes_to_unicode_map = [](unsigned char b) -> unsigned int {
+        if ((b >= 33 && b <= 126) || (b >= 161 && b <= 172) || (b >= 174))
+          return b;
+        static const std::vector<unsigned char> bs = []() {
+          std::vector<unsigned char> res;
+          for (int b = 0; b < 256; b++)
+            if (!((b >= 33 && b <= 126) || (b >= 161 && b <= 172) ||
+                  (b >= 174 && b <= 255)))
+              res.push_back(b);
+          return res;
+        }();
+        for (size_t i = 0; i < bs.size(); i++)
+          if (bs[i] == b)
+            return 256 + i;
+        return b;
+      };
+
+      for (int i = 0; i < 256; i++) {
+        unsigned int code = bytes_to_unicode_map(i);
+        // Convert the code point to a UTF-8 string
+        std::string utf8_char;
+        if (code < 0x80)
+          utf8_char += (char)code;
+        else {
+          utf8_char += (char)(0xC0 | (code >> 6));
+          utf8_char += (char)(0x80 | (code & 0x3F));
+        }
+        m[i] = utf8_char;
+      }
+      return m;
+    }();
+    return b2u.at(b);
+  };
+
+  std::string result;
+  for (unsigned char b : input) {
+    result += get_byte_to_unicode(b);
+  }
+  return result;
 }
 
 // The revert function is used to convert the tokenized sequence back to a
@@ -591,6 +749,81 @@ template <typename T, size_t N> std::string Text<T, N>::revertDeepSeekR1() {
     dst.erase(0, 1);
   }
   return dst;
+}
+
+template <typename T, size_t N> std::string Text<T, N>::revertQwen3() {
+  std::vector<unsigned char> byte_buffer;
+  const int EOS_ID = 151643;
+
+  for (size_t i = 0; i < this->tokenCnt; i++) {
+    int id = this->aligned[i];
+    if (id == EOS_ID)
+      break;
+
+    const std::string &token = this->idToTokenVec[id];
+
+    for (size_t j = 0; j < token.length();) {
+      unsigned char c = (unsigned char)token[j];
+      unsigned int code = 0;
+      int len = 0;
+
+      // UTF-8 decoding logic
+      if (c < 0x80) {
+        code = c;
+        len = 1;
+      } else if ((c & 0xE0) == 0xC0) {
+        code = (c & 0x1F) << 6 | (token[j + 1] & 0x3F);
+        len = 2;
+      } else if ((c & 0xF0) == 0xE0) {
+        code = (c & 0x0F) << 12 | (token[j + 1] & 0x3F) << 6 |
+               (token[j + 2] & 0x3F);
+        len = 3;
+      } else if ((c & 0xF8) == 0xF0) {
+        code = (c & 0x07) << 18 | (token[j + 1] & 0x3F) << 12 |
+               (token[j + 2] & 0x3F) << 6 | (token[j + 3] & 0x3F);
+        len = 4;
+      } else {
+        j++;
+        continue;
+      }
+
+      j += len;
+      // Directly call the class member function
+      byte_buffer.push_back(this->revert_single_bpe_char(code));
+    }
+  }
+
+  std::string dst(byte_buffer.begin(), byte_buffer.end());
+  // Remove leading space if present
+  if (!dst.empty() && (unsigned char)dst[0] == 32) {
+    dst.erase(0, 1);
+  }
+  return dst;
+}
+
+template <typename T, size_t N>
+unsigned char Text<T, N>::revert_single_bpe_char(unsigned int code) {
+  if ((code >= 33 && code <= 126) || (code >= 161 && code <= 172) ||
+      (code >= 174 && code <= 255)) {
+    return (unsigned char)code;
+  }
+
+  static const std::unordered_map<unsigned int, unsigned char> extra_map =
+      []() {
+        std::unordered_map<unsigned int, unsigned char> m;
+        int n = 0;
+        for (int b = 0; b < 256; ++b) {
+          if (!((b >= 33 && b <= 126) || (b >= 161 && b <= 172) ||
+                (b >= 174 && b <= 255))) {
+            m[256 + n] = (unsigned char)b;
+            n++;
+          }
+        }
+        return m;
+      }();
+
+  auto it = extra_map.find(code);
+  return (it != extra_map.end()) ? it->second : (unsigned char)code;
 }
 
 template <typename T, size_t N>
