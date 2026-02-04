@@ -1115,8 +1115,6 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     // loopConvWsConfig1
     uint64_t rs1 = (uint64_t)outChannels << 48 | (uint64_t)inChannels << 32 |
                    (uint64_t)inDim << 16 | (uint64_t)batchSize;
-    // uint64_t rs2 = (uint64_t)padding << 48 | (uint64_t)stride << 32 |
-    //                (uint64_t)poolOutDim << 16 | (uint64_t)outDim;
     uint64_t rs2 = (uint64_t)padding << 56 | (uint64_t)stride << 48 |
                    (uint64_t)outDim << 32 | (uint64_t)poolOutDim << 16 |
                    (uint64_t)outDim;
@@ -1139,9 +1137,6 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     // loopConvWsConfig3
     rs1 = (uint64_t)krows << 48 | (uint64_t)kcols << 32 | (uint64_t)kchs << 16 |
           (uint64_t)lpad;
-    // rs2 = (uint64_t)rpad << 48 | (uint64_t)upad << 32 | (uint64_t)dpad << 16
-    // |
-    //       (uint64_t)plpad;
     rs2 = (uint64_t)rpad << 48 | (uint64_t)upad << 32 | (uint64_t)dpad << 24 |
           (uint64_t)plpad << 16 | (uint64_t)inDim;
     rs1Attr = rewriter.getI64IntegerAttr(rs1);
