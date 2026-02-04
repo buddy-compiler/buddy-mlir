@@ -21,6 +21,11 @@ def _template_max_dim_max():
     return [x, dim, False], {"max": values, "max_values": indices}
 
 
+def _template_max_dim():
+    x = torch.tensor([[1.0, 2.0], [3.0, 0.5]], dtype=torch.float32)
+    return [x, 1, False], {}
+
+
 def _template_min_dim_min():
     x = torch.tensor([[1.0, 2.0], [3.0, 0.5]], dtype=torch.float32)
     dim = 1
@@ -723,6 +728,7 @@ CUSTOM_TEMPLATES.update(
         # TorchDynamo cannot compile these statically.
         "masked_select.default": _skip("dynamic_shape_op"),
         "masked_select.out": _skip("dynamic_shape_op"),
+        "max.dim": _template_max_dim,
         "max.dim_max": _template_max_dim_max,
         "max.names_dim": _skip("named_tensor_torchscript"),
         "max.names_dim_max": _skip("named_tensor_torchscript"),
@@ -826,7 +832,7 @@ CUSTOM_TEMPLATES.update(
         "new_ones.default": _template_new_ones,
         "new_ones.out": _skip("dynamo_out_overload_bug"),
         "new_zeros.default": _template_new_zeros,
-        "new_zeros.out": _skip("dynamo_out_overload_bug"),
+        "new_zeros.out": _template_new_zeros_out,
         "nll_loss.default": _template_nll_loss,
         "nll_loss.out": _template_nll_loss_out,
         "nll_loss_forward.default": _template_nll_loss_forward,
@@ -1062,6 +1068,7 @@ if __name__ == "__main__":
         batch_label="test_batch_5",
         max_fails=20,
         templates=CUSTOM_TEMPLATES,
+        templates_source=__file__,
     )
 # CHECK: SUMMARY pass=
 # CHECK-SAME: fail=0

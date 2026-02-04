@@ -27,6 +27,7 @@ import operator
 import os
 import ctypes
 import platform
+import numpy as np
 
 import mlir.ir as ir
 import mlir.dialects.func as func
@@ -44,7 +45,13 @@ from .ops.math import ops_registry as math_ops_registry
 from .ops.func import ops_registry as func_ops_registry
 from .graph import Graph, TensorDType, TensorMeta
 from .graph.operation import *
-from .graph.transform import maxpool2d_simplify
+from .graph.transform import (
+    replace_bernoulli_with_runtime_rng,
+    replace_exponential_with_runtime_rng,
+    replace_geometric_with_runtime_rng,
+    replace_rand_with_runtime_rng,
+    maxpool2d_simplify,
+)
 from .graph.type import *
 
 
@@ -58,6 +65,34 @@ class DynamoCompiler:
         imported_graphs: The imported graphs.
         imported_params: The imported parameters from the model.
     """
+
+    @staticmethod
+    def _sanitize_decompositions(
+        decompositions: Optional[dict],
+    ) -> Optional[dict]:
+        """Patch aot_autograd decompositions to avoid decomposed graphs we cannot lower correctly."""
+        if decompositions is None:
+            return None
+        if not isinstance(decompositions, dict):
+            return decompositions
+
+        patched = dict(decompositions)
+
+        def _no_decomp(*args, **kwargs):
+            return NotImplemented
+
+        # Some Inductor decompositions rewrite 1D pooling into a
+        # unsqueeze/avg_pool2d/squeeze pattern with negative dims that do not
+        # round-trip after the rank change. Keep the original ATen ops so Buddy
+        # can lower them directly.
+        for key in (
+            torch.ops.aten.avg_pool1d.default,
+            torch.ops.aten.adaptive_avg_pool1d.default,
+        ):
+            if key in patched:
+                patched[key] = _no_decomp
+
+        return patched
 
     def __init__(
         self,
@@ -97,7 +132,9 @@ class DynamoCompiler:
         if primary_registry is None:
             primary_registry = {}
         self._func_name = func_name
-        self._aot_autograd_decomposition = aot_autograd_decomposition
+        self._aot_autograd_decomposition = self._sanitize_decompositions(
+            aot_autograd_decomposition
+        )
         self._verbose = verbose
         self._enable_external_calls = enable_external_calls
         self._imported_graphs = []
@@ -116,6 +153,7 @@ class DynamoCompiler:
             "arange.default": ArangeOp,
             "unsqueeze.default": UnsqueezeOp,
             "view.default": ViewOp,
+            "view.dtype": ViewDtypeOp,
             "ones.default": OnesOp,
             "full.default": FullOp,
             "embedding.default": EmbeddingOp,
@@ -139,7 +177,9 @@ class DynamoCompiler:
             "div.default": DivOp,
             "div.Tensor": DivOp,
             "div.Tensor_mode": DivTensorModeOp,
+            "div.Tensor_mode": DivTensorModeOp,
             "_softmax.default": SoftmaxOp,
+            "_log_softmax.default": LogSoftmaxOp,
             "_log_softmax.default": LogSoftmaxOp,
             "clone.default": CloneOp,
             "silu.default": SiluOp,
@@ -218,6 +258,9 @@ class DynamoCompiler:
             "log2.default": Log2Op,
             "log1p.default": Log1pOp,
             "expm1.default": Expm1Op,
+            "exponential.default": ExponentialOp,
+            "exponential.out": ExponentialOp,
+            "exponential_.default": ExponentialOp,
             "constant_pad_nd.default": ConstantPadNdOp,
             "reciprocal.default": ReciprocalOp,
             "clamp_min.default": ClampMinOp,
@@ -358,6 +401,8 @@ class DynamoCompiler:
             "uniform.default": UniformOp,
             "uniform.out": UniformOp,
             "uniform_.default": UniformOp,
+            "bernoulli.Tensor": BernoulliOp,
+            "bernoulli.default": BernoulliOp,
             "topk.default": TopkOp,
             "unbind.int": UnbindOp,
             # Batched matrix operations
@@ -467,6 +512,9 @@ class DynamoCompiler:
             "empty.memory_format": EmptyOp,
             "rand.default": RandOp,
             "randn.default": RandnOp,
+            "geometric.default": GeometricOp,
+            "geometric.out": GeometricOp,
+            "geometric_.default": GeometricOp,
             "select_scatter.default": SelectScatterOp,
             "select_scatter.out": SelectScatterOp,
             "split_with_sizes.default": SplitWithSizesOp,
@@ -552,6 +600,10 @@ class DynamoCompiler:
                 return TensorDType.Float32
             case "torch.float64":
                 return TensorDType.Float64
+            case "torch.complex64":
+                return TensorDType.Complex64
+            case "torch.complex128":
+                return TensorDType.Complex128
             case "torch.bool":
                 return TensorDType.Bool
             case _:
@@ -584,6 +636,8 @@ class DynamoCompiler:
         buddy_node._name = node_name
         if gm_node_name == "output":
             for input_arg in node_input[0]:
+                if input_arg is None:
+                    continue
                 buddy_node.add_argument(str(input_arg))
             return buddy_node
 
@@ -615,7 +669,11 @@ class DynamoCompiler:
         return buddy_node
 
     def _compile_fx(
-        self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
+        self,
+        gm: torch.fx.GraphModule,
+        inputs: List[torch.Tensor],
+        *,
+        return_type: str = "eager",
     ) -> Any:
         """
         Compiles the provided FX Graph to Buddy Graph.
@@ -623,6 +681,10 @@ class DynamoCompiler:
         Args:
             gm (torch.fx.GraphModule): The GraphModule to be compiled.
             inputs (List[torch.Tensor]): The input tensors.
+            return_type (str): Controls the compiled callable that AOTAutograd
+                receives from the Buddy compiler.
+                - "eager": return the FX graph forward (legacy behavior).
+                - "buddy": return a Buddy MLIR execution callable.
 
         Returns:
             dynamo_run: The function of the ahead-of-time compiled module,
@@ -859,12 +921,47 @@ class DynamoCompiler:
                         node_dtype,
                         node_kwargs=gm_node.kwargs,
                     )
+                    buddy_node._torch_op = str(gm_node.target.__name__)
+                    out_kwarg_names: List[str] = []
+                    schema = getattr(gm_node.target, "_schema", None)
+                    if schema is not None:
+                        for arg in getattr(schema, "arguments", ()):
+                            if getattr(arg, "is_out", False):
+                                t = str(getattr(arg, "type", "")).lower()
+                                if "tensor" in t:
+                                    out_kwarg_names.append(arg.name)
+                    buddy_node._torch_out_kwarg_names = out_kwarg_names
                 graph.add_node(buddy_node)
-            transform_list = [maxpool2d_simplify]
+            transform_list = [
+                maxpool2d_simplify,
+            ]
+            if self._enable_external_calls:
+                transform_list.extend(
+                    [
+                        replace_bernoulli_with_runtime_rng,
+                        replace_exponential_with_runtime_rng,
+                        replace_geometric_with_runtime_rng,
+                        replace_rand_with_runtime_rng,
+                    ]
+                )
             graph.perform(transform_list)
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
-            return _gm.forward
+            if return_type == "eager":
+                return _gm.forward
+            if return_type == "buddy":
+                exec_list = self._dynamo_run_for_graph(graph)
+
+                def _exec(*args):
+                    outs = exec_list(*args)
+                    if len(outs) == 1:
+                        return outs[0]
+                    return tuple(outs)
+
+                return _exec
+            raise ValueError(
+                f"Unsupported return_type={return_type!r}; expected 'eager' or 'buddy'."
+            )
 
         return aot_module_simplified(
             gm,
@@ -940,13 +1037,9 @@ class DynamoCompiler:
         self._compile_fx(exported_program.graph_module, list(args))
         return self._imported_graphs
 
-    def dynamo_run(self):
+    def _dynamo_run_for_graph(self, graph):
         """
-        A callable method that wraps around the `exec_buddy_graph` method.
-
-        Returns:
-            exec_buddy_graph: The function of the ahead-of-time compiled module,
-            return for torchdynamo's call.
+        Build an execution callable for a specific Buddy graph.
         """
 
         def get_lib_extension():
@@ -957,8 +1050,6 @@ class DynamoCompiler:
             else:
                 raise RuntimeError("Unsupported platform")
 
-        # Dynamo's graph break may import more than one graph.
-        graph = self._imported_graphs[-1]
         graph.compile()
         # Collect dependency libraries.
         lib_extension = get_lib_extension()
@@ -970,60 +1061,18 @@ class DynamoCompiler:
             os.path.join(lib_base_path, lib_name + lib_extension)
             for lib_name in lib_names
         ]
+        buddy_lib_base_path = os.path.abspath(
+            os.path.join(path_prefix, "../../../lib")
+        )
+        buddy_rng_lib = os.path.join(
+            buddy_lib_base_path, "libbuddy_rng_utils" + lib_extension
+        )
+        if self._enable_external_calls:
+            shared_libs.append(buddy_rng_lib)
         # Define execution engine.
         ee = ExecutionEngine(
             graph._imported_module, opt_level=3, shared_libs=shared_libs
         )
-
-        def cast_c_ptr(outdata_ptr, memref_ptr):
-            """
-            Casts a C pointer (`outdata_ptr`) to the type of another C pointer
-            (`memref_ptr`).
-
-            Args:
-                outdata_ptr: ctypes.POINTER
-                The C pointer whose type needs to be cast.
-                memref_ptr: ctypes.POINTER
-                The reference C pointer whose type will be used for casting.
-
-            Returns:
-            ctypes.POINTER
-                A new C pointer with the type of `memref_ptr`, representing the
-                same memory location as `outdata_ptr`.
-
-            Example:
-            outdata = ctypes.pointer(ctypes.c_int())
-            memref = ctypes.pointer(ctypes.c_float())
-            casted_ptr = cast_c_ptr(outdata, memref)
-            # Now `casted_ptr` points to the same memory location as `outdata`,
-            but with the type of `memref`.
-            """
-            outdata_addr = ctypes.addressof(outdata_ptr.contents)
-            out_ptr = ctypes.cast(outdata_addr, type(memref_ptr))
-            return out_ptr
-
-        def move_c_ptr(outdata_ptr, memref_ptr):
-            """
-            Moves a C pointer (`outdata_ptr`) to the next element in memory,
-            based on the size of the referenced type in another C pointer
-            (`memref_ptr`).
-
-            Args:
-                outdata_ptr: ctypes.POINTER
-                The C pointer whose position needs to be moved.
-                memref_ptr: ctypes.POINTER
-                The reference C pointer whose type determines the size of each
-                element for the move.
-
-            Returns:
-            ctypes.POINTER
-                A new C pointer pointing to the next element in memory, based on
-                the size of the type referenced by `memref_ptr`.
-            """
-            elem_size = ctypes.sizeof(memref_ptr.contents)
-            outdata_addr = ctypes.addressof(outdata_ptr.contents)
-            out_ptr = ctypes.cast(outdata_addr + elem_size, type(memref_ptr))
-            return out_ptr
 
         def exec_buddy_graph(*args):
             """
@@ -1038,41 +1087,121 @@ class DynamoCompiler:
                 The result of executing the graph, represented as a list of
                 output tensors.
             """
-            # A list of ctypes pointers representing memory references for input
-            # tensors.
-            input_memref = [
-                ctypes.pointer(
-                    ctypes.pointer(
-                        rt.get_ranked_memref_descriptor(tensor.numpy())
-                    )
-                )
-                for tensor in args
-            ]
-            # A list of ctypes pointers representing memory references for
-            # output tensors.
-            output_memref = [
-                ctypes.pointer(ctypes.pointer(graph._output_descriptor()))
-            ]
-            args_memref = output_memref + input_memref
-            # Invoke the graph's function using the provided execution engine
-            # and memory references
-            ee.invoke(graph._func_name, *args_memref)
 
-            output_tensor = []
-            outdata_ptr = args_memref[0][0]
-            # Iterate through each output memory reference in the graph
-            for output_ptr in graph._output_memref:
-                # Cast the output data pointer to the type of the current output
-                # memory reference
-                data_ptr = cast_c_ptr(outdata_ptr, output_ptr[0])
-                # Convert the C data pointer to a NumPy array and append it to
-                # the output_tensor list
-                output_tensor.append(rt.ranked_memref_to_numpy(data_ptr))
-                # Move to the next element in memory based on the size of the
-                # current output type
-                outdata_ptr = move_c_ptr(outdata_ptr, output_ptr[0])
-            # Convert each NumPy array to a PyTorch tensor and return the list
-            # of tensors
-            return [torch.from_numpy(tensor) for tensor in output_tensor]
+            def _bf16_tensor_to_numpy_uint16(
+                tensor: torch.Tensor,
+            ) -> np.ndarray:
+                """
+                Convert a CPU bfloat16 tensor to a NumPy uint16 array containing
+                raw BF16 bit patterns (to avoid torch.bfloat16 -> numpy errors).
+                """
+                if tensor.device.type != "cpu":
+                    tensor = tensor.cpu()
+                # BF16 stores the top 16 bits of float32. Casting BF16->F32 is exact.
+                f32 = tensor.to(dtype=torch.float32).contiguous().numpy()
+                u32 = f32.view(np.uint32)
+                return (u32 >> 16).astype(np.uint16, copy=False)
+
+            def _bf16_uint16_numpy_to_f32(npy: np.ndarray) -> np.ndarray:
+                """
+                Convert a NumPy uint16 array (BF16 bit patterns) to float32 NumPy.
+                """
+                u32 = np.asarray(npy, dtype=np.uint32) << 16
+                return u32.view(np.float32)
+
+            def _tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
+                if tensor.device.type != "cpu":
+                    tensor = tensor.cpu()
+                tensor = tensor.contiguous()
+                if tensor.dtype == torch.bfloat16:
+                    return _bf16_tensor_to_numpy_uint16(tensor)
+                return tensor.numpy()
+
+            input_arrays = []
+            input_descs = []
+            input_slots = []
+            for tensor in args:
+                npy = _tensor_to_numpy(tensor)
+                npy = np.array(npy, copy=True)
+                input_arrays.append(npy)
+                desc = rt.get_ranked_memref_descriptor(npy)
+                input_descs.append(desc)
+                input_slots.append(ctypes.pointer(ctypes.pointer(desc)))
+
+            output_struct = graph._output_descriptor()
+            output_ptr = ctypes.pointer(output_struct)
+            output_slot = ctypes.pointer(output_ptr)
+
+            ee.invoke(graph._func_name, output_slot, *input_slots)
+
+            output_tensors = []
+            for i in range(len(graph._output_memref)):
+                out_desc = getattr(output_struct, str(i))
+                out = rt.ranked_memref_to_numpy(ctypes.pointer(out_desc))
+                if isinstance(out, np.ndarray) and out.dtype == np.uint16:
+                    out = _bf16_uint16_numpy_to_f32(out)
+                if isinstance(out, np.ndarray):
+                    output_tensors.append(torch.from_numpy(out))
+                else:
+                    output_tensors.append(torch.tensor(out))
+            return output_tensors
 
         return exec_buddy_graph
+
+    def dynamo_run(self):
+        """
+        A callable method that wraps around the `exec_buddy_graph` method.
+
+        Returns:
+            exec_buddy_graph: The function of the ahead-of-time compiled module,
+            return for torchdynamo's call.
+        """
+        # Dynamo's graph break may import more than one graph.
+        graph = self._imported_graphs[-1]
+        return self._dynamo_run_for_graph(graph)
+
+
+class TorchCompileBackend:
+    """
+    TorchDynamo backend wrapper for `torch.compile(backend=...)`.
+
+    The backend callable signature is:
+        backend(gm, example_inputs) -> callable
+    """
+
+    def __init__(self, compiler: DynamoCompiler) -> None:
+        self._compiler = compiler
+
+    def __call__(
+        self, gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]
+    ):
+        # Keep per-compile state bounded; torch.compile caches the returned
+        # callable per-graph, so this is safe for common use.
+        self._compiler._imported_graphs = []
+        self._compiler._imported_params = {}
+        return self._compiler._compile_fx(
+            gm, list(example_inputs), return_type="buddy"
+        )
+
+
+def make_default_torch_backend() -> TorchCompileBackend:
+    try:
+        import torch._inductor.lowering  # noqa: F401
+    except Exception:
+        # Some builds do not eagerly expose `torch._inductor.lowering` as an
+        # attribute. Inductor decompositions may access it via
+        # `torch._inductor.lowering`, so import the submodule explicitly to
+        # avoid runtime AttributeError.
+        pass
+
+    from torch._inductor.decomposition import decompositions as inductor_decomp
+
+    compiler = DynamoCompiler(
+        primary_registry=tosa_ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+    )
+    return TorchCompileBackend(compiler)
+
+
+# Public default backend instance for `torch.compile(backend=...)`.
+dynamo_compiler = make_default_torch_backend()

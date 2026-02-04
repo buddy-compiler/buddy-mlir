@@ -33,3 +33,9 @@ from .onednn_replace import (
     replace_matmul_with_onednn,
     replace_matmul_with_onednn_selective,
 )
+from .rand_replace import (
+    replace_bernoulli_with_runtime_rng,
+    replace_exponential_with_runtime_rng,
+    replace_geometric_with_runtime_rng,
+    replace_rand_with_runtime_rng,
+)

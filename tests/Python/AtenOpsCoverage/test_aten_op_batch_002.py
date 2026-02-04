@@ -353,10 +353,9 @@ def _template_elu_backward_out():
 
 
 def _template_exponential():
-    x = torch.empty(0, dtype=torch.float32)
-    g = torch.Generator(device="cpu")
-    g.manual_seed(0)
-    return [x, 1.0], {"generator": g}
+    # Numeric mode runs via MLIR ExecutionEngine; keep inputs small to avoid unstable template behavior.
+    x = torch.empty((2, 3), dtype=torch.float32)
+    return [x, 1.0], {}
 
 
 def _template_exponential_out():
@@ -482,9 +481,9 @@ CUSTOM_TEMPLATES.update(
         "floor_divide_.Scalar": _template_floor_divide_scalar,
         "elu_backward.default": _template_elu_backward,
         "elu_backward.grad_input": _template_elu_backward_out,
-        "exponential.default": _skip("randop_not_supported"),
-        "exponential.out": _skip("randop_not_supported"),
-        "exponential_.default": _skip("randop_not_supported"),
+        "exponential.default": _template_exponential,
+        "exponential.out": _template_exponential_out,
+        "exponential_.default": _template_exponential_inplace,
         "fill.Tensor": _template_fill_tensor,
         "fill.Tensor_out": _template_fill_tensor_out,
         "fill_.Tensor": _template_fill_tensor_inplace,
@@ -749,6 +748,7 @@ if __name__ == "__main__":
         batch_label="test_batch_2",
         max_fails=20,
         templates=CUSTOM_TEMPLATES,
+        templates_source=__file__,
         show_skips=True,
     )
 # CHECK: SUMMARY pass=
