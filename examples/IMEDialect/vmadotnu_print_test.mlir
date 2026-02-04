@@ -1,37 +1,45 @@
 // RUN: buddy-opt %s | FileCheck %s
 // CHECK: func.func @main
 //
-// vmadotsu computes: C[i,j] += sum_k(signed(A[i,k]) * unsigned(B[j,k]))
+// vmadotnu computes: C[i,j] += sum_k(unsigned(A[slide+i,k]) * unsigned(B[j,k]))
 //
-// A (4x8): signed int8, negative values
-// B (4x8): unsigned int8, packed form, positive values
+// Sliding window reads 64 elements from VS1 (8 rows), then slides by n rows.
+// A (8x8): unsigned int8, source matrix
+// B (4x8): unsigned int8, packed form
 //
-// A row = [-1, -2, -3, -4, -5, -6, -7, -8] (signed)
-// B row 0,2 = [1,1,1,1,1,1,1,1] -> dot = -1-2-3-4-5-6-7-8 = -36
-// B row 1,3 = [2,2,2,2,2,2,2,2] -> dot = -2-4-6-8-10-12-14-16 = -72
+// With slide=2:
+// A rows used = [2,3,4,5] (after sliding by 2)
+// Row 2 = [3,4,5,6,7,8,9,10], sum = 52
+// Row 3 = [4,5,6,7,8,9,10,11], sum = 60
+// Row 4 = [5,6,7,8,9,10,11,12], sum = 68
+// Row 5 = [6,7,8,9,10,11,12,13], sum = 76
 
-memref.global "private" @matA : memref<4x8xi8> = dense<[
-  [-1, -2, -3, -4, -5, -6, -7, -8],
-  [-1, -2, -3, -4, -5, -6, -7, -8],
-  [-1, -2, -3, -4, -5, -6, -7, -8],
-  [-1, -2, -3, -4, -5, -6, -7, -8]
+memref.global "private" @matA : memref<8x8xui8> = dense<[
+  [1, 2, 3, 4, 5, 6, 7, 8],
+  [2, 3, 4, 5, 6, 7, 8, 9],
+  [3, 4, 5, 6, 7, 8, 9, 10],
+  [4, 5, 6, 7, 8, 9, 10, 11],
+  [5, 6, 7, 8, 9, 10, 11, 12],
+  [6, 7, 8, 9, 10, 11, 12, 13],
+  [7, 8, 9, 10, 11, 12, 13, 14],
+  [8, 9, 10, 11, 12, 13, 14, 15]
 ]>
 
-// Packed B (4x8): unsigned values
+// Packed B (4x8): all ones for easy verification
 memref.global "private" @matB : memref<4x8xui8> = dense<[
   [1, 1, 1, 1, 1, 1, 1, 1],
-  [2, 2, 2, 2, 2, 2, 2, 2],
   [1, 1, 1, 1, 1, 1, 1, 1],
-  [2, 2, 2, 2, 2, 2, 2, 2]
+  [1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1]
 ]>
 
-// Expected: C = [[-36,-72,-36,-72], [-36,-72,-36,-72], [-36,-72,-36,-72], [-36,-72,-36,-72]]
+// With slide=2: Expected C = [[52,52,52,52], [60,60,60,60], [68,68,68,68], [76,76,76,76]]
 
 func.func private @print_row(i32, i32, i32, i32, i32)
 func.func private @print_header()
 
 func.func @main() -> i32 {
-  %a = memref.get_global @matA : memref<4x8xi8>
+  %a = memref.get_global @matA : memref<8x8xui8>
   %b = memref.get_global @matB : memref<4x8xui8>
   
   %c = memref.alloc() : memref<4x4xi32>
@@ -40,8 +48,11 @@ func.func @main() -> i32 {
   %zero = arith.constant 0 : i32
   linalg.fill ins(%zero : i32) outs(%c : memref<4x4xi32>)
   
-  // Perform vmadotsu (signed × unsigned)
-  ime.vmadotsu %c, %a, %b : memref<4x4xi32>, memref<4x8xi8>, memref<4x8xui8>
+  // Slide parameter = 2
+  %slide = arith.constant 2 : i64
+  
+  // Perform vmadotnu with slide=2
+  ime.vmadotnu %c, %a, %b, %slide : memref<4x4xi32>, memref<8x8xui8>, memref<4x8xui8>
   
   // Print results
   call @print_header() : () -> ()
