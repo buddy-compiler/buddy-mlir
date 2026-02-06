@@ -74,7 +74,6 @@ class SplitStrategy:
 #     }
 # )
 # driver = GraphDriver(my_graph, DECODE_STRATEGY)
-# # 方式 1：完全不传
 # driver = GraphDriver(my_graph)
 
 
@@ -543,6 +542,14 @@ class GraphDriver:
                     tsf_count += 1
 
             self.op_groups[current_subgraph].append(op)
+        
+        # # Rename subgraphs if there's only one: remove the "0" suffix
+        # if len(self.op_groups) == 1:
+        #     key_with_zero = list(self.op_groups.keys())[0]
+        #     if key_with_zero.endswith("0"):
+        #         key_without_zero = key_with_zero[:-1]  # Remove the last character "0"
+        #         self.op_groups[key_without_zero] = self.op_groups.pop(key_with_zero)
+        #         self.group_map_device[key_without_zero] = self.group_map_device.pop(key_with_zero)
 
 
     def _analyze_subgraph_dependencies(self):
@@ -749,8 +756,13 @@ class GraphDriver:
         inputs0 = self._graph._inputs
         split_group = []
         param_size_group = []
+        num_subgraphs = len(self._subgraphs)
         for i, subgraph_name in enumerate(self._subgraphs.keys()):
-            main_graph_name = f"{self._graph._func_name}{i}"
+            # Only add index suffix if there are multiple subgraphs
+            if num_subgraphs > 1:
+                main_graph_name = f"{self._graph._func_name}{i}"
+            else:
+                main_graph_name = f"{self._graph._func_name}"
             current_param_info = {} 
             
             main_graph = Graph(
@@ -831,7 +843,8 @@ class GraphDriver:
                 split_group[-1] = self._parallelism
             # self._subgraph_param_info[subgraph_name] = current_param_info
             key = list(self._graph.op_groups.keys())[0]
-            name = f"{key}{i}"    
+            name = f"{key}{i}"
+
             self._subgraph_param_info[name] = current_param_info
 
             for node in self._subgraphs_inputs[subgraph_name]:
@@ -915,6 +928,13 @@ class GraphDriver:
         
         print(f"split_group: {split_group}")
         print(f"param_size_group: {param_size_group}")
+        
+        # Return the first module for backward compatibility with old single-graph API
+        # Users can still use: driver.construct_main_graph(True) to get the first module
+        if self._modules:
+            first_module_name = list(self._modules.keys())[0]
+            return self._modules[first_module_name]
+        return None
         
 
 
