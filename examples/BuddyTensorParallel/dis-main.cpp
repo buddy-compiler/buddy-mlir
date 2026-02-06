@@ -42,47 +42,36 @@ constexpr size_t HiddenSize = 128;
 constexpr size_t HiddenSize0 = 1536;
 constexpr size_t HeadNum = 2;
 
-struct MemRefContainerPrefill0 {
+struct MemRefContainer0 {
   MemRef<float, 3> data;
-  MemRef<int8_t, 2> mask;
+  MemRef<int8_t, 4> mask;
   MemRef<float, 3> cos;
   MemRef<float, 3> sin;
 
-  MemRefContainerPrefill0(MemRef<float, 3> m1, MemRef<int8_t, 2> m2,
-                          MemRef<float, 3> m3, MemRef<float, 3> m4)
+  MemRefContainer0(MemRef<float, 3> m1, MemRef<int8_t, 4> m2,
+                   MemRef<float, 3> m3, MemRef<float, 3> m4)
       : data(m1), mask(m2), cos(m3), sin(m4) {}
 };
 
-struct MemRefContainerPrefill2 {
+struct MemRefContainer2 {
   MemRef<float, 4> kcache;
   MemRef<float, 4> vcache;
   MemRef<float, 2> data;
 
-  MemRefContainerPrefill2(MemRef<float, 4> m1, MemRef<float, 4> m2,
-                          MemRef<float, 2> m3)
-      : kcache(m1), vcache(m2), data(m3) {}
-};
-
-struct MemRefContainerDecode1 {
-  MemRef<float, 4> kcache;
-  MemRef<float, 4> vcache;
-  MemRef<float, 3> data;
-
-  MemRefContainerDecode1(MemRef<float, 4> m1, MemRef<float, 4> m2,
-                         MemRef<float, 3> m3)
+  MemRefContainer2(MemRef<float, 4> m1, MemRef<float, 4> m2,
+                   MemRef<float, 2> m3)
       : kcache(m1), vcache(m2), data(m3) {}
 };
 
 /// Declare DeepSeekR1 forward function.
 extern "C" {
-void _mlir_ciface_forward_prefill0(MemRefContainerPrefill0 *,
-                                   MemRef<float, 1> *, Text<size_t, 2> *);
+void _mlir_ciface_forward_prefill0(MemRefContainer0 *, MemRef<float, 1> *,
+                                   Text<size_t, 2> *);
 void _mlir_ciface_forward_prefill1(MemRef<float, 3> *, MemRef<float, 1> *,
                                    MemRef<float, 3> *);
-void _mlir_ciface_forward_prefill2(MemRefContainerPrefill2 *,
-                                   MemRef<float, 1> *, MemRef<int8_t, 4> *,
-                                   MemRef<float, 3> *, MemRef<float, 3> *,
-                                   MemRef<float, 3> *);
+void _mlir_ciface_forward_prefill2(MemRefContainer2 *, MemRef<float, 1> *,
+                                   MemRef<int8_t, 4> *, MemRef<float, 3> *,
+                                   MemRef<float, 3> *, MemRef<float, 3> *);
 void _mlir_ciface_forward_prefill3(MemRef<float, 3> *, MemRef<float, 3> *,
                                    MemRef<float, 2> *);
 void _mlir_ciface_forward_prefill5(MemRef<float, 2> *, MemRef<float, 1> *,
@@ -90,18 +79,22 @@ void _mlir_ciface_forward_prefill5(MemRef<float, 2> *, MemRef<float, 1> *,
 void _mlir_ciface_forward_prefill169(MemRef<float, 3> *, MemRef<float, 1> *,
                                      MemRef<float, 3> *);
 
-void _mlir_ciface_forward_decode0(MemRefContainerPrefill0 *, MemRef<float, 1> *,
+void _mlir_ciface_forward_decode0(MemRefContainer0 *, MemRef<float, 1> *,
                                   MemRef<long long, 2> *,
                                   MemRef<long long, 1> *);
-void _mlir_ciface_forward_decode1(MemRefContainerDecode1 *, MemRef<float, 1> *,
+void _mlir_ciface_forward_decode1(MemRef<float, 3> *, MemRef<float, 1> *,
+                                  MemRef<float, 3> *);
+void _mlir_ciface_forward_decode2(MemRefContainer2 *, MemRef<float, 1> *,
                                   MemRef<long long, 1> *, MemRef<float, 4> *,
-                                  MemRef<float, 4> *, MemRef<float, 3> *,
-                                  MemRef<int8_t, 4> *, MemRef<float, 3> *,
+                                  MemRef<float, 4> *, MemRef<int8_t, 4> *,
+                                  MemRef<float, 3> *, MemRef<float, 3> *,
                                   MemRef<float, 3> *);
-void _mlir_ciface_forward_decode2(MemRef<float, 3> *, MemRef<float, 1> *,
+void _mlir_ciface_forward_decode3(MemRef<float, 3> *, MemRef<float, 3> *,
+                                  MemRef<float, 2> *);
+void _mlir_ciface_forward_decode5(MemRef<float, 2> *, MemRef<float, 1> *,
                                   MemRef<float, 3> *);
-void _mlir_ciface_forward_decode57(MemRef<float, 3> *, MemRef<float, 1> *,
-                                   MemRef<float, 3> *);
+void _mlir_ciface_forward_decode169(MemRef<float, 3> *, MemRef<float, 1> *,
+                                    MemRef<float, 3> *);
 }
 
 // -----------------------------------------------------------------------------
@@ -133,7 +126,7 @@ void tokenizeInput(const std::string &vocabFile,
   std::cout << "Vocab file: " << std::filesystem::canonical(vocabFile)
             << std::endl;
   const auto buddyTokenizeStart = std::chrono::high_resolution_clock::now();
-  inputContainer.tokenizeLlama(vocabFile, MaxTokenLength);
+  inputContainer.tokenizeDeepSeekR1(vocabFile, MaxTokenLength);
   const auto buddyTokenizeEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> buddyTokenizeTime =
       buddyTokenizeEnd - buddyTokenizeStart;
@@ -176,42 +169,6 @@ int findMaxIndex(const float *start, const float *end) {
   return std::distance(start, std::max_element(start, end));
 }
 
-/// Expand 2D attention mask to 4D attention mask.
-void expandMask2DTo4D(MemRef<int8_t, 2> &src, MemRef<int8_t, 4> &dst,
-                      int maxTokenLength) {
-  auto srcStrides = src.getStrides();
-  auto dstStrides = dst.getStrides();
-
-  for (int i = 0; i < maxTokenLength; ++i) {
-    for (int j = 0; j < maxTokenLength; ++j) {
-
-      size_t srcIdx = i * srcStrides[0] + j * srcStrides[1];
-
-      size_t dstIdx = 0 * dstStrides[0] + 0 * dstStrides[1] +
-                      i * dstStrides[2] + j * dstStrides[3];
-
-      dst[dstIdx] = src[srcIdx];
-    }
-  }
-}
-
-/// Expand 2D attention mask to 4D attention mask for 1 length input.
-void expandMask2D_1L_to_4D(MemRef<int8_t, 2> &src, MemRef<int8_t, 4> &dst,
-                           int maxTokenLength) {
-
-  auto srcStrides = src.getStrides();
-  auto dstStrides = dst.getStrides();
-
-  for (int j = 0; j < maxTokenLength; ++j) {
-    size_t srcIdx = 0 * srcStrides[0] + j * srcStrides[1];
-
-    size_t dstIdx = 0 * dstStrides[0] + 0 * dstStrides[1] + 0 * dstStrides[2] +
-                    j * dstStrides[3];
-
-    dst[dstIdx] = src[srcIdx];
-  }
-}
-
 // -----------------------------------------------------------------------------
 // DeepSeekR1 Inference Main Entry
 // -----------------------------------------------------------------------------
@@ -226,7 +183,7 @@ int main() {
   std::string deepSeekR1BuildDir = DSR1TP_EXAMPLE_BUILD_PATH;
   const std::string vocabDir = deepSeekR1Dir + "/vocab.txt";
 
-  int splitGroupPrefill[] = {
+  int splitGroup[] = {
       1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1,
       1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1,
       2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2,
@@ -234,7 +191,7 @@ int main() {
       1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1,
       2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2,
       1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1};
-  constexpr size_t paramSizeGroupPrefill[] = {
+  constexpr size_t paramSizeGroup[] = {
       233373760, 1536, 2753536,  0, 1536, 20643840, 0, 1536,     2753536,
       0,         1536, 20643840, 0, 1536, 2753536,  0, 1536,     20643840,
       0,         1536, 2753536,  0, 1536, 20643840, 0, 1536,     2753536,
@@ -254,34 +211,12 @@ int main() {
       0,         1536, 2753536,  0, 1536, 20643840, 0, 1536,     2753536,
       0,         1536, 20643840, 0, 1536, 2753536,  0, 1536,     20643840,
       0,         1536, 2753536,  0, 1536, 20643840, 0, 233375232};
-  std::vector<std::string> paramsDirsPrefill;
+  std::vector<std::string> paramsDirs;
   for (int i = 0; i <= 169; i++) {
-    for (int j = 0; j < splitGroupPrefill[i]; j++) {
-      paramsDirsPrefill.emplace_back(deepSeekR1BuildDir + "/subgraph0_prefill" +
-                                     std::to_string(i) + "_arg" +
-                                     std::to_string(j) + ".data");
-    }
-  }
-  int splitGroupDecode[] = {1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-                            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-                            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-                            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1};
-  constexpr size_t paramSizeGroupDecode[] = {
-      233373760, 2755072,  20645376, 2755072,  20645376, 2755072,  20645376,
-      2755072,   20645376, 2755072,  20645376, 2755072,  20645376, 2755072,
-      20645376,  2755072,  20645376, 2755072,  20645376, 2755072,  20645376,
-      2755072,   20645376, 2755072,  20645376, 2755072,  20645376, 2755072,
-      20645376,  2755072,  20645376, 2755072,  20645376, 2755072,  20645376,
-      2755072,   20645376, 2755072,  20645376, 2755072,  20645376, 2755072,
-      20645376,  2755072,  20645376, 2755072,  20645376, 2755072,  20645376,
-      2755072,   20645376, 2755072,  20645376, 2755072,  20645376, 2755072,
-      20645376,  233375232};
-  std::vector<std::string> paramsDirsDecode;
-  for (int i = 0; i <= 57; i++) {
-    for (int j = 0; j < splitGroupDecode[i]; j++) {
-      paramsDirsDecode.emplace_back(deepSeekR1BuildDir + "/subgraph0_decode" +
-                                    std::to_string(i) + "_arg" +
-                                    std::to_string(j) + ".data");
+    for (int j = 0; j < splitGroup[i]; j++) {
+      paramsDirs.emplace_back(deepSeekR1BuildDir + "/subgraph0_prefill" +
+                              std::to_string(i) + "_arg" + std::to_string(j) +
+                              ".data");
     }
   }
 
@@ -297,18 +232,26 @@ int main() {
   Text<size_t, 2> outputContainer;
   Text<size_t, 2> inputContainerPrefill(inputStr);
   MemRef<long long, 2> inputContainerDecode({1, 1}, 0LL);
-  std::vector<MemRef<float, 1>> paramsContainersPrefill;
-  std::vector<MemRef<float, 1>> paramsContainersDecode;
+  std::vector<MemRef<float, 1>> paramsContainers;
   MemRef<long long, 1> cachePosition({1}, 0LL);
 
   MemRef<float, 3> myMemRef1({1, MaxTokenLength, HiddenSize0});
-  MemRef<int8_t, 2> myMemRef2({MaxTokenLength, MaxTokenLength});
+  MemRef<int8_t, 4> myMemRef2({1, 1, MaxTokenLength, MaxTokenLength});
   MemRef<float, 3> myMemRef3({1, MaxTokenLength, HiddenSize});
   MemRef<float, 3> myMemRef4({1, MaxTokenLength, HiddenSize});
-  MemRefContainerPrefill0 resultContainer(myMemRef1, myMemRef2, myMemRef3,
-                                          myMemRef4);
-  MemRefContainerPrefill0 *resultContainerPtr = &resultContainer;
-  MemRef<float, 3> resultContainer0({1, MaxTokenLength, HiddenSize0});
+  MemRefContainer0 resultContainer(myMemRef1, myMemRef2, myMemRef3, myMemRef4);
+  MemRefContainer0 *resultContainerPtr = &resultContainer;
+  MemRef<float, 3> inputMemrefPrefill({1, MaxTokenLength, HiddenSize0});
+
+  MemRef<float, 3> myMemRef_decode1({1, 1, HiddenSize0});
+  MemRef<int8_t, 4> myMemRef_decode2({1, 1, 1, MaxTokenLength});
+  MemRef<float, 3> myMemRef_decode3({1, 1, HiddenSize});
+  MemRef<float, 3> myMemRef_decode4({1, 1, HiddenSize});
+  MemRefContainer0 resultContainerDecode(myMemRef_decode1, myMemRef_decode2,
+                                         myMemRef_decode3, myMemRef_decode4);
+  MemRefContainer0 *resultContainerDecodePtr = &resultContainerDecode;
+  MemRef<float, 3> inputMemrefDecode({1, 1, HiddenSize0});
+
   MemRef<float, 3> resultPrefill({1, MaxTokenLength, MaxVocabSize});
   MemRef<float, 3> resultDecode({1, 1, MaxVocabSize});
   MemRef<float, 3> subResultContainer0({1, SubMaxTokenLength, HiddenSize0});
@@ -329,25 +272,27 @@ int main() {
     kv1.emplace_back(std::vector<size_t>{1, 1, MaxTokenLength, HiddenSize});
   }
 
-  MemRef<int8_t, 4> mask4DContainer({1, 1, MaxTokenLength, MaxTokenLength});
+  MemRef<float, 2> mhaData0({MaxTokenLength, HiddenSize0});
+  MemRefContainer2 kvContainer0(kv0[0], kv0[1], mhaData0);
+  MemRefContainer2 *kvContainerPtr0 = &kvContainer0;
+  MemRef<float, 2> mhaData1({MaxTokenLength, HiddenSize0});
+  MemRefContainer2 kvContainer1(kv1[0], kv1[1], mhaData1);
+  MemRefContainer2 *kvContainerPtr1 = &kvContainer1;
+  MemRef<float, 2> mhaDataDecode0({1, HiddenSize0});
+  MemRefContainer2 kvDecodeContainer0(kv0[0], kv0[1], mhaDataDecode0);
+  MemRefContainer2 *kvDecodeContainerPtr0 = &kvDecodeContainer0;
+  MemRef<float, 2> mhaDataDecode1({1, HiddenSize0});
+  MemRefContainer2 kvDecodeContainer1(kv1[0], kv1[1], mhaDataDecode1);
+  MemRefContainer2 *kvDecodeContainerPtr1 = &kvDecodeContainer1;
+
   MemRef<float, 2> tmp2DContainer0({MaxTokenLength, HiddenSize0});
   MemRef<float, 2> tmp2DContainer1({MaxTokenLength, HiddenSize0});
   MemRef<float, 2> sub2DContainer0({SubMaxTokenLength, HiddenSize0});
   MemRef<float, 2> sub2DContainer1({SubMaxTokenLength, HiddenSize0});
 
-  // MemRef<float, 3> myMemRef_decode1({1, 1, HiddenSize0});
-  // MemRef<int8_t, 2> myMemRef_decode2({1, MaxTokenLength});
-  // MemRef<float, 3> myMemRef_decode3({1, 1, HiddenSize});
-  // MemRef<float, 3> myMemRef_decode4({1, 1, HiddenSize});
-  // MemRefContainerPrefill0 resultContainer_decode(
-  // myMemRef_decode1, myMemRef_decode2, myMemRef_decode3, myMemRef_decode4);
-  
-  // MemRefContainerPrefill0 *resultContainerPtr_decode = &resultContainer_decode;
   MemRef<float, 3> decodeData({1, 1, HiddenSize0});
-  MemRef<float, 3> mhaDecodeData0({1, 1, HiddenSize0});
-  MemRef<float, 3> mhaDecodeData1({1, 1, HiddenSize0});
-  MemRef<float, 3> mlpData1({1, 1, HiddenSize0});
-  MemRef<int8_t, 4> mask4DContainerDecode({1, 1, 1, MaxTokenLength});
+  MemRef<float, 2> mhaDecodeData0({1, HiddenSize0});
+  MemRef<float, 2> mhaDecodeData1({1, HiddenSize0});
 
   /// Fill data into containers
   //  - Input: register vocabulary and tokenize the input string.
@@ -356,22 +301,21 @@ int main() {
   tokenizeInput(vocabDir, inputContainerPrefill);
   outputContainer.loadVocab(vocabDir);
 
-  MemRef<float, 1> paramsContainer0({paramSizeGroupPrefill[0]});
-  loadParameters(paramsDirsPrefill[0], paramsContainer0);
-
+  MemRef<float, 1> paramsContainer0({paramSizeGroup[0]});
+  loadParameters(paramsDirs[0], paramsContainer0);
   int params_count = 1;
   for (int i = 1; i < 169; i++) {
-    for (int j = 0; j < splitGroupPrefill[i]; j++) {
-      if (paramSizeGroupPrefill[i] > 0) {
-        MemRef<float, 1> paramsContainer1({paramSizeGroupPrefill[i]});
-        loadParameters(paramsDirsPrefill[params_count], paramsContainer1);
-        paramsContainersPrefill.push_back(paramsContainer1);
+    for (int j = 0; j < splitGroup[i]; j++) {
+      if (paramSizeGroup[i] > 0) {
+        MemRef<float, 1> paramsContainer1({paramSizeGroup[i]});
+        loadParameters(paramsDirs[params_count], paramsContainer1);
+        paramsContainers.push_back(paramsContainer1);
       }
       params_count++;
     }
   }
-  MemRef<float, 1> paramsContainer2({paramSizeGroupPrefill[169]});
-  loadParameters(paramsDirsPrefill[params_count], paramsContainer2);
+  MemRef<float, 1> paramsContainer2({paramSizeGroup[169]});
+  loadParameters(paramsDirs[params_count], paramsContainer2);
 
   /// Run DeepSeekR1 Inference
   //  - Perform the forward function.
@@ -383,60 +327,55 @@ int main() {
 
   _mlir_ciface_forward_prefill0(resultContainerPtr, &paramsContainer0,
                                 &inputContainerPrefill);
-  resultContainer0 = resultContainerPtr->data;
-  auto resultContainer1 = resultContainerPtr->mask;
-  auto resultContainer2 = resultContainerPtr->cos;
-  auto resultContainer3 = resultContainerPtr->sin;
-  expandMask2DTo4D(resultContainer1, mask4DContainer, MaxTokenLength);
-  resultContainer0.splitMemRef(std::move(resultContainer0), subResultContainer0,
-                               subResultContainer1, 1, 512);
+  inputMemrefPrefill = resultContainerPtr->data;
+
+  inputMemrefPrefill.splitMemRef(std::move(inputMemrefPrefill),
+                                 subResultContainer0, subResultContainer1, 1,
+                                 512);
   for (int m = 0; m < 28; m++) {
-    _mlir_ciface_forward_prefill1(&sub3DContainer0,
-                                  &paramsContainersPrefill[m * 6],
+    _mlir_ciface_forward_prefill1(&sub3DContainer0, &paramsContainers[m * 6],
                                   &subResultContainer0);
-    _mlir_ciface_forward_prefill1(&sub3DContainer1,
-                                  &paramsContainersPrefill[m * 6],
+    _mlir_ciface_forward_prefill1(&sub3DContainer1, &paramsContainers[m * 6],
                                   &subResultContainer1);
     tmp3DContainer.concatenateMemRefs(sub3DContainer0, sub3DContainer1,
                                       tmp3DContainer, 1);
-    MemRef<float, 4> &k0 = kv0[2 * m];
-    MemRef<float, 4> &v0 = kv0[2 * m + 1];
-    MemRef<float, 2> mhaData0({MaxTokenLength, HiddenSize0});
-    MemRefContainerPrefill2 kvContainer0(k0, v0, mhaData0);
-    MemRefContainerPrefill2 *kvContainerPtr0 = &kvContainer0;
-    _mlir_ciface_forward_prefill2(
-        kvContainerPtr0, &paramsContainersPrefill[m * 6 + 1], &mask4DContainer,
-        &resultContainer2, &resultContainer3, &tmp3DContainer);
-    MemRef<float, 4> &k1 = kv1[2 * m];
-    MemRef<float, 4> &v1 = kv1[2 * m + 1];
-    MemRef<float, 2> mhaData1({MaxTokenLength, HiddenSize0});
-    MemRefContainerPrefill2 kvContainer1(k1, v1, mhaData1);
-    MemRefContainerPrefill2 *kvContainerPtr1 = &kvContainer1;
-    _mlir_ciface_forward_prefill2(
-        kvContainerPtr1, &paramsContainersPrefill[m * 6 + 2], &mask4DContainer,
-        &resultContainer2, &resultContainer3, &tmp3DContainer);
+
+    _mlir_ciface_forward_prefill2(kvContainerPtr0, &paramsContainers[m * 6 + 1],
+                                  &resultContainerPtr->mask,
+                                  &resultContainerPtr->cos,
+                                  &resultContainerPtr->sin, &tmp3DContainer);
+    kv0[2 * m] = kvContainerPtr0->kcache;
+    kv0[2 * m + 1] = kvContainerPtr0->vcache;
+
+    _mlir_ciface_forward_prefill2(kvContainerPtr1, &paramsContainers[m * 6 + 2],
+                                  &resultContainerPtr->mask,
+                                  &resultContainerPtr->cos,
+                                  &resultContainerPtr->sin, &tmp3DContainer);
+    kv1[2 * m] = kvContainerPtr1->kcache;
+    kv1[2 * m + 1] = kvContainerPtr1->vcache;
+
     tmp2DContainer0 = kvContainerPtr0->data;
     tmp2DContainer1 = kvContainerPtr1->data;
     tmp2DContainer0.addMemRef(tmp2DContainer0, tmp2DContainer1);
+
     tmp2DContainer0.splitMemRef(std::move(tmp2DContainer0), sub2DContainer0,
                                 sub2DContainer1, 0, 512);
     _mlir_ciface_forward_prefill3(&subResultContainer0, &subResultContainer0,
                                   &sub2DContainer0);
     _mlir_ciface_forward_prefill3(&subResultContainer1, &subResultContainer1,
                                   &sub2DContainer1);
-    _mlir_ciface_forward_prefill1(&sub3DContainer0,
-                                  &paramsContainersPrefill[m * 6 + 3],
-                                  &subResultContainer0);
-    _mlir_ciface_forward_prefill1(&sub3DContainer1,
-                                  &paramsContainersPrefill[m * 6 + 3],
-                                  &subResultContainer1);
+    _mlir_ciface_forward_prefill1(
+        &sub3DContainer0, &paramsContainers[m * 6 + 3], &subResultContainer0);
+    _mlir_ciface_forward_prefill1(
+        &sub3DContainer1, &paramsContainers[m * 6 + 3], &subResultContainer1);
     tmp3DContainer.concatenateMemRefs(sub3DContainer0, sub3DContainer1,
                                       tmp3DContainer, 1);
     _mlir_ciface_forward_prefill5(
-        &tmp2DContainer0, &paramsContainersPrefill[m * 6 + 4], &tmp3DContainer);
+        &tmp2DContainer0, &paramsContainers[m * 6 + 4], &tmp3DContainer);
     _mlir_ciface_forward_prefill5(
-        &tmp2DContainer1, &paramsContainersPrefill[m * 6 + 5], &tmp3DContainer);
+        &tmp2DContainer1, &paramsContainers[m * 6 + 5], &tmp3DContainer);
     tmp2DContainer0.addMemRef(tmp2DContainer0, tmp2DContainer1);
+
     tmp2DContainer0.splitMemRef(std::move(tmp2DContainer0), sub2DContainer0,
                                 sub2DContainer1, 0, 512);
     _mlir_ciface_forward_prefill3(&subResultContainer0, &subResultContainer0,
@@ -446,6 +385,7 @@ int main() {
   }
   tmp3DContainer.concatenateMemRefs(subResultContainer0, subResultContainer1,
                                     tmp3DContainer, 1);
+
   _mlir_ciface_forward_prefill169(&resultPrefill, &paramsContainer2,
                                   &tmp3DContainer);
 
@@ -473,68 +413,61 @@ int main() {
   double decodeTimeAccumMs = 0.0;
   size_t decodeTokens = 0;
 
-  MemRef<float, 1> paramsContainerDecode0({paramSizeGroupDecode[0]});
-  loadParameters(paramsDirsDecode[0], paramsContainerDecode0);
-
-  int current_file_index = 1;
-  for (int i = 1; i < 57; i++) {
-    for (int j = 0; j < splitGroupDecode[i]; j++) {
-      if (paramSizeGroupDecode[i] > 0) {
-        MemRef<float, 1> paramsContainer_decode1({paramSizeGroupDecode[i]});
-        loadParameters(paramsDirsDecode[current_file_index],
-                       paramsContainer_decode1);
-        paramsContainersDecode.push_back(paramsContainer_decode1);
-        current_file_index++;
-      }
-    }
-  }
-  MemRef<float, 1> paramsContainerDecode57({paramSizeGroupDecode[57]});
-  loadParameters(paramsDirsDecode[current_file_index], paramsContainerDecode57);
-
-
   // Decode phase
   for (int i = 1; i <= generateLen; i++) {
+
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
-    _mlir_ciface_forward_decode0(resultContainerPtr,
-                                 &paramsContainerDecode0,
+    _mlir_ciface_forward_decode0(resultContainerDecodePtr, &paramsContainer0,
                                  &inputContainerDecode, &cachePosition);
-    decodeData = resultContainerPtr->data;
-    auto resultContainer1 = resultContainerPtr->mask;
-    auto resultContainer2 = resultContainerPtr->cos;
-    auto resultContainer3 = resultContainerPtr->sin;
-    expandMask2D_1L_to_4D(resultContainer1, mask4DContainerDecode,
-                          MaxTokenLength);
+
+    inputMemrefDecode = resultContainerDecodePtr->data;
+
     for (int m = 0; m < 28; m++) {
-      MemRef<float, 4> &k0 = kv0[2 * m];
-      MemRef<float, 4> &v0 = kv0[2 * m + 1];
-      MemRef<float, 3> mhaData0({1, 1, HiddenSize0});
-      MemRefContainerDecode1 kvContainer0(k0, v0, mhaData0);
-      MemRefContainerDecode1 *kvContainerPtr0 = &kvContainer0;
-      _mlir_ciface_forward_decode1(
-          kvContainerPtr0, &paramsContainersDecode[m * 4], &cachePosition, 
-          &k0, &v0, &decodeData, &mask4DContainerDecode, &resultContainer2,
-          &resultContainer3);
-      MemRef<float, 4> &k1 = kv1[2 * m];
-      MemRef<float, 4> &v1 = kv1[2 * m + 1];
-      MemRef<float, 3> mhaData1({1, 1, HiddenSize0});
-      MemRefContainerDecode1 kvContainer1(k1, v1, mhaData1);
-      MemRefContainerDecode1 *kvContainerPtr1 = &kvContainer1;
-      _mlir_ciface_forward_decode1(
-          kvContainerPtr1, &paramsContainersDecode[m * 4 + 1], &cachePosition,
-          &k1, &v1, &decodeData, &mask4DContainerDecode, &resultContainer2,
-          &resultContainer3);
-      mhaDecodeData0 = kvContainerPtr0->data;
-      mhaDecodeData1 = kvContainerPtr1->data;
+      _mlir_ciface_forward_decode1(&decodeData, &paramsContainers[m * 6],
+                                   &inputMemrefDecode);
+
+
+      _mlir_ciface_forward_decode2(
+          kvDecodeContainerPtr0, &paramsContainers[m * 6 + 1], &cachePosition,
+          &kv0[2 * m], &kv0[2 * m + 1], &resultContainerDecodePtr->mask,
+          &resultContainerDecodePtr->cos, &resultContainerDecodePtr->sin,
+          &decodeData);
+      kv0[2 * m] = kvDecodeContainerPtr0->kcache;
+      kv0[2 * m + 1] = kvDecodeContainerPtr0->vcache;
+
+
+      _mlir_ciface_forward_decode2(
+          kvDecodeContainerPtr1, &paramsContainers[m * 6 + 2], &cachePosition,
+          &kv1[2 * m], &kv1[2 * m + 1], &resultContainerDecodePtr->mask,
+          &resultContainerDecodePtr->cos, &resultContainerDecodePtr->sin,
+          &decodeData);
+      kv1[2 * m] = kvDecodeContainerPtr1->kcache;
+      kv1[2 * m + 1] = kvDecodeContainerPtr1->vcache;
+
+      mhaDecodeData0 = kvDecodeContainerPtr0->data;
+      mhaDecodeData1 = kvDecodeContainerPtr1->data;
       mhaDecodeData0.addMemRef(mhaDecodeData0, mhaDecodeData1);
-      _mlir_ciface_forward_decode2(
-          &decodeData, &paramsContainersDecode[m * 4 + 2], &mhaDecodeData0);
-      _mlir_ciface_forward_decode2(
-          &mlpData1, &paramsContainersDecode[m * 4 + 3], &mhaDecodeData0);
-      decodeData.addMemRef(decodeData, mlpData1);
+
+
+      _mlir_ciface_forward_decode3(&inputMemrefDecode, &inputMemrefDecode,
+                                   &mhaDecodeData0);
+      _mlir_ciface_forward_decode1(&decodeData, &paramsContainers[m * 6 + 3],
+                                   &inputMemrefDecode);
+
+      _mlir_ciface_forward_decode5(&mhaDecodeData0,
+                                   &paramsContainers[m * 6 + 4], &decodeData);
+      _mlir_ciface_forward_decode5(&mhaDecodeData1,
+                                   &paramsContainers[m * 6 + 5], &decodeData);
+      mhaDecodeData0.addMemRef(mhaDecodeData0, mhaDecodeData1);
+
+
+      _mlir_ciface_forward_decode3(&inputMemrefDecode, &inputMemrefDecode,
+                                   &mhaDecodeData0);
     }
 
-    _mlir_ciface_forward_decode57(&resultDecode, &paramsContainerDecode57,
-                                  &decodeData);
+    _mlir_ciface_forward_decode169(&resultDecode, &paramsContainer2,
+                                   &inputMemrefDecode);
+
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =
         inferenceEnd - inferenceStart;
@@ -560,8 +493,6 @@ int main() {
   const double decodeTokensPerSec =
       decodeSeconds > 0.0 ? static_cast<double>(decodeTokens) / decodeSeconds
                           : 0.0;
-
-  //
 
   /// Print the final result
   std::cout << "\n\033[33;1m[Total time]\033[0m " << total_time << std::endl;

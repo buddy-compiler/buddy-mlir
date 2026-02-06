@@ -28,7 +28,6 @@ from transformers import (
     StaticCache,
 )
 from torch._inductor.decomposition import decompositions as inductor_decomp
-import numpy
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
@@ -174,15 +173,20 @@ graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
 DECODE_STRATEGY = SplitStrategy(
     name="decode",
     parallel_num=2,
-    ops_count=[56,19],
+    # ops_count=[56,19],
+    ops_count=[6, 48, 2, 6, 11, 2],
     stage_boundary_op=PowOp,
     stage_boundary_op_num = 57,
     paral_input_positions={
         0: [-1, -1, -1, -1],
-        57: [-1, -1, -1],
+        169: [-1, -1, -1],
         "default": [
-            [-1,1,0,1,0,1,0,0,-1,1,1,-1,-1,-1,-1],
-            [-1, 1, 1, 0, -1]
+            [-1, -1],
+            [1,0,1,0,1,0,0,-1,1,1,-1,-1,-1,-1],
+            [-1, -1],
+            [-1, -1],
+            [1, 1, 0, -1],
+            [-1, -1]
         ]
     }
 )
@@ -190,7 +194,6 @@ DECODE_STRATEGY = SplitStrategy(
 PREFILL_STRATEGY = SplitStrategy(
     name="prefill",
     parallel_num=2,
-    # ops_count=[6, 63, 6, 13],
     ops_count=[6, 61, 2, 6, 11, 2],
     stage_boundary_op=PowOp,
     stage_boundary_op_num = 57 ,
@@ -228,5 +231,3 @@ for i in range(len(driver_decode.subgraphs)):
         print(driver_decode.subgraphs[i]._imported_module, file=module_file)
     with open(os.path.join(output_dir, f"forward_decode{i}.mlir"), "w") as module_file:
         print(driver_decode.modules[i], file=module_file)
-for entry in driver_decode._subgraph_param_info.items():
-    driver_decode.construct_sub_params(params, entry, output_dir)
