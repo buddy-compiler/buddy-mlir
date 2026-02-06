@@ -1086,31 +1086,34 @@ private:
 class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
 
   void gemminiLoopConvWs(
-      int batchSize, int inDim, int inChannels, int outChannels, int outDim,
-      int poolOutDim, int stride, int padding, int kernelDim,
-      int kernelDilation, int poolSize, int poolStride, int poolPadding,
-      int batches, int porows, int pocols, int pochs, int krows, int kcols,
-      int kchs, int lpad, int rpad, int upad, int dpad, int plpad, int prpad,
-      int pupad, int pdpad, int orows, int ocols, Value &weights, Value &output,
-      Value &bias, Value &input, bool noBias, bool noPool, bool downsample,
-      bool writ180, bool inputDilated, int act, bool transOutput1203,
-      bool transWeight1203, bool transWeight0132, bool transInput3120,
-      int maxPixelsPerRow, bool dw, TileConvOp &tileConvOp,
+      int batchSize, int inDim, int inColDim, int inChannels, int outChannels,
+      int outDim, int outColDim, int poolOutDim, int poolOutColDim, int stride,
+      int padding, int kernelDim, int kernelDilation, int inStride,
+      int weightStride, int outStride, int poolSize, int poolStride,
+      int poolPadding, int batches, int porows, int pocols, int pochs,
+      int krows, int kcols, int kchs, int lpad, int rpad, int upad, int dpad,
+      int plpad, int prpad, int pupad, int pdpad, int orows, int ocols,
+      Value &weights, Value &output, Value &bias, Value &input, bool noBias,
+      bool noPool, bool downsample, bool writ180, bool inputDilated, int act,
+      bool transOutput1203, bool transWeight1203, bool transWeight0132,
+      bool transInput3120, int maxPixelsPerRow, bool dw, TileConvOp &tileConvOp,
       ConversionPatternRewriter &rewriter) const {
     Location loc = tileConvOp.getLoc();
     // loopConvWsConfig1
     uint64_t rs1 = (uint64_t)outChannels << 48 | (uint64_t)inChannels << 32 |
                    (uint64_t)inDim << 16 | (uint64_t)batchSize;
-    uint64_t rs2 = (uint64_t)padding << 48 | (uint64_t)stride << 32 |
-                   (uint64_t)poolOutDim << 16 | (uint64_t)outDim;
+    uint64_t rs2 = (uint64_t)padding << 56 | (uint64_t)stride << 48 |
+                   (uint64_t)outColDim << 32 | (uint64_t)poolOutDim << 16 |
+                   (uint64_t)outDim;
     TypedAttr rs1Attr = rewriter.getI64IntegerAttr(rs1);
     TypedAttr rs2Attr = rewriter.getI64IntegerAttr(rs2);
     Value rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr);
     Value rs2Value = rewriter.create<arith::ConstantOp>(loc, rs2Attr);
     rewriter.create<LoopConvWsConfig1_IntrOp>(loc, rs1Value, rs2Value);
     // loopConvWsConfig2
-    rs1 = (uint64_t)kernelDim << 48 | (uint64_t)poolSize << 32 |
-          (uint64_t)poolStride << 16 | (uint64_t)poolPadding;
+    rs1 = (uint64_t)kernelDim << 48 | (uint64_t)poolOutColDim << 32 |
+          (uint64_t)poolSize << 16 | (uint64_t)poolStride << 8 |
+          (uint64_t)poolPadding;
     rs2 = (uint64_t)batches << 48 | (uint64_t)porows << 32 |
           (uint64_t)pocols << 16 | (uint64_t)pochs;
     rs1Attr = rewriter.getI64IntegerAttr(rs1);
@@ -1121,8 +1124,8 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     // loopConvWsConfig3
     rs1 = (uint64_t)krows << 48 | (uint64_t)kcols << 32 | (uint64_t)kchs << 16 |
           (uint64_t)lpad;
-    rs2 = (uint64_t)rpad << 48 | (uint64_t)upad << 32 | (uint64_t)dpad << 16 |
-          (uint64_t)plpad;
+    rs2 = (uint64_t)rpad << 48 | (uint64_t)upad << 32 | (uint64_t)dpad << 24 |
+          (uint64_t)plpad << 16 | (uint64_t)inColDim;
     rs1Attr = rewriter.getI64IntegerAttr(rs1);
     rs2Attr = rewriter.getI64IntegerAttr(rs2);
     rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr);
@@ -1130,8 +1133,10 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     rewriter.create<LoopConvWsConfig3_IntrOp>(loc, rs1Value, rs2Value);
     // loopConvWsConfig4
     rs1 = (uint64_t)orows << 48 | (uint64_t)prpad << 32 |
-          (uint64_t)pupad << 16 | (uint64_t)pdpad;
-    rs2 = (uint64_t)kernelDilation << 16 | (uint64_t)ocols;
+          (uint64_t)pupad << 21 | (uint64_t)pdpad << 10 |
+          (uint64_t)kernelDilation;
+    rs2 = (uint64_t)inStride << 48 | (uint64_t)weightStride << 32 |
+          (uint64_t)outStride << 16 | (uint64_t)ocols;
     rs1Attr = rewriter.getI64IntegerAttr(rs1);
     rs2Attr = rewriter.getI64IntegerAttr(rs2);
     rs1Value = rewriter.create<arith::ConstantOp>(loc, rs1Attr);
@@ -1237,8 +1242,9 @@ class GemminiTileConvLowering : public ConvertOpToLLVMPattern<TileConvOp> {
     if (inRowDim == inColDim && outRowDim == outColDim &&
         poolOutRowDim == poolOutColDim) {
       gemminiLoopConvWs(
-          batchSize, inRowDim, inChannels, outChannels, outRowDim,
-          poolOutRowDim, stride, padding, kernelDim, kernelDilation, poolSize,
+          batchSize, inRowDim, inColDim, inChannels, outChannels, outRowDim,
+          outColDim, poolOutRowDim, poolOutColDim, stride, padding, kernelDim,
+          kernelDilation, inStride, weightStride, outStride, poolSize,
           poolStride, poolPadding, batches, porows, pocols, pochs, krows, kcols,
           kchs, lpad, rpad, upad, dpad, plpad, prpad, pupad, pdpad, orows,
           ocols, weights, output, bias, input, noBias, noPool, downsample,
