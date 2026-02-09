@@ -20,6 +20,7 @@ import re
 import subprocess
 import sys
 import traceback
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence, Tuple
@@ -50,7 +51,6 @@ SKIP_TAGS = {
 }
 NUMERIC_SKIP_TAGS = SKIP_TAGS | {"random"}
 NUMERIC_ALLOW_RANDOM_OPS = {
-    # Batch00 phase-1 allowlist (float32, fixed seed numeric validation).
     "bernoulli.Tensor",
     "bernoulli.default",
     "bernoulli.p",
@@ -60,6 +60,89 @@ NUMERIC_ALLOW_RANDOM_OPS = {
     "bernoulli_.Tensor",
     "bernoulli_.float",
     "alpha_dropout.default",
+    "dropout.default",
+    "native_dropout.default",
+    "randint.default",
+    "randint.low",
+    "randint.low_out",
+    "randperm.default",
+    "randperm.out",
+    "rand.default",
+    "rand_like.default",
+    "rand_like.out",
+    "randn.default",
+    "randn_like.default",
+    "randn_like.out",
+    "log_normal.default",
+    "log_normal.out",
+    "log_normal_.default",
+    "multinomial.default",
+    "multinomial.out",
+    "normal.Tensor_float",
+    "normal.Tensor_float_out",
+    "normal.float_Tensor",
+    "normal.float_Tensor_out",
+    "normal.Tensor_Tensor",
+    "normal.Tensor_Tensor_out",
+    "normal.float_float",
+    "normal.float_float_out",
+    "normal.out",
+    "normal_.default",
+    "poisson.default",
+    "poisson.out",
+    "randint_like.default",
+    "randint_like.low_dtype",
+    "randint_like.Tensor",
+    "rrelu_with_noise.default",
+    "rrelu_with_noise.out",
+    "rrelu_with_noise_.default",
+    "rrelu_with_noise_functional.default",
+    "uniform.default",
+    "uniform_.default",
+    "cauchy.default",
+    "cauchy_.default",
+}
+
+NUMERIC_RANDOM_RELAXED_COMPARE_OPS = {
+    "randint.default",
+    "randint.low",
+    "randint.low_out",
+    "randperm.default",
+    "randperm.out",
+    "rand.default",
+    "rand_like.default",
+    "rand_like.out",
+    "randn.default",
+    "randn_like.default",
+    "randn_like.out",
+    "log_normal.default",
+    "log_normal.out",
+    "log_normal_.default",
+    "multinomial.default",
+    "multinomial.out",
+    "normal.Tensor_float",
+    "normal.Tensor_float_out",
+    "normal.float_Tensor",
+    "normal.float_Tensor_out",
+    "normal.Tensor_Tensor",
+    "normal.Tensor_Tensor_out",
+    "normal.float_float",
+    "normal.float_float_out",
+    "normal.out",
+    "normal_.default",
+    "poisson.default",
+    "poisson.out",
+    "randint_like.default",
+    "randint_like.low_dtype",
+    "randint_like.Tensor",
+    "rrelu_with_noise.default",
+    "rrelu_with_noise.out",
+    "rrelu_with_noise_.default",
+    "rrelu_with_noise_functional.default",
+    "uniform.default",
+    "uniform_.default",
+    "cauchy.default",
+    "cauchy_.default",
 }
 CoverageEntry = Dict[str, Any]
 Args = List[Any]
@@ -74,506 +157,44 @@ _ENUM_INT_DEFAULTS = {
     "memory_format": torch.contiguous_format,
 }
 
+_DYNAMIC_OUTPUT_SHAPE_OPS = {
+    "masked_select.default",
+    "masked_select.out",
+    "nonzero.default",
+    "nonzero.out",
+}
+
+
+@contextmanager
+def _maybe_capture_dynamic_output_shape_ops(name: str):
+    """Temporarily enable Dynamo capture for dynamic-output-shape ops.
+
+    These ops have output shapes depending on input tensor *values* (not just
+    shapes). TorchDynamo treats them as dynamic-shape operators unless
+    `capture_dynamic_output_shape_ops` is enabled.
+    """
+    cfg = getattr(torch, "_dynamo", None)
+    cfg = getattr(cfg, "config", None)
+    if cfg is None:
+        yield
+        return
+    attr = "capture_dynamic_output_shape_ops"
+    if not hasattr(cfg, attr):
+        yield
+        return
+
+    old = getattr(cfg, attr)
+    if name in _DYNAMIC_OUTPUT_SHAPE_OPS:
+        setattr(cfg, attr, True)
+    try:
+        yield
+    finally:
+        setattr(cfg, attr, old)
+
 
 def make_aot_decompositions() -> Dict[Any, Any]:
-    """
-    Start from Inductor decompositions, but disable a few decompositions that
-    introduce `prims.*` ops our frontend doesn't map yet.
-
-    Returning `NotImplemented` from a decomposition keeps the original ATen op
-    in the graph, allowing Buddy to use its own lowering directly.
-    """
-    decomp: Dict[Any, Any] = dict(inductor_decomp)
-
-    def _no_decomp(*args, **kwargs):
-        return NotImplemented
-
-    # Inductor decomp for max_pool*_with_indices may rewrite to prims
-    # `_low_memory_max_pool_with_offsets` + `_low_memory_max_pool_offsets_to_indices`.
-    # Buddy already has direct lowerings for the ATen ops, so keep them intact.
-    for key in (
-        torch.ops.aten.max_pool2d_with_indices.default,
-        torch.ops.aten.max_pool3d_with_indices.default,
-    ):
-        if key in decomp:
-            decomp[key] = _no_decomp
-
-    # grid_sampler_* decompositions introduce index math that is currently
-    # numerically unstable in our execution path. Keep the original ATen ops so
-    # Buddy can use its direct lowerings.
-    for key in (
-        torch.ops.aten.grid_sampler_2d.default,
-        torch.ops.aten.grid_sampler_2d.out,
-        torch.ops.aten.grid_sampler_3d.default,
-        torch.ops.aten.grid_sampler_3d.out,
-    ):
-        if key in decomp:
-            decomp[key] = _no_decomp
-
-    # Random ops: keep bernoulli functional forms intact to avoid decomposing to
-    # rand/uniform ops our frontend doesn't lower yet.
-    for key in (
-        torch.ops.aten.bernoulli.default,
-        torch.ops.aten.bernoulli.Tensor,
-    ):
-        if key in decomp:
-            decomp[key] = _no_decomp
-
-    # alpha_dropout is tagged as random, but for train=False it is deterministic
-    # and equal to identity. Keep stage-1 numeric validation simple by
-    # decomposing that case only (batch00 uses train=False).
-    def _alpha_dropout(self, p=0.5, train=True):
-        if not train or p == 0.0:
-            return self
-        return NotImplemented
-
-    decomp[torch.ops.aten.alpha_dropout.default] = _alpha_dropout
-
-    # ---- Custom decompositions for unsupported ATen ops ----
-    #
-    # We accept "composite via decomposition" coverage, so prefer decomposing to
-    # other ATen ops that Buddy already supports instead of requiring direct
-    # lowering coverage for every op.
-
-    # bucketize(values, boundaries) == searchsorted(boundaries, values)
-    def _bucketize_tensor(values, boundaries, *, out_int32=False, right=False):
-        return torch.ops.aten.searchsorted.Tensor(
-            boundaries, values, out_int32=out_int32, right=right
-        )
-
-    def _bucketize_tensor_out(
-        values, boundaries, *, out_int32=False, right=False, out=None
-    ):
-        return torch.ops.aten.searchsorted.Tensor(
-            boundaries, values, out_int32=out_int32, right=right
-        )
-
-    decomp[torch.ops.aten.bucketize.Tensor] = _bucketize_tensor
-    decomp[torch.ops.aten.bucketize.Tensor_out] = _bucketize_tensor_out
-
-    # searchsorted.Scalar -> searchsorted.Tensor with scalar_tensor input
-    def _searchsorted_scalar(
-        sorted_sequence,
-        value,
-        *,
-        out_int32=False,
-        right=False,
-        side=None,
-        sorter=None,
-    ):
-        value_tensor = torch.ops.aten.scalar_tensor.default(
-            value, dtype=sorted_sequence.dtype
-        )
-        return torch.ops.aten.searchsorted.Tensor(
-            sorted_sequence,
-            value_tensor,
-            out_int32=out_int32,
-            right=right,
-            side=side,
-            sorter=sorter,
-        )
-
-    def _searchsorted_scalar_out(
-        sorted_sequence,
-        value,
-        *,
-        out_int32=False,
-        right=False,
-        side=None,
-        sorter=None,
-        out=None,
-    ):
-        return _searchsorted_scalar(
-            sorted_sequence,
-            value,
-            out_int32=out_int32,
-            right=right,
-            side=side,
-            sorter=sorter,
-        )
-
-    decomp[torch.ops.aten.searchsorted.Scalar] = _searchsorted_scalar
-    decomp[torch.ops.aten.searchsorted.Scalar_out] = _searchsorted_scalar_out
-
-    # addbmm(self, batch1, batch2) = beta*self + alpha*sum_i(batch1[i]@batch2[i])
-    def _addbmm(self, batch1, batch2, *, beta=1, alpha=1):
-        prod = torch.ops.aten.bmm.default(batch1, batch2)
-        summed = torch.ops.aten.sum.dim_IntList(prod, [0], False)
-        left = torch.ops.aten.mul.Scalar(self, beta)
-        right = torch.ops.aten.mul.Scalar(summed, alpha)
-        return torch.ops.aten.add.Tensor(left, right)
-
-    def _addbmm_out(self, batch1, batch2, *, beta=1, alpha=1, out=None):
-        return _addbmm(self, batch1, batch2, beta=beta, alpha=alpha)
-
-    decomp[torch.ops.aten.addbmm.default] = _addbmm
-    decomp[torch.ops.aten.addbmm.out] = _addbmm_out
-
-    # adaptive_max_pool3d(self, output_size) -> (output, indices)
-    #
-    # Inductor has decomposition for adaptive_max_pool2d but not 3d. For our
-    # operator coverage we accept composite implementations, so we decompose
-    # adaptive_max_pool3d into a regular max_pool3d_with_indices when the input
-    # spatial sizes are divisible by output_size (uniform kernel/stride).
-    def _adaptive_max_pool3d(self, output_size):
-        if not isinstance(output_size, (list, tuple)) or len(output_size) != 3:
-            return NotImplemented
-        if not isinstance(self, torch.Tensor) or self.dim() != 5:
-            return NotImplemented
-        in_d, in_h, in_w = self.shape[-3:]
-        out_d, out_h, out_w = (
-            int(output_size[0]),
-            int(output_size[1]),
-            int(output_size[2]),
-        )
-        if out_d <= 0 or out_h <= 0 or out_w <= 0:
-            return NotImplemented
-        if in_d % out_d != 0 or in_h % out_h != 0 or in_w % out_w != 0:
-            return NotImplemented
-        k_d, k_h, k_w = (in_d // out_d, in_h // out_h, in_w // out_w)
-        kernel = [int(k_d), int(k_h), int(k_w)]
-        stride = list(kernel)
-        return torch.ops.aten.max_pool3d_with_indices.default(
-            self, kernel, stride, [0, 0, 0], [1, 1, 1], False
-        )
-
-    decomp[torch.ops.aten.adaptive_max_pool3d.default] = _adaptive_max_pool3d
-
-    # affine_grid_generator(theta, size, align_corners) -> grid
-    #
-    # The default decomposition uses a broadcasted mul + reduce_sum pattern
-    # which currently produces incorrect numeric results in our execution path.
-    # Rewrite it using bmm to avoid problematic broadcasting lowering.
-    def _affine_grid_generator(theta, size, align_corners):
-        if (
-            not isinstance(theta, torch.Tensor)
-            or theta.dim() != 3
-            or theta.dtype != torch.float32
-            or theta.device.type != "cpu"
-        ):
-            return NotImplemented
-        if not isinstance(size, (list, tuple)) or len(size) != 4:
-            return NotImplemented
-        n, _c, h, w = [int(x) for x in size]
-        if n <= 0 or h <= 0 or w <= 0:
-            return NotImplemented
-
-        x_idx = torch.ops.prims.iota.default(
-            w,
-            start=0,
-            step=1,
-            dtype=torch.int64,
-            device=torch.device("cpu"),
-            requires_grad=False,
-        )
-        y_idx = torch.ops.prims.iota.default(
-            h,
-            start=0,
-            step=1,
-            dtype=torch.int64,
-            device=torch.device("cpu"),
-            requires_grad=False,
-        )
-        x = torch.ops.prims.convert_element_type.default(x_idx, torch.float32)
-        y = torch.ops.prims.convert_element_type.default(y_idx, torch.float32)
-
-        if align_corners:
-            if w > 1:
-                x = torch.ops.aten.mul.Scalar(x, 2.0 / float(w - 1))
-                x = torch.ops.aten.add.Scalar(x, -1.0)
-            else:
-                x = torch.ops.aten.full.default([w], 0.0)
-            if h > 1:
-                y = torch.ops.aten.mul.Scalar(y, 2.0 / float(h - 1))
-                y = torch.ops.aten.add.Scalar(y, -1.0)
-            else:
-                y = torch.ops.aten.full.default([h], 0.0)
-        else:
-            x = torch.ops.aten.add.Scalar(x, 0.5)
-            x = torch.ops.aten.mul.Scalar(x, 2.0 / float(w))
-            x = torch.ops.aten.add.Scalar(x, -1.0)
-            y = torch.ops.aten.add.Scalar(y, 0.5)
-            y = torch.ops.aten.mul.Scalar(y, 2.0 / float(h))
-            y = torch.ops.aten.add.Scalar(y, -1.0)
-
-        x = torch.ops.aten.view.default(x, [1, w])
-        x = torch.ops.aten.expand.default(x, [h, w])
-        x = torch.ops.aten.view.default(x, [h, w, 1])
-        y = torch.ops.aten.view.default(y, [h, 1])
-        y = torch.ops.aten.expand.default(y, [h, w])
-        y = torch.ops.aten.view.default(y, [h, w, 1])
-        ones = torch.ops.aten.full.default([h, w, 1], 1.0)
-
-        x = torch.ops.aten.constant_pad_nd.default(x, [0, 2], 0.0)
-        y = torch.ops.aten.constant_pad_nd.default(y, [1, 1], 0.0)
-        ones = torch.ops.aten.constant_pad_nd.default(ones, [2, 0], 0.0)
-        base = torch.ops.aten.add.Tensor(torch.ops.aten.add.Tensor(x, y), ones)
-
-        base = torch.ops.aten.view.default(base, [h * w, 3])
-        base = torch.ops.aten.unsqueeze.default(base, 0)
-        base = torch.ops.aten.expand.default(base, [n, h * w, 3])
-
-        theta_t = torch.ops.aten.permute.default(theta, [0, 2, 1])
-        out = torch.ops.aten.bmm.default(base, theta_t)
-        return torch.ops.aten.view.default(out, [n, h, w, 2])
-
-    decomp[torch.ops.aten.affine_grid_generator.default] = (
-        _affine_grid_generator
-    )
-
-    # ---- Random ops: functionalize .out / in-place variants ----
-    #
-    # We aim to validate numeric correctness for a small allowlist in
-    # NUMERIC_ALLOW_RANDOM_OPS. For the remaining variants, prefer decomposing
-    # to functional forms to avoid relying on out/in-place semantics.
-
-    def _bernoulli_p(self, p: float, *, generator=None):
-        probs = torch.ops.aten.full_like.default(
-            self,
-            p,
-            dtype=None,
-            layout=None,
-            device=None,
-            pin_memory=None,
-            memory_format=None,
-        )
-        return torch.ops.aten.bernoulli.default(probs, generator=generator)
-
-    def _bernoulli_out(self, *, generator=None, out=None):
-        return torch.ops.aten.bernoulli.default(self, generator=generator)
-
-    def _bernoulli_tensor_out(self, p, *, generator=None, out=None):
-        return torch.ops.aten.bernoulli.Tensor(self, p, generator=generator)
-
-    def _bernoulli_float_out(self, p=0.5, *, generator=None, out=None):
-        probs = torch.ops.aten.full_like.default(
-            self,
-            float(p),
-            dtype=None,
-            layout=None,
-            device=None,
-            pin_memory=None,
-            memory_format=None,
-        )
-        return torch.ops.aten.bernoulli.default(probs, generator=generator)
-
-    def _bernoulli_inplace(self, p, *, generator=None):
-        return torch.ops.aten.bernoulli.Tensor(self, p, generator=generator)
-
-    def _bernoulli_inplace_float(self, p=0.5, *, generator=None):
-        probs = torch.ops.aten.full_like.default(
-            self,
-            float(p),
-            dtype=None,
-            layout=None,
-            device=None,
-            pin_memory=None,
-            memory_format=None,
-        )
-        return torch.ops.aten.bernoulli.default(probs, generator=generator)
-
-    decomp[torch.ops.aten.bernoulli.p] = _bernoulli_p
-    decomp[torch.ops.aten.bernoulli.out] = _bernoulli_out
-    decomp[torch.ops.aten.bernoulli.Tensor_out] = _bernoulli_tensor_out
-    decomp[torch.ops.aten.bernoulli.float_out] = _bernoulli_float_out
-    decomp[torch.ops.aten.bernoulli_.Tensor] = _bernoulli_inplace
-    decomp[torch.ops.aten.bernoulli_.float] = _bernoulli_inplace_float
-
-    # ---- Numeric-friendly decompositions for batch01 failures ----
-    #
-    # These ops currently fail numeric mode (execution) due to missing/unstable
-    # lowerings. We decompose them into elementwise ops that Buddy already
-    # supports, so they can participate in numeric comparison.
-
-    def _reduce_loss(loss: torch.Tensor, reduction: int) -> torch.Tensor:
-        # Match PyTorch reduction enum used by these ops:
-        # 0: none, 1: mean, 2: sum
-        if int(reduction) == 0:
-            return loss
-        if int(reduction) == 2:
-            return torch.ops.aten.sum.default(loss)
-        return torch.ops.aten.mean.default(loss)
-
-    def _binary_cross_entropy(self, target, weight=None, reduction: int = 1):
-        # Stable BCE: clamp inputs to avoid log(0) / 0 * -inf -> NaN.
-        eps = 1e-12
-        one = torch.ops.aten.full_like.default(
-            self,
-            1.0,
-            dtype=None,
-            layout=None,
-            device=None,
-            pin_memory=None,
-            memory_format=None,
-        )
-        eps_t = torch.ops.aten.full_like.default(
-            self,
-            eps,
-            dtype=None,
-            layout=None,
-            device=None,
-            pin_memory=None,
-            memory_format=None,
-        )
-        one_minus_eps = torch.ops.aten.sub.Tensor(one, eps_t)
-        x = torch.ops.aten.minimum.default(
-            torch.ops.aten.maximum.default(self, eps_t), one_minus_eps
-        )
-        log_x = torch.ops.aten.log.default(x)
-        log_one_minus_x = torch.ops.aten.log.default(
-            torch.ops.aten.sub.Tensor(one, x)
-        )
-        term1 = torch.ops.aten.mul.Tensor(target, log_x)
-        term2 = torch.ops.aten.mul.Tensor(
-            torch.ops.aten.sub.Tensor(one, target), log_one_minus_x
-        )
-        loss = torch.ops.aten.neg.default(
-            torch.ops.aten.add.Tensor(term1, term2)
-        )
-        if weight is not None:
-            loss = torch.ops.aten.mul.Tensor(loss, weight)
-        return _reduce_loss(loss, reduction)
-
-    def _binary_cross_entropy_out(
-        self, target, weight=None, reduction: int = 1, out=None
-    ):
-        return _binary_cross_entropy(self, target, weight, reduction)
-
-    decomp[torch.ops.aten.binary_cross_entropy.default] = _binary_cross_entropy
-    decomp[torch.ops.aten.binary_cross_entropy.out] = _binary_cross_entropy_out
-
-    def _binary_cross_entropy_with_logits(
-        self,
-        target,
-        weight=None,
-        pos_weight=None,
-        reduction: int = 1,
-    ):
-        # Stable BCEWithLogits (pos_weight only used when provided).
-        # loss = (1 - y) * x + max(-x, 0) + log(exp(-max(-x,0)) + exp(-x - max(-x,0)))
-        one = torch.ops.aten.full_like.default(
-            self,
-            1.0,
-            dtype=None,
-            layout=None,
-            device=None,
-            pin_memory=None,
-            memory_format=None,
-        )
-        zero = torch.ops.aten.zeros_like.default(self)
-        neg_x = torch.ops.aten.neg.default(self)
-        max_val = torch.ops.aten.maximum.default(neg_x, zero)
-
-        exp1 = torch.ops.aten.exp.default(torch.ops.aten.neg.default(max_val))
-        exp2 = torch.ops.aten.exp.default(
-            torch.ops.aten.sub.Tensor(neg_x, max_val)
-        )
-        log_sum = torch.ops.aten.log.default(
-            torch.ops.aten.add.Tensor(exp1, exp2)
-        )
-        base = torch.ops.aten.add.Tensor(max_val, log_sum)
-        loss = torch.ops.aten.add.Tensor(
-            torch.ops.aten.mul.Tensor(
-                torch.ops.aten.sub.Tensor(one, target), self
-            ),
-            base,
-        )
-
-        if pos_weight is not None:
-            # Multiply the positive part by pos_weight: loss *= (1 + (pos_weight - 1) * target)
-            scale = torch.ops.aten.add.Tensor(
-                one,
-                torch.ops.aten.mul.Tensor(
-                    torch.ops.aten.sub.Tensor(pos_weight, one), target
-                ),
-            )
-            loss = torch.ops.aten.mul.Tensor(loss, scale)
-
-        if weight is not None:
-            loss = torch.ops.aten.mul.Tensor(loss, weight)
-        return _reduce_loss(loss, reduction)
-
-    def _binary_cross_entropy_with_logits_out(
-        self,
-        target,
-        weight=None,
-        pos_weight=None,
-        reduction: int = 1,
-        out=None,
-    ):
-        return _binary_cross_entropy_with_logits(
-            self, target, weight, pos_weight, reduction
-        )
-
-    decomp[torch.ops.aten.binary_cross_entropy_with_logits.default] = (
-        _binary_cross_entropy_with_logits
-    )
-    decomp[torch.ops.aten.binary_cross_entropy_with_logits.out] = (
-        _binary_cross_entropy_with_logits_out
-    )
-
-    def _clamp_tensor(self, min, max):
-        # clamp(x, min_t, max_t) = minimum(maximum(x, min_t), max_t)
-        return torch.ops.aten.minimum.default(
-            torch.ops.aten.maximum.default(self, min), max
-        )
-
-    def _clamp_tensor_out(self, min, max, out=None):
-        return _clamp_tensor(self, min, max)
-
-    def _clamp_tensor_inplace(self, min, max):
-        return _clamp_tensor(self, min, max)
-
-    # clip.Tensor is an alias of clamp.Tensor in PyTorch; keep explicit keys.
-    decomp[torch.ops.aten.clamp.Tensor] = _clamp_tensor
-    decomp[torch.ops.aten.clamp.Tensor_out] = _clamp_tensor_out
-    decomp[torch.ops.aten.clamp_.Tensor] = _clamp_tensor_inplace
-    decomp[torch.ops.aten.clip.Tensor] = _clamp_tensor
-    decomp[torch.ops.aten.clip.Tensor_out] = _clamp_tensor_out
-    decomp[torch.ops.aten.clip_.Tensor] = _clamp_tensor_inplace
-
-    def _count_nonzero_default(self):
-        mask = torch.ops.aten.ne.Scalar(self, 0)
-        mask_i64 = torch.ops.aten._to_copy.default(
-            mask,
-            dtype=torch.int64,
-            layout=None,
-            device=None,
-            pin_memory=None,
-            non_blocking=False,
-            memory_format=None,
-        )
-        return torch.ops.aten.sum.default(mask_i64)
-
-    def _count_nonzero_out(self, *, out=None):
-        return _count_nonzero_default(self)
-
-    def _count_nonzero_dim_intlist(self, dim):
-        mask = torch.ops.aten.ne.Scalar(self, 0)
-        mask_i64 = torch.ops.aten._to_copy.default(
-            mask,
-            dtype=torch.int64,
-            layout=None,
-            device=None,
-            pin_memory=None,
-            non_blocking=False,
-            memory_format=None,
-        )
-        return torch.ops.aten.sum.dim_IntList(mask_i64, dim, False)
-
-    def _count_nonzero_dim_intlist_out(self, dim, *, out=None):
-        return _count_nonzero_dim_intlist(self, dim)
-
-    decomp[torch.ops.aten.count_nonzero.default] = _count_nonzero_default
-    decomp[torch.ops.aten.count_nonzero.out] = _count_nonzero_out
-    decomp[torch.ops.aten.count_nonzero.dim_IntList] = (
-        _count_nonzero_dim_intlist
-    )
-    decomp[torch.ops.aten.count_nonzero.dim_IntList_out] = (
-        _count_nonzero_dim_intlist_out
-    )
-
-    return decomp
+    """Use default Inductor decomposition table without custom overrides."""
+    return dict(inductor_decomp)
 
 
 @dataclass(frozen=True)
@@ -702,6 +323,31 @@ def _numeric_out_variant_compile_target(
 
     compile_args, compile_kwargs = _strip_out_args_kwargs(schema, args, kwargs)
 
+    if (
+        op_name == "normal"
+        and overload == "out"
+        and len(compile_args) >= 3
+        and isinstance(compile_args[0], torch.Tensor)
+    ):
+        func = getattr(packet, "Tensor_float", None)
+        func_schema = (
+            getattr(func, "_schema", None) if func is not None else None
+        )
+        if func is not None and func_schema is not None:
+            mean_tensor = torch.ops.aten.full_like.default(
+                compile_args[0], float(compile_args[1])
+            )
+            std_value = float(compile_args[2])
+            transformed_kwargs: Kwargs = {}
+            if "generator" in compile_kwargs:
+                transformed_kwargs["generator"] = compile_kwargs["generator"]
+            return (
+                func,
+                func_schema,
+                [mean_tensor, std_value],
+                transformed_kwargs,
+            )
+
     overloads: List[str] = []
     try:
         overloads = list(packet.overloads())
@@ -715,6 +361,8 @@ def _numeric_out_variant_compile_target(
         candidates.append("default")
         candidates.append("Tensor")
         candidates.append("Scalar")
+        if op_name == "normal":
+            candidates.append("Tensor_float")
 
     # Fall back to any non-out overloads that exist on the packet.
     for cand in overloads:
@@ -1323,13 +971,14 @@ def run_aten_op(
         return compile_op(*inputs, **kw)
 
     try:
-        graphs, kwargs, skip_reason = _import_graphs(
-            op_call,
-            compile_args,
-            compile_kwargs,
-            compile_schema,
-            dynamo_compiler,
-        )
+        with _maybe_capture_dynamic_output_shape_ops(name):
+            graphs, kwargs, skip_reason = _import_graphs(
+                op_call,
+                compile_args,
+                compile_kwargs,
+                compile_schema,
+                dynamo_compiler,
+            )
         graph_breaks = _graph_break_count(graph_break_reasons)
         # Scalar output ops cause graph breaks but should be skipped, not failed.
         # Check both: 1) graph break reason mentions non-Tensor, OR 2) schema shows
@@ -1445,6 +1094,226 @@ def _assert_tensor_close(expected: torch.Tensor, actual: torch.Tensor) -> None:
             )
     else:
         torch.testing.assert_close(actual, expected, rtol=0.0, atol=0.0)
+
+
+def _build_random_validation_spec(
+    name: str, args: Args
+) -> Dict[str, int] | None:
+    def _to_int(v):
+        if isinstance(v, (int, float)):
+            return int(v)
+        if isinstance(v, torch.Tensor) and v.numel() == 1:
+            return int(v.item())
+        return None
+
+    if name in ("randint.low", "randint.low_out") and len(args) >= 2:
+        low = _to_int(args[0])
+        high = _to_int(args[1])
+        if low is None or high is None:
+            return None
+        return {"kind": 1, "low": low, "high": high}
+
+    if name == "randint.default" and len(args) >= 1:
+        high = _to_int(args[0])
+        if high is None:
+            return None
+        return {"kind": 1, "low": 0, "high": high}
+
+    if name in ("randint_like.default",) and len(args) >= 2:
+        high = _to_int(args[1])
+        if high is None:
+            return None
+        return {"kind": 1, "low": 0, "high": high}
+
+    if name in ("randint_like.low_dtype",) and len(args) >= 3:
+        low = _to_int(args[1])
+        high = _to_int(args[2])
+        if low is None or high is None:
+            return None
+        return {"kind": 1, "low": low, "high": high}
+
+    if name in ("randint_like.Tensor",) and len(args) >= 2:
+        high = _to_int(args[1])
+        if high is None:
+            return None
+        return {"kind": 1, "low": 0, "high": high}
+
+    if name in ("randperm.default", "randperm.out") and args:
+        n = _to_int(args[0])
+        if n is None:
+            return None
+        return {"kind": 2, "n": n}
+
+    if name in ("rand.default", "rand_like.default", "rand_like.out"):
+        return {"kind": 3}
+
+    if name in (
+        "randn.default",
+        "randn_like.default",
+        "randn_like.out",
+        "normal.Tensor_float",
+        "normal.Tensor_float_out",
+        "normal.float_Tensor",
+        "normal.float_Tensor_out",
+        "normal.Tensor_Tensor",
+        "normal.Tensor_Tensor_out",
+        "normal.float_float",
+        "normal.float_float_out",
+        "normal.out",
+        "normal_.default",
+        "rrelu_with_noise.default",
+        "rrelu_with_noise.out",
+        "rrelu_with_noise_.default",
+        "rrelu_with_noise_functional.default",
+    ):
+        return {"kind": 4}
+
+    if name in ("multinomial.default", "multinomial.out") and args:
+        probs = args[0]
+        if isinstance(probs, torch.Tensor) and probs.dim() >= 1:
+            return {"kind": 5, "ncat": int(probs.shape[-1])}
+        return None
+
+    if name in ("poisson.default", "poisson.out"):
+        return {"kind": 6}
+
+    if name in ("log_normal.default", "log_normal.out", "log_normal_.default"):
+        return {"kind": 7}
+
+    if name in ("uniform.default", "uniform_.default") and len(args) >= 3:
+        low = float(args[1])
+        high = float(args[2])
+        return {"kind": 8, "low": low, "high": high}
+
+    if name in ("cauchy.default", "cauchy_.default"):
+        return {"kind": 9}
+
+    return None
+
+
+def _assert_random_tensor_semantics(
+    name: str,
+    spec: Dict[str, int] | None,
+    expected: torch.Tensor,
+    actual: torch.Tensor,
+) -> None:
+    if spec is None:
+        _assert_tensor_close(expected, actual)
+        return
+
+    if expected.shape != actual.shape:
+        raise AssertionError(
+            f"shape_mismatch expected={tuple(expected.shape)} actual={tuple(actual.shape)}"
+        )
+    if expected.dtype != actual.dtype:
+        raise AssertionError(
+            f"dtype_mismatch expected={expected.dtype} actual={actual.dtype}"
+        )
+
+    kind = spec.get("kind", 0)
+    if kind == 1:
+        low = int(spec["low"])
+        high = int(spec["high"])
+        if high <= low:
+            raise AssertionError(
+                f"invalid_randint_bounds low={low} high={high}"
+            )
+        if actual.numel() == 0:
+            return
+        if not torch.all(actual >= low).item():
+            raise AssertionError(f"randint_out_of_range low={low}")
+        if not torch.all(actual < high).item():
+            raise AssertionError(f"randint_out_of_range high={high}")
+        return
+
+    if kind == 2:
+        n = int(spec["n"])
+        flat = actual.reshape(-1).to(torch.int64)
+        if flat.numel() != n:
+            raise AssertionError(
+                f"randperm_size_mismatch expected={n} actual={flat.numel()}"
+            )
+        if n == 0:
+            return
+        sorted_vals, _ = torch.sort(flat)
+        target = torch.arange(n, dtype=torch.int64)
+        if not torch.equal(sorted_vals.cpu(), target.cpu()):
+            raise AssertionError(f"randperm_invalid_values n={n}")
+        return
+
+    if kind == 3:
+        if actual.numel() == 0:
+            return
+        if not torch.isfinite(actual).all().item():
+            raise AssertionError("rand_non_finite")
+        if not torch.all(actual >= 0).item():
+            raise AssertionError("rand_out_of_range low=0")
+        if not torch.all(actual < 1).item():
+            raise AssertionError("rand_out_of_range high=1")
+        return
+
+    if kind == 4:
+        if actual.numel() == 0:
+            return
+        if not torch.isfinite(actual).all().item():
+            raise AssertionError("normal_non_finite")
+        return
+
+    if kind == 5:
+        if actual.numel() == 0:
+            return
+        ncat = int(spec["ncat"])
+        flat = actual.reshape(-1).to(torch.int64)
+        if not torch.all(flat >= 0).item():
+            raise AssertionError("multinomial_out_of_range low=0")
+        if not torch.all(flat < ncat).item():
+            raise AssertionError(f"multinomial_out_of_range high={ncat}")
+        return
+
+    if kind == 6:
+        if actual.numel() == 0:
+            return
+        if not torch.isfinite(actual).all().item():
+            raise AssertionError("poisson_non_finite")
+        if not torch.all(actual >= 0).item():
+            raise AssertionError("poisson_out_of_range low=0")
+        if actual.is_floating_point():
+            if not torch.allclose(actual, actual.round(), rtol=0.0, atol=0.0):
+                raise AssertionError("poisson_non_integer")
+        return
+
+    if kind == 7:
+        if actual.numel() == 0:
+            return
+        if not torch.isfinite(actual).all().item():
+            raise AssertionError("log_normal_non_finite")
+        if not torch.all(actual > 0).item():
+            raise AssertionError("log_normal_out_of_range low=0")
+        return
+
+    if kind == 8:
+        if actual.numel() == 0:
+            return
+        if not torch.isfinite(actual).all().item():
+            raise AssertionError("uniform_non_finite")
+        low = float(spec["low"])
+        high = float(spec["high"])
+        lo = min(low, high)
+        hi = max(low, high)
+        if not torch.all(actual >= lo).item():
+            raise AssertionError(f"uniform_out_of_range low={lo}")
+        if not torch.all(actual <= hi).item():
+            raise AssertionError(f"uniform_out_of_range high={hi}")
+        return
+
+    if kind == 9:
+        if actual.numel() == 0:
+            return
+        if not torch.isfinite(actual).all().item():
+            raise AssertionError("cauchy_non_finite")
+        return
+
+    _assert_tensor_close(expected, actual)
 
 
 def _assert_scalar_close(expected: Any, actual: Any) -> None:
@@ -1586,14 +1455,25 @@ def _resolve_shared_libs() -> Tuple[bool, str, List[str]]:
         candidates.append(Path(llvm_build_dir) / "lib")
     candidates.append(repo_root / "llvm" / "build" / "lib")
 
+    buddy_rng_lib_env = os.getenv("BUDDY_RNG_UTILS_LIB", "").strip()
+    buddy_rng_lib = (
+        Path(buddy_rng_lib_env)
+        if buddy_rng_lib_env
+        else repo_root / "build" / "lib" / f"libbuddy_rng_utils{ext}"
+    )
+
     for base in candidates:
         libs = [base / f"{name}{ext}" for name in lib_names]
         if all(p.exists() for p in libs):
+            if buddy_rng_lib.exists():
+                libs.append(buddy_rng_lib)
             return True, "", [str(p) for p in libs]
 
     for base in candidates:
         libs = [base / f"{name}{ext}" for name in lib_names if name != "libomp"]
         if all(p.exists() for p in libs):
+            if buddy_rng_lib.exists():
+                libs.append(buddy_rng_lib)
             return True, "", [str(p) for p in libs]
 
     return (
@@ -1771,6 +1651,8 @@ def run_aten_op_numeric(
     entry: CoverageEntry,
     dynamo_compiler: DynamoCompiler,
     templates: Dict[str, Any],
+    *,
+    strict_native: bool = False,
 ) -> Result:
     op_name = entry.get("op") or name.split(".")[0]
     if isinstance(op_name, str) and "backward" in op_name:
@@ -1791,7 +1673,7 @@ def run_aten_op_numeric(
     # Some special functions are currently implemented with low-order
     # approximations, which are not expected to meet the strict numeric
     # validation thresholds yet.
-    if op_name in (
+    if not strict_native and op_name in (
         "special_i0e",
         "special_i1",
         "special_i1e",
@@ -1813,7 +1695,7 @@ def run_aten_op_numeric(
     # functional overload when available. This avoids in-place execution
     # instability and makes results comparable to the reference path.
     base_name, _, overload_name = name.partition(".")
-    if base_name.endswith("_") and overload_name:
+    if (not strict_native) and base_name.endswith("_") and overload_name:
         functional_base = base_name[:-1]
         try:
             functional_op_base = getattr(torch.ops.aten, functional_base)
@@ -1843,7 +1725,8 @@ def run_aten_op_numeric(
 
     # Stabilize numeric inputs for ops with restricted domains.
     if (
-        op_name in ("erfinv", "erfinv_")
+        (not strict_native)
+        and op_name in ("erfinv", "erfinv_")
         and args
         and isinstance(args[0], torch.Tensor)
     ):
@@ -1856,7 +1739,11 @@ def run_aten_op_numeric(
     ref_args = args
     ref_kwargs = kwargs
 
-    dtype_target = _dtype_overload_compile_target(entry, args, kwargs)
+    dtype_target = (
+        _dtype_overload_compile_target(entry, args, kwargs)
+        if not strict_native
+        else None
+    )
     if dtype_target is not None:
         op, schema, args, kwargs = dtype_target
         # Numeric mode compares compiled results against a Torch reference. For
@@ -1867,7 +1754,12 @@ def run_aten_op_numeric(
         ref_args = args
         ref_kwargs = kwargs
 
-    if name == "conv2d.padding" and len(args) >= 7 and isinstance(args[4], str):
+    if (
+        (not strict_native)
+        and name == "conv2d.padding"
+        and len(args) >= 7
+        and isinstance(args[4], str)
+    ):
         padding_mode = args[4]
         if padding_mode == "valid":
             inp, weight, bias, stride, _, dilation, groups = args[:7]
@@ -1915,7 +1807,7 @@ def run_aten_op_numeric(
     # functional overload (no out buffers) and use the same functional overload
     # for the reference path, since we do not validate real out-buffer aliasing
     # semantics in numeric comparison.
-    if _out_tensor_arg_names(schema):
+    if (not strict_native) and _out_tensor_arg_names(schema):
         target = _numeric_out_variant_compile_target(
             entry, schema, args, kwargs
         )
@@ -1929,7 +1821,11 @@ def run_aten_op_numeric(
     # Numeric mode shim: some ops are difficult to execute end-to-end yet, but
     # we still want to validate the execution harness. For fill.Tensor* we
     # compile an equivalent expression that broadcasts a scalar tensor value.
-    if name in ("fill.Tensor", "fill.Tensor_out", "fill_.Tensor"):
+    if (not strict_native) and name in (
+        "fill.Tensor",
+        "fill.Tensor_out",
+        "fill_.Tensor",
+    ):
 
         def _fill_tensor_scalar_shim(self_tensor, value_tensor):
             zero = torch.ops.aten.mul.Scalar(self_tensor, 0.0)
@@ -1943,13 +1839,23 @@ def run_aten_op_numeric(
 
         compile_op = _fill_tensor_scalar_shim
 
-    if name in ("conv2d.default", "convolution.default", "convolution.out"):
+    if (not strict_native) and name in (
+        "conv2d.default",
+        "convolution.default",
+        "convolution.out",
+    ):
         # TEMP: Skip numeric validation for convolution ops while Conv2D lowering
         # is being iterated. Import/lowering coverage is still tracked in default
         # mode; numeric validation will be re-enabled once stabilized.
         return Result.skip(name, "skip:conv2d_numeric_temporarily_skipped")
 
-    if name in (
+    if (not strict_native) and name in ("stft.default", "stft.center"):
+        # STFT import/lowering is tracked in default mode, but numeric execution
+        # currently fails in the TOSA pipeline because complex reshape operands
+        # are not yet accepted as tosa-conformant tensors.
+        return Result.skip(name, "skip:complex_tosa_execution_not_supported")
+
+    if (not strict_native) and name in (
         "broadcast_tensors.default",
         "block_diag.default",
         "block_diag.out",
@@ -2015,14 +1921,15 @@ def run_aten_op_numeric(
 
     try:
         setattr(_DynamoCompiler, "_compile_fx", _compile_fx_wrapped)
-        graphs, compile_kwargs, skip_reason = _import_graphs(
-            op_call,
-            compile_args,
-            compile_kwargs,
-            compile_schema,
-            dynamo_compiler,
-            prefer_export=True,
-        )
+        with _maybe_capture_dynamic_output_shape_ops(name):
+            graphs, compile_kwargs, skip_reason = _import_graphs(
+                op_call,
+                compile_args,
+                compile_kwargs,
+                compile_schema,
+                dynamo_compiler,
+                prefer_export=True,
+            )
         graph_breaks = _graph_break_count(graph_break_reasons)
         if graph_breaks:
             if _is_scalar_output_break(
@@ -2045,6 +1952,12 @@ def run_aten_op_numeric(
             return Result.skip(name, out_msg)
 
         scalar_expected = any(kind != "tensor" for kind, _ in expected_items)
+        random_relaxed_compare = name in NUMERIC_RANDOM_RELAXED_COMPARE_OPS
+        random_compare_spec = (
+            _build_random_validation_spec(name, compile_args)
+            if random_relaxed_compare
+            else None
+        )
 
         def _check_outputs(actual_out: Any) -> Result | None:
             if isinstance(actual_out, list):
@@ -2079,9 +1992,18 @@ def run_aten_op_numeric(
                         expected_tensor: torch.Tensor = expected_value
                         if actual_kind == "tensor":
                             actual_tensor: torch.Tensor = actual_value
-                            _assert_tensor_close(
-                                expected_tensor.cpu(), actual_tensor.cpu()
-                            )
+                            if random_relaxed_compare:
+                                _assert_random_tensor_semantics(
+                                    name,
+                                    random_compare_spec,
+                                    expected_tensor.cpu(),
+                                    actual_tensor.cpu(),
+                                )
+                            else:
+                                _assert_tensor_close(
+                                    expected_tensor.cpu(),
+                                    actual_tensor.cpu(),
+                                )
                         else:
                             if (
                                 isinstance(expected_tensor, torch.Tensor)
@@ -2122,6 +2044,46 @@ def run_aten_op_numeric(
             for t in compiled_inputs
             if isinstance(t, torch.Tensor)
         ]
+
+        if strict_native and base_name.endswith("_"):
+            ok_in, in_msg, inplace_exec_inputs = _collect_tensor_inputs(
+                compile_args, compile_kwargs
+            )
+            if not ok_in:
+                return Result.skip(name, in_msg)
+            exec_inputs = [
+                (
+                    t.detach()
+                    if isinstance(t, torch.Tensor) and t.requires_grad
+                    else t
+                )
+                for t in inplace_exec_inputs
+            ]
+            exec_inputs = _maybe_reorder_tensor_inputs_for_compiler(
+                dynamo_compiler, exec_inputs
+            )
+
+            if name in (
+                "index_copy_.default",
+                "index_put_.default",
+                "scatter_.src",
+            ):
+                exec_inputs = [
+                    (
+                        t.detach()
+                        if isinstance(t, torch.Tensor) and t.requires_grad
+                        else t
+                    )
+                    for t in compiled_inputs
+                    if isinstance(t, torch.Tensor)
+                ]
+
+        if strict_native and name == "scatter_add_.default":
+            self_tensor = compile_args[0]
+            index_tensor = compile_args[2]
+            source_tensor = compile_args[3]
+            exec_inputs = [source_tensor, index_tensor, self_tensor]
+
         primary_out = exec_func(*exec_inputs)
         result = _check_outputs(primary_out)
         if result is None:
@@ -2129,15 +2091,16 @@ def run_aten_op_numeric(
 
         # If multiple tensor inputs share identical shape/dtype, Dynamo may
         # reorder placeholders. Try small permutations to avoid false FAIL.
-        metas = [(tuple(t.shape), t.dtype) for t in exec_inputs]
-        if len(exec_inputs) <= 4 and len(set(metas)) != len(metas):
-            base = tuple(range(len(exec_inputs)))
-            for perm in itertools.permutations(base):
-                if perm == base:
-                    continue
-                out = exec_func(*[exec_inputs[i] for i in perm])
-                if _check_outputs(out) is None:
-                    return Result.passed(name)
+        if not (strict_native and base_name.endswith("_")):
+            metas = [(tuple(t.shape), t.dtype) for t in exec_inputs]
+            if len(exec_inputs) <= 4 and len(set(metas)) != len(metas):
+                base = tuple(range(len(exec_inputs)))
+                for perm in itertools.permutations(base):
+                    if perm == base:
+                        continue
+                    out = exec_func(*[exec_inputs[i] for i in perm])
+                    if _check_outputs(out) is None:
+                        return Result.passed(name)
 
         return result
     except Exception as e:
@@ -2168,17 +2131,22 @@ def _resolve_entries(
     return entries
 
 
-def _make_compiler() -> DynamoCompiler:
+def _make_compiler(*, strict_native: bool = False) -> DynamoCompiler:
+    decompositions = (
+        dict(inductor_decomp) if strict_native else make_aot_decompositions()
+    )
     return DynamoCompiler(
         primary_registry=tosa.ops_registry,
-        aot_autograd_decomposition=make_aot_decompositions(),
+        aot_autograd_decomposition=decompositions,
         enable_external_calls=True,
     )
 
 
-def _reset_dynamo_and_compiler() -> DynamoCompiler:
+def _reset_dynamo_and_compiler(
+    *, strict_native: bool = False
+) -> DynamoCompiler:
     torch._dynamo.reset()
-    return _make_compiler()
+    return _make_compiler(strict_native=strict_native)
 
 
 def run_aten_op_batch(
@@ -2190,6 +2158,7 @@ def run_aten_op_batch(
     show_skips: bool = False,
     validate_numeric: bool = False,
     templates_source: Path | str | None = None,
+    numeric_strict_native: bool = False,
 ) -> List[Result]:
     coverage_map = load_coverage_map(coverage_json)
     entries = _resolve_entries(names, coverage_map)
@@ -2204,6 +2173,7 @@ def run_aten_op_batch(
                 str(worker),
                 str(coverage_json),
                 str(templates_source),
+                "1" if numeric_strict_native else "0",
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,

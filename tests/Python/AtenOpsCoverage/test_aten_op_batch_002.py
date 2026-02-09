@@ -292,6 +292,17 @@ def _template_fft_nd_out():
     return args, {"out": out}
 
 
+def _template_fft_rfftn():
+    x = torch.randn(2, 2, 2, dtype=torch.float32)
+    return [x, None, None, None], {}
+
+
+def _template_fft_rfftn_out():
+    args, _ = _template_fft_rfftn()
+    out = torch.empty(2, 2, 2, dtype=torch.complex64)
+    return args, {"out": out}
+
+
 def _template_fft_rfft():
     x = torch.randn(4, dtype=torch.float32)
     return [x, None, -1, None], {}
@@ -332,7 +343,74 @@ def _template_fft_ihfft():
 
 def _template_fft_ihfft_out():
     args, _ = _template_fft_ihfft()
-    out = torch.empty(4, dtype=torch.complex64)
+    out = torch.empty(3, dtype=torch.complex64)
+    return args, {"out": out}
+
+
+def _template_fft_ihfft2():
+    x = torch.randn(2, 2, dtype=torch.float32)
+    return [x, None, [-2, -1], None], {}
+
+
+def _template_fft_ihfft2_out():
+    args, _ = _template_fft_ihfft2()
+    out = torch.empty(2, 2, dtype=torch.complex64)
+    return args, {"out": out}
+
+
+def _template_fft_ihfftn():
+    x = torch.randn(2, 2, 2, dtype=torch.float32)
+    return [x, None, None, None], {}
+
+
+def _template_fft_ihfftn_out():
+    args, _ = _template_fft_ihfftn()
+    out = torch.empty(2, 2, 2, dtype=torch.complex64)
+    return args, {"out": out}
+
+
+def _template_fft_hfft2_out():
+    args, _ = _template_fft_2d()
+    out = torch.empty(2, 2, dtype=torch.float32)
+    return args, {"out": out}
+
+
+def _template_fft_hfftn_out():
+    args, _ = _template_fft_nd()
+    out = torch.empty(2, 2, 2, dtype=torch.float32)
+    return args, {"out": out}
+
+
+def _template_fft_irfft2():
+    x = torch.randn(2, 2, dtype=torch.complex64)
+    return [x, None, [-2, -1], None], {}
+
+
+def _template_fft_irfft2_out():
+    args, _ = _template_fft_irfft2()
+    out = torch.empty(2, 2, dtype=torch.float32)
+    return args, {"out": out}
+
+
+def _template_fft_irfftn():
+    x = torch.randn(2, 2, 2, dtype=torch.complex64)
+    return [x, None, None, None], {}
+
+
+def _template_fft_irfftn_out():
+    args, _ = _template_fft_irfftn()
+    out = torch.empty(2, 2, 2, dtype=torch.float32)
+    return args, {"out": out}
+
+
+def _template_fft_rfft2():
+    x = torch.randn(2, 2, dtype=torch.float32)
+    return [x, None, [-2, -1], None], {}
+
+
+def _template_fft_rfft2_out():
+    args, _ = _template_fft_rfft2()
+    out = torch.empty(2, 2, dtype=torch.complex64)
     return args, {"out": out}
 
 
@@ -406,6 +484,28 @@ def _template_float_power_inplace():
     return [x, exp], {}
 
 
+def _template_float_power_scalar_inplace():
+    x = torch.tensor([2.0, 3.0], dtype=torch.float64)
+    return [x, 2.0], {}
+
+
+def _template_erfinv():
+    x = torch.tensor([-0.5, 0.0, 0.5], dtype=torch.float32)
+    return [x], {}
+
+
+def _template_erfinv_out():
+    args, _ = _template_erfinv()
+    out = torch.empty_like(args[0])
+    return args, {"out": out}
+
+
+def _template_erfinv_inplace():
+    args, _ = _template_erfinv()
+    args[0] = args[0].clone()
+    return args, {}
+
+
 CUSTOM_TEMPLATES.update(
     {
         "diagonal.default": _template_diagonal,
@@ -445,6 +545,11 @@ CUSTOM_TEMPLATES.update(
         "embedding.default": _template_embedding,
         "embedding.out": _template_embedding_out,
         "embedding_dense_backward.default": _template_embedding_dense_backward,
+        "erfinv.default": _template_erfinv,
+        "erfinv.out": _template_erfinv_out,
+        "erfinv_.default": _template_erfinv_inplace,
+        "float_power_.Tensor": _template_float_power_inplace,
+        "float_power_.Scalar": _template_float_power_scalar_inplace,
         "embedding_dense_backward.out": _template_embedding_dense_backward_out,
         "empty.memory_format": _template_empty_sizes,
         "empty.out": _template_empty_out,
@@ -493,46 +598,42 @@ CUSTOM_TEMPLATES.update(
         "flip.default": _template_flip,
         "flip.out": _template_flip_out,
         "fmod.Scalar": _template_fmod_scalar,
-        # float_power_ outputs require float64 dtype, which the backend doesn't support yet.
-        "float_power_.Tensor": _skip("float64_dtype_not_supported"),
-        "float_power_.Scalar": _skip("float64_dtype_not_supported"),
-        # FFT ops require complex dtype, which the backend doesn't support yet.
-        "fft_fft.default": _skip("complex_dtype_not_supported"),
-        "fft_fft.out": _skip("complex_dtype_not_supported"),
-        "fft_fft2.default": _skip("complex_dtype_not_supported"),
-        "fft_fft2.out": _skip("complex_dtype_not_supported"),
-        "fft_fftn.default": _skip("complex_dtype_not_supported"),
-        "fft_fftn.out": _skip("complex_dtype_not_supported"),
-        "fft_hfft.default": _skip("complex_dtype_not_supported"),
-        "fft_hfft.out": _skip("complex_dtype_not_supported"),
-        "fft_hfft2.default": _skip("complex_dtype_not_supported"),
-        "fft_hfft2.out": _skip("complex_dtype_not_supported"),
-        "fft_hfftn.default": _skip("complex_dtype_not_supported"),
-        "fft_hfftn.out": _skip("complex_dtype_not_supported"),
-        "fft_ifft.default": _skip("complex_dtype_not_supported"),
-        "fft_ifft.out": _skip("complex_dtype_not_supported"),
-        "fft_ifft2.default": _skip("complex_dtype_not_supported"),
-        "fft_ifft2.out": _skip("complex_dtype_not_supported"),
-        "fft_ifftn.default": _skip("complex_dtype_not_supported"),
-        "fft_ifftn.out": _skip("complex_dtype_not_supported"),
-        "fft_ihfft.default": _skip("complex_dtype_not_supported"),
-        "fft_ihfft.out": _skip("complex_dtype_not_supported"),
-        "fft_ihfft2.default": _skip("complex_dtype_not_supported"),
-        "fft_ihfft2.out": _skip("complex_dtype_not_supported"),
-        "fft_ihfftn.default": _skip("complex_dtype_not_supported"),
-        "fft_ihfftn.out": _skip("complex_dtype_not_supported"),
-        "fft_irfft.default": _skip("complex_dtype_not_supported"),
-        "fft_irfft.out": _skip("complex_dtype_not_supported"),
-        "fft_irfft2.default": _skip("complex_dtype_not_supported"),
-        "fft_irfft2.out": _skip("complex_dtype_not_supported"),
-        "fft_irfftn.default": _skip("complex_dtype_not_supported"),
-        "fft_irfftn.out": _skip("complex_dtype_not_supported"),
-        "fft_rfft.default": _skip("complex_dtype_not_supported"),
-        "fft_rfft.out": _skip("complex_dtype_not_supported"),
-        "fft_rfft2.default": _skip("complex_dtype_not_supported"),
-        "fft_rfft2.out": _skip("complex_dtype_not_supported"),
-        "fft_rfftn.default": _skip("complex_dtype_not_supported"),
-        "fft_rfftn.out": _skip("complex_dtype_not_supported"),
+        "fft_fft.default": _template_fft_1d,
+        "fft_fft.out": _template_fft_1d_out,
+        "fft_fft2.default": _template_fft_2d,
+        "fft_fft2.out": _template_fft_2d_out,
+        "fft_fftn.default": _template_fft_nd,
+        "fft_fftn.out": _template_fft_nd_out,
+        "fft_hfft.default": _template_fft_hfft,
+        "fft_hfft.out": _template_fft_hfft_out,
+        "fft_hfft2.default": _template_fft_2d,
+        "fft_hfft2.out": _template_fft_hfft2_out,
+        "fft_hfftn.default": _template_fft_nd,
+        "fft_hfftn.out": _template_fft_hfftn_out,
+        "fft_ifft.default": _template_fft_1d,
+        "fft_ifft.out": _template_fft_1d_out,
+        "fft_ifft2.default": _template_fft_2d,
+        "fft_ifft2.out": _template_fft_2d_out,
+        "fft_ifftn.default": _template_fft_nd,
+        "fft_ifftn.out": _template_fft_nd_out,
+        "fft_ihfft.default": _template_fft_ihfft,
+        "fft_ihfft.out": _template_fft_ihfft_out,
+        "fft_ihfft2.default": _template_fft_ihfft2,
+        "fft_ihfft2.out": _template_fft_ihfft2_out,
+        "fft_ihfftn.default": _template_fft_ihfftn,
+        "fft_ihfftn.out": _template_fft_ihfftn_out,
+        "fft_irfft.default": _template_fft_irfft,
+        "fft_irfft.out": _template_fft_irfft_out,
+        "fft_irfft2.default": _template_fft_irfft2,
+        "fft_irfft2.out": _template_fft_irfft2_out,
+        "fft_irfftn.default": _template_fft_irfftn,
+        "fft_irfftn.out": _template_fft_irfftn_out,
+        "fft_rfft.default": _template_fft_rfft,
+        "fft_rfft.out": _template_fft_rfft_out,
+        "fft_rfft2.default": _template_fft_rfft2,
+        "fft_rfft2.out": _template_fft_rfft2_out,
+        "fft_rfftn.default": _template_fft_rfftn,
+        "fft_rfftn.out": _template_fft_rfftn_out,
         "empty.names": _skip("named_tensor_torchscript"),
         "empty.names_out": _skip("named_tensor_torchscript"),
     }

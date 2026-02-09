@@ -10,6 +10,7 @@ from pathlib import Path
 def main() -> int:
     coverage_json = sys.argv[1]
     templates_source = sys.argv[2]
+    strict_native = bool(int(sys.argv[3])) if len(sys.argv) > 3 else False
 
     repo_root = Path(__file__).resolve().parents[3]
     sys.path.insert(0, str(repo_root / "build" / "python_packages"))
@@ -33,14 +34,20 @@ def main() -> int:
     templates = templates_mod["CUSTOM_TEMPLATES"]
 
     coverage_map = runner.load_coverage_map(coverage_json)
-    compiler = runner._make_compiler()
+    compiler = runner._make_compiler(strict_native=strict_native)
 
     for line in sys.stdin:
         name = line.strip()
         if not name:
             continue
         entry = coverage_map[name]
-        result = runner.run_aten_op_numeric(name, entry, compiler, templates)
+        result = runner.run_aten_op_numeric(
+            name,
+            entry,
+            compiler,
+            templates,
+            strict_native=strict_native,
+        )
         print(
             json.dumps(
                 {
@@ -52,7 +59,9 @@ def main() -> int:
             ),
             flush=True,
         )
-        compiler = runner._reset_dynamo_and_compiler()
+        compiler = runner._reset_dynamo_and_compiler(
+            strict_native=strict_native
+        )
 
     return 0
 

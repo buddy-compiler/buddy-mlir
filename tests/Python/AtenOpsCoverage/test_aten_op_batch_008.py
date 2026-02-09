@@ -54,6 +54,17 @@ def _template_poly_n_scalar_out():
     return [x, 2], {"out": _poly_out_for(x)}
 
 
+def _template_special_k_default():
+    x = torch.tensor([0.5, 3.0], dtype=torch.float32)
+    return [x], {}
+
+
+def _template_special_zeta_default():
+    self_tensor = torch.tensor([2.5, 4.0], dtype=torch.float32)
+    other_tensor = torch.tensor([1.2, 2.5], dtype=torch.float32)
+    return [self_tensor, other_tensor], {}
+
+
 def _split_base_1d():
     return torch.arange(6, dtype=torch.float32)
 
@@ -298,9 +309,7 @@ CUSTOM_TEMPLATES.update(
         "special_laguerre_polynomial_l.n_scalar_out": _skip(
             "missing_op_implementation"
         ),
-        "special_legendre_polynomial_p.default": _skip(
-            "missing_op_implementation"
-        ),
+        "special_legendre_polynomial_p.default": _template_poly_default,
         "special_legendre_polynomial_p.out": _skip("missing_op_implementation"),
         "special_legendre_polynomial_p.x_scalar": _skip(
             "missing_op_implementation"
@@ -314,29 +323,19 @@ CUSTOM_TEMPLATES.update(
         "special_legendre_polynomial_p.n_scalar_out": _skip(
             "missing_op_implementation"
         ),
-        "special_modified_bessel_k0.default": _skip(
-            "missing_op_implementation"
-        ),
+        "special_modified_bessel_k0.default": _template_special_k_default,
         "special_modified_bessel_k0.out": _skip("missing_op_implementation"),
-        "special_modified_bessel_k1.default": _skip(
-            "missing_op_implementation"
-        ),
+        "special_modified_bessel_k1.default": _template_special_k_default,
         "special_modified_bessel_k1.out": _skip("missing_op_implementation"),
-        "special_scaled_modified_bessel_k0.default": _skip(
-            "missing_op_implementation"
-        ),
+        "special_scaled_modified_bessel_k0.default": _template_special_k_default,
         "special_scaled_modified_bessel_k0.out": _skip(
             "missing_op_implementation"
         ),
-        "special_scaled_modified_bessel_k1.default": _skip(
-            "missing_op_implementation"
-        ),
+        "special_scaled_modified_bessel_k1.default": _template_special_k_default,
         "special_scaled_modified_bessel_k1.out": _skip(
             "missing_op_implementation"
         ),
-        "special_shifted_chebyshev_polynomial_t.default": _skip(
-            "missing_op_implementation"
-        ),
+        "special_shifted_chebyshev_polynomial_t.default": _template_poly_default,
         "special_shifted_chebyshev_polynomial_t.out": _skip(
             "missing_op_implementation"
         ),
@@ -352,9 +351,7 @@ CUSTOM_TEMPLATES.update(
         "special_shifted_chebyshev_polynomial_t.n_scalar_out": _skip(
             "missing_op_implementation"
         ),
-        "special_shifted_chebyshev_polynomial_u.default": _skip(
-            "missing_op_implementation"
-        ),
+        "special_shifted_chebyshev_polynomial_u.default": _template_poly_default,
         "special_shifted_chebyshev_polynomial_u.out": _skip(
             "missing_op_implementation"
         ),
@@ -370,9 +367,7 @@ CUSTOM_TEMPLATES.update(
         "special_shifted_chebyshev_polynomial_u.n_scalar_out": _skip(
             "missing_op_implementation"
         ),
-        "special_shifted_chebyshev_polynomial_v.default": _skip(
-            "missing_op_implementation"
-        ),
+        "special_shifted_chebyshev_polynomial_v.default": _template_poly_default,
         "special_shifted_chebyshev_polynomial_v.out": _skip(
             "missing_op_implementation"
         ),
@@ -388,9 +383,7 @@ CUSTOM_TEMPLATES.update(
         "special_shifted_chebyshev_polynomial_v.n_scalar_out": _skip(
             "missing_op_implementation"
         ),
-        "special_shifted_chebyshev_polynomial_w.default": _skip(
-            "missing_op_implementation"
-        ),
+        "special_shifted_chebyshev_polynomial_w.default": _template_poly_default,
         "special_shifted_chebyshev_polynomial_w.out": _skip(
             "missing_op_implementation"
         ),
@@ -413,7 +406,7 @@ CUSTOM_TEMPLATES.update(
         "special_xlog1py.other_scalar_out": _skip(
             "missing_prims_scalar_tensor"
         ),
-        "special_zeta.default": _skip("missing_op_implementation"),
+        "special_zeta.default": _template_special_zeta_default,
         "special_zeta.other_scalar": _skip("missing_op_implementation"),
         "special_zeta.self_scalar": _skip("missing_op_implementation"),
         "special_zeta.out": _skip("missing_op_implementation"),
@@ -444,8 +437,8 @@ CUSTOM_TEMPLATES.update(
         "std_mean.names_dim": _skip("dynamo_dimname_fake_tensor"),
         "std_mean.correction_names": _skip("dynamo_dimname_fake_tensor"),
         "std_mean.correction_out": _template_std_mean_correction_out,
-        "stft.default": _skip("complex64_not_supported"),
-        "stft.center": _skip("complex64_not_supported"),
+        "stft.default": _template_stft_default,
+        "stft.center": _template_stft_center,
         "stride.Dimname": _skip("dynamo_dimname_fake_tensor"),
         "squeeze.dimname": _skip("dynamo_dimname_fake_tensor"),
         "sum.dim_DimnameList": _skip("dynamo_dimname_fake_tensor"),

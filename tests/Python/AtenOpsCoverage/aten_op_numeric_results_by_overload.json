@@ -1453,14 +1453,14 @@
     "op": "bincount",
     "overload": "default",
     "status": "skip",
-    "reason": "template:missing_lowering"
+    "reason": "template:dynamo_graph_break:data_dependent_output_shape"
   },
   {
     "name": "bincount.out",
     "op": "bincount",
     "overload": "out",
     "status": "skip",
-    "reason": "template:missing_lowering"
+    "reason": "template:dynamo_graph_break:data_dependent_output_shape"
   },
   {
     "name": "bitwise_and.Scalar",
@@ -1872,8 +1872,8 @@
     "name": "cauchy.default",
     "op": "cauchy",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:randop_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "cauchy.out",
@@ -1886,8 +1886,8 @@
     "name": "cauchy_.default",
     "op": "cauchy_",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:randop_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "ceil.Scalar",
@@ -1970,8 +1970,8 @@
     "name": "cholesky.default",
     "op": "cholesky",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:linalg_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "cholesky.out",
@@ -1984,8 +1984,8 @@
     "name": "cholesky_inverse.default",
     "op": "cholesky_inverse",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:linalg_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "cholesky_inverse.out",
@@ -1998,8 +1998,8 @@
     "name": "cholesky_solve.default",
     "op": "cholesky_solve",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:linalg_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "cholesky_solve.out",
@@ -2208,15 +2208,15 @@
     "name": "complex.default",
     "op": "complex",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex64_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "complex.out",
     "op": "complex",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex64_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "conj.default",
@@ -2789,8 +2789,8 @@
     "name": "dense_dim.default",
     "op": "dense_dim",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:sparse_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "detach.default",
@@ -3125,8 +3125,8 @@
     "name": "dropout.default",
     "op": "dropout",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "elu.default",
@@ -3713,43 +3713,43 @@
     "name": "fft_fft.default",
     "op": "fft_fft",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_fft.out",
     "op": "fft_fft",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_fft2.default",
     "op": "fft_fft2",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_fft2.out",
     "op": "fft_fft2",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_fftn.default",
     "op": "fft_fftn",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_fftn.out",
     "op": "fft_fftn",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_fftshift.default",
@@ -3762,85 +3762,85 @@
     "name": "fft_hfft.default",
     "op": "fft_hfft",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_hfft.out",
     "op": "fft_hfft",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_hfft2.default",
     "op": "fft_hfft2",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_hfft2.out",
     "op": "fft_hfft2",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_hfftn.default",
     "op": "fft_hfftn",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_hfftn.out",
     "op": "fft_hfftn",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ifft.default",
     "op": "fft_ifft",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ifft.out",
     "op": "fft_ifft",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ifft2.default",
     "op": "fft_ifft2",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ifft2.out",
     "op": "fft_ifft2",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ifftn.default",
     "op": "fft_ifftn",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ifftn.out",
     "op": "fft_ifftn",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ifftshift.default",
@@ -3853,127 +3853,127 @@
     "name": "fft_ihfft.default",
     "op": "fft_ihfft",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ihfft.out",
     "op": "fft_ihfft",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ihfft2.default",
     "op": "fft_ihfft2",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ihfft2.out",
     "op": "fft_ihfft2",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ihfftn.default",
     "op": "fft_ihfftn",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_ihfftn.out",
     "op": "fft_ihfftn",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_irfft.default",
     "op": "fft_irfft",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_irfft.out",
     "op": "fft_irfft",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_irfft2.default",
     "op": "fft_irfft2",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_irfft2.out",
     "op": "fft_irfft2",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_irfftn.default",
     "op": "fft_irfftn",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_irfftn.out",
     "op": "fft_irfftn",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_rfft.default",
     "op": "fft_rfft",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_rfft.out",
     "op": "fft_rfft",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_rfft2.default",
     "op": "fft_rfft2",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_rfft2.out",
     "op": "fft_rfft2",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_rfftn.default",
     "op": "fft_rfftn",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fft_rfftn.out",
     "op": "fft_rfftn",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "fill.Scalar",
@@ -4056,15 +4056,15 @@
     "name": "float_power_.Scalar",
     "op": "float_power_",
     "overload": "Scalar",
-    "status": "skip",
-    "reason": "template:float64_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "float_power_.Tensor",
     "op": "float_power_",
     "overload": "Tensor",
-    "status": "skip",
-    "reason": "template:float64_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "floor.Scalar",
@@ -5050,43 +5050,43 @@
     "name": "igamma.default",
     "op": "igamma",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_lowering"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "igamma.out",
     "op": "igamma",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:missing_lowering"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "igamma_.default",
     "op": "igamma_",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_lowering"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "igammac.default",
     "op": "igammac",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_lowering"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "igammac.out",
     "op": "igammac",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:missing_lowering"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "igammac_.default",
     "op": "igammac_",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_lowering"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "im2col.default",
@@ -5106,8 +5106,8 @@
     "name": "imag.default",
     "op": "imag",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "index.Tensor",
@@ -5596,8 +5596,8 @@
     "name": "istft.default",
     "op": "istft",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_fft_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "item.default",
@@ -5988,8 +5988,8 @@
     "name": "linalg_cholesky_ex.default",
     "op": "linalg_cholesky_ex",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:linalg_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linalg_cross.default",
@@ -6051,15 +6051,15 @@
     "name": "linalg_inv_ex.default",
     "op": "linalg_inv_ex",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:linalg_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linalg_inv_ex.inverse",
     "op": "linalg_inv_ex",
     "overload": "inverse",
     "status": "skip",
-    "reason": "template:linalg_not_supported"
+    "reason": "template:linalg_out_variant_not_enabled"
   },
   {
     "name": "linalg_ldl_factor_ex.default",
@@ -6093,8 +6093,8 @@
     "name": "linalg_lu.default",
     "op": "linalg_lu",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:linalg_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linalg_lu.out",
@@ -6107,8 +6107,8 @@
     "name": "linalg_lu_factor_ex.default",
     "op": "linalg_lu_factor_ex",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:linalg_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linalg_lu_factor_ex.out",
@@ -6121,8 +6121,8 @@
     "name": "linalg_lu_solve.default",
     "op": "linalg_lu_solve",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:linalg_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linalg_lu_solve.out",
@@ -6163,8 +6163,8 @@
     "name": "linalg_solve_triangular.default",
     "op": "linalg_solve_triangular",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:linalg_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linalg_solve_triangular.out",
@@ -6219,57 +6219,57 @@
     "name": "linspace.Scalar_Tensor",
     "op": "linspace",
     "overload": "Scalar_Tensor",
-    "status": "skip",
-    "reason": "template:backend_crash_linspace"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linspace.Scalar_Tensor_out",
     "op": "linspace",
     "overload": "Scalar_Tensor_out",
-    "status": "skip",
-    "reason": "template:backend_crash_linspace"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linspace.Tensor_Scalar",
     "op": "linspace",
     "overload": "Tensor_Scalar",
-    "status": "skip",
-    "reason": "template:backend_crash_linspace"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linspace.Tensor_Scalar_out",
     "op": "linspace",
     "overload": "Tensor_Scalar_out",
-    "status": "skip",
-    "reason": "template:backend_crash_linspace"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linspace.Tensor_Tensor",
     "op": "linspace",
     "overload": "Tensor_Tensor",
-    "status": "skip",
-    "reason": "template:backend_crash_linspace"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linspace.Tensor_Tensor_out",
     "op": "linspace",
     "overload": "Tensor_Tensor_out",
-    "status": "skip",
-    "reason": "template:backend_crash_linspace"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linspace.default",
     "op": "linspace",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:backend_crash_linspace"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "linspace.out",
     "op": "linspace",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:backend_crash_linspace"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "log.Scalar",
@@ -6506,22 +6506,22 @@
     "name": "log_normal.default",
     "op": "log_normal",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "log_normal.out",
     "op": "log_normal",
     "overload": "out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "log_normal_.default",
     "op": "log_normal_",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "log_sigmoid_backward.default",
@@ -6912,8 +6912,8 @@
     "name": "lu_unpack.default",
     "op": "lu_unpack",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:linalg_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "lu_unpack.out",
@@ -7003,15 +7003,15 @@
     "name": "masked_select.default",
     "op": "masked_select",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:dynamic_shape_op"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "masked_select.out",
     "op": "masked_select",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:dynamic_shape_op"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "matmul.default",
@@ -7682,15 +7682,15 @@
     "name": "multinomial.default",
     "op": "multinomial",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "multinomial.out",
     "op": "multinomial",
     "overload": "out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "multiply.Scalar",
@@ -7899,8 +7899,8 @@
     "name": "native_dropout.default",
     "op": "native_dropout",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "native_dropout.out",
@@ -8375,22 +8375,22 @@
     "name": "nonzero.default",
     "op": "nonzero",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:dynamic_shape_op"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "nonzero.out",
     "op": "nonzero",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:dynamic_shape_op"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "nonzero_numpy.default",
     "op": "nonzero_numpy",
     "overload": "default",
     "status": "skip",
-    "reason": "template:dynamic_shape_op"
+    "reason": "template:list_return_op"
   },
   {
     "name": "nonzero_static.default",
@@ -8494,71 +8494,71 @@
     "name": "normal.Tensor_Tensor",
     "op": "normal",
     "overload": "Tensor_Tensor",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "normal.Tensor_Tensor_out",
     "op": "normal",
     "overload": "Tensor_Tensor_out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "normal.Tensor_float",
     "op": "normal",
     "overload": "Tensor_float",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "normal.Tensor_float_out",
     "op": "normal",
     "overload": "Tensor_float_out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "normal.float_Tensor",
     "op": "normal",
     "overload": "float_Tensor",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "normal.float_Tensor_out",
     "op": "normal",
     "overload": "float_Tensor_out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "normal.float_float",
     "op": "normal",
     "overload": "float_float",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "normal.float_float_out",
     "op": "normal",
     "overload": "float_float_out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "normal.out",
     "op": "normal",
     "overload": "out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "normal_.default",
     "op": "normal_",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "not_equal.Scalar",
@@ -8669,8 +8669,8 @@
     "name": "pad_sequence.default",
     "op": "pad_sequence",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:backend_missing_pad_sequence"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "pairwise_distance.default",
@@ -8746,15 +8746,15 @@
     "name": "poisson.default",
     "op": "poisson",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "poisson.out",
     "op": "poisson",
     "overload": "out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "polar.Scalar_Scalar",
@@ -8767,8 +8767,8 @@
     "name": "polar.default",
     "op": "polar",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "polar.float",
@@ -8802,8 +8802,8 @@
     "name": "polar.out",
     "op": "polar",
     "overload": "out",
-    "status": "skip",
-    "reason": "template:complex_dtype_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "polygamma.default",
@@ -9075,8 +9075,8 @@
     "name": "rand.default",
     "op": "rand",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "rand.generator",
@@ -9131,22 +9131,22 @@
     "name": "rand_like.default",
     "op": "rand_like",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "rand_like.out",
     "op": "rand_like",
     "overload": "out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "randint.default",
     "op": "randint",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "randint.generator",
@@ -9166,8 +9166,8 @@
     "name": "randint.low",
     "op": "randint",
     "overload": "low",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "randint.low_generator",
@@ -9187,8 +9187,8 @@
     "name": "randint.low_out",
     "op": "randint",
     "overload": "low_out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "randint.out",
@@ -9201,8 +9201,8 @@
     "name": "randint_like.Tensor",
     "op": "randint_like",
     "overload": "Tensor",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "randint_like.Tensor_out",
@@ -9215,15 +9215,15 @@
     "name": "randint_like.default",
     "op": "randint_like",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "randint_like.low_dtype",
     "op": "randint_like",
     "overload": "low_dtype",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "randint_like.low_dtype_out",
@@ -9243,8 +9243,8 @@
     "name": "randn.default",
     "op": "randn",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "randn.generator",
@@ -9299,22 +9299,22 @@
     "name": "randn_like.default",
     "op": "randn_like",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "randn_like.out",
     "op": "randn_like",
     "overload": "out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "randperm.default",
     "op": "randperm",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "randperm.generator",
@@ -9334,8 +9334,8 @@
     "name": "randperm.out",
     "op": "randperm",
     "overload": "out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "real.default",
@@ -9880,22 +9880,22 @@
     "name": "rrelu_with_noise.default",
     "op": "rrelu_with_noise",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "rrelu_with_noise.out",
     "op": "rrelu_with_noise",
     "overload": "out",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "rrelu_with_noise_.default",
     "op": "rrelu_with_noise_",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "rrelu_with_noise_backward.default",
@@ -9915,8 +9915,8 @@
     "name": "rrelu_with_noise_functional.default",
     "op": "rrelu_with_noise_functional",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:random"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "rsqrt.default",
@@ -10132,15 +10132,15 @@
     "name": "searchsorted.Scalar",
     "op": "searchsorted",
     "overload": "Scalar",
-    "status": "pass",
-    "reason": ""
+    "status": "skip",
+    "reason": "import_empty"
   },
   {
     "name": "searchsorted.Scalar_out",
     "op": "searchsorted",
     "overload": "Scalar_out",
-    "status": "pass",
-    "reason": ""
+    "status": "skip",
+    "reason": "import_empty"
   },
   {
     "name": "searchsorted.Tensor",
@@ -10790,8 +10790,8 @@
     "name": "special_airy_ai.default",
     "op": "special_airy_ai",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_function_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_airy_ai.out",
@@ -10804,8 +10804,8 @@
     "name": "special_bessel_j0.default",
     "op": "special_bessel_j0",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_function_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_bessel_j0.out",
@@ -10818,8 +10818,8 @@
     "name": "special_bessel_j1.default",
     "op": "special_bessel_j1",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_function_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_bessel_j1.out",
@@ -10832,8 +10832,8 @@
     "name": "special_bessel_y0.default",
     "op": "special_bessel_y0",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_function_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_bessel_y0.out",
@@ -10846,8 +10846,8 @@
     "name": "special_bessel_y1.default",
     "op": "special_bessel_y1",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_function_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_bessel_y1.out",
@@ -10860,8 +10860,8 @@
     "name": "special_chebyshev_polynomial_t.default",
     "op": "special_chebyshev_polynomial_t",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_polynomial_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_chebyshev_polynomial_t.n_scalar",
@@ -10902,8 +10902,8 @@
     "name": "special_chebyshev_polynomial_u.default",
     "op": "special_chebyshev_polynomial_u",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_polynomial_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_chebyshev_polynomial_u.n_scalar",
@@ -10944,8 +10944,8 @@
     "name": "special_chebyshev_polynomial_v.default",
     "op": "special_chebyshev_polynomial_v",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_polynomial_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_chebyshev_polynomial_v.n_scalar",
@@ -10986,8 +10986,8 @@
     "name": "special_chebyshev_polynomial_w.default",
     "op": "special_chebyshev_polynomial_w",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_polynomial_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_chebyshev_polynomial_w.n_scalar",
@@ -11056,8 +11056,8 @@
     "name": "special_hermite_polynomial_h.default",
     "op": "special_hermite_polynomial_h",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_polynomial_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_hermite_polynomial_h.n_scalar",
@@ -11098,8 +11098,8 @@
     "name": "special_hermite_polynomial_he.default",
     "op": "special_hermite_polynomial_he",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_polynomial_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_hermite_polynomial_he.n_scalar",
@@ -11182,8 +11182,8 @@
     "name": "special_laguerre_polynomial_l.default",
     "op": "special_laguerre_polynomial_l",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:special_polynomial_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_laguerre_polynomial_l.n_scalar",
@@ -11224,8 +11224,8 @@
     "name": "special_legendre_polynomial_p.default",
     "op": "special_legendre_polynomial_p",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_op_implementation"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_legendre_polynomial_p.n_scalar",
@@ -11308,8 +11308,8 @@
     "name": "special_modified_bessel_k0.default",
     "op": "special_modified_bessel_k0",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_op_implementation"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_modified_bessel_k0.out",
@@ -11322,8 +11322,8 @@
     "name": "special_modified_bessel_k1.default",
     "op": "special_modified_bessel_k1",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_op_implementation"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_modified_bessel_k1.out",
@@ -11364,8 +11364,8 @@
     "name": "special_scaled_modified_bessel_k0.default",
     "op": "special_scaled_modified_bessel_k0",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_op_implementation"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_scaled_modified_bessel_k0.out",
@@ -11378,8 +11378,8 @@
     "name": "special_scaled_modified_bessel_k1.default",
     "op": "special_scaled_modified_bessel_k1",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_op_implementation"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_scaled_modified_bessel_k1.out",
@@ -11392,8 +11392,8 @@
     "name": "special_shifted_chebyshev_polynomial_t.default",
     "op": "special_shifted_chebyshev_polynomial_t",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_op_implementation"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_shifted_chebyshev_polynomial_t.n_scalar",
@@ -11434,8 +11434,8 @@
     "name": "special_shifted_chebyshev_polynomial_u.default",
     "op": "special_shifted_chebyshev_polynomial_u",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_op_implementation"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_shifted_chebyshev_polynomial_u.n_scalar",
@@ -11476,8 +11476,8 @@
     "name": "special_shifted_chebyshev_polynomial_v.default",
     "op": "special_shifted_chebyshev_polynomial_v",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_op_implementation"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_shifted_chebyshev_polynomial_v.n_scalar",
@@ -11518,8 +11518,8 @@
     "name": "special_shifted_chebyshev_polynomial_w.default",
     "op": "special_shifted_chebyshev_polynomial_w",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_op_implementation"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_shifted_chebyshev_polynomial_w.n_scalar",
@@ -11616,8 +11616,8 @@
     "name": "special_zeta.default",
     "op": "special_zeta",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:missing_op_implementation"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "special_zeta.other_scalar",
@@ -11967,14 +11967,14 @@
     "op": "stft",
     "overload": "center",
     "status": "skip",
-    "reason": "template:complex64_not_supported"
+    "reason": "input:string_not_supported"
   },
   {
     "name": "stft.default",
     "op": "stft",
     "overload": "default",
     "status": "skip",
-    "reason": "template:complex64_not_supported"
+    "reason": "skip:complex_tosa_execution_not_supported"
   },
   {
     "name": "storage_offset.default",
@@ -12624,8 +12624,8 @@
     "name": "triangular_solve.default",
     "op": "triangular_solve",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:multi_output_op"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "tril.default",
@@ -12820,8 +12820,8 @@
     "name": "uniform.default",
     "op": "uniform",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:random_op_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "uniform.out",
@@ -12834,8 +12834,8 @@
     "name": "uniform_.default",
     "op": "uniform_",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:random_op_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "unique_consecutive.default",
@@ -12911,8 +12911,8 @@
     "name": "unsqueeze_.default",
     "op": "unsqueeze_",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:dynamo_inplace_view_op"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "unsqueeze_copy.default",
@@ -13086,8 +13086,8 @@
     "name": "upsample_trilinear3d.default",
     "op": "upsample_trilinear3d",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:tosa_resize_5d_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "upsample_trilinear3d.out",
@@ -13240,15 +13240,15 @@
     "name": "view_as_complex.default",
     "op": "view_as_complex",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex64_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "view_as_real.default",
     "op": "view_as_real",
     "overload": "default",
-    "status": "skip",
-    "reason": "template:complex64_not_supported"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "view_copy.default",

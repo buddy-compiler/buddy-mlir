@@ -281,8 +281,25 @@ def abs_op(node, symbol_table):
 
 def powf_op(node, symbol_table):
     """pow(x, y) for float tensors using math.PowFOp"""
+    import mlir.ir as ir
+    from mlir.dialects import arith, tensor
+
     input1 = symbol_table.get((str(node.args[0]), 0))
     input2 = symbol_table.get((str(node.args[1]), 0))
+
+    input1_type = ir.RankedTensorType(input1.type)
+    input2_type = ir.RankedTensorType(input2.type)
+
+    if list(input1_type.shape) != list(input2_type.shape) and all(
+        dim == 1 for dim in list(input2_type.shape)
+    ):
+        idx = [
+            arith.ConstantOp(ir.IndexType.get(), 0).result
+            for _ in range(len(list(input2_type.shape)))
+        ]
+        scalar = tensor.ExtractOp(input2, idx)
+        input2 = tensor.SplatOp(input1_type, scalar.result, []).result
+
     op = math.PowFOp(input1, input2)
     return op
 

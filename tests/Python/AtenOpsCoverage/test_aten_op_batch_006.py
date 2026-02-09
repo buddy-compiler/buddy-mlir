@@ -238,6 +238,102 @@ def _template_rand_default():
     return [[2, 2]], {"dtype": torch.float32, "device": torch.device("cpu")}
 
 
+def _template_randn_default():
+    # Keep the size small to avoid large constant materialization in the
+    # current runtime RNG path.
+    return [[2, 2]], {"dtype": torch.float32, "device": torch.device("cpu")}
+
+
+def _template_rand_like_default():
+    ref = torch.ones((2, 2), dtype=torch.float32)
+    return [ref], {}
+
+
+def _template_rand_like_out():
+    args, _ = _template_rand_like_default()
+    out = torch.empty_like(args[0])
+    return args, {"out": out}
+
+
+def _template_randn_like_default():
+    ref = torch.ones((2, 2), dtype=torch.float32)
+    return [ref], {}
+
+
+def _template_randn_like_out():
+    args, _ = _template_randn_like_default()
+    out = torch.empty_like(args[0])
+    return args, {"out": out}
+
+
+def _template_normal_tensor_float():
+    mean = torch.full((2, 3), 0.5, dtype=torch.float32)
+    std = 1.25
+    return [mean, std], {}
+
+
+def _template_normal_tensor_float_out():
+    args, _ = _template_normal_tensor_float()
+    out = torch.empty_like(args[0])
+    return args, {"out": out}
+
+
+def _template_normal_float_tensor():
+    mean = 0.5
+    std = torch.full((2, 3), 1.25, dtype=torch.float32)
+    return [mean, std], {}
+
+
+def _template_normal_float_tensor_out():
+    args, _ = _template_normal_float_tensor()
+    out = torch.empty_like(args[1])
+    return args, {"out": out}
+
+
+def _template_normal_tensor_tensor():
+    mean = torch.full((2, 3), 0.5, dtype=torch.float32)
+    std = torch.full((2, 3), 1.25, dtype=torch.float32)
+    return [mean, std], {}
+
+
+def _template_normal_tensor_tensor_out():
+    args, _ = _template_normal_tensor_tensor()
+    out = torch.empty_like(args[0])
+    return args, {"out": out}
+
+
+def _template_normal_float_float():
+    return [0.5, 1.25, [2, 3]], {"dtype": torch.float32}
+
+
+def _template_normal_float_float_out():
+    args, _ = _template_normal_float_float()
+    out = torch.empty(args[2], dtype=torch.float32)
+    return args, {"out": out}
+
+
+def _template_normal_out():
+    self = torch.zeros((2, 3), dtype=torch.float32)
+    out = torch.empty_like(self)
+    return [self, 0.5, 1.25], {"out": out}
+
+
+def _template_normal_inplace():
+    self = torch.zeros((2, 3), dtype=torch.float32)
+    return [self, 0.5, 1.25], {}
+
+
+def _template_poisson_default():
+    rate = torch.full((2, 3), 2.5, dtype=torch.float32)
+    return [rate], {}
+
+
+def _template_poisson_out():
+    args, _ = _template_poisson_default()
+    out = torch.empty_like(args[0])
+    return args, {"out": out}
+
+
 def _template_repeat_default():
     x = torch.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=torch.float32)
     repeats = [2, 3]
@@ -524,6 +620,18 @@ def _template_replication_pad3d_out():
     return args, {"out": out}
 
 
+def _template_polar_default():
+    abs_tensor = torch.tensor([1.0, 2.0], dtype=torch.float32)
+    angle_tensor = torch.tensor([0.0, 0.5], dtype=torch.float32)
+    return [abs_tensor, angle_tensor], {}
+
+
+def _template_polar_out():
+    args, _ = _template_polar_default()
+    out = torch.empty_like(args[0], dtype=torch.complex64)
+    return args, {"out": out}
+
+
 # Register custom templates or skips.
 CUSTOM_TEMPLATES.update(
     {
@@ -538,16 +646,16 @@ CUSTOM_TEMPLATES.update(
         "norm.names_ScalarOpt_dim_dtype": _skip("named_tensor_torchscript"),
         "norm.names_dtype_out": _skip("named_tensor_torchscript"),
         "norm.names_out": _skip("named_tensor_torchscript"),
-        "normal.Tensor_float": _skip("random_op_not_supported"),
-        "normal.Tensor_float_out": _skip("random_op_not_supported"),
-        "normal.float_Tensor_out": _skip("random_op_not_supported"),
-        "normal.float_Tensor": _skip("random_op_not_supported"),
-        "normal.Tensor_Tensor": _skip("random_op_not_supported"),
-        "normal.Tensor_Tensor_out": _skip("random_op_not_supported"),
-        "normal.float_float": _skip("random_op_not_supported"),
-        "normal.float_float_out": _skip("random_op_not_supported"),
-        "normal.out": _skip("random_op_not_supported"),
-        "normal_.default": _skip("random_op_not_supported"),
+        "normal.Tensor_float": _template_normal_tensor_float,
+        "normal.Tensor_float_out": _template_normal_tensor_float_out,
+        "normal.float_Tensor_out": _template_normal_float_tensor_out,
+        "normal.float_Tensor": _template_normal_float_tensor,
+        "normal.Tensor_Tensor": _template_normal_tensor_tensor,
+        "normal.Tensor_Tensor_out": _template_normal_tensor_tensor_out,
+        "normal.float_float": _template_normal_float_float,
+        "normal.float_float_out": _template_normal_float_float_out,
+        "normal.out": _template_normal_out,
+        "normal_.default": _template_normal_inplace,
         "not_equal.Scalar": _template_not_equal_scalar,
         "not_equal.Scalar_out": _template_not_equal_scalar_out,
         "not_equal_.Scalar": _template_not_equal_inplace_scalar,
@@ -559,7 +667,6 @@ CUSTOM_TEMPLATES.update(
         # linalg/QR-related op: not supported by Buddy backend yet.
         "ormqr.default": _skip("linalg_not_supported"),
         "ormqr.out": _skip("linalg_not_supported"),
-        "pad_sequence.default": _skip("backend_missing_pad_sequence"),
         "pairwise_distance.default": _template_pairwise_distance,
         "pdist.default": _template_pdist,
         "permute.default": _template_permute_default,
@@ -570,10 +677,10 @@ CUSTOM_TEMPLATES.update(
         "pixel_shuffle.out": _template_pixel_shuffle_out,
         "pixel_unshuffle.default": _template_pixel_unshuffle,
         "pixel_unshuffle.out": _template_pixel_unshuffle_out,
-        "poisson.default": _skip("random_op_not_supported"),
-        "poisson.out": _skip("random_op_not_supported"),
-        "polar.default": _skip("complex_dtype_not_supported"),
-        "polar.out": _skip("complex_dtype_not_supported"),
+        "poisson.default": _template_poisson_default,
+        "poisson.out": _template_poisson_out,
+        "polar.default": _template_polar_default,
+        "polar.out": _template_polar_out,
         "polar.int": _skip("complex_dtype_not_supported"),
         "polar.float": _skip("complex_dtype_not_supported"),
         "polar.int_float": _skip("complex_dtype_not_supported"),
@@ -599,8 +706,8 @@ CUSTOM_TEMPLATES.update(
         "rand.generator_out": _skip("backend_missing_rand"),
         "rand.names_out": _skip("backend_missing_rand"),
         "rand.generator_with_names_out": _skip("backend_missing_rand"),
-        "rand_like.default": _skip("backend_missing_rand"),
-        "rand_like.out": _skip("backend_missing_rand"),
+        "rand_like.default": _template_rand_like_default,
+        "rand_like.out": _template_rand_like_out,
         "randint.default": _template_randint_default,
         "randint.generator": _skip("backend_ignores_generator_rng"),
         "randint.low": _template_randint_low,
@@ -612,12 +719,12 @@ CUSTOM_TEMPLATES.update(
         "randint_like.default": _template_randint_like_default,
         "randint_like.low_dtype": _template_randint_like_low_dtype,
         "randint_like.out": _skip("dynamo_fake_tensor_out_variant_nyi"),
-        "randint_like.Tensor": _skip("random_op_not_supported"),
+        "randint_like.Tensor": _template_randint_like_tensor,
         "randint_like.Tensor_out": _skip("dynamo_fake_tensor_out_variant_nyi"),
         "randint_like.low_dtype_out": _skip(
             "dynamo_fake_tensor_out_variant_nyi"
         ),
-        "randn.default": _skip("backend_missing_randn"),
+        "randn.default": _template_randn_default,
         "randn.generator": _skip("backend_missing_randn"),
         "randn.names": _skip("backend_missing_randn"),
         "randn.generator_with_names": _skip("backend_missing_randn"),
@@ -625,8 +732,8 @@ CUSTOM_TEMPLATES.update(
         "randn.generator_out": _skip("backend_missing_randn"),
         "randn.names_out": _skip("backend_missing_randn"),
         "randn.generator_with_names_out": _skip("backend_missing_randn"),
-        "randn_like.default": _skip("backend_missing_randn"),
-        "randn_like.out": _skip("backend_missing_randn"),
+        "randn_like.default": _template_randn_like_default,
+        "randn_like.out": _template_randn_like_out,
         "randperm.default": _template_randperm_default,
         "randperm.generator": _skip("backend_ignores_generator_rng"),
         "randperm.out": _template_randperm_out,

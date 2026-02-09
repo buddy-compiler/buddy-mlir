@@ -649,6 +649,12 @@ def _template_index_reduce_inplace():
     return args, kwargs
 
 
+def _template_heaviside():
+    x = torch.tensor([-1.0, 0.0, 2.0], dtype=torch.float32)
+    values = torch.tensor([0.0, 0.5, 1.0], dtype=torch.float32)
+    return [x, values], {}
+
+
 def _template_istft():
     torch.manual_seed(0)
     waveform = torch.randn(4, dtype=torch.float32)
@@ -723,6 +729,7 @@ CUSTOM_TEMPLATES.update(
         "grid_sampler_3d_backward.out": _skip("backward_not_supported"),
         "gru.input": _template_gru_input,
         "gru.data": _skip("dynamo_packed_sequence"),
+        "heaviside.default": _template_heaviside,
         "isfinite.default": lambda: _template_is_finite("default"),
         "isfinite.float": lambda: _template_isfinite_scalar("float"),
         "isfinite.complex": lambda: _template_isfinite_scalar("complex"),
@@ -782,7 +789,7 @@ CUSTOM_TEMPLATES.update(
         "gt_.Tensor": _template_cmp_tensor_tensor,
         "im2col.default": _template_im2col,
         "im2col.out": _template_im2col_out,
-        "imag.default": _skip("complex_dtype_not_supported"),
+        "imag.default": _template_imag,
         "hardtanh_backward.default": _template_hardtanh_backward,
         "hardtanh_backward.grad_input": _template_hardtanh_backward_out,
         "index.Tensor": _template_index_tensor,
@@ -827,7 +834,7 @@ CUSTOM_TEMPLATES.update(
         "is_coalesced.default": _skip("sparse_not_supported"),
         "index.str": _template_index_str,
         "index.list_str": _template_index_list_str,
-        "istft.default": _skip("complex_fft_not_supported"),
+        "istft.default": _template_istft,
         "isin.Tensor_Tensor": _template_isin_tensor_tensor,
         "isin.Tensor_Tensor_out": _template_isin_tensor_tensor_out,
         "isin.Tensor_Scalar": _template_isin_tensor_scalar,

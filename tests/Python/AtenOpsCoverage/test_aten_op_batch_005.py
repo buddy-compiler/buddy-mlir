@@ -721,13 +721,37 @@ def _template_nll_loss2d_backward_out():
     return args, {"grad_input": grad_input}
 
 
+def _template_masked_select_default():
+    x = torch.tensor([[0.0, 1.0, 0.0], [2.0, 0.0, 3.0]], dtype=torch.float32)
+    mask = x > 0
+    return [x, mask], {}
+
+
+def _template_masked_select_out():
+    args, kwargs = _template_masked_select_default()
+    # Out buffer is not validated for aliasing/reuse semantics in numeric mode;
+    # provide a minimal placeholder.
+    out = torch.empty((0,), dtype=args[0].dtype)
+    return args, {**kwargs, "out": out}
+
+
+def _template_nonzero_default():
+    x = torch.tensor([[0.0, 1.0], [2.0, 0.0]], dtype=torch.float32)
+    return [x], {}
+
+
+def _template_nonzero_out():
+    args, kwargs = _template_nonzero_default()
+    # Placeholder out buffer; numeric mode functionalizes out= variants.
+    out = torch.empty((0, args[0].dim()), dtype=torch.int64)
+    return args, {**kwargs, "out": out}
+
+
 # Register custom templates or skips.
 CUSTOM_TEMPLATES.update(
     {
-        # Dynamic shape ops: output shape depends on input values, not just shapes.
-        # TorchDynamo cannot compile these statically.
-        "masked_select.default": _skip("dynamic_shape_op"),
-        "masked_select.out": _skip("dynamic_shape_op"),
+        "masked_select.default": _template_masked_select_default,
+        "masked_select.out": _template_masked_select_out,
         "max.dim": _template_max_dim,
         "max.dim_max": _template_max_dim_max,
         "max.names_dim": _skip("named_tensor_torchscript"),
@@ -779,8 +803,8 @@ CUSTOM_TEMPLATES.update(
         "multilabel_margin_loss_forward.default": _template_multilabel_margin_loss_forward,
         "multilabel_margin_loss_forward.output": _template_multilabel_margin_loss_forward_out,
         # Random op: skip to avoid nondeterministic behavior.
-        "multinomial.default": _skip("random_op_not_supported"),
-        "multinomial.out": _skip("random_op_not_supported"),
+        "multinomial.default": _template_multinomial,
+        "multinomial.out": _template_multinomial_out,
         "mv.default": _template_mv,
         "mv.out": _template_mv_out,
         "mvlgamma.default": _template_mvlgamma,
@@ -843,10 +867,10 @@ CUSTOM_TEMPLATES.update(
         "nll_loss2d_forward.output": _template_nll_loss2d_forward_out,
         "nll_loss2d_backward.default": _template_nll_loss2d_backward,
         "nll_loss2d_backward.grad_input": _template_nll_loss2d_backward_out,
-        # Dynamic shape ops: output shape depends on input values
-        "nonzero.default": _skip("dynamic_shape_op"),
-        "nonzero.out": _skip("dynamic_shape_op"),
-        "nonzero_numpy.default": _skip("dynamic_shape_op"),
+        "nonzero.default": _template_nonzero_default,
+        "nonzero.out": _template_nonzero_out,
+        # Returns Tensor[] (list return), not supported in numeric mode.
+        "nonzero_numpy.default": _skip("list_return_op"),
         "miopen_batch_norm.default": _skip("backend_specific_miopen"),
         "miopen_batch_norm.out": _skip("backend_specific_miopen"),
         "miopen_batch_norm_backward.default": _skip("backend_specific_miopen"),

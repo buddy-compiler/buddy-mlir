@@ -467,15 +467,24 @@ def _template_xlogy_inplace_scalar_other():
     return [x, 2.0], {}
 
 
+def _template_uniform_default():
+    x = torch.zeros((2, 3), dtype=torch.float32)
+    return [x, -1.0, 2.0], {}
+
+
+def _template_uniform_inplace():
+    x = torch.zeros((2, 3), dtype=torch.float32)
+    return [x, -1.0, 2.0], {}
+
+
+def _template_unsqueeze_inplace():
+    x = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
+    return [x, 0], {}
+
+
 CUSTOM_TEMPLATES.update(
     {
-        "igamma.default": _skip("missing_lowering"),
-        "igamma.out": _skip("missing_lowering"),
-        "igamma_.default": _skip("missing_lowering"),
-        "igammac.default": _skip("missing_lowering"),
-        "igammac.out": _skip("missing_lowering"),
-        "igammac_.default": _skip("missing_lowering"),
-        "triangular_solve.default": _skip("multi_output_op"),
+        "triangular_solve.default": _template_triangular_solve_default,
         "triangular_solve.X": _skip("multi_output_op"),
         "tril.default": _template_tril_default,
         "tril.out": _template_tril_out,
@@ -491,6 +500,7 @@ CUSTOM_TEMPLATES.update(
         "unbind.Dimname": _skip("dynamo_dimname_fake_tensor"),
         "unbind_copy.int": _template_unbind_int,
         "unbind_copy.int_out": _skip("dynamo_fake_tensor_list_out"),
+        "unsqueeze_.default": _template_unsqueeze_inplace,
         "unfold.default": _template_unfold_default,
         "unfold_copy.default": _template_unfold_default,
         "unfold_copy.out": _template_unfold_copy_out,
@@ -508,10 +518,9 @@ CUSTOM_TEMPLATES.update(
         "unsafe_split.Tensor_out": _template_unsafe_split_tensor_out,
         "unsafe_split_with_sizes.default": _template_unsafe_split_with_sizes_default,
         "unsafe_split_with_sizes.out": _template_unsafe_split_with_sizes_out,
-        "uniform.default": _skip("random_op_not_supported"),
+        "uniform.default": _template_uniform_default,
         "uniform.out": _skip("random_op_not_supported"),
-        "uniform_.default": _skip("random_op_not_supported"),
-        "unsqueeze_.default": _skip("dynamo_inplace_view_op"),
+        "uniform_.default": _template_uniform_inplace,
         "upsample_bicubic2d.default": _template_upsample_bicubic2d_default,
         "upsample_bicubic2d.vec": _template_upsample_bicubic2d_vec,
         "upsample_bicubic2d.out": _skip("out_variant"),
@@ -534,7 +543,7 @@ CUSTOM_TEMPLATES.update(
         "upsample_nearest3d.default": _template_upsample_nearest3d_default,
         "upsample_nearest3d.vec": _template_upsample_nearest3d_vec,
         "upsample_nearest3d.out": _template_upsample_nearest3d_out,
-        "upsample_trilinear3d.default": _skip("tosa_resize_5d_not_supported"),
+        "upsample_trilinear3d.default": _template_upsample_trilinear3d_default,
         "upsample_trilinear3d.vec": _skip("tosa_resize_5d_not_supported"),
         "upsample_trilinear3d.out": _skip("tosa_resize_5d_not_supported"),
         "var.default": _template_var_default,
@@ -554,8 +563,8 @@ CUSTOM_TEMPLATES.update(
         "var_mean.correction_out": _template_var_mean_correction_out,
         "view.default": _template_view_default,
         "view.dtype": _skip("dtype_view_not_supported"),
-        "view_as_complex.default": _skip("complex64_not_supported"),
-        "view_as_real.default": _skip("complex64_not_supported"),
+        "view_as_complex.default": _template_view_as_complex,
+        "view_as_real.default": _template_view_as_real,
         "view_copy.default": _template_view_copy_default,
         "view_copy.dtype": _template_view_copy_dtype,
         "view_copy.out": _template_view_copy_out,
