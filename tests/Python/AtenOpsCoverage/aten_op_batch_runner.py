@@ -1039,6 +1039,75 @@ def _flatten_outputs(obj: Any) -> Tuple[bool, str, List[FlatOutputItem]]:
     return False, f"output:non_tensor:{type(obj).__name__}", []
 
 
+def _align_tensor_outputs_by_meta(
+    expected_items: List[FlatOutputItem],
+    actual_items: List[FlatOutputItem],
+) -> List[FlatOutputItem] | None:
+    if not expected_items or not actual_items:
+        return None
+    if not all(
+        kind == "tensor" and isinstance(value, torch.Tensor)
+        for kind, value in expected_items
+    ):
+        return None
+    if not all(
+        kind == "tensor" and isinstance(value, torch.Tensor)
+        for kind, value in actual_items
+    ):
+        return None
+
+    candidates: List[List[int]] = []
+    for _, expected_tensor in expected_items:
+        expected_shape = tuple(expected_tensor.shape)
+        expected_dtype = expected_tensor.dtype
+        idxs: List[int] = []
+        for idx, (_, actual_tensor) in enumerate(actual_items):
+            if tuple(actual_tensor.shape) != expected_shape:
+                continue
+            if actual_tensor.dtype != expected_dtype:
+                continue
+            idxs.append(idx)
+        if not idxs:
+            return None
+        candidates.append(idxs)
+
+    used: set[int] = set()
+    chosen: List[int] = []
+
+    def _dfs(pos: int) -> bool:
+        if pos == len(expected_items):
+            return True
+        expected_tensor = expected_items[pos][1]
+        for idx in candidates[pos]:
+            if idx in used:
+                continue
+            actual_tensor = actual_items[idx][1]
+            try:
+                _assert_tensor_close(expected_tensor.cpu(), actual_tensor.cpu())
+            except Exception:
+                continue
+            used.add(idx)
+            chosen.append(idx)
+            if _dfs(pos + 1):
+                return True
+            chosen.pop()
+            used.remove(idx)
+        return False
+
+    if _dfs(0):
+        return [actual_items[idx] for idx in chosen]
+
+    used.clear()
+    aligned: List[FlatOutputItem] = []
+    for idxs in candidates:
+        picked = next((idx for idx in idxs if idx not in used), -1)
+        if picked < 0:
+            return None
+        used.add(picked)
+        aligned.append(actual_items[picked])
+    return aligned
+
+
 def _dtype_tolerances(dtype: torch.dtype) -> Tuple[float, float]:
     if dtype in (torch.float16, torch.bfloat16):
         return 1e-2, 1e-2
@@ -1658,11 +1727,6 @@ def run_aten_op_numeric(
     if isinstance(op_name, str) and "backward" in op_name:
         return Result.skip(name, "skip:backward")
 
-    # native_batch_norm returns multiple outputs and is not yet supported by the
-    # numeric execution path (which assumes a single primary tensor output).
-    if op_name == "native_batch_norm":
-        return Result.skip(name, "skip:multi_output_op")
-
     # `empty_strided` and `new_empty*` produce uninitialized outputs (and are
     # often exercised with empty shapes in templates). Numeric comparison is not
     # meaningful for them, so skip to avoid false failures in the execution
@@ -1979,7 +2043,16 @@ def run_aten_op_numeric(
                     name,
                     f"output:arity_mismatch expected={len(expected_items)} actual={len(actual_items)}",
                 )
-            actual_items = list(actual_items[: len(expected_items)])
+            if len(actual_items) > len(expected_items):
+                aligned = _align_tensor_outputs_by_meta(
+                    expected_items, list(actual_items)
+                )
+                if aligned is not None:
+                    actual_items = aligned
+                else:
+                    actual_items = list(actual_items[: len(expected_items)])
+            else:
+                actual_items = list(actual_items[: len(expected_items)])
 
             for idx, (expected, actual) in enumerate(
                 zip(expected_items, actual_items)

@@ -341,6 +341,7 @@ class DynamoCompiler:
             "gather.default": GatherOp,
             "native_layer_norm.default": NativeLayerNormOp,
             "native_group_norm.default": NativeGroupNormOp,
+            "native_batch_norm.default": NativeBatchNormLegitOp,
             "_native_batch_norm_legit.default": NativeBatchNormLegitOp,
             "_native_batch_norm_legit.no_stats": NativeBatchNormLegitNoStatsOp,
             "_native_batch_norm_legit_no_training.default": NativeBatchNormLegitNoTrainingOp,

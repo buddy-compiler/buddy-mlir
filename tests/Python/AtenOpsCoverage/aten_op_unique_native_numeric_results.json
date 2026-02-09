@@ -2957,8 +2957,8 @@
     "name": "native_batch_norm.default",
     "op": "native_batch_norm",
     "overload": "default",
-    "status": "skip",
-    "reason": "skip:multi_output_op"
+    "status": "pass",
+    "reason": ""
   },
   {
     "name": "native_batch_norm_backward.default",
