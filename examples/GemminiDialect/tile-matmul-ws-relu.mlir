@@ -13,7 +13,7 @@ func.func @main() -> i8 {
   %i2I8 = arith.constant 2 : i8
   %i2I32 = arith.constant 2 : i32
   %dI32 = arith.constant 0 : i32
-  %c0 = arith.constant 0 : index 
+  %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %aArray = memref.get_global @g1 : memref<5x5xi8>
   %bArray = memref.get_global @g2 : memref<5x5xi8>
@@ -31,10 +31,10 @@ func.func @main() -> i8 {
 
   gemmini.tile_matmul %aArray %bArray %cArray %dArray {dataflow=1}: memref<5x5xi8> memref<5x5xi8> memref<5x5xi8> memref<5x5xi32>
   gemmini.print %cArray : memref<5x5xi8>
-  
-  // CHECK: "gemmini.intr.config_ex"
-  // CHECK: "gemmini.intr.config_st"
-  // CHECK: "gemmini.intr.config_ld"
+
+  // CHECK: "gemmini.intr.config"
+  // CHECK: "gemmini.intr.config"
+  // CHECK: "gemmini.intr.config"
   // CHECK: "gemmini.intr.loop_ws_config_bounds"
   // CHECK: "gemmini.intr.loop_ws_config_addrs_ab"
   // CHECK: "gemmini.intr.loop_ws_config_addrs_dc"

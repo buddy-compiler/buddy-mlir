@@ -47,7 +47,22 @@ public:
     Value input0 = inputs[0];
     Value input1 = inputs[1];
     Value output0 = ouputs[0];
-    MemRefType input0Type =  dyn_cast<MemRefType>(input0.getType());
+    MemRefType input0Type = dyn_cast<MemRefType>(input0.getType());
+    MemRefType input1Type = dyn_cast<MemRefType>(input1.getType());
+    MemRefType outputType = dyn_cast<MemRefType>(output0.getType());
+    if (!input0Type || !input1Type || !outputType)
+      return failure();
+    bool needCollapse = false;
+    SmallVector<int64_t, 3> aShape;
+    SmallVector<int64_t, 3> bShape;
+    SmallVector<int64_t, 3> oShape;
+    aShape.append(input0Type.getShape().begin(), input0Type.getShape().end());
+    bShape.append(input1Type.getShape().begin(), input1Type.getShape().end());
+    oShape.append(outputType.getShape().begin(), outputType.getShape().end());
+    if (input0Type.getRank() == 3 && input1Type.getRank() == 3 &&
+        outputType.getRank() == 3 && aShape[0] == 1 && bShape[0] == 1 &&
+        oShape[0] == 1)
+      needCollapse = true;
     MemRefType biasType =
         MemRefType::get(input0Type.getShape(), rewriter.getI32Type());
     TypedAttr fillOpInputAttr = rewriter.getI32IntegerAttr(0);
@@ -63,11 +78,157 @@ public:
     Value fillOpInputValue =
         rewriter.create<arith::ConstantOp>(loc, fillOpInsType, fillOpInputAttr);
     rewriter.create<linalg::FillOp>(loc, fillOpInputValue, bias);
+    // Collapse 3D (1xMxK, 1xKxN, 1xMxN) -> 2D (MxK, KxN, MxN)
+    Value aVal = input0;
+    Value bVal = input1;
+    Value oVal = output0;
+    Value biasVal = bias;
+    if (needCollapse) {
+      SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
+      aVal = rewriter.create<memref::CollapseShapeOp>(loc, input0, reassoc);
+      bVal = rewriter.create<memref::CollapseShapeOp>(loc, input1, reassoc);
+      oVal = rewriter.create<memref::CollapseShapeOp>(loc, output0, reassoc);
+      biasVal = rewriter.create<memref::CollapseShapeOp>(loc, bias, reassoc);
+    }
+
     rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
-        matMulOp, input0, input1, output0, bias, /*aScaleFactor = */ scale1,
+        matMulOp, aVal, bVal, oVal, biasVal, /*aScaleFactor = */ scale1,
         /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1, /*act = */ 0,
         /*accScale = */ scale1, /*bertScale = */ scale0);
     rewriter.create<memref::DeallocOp>(loc, bias);
+    return success();
+  }
+
+private:
+  std::string accType;
+};
+
+class Conv2DNhwcFhwcLowering
+    : public OpRewritePattern<linalg::Conv2DNhwcFhwcOp> {
+public:
+  explicit Conv2DNhwcFhwcLowering(MLIRContext *context, std::string accType)
+      : OpRewritePattern(context), accType(accType) {}
+  using OpRewritePattern<linalg::Conv2DNhwcFhwcOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::Conv2DNhwcFhwcOp convOp,
+                                PatternRewriter &rewriter) const override {
+    Value input = convOp.getInputs()[0];
+    Value kernel = convOp.getInputs()[1];
+    Value output = convOp.getOutputs()[0];
+    Location loc = convOp.getLoc();
+    MemRefType inputType = dyn_cast<MemRefType>(input.getType());
+    MemRefType kernelType = dyn_cast<MemRefType>(kernel.getType());
+    MemRefType outputType = dyn_cast<MemRefType>(output.getType());
+    Type kernelElemType = kernelType.getElementType();
+    Type outputElemType = outputType.getElementType();
+    ArrayRef<int64_t> inputShape = inputType.getShape();
+    DenseIntElementsAttr dilationsAttr = convOp.getDilationsAttr();
+    DenseIntElementsAttr stridesAttr = convOp.getStridesAttr();
+    size_t dilations = 1;
+    size_t strides = 1;
+    if (dilationsAttr)
+      dilations = (*dilationsAttr.begin()).getLimitedValue();
+    if (stridesAttr)
+      strides = (*stridesAttr.begin()).getLimitedValue();
+    if (inputShape[1] != inputShape[2])
+      return failure();
+    ArrayRef<int64_t> kernelShape = kernelType.getShape();
+    if (kernelShape[1] != kernelShape[2])
+      return failure();
+    ArrayRef<int64_t> outputShape = outputType.getShape();
+    // Create kernelMat(hwc, f) and outputMat(nhw, c).
+    SmallVector<int64_t> kernelMatShape = {
+        kernelShape[1] * kernelShape[2] * kernelShape[3], kernelShape[0]};
+    MemRefType kernelMatType = MemRefType::get(kernelMatShape, kernelElemType);
+    Value kernelMat = rewriter.create<memref::AllocOp>(loc, kernelMatType);
+    SmallVector<int64_t> outputMatShape = {
+        outputShape[0] * outputShape[1] * outputShape[2], outputShape[3]};
+    MemRefType outputMatType = MemRefType::get(outputMatShape, outputElemType);
+    Value outputMat = rewriter.create<memref::AllocOp>(loc, outputMatType);
+    MemRefType biasType =
+        MemRefType::get(outputShape[3], rewriter.getI32Type());
+    if (accType == "f32")
+      biasType = MemRefType::get(outputShape[3], rewriter.getF32Type());
+    Value bias = rewriter.create<memref::AllocOp>(loc, biasType);
+    TypedAttr attr = rewriter.getI32IntegerAttr(0);
+    if (accType == "f32")
+      attr = rewriter.getF32FloatAttr(0);
+    Value constant0 = rewriter.create<arith::ConstantOp>(loc, attr);
+    SmallVector<Value, 1> inputs = {constant0};
+    SmallVector<Value, 1> outputs = {bias};
+    rewriter.create<linalg::FillOp>(loc, inputs, outputs);
+    Operation *loopOp = nullptr;
+    SmallVector<Value, 4> loopIvs;
+    for (size_t i = 0; i != kernelShape.size(); i++) {
+      Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      Value upperBound =
+          rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[i]);
+      Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+      auto loop =
+          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+      loopIvs.push_back(loop.getInductionVar());
+      if (i == 0)
+        loopOp = loop.getOperation();
+      rewriter.setInsertionPointToStart(loop.getBody());
+    }
+    Value kernelWidth =
+        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[2]);
+    Value inChannels =
+        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[3]);
+    // Conv kernel mapping (f,h,w,c) -> (h*w*c, f)
+    // Calculate: h * (W*C) + w * C + c
+    Value tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs[1], kernelWidth);
+    tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, inChannels);
+    Value tmp1 = rewriter.create<arith::MulIOp>(loc, loopIvs[2], inChannels);
+    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
+    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, loopIvs[3]);
+    Value element = rewriter.create<memref::LoadOp>(loc, kernel, loopIvs);
+    SmallVector<Value, 2> indices = {tmp0, loopIvs[0]};
+    rewriter.create<memref::StoreOp>(loc, element, kernelMat, indices);
+    rewriter.setInsertionPointAfter(loopOp);
+    attr = rewriter.getI64IntegerAttr(outputShape[1]);
+    Value outRowDim = rewriter.create<arith::ConstantOp>(loc, attr);
+    attr = rewriter.getI64IntegerAttr(outputShape[2]);
+    Value outColDim = rewriter.create<arith::ConstantOp>(loc, attr);
+    Value kernelDim = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64Type(), rewriter.getI64IntegerAttr(kernelShape[1]));
+    rewriter.create<gemmini::TileConvOp>(
+        loc, input, kernelMat, bias, outputMat, outRowDim, outColDim, kernelDim,
+        llvm::APFloat(float(1.0)), strides, /*inputDilation=*/1,
+        /*kernelDilation=*/dilations);
+    // After the conv operation is completed, the data in outputMat needs to be
+    // transferred into output (2-D to 4-D).
+    loopIvs.clear();
+    indices.clear();
+    for (size_t i = 0; i < outputShape.size(); i++) {
+      Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      Value upperBound =
+          rewriter.create<arith::ConstantIndexOp>(loc, outputShape[i]);
+      Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+      auto loop =
+          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+      loopIvs.push_back(loop.getInductionVar());
+      if (i == 0)
+        loopOp = loop.getOperation();
+      rewriter.setInsertionPointToStart(loop.getBody());
+    }
+    // Map output from 2D (N*H*W, C) back to NHWC (n,h,w,c)
+    Value outH = rewriter.create<arith::ConstantIndexOp>(loc, outputShape[1]);
+    Value outW = rewriter.create<arith::ConstantIndexOp>(loc, outputShape[2]);
+    // Calculate the row index in the 2D matrix: n * (H*W) + h * W + w
+    tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs[0], outH);
+    tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, outW);
+    tmp1 = rewriter.create<arith::MulIOp>(loc, loopIvs[1], outW);
+    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
+    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, loopIvs[2]);
+    // The index in the 2D matrix is [n*H*W + h*W + w, c]
+    indices.assign({tmp0, loopIvs[3]});
+    tmp0 = rewriter.create<memref::LoadOp>(loc, outputMat, indices);
+    rewriter.create<memref::StoreOp>(loc, tmp0, output, loopIvs);
+    rewriter.setInsertionPointAfter(loopOp);
+    rewriter.create<memref::DeallocOp>(loc, kernelMat);
+    rewriter.create<memref::DeallocOp>(loc, outputMat);
+    rewriter.create<memref::DeallocOp>(loc, bias);
+    rewriter.eraseOp(convOp);
     return success();
   }
 
@@ -88,9 +249,9 @@ public:
     Value input1 = inputs[1];
     Value output = convOp.getOutputs()[0];
     Location loc = convOp.getLoc();
-    MemRefType inputType =  dyn_cast<MemRefType>(input0.getType());
-    MemRefType weightsType =  dyn_cast<MemRefType>(input1.getType());
-    MemRefType outputType =  dyn_cast<MemRefType>(output.getType());
+    MemRefType inputType = dyn_cast<MemRefType>(input0.getType());
+    MemRefType weightsType = dyn_cast<MemRefType>(input1.getType());
+    MemRefType outputType = dyn_cast<MemRefType>(output.getType());
     ArrayRef<int64_t> inputShape = inputType.getShape();
     ArrayRef<int64_t> outputShape = outputType.getShape();
     ArrayRef<int64_t> weightsShape = weightsType.getShape();
@@ -183,7 +344,8 @@ public:
         rewriter.getI64IntegerAttr(weightsShape[2]));
     rewriter.create<gemmini::TileConvOp>(
         loc, inputMat, weightsMat, bias, outputMat, outDim, outDim, kernelDim,
-        llvm::APFloat(float(1.0)), strides, dilations);
+        llvm::APFloat(float(1.0)), strides, /*inputDilation=*/1,
+        /*kernelDilation=*/dilations);
     rewriter.eraseOp(convOp);
     loopIvs0.clear();
     loopIvs1.clear();
@@ -233,9 +395,9 @@ public:
     Value kernel = convOp.getInputs()[1];
     Value output = convOp.getOutputs()[0];
     Location loc = convOp.getLoc();
-    MemRefType inputType =  dyn_cast<MemRefType>(input.getType());
-    MemRefType kernelType =  dyn_cast<MemRefType>(kernel.getType());
-    MemRefType outputType =  dyn_cast<MemRefType>(output.getType());
+    MemRefType inputType = dyn_cast<MemRefType>(input.getType());
+    MemRefType kernelType = dyn_cast<MemRefType>(kernel.getType());
+    MemRefType outputType = dyn_cast<MemRefType>(output.getType());
     Type kernelElemType = kernelType.getElementType();
     Type outputElemType = outputType.getElementType();
     ArrayRef<int64_t> inputShape = inputType.getShape();
@@ -310,7 +472,8 @@ public:
     kernelDim = rewriter.create<arith::ConstantOp>(loc, attr);
     rewriter.create<gemmini::TileConvOp>(
         loc, input, kernelMat, bias, outputMat, outDim, outDim, kernelDim,
-        llvm::APFloat(float(1.0)), strides, dilations);
+        llvm::APFloat(float(1.0)), strides, /*inputDilation=*/1,
+        /*kernelDilation=*/dilations);
     // after the conv operation is completed, the data in outputmat needs to be
     // transferred into output.
     loopIvs.clear();
@@ -359,46 +522,46 @@ public:
     Value input0 = inputs[0];
     Value input1 = inputs[1];
     Value output = batchMatMulOp.getOutputs()[0];
-    MemRefType input0Type =  dyn_cast<MemRefType>(input0.getType());
+    MemRefType input0Type = dyn_cast<MemRefType>(input0.getType());
+    MemRefType input1Type = dyn_cast<MemRefType>(input1.getType());
+    MemRefType outputType = dyn_cast<MemRefType>(output.getType());
+    if (!input0Type || !input1Type || !outputType)
+      return failure();
     ArrayRef<int64_t> input0Shape = input0Type.getShape();
-    MemRefType input1Type =  dyn_cast<MemRefType>(input1.getType());
     ArrayRef<int64_t> input1Shape = input1Type.getShape();
-    MemRefType outputType =  dyn_cast<MemRefType>(output.getType());
     ArrayRef<int64_t> outputShape = outputType.getShape();
     Type elemType = input0Type.getElementType();
     for (unsigned i = 0; i != input0Shape[0]; i++) {
       SmallVector<int64_t> staticOffsets = {i, 0, 0};
       SmallVector<int64_t> staticSizes = {1, input0Shape[1], input0Shape[2]};
       SmallVector<int64_t> staticStrides = {1, 1, 1};
-      SmallVector<int64_t> resultShape = {input0Shape[1], input0Shape[2]};
-      SmallVector<int64_t> layout = {input0Shape[2], 1};
-      FailureOr<StridedLayoutAttr> computelayout =
-          StridedLayoutAttr::get(batchMatMulOp.getContext(),
-                                 i * input0Shape[1] * input0Shape[2], layout);
-      MemRefType resultType =
-          MemRefType::get(resultShape, elemType, *computelayout, 0);
       Value subInput0 = rewriter.create<memref::SubViewOp>(
-          loc, resultType, input0, staticOffsets, staticSizes, staticStrides);
-
+          loc, input0, staticOffsets, staticSizes, staticStrides);
+      // If rank is 3 with leading 1, collapse to 2D [M,K]
+      if (dyn_cast<MemRefType>(subInput0.getType()).getRank() == 3 &&
+          dyn_cast<MemRefType>(subInput0.getType()).getShape()[0] == 1) {
+        SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
+        subInput0 =
+            rewriter.create<memref::CollapseShapeOp>(loc, subInput0, reassoc);
+      }
       staticSizes.assign({1, input1Shape[1], input1Shape[2]});
-      resultShape.assign({input1Shape[1], input1Shape[2]});
-      layout.assign({input1Shape[2], 1});
-      computelayout =
-          StridedLayoutAttr::get(batchMatMulOp.getContext(),
-                                 i * input1Shape[1] * input1Shape[2], layout);
-      resultType = MemRefType::get(resultShape, elemType, *computelayout, 0);
       Value subInput1 = rewriter.create<memref::SubViewOp>(
-          loc, resultType, input1, staticOffsets, staticSizes, staticStrides);
-
+          loc, input1, staticOffsets, staticSizes, staticStrides);
+      if (dyn_cast<MemRefType>(subInput1.getType()).getRank() == 3 &&
+          dyn_cast<MemRefType>(subInput1.getType()).getShape()[0] == 1) {
+        SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
+        subInput1 =
+            rewriter.create<memref::CollapseShapeOp>(loc, subInput1, reassoc);
+      }
       staticSizes.assign({1, outputShape[1], outputShape[2]});
-      resultShape.assign({outputShape[1], outputShape[2]});
-      layout.assign({outputShape[2], 1});
-      computelayout =
-          StridedLayoutAttr::get(batchMatMulOp.getContext(),
-                                 i * outputShape[1] * outputShape[2], layout);
-      resultType = MemRefType::get(resultShape, elemType, *computelayout, 0);
       Value subOutput = rewriter.create<memref::SubViewOp>(
-          loc, resultType, output, staticOffsets, staticSizes, staticStrides);
+          loc, output, staticOffsets, staticSizes, staticStrides);
+      if (dyn_cast<MemRefType>(subOutput.getType()).getRank() == 3 &&
+          dyn_cast<MemRefType>(subOutput.getType()).getShape()[0] == 1) {
+        SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
+        subOutput =
+            rewriter.create<memref::CollapseShapeOp>(loc, subOutput, reassoc);
+      }
       SmallVector<Value> inputs = {subInput0, subInput1};
       SmallVector<Value> output = {subOutput};
       rewriter.create<linalg::MatmulOp>(batchMatMulOp.getLoc(), inputs, output);
@@ -408,14 +571,115 @@ public:
   }
 };
 
+class BatchMatMulTransposeBLowering
+    : public OpRewritePattern<linalg::BatchMatmulTransposeBOp> {
+public:
+  explicit BatchMatMulTransposeBLowering(MLIRContext *context,
+                                         std::string accType)
+      : OpRewritePattern(context), accType(accType) {}
+  using OpRewritePattern<linalg::BatchMatmulTransposeBOp>::OpRewritePattern;
+  LogicalResult
+  matchAndRewrite(linalg::BatchMatmulTransposeBOp batchMatMulTransBOp,
+                  PatternRewriter &rewriter) const override {
+    Location loc = batchMatMulTransBOp.getLoc();
+    auto inputs = batchMatMulTransBOp.getInputs();
+    Value input0 = inputs[0];
+    Value input1 = inputs[1];
+    Value output = batchMatMulTransBOp.getOutputs()[0];
+    MemRefType input0Type = dyn_cast<MemRefType>(input0.getType());
+    MemRefType input1Type = dyn_cast<MemRefType>(input1.getType());
+    MemRefType outputType = dyn_cast<MemRefType>(output.getType());
+    if (!input0Type || !input1Type || !outputType)
+      return failure();
+    ArrayRef<int64_t> input0Shape = input0Type.getShape();
+    ArrayRef<int64_t> input1Shape = input1Type.getShape();
+    ArrayRef<int64_t> outputShape = outputType.getShape();
+    Type elemType = input0Type.getElementType();
+
+    // Process each batch
+    for (unsigned i = 0; i != input0Shape[0]; i++) {
+      SmallVector<int64_t> staticOffsets = {i, 0, 0};
+      SmallVector<int64_t> staticSizes = {1, input0Shape[1], input0Shape[2]};
+      SmallVector<int64_t> staticStrides = {1, 1, 1};
+      Value subInput0 = rewriter.create<memref::SubViewOp>(
+          loc, input0, staticOffsets, staticSizes, staticStrides);
+      // If rank is 3 with leading 1, collapse to 2D [M,K]
+      if (dyn_cast<MemRefType>(subInput0.getType()).getRank() == 3 &&
+          dyn_cast<MemRefType>(subInput0.getType()).getShape()[0] == 1) {
+        SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
+        subInput0 =
+            rewriter.create<memref::CollapseShapeOp>(loc, subInput0, reassoc);
+      }
+      // For BatchMatmulTransposeBOp, input1 has shape [batch, N, K]
+      // where batch dimension index is 0, N is at index 1, K is at index 2
+      staticSizes.assign({1, input1Shape[1], input1Shape[2]});
+      Value subInput1 = rewriter.create<memref::SubViewOp>(
+          loc, input1, staticOffsets, staticSizes, staticStrides);
+      if (dyn_cast<MemRefType>(subInput1.getType()).getRank() == 3 &&
+          dyn_cast<MemRefType>(subInput1.getType()).getShape()[0] == 1) {
+        SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
+        subInput1 =
+            rewriter.create<memref::CollapseShapeOp>(loc, subInput1, reassoc);
+      }
+      staticSizes.assign({1, outputShape[1], outputShape[2]});
+      Value subOutput = rewriter.create<memref::SubViewOp>(
+          loc, output, staticOffsets, staticSizes, staticStrides);
+      if (dyn_cast<MemRefType>(subOutput.getType()).getRank() == 3 &&
+          dyn_cast<MemRefType>(subOutput.getType()).getShape()[0] == 1) {
+        SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
+        subOutput =
+            rewriter.create<memref::CollapseShapeOp>(loc, subOutput, reassoc);
+      }
+
+      // Create bias memref
+      MemRefType subInput0Type = dyn_cast<MemRefType>(subInput0.getType());
+      MemRefType biasType =
+          MemRefType::get(subInput0Type.getShape(), rewriter.getI32Type());
+      TypedAttr fillOpInputAttr = rewriter.getI32IntegerAttr(0);
+      Type fillOpInsType = rewriter.getI32Type();
+      if (accType == "f32") {
+        biasType =
+            MemRefType::get(subInput0Type.getShape(), rewriter.getF32Type());
+        fillOpInputAttr = rewriter.getF32FloatAttr(0);
+        fillOpInsType = rewriter.getF32Type();
+      }
+      llvm::APFloat scale1((float)1.0);
+      llvm::APFloat scale0((float)0.0);
+      Value bias = rewriter.create<memref::AllocOp>(loc, biasType);
+      Value fillOpInputValue = rewriter.create<arith::ConstantOp>(
+          loc, fillOpInsType, fillOpInputAttr);
+      rewriter.create<linalg::FillOp>(loc, fillOpInputValue, bias);
+
+      // Create TileMatMulOp with bTranspose=true
+      rewriter.create<gemmini::TileMatMulOp>(
+          loc, subInput0, subInput1, subOutput, bias,
+          /*aScaleFactor = */ scale1,
+          /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1,
+          /*act = */ 0, /*accScale = */ scale1, /*bertScale = */ scale0,
+          /*repeatingBias = */ false, /*aTranspose = */ false,
+          /*bTranspose = */ true, /*fullC = */ false, /*lowD = */ false,
+          /*weightA = */ 0, /*dataflow = */ 1);
+
+      rewriter.create<memref::DeallocOp>(loc, bias);
+    }
+    rewriter.eraseOp(batchMatMulTransBOp.getOperation());
+    return success();
+  }
+
+private:
+  std::string accType;
+};
+
 } // namespace
 
 void populateLowerLinalgToGemminiConversionPatterns(RewritePatternSet &patterns,
                                                     std::string accType) {
   patterns.add<MatmulLowering>(patterns.getContext(), accType);
+  patterns.add<Conv2DNhwcFhwcLowering>(patterns.getContext(), accType);
   patterns.add<Conv2DNchwFchwLowering>(patterns.getContext(), accType);
   patterns.add<Conv2DNhwcHwcfLowering>(patterns.getContext(), accType);
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
+  patterns.add<BatchMatMulTransposeBLowering>(patterns.getContext(), accType);
 }
 
 //===----------------------------------------------------------------------===//
