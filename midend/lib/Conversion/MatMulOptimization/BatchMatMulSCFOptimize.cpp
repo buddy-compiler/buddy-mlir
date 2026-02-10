@@ -104,7 +104,7 @@ public:
           rewriter.create<vector::BroadcastOp>(loc, vecTy, zeroElementType);
     else
       zeroElementTypeVec =
-          rewriter.create<vector::SplatOp>(loc, vecTy, zeroElementType);
+          rewriter.create<vector::BroadcastOp>(loc, vecTy, zeroElementType);
     // Calculate the length of the tail, which might not fit in a
     // vector.
     Value tailLength = rewriter.create<affine::AffineApplyOp>(
@@ -126,11 +126,11 @@ public:
         [&](OpBuilder &builder, Location loc, ValueRange loopIndices) {
           Value loopVarBatchIdx = loopIndices[0];
           builder.create<scf::ForOp>(
-              loc, c0, aRow, c1, ValueRange{std::nullopt},
+              loc, c0, aRow, c1, ValueRange(),
               [&](OpBuilder &builder, Location loc, Value loopVarRowOfA,
                   ValueRange iargs) {
                 builder.create<scf::ForOp>(
-                    loc, c0, bRow, c1, ValueRange{std::nullopt},
+                    loc, c0, bRow, c1, ValueRange(),
                     [&](OpBuilder &builder, Location loc, Value loopVarRowOfB,
                         ValueRange iargs) {
                       Value aElement = builder.create<memref::LoadOp>(
@@ -141,7 +141,7 @@ public:
                           loc, vecTy, aElement);
                       builder.create<scf::ForOp>(
                           loc, c0, ApplyBCol, cVecSize,
-                          ValueRange{std::nullopt},
+                          ValueRange(),
                           [&](OpBuilder &builder, Location loc,
                               Value loopVarColOfB, ValueRange iargs) {
                             Value bVec = builder.create<vector::LoadOp>(
@@ -169,7 +169,7 @@ public:
                                 ValueRange{loopVarBatchIdx, loopVarRowOfA,
                                            loopVarColOfB});
                             builder.create<scf::YieldOp>(
-                                loc, ValueRange{std::nullopt});
+                                loc, ValueRange());
                           });
                       Value condition = builder.create<arith::CmpIOp>(
                           loc, arith::CmpIPredicate::sgt, tailLength, c0);
@@ -208,9 +208,9 @@ public:
                             builder.create<scf::YieldOp>(loc);
                           });
                       builder.create<scf::YieldOp>(loc,
-                                                   ValueRange{std::nullopt});
+                                                   ValueRange());
                     });
-                builder.create<scf::YieldOp>(loc, ValueRange{std::nullopt});
+                builder.create<scf::YieldOp>(loc, ValueRange());
               });
 
           builder.create<scf::InParallelOp>(loc);

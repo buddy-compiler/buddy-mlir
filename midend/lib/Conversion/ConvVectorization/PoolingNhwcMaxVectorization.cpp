@@ -129,7 +129,7 @@ public:
         buddy::insertZeroConstantOp(ctx, rewriter, loc, elementTy);
 
     // Create pass through vector.
-    Value passThroughVec = rewriter.create<SplatOp>(loc, vectorTy, zero);
+    Value passThroughVec = rewriter.create<BroadcastOp>(loc, vectorTy, zero);
 
     // Get Dimensions of Kernel.
     Value kernelHeight = rewriter.create<memref::DimOp>(loc, kernel, c0);

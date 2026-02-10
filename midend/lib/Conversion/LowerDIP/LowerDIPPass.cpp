@@ -348,9 +348,9 @@ public:
     FloatType f32 = Float32Type::get(ctx);
     VectorType vectorTy32 = VectorType::get({stride}, f32);
 
-    Value horizontalScalingFactorVec = rewriter.create<vector::SplatOp>(
+    Value horizontalScalingFactorVec = rewriter.create<vector::BroadcastOp>(
         loc, vectorTy32, horizontalScalingFactor);
-    Value verticalScalingFactorVec = rewriter.create<vector::SplatOp>(
+    Value verticalScalingFactorVec = rewriter.create<vector::BroadcastOp>(
         loc, vectorTy32, verticalScalingFactor);
 
     // Obtain extreme allocatable value(s) in input and output for bounding
@@ -488,9 +488,9 @@ public:
     FloatType f32 = Float32Type::get(ctx);
     VectorType vectorTy32 = VectorType::get({stride}, f32);
 
-    Value horizontalScalingFactorVec = rewriter.create<vector::SplatOp>(
+    Value horizontalScalingFactorVec = rewriter.create<vector::BroadcastOp>(
         loc, vectorTy32, horizontalScalingFactor);
-    Value verticalScalingFactorVec = rewriter.create<vector::SplatOp>(
+    Value verticalScalingFactorVec = rewriter.create<vector::BroadcastOp>(
         loc, vectorTy32, verticalScalingFactor);
 
     // Obtain extreme allocatable value(s) in input and output for bounding
@@ -630,9 +630,9 @@ public:
     FloatType f32 = Float32Type::get(ctx);
     VectorType vectorTy32 = VectorType::get({stride}, f32);
 
-    Value horizontalScalingFactorVec = rewriter.create<vector::SplatOp>(
+    Value horizontalScalingFactorVec = rewriter.create<vector::BroadcastOp>(
         loc, vectorTy32, horizontalScalingFactor);
-    Value verticalScalingFactorVec = rewriter.create<vector::SplatOp>(
+    Value verticalScalingFactorVec = rewriter.create<vector::BroadcastOp>(
         loc, vectorTy32, verticalScalingFactor);
 
     // Obtain extreme allocatable value(s) in input and output for bounding
@@ -738,7 +738,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(
@@ -811,7 +811,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(
@@ -886,7 +886,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(
@@ -907,7 +907,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(
@@ -982,7 +982,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(
@@ -1003,7 +1003,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(
@@ -1084,7 +1084,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(
@@ -1105,7 +1105,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(
@@ -1289,7 +1289,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(
@@ -1310,7 +1310,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(
@@ -1491,7 +1491,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(
@@ -1512,7 +1512,7 @@ public:
     rewriter.create<affine::AffineForOp>(
         loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
         ValueRange{iterations}, rewriter.getDimIdentityMap(), /*Step=*/1,
-        std::nullopt,
+        ValueRange(),
         [&](OpBuilder &builder, Location nestedLoc, Value iv,
             ValueRange itrArgs) {
           Value cond = builder.create<arith::CmpIOp>(

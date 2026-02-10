@@ -99,7 +99,7 @@ public:
                           [&](OpBuilder &builder, Location loc,
                               ValueRange ivRange) {
             Value ivC = ivRange.front();
-            Value t = builder.create<SplatOp>(loc, vecTy, cf0);
+            Value t = builder.create<BroadcastOp>(loc, vecTy, cf0);
             builder.create<memref::StoreOp>(loc, t, buffer, c0);
                             affine::buildAffineLoopNest(
                                 rewriter, loc, c0, e, 1,
@@ -216,7 +216,7 @@ public:
                                                           .getElseBodyBuilder();
                                                   Value emptyVec =
                                                       elseBuilder
-                                                          .create<SplatOp>(
+                                                          .create<BroadcastOp>(
                                                               loc, vecTy, cf0);
                                                   elseBuilder.create<
                                                       affine::AffineYieldOp>(

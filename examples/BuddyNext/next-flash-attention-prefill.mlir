@@ -44,7 +44,7 @@ func.func @kernel(
   %one_f32 = arith.constant 1.000000e+00 : f32
   %scale = arith.constant 0.0883883461 : f32
   %zero = arith.constant 0.000000e+00 : f32
-  %zero_vec = vector.splat %zero : vector<16xf32>
+  %zero_vec = vector.broadcast %zero : f32 to vector<16xf32>
   %cst_25 = arith.constant -1.000000e+30 : f32
   %Q_memref = bufferization.to_buffer %Q : tensor<1x12x1024x128xf32> to memref<1x12x1024x128xf32>
   %K_memref = bufferization.to_buffer %K : tensor<1x12x1024x128xf32> to memref<1x12x1024x128xf32>
@@ -122,7 +122,7 @@ func.func @kernel(
               %score_tile_masked = memref.load %score_tile_memref[%qi, %kj] : memref<?x?xf32>
               %score_tile_sub_m_block = arith.subf %score_tile_masked, %m_block : f32
               %p = math.exp %score_tile_sub_m_block : f32
-              %exp_score_tile_vec = vector.splat %p : vector<16xf32>
+              %exp_score_tile_vec = vector.broadcast %p : f32 to vector<16xf32>
               %l_block_new = arith.addf %l_block_iter, %p : f32
               scf.for %k = %c0 to %head_dim step %vec_len {
                 %v_data = vector.transfer_read %V_memref[%b, %h, %idx_k, %k], %zero {in_bounds = [true]} : memref<1x12x1024x128xf32>, vector<16xf32>
@@ -137,11 +137,11 @@ func.func @kernel(
             %m_new = arith.select %m_i_iter_is_max, %m_block, %m_i_iter : f32
             %sub_max = arith.subf %m_i_iter, %m_new : f32
             %alpha = math.exp %sub_max : f32
-            %alpha_vec = vector.splat %alpha : vector<16xf32>
+            %alpha_vec = vector.broadcast %alpha : f32 to vector<16xf32>
 
             %sub_block = arith.subf %m_block, %m_new : f32
             %beta = math.exp %sub_block : f32
-            %beta_vec = vector.splat %beta : vector<16xf32>
+            %beta_vec = vector.broadcast %beta : f32 to vector<16xf32>
 
             scf.for %k = %c0 to %head_dim step %vec_len {
               %acc_vec = vector.load %accum_memref[%qi, %k] : memref<?x?xf32>, vector<16xf32>
@@ -162,7 +162,7 @@ func.func @kernel(
         scf.for %qi=%c0 to %block_size_q step %step_1 {
           %idx_q = arith.addi %q_block_start, %qi : index
           %sum = memref.load %l_i_memref[%qi] : memref<?xf32>
-          %sum_vec = vector.splat %sum : vector<16xf32>
+          %sum_vec = vector.broadcast %sum : f32 to vector<16xf32>
           memref.store %sum, %out_scores[%b, %h, %idx_q] : memref<?x?x?xf32>
           scf.for %k = %c0 to %head_dim step %vec_len {
             %acc_vec = vector.load %accum_memref[%qi, %k] : memref<?x?xf32>, vector<16xf32>

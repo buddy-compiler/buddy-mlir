@@ -1,7 +1,6 @@
 set(LLVM_Vectorize_DIR ${LLVM_MAIN_SRC_DIR}/lib/Transforms/Vectorize)
 
 add_llvm_component_library(LLVMBuddyVectorize
-  ${LLVM_Vectorize_DIR}/EVLIndVarSimplify.cpp
   ${LLVM_Vectorize_DIR}/LoadStoreVectorizer.cpp
   ${LLVM_Vectorize_DIR}/LoopIdiomVectorize.cpp
   ${LLVM_Vectorize_DIR}/LoopVectorizationLegality.cpp

@@ -57,7 +57,7 @@ func.func @kernel(%q_data : tensor<1x12x1x128xf32>, %k_cache : tensor<1x2x1024x1
   %c1024 = arith.constant 1024 : index
   %vec_len = arith.constant 16 : index
   %zero_val = arith.constant 0.0 : f32
-  %zero_vec = vector.splat %zero_val : vector<16xf32>
+  %zero_vec = vector.broadcast %zero_val : f32 to vector<16xf32>
   %t_start = call @rtclock() : () -> f64
 
   %score_init=arith.constant dense<0.0>:tensor<1x12x1x1024xf32>
@@ -110,7 +110,7 @@ func.func @kernel(%q_data : tensor<1x12x1x128xf32>, %k_cache : tensor<1x2x1024x1
         %out_d=scf.for %d=%c0 to %c128 step %vec_len iter_args(%out_dv=%out_qv)->tensor<1x12x1x128xf32>{
           %vec_acc=scf.for %k=%c0 to %c1024 step %c1 iter_args(%va=%zero_vec)->vector<16xf32>{
             %p=tensor.extract %prob[%b,%h,%q,%k]:tensor<1x12x1x1024xf32>
-            %pv=vector.splat %p:vector<16xf32>
+            %pv=vector.broadcast %p:f32 to vector<16xf32>
             %vv=vector.transfer_read %v_cache[%b,%hk,%k,%d],%zero_val:tensor<1x2x1024x128xf32>,vector<16xf32>
             %va1=vector.fma %pv,%vv,%va:vector<16xf32>
             scf.yield %va1:vector<16xf32>

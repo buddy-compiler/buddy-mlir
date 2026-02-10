@@ -34,6 +34,7 @@
 #include <mlir/Dialect/Affine/Analysis/AffineAnalysis.h>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/Dialect/Linalg/IR/Linalg.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
 #include <mlir/Dialect/Vector/Transforms/VectorTransforms.h>
@@ -59,7 +60,7 @@ public:
   explicit BatchMatMulTransVecPattern(MLIRContext *context,
                                       int64_t vecSizeParam,
                                       bool scalableParam)
-      : ConversionPattern(linalg::BatchMatmulTransposeBOp::getOperationName(),
+      : ConversionPattern(linalg::BatchMatmulOp::getOperationName(),
                           1, context) {
     vecSize = vecSizeParam;
     scalable = scalableParam;
@@ -68,8 +69,30 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
+    auto batchMatmulOp = dyn_cast<linalg::BatchMatmulOp>(op);
+    if (!batchMatmulOp)
+      return failure();
+
     auto loc = op->getLoc();
     auto ctx = op->getContext();
+
+    // Check if this is a transpose B batch matmul by examining indexing maps
+    // For transpose B: A: (d0, d1, d2, d3) -> (d0, d1, d3), B: (d0, d1, d2, d3) -> (d0, d2, d3), C: (d0, d1, d2, d3) -> (d0, d1, d2)
+    SmallVector<AffineMap> indexingMaps = batchMatmulOp.getIndexingMapsArray();
+    if (indexingMaps.size() != 3)
+      return failure();
+
+    // Check if B's indexing map is (d0, d1, d2, d3) -> (d0, d2, d3) which indicates transpose
+    AffineMap bMap = indexingMaps[1];
+    if (bMap.getNumResults() != 3 || bMap.getNumDims() != 4)
+      return failure();
+    
+    // Verify it's transpose B pattern: B map should be (d0, d1, d2, d3) -> (d0, d2, d3)
+    auto bResults = bMap.getResults();
+    AffineExpr d0_check, d1_check, d2_check, d3_check;
+    bindDims(ctx, d0_check, d1_check, d2_check, d3_check);
+    if (bResults[0] != d0_check || bResults[1] != d2_check || bResults[2] != d3_check)
+      return failure();
 
     // Retrieve input tensors A, B, and C.
     Value A = op->getOperand(0);
@@ -94,7 +117,7 @@ public:
         loc, rewriter.getZeroAttr(elementType));
 
     // Create initial zero vector for accumulation.
-    Value zeroVec = rewriter.create<SplatOp>(loc, vectorTy, zero);
+    Value zeroVec = rewriter.create<BroadcastOp>(loc, vectorTy, zero);
 
     // Get dimensions of input tensors.
     Value batch = rewriter.create<memref::DimOp>(loc, A, c0);

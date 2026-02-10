@@ -296,7 +296,7 @@ def _scalar_to_tensor(
 ):
     """Convert scalers to cooresponding tensors since MLIR
     doesn't support operation between scalers and tensors."""
-    if ir.FloatType.isinstance(element_type):
+    if isinstance(element_type, ir.FloatType):
         element = ir.FloatAttr.get(element_type, float(scalar))
     else:
         element = ir.IntegerAttr.get(element_type, int(scalar))
@@ -346,7 +346,7 @@ def _normalize_binary_operator_args(arg1, arg2):
 
 def _require_integer_tensor(value: ir.Value, op_name: str) -> ir.Type:
     element_type = ir.RankedTensorType(value.type).element_type
-    if not ir.IntegerType.isinstance(element_type):
+    if not isinstance(element_type, ir.IntegerType):
         raise ValueError(
             f"{op_name} requires integer tensor inputs, got {element_type}"
         )
@@ -387,9 +387,7 @@ def _create_zero_point_tensor(value: ir.Value) -> ir.Value:
     """Create a zero-point tensor (tensor<1xT>) matching the value element type."""
     element_type = ir.RankedTensorType(value.type).element_type
     tensor_type = ir.RankedTensorType.get([1], element_type)
-    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
-        element_type
-    ):
+    if isinstance(element_type, (ir.FloatType, ir.BF16Type)):
         zero_attr = ir.FloatAttr.get(element_type, 0.0)
     else:
         zero_attr = ir.IntegerAttr.get(element_type, 0)
@@ -1216,7 +1214,7 @@ def max_pool1d_op(node: MaxPool1dOp, symbol_table):
                     ).result
                     in_bounds = arith.AndIOp(iw_ge_0, iw_lt_w).result
 
-                    if_op = scf.IfOp(in_bounds, hasElse=False)
+                    if_op = scf.IfOp(in_bounds, has_else=False)
                     with ir.InsertionPoint(if_op.then_block):
                         input_val = memref.LoadOp(
                             input_memref, [n, c, iw]
@@ -1240,7 +1238,7 @@ def max_pool1d_op(node: MaxPool1dOp, symbol_table):
                                 pred, input_val, current_max
                             ).result
 
-                        inner_if = scf.IfOp(is_greater, hasElse=False)
+                        inner_if = scf.IfOp(is_greater, has_else=False)
                         with ir.InsertionPoint(inner_if.then_block):
                             memref.StoreOp(
                                 input_val,
@@ -1374,7 +1372,7 @@ def adaptive_max_pool1d_op(node: AdaptiveMaxPool1dOp, symbol_table):
                             pred, input_val, current_max
                         ).result
 
-                    inner_if = scf.IfOp(is_greater, hasElse=False)
+                    inner_if = scf.IfOp(is_greater, has_else=False)
                     with ir.InsertionPoint(inner_if.then_block):
                         memref.StoreOp(
                             input_val,
@@ -1536,7 +1534,7 @@ def adaptive_max_pool2d_op(node: AdaptiveMaxPool2dOp, symbol_table):
                                     pred, input_val, current_max
                                 ).result
 
-                            inner_if = scf.IfOp(is_greater, hasElse=False)
+                            inner_if = scf.IfOp(is_greater, has_else=False)
                             with ir.InsertionPoint(inner_if.then_block):
                                 memref.StoreOp(
                                     input_val,
@@ -3525,9 +3523,7 @@ def clamp_min_op(node: ClampMinOp, symbol_table):
     min_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
     tensor_type = input1.type
     element_type = ir.RankedTensorType(tensor_type).element_type
-    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
-        element_type
-    ):
+    if isinstance(element_type, (ir.FloatType, ir.BF16Type)):
         min_attr = ir.FloatAttr.get(element_type, float(min_value))
         max_attr = ir.FloatAttr.get(element_type, float("inf"))
     else:
@@ -3560,9 +3556,7 @@ def clamp_max_op(node: ClampMaxOp, symbol_table):
     max_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
     tensor_type = input1.type
     element_type = ir.RankedTensorType(tensor_type).element_type
-    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
-        element_type
-    ):
+    if isinstance(element_type, (ir.FloatType, ir.BF16Type)):
         min_attr = ir.FloatAttr.get(element_type, -float("inf"))
         max_attr = ir.FloatAttr.get(element_type, float(max_value))
     else:
@@ -3741,10 +3735,16 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     element = mlir_element_attr_get(dtype, 0.0)
     attr = ir.DenseElementsAttr.get_splat(matmul_result_type, element)
     matmul_result_buffer = arith.ConstantOp(matmul_result_type, attr).result
-    matmul_op = linalg.batch_matmul_transpose_b(
+    generic_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
+    matmul_op = linalg.batch_matmul(
         query_reshape_op.result,
         key_reshape_op.result,
         outs=[matmul_result_buffer],
+        indexing_maps=[
+            generic_map.get_submap([0, 1, 3]),
+            generic_map.get_submap([0, 2, 3]),
+            generic_map.get_submap([0, 1, 2]),
+        ],
     )
     if mlir_dtype == ir.F16Type.get():
         f16_max_val = 65504.0
@@ -3872,7 +3872,7 @@ def flash_attention_for_cpu_prefill_op(
         neg_inf = arith.ConstantOp(dtype, -65504.0, loc=loc).result
     else:
         neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
-    zero_vec = vector.SplatOp(v16, zero, loc=loc)
+    zero_vec = vector.BroadcastOp(v16, zero, loc=loc)
     step_1 = arith.ConstantOp(index, 1, loc=loc)
 
     # === bufferization ===
@@ -4156,7 +4156,7 @@ def flash_attention_for_cpu_prefill_op(
                             p = math.ExpOp(
                                 score_tile_sub_m_block, loc=loc
                             ).result
-                            exp_score_tile_vec = vector.SplatOp(
+                            exp_score_tile_vec = vector.BroadcastOp(
                                 v16, p, loc=loc
                             ).result
                             l_block_new = arith.AddFOp(
@@ -4192,10 +4192,10 @@ def flash_attention_for_cpu_prefill_op(
                         ).result
                         sub_max = arith.SubFOp(m_i_iter, m_new, loc=loc).result
                         alpha = math.ExpOp(sub_max, loc=loc).result
-                        alpha_vec = vector.SplatOp(v16, alpha, loc=loc).result
+                        alpha_vec = vector.BroadcastOp(v16, alpha, loc=loc).result
                         sub_block = arith.SubFOp(m_block, m_new, loc=loc).result
                         beta = math.ExpOp(sub_block, loc=loc).result
-                        beta_vec = vector.SplatOp(v16, beta, loc=loc).result
+                        beta_vec = vector.BroadcastOp(v16, beta, loc=loc).result
                         loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
                         with ir.InsertionPoint(loop_k.body):
                             k = loop_k.induction_variable
@@ -4232,7 +4232,7 @@ def flash_attention_for_cpu_prefill_op(
                     qi = loop_qi.induction_variable
                     idx_q = arith.AddIOp(q_block_start, qi, loc=loc).result
                     sum = memref.LoadOp(l_i_memref, [qi]).result
-                    sum_vec = vector.SplatOp(v16, sum, loc=loc).result
+                    sum_vec = vector.BroadcastOp(v16, sum, loc=loc).result
                     memref.StoreOp(sum, out_scores_memref, [b, h, idx_q])
 
                     loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
@@ -8753,7 +8753,7 @@ def _cummaxmin_op(node, symbol_table, is_max: bool):
 
     input_dtype = input_type.element_type
     if not (
-        _is_float_type(input_dtype) or ir.IntegerType.isinstance(input_dtype)
+        _is_float_type(input_dtype) or isinstance(input_dtype, ir.IntegerType)
     ):
         raise NotImplementedError("cummax/cummin requires numeric tensor")
 
@@ -9192,7 +9192,7 @@ def masked_scatter_op(node: MaskedScatterOp, symbol_table):
         raise NotImplementedError(
             "masked_scatter requires source dtype to match input"
         )
-    if not ir.IntegerType.isinstance(mask_dtype):
+    if not isinstance(mask_dtype, ir.IntegerType):
         raise NotImplementedError("masked_scatter requires integer mask")
 
     total_source_elems = 1
@@ -9251,7 +9251,7 @@ def masked_scatter_op(node: MaskedScatterOp, symbol_table):
         ).result
         do_update = arith.AndIOp(mask_bool, has_source).result
 
-        if_op = scf.IfOp(do_update, hasElse=False)
+        if_op = scf.IfOp(do_update, has_else=False)
         with ir.InsertionPoint(if_op.then_block):
             src_val = memref.LoadOp(source_memref, [src_index]).result
             memref.StoreOp(src_val, output_memref.result, indices)
@@ -10479,13 +10479,13 @@ def uniform_op(node: UniformOp, symbol_table):
 
 
 def _is_float_type(dtype: ir.Type) -> bool:
-    return ir.FloatType.isinstance(dtype) or ir.BF16Type.isinstance(dtype)
+    return isinstance(dtype, (ir.FloatType, ir.BF16Type))
 
 
 def _get_min_value_attr(dtype: ir.Type) -> ir.Attribute:
     if _is_float_type(dtype):
         return ir.FloatAttr.get(dtype, float("-inf"))
-    if ir.IntegerType.isinstance(dtype):
+    if isinstance(dtype, ir.IntegerType):
         width = ir.IntegerType(dtype).width
         if width == 1 or _is_unsigned_integer_type(dtype):
             return ir.IntegerAttr.get(dtype, 0)
@@ -10566,9 +10566,9 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
         raise NotImplementedError("embedding_bag requires 1D offsets")
     if any(dim < 0 for dim in weight_shape + indices_shape + offsets_shape):
         raise NotImplementedError("embedding_bag requires static shapes")
-    if not ir.IntegerType.isinstance(indices_type.element_type):
+    if not isinstance(indices_type.element_type, ir.IntegerType):
         raise NotImplementedError("embedding_bag requires integer indices")
-    if not ir.IntegerType.isinstance(offsets_type.element_type):
+    if not isinstance(offsets_type.element_type, ir.IntegerType):
         raise NotImplementedError("embedding_bag requires integer offsets")
 
     if padding_idx >= 0 and padding_idx >= weight_shape[0]:
@@ -10732,7 +10732,7 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
                 bag_plus_one,
                 num_bags_const.result,
             ).result
-            if_op = scf.IfOp(is_last, hasElse=True)
+            if_op = scf.IfOp(is_last, has_else=True)
             with ir.InsertionPoint(if_op.then_block):
                 memref.StoreOp(
                     total_indices_const.result,
@@ -10797,7 +10797,7 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
                 is_pad = arith.CmpIOp(
                     arith.CmpIPredicate.eq, idx_val, pad_const
                 ).result
-                pad_if = scf.IfOp(is_pad, hasElse=True)
+                pad_if = scf.IfOp(is_pad, has_else=True)
                 with ir.InsertionPoint(pad_if.then_block):
                     scf.YieldOp([])
                 with ir.InsertionPoint(pad_if.else_block):
@@ -10820,7 +10820,7 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
             is_empty = arith.CmpIOp(
                 arith.CmpIPredicate.eq, bag_count, zero.result
             ).result
-            mean_if = scf.IfOp(is_empty, hasElse=True)
+            mean_if = scf.IfOp(is_empty, has_else=True)
             with ir.InsertionPoint(mean_if.then_block):
                 scf.YieldOp([])
             with ir.InsertionPoint(mean_if.else_block):
@@ -11256,7 +11256,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     zero = arith.ConstantOp(mlir_dtype, 0.0, loc=loc).result
     one = arith.ConstantOp(mlir_dtype, 1.0, loc=loc).result
     v16_f32 = ir.VectorType.get([16], mlir_dtype)
-    zero_vec = vector.SplatOp(v16_f32, zero, loc=loc).result
+    zero_vec = vector.BroadcastOp(v16_f32, zero, loc=loc).result
 
     c0 = arith.ConstantOp(index, 0, loc=loc)
     c1 = arith.ConstantOp(index, 1, loc=loc)
@@ -11433,7 +11433,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
                             softmax_result, [b, h, q, k], loc=loc
                         ).result
 
-                        pv = vector.SplatOp(
+                        pv = vector.BroadcastOp(
                             ir.VectorType.get([16], f32), p, loc=loc
                         ).result
                         vec_ty = ir.VectorType.get([16], f32)

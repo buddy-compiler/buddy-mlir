@@ -56,7 +56,7 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
   Value f0 = rewriter.create<arith::ConstantFloatOp>(
       loc, f32, APFloat::getZero(f32.getFloatSemantics()));
   // Create pass through vector.
-  Value passThroughVec = rewriter.create<SplatOp>(loc, vectorTy32, f0);
+  Value passThroughVec = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, f0);
   // Get input, kernel and output.
   Value input = op->getOperand(0);
   Value kernel = op->getOperand(1);
@@ -79,7 +79,7 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
         // Create strip mining loop.
         builder.create<affine::AffineForOp>(
             loc, ValueRange{c0}, builder.getDimIdentityMap(),
-            ValueRange{outputCol}, stripMap, /*Step=*/1, std::nullopt,
+            ValueRange{outputCol}, stripMap, /*Step=*/1, ValueRange(),
             [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
                 ValueRange itrArgs) {
               // Vectorize the kernel.

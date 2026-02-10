@@ -27,6 +27,7 @@ set(LLVM_LINK_COMPONENTS
   TargetParser
   BuddyTransformUtils
   Passes
+  Plugins
 )
 
 add_llvm_tool(buddy-llc

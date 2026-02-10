@@ -101,7 +101,7 @@ public:
           rewriter.create<vector::BroadcastOp>(loc, vecTy, zeroElementType);
     } else {
       zeroElementTypeVec =
-          rewriter.create<vector::SplatOp>(loc, vecTy, zeroElementType);
+          rewriter.create<vector::BroadcastOp>(loc, vecTy, zeroElementType);
     }
     // Dims
     Value N = rewriter.create<memref::DimOp>(loc, output, 0);  // N
@@ -133,7 +133,7 @@ public:
           Value ivOW = loopIndices[2]; // Index for the third dimension OW
           // OC
           nestedBuilder.create<scf::ForOp>(
-              nestedLoc, c0, applyOC, vecSizeValue, ValueRange{std::nullopt},
+              nestedLoc, c0, applyOC, vecSizeValue, ValueRange(),
               [&](OpBuilder &builder, Location loc, Value ivOC,
                   ValueRange iargs) {
                 Value tVec = builder.create<vector::LoadOp>(
@@ -190,7 +190,7 @@ public:
                     loc, forOp.getResult(0), output,
                     ValueRange{ivN, ivOH, ivOW, ivOC});
 
-                builder.create<scf::YieldOp>(loc, ValueRange{std::nullopt});
+                builder.create<scf::YieldOp>(loc, ValueRange());
               });
 
           // applyOC
@@ -253,7 +253,7 @@ public:
                 builder.create<vector::MaskedStoreOp>(
                     loc, output, ValueRange{ivN, ivOH, ivOW, applyOC},
                     maskVector, forOp.getResult(0));
-                builder.create<scf::YieldOp>(loc, ValueRange{std::nullopt});
+                builder.create<scf::YieldOp>(loc, ValueRange());
               });
 
           nestedBuilder.create<scf::InParallelOp>(nestedLoc);

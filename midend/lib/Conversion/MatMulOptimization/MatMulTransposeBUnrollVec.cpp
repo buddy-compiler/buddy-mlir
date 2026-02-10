@@ -97,7 +97,7 @@ public:
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(8));
     // const Value initVec = rewriter.create<arith::ConstantOp>(
     //     loc, vectorTy, DenseElementsAttr::get(vectorTy, APFloat(0.0f)));
-    Value initVec = rewriter.create<SplatOp>(loc, vectorTy, initVal);
+    Value initVec = rewriter.create<vector::BroadcastOp>(loc, vectorTy, initVal);
 
     // Get dimensions of input tensors.
     Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);
@@ -138,7 +138,7 @@ public:
 
           builder.create<scf::ForOp>(
               loc, c0, bCol,
-              /*Step=*/c1, std::nullopt,
+              /*Step=*/c1, ValueRange(),
               [&](OpBuilder &builder, Location loc, Value iv0,
                   ValueRange itrArgs0) {
                 auto iterVals = builder.create<scf::ForOp>(

@@ -142,7 +142,7 @@ Value iotaVec(OpBuilder &builder, Location loc, MLIRContext *ctx,
 
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
-      builder.getDimIdentityMap(), 1, std::nullopt,
+      builder.getDimIdentityMap(), 1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value iv, ValueRange iterArg) {
         Value iotaValIndex = builder.create<arith::AddIOp>(loc, iv, indexStart);
         Value iotaVal = indexToF32(builder, loc, iotaValIndex);
@@ -170,7 +170,7 @@ Value iotaVec0F32(OpBuilder &builder, Location loc, int64_t length) {
 Value castAndExpand(OpBuilder &builder, Location loc, Value val,
                     VectorType vecType) {
   Value interm1 = indexToF32(builder, loc, val);
-  return builder.create<vector::SplatOp>(loc, vecType, interm1);
+  return builder.create<vector::BroadcastOp>(loc, vecType, interm1);
 }
 
 // print values(for debug use)
@@ -180,7 +180,7 @@ void printValues(OpBuilder &builder, Location loc,
     return;
   Type valueTy = values.begin()->getType();
   VectorType vecTy = VectorType::get({(long)values.size()}, valueTy);
-  Value vec = builder.create<vector::SplatOp>(loc, vecTy, *values.begin());
+  Value vec = builder.create<vector::BroadcastOp>(loc, vecTy, *values.begin());
   int idx = 0;
   for (auto value : values) {
     if (idx != 0) {
@@ -544,7 +544,7 @@ void idft2D(OpBuilder &builder, Location loc, Value container2DReal,
             Value strideVal, VectorType vecType) {
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(),
-      ValueRange{container2DRows}, builder.getDimIdentityMap(), 1, std::nullopt,
+      ValueRange{container2DRows}, builder.getDimIdentityMap(), 1, ValueRange(),
       [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
           ValueRange itrArg) {
         idft1DCooleyTukeyButterfly(builder, loc, container2DReal,
@@ -563,7 +563,7 @@ void idft2D(OpBuilder &builder, Location loc, Value container2DReal,
 
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(),
-      ValueRange{container2DCols}, builder.getDimIdentityMap(), 1, std::nullopt,
+      ValueRange{container2DCols}, builder.getDimIdentityMap(), 1, ValueRange(),
       [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
           ValueRange itrArg) {
         idft1DCooleyTukeyButterfly(builder, loc, intermediateReal,
@@ -603,7 +603,7 @@ void dft2D(OpBuilder &builder, Location loc, Value container2DReal,
            Value strideVal, VectorType vecType) {
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(),
-      ValueRange{container2DRows}, builder.getDimIdentityMap(), 1, std::nullopt,
+      ValueRange{container2DRows}, builder.getDimIdentityMap(), 1, ValueRange(),
       [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
           ValueRange itrArg) {
         dft1DGentlemanSandeButterfly(builder, loc, container2DReal,
@@ -622,7 +622,7 @@ void dft2D(OpBuilder &builder, Location loc, Value container2DReal,
 
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(),
-      ValueRange{container2DCols}, builder.getDimIdentityMap(), 1, std::nullopt,
+      ValueRange{container2DCols}, builder.getDimIdentityMap(), 1, ValueRange(),
       [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
           ValueRange itrArg) {
         dft1DGentlemanSandeButterfly(builder, loc, intermediateReal,

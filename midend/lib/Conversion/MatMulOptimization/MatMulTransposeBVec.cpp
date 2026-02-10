@@ -21,10 +21,13 @@
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/Dialect/Linalg/IR/Linalg.h>
 #include <mlir/Dialect/Linalg/Transforms/Transforms.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
 #include <mlir/Dialect/Vector/IR/VectorOps.h>
+#include <mlir/IR/AffineExpr.h>
+#include <mlir/IR/AffineMap.h>
 #include <mlir/IR/Dialect.h>
 #include <mlir/IR/Operation.h>
 #include <mlir/IR/TypeUtilities.h>
@@ -47,7 +50,7 @@ class MatMulTransposeBVecPattern : public ConversionPattern {
 public:
   explicit MatMulTransposeBVecPattern(MLIRContext *context, int64_t vfParam,
                                       bool scalableParam)
-      : ConversionPattern(linalg::MatmulTransposeBOp::getOperationName(), 1,
+      : ConversionPattern(linalg::MatmulOp::getOperationName(), 1,
                           context) {
     vf = vfParam;
     scalable = scalableParam;
@@ -56,8 +59,31 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
+    auto matmulOp = dyn_cast<linalg::MatmulOp>(op);
+    if (!matmulOp)
+      return failure();
+
     auto loc = op->getLoc();
     auto ctx = op->getContext();
+
+    // Check if this is a transpose B matmul by examining indexing maps
+    // For transpose B: A: (d0, d1, d2) -> (d0, d2), B: (d0, d1, d2) -> (d1, d2), C: (d0, d1, d2) -> (d0, d1)
+    SmallVector<AffineMap> indexingMaps = matmulOp.getIndexingMapsArray();
+    if (indexingMaps.size() != 3)
+      return failure();
+
+    // Check if B's indexing map is (d0, d1, d2) -> (d1, d2) which indicates transpose
+    AffineMap bMap = indexingMaps[1];
+    if (bMap.getNumResults() != 2 || bMap.getNumDims() != 3)
+      return failure();
+    
+    // Verify it's transpose B pattern: B map should be (d0, d1, d2) -> (d1, d2)
+    // Check that result[0] is d1 and result[1] is d2
+    auto bResults = bMap.getResults();
+    AffineExpr d0_check, d1_check, d2_check;
+    bindDims(ctx, d0_check, d1_check, d2_check);
+    if (bResults[0] != d1_check || bResults[1] != d2_check)
+      return failure();
     // Get input A, B, C.
     Value A = op->getOperand(0);
     Value B = op->getOperand(1);
@@ -84,7 +110,7 @@ public:
     }
 
     const Value c0Ele = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
-    Value passthruVec = rewriter.create<SplatOp>(loc, vectorTy, c0Ele);
+    Value passthruVec = rewriter.create<BroadcastOp>(loc, vectorTy, c0Ele);
 
     const Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);
     const Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);

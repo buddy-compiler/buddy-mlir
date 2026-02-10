@@ -17,6 +17,9 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   ${translation_libs}
   ${conversion_libs}
   ${extension_libs}
+  MLIRRegisterAllDialects
+  MLIRRegisterAllExtensions
+  MLIRRegisterAllPasses
   MLIRBuiltinToLLVMIRTranslation
   MLIRCAPIIR
   MLIRLLVMToLLVMIRTranslation

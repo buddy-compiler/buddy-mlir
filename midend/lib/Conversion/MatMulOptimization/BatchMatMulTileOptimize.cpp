@@ -228,7 +228,7 @@ public:
                                 loc, vTy, vecMul, vecC);
                           } else {
                             Value vecA =
-                                mTrueBranchBuilder.create<vector::SplatOp>(
+                                mTrueBranchBuilder.create<vector::BroadcastOp>(
                                     loc, vTy, ksubAElement);
                             vecC = mTrueBranchBuilder.create<vector::FMAOp>(
                                 loc, vTy, vecA, bs[j], vecC);

@@ -3,15 +3,11 @@ add_subdirectory(lib)
 
 if(MLIR_ENABLE_BINDINGS_PYTHON)
   include(MLIRDetectPythonEnv)
-  find_package(Python3 ${LLVM_MINIMUM_PYTHON_VERSION}
-  COMPONENTS Interpreter Development NumPy REQUIRED)
-  set(Python_EXECUTABLE ${Python3_EXECUTABLE})
-  find_package(Python
-  COMPONENTS Interpreter Development NumPy REQUIRED)
-  mlir_detect_pybind11_install()
-  find_package(pybind11 2.10 CONFIG REQUIRED)
-  mlir_detect_nanobind_install()
-  find_package(nanobind 2.4 CONFIG REQUIRED)
+  mlir_configure_python_dev_packages()
+  # Set Python bindings domain to avoid conflicts with other MLIR projects
+  if(NOT MLIR_BINDINGS_PYTHON_NB_DOMAIN)
+    set(MLIR_BINDINGS_PYTHON_NB_DOMAIN "buddy_mlir" CACHE STRING "" FORCE)
+  endif()
   message(STATUS "Enabling Python API")
   add_subdirectory(python)
 endif()

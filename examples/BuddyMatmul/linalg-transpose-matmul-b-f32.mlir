@@ -20,8 +20,12 @@
 
 func.func private @printMemrefF32(memref<*xf32>)
 
+#map_a = affine_map<(d0, d1, d2) -> (d0, d2)>
+#map_b = affine_map<(d0, d1, d2) -> (d1, d2)>
+#map_c = affine_map<(d0, d1, d2) -> (d0, d1)>
+
 func.func @test(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
-    linalg.matmul_transpose_b
+    linalg.matmul indexing_maps = [#map_a, #map_b, #map_c]
       ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
       outs(%c: memref<?x?xf32>)
     return

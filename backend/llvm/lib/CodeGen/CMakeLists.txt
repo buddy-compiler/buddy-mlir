@@ -13,6 +13,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/BasicBlockSections.cpp
   ${LLVM_CodeGen_DIR}/BasicBlockPathCloning.cpp
   ${LLVM_CodeGen_DIR}/BasicBlockSectionsProfileReader.cpp
+  ${LLVM_CodeGen_DIR}/BasicBlockMatchingAndInference.cpp
   ${LLVM_CodeGen_DIR}/CalcSpillWeights.cpp
   ${LLVM_CodeGen_DIR}/CallBrPrepare.cpp
   ${LLVM_CodeGen_DIR}/CallingConvLower.cpp
@@ -34,8 +35,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/EdgeBundles.cpp
   ${LLVM_CodeGen_DIR}/EHContGuardTargets.cpp
   ${LLVM_CodeGen_DIR}/ExecutionDomainFix.cpp
-  ${LLVM_CodeGen_DIR}/ExpandLargeDivRem.cpp
-  ${LLVM_CodeGen_DIR}/ExpandFp.cpp
+  ${LLVM_CodeGen_DIR}/ExpandIRInsts.cpp
   ${LLVM_CodeGen_DIR}/ExpandMemCmp.cpp
   ${LLVM_CodeGen_DIR}/ExpandPostRAPseudos.cpp
   ${LLVM_CodeGen_DIR}/ExpandReductions.cpp
@@ -57,6 +57,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/IndirectBrExpandPass.cpp
   ${LLVM_CodeGen_DIR}/InitUndef.cpp
   ${LLVM_CodeGen_DIR}/InlineSpiller.cpp
+  ${LLVM_CodeGen_DIR}/InsertCodePrefetch.cpp
   ${LLVM_CodeGen_DIR}/InterferenceCache.cpp
   ${LLVM_CodeGen_DIR}/InterleavedAccessPass.cpp
   ${LLVM_CodeGen_DIR}/InterleavedLoadCombinePass.cpp
@@ -66,6 +67,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/LatencyPriorityQueue.cpp
   ${LLVM_CodeGen_DIR}/LazyMachineBlockFrequencyInfo.cpp
   ${LLVM_CodeGen_DIR}/LexicalScopes.cpp
+  ${LLVM_CodeGen_DIR}/LibcallLoweringInfo.cpp
   ${LLVM_CodeGen_DIR}/LiveDebugVariables.cpp
   ${LLVM_CodeGen_DIR}/LiveIntervals.cpp
   ${LLVM_CodeGen_DIR}/LiveInterval.cpp
@@ -86,6 +88,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/LowerEmuTLS.cpp
   ${LLVM_CodeGen_DIR}/MachineBasicBlock.cpp
   ${LLVM_CodeGen_DIR}/MachineBlockFrequencyInfo.cpp
+  ${LLVM_CodeGen_DIR}/MachineBlockHashInfo.cpp
   ${LLVM_CodeGen_DIR}/MachineBlockPlacement.cpp
   ${LLVM_CodeGen_DIR}/MachineBranchProbabilityInfo.cpp
   ${LLVM_CodeGen_DIR}/MachineCFGPrinter.cpp
@@ -133,6 +136,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/MIRFSDiscriminator.cpp
   ${LLVM_CodeGen_DIR}/MIRSampleProfile.cpp
   ${LLVM_CodeGen_DIR}/MIRYamlMapping.cpp
+  ${LLVM_CodeGen_DIR}/MIR2Vec.cpp
   ${LLVM_CodeGen_DIR}/MLRegAllocEvictAdvisor.cpp
   ${LLVM_CodeGen_DIR}/MLRegAllocPriorityAdvisor.cpp
   ${LLVM_CodeGen_DIR}/ModuloSchedule.cpp

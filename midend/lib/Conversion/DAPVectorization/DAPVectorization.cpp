@@ -96,17 +96,17 @@ public:
                       builder.create<arith::AddIOp>(loc, address, tileStep);
                   // 3.2 Broadcast each kernel element to a vector.
                   builder.create<scf::ForOp>(
-                      loc, c0, kernelSize, c1, ValueRange{std::nullopt},
+                      loc, c0, kernelSize, c1, ValueRange(),
                       [&](OpBuilder &b, Location loc, Value iv_n,
                           ValueRange iargs) {
                         Value kElem =
                             b.create<memref::LoadOp>(loc, kernel, iv_n);
                         Value kVec =
-                            b.create<vector::SplatOp>(loc, vecTy, kElem);
+                            b.create<vector::BroadcastOp>(loc, vecTy, kElem);
                         // 3.3 Vectorized computation.
                         b.create<scf::ForOp>(
                             loc, address, upbound, vlStep,
-                            ValueRange{std::nullopt},
+                            ValueRange(),
                             [&](OpBuilder &b, Location loc, Value iv_i,
                                 ValueRange iargs) {
                               Value inVec = b.create<vector::LoadOp>(
@@ -139,7 +139,7 @@ public:
         loc, c0, kernelSize, c1, ValueRange{tailUpboundInit},
         [&](OpBuilder &builder, Location loc, Value iv_n, ValueRange iargs) {
           Value kElem = builder.create<memref::LoadOp>(loc, kernel, iv_n);
-          Value kVec = builder.create<vector::SplatOp>(loc, vecTy, kElem);
+          Value kVec = builder.create<vector::BroadcastOp>(loc, vecTy, kElem);
 
           // 4.3 Perform the vectorization body (for tail process).
           Value iterIdx =
@@ -169,7 +169,7 @@ public:
           Value tailUpboundScalar =
               builder.create<arith::AddIOp>(loc, iargs[0], vlStepMinusOne);
           builder.create<scf::ForOp>(
-              loc, iterIdx, tailUpboundScalar, c1, ValueRange{std::nullopt},
+              loc, iterIdx, tailUpboundScalar, c1, ValueRange(),
               [&](OpBuilder &b, Location loc, Value iv_i, ValueRange iargs) {
                 Value inElem = b.create<memref::LoadOp>(loc, input, iv_i);
                 Value outOffset = b.create<arith::AddIOp>(loc, iv_i, iv_n);

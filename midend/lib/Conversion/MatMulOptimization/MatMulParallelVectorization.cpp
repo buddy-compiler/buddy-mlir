@@ -85,7 +85,7 @@ public:
 
     const Value zeroElementType = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getZeroAttr(elementType));
-    const Value zeroElementTypeVec = rewriter.create<vector::SplatOp>(
+    const Value zeroElementTypeVec = rewriter.create<vector::BroadcastOp>(
         loc, VectorType::get({affineVectorSize}, elementType), zeroElementType);
 
     // Get dimensions of input tensors.
