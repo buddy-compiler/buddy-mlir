@@ -8040,6 +8040,10 @@ def topk_op(
             ir.IntegerType.get_signless(1),
             ir.IntegerAttr.get(ir.IntegerType.get_signless(1), 0),
         ).result
+        c1_i1 = arith.ConstantOp(
+            ir.IntegerType.get_signless(1),
+            ir.IntegerAttr.get(ir.IntegerType.get_signless(1), 1),
+        ).result
         init_loop = scf.ForOp(c0, cdim_size, c1)
         with ir.InsertionPoint(init_loop.body):
             i = init_loop.induction_variable
@@ -8069,10 +8073,6 @@ def topk_op(
                 j = search_loop.induction_variable
 
                 used_flag = memref.LoadOp(used_memref.result, [j]).result
-                c1_i1 = arith.ConstantOp(
-                    ir.IntegerType.get_signless(1),
-                    ir.IntegerAttr.get(ir.IntegerType.get_signless(1), 1),
-                ).result
                 not_used = arith.CmpIOp(
                     arith.CmpIPredicate.ne, used_flag, c1_i1
                 ).result

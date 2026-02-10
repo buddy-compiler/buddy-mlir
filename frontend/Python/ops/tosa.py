@@ -36,6 +36,7 @@ from mlir.dialects import (
     bufferization,
     memref,
     scf,
+    complex as complex_dialect,
 )
 
 from ..graph import TensorDType
@@ -2619,7 +2620,6 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
     From buddy graph ir's `ConvertElementTypeOp` operator to MLIR TOSA
     `cast` operation.
     """
-    # maintain a mapping of buddy dtype to mlir types
     types_mapping = {
         TensorDType.Float64: ir.F64Type.get(),
         TensorDType.Float32: ir.F32Type.get(),
@@ -2628,13 +2628,85 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
         TensorDType.Int64: ir.IntegerType.get_signless(64),
         TensorDType.Int32: ir.IntegerType.get_signless(32),
         TensorDType.Bool: ir.IntegerType.get_signless(1),
+        TensorDType.Complex64: ir.ComplexType.get(ir.F32Type.get()),
+        TensorDType.Complex128: ir.ComplexType.get(ir.F64Type.get()),
     }
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     to_cast_type = types_mapping[node.args[1]]
     input_type = ir.RankedTensorType(input_tensor.type).element_type
-    # When converting float to int, tosa.cast lowers to math.roundeven, but we don't need rounding.
+    output_shape = list(node.tensor_meta["shape"])
+
+    if ir.ComplexType.isinstance(to_cast_type):
+        complex_elem_type = ir.ComplexType(to_cast_type).element_type
+        if str(input_type) != str(complex_elem_type):
+            raise NotImplementedError(
+                "convert_element_type complex cast expects matching real dtype, "
+                f"got {input_type} -> {complex_elem_type}"
+            )
+
+        tensor_type = ir.RankedTensorType.get(output_shape, to_cast_type)
+        if not output_shape:
+            extracted = tensor.ExtractOp(input_tensor, []).result
+            imag_zero = arith.ConstantOp(
+                complex_elem_type,
+                ir.FloatAttr.get(complex_elem_type, 0.0),
+            ).result
+            complex_val = complex_dialect.CreateOp(
+                to_cast_type,
+                extracted,
+                imag_zero,
+            ).result
+            return tensor.FromElementsOp(tensor_type, [complex_val]).result
+
+        output = tensor.EmptyOp(output_shape, to_cast_type)
+        generic_map = ir.AffineMap.get_permutation(
+            [i for i in range(len(output_shape))]
+        )
+        op = linalg.GenericOp(
+            [tensor_type],
+            [input_tensor],
+            [output],
+            ir.ArrayAttr.get(
+                [
+                    ir.AffineMapAttr.get(
+                        generic_map.get_submap(
+                            [i for i in range(len(output_shape))]
+                        )
+                    ),
+                    ir.AffineMapAttr.get(
+                        generic_map.get_submap(
+                            [i for i in range(len(output_shape))]
+                        )
+                    ),
+                ]
+            ),
+            ir.ArrayAttr.get(
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                * len(output_shape)
+            ),
+        )
+        block = ir.Block.create_at_start(
+            op.region,
+            [
+                input_type,
+                to_cast_type,
+            ],
+        )
+        imag_zero = arith.ConstantOp(
+            complex_elem_type,
+            ir.FloatAttr.get(complex_elem_type, 0.0),
+        )
+        complex_val = complex_dialect.CreateOp(
+            to_cast_type,
+            block.arguments[0],
+            imag_zero.result,
+        )
+        block.append(imag_zero)
+        block.append(complex_val)
+        block.append(linalg.YieldOp([complex_val.result]))
+        return op
+
     if str(to_cast_type).find("i") != -1 and str(input_type).find("f") != -1:
-        output_shape = list(node.tensor_meta["shape"])
         tensor_type = ir.RankedTensorType.get(output_shape, to_cast_type)
         if not output_shape:
             extracted = tensor.ExtractOp(input_tensor, []).result
@@ -2698,12 +2770,11 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
             fptosi_op = arith.FPToSIOp(to_cast_type, block.arguments[0])
             block.append(fptosi_op)
             block.append(linalg.YieldOp([fptosi_op.result]))
-    else:
-        sizes = ir.RankedTensorType(input_tensor.type).shape
-        output_type = ir.RankedTensorType.get(sizes, to_cast_type)
-        op = tosa.CastOp(output_type, input_tensor)
+        return op
 
-    return op
+    sizes = ir.RankedTensorType(input_tensor.type).shape
+    output_type = ir.RankedTensorType.get(sizes, to_cast_type)
+    return tosa.CastOp(output_type, input_tensor)
 
 
 def clone_op(node: CloneOp, symbol_table):

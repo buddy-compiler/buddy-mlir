@@ -1,0 +1,4909 @@
+[
+  {
+    "name": "abs.default",
+    "op": "abs",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "abs_.default",
+    "op": "abs_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "absolute.default",
+    "op": "absolute",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "absolute_.default",
+    "op": "absolute_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "acos.default",
+    "op": "acos",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "acos_.default",
+    "op": "acos_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "acosh.default",
+    "op": "acosh",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "acosh_.default",
+    "op": "acosh_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "adaptive_max_pool2d.default",
+    "op": "adaptive_max_pool2d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.adaptive_max_pool2d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError('adaptive_max_pool2d(): Expected 3D or 4D tensor, but got: torch.Size([1])')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "adaptive_max_pool2d_backward.default",
+    "op": "adaptive_max_pool2d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "adaptive_max_pool3d.default",
+    "op": "adaptive_max_pool3d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.adaptive_max_pool3d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError('adaptive_max_pool3d(): Expected 4D or 5D tensor, but got: torch.Size([1])')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "adaptive_max_pool3d_backward.default",
+    "op": "adaptive_max_pool3d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "add.default",
+    "op": "add",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "add_.Tensor",
+    "op": "add_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "addbmm.default",
+    "op": "addbmm",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.addbmm.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got 1)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "addbmm_.default",
+    "op": "addbmm_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.addbmm_.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got 1)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "addcdiv.default",
+    "op": "addcdiv",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "addcdiv_.default",
+    "op": "addcdiv_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "addcmul.default",
+    "op": "addcmul",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "addcmul_.default",
+    "op": "addcmul_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "addmm.default",
+    "op": "addmm",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.addmm.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('a must be 2D')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "addmm_.default",
+    "op": "addmm_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.addmm_.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('a must be 2D')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "addmv.default",
+    "op": "addmv",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.addmv.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('matrix @ vector expected, got 1, 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "addmv_.default",
+    "op": "addmv_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.addmv_.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('matrix @ vector expected, got 1, 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "addr.default",
+    "op": "addr",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "affine_grid_generator.default",
+    "op": "affine_grid_generator",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.affine_grid_generator.default(*(FakeTensor(..., size=(1,)), [0], False), **{}): got RuntimeError('affine_grid_generator needs 4d (spatial) or 5d (volumetric) inputs.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "alias.default",
+    "op": "alias",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "alias_copy.default",
+    "op": "alias_copy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "all.default",
+    "op": "all",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "alpha_dropout.default",
+    "op": "alpha_dropout",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "amax.default",
+    "op": "amax",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "amin.default",
+    "op": "amin",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "aminmax.default",
+    "op": "aminmax",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "angle.default",
+    "op": "angle",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "any.default",
+    "op": "any",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arange.default",
+    "op": "arange",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arccos.default",
+    "op": "arccos",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arccos_.default",
+    "op": "arccos_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arccosh.default",
+    "op": "arccosh",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arccosh_.default",
+    "op": "arccosh_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arcsin.default",
+    "op": "arcsin",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arcsin_.default",
+    "op": "arcsin_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arcsinh.default",
+    "op": "arcsinh",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arcsinh_.default",
+    "op": "arcsinh_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arctan.default",
+    "op": "arctan",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arctan2.default",
+    "op": "arctan2",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arctan2_.default",
+    "op": "arctan2_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arctan_.default",
+    "op": "arctan_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arctanh.default",
+    "op": "arctanh",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "arctanh_.default",
+    "op": "arctanh_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "argmax.default",
+    "op": "argmax",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "argmin.default",
+    "op": "argmin",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "as_strided.default",
+    "op": "as_strided",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "as_strided_.default",
+    "op": "as_strided_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "as_strided_copy.default",
+    "op": "as_strided_copy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "as_strided_scatter.default",
+    "op": "as_strided_scatter",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.as_strided_scatter.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), [0], [0]), **{}): got RuntimeError('expected src to have a size equal to the slice of self. src size = torch.Size([1]), slice size = [0]')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "asin.default",
+    "op": "asin",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "asin_.default",
+    "op": "asin_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "asinh.default",
+    "op": "asinh",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "asinh_.default",
+    "op": "asinh_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "atan.default",
+    "op": "atan",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "atan2.default",
+    "op": "atan2",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "atan2_.default",
+    "op": "atan2_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "atan_.default",
+    "op": "atan_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "atanh.default",
+    "op": "atanh",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "atanh_.default",
+    "op": "atanh_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "avg_pool2d.default",
+    "op": "avg_pool2d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.avg_pool2d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got -3)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "avg_pool2d_backward.default",
+    "op": "avg_pool2d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "avg_pool3d.default",
+    "op": "avg_pool3d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.avg_pool3d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError('non-empty 4D or 5D (batch mode) tensor expected for input')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "avg_pool3d_backward.default",
+    "op": "avg_pool3d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "baddbmm.default",
+    "op": "baddbmm",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.baddbmm.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got 1)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "baddbmm_.default",
+    "op": "baddbmm_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.baddbmm_.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got 1)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "batch_norm_backward.default",
+    "op": "batch_norm_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "bernoulli.default",
+    "op": "bernoulli",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bernoulli_.Tensor",
+    "op": "bernoulli_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "binary_cross_entropy.default",
+    "op": "binary_cross_entropy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "binary_cross_entropy_backward.default",
+    "op": "binary_cross_entropy_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "binary_cross_entropy_with_logits.default",
+    "op": "binary_cross_entropy_with_logits",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bincount.default",
+    "op": "bincount",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "bitwise_and.Tensor",
+    "op": "bitwise_and",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bitwise_and_.Tensor",
+    "op": "bitwise_and_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bitwise_left_shift.Tensor",
+    "op": "bitwise_left_shift",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bitwise_left_shift_.Tensor",
+    "op": "bitwise_left_shift_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bitwise_not.default",
+    "op": "bitwise_not",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bitwise_not_.default",
+    "op": "bitwise_not_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bitwise_or.Tensor",
+    "op": "bitwise_or",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bitwise_or_.Tensor",
+    "op": "bitwise_or_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bitwise_right_shift.Tensor",
+    "op": "bitwise_right_shift",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bitwise_right_shift_.Tensor",
+    "op": "bitwise_right_shift_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bitwise_xor.Tensor",
+    "op": "bitwise_xor",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bitwise_xor_.Tensor",
+    "op": "bitwise_xor_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "block_diag.default",
+    "op": "block_diag",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bmm.default",
+    "op": "bmm",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.bmm.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('batch1 must be a 3D tensor')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "broadcast_tensors.default",
+    "op": "broadcast_tensors",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "bucketize.Tensor",
+    "op": "bucketize",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cat.default",
+    "op": "cat",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cauchy.default",
+    "op": "cauchy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cauchy_.default",
+    "op": "cauchy_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "ceil.default",
+    "op": "ceil",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "ceil_.default",
+    "op": "ceil_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "celu.default",
+    "op": "celu",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "celu_.default",
+    "op": "celu_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "channel_shuffle.default",
+    "op": "channel_shuffle",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.channel_shuffle.default(*(FakeTensor(..., size=(1,)), 0), **{}): got RuntimeError('channel_shuffle expects input with > 2 dims, but got input with sizes [1]')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "cholesky.default",
+    "op": "cholesky",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.cholesky.default(*(FakeTensor(..., size=(1,)),), **{}): got AssertionError('cholesky: The input tensor must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "cholesky_inverse.default",
+    "op": "cholesky_inverse",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.cholesky_inverse.default(*(FakeTensor(..., size=(1,)),), **{}): got AssertionError('cholesky_inverse: The input tensor must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "cholesky_solve.default",
+    "op": "cholesky_solve",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.cholesky_solve.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('b should have at least 2 dimensions, but has 1 dimensions instead')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "clamp.default",
+    "op": "clamp",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.clamp.default(*(FakeTensor(..., size=(1,)),), **{}): got ValueError('clamp called but both min and max are none!')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "clamp_.default",
+    "op": "clamp_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.clamp_.default(*(FakeTensor(..., size=(1,)),), **{}): got ValueError('clamp called but both min and max are none!')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "clamp_max.default",
+    "op": "clamp_max",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "clamp_max_.default",
+    "op": "clamp_max_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "clamp_min.default",
+    "op": "clamp_min",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "clamp_min_.default",
+    "op": "clamp_min_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "clip.default",
+    "op": "clip",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.clip.default(*(FakeTensor(..., size=(1,)),), **{}): got ValueError('clamp called but both min and max are none!')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "clip_.default",
+    "op": "clip_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.clip_.default(*(FakeTensor(..., size=(1,)),), **{}): got ValueError('clamp called but both min and max are none!')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "clone.default",
+    "op": "clone",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "col2im.default",
+    "op": "col2im",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.col2im.default(*(FakeTensor(..., size=(1,)), [0], [0], [0], [0], [0]), **{}): got RuntimeError('only 2D output_size supported')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "complex.default",
+    "op": "complex",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "conj.default",
+    "op": "conj",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "conj_physical.default",
+    "op": "conj_physical",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "conj_physical_.default",
+    "op": "conj_physical_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "constant_pad_nd.default",
+    "op": "constant_pad_nd",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.constant_pad_nd.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError('Length of pad must be even but instead it equals 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "conv2d.default",
+    "op": "conv2d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.conv2d.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('Expected 3D (unbatched) or 4D (batched) input to conv2d, but got input of size: [1]')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "convolution.default",
+    "op": "convolution",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.convolution.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), [0], [0], [0], False, [0], 0), **{}): got ValueError('cannot create std::vector larger than max_size()')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "convolution_backward.default",
+    "op": "convolution_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "copy.default",
+    "op": "copy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "copy_.default",
+    "op": "copy_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "copysign.default",
+    "op": "copysign",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:copysign.default"
+  },
+  {
+    "name": "copysign_.Tensor",
+    "op": "copysign_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cos.default",
+    "op": "cos",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cos_.default",
+    "op": "cos_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cosh.default",
+    "op": "cosh",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cosh_.default",
+    "op": "cosh_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "count_nonzero.default",
+    "op": "count_nonzero",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cudnn_batch_norm.default",
+    "op": "cudnn_batch_norm",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:cuda_only"
+  },
+  {
+    "name": "cudnn_batch_norm_backward.default",
+    "op": "cudnn_batch_norm_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "cummax.default",
+    "op": "cummax",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cummin.default",
+    "op": "cummin",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cumprod.default",
+    "op": "cumprod",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cumprod_.default",
+    "op": "cumprod_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cumsum.default",
+    "op": "cumsum",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "cumsum_.default",
+    "op": "cumsum_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "deg2rad.default",
+    "op": "deg2rad",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "deg2rad_.default",
+    "op": "deg2rad_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "dense_dim.default",
+    "op": "dense_dim",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "detach.default",
+    "op": "detach",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "diag.default",
+    "op": "diag",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "diag_embed.default",
+    "op": "diag_embed",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "diagonal.default",
+    "op": "diagonal",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.diagonal.default(*(FakeTensor(..., size=(1,)),), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got 1)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "diagonal_backward.default",
+    "op": "diagonal_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "diagonal_copy.default",
+    "op": "diagonal_copy",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.diagonal_copy.default(*(FakeTensor(..., size=(1,)),), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got 1)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "diagonal_scatter.default",
+    "op": "diagonal_scatter",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.diagonal_scatter.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got 1)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "digamma.default",
+    "op": "digamma",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "digamma_.default",
+    "op": "digamma_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "dim.default",
+    "op": "dim",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "dist.default",
+    "op": "dist",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "div.default",
+    "op": "div",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:div.default"
+  },
+  {
+    "name": "div_.Tensor",
+    "op": "div_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "divide.Tensor",
+    "op": "divide",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "divide_.Tensor",
+    "op": "divide_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "dot.default",
+    "op": "dot",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "dropout.default",
+    "op": "dropout",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "elu.default",
+    "op": "elu",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "elu_.default",
+    "op": "elu_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "elu_backward.default",
+    "op": "elu_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "embedding.default",
+    "op": "embedding",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.embedding.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(0,))), **{}): got AssertionError(\"'weight' must be 2-D\")\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "embedding_dense_backward.default",
+    "op": "embedding_dense_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "empty.out",
+    "op": "empty",
+    "overload": "out",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "empty_like.default",
+    "op": "empty_like",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "empty_permuted.default",
+    "op": "empty_permuted",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "empty_strided.default",
+    "op": "empty_strided",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "eq.default",
+    "op": "eq",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "eq_.Tensor",
+    "op": "eq_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "erf.default",
+    "op": "erf",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "erf_.default",
+    "op": "erf_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "erfc.default",
+    "op": "erfc",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "erfc_.default",
+    "op": "erfc_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "erfinv.default",
+    "op": "erfinv",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "erfinv_.default",
+    "op": "erfinv_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "exp.default",
+    "op": "exp",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "exp2.default",
+    "op": "exp2",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "exp2_.default",
+    "op": "exp2_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "exp_.default",
+    "op": "exp_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "expand.default",
+    "op": "expand",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "expand_copy.default",
+    "op": "expand_copy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "expm1.default",
+    "op": "expm1",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "expm1_.default",
+    "op": "expm1_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "exponential.default",
+    "op": "exponential",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "exponential_.default",
+    "op": "exponential_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "eye.default",
+    "op": "eye",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fft_fft.default",
+    "op": "fft_fft",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fft_fft2.default",
+    "op": "fft_fft2",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.fft_fft2.default(*(FakeTensor(..., size=(1,)),), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got -2)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fft_fftn.default",
+    "op": "fft_fftn",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:fft_fftn.default"
+  },
+  {
+    "name": "fft_fftshift.default",
+    "op": "fft_fftshift",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fft_hfft.default",
+    "op": "fft_hfft",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.fft_hfft.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('Invalid number of data points (0) specified')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fft_hfft2.default",
+    "op": "fft_hfft2",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.fft_hfft2.default(*(FakeTensor(..., size=(1,)),), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got -2)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fft_hfftn.default",
+    "op": "fft_hfftn",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.fft_hfftn.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('Invalid number of data points (0) specified')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fft_ifft.default",
+    "op": "fft_ifft",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fft_ifft2.default",
+    "op": "fft_ifft2",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.fft_ifft2.default(*(FakeTensor(..., size=(1,)),), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got -2)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fft_ifftn.default",
+    "op": "fft_ifftn",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:fft_ifftn.default"
+  },
+  {
+    "name": "fft_ifftshift.default",
+    "op": "fft_ifftshift",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fft_ihfft.default",
+    "op": "fft_ihfft",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fft_ihfft2.default",
+    "op": "fft_ihfft2",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.fft_ihfft2.default(*(FakeTensor(..., size=(1,)),), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got -2)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fft_ihfftn.default",
+    "op": "fft_ihfftn",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fft_irfft.default",
+    "op": "fft_irfft",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.fft_irfft.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('Invalid number of data points (0) specified')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fft_irfft2.default",
+    "op": "fft_irfft2",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.fft_irfft2.default(*(FakeTensor(..., size=(1,)),), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got -2)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fft_irfftn.default",
+    "op": "fft_irfftn",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.fft_irfftn.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('Invalid number of data points (0) specified')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fft_rfft.default",
+    "op": "fft_rfft",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fft_rfft2.default",
+    "op": "fft_rfft2",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.fft_rfft2.default(*(FakeTensor(..., size=(1,)),), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got -2)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fft_rfftn.default",
+    "op": "fft_rfftn",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fill.Tensor",
+    "op": "fill",
+    "overload": "Tensor",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:BackendCompilerFailed:backend='_compile_fx_wrapped' raised:\nRuntimeError: fill only supports 0-dimension value tensor but got tensor with 1 dimensions\n\nWhile executing %fill_tensor : [num_users=1] = call_function[target=torch.ops.aten.fill.Tensor](args = (%l_inputs_0_, %l_inputs_1_), kwargs = {})\nGraphModule: class GraphModule(torch.nn.Module):\n    def forward(self, L_inputs_1_: \"f32[1][1]\", L_inputs_0_: \"f32[1][1]\"):\n        l_inputs_1_ = L_inputs_1_\n        l_inputs_0_ = L_inputs_0_\n        \n         # File: /home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py:1518 in op_call, code: return compile_op(*inputs, **kw)\n        fill_tensor: \"f32[1][1]\" = torch.ops.aten.fill.Tensor(l_inputs_0_, l_inputs_1_);  l_inputs_0_ = l_inputs_1_ = None\n        return (fill_tensor,)\n        \n\nOriginal traceback:\n  File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fill_.Tensor",
+    "op": "fill_",
+    "overload": "Tensor",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:BackendCompilerFailed:backend='_compile_fx_wrapped' raised:\nRuntimeError: fill only supports 0-dimension value tensor but got tensor with 1 dimensions\n\nWhile executing %fill__tensor : [num_users=1] = call_function[target=torch.ops.aten.fill_.Tensor](args = (%l_inputs_0_, %l_inputs_1_), kwargs = {})\nGraphModule: class GraphModule(torch.nn.Module):\n    def forward(self, L_inputs_1_: \"f32[1][1]\", L_inputs_0_: \"f32[1][1]\"):\n        l_inputs_1_ = L_inputs_1_\n        l_inputs_0_ = L_inputs_0_\n        \n         # File: /home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py:1518 in op_call, code: return compile_op(*inputs, **kw)\n        fill__tensor: \"f32[1][1]\" = torch.ops.aten.fill_.Tensor(l_inputs_0_, l_inputs_1_);  l_inputs_0_ = l_inputs_1_ = None\n        return (fill__tensor,)\n        \n\nOriginal traceback:\n  File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "fix.default",
+    "op": "fix",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fix_.default",
+    "op": "fix_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "flip.default",
+    "op": "flip",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "float_power_.Tensor",
+    "op": "float_power_",
+    "overload": "Tensor",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.float_power_.Tensor(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError(\"the base given to float_power_ has dtype Float but the operation's result requires dtype Double\")\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "floor.default",
+    "op": "floor",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "floor_.default",
+    "op": "floor_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "floor_divide.default",
+    "op": "floor_divide",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "floor_divide_.Tensor",
+    "op": "floor_divide_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fmax.default",
+    "op": "fmax",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fmin.default",
+    "op": "fmin",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fmod.default",
+    "op": "fmod",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:fmod.default"
+  },
+  {
+    "name": "fmod_.Tensor",
+    "op": "fmod_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "frac.default",
+    "op": "frac",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "frac_.default",
+    "op": "frac_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "fractional_max_pool2d.default",
+    "op": "fractional_max_pool2d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.fractional_max_pool2d.default(*(FakeTensor(..., size=(1,)), [0], [0], FakeTensor(..., size=(1,))), **{}): got RuntimeError('fractional_max_pool2d: Expected 3D or 4D tensor, but got: 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "frexp.default",
+    "op": "frexp",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:frexp.default"
+  },
+  {
+    "name": "full.default",
+    "op": "full",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "full_like.default",
+    "op": "full_like",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "gather.default",
+    "op": "gather",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.gather.default(*(FakeTensor(..., size=(1,)), 0, FakeTensor(..., size=(1,))), **{}): got RuntimeError('gather(): Expected dtype int32/int64 for index, but got torch.float32')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "gcd.default",
+    "op": "gcd",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "gcd_.default",
+    "op": "gcd_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "ge.default",
+    "op": "ge",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "ge_.Tensor",
+    "op": "ge_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "gelu.default",
+    "op": "gelu",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "gelu_.default",
+    "op": "gelu_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "gelu_backward.default",
+    "op": "gelu_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "geometric.default",
+    "op": "geometric",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.geometric.default(*(FakeTensor(..., size=(1,)), 1.0), **{}): got RuntimeError('geometric_ expects p to be in (0, 1), but got p=1.0')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "geometric_.default",
+    "op": "geometric_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.geometric_.default(*(FakeTensor(..., size=(1,)), 1.0), **{}): got RuntimeError('geometric_ expects p to be in (0, 1), but got p=1.0')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "glu.default",
+    "op": "glu",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.glu.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('Halving dimension must be even, but dimension 0 is size 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "glu_backward.default",
+    "op": "glu_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "greater.Tensor",
+    "op": "greater",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "greater_.Tensor",
+    "op": "greater_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "greater_equal.Tensor",
+    "op": "greater_equal",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "greater_equal_.Tensor",
+    "op": "greater_equal_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "grid_sampler_2d.default",
+    "op": "grid_sampler_2d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.grid_sampler_2d.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), 0, 0, False), **{}): got ValueError('not enough values to unpack (expected 4, got 1)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "grid_sampler_2d_backward.default",
+    "op": "grid_sampler_2d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "grid_sampler_3d.default",
+    "op": "grid_sampler_3d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.grid_sampler_3d.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), 0, 0, False), **{}): got RuntimeError('grid_sampler(): expected grid to have size -1 in last dimension, but got grid with sizes torch.Size([1])')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "grid_sampler_3d_backward.default",
+    "op": "grid_sampler_3d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "gru.input",
+    "op": "gru",
+    "overload": "input",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.gru.input(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), [FakeTensor(..., size=(1,))], False, 0, 1.0, False, False, False), **{}): got AssertionError(1)\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "gt.default",
+    "op": "gt",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "gt_.Tensor",
+    "op": "gt_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "hardshrink.default",
+    "op": "hardshrink",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "hardsigmoid.default",
+    "op": "hardsigmoid",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "hardsigmoid_.default",
+    "op": "hardsigmoid_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "hardsigmoid_backward.default",
+    "op": "hardsigmoid_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "hardswish.default",
+    "op": "hardswish",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "hardswish_.default",
+    "op": "hardswish_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "hardswish_backward.default",
+    "op": "hardswish_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "hardtanh.default",
+    "op": "hardtanh",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "hardtanh_.default",
+    "op": "hardtanh_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "hardtanh_backward.default",
+    "op": "hardtanh_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "heaviside.default",
+    "op": "heaviside",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "heaviside_.default",
+    "op": "heaviside_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "hinge_embedding_loss.default",
+    "op": "hinge_embedding_loss",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "histc.default",
+    "op": "histc",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "huber_loss.default",
+    "op": "huber_loss",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "huber_loss_backward.default",
+    "op": "huber_loss_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "hypot.default",
+    "op": "hypot",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "hypot_.default",
+    "op": "hypot_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "i0.default",
+    "op": "i0",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "i0_.default",
+    "op": "i0_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "igamma.default",
+    "op": "igamma",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "igamma_.default",
+    "op": "igamma_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "igammac.default",
+    "op": "igammac",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "igammac_.default",
+    "op": "igammac_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "im2col.default",
+    "op": "im2col",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.im2col.default(*(FakeTensor(..., size=(1,)), [0], [0], [0], [0]), **{}): got RuntimeError('im2col(): only 2D kernel supported')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "imag.default",
+    "op": "imag",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.imag.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('imag is not implemented for tensors with non-complex dtypes.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "index.Tensor",
+    "op": "index",
+    "overload": "Tensor",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.index.Tensor(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(0,))), **{}): got RuntimeError('at least one index must be provided')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "index_add.default",
+    "op": "index_add",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:IndexError:tensors used as indices must be long, int, byte or bool tensors"
+  },
+  {
+    "name": "index_add_.default",
+    "op": "index_add_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:IndexError:tensors used as indices must be long, int, byte or bool tensors"
+  },
+  {
+    "name": "index_copy.default",
+    "op": "index_copy",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:IndexError:tensors used as indices must be long, int, byte or bool tensors"
+  },
+  {
+    "name": "index_copy_.default",
+    "op": "index_copy_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:IndexError:tensors used as indices must be long, int, byte or bool tensors"
+  },
+  {
+    "name": "index_fill.int_Tensor",
+    "op": "index_fill",
+    "overload": "int_Tensor",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.index_fill.int_Tensor(*(FakeTensor(..., size=(1,)), 0, FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('Only supports 0-dimensional value tensor. Got a tensor with 1 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "index_fill_.int_Tensor",
+    "op": "index_fill_",
+    "overload": "int_Tensor",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.index_fill_.int_Tensor(*(FakeTensor(..., size=(1,)), 0, FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('Only supports 0-dimensional value tensor. Got a tensor with 1 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "index_put.default",
+    "op": "index_put",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "index_put_.default",
+    "op": "index_put_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "index_reduce.default",
+    "op": "index_reduce",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "index_reduce_.default",
+    "op": "index_reduce_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:index_reduce_.default"
+  },
+  {
+    "name": "index_select.default",
+    "op": "index_select",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:BackendCompilerFailed:backend='_compile_fx_wrapped' raised:\nRuntimeError: tensors used as indices must be long, int, byte or bool tensors\n\nWhile executing %index_select_default : [num_users=1] = call_function[target=torch.ops.aten.index_select.default](args = (%l_inputs_0_, 0, %l_inputs_2_), kwargs = {})\nGraphModule: class GraphModule(torch.nn.Module):\n    def forward(self, L_inputs_2_: \"f32[1][1]\", L_inputs_0_: \"f32[1][1]\"):\n        l_inputs_2_ = L_inputs_2_\n        l_inputs_0_ = L_inputs_0_\n        \n         # File: /home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py:1518 in op_call, code: return compile_op(*inputs, **kw)\n        index_select_default: \"f32[1][1]\" = torch.ops.aten.index_select.default(l_inputs_0_, 0, l_inputs_2_);  l_inputs_0_ = l_inputs_2_ = None\n        return (index_select_default,)\n        \n\nOriginal traceback:\n  File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "is_coalesced.default",
+    "op": "is_coalesced",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.is_coalesced.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('is_coalesced expected sparse coordinate tensor layout but got Strided')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "is_complex.default",
+    "op": "is_complex",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "is_contiguous.default",
+    "op": "is_contiguous",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "is_non_overlapping_and_dense.default",
+    "op": "is_non_overlapping_and_dense",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "is_pinned.default",
+    "op": "is_pinned",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "is_same_size.default",
+    "op": "is_same_size",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "is_strides_like_format.default",
+    "op": "is_strides_like_format",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "isfinite.default",
+    "op": "isfinite",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "isin.Tensor_Tensor",
+    "op": "isin",
+    "overload": "Tensor_Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "isinf.default",
+    "op": "isinf",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "isnan.default",
+    "op": "isnan",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "isneginf.default",
+    "op": "isneginf",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "isposinf.default",
+    "op": "isposinf",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "istft.default",
+    "op": "istft",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.istft.default(*(FakeTensor(..., size=(1,)), 0), **{}): got AttributeError(\"'NoneType' object has no attribute 'device'\")\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "item.default",
+    "op": "item",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "kthvalue.default",
+    "op": "kthvalue",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.kthvalue.default(*(FakeTensor(..., size=(1,)), 0), **{}): got RuntimeError('kthvalue(): selected number k out of range for dimension 0')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "lcm.default",
+    "op": "lcm",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "lcm_.default",
+    "op": "lcm_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "le.default",
+    "op": "le",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "le_.Tensor",
+    "op": "le_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "leaky_relu.default",
+    "op": "leaky_relu",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "leaky_relu_.default",
+    "op": "leaky_relu_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "leaky_relu_backward.default",
+    "op": "leaky_relu_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "lerp.Tensor",
+    "op": "lerp",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "lerp_.Tensor",
+    "op": "lerp_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "less.Tensor",
+    "op": "less",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "less_.Tensor",
+    "op": "less_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "less_equal.Tensor",
+    "op": "less_equal",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "less_equal_.Tensor",
+    "op": "less_equal_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "lgamma.default",
+    "op": "lgamma",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "lgamma_.default",
+    "op": "lgamma_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "lift.default",
+    "op": "lift",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:template:functionalization_limit"
+  },
+  {
+    "name": "lift_fresh.default",
+    "op": "lift_fresh",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "lift_fresh_copy.default",
+    "op": "lift_fresh_copy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "linalg_cholesky_ex.default",
+    "op": "linalg_cholesky_ex",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_cholesky_ex.default(*(FakeTensor(..., size=(1,)),), **{}): got AssertionError('linalg.cholesky: The input tensor must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_cross.default",
+    "op": "linalg_cross",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_cross.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('linalg.cross: inputs dimension -1 must have length 3. Got 1 and 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_eig.default",
+    "op": "linalg_eig",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_eig.default(*(FakeTensor(..., size=(1,)),), **{}): got AssertionError('linalg.eig: The input tensor must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_eigvals.default",
+    "op": "linalg_eigvals",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_eigvals.default(*(FakeTensor(..., size=(1,)),), **{}): got AssertionError('linalg.eig: The input tensor must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_householder_product.default",
+    "op": "linalg_householder_product",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_householder_product.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('torch.linalg.householder_product: input must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_inv_ex.default",
+    "op": "linalg_inv_ex",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_inv_ex.default(*(FakeTensor(..., size=(1,)),), **{}): got AssertionError('linalg.inv_ex: The input tensor must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_ldl_factor_ex.default",
+    "op": "linalg_ldl_factor_ex",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_ldl_factor_ex.default(*(FakeTensor(..., size=(1,)),), **{}): got AssertionError('torch.linalg.ldl_factor_ex: The input tensor must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_ldl_solve.default",
+    "op": "linalg_ldl_solve",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_ldl_solve.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got AssertionError('torch.linalg.ldl_solve: The input tensor must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_lu.default",
+    "op": "linalg_lu",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_lu.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('linalg.lu: Expected tensor with 2 or more dimensions. Got size: torch.Size([1]) instead')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_lu_factor_ex.default",
+    "op": "linalg_lu_factor_ex",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_lu_factor_ex.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('torch.lu_factor: Expected tensor with 2 or more dimensions. Got size: torch.Size([1]) instead')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_lu_solve.default",
+    "op": "linalg_lu_solve",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_lu_solve.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('linalg.lu_solve: pivots should be a Tensor of scalar type torch.int32')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_matrix_exp.default",
+    "op": "linalg_matrix_exp",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_matrix_exp.default(*(FakeTensor(..., size=(1,)),), **{}): got AssertionError('linalg.matrix_exp: The input tensor must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_qr.default",
+    "op": "linalg_qr",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_qr.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('linalg.qr: The input tensor A must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_solve_triangular.default",
+    "op": "linalg_solve_triangular",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.linalg_solve_triangular.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{'upper': False}): got AssertionError('linalg.solve_triangular: The input tensor must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "linalg_vector_norm.default",
+    "op": "linalg_vector_norm",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "linear.default",
+    "op": "linear",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "linear_backward.default",
+    "op": "linear_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "linspace.default",
+    "op": "linspace",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "log.default",
+    "op": "log",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "log10.default",
+    "op": "log10",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "log10_.default",
+    "op": "log10_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "log1p.default",
+    "op": "log1p",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "log1p_.default",
+    "op": "log1p_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "log2.default",
+    "op": "log2",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "log2_.default",
+    "op": "log2_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "log_.default",
+    "op": "log_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "log_normal.default",
+    "op": "log_normal",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "log_normal_.default",
+    "op": "log_normal_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "log_sigmoid_backward.default",
+    "op": "log_sigmoid_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "log_sigmoid_forward.default",
+    "op": "log_sigmoid_forward",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logaddexp.default",
+    "op": "logaddexp",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logaddexp2.default",
+    "op": "logaddexp2",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logcumsumexp.default",
+    "op": "logcumsumexp",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logical_and.default",
+    "op": "logical_and",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logical_and_.default",
+    "op": "logical_and_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logical_not.default",
+    "op": "logical_not",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logical_not_.default",
+    "op": "logical_not_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logical_or.default",
+    "op": "logical_or",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logical_or_.default",
+    "op": "logical_or_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logical_xor.default",
+    "op": "logical_xor",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logical_xor_.default",
+    "op": "logical_xor_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logit.default",
+    "op": "logit",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logit_.default",
+    "op": "logit_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logit_backward.default",
+    "op": "logit_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "logspace.default",
+    "op": "logspace",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "logsumexp.default",
+    "op": "logsumexp",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "lstm.input",
+    "op": "lstm",
+    "overload": "input",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.lstm.input(*(FakeTensor(..., size=(1,)), [FakeTensor(..., size=(1,))], [FakeTensor(..., size=(1,))], False, 0, 1.0, False, False, False), **{}): got AssertionError('lstm expects two hidden states')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "lt.default",
+    "op": "lt",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "lt_.Tensor",
+    "op": "lt_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "lu_unpack.default",
+    "op": "lu_unpack",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.lu_unpack.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('torch.lu_unpack: Expected tensor with 2 or more dimensions. Got size: torch.Size([1]) instead')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "margin_ranking_loss.default",
+    "op": "margin_ranking_loss",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "masked_fill.Tensor",
+    "op": "masked_fill",
+    "overload": "Tensor",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.masked_fill.Tensor(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('only supports a 0-dimensional value tensor, but got tensor with 1 dimension')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "masked_fill_.Tensor",
+    "op": "masked_fill_",
+    "overload": "Tensor",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.masked_fill_.Tensor(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('only supports a 0-dimensional value tensor, but got tensor with 1 dimension')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "masked_scatter.default",
+    "op": "masked_scatter",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.masked_scatter.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('Mask must be bool or uint8')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "masked_scatter_.default",
+    "op": "masked_scatter_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.masked_scatter_.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('Mask must be bool or uint8')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "masked_scatter_backward.default",
+    "op": "masked_scatter_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "masked_select.default",
+    "op": "masked_select",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:RuntimeError:masked_select: expected BoolTensor for mask"
+  },
+  {
+    "name": "matmul.default",
+    "op": "matmul",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "max.default",
+    "op": "max",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "max_pool2d_with_indices.default",
+    "op": "max_pool2d_with_indices",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.max_pool2d_with_indices.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got IndexError('Dimension out of range (expected to be in range of [-1, 0], but got -3)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "max_pool2d_with_indices_backward.default",
+    "op": "max_pool2d_with_indices_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "max_pool3d_with_indices.default",
+    "op": "max_pool3d_with_indices",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.max_pool3d_with_indices.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError('non-empty 4D or 5D (batch mode) tensor expected for input')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "max_pool3d_with_indices_backward.default",
+    "op": "max_pool3d_with_indices_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "max_unpool2d.default",
+    "op": "max_unpool2d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.max_unpool2d.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(0,)), [0]), **{}): got RuntimeError('elements in indices should be type int64 but got: torch.float32')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "max_unpool3d.default",
+    "op": "max_unpool3d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.max_unpool3d.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(0,)), [0], [0], [0]), **{}): got RuntimeError('elements in indices should be type int64')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "maximum.default",
+    "op": "maximum",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "mean.default",
+    "op": "mean",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "median.default",
+    "op": "median",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "meshgrid.default",
+    "op": "meshgrid",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "min.default",
+    "op": "min",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "minimum.default",
+    "op": "minimum",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "miopen_batch_norm.default",
+    "op": "miopen_batch_norm",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:miopen_batch_norm"
+  },
+  {
+    "name": "miopen_batch_norm_backward.default",
+    "op": "miopen_batch_norm_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "mish.default",
+    "op": "mish",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "mish_.default",
+    "op": "mish_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "mish_backward.default",
+    "op": "mish_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "mkldnn_rnn_layer.default",
+    "op": "mkldnn_rnn_layer",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.mkldnn_rnn_layer.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), False, [0], 0, 0, 0, False, False, False, False), **{}): got IndexError('tuple index out of range')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "mkldnn_rnn_layer_backward.default",
+    "op": "mkldnn_rnn_layer_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "mm.default",
+    "op": "mm",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.mm.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('a must be 2D')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "mode.default",
+    "op": "mode",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "mse_loss.default",
+    "op": "mse_loss",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "mse_loss_backward.default",
+    "op": "mse_loss_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "mul.default",
+    "op": "mul",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "mul_.Tensor",
+    "op": "mul_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "multi_margin_loss.default",
+    "op": "multi_margin_loss",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.multi_margin_loss.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('gather(): Expected dtype int32/int64 for index, but got torch.float32')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "multilabel_margin_loss_forward.default",
+    "op": "multilabel_margin_loss_forward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.multilabel_margin_loss_forward.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), 0), **{}): got RuntimeError('gather(): Expected dtype int32/int64 for index, but got torch.float32')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "multinomial.default",
+    "op": "multinomial",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:RuntimeError:cannot sample n_sample <= 0 samples"
+  },
+  {
+    "name": "multiply.Tensor",
+    "op": "multiply",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "multiply_.Tensor",
+    "op": "multiply_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "mv.default",
+    "op": "mv",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.mv.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('matrix @ vector expected, got 1, 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "mvlgamma.default",
+    "op": "mvlgamma",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "mvlgamma_.default",
+    "op": "mvlgamma_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:mvlgamma_.default"
+  },
+  {
+    "name": "nan_to_num.default",
+    "op": "nan_to_num",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "nan_to_num_.default",
+    "op": "nan_to_num_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "nanmedian.default",
+    "op": "nanmedian",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "nansum.default",
+    "op": "nansum",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "narrow.default",
+    "op": "narrow",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "narrow_copy.default",
+    "op": "narrow_copy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "native_batch_norm.default",
+    "op": "native_batch_norm",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "native_batch_norm_backward.default",
+    "op": "native_batch_norm_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "native_dropout.default",
+    "op": "native_dropout",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "native_dropout_backward.default",
+    "op": "native_dropout_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "native_group_norm.default",
+    "op": "native_group_norm",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.native_group_norm.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), 0, 0, 0, 0, 1.0), **{}): got RuntimeError('Expected at least 2 dimensions for input tensor but received 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "native_group_norm_backward.default",
+    "op": "native_group_norm_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "native_layer_norm.default",
+    "op": "native_layer_norm",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.native_layer_norm.default(*(FakeTensor(..., size=(1,)), [0], FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), 1.0), **{}): got RuntimeError('Expected weight to be of same shape as normalized_shape, but got weight of shape torch.Size([1]) and normalized_shape = [0]')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "native_layer_norm_backward.default",
+    "op": "native_layer_norm_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "ne.default",
+    "op": "ne",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "ne_.Tensor",
+    "op": "ne_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "neg.default",
+    "op": "neg",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "neg_.default",
+    "op": "neg_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "negative.default",
+    "op": "negative",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "negative_.default",
+    "op": "negative_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "new_empty.default",
+    "op": "new_empty",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "new_empty_strided.default",
+    "op": "new_empty_strided",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "new_full.default",
+    "op": "new_full",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "new_ones.default",
+    "op": "new_ones",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "new_zeros.default",
+    "op": "new_zeros",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "nextafter.default",
+    "op": "nextafter",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "nextafter_.default",
+    "op": "nextafter_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "nll_loss.default",
+    "op": "nll_loss",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.nll_loss.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('gather(): Expected dtype int32/int64 for index, but got torch.float32')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "nll_loss2d_backward.default",
+    "op": "nll_loss2d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "nll_loss2d_forward.default",
+    "op": "nll_loss2d_forward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.nll_loss2d_forward.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), 0, 0), **{}): got RuntimeError('gather(): Expected dtype int32/int64 for index, but got torch.float32')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "nll_loss_backward.default",
+    "op": "nll_loss_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "nll_loss_forward.default",
+    "op": "nll_loss_forward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.nll_loss_forward.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), 0, 0), **{}): got RuntimeError('gather(): Expected dtype int32/int64 for index, but got torch.float32')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "nonzero.default",
+    "op": "nonzero",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "nonzero_numpy.default",
+    "op": "nonzero_numpy",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "nonzero_static.default",
+    "op": "nonzero_static",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "norm.out",
+    "op": "norm",
+    "overload": "out",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "normal.out",
+    "op": "normal",
+    "overload": "out",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "normal_.default",
+    "op": "normal_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:normal_.default"
+  },
+  {
+    "name": "not_equal.Tensor",
+    "op": "not_equal",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "not_equal_.Tensor",
+    "op": "not_equal_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "numel.default",
+    "op": "numel",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "ones.default",
+    "op": "ones",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "ones_like.default",
+    "op": "ones_like",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "ormqr.default",
+    "op": "ormqr",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.ormqr.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('torch.ormqr: input must have at least 2 dimensions.')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "pad_sequence.default",
+    "op": "pad_sequence",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "pairwise_distance.default",
+    "op": "pairwise_distance",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "pdist.default",
+    "op": "pdist",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.pdist.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('pdist only supports 2D tensors, got: 1D')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "permute.default",
+    "op": "permute",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "permute_copy.default",
+    "op": "permute_copy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "pin_memory.default",
+    "op": "pin_memory",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.pin_memory.default(*(FakeTensor(..., size=(1,)),), **{}): got AssertionError('NYI: aten._pin_memory.default')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "pixel_shuffle.default",
+    "op": "pixel_shuffle",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.pixel_shuffle.default(*(FakeTensor(..., size=(1,)), 0), **{}): got AssertionError('Invalid input shape for pixel_shuffle: torch.Size([1]) with upscale_factor = 0')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "pixel_unshuffle.default",
+    "op": "pixel_unshuffle",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.pixel_unshuffle.default(*(FakeTensor(..., size=(1,)), 0), **{}): got RuntimeError('pixel_unshuffle expects input to have at least 3 dimensions, but got input with <built-in method dim of FakeTensor object at 0x7fc7bbc1f2e0> dimension(s)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "poisson.default",
+    "op": "poisson",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "polar.default",
+    "op": "polar",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "polygamma.default",
+    "op": "polygamma",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:BackendCompilerFailed:backend='_compile_fx_wrapped' raised:\nKeyError: 'polygamma.default'\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "positive.default",
+    "op": "positive",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "pow.Tensor_Tensor",
+    "op": "pow",
+    "overload": "Tensor_Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "pow_.Tensor",
+    "op": "pow_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "prelu.default",
+    "op": "prelu",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "prod.default",
+    "op": "prod",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "quantized_gru.input",
+    "op": "quantized_gru",
+    "overload": "input",
+    "status": "skip",
+    "reason": "skip:quantized"
+  },
+  {
+    "name": "quantized_lstm.input",
+    "op": "quantized_lstm",
+    "overload": "input",
+    "status": "skip",
+    "reason": "skip:quantized"
+  },
+  {
+    "name": "rad2deg.default",
+    "op": "rad2deg",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "rad2deg_.default",
+    "op": "rad2deg_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "rand.default",
+    "op": "rand",
+    "overload": "default",
+    "status": "skip",
+    "reason": "metadata_only_runtime_unavailable:ValueError:NULL pointer access"
+  },
+  {
+    "name": "rand_like.default",
+    "op": "rand_like",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "randint.default",
+    "op": "randint",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.randint.default(*(0, [0]), **{}): got RuntimeError(\"random_ expects 'from' to be less than 'to', but got from=0 >= to=0\")\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "randint_like.default",
+    "op": "randint_like",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:BackendCompilerFailed:backend='_compile_fx_wrapped' raised:\nRuntimeError: random_ expects 'from' to be less than 'to', but got from=0 >= to=0\n\nWhile executing %randint_like_default : [num_users=1] = call_function[target=torch.ops.aten.randint_like.default](args = (%l_inputs_0_, 0), kwargs = {})\nGraphModule: class GraphModule(torch.nn.Module):\n    def forward(self, L_inputs_0_: \"f32[1][1]\"):\n        l_inputs_0_ = L_inputs_0_\n        \n         # File: /home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py:1518 in op_call, code: return compile_op(*inputs, **kw)\n        randint_like_default: \"f32[1][1]\" = torch.ops.aten.randint_like.default(l_inputs_0_, 0);  l_inputs_0_ = None\n        return (randint_like_default,)\n        \n\nOriginal traceback:\n  File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "randn.default",
+    "op": "randn",
+    "overload": "default",
+    "status": "skip",
+    "reason": "metadata_only_runtime_unavailable:ValueError:NULL pointer access"
+  },
+  {
+    "name": "randn_like.default",
+    "op": "randn_like",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "randperm.default",
+    "op": "randperm",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "real.default",
+    "op": "real",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "reciprocal.default",
+    "op": "reciprocal",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "reciprocal_.default",
+    "op": "reciprocal_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "reflection_pad1d.default",
+    "op": "reflection_pad1d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.reflection_pad1d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError('padding size is expected to be 2, but got: 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "reflection_pad1d_backward.default",
+    "op": "reflection_pad1d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "reflection_pad2d.default",
+    "op": "reflection_pad2d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.reflection_pad2d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError('padding size is expected to be 4, but got: 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "reflection_pad2d_backward.default",
+    "op": "reflection_pad2d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "reflection_pad3d.default",
+    "op": "reflection_pad3d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.reflection_pad3d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError('padding size is expected to be 6, but got: 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "reflection_pad3d_backward.default",
+    "op": "reflection_pad3d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "relu.default",
+    "op": "relu",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "relu6.default",
+    "op": "relu6",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "relu_.default",
+    "op": "relu_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "remainder.default",
+    "op": "remainder",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "remainder_.Tensor",
+    "op": "remainder_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "renorm.default",
+    "op": "renorm",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.renorm.default(*(FakeTensor(..., size=(1,)), 1, 0, 1), **{}): got RuntimeError('renorm: input needs at least 2 dimensions, got 1 dimensions')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "renorm_.default",
+    "op": "renorm_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.renorm_.default(*(FakeTensor(..., size=(1,)), 1, 0, 1), **{}): got RuntimeError('renorm: input needs at least 2 dimensions, got 1 dimensions')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "repeat.default",
+    "op": "repeat",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "repeat_interleave.Tensor",
+    "op": "repeat_interleave",
+    "overload": "Tensor",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "replication_pad1d.default",
+    "op": "replication_pad1d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.replication_pad1d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError('padding size is expected to be 2, but got: 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "replication_pad1d_backward.default",
+    "op": "replication_pad1d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "replication_pad2d.default",
+    "op": "replication_pad2d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.replication_pad2d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError('padding size is expected to be 4, but got: 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "replication_pad2d_backward.default",
+    "op": "replication_pad2d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "replication_pad3d.default",
+    "op": "replication_pad3d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.replication_pad3d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError('padding size is expected to be 6, but got: 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "replication_pad3d_backward.default",
+    "op": "replication_pad3d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "reshape.default",
+    "op": "reshape",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.reshape.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError(\"shape '[0]' is invalid for input of size 1\")\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "resize.default",
+    "op": "resize",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "resize_as.default",
+    "op": "resize_as",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "resize_as_.default",
+    "op": "resize_as_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "rnn_relu.input",
+    "op": "rnn_relu",
+    "overload": "input",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.rnn_relu.input(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), [FakeTensor(..., size=(1,))], False, 0, 1.0, False, False, False), **{}): got AssertionError(1)\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "rnn_tanh.input",
+    "op": "rnn_tanh",
+    "overload": "input",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.rnn_tanh.input(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,)), [FakeTensor(..., size=(1,))], False, 0, 1.0, False, False, False), **{}): got AssertionError(1)\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "roll.default",
+    "op": "roll",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "rot90.default",
+    "op": "rot90",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.rot90.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('expected total dims >= 2, but got total dims = 1')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "round.default",
+    "op": "round",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "round_.default",
+    "op": "round_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "rrelu_with_noise.default",
+    "op": "rrelu_with_noise",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "rrelu_with_noise_.default",
+    "op": "rrelu_with_noise_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "rrelu_with_noise_backward.default",
+    "op": "rrelu_with_noise_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "rrelu_with_noise_functional.default",
+    "op": "rrelu_with_noise_functional",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "rsqrt.default",
+    "op": "rsqrt",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "rsqrt_.default",
+    "op": "rsqrt_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "rsub.Tensor",
+    "op": "rsub",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "scalar_tensor.default",
+    "op": "scalar_tensor",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "scatter.value",
+    "op": "scatter",
+    "overload": "value",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.scatter.value(*(FakeTensor(..., size=(1,)), 0, FakeTensor(..., size=(1,)), 1), **{}): got RuntimeError('scatter(): Expected dtype int32/int64 for index')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "scatter_.src",
+    "op": "scatter_",
+    "overload": "src",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.scatter_.src(*(FakeTensor(..., size=(1,)), 0, FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('scatter(): Expected dtype int32/int64 for index')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "scatter_add.default",
+    "op": "scatter_add",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.scatter_add.default(*(FakeTensor(..., size=(1,)), 0, FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('scatter(): Expected dtype int32/int64 for index')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "scatter_add_.default",
+    "op": "scatter_add_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.scatter_add_.default(*(FakeTensor(..., size=(1,)), 0, FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('scatter(): Expected dtype int32/int64 for index')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "scatter_reduce.two",
+    "op": "scatter_reduce",
+    "overload": "two",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "scatter_reduce_.two",
+    "op": "scatter_reduce_",
+    "overload": "two",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:scatter_reduce_.two"
+  },
+  {
+    "name": "searchsorted.Tensor",
+    "op": "searchsorted",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "segment_reduce.default",
+    "op": "segment_reduce",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:BackendCompilerFailed:backend='_compile_fx_wrapped' raised:\nKeyError: 'segment_reduce.default'\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "select.Dimname",
+    "op": "select",
+    "overload": "Dimname",
+    "status": "skip",
+    "reason": "skip:dynamo_uncapturable:dimname_overload"
+  },
+  {
+    "name": "select_backward.default",
+    "op": "select_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "select_scatter.default",
+    "op": "select_scatter",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:RuntimeError:expected src to have a size equal to the slice of self. src size = [1], slice size = []"
+  },
+  {
+    "name": "selu.default",
+    "op": "selu",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "selu_.default",
+    "op": "selu_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "set_.default",
+    "op": "set_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:BackendCompilerFailed:backend='_compile_fx_wrapped' raised:\nKeyError: 'set.default'\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "sgn.default",
+    "op": "sgn",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sgn_.default",
+    "op": "sgn_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sigmoid.default",
+    "op": "sigmoid",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sigmoid_.default",
+    "op": "sigmoid_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sigmoid_backward.default",
+    "op": "sigmoid_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "sign.default",
+    "op": "sign",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sign_.default",
+    "op": "sign_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "signbit.default",
+    "op": "signbit",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "silu.default",
+    "op": "silu",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "silu_.default",
+    "op": "silu_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "silu_backward.default",
+    "op": "silu_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "sin.default",
+    "op": "sin",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sin_.default",
+    "op": "sin_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sinc.default",
+    "op": "sinc",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sinc_.default",
+    "op": "sinc_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sinh.default",
+    "op": "sinh",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sinh_.default",
+    "op": "sinh_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "size.default",
+    "op": "size",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "slice.Tensor",
+    "op": "slice",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "slice_backward.default",
+    "op": "slice_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "slice_scatter.default",
+    "op": "slice_scatter",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "smooth_l1_loss.default",
+    "op": "smooth_l1_loss",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "smooth_l1_loss_backward.default",
+    "op": "smooth_l1_loss_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "soft_margin_loss.default",
+    "op": "soft_margin_loss",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "soft_margin_loss_backward.default",
+    "op": "soft_margin_loss_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "softplus.default",
+    "op": "softplus",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "softplus_backward.default",
+    "op": "softplus_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "softshrink.default",
+    "op": "softshrink",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sort.default",
+    "op": "sort",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sparse_dim.default",
+    "op": "sparse_dim",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:sparse"
+  },
+  {
+    "name": "special_airy_ai.default",
+    "op": "special_airy_ai",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_bessel_j0.default",
+    "op": "special_bessel_j0",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_bessel_j1.default",
+    "op": "special_bessel_j1",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_bessel_y0.default",
+    "op": "special_bessel_y0",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_bessel_y1.default",
+    "op": "special_bessel_y1",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_chebyshev_polynomial_t.default",
+    "op": "special_chebyshev_polynomial_t",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_chebyshev_polynomial_u.default",
+    "op": "special_chebyshev_polynomial_u",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_chebyshev_polynomial_v.default",
+    "op": "special_chebyshev_polynomial_v",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_chebyshev_polynomial_w.default",
+    "op": "special_chebyshev_polynomial_w",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_entr.default",
+    "op": "special_entr",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_erfcx.default",
+    "op": "special_erfcx",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_hermite_polynomial_h.default",
+    "op": "special_hermite_polynomial_h",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_hermite_polynomial_he.default",
+    "op": "special_hermite_polynomial_he",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_i0e.default",
+    "op": "special_i0e",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_i1.default",
+    "op": "special_i1",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_i1e.default",
+    "op": "special_i1e",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_laguerre_polynomial_l.default",
+    "op": "special_laguerre_polynomial_l",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_legendre_polynomial_p.default",
+    "op": "special_legendre_polynomial_p",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_log_ndtr.default",
+    "op": "special_log_ndtr",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_modified_bessel_i0.default",
+    "op": "special_modified_bessel_i0",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_modified_bessel_i1.default",
+    "op": "special_modified_bessel_i1",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_modified_bessel_k0.default",
+    "op": "special_modified_bessel_k0",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_modified_bessel_k1.default",
+    "op": "special_modified_bessel_k1",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_ndtr.default",
+    "op": "special_ndtr",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_ndtri.default",
+    "op": "special_ndtri",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_scaled_modified_bessel_k0.default",
+    "op": "special_scaled_modified_bessel_k0",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_scaled_modified_bessel_k1.default",
+    "op": "special_scaled_modified_bessel_k1",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_shifted_chebyshev_polynomial_t.default",
+    "op": "special_shifted_chebyshev_polynomial_t",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_shifted_chebyshev_polynomial_u.default",
+    "op": "special_shifted_chebyshev_polynomial_u",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_shifted_chebyshev_polynomial_v.default",
+    "op": "special_shifted_chebyshev_polynomial_v",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_shifted_chebyshev_polynomial_w.default",
+    "op": "special_shifted_chebyshev_polynomial_w",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_spherical_bessel_j0.default",
+    "op": "special_spherical_bessel_j0",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_xlog1py.default",
+    "op": "special_xlog1py",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "special_zeta.default",
+    "op": "special_zeta",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "split.default",
+    "op": "split",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.split.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got ValueError(\"Split sizes add up to 0 but got the tensor's size of 1\")\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "split_with_sizes.default",
+    "op": "split_with_sizes",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.split_with_sizes.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got ValueError(\"Split sizes add up to 0 but got the tensor's size of 1\")\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "split_with_sizes_copy.default",
+    "op": "split_with_sizes_copy",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.split_with_sizes_copy.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got ValueError(\"Split sizes add up to 0 but got the tensor's size of 1\")\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "sqrt.default",
+    "op": "sqrt",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sqrt_.default",
+    "op": "sqrt_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "square.default",
+    "op": "square",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "square_.default",
+    "op": "square_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "squeeze.default",
+    "op": "squeeze",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "squeeze_copy.default",
+    "op": "squeeze_copy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "stack.default",
+    "op": "stack",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "std.default",
+    "op": "std",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "std_mean.default",
+    "op": "std_mean",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "stft.default",
+    "op": "stft",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.stft.default(*(FakeTensor(..., size=(1,)), 0), **{}): got TypeError('message must be a callable')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "storage_offset.default",
+    "op": "storage_offset",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "stride.default",
+    "op": "stride",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sub.default",
+    "op": "sub",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "sub_.Tensor",
+    "op": "sub_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "subtract.Tensor",
+    "op": "subtract",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "subtract_.Tensor",
+    "op": "subtract_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sum.default",
+    "op": "sum",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "svd.default",
+    "op": "svd",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.svd.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('linalg.svd: input should have at least 2 dimensions, but has 1 dimensions instead')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "sym_constrain_range.default",
+    "op": "sym_constrain_range",
+    "overload": "default",
+    "status": "skip",
+    "reason": "output:none"
+  },
+  {
+    "name": "sym_constrain_range_for_size.default",
+    "op": "sym_constrain_range_for_size",
+    "overload": "default",
+    "status": "skip",
+    "reason": "output:none"
+  },
+  {
+    "name": "sym_numel.default",
+    "op": "sym_numel",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sym_size.default",
+    "op": "sym_size",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sym_storage_offset.default",
+    "op": "sym_storage_offset",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "sym_stride.default",
+    "op": "sym_stride",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "t.default",
+    "op": "t",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "t_.default",
+    "op": "t_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "t_copy.default",
+    "op": "t_copy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "take.default",
+    "op": "take",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.take.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('take(): Expected a long tensor for index, but got torch.float32')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "tan.default",
+    "op": "tan",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "tan_.default",
+    "op": "tan_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "tanh.default",
+    "op": "tanh",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "tanh_.default",
+    "op": "tanh_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "tanh_backward.default",
+    "op": "tanh_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "tensor_split.sections",
+    "op": "tensor_split",
+    "overload": "sections",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.tensor_split.sections(*(FakeTensor(..., size=(1,)), 0), **{}): got RuntimeError('number of sections must be larger than 0, got 0')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "threshold.default",
+    "op": "threshold",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "threshold_.default",
+    "op": "threshold_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "threshold_backward.default",
+    "op": "threshold_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "to.device",
+    "op": "to",
+    "overload": "device",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "topk.default",
+    "op": "topk",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:runtime_not_implemented:topk.default"
+  },
+  {
+    "name": "trace.default",
+    "op": "trace",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.trace.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('expected a matrix, but got tensor with dim {self.ndim}')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "transpose.int",
+    "op": "transpose",
+    "overload": "int",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "transpose_.default",
+    "op": "transpose_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "transpose_copy.int",
+    "op": "transpose_copy",
+    "overload": "int",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "triangular_solve.default",
+    "op": "triangular_solve",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.triangular_solve.default(*(FakeTensor(..., size=(1,)), FakeTensor(..., size=(1,))), **{}): got RuntimeError('torch.triangular_solve: Expected b to have at least 2 dimensions, but it has 1 dimensions instead')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "tril.default",
+    "op": "tril",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.tril.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('tril: input tensor must have at least 2 dimensions')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "tril_.default",
+    "op": "tril_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.tril_.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('tril: input tensor must have at least 2 dimensions')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "tril_indices.default",
+    "op": "tril_indices",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "triu.default",
+    "op": "triu",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.triu.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('triu: input tensor must have at least 2 dimensions')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "triu_.default",
+    "op": "triu_",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.triu_.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('triu: input tensor must have at least 2 dimensions')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "triu_indices.default",
+    "op": "triu_indices",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "true_divide.Tensor",
+    "op": "true_divide",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "true_divide_.Tensor",
+    "op": "true_divide_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "trunc.default",
+    "op": "trunc",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "trunc_.default",
+    "op": "trunc_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "unbind.int",
+    "op": "unbind",
+    "overload": "int",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "unbind_copy.int",
+    "op": "unbind_copy",
+    "overload": "int",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "unfold.default",
+    "op": "unfold",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.unfold.default(*(FakeTensor(..., size=(1,)), 0, 0, 0), **{}): got RuntimeError('Step is 0 but must be > 0')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "unfold_backward.default",
+    "op": "unfold_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "unfold_copy.default",
+    "op": "unfold_copy",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.unfold_copy.default(*(FakeTensor(..., size=(1,)), 0, 0, 0), **{}): got RuntimeError('Step is 0 but must be > 0')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "uniform.default",
+    "op": "uniform",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "uniform_.default",
+    "op": "uniform_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "unique_consecutive.default",
+    "op": "unique_consecutive",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "unique_dim.default",
+    "op": "unique_dim",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "unsafe_chunk.default",
+    "op": "unsafe_chunk",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.unsafe_chunk.default(*(FakeTensor(..., size=(1,)), 0), **{}): got ZeroDivisionError('integer division or modulo by zero')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "unsafe_split.Tensor",
+    "op": "unsafe_split",
+    "overload": "Tensor",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.unsafe_split.Tensor(*(FakeTensor(..., size=(1,)), 0), **{}): got AssertionError()\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "unsafe_split_with_sizes.default",
+    "op": "unsafe_split_with_sizes",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.unsafe_split_with_sizes.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got ValueError(\"Split sizes add up to 0 but got the tensor's size of 1\")\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "unsqueeze.default",
+    "op": "unsqueeze",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "unsqueeze_.default",
+    "op": "unsqueeze_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "unsqueeze_copy.default",
+    "op": "unsqueeze_copy",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "upsample_bicubic2d.default",
+    "op": "upsample_bicubic2d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.upsample_bicubic2d.default(*(FakeTensor(..., size=(1,)), [0], False), **{}): got ValueError('not enough values to unpack (expected 4, got 1)')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "upsample_bilinear2d.default",
+    "op": "upsample_bilinear2d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.upsample_bilinear2d.default(*(FakeTensor(..., size=(1,)), [0], False), **{}): got IndexError('tuple index out of range')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "upsample_linear1d.default",
+    "op": "upsample_linear1d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.upsample_linear1d.default(*(FakeTensor(..., size=(1,)), [0], False), **{}): got IndexError('tuple index out of range')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "upsample_nearest1d.default",
+    "op": "upsample_nearest1d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.upsample_nearest1d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got ZeroDivisionError('division by zero')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "upsample_nearest2d.default",
+    "op": "upsample_nearest2d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.upsample_nearest2d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got ZeroDivisionError('division by zero')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "upsample_nearest2d_backward.default",
+    "op": "upsample_nearest2d_backward",
+    "overload": "default",
+    "status": "skip",
+    "reason": "skip:backward"
+  },
+  {
+    "name": "upsample_nearest3d.default",
+    "op": "upsample_nearest3d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.upsample_nearest3d.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got ZeroDivisionError('division by zero')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "upsample_trilinear3d.default",
+    "op": "upsample_trilinear3d",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.upsample_trilinear3d.default(*(FakeTensor(..., size=(1,)), [0], False), **{}): got IndexError('tuple index out of range')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "var.default",
+    "op": "var",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "var_mean.default",
+    "op": "var_mean",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "vdot.default",
+    "op": "vdot",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "view.default",
+    "op": "view",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.view.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError(\"shape '[0]' is invalid for input of size 1\")\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "view_as_complex.default",
+    "op": "view_as_complex",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.view_as_complex.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('Tensor must have a last dimension of size 2')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "view_as_real.default",
+    "op": "view_as_real",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.view_as_real.default(*(FakeTensor(..., size=(1,)),), **{}): got RuntimeError('view_as_real is only supported for complex tensors')\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "view_copy.default",
+    "op": "view_copy",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:import_exception:TorchRuntimeError:Dynamo failed to run FX node with fake tensors: call_function aten.view_copy.default(*(FakeTensor(..., size=(1,)), [0]), **{}): got RuntimeError(\"shape '[0]' is invalid for input of size 1\")\n\nfrom user code:\n   File \"/home/songdehao/buddy-mlir/tests/Python/AtenOpsCoverage/aten_coverage_runner.py\", line 1518, in op_call\n    return compile_op(*inputs, **kw)\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "name": "where.default",
+    "op": "where",
+    "overload": "default",
+    "status": "skip",
+    "reason": "dynamo_uncapturable:graph_break:1"
+  },
+  {
+    "name": "xlogy.Tensor",
+    "op": "xlogy",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "xlogy_.Tensor",
+    "op": "xlogy_",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "zero.default",
+    "op": "zero",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "zero_.default",
+    "op": "zero_",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "zeros.default",
+    "op": "zeros",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  },
+  {
+    "name": "zeros_like.default",
+    "op": "zeros_like",
+    "overload": "default",
+    "status": "pass",
+    "reason": ""
+  }
+]

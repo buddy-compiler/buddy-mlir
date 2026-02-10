@@ -1,0 +1,12 @@
+{
+  "scope": "unique",
+  "mode": "numeric",
+  "summary": {
+    "pass": 452,
+    "fail": 0,
+    "skip": 249,
+    "total": 701,
+    "pass_rate": 0.6448
+  },
+  "groups": {}
+}

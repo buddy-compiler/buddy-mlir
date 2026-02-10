@@ -18,10 +18,10 @@ from typing import Any, Dict, Iterable, List, Tuple
 THIS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
-DEFAULT_CATALOG = THIS_DIR / "aten_op_catalog.json"
-DEFAULT_UNIQUE_OPS = THIS_DIR / "aten_op_unique_ops.json"
-DEFAULT_OUT_BY_OP = THIS_DIR / "aten_op_numeric_coverage_by_op.json"
-DEFAULT_OUT_BY_OVERLOAD = THIS_DIR / "aten_op_numeric_results_by_overload.json"
+DEFAULT_CATALOG = THIS_DIR / "aten_coverage_catalog.json"
+DEFAULT_UNIQUE_OPS = THIS_DIR / "aten_coverage_unique_ops.json"
+DEFAULT_OUT_BY_OP = THIS_DIR / "aten_coverage_by_op.json"
+DEFAULT_OUT_BY_OVERLOAD = THIS_DIR / "aten_coverage_by_overload.json"
 
 
 def _bootstrap_pythonpath() -> None:
@@ -49,6 +49,28 @@ def _load_batch_vars(path: Path) -> Tuple[List[str], Dict[str, Any]]:
     ops = list(mod.get("OPS", []))
     templates = dict(mod.get("CUSTOM_TEMPLATES", {}) or {})
     return ops, templates
+
+
+def _load_unique_op_names(path: Path) -> List[str]:
+    items = json.loads(path.read_text("utf-8"))
+    return [it["op"] for it in items]
+
+
+def _pick_ops_for_unique(
+    catalog_entries: List[Dict[str, Any]], unique_ops: List[str]
+) -> List[str]:
+    by_op: Dict[str, List[str]] = defaultdict(list)
+    for entry in catalog_entries:
+        by_op[entry["op"]].append(entry["overload"])
+
+    selected: List[str] = []
+    for op in unique_ops:
+        overloads = by_op.get(op, [])
+        if not overloads:
+            continue
+        overload = _pick_best_overload(overloads)
+        selected.append(f"{op}.{overload}")
+    return selected
 
 
 def _pick_best_overload(overloads: Iterable[str]) -> str:
@@ -90,8 +112,9 @@ class OpAggregate:
 def _run_all_batches(
     batch_files: List[Path],
     coverage_json: Path,
+    mode: str,
 ) -> List[OverloadResult]:
-    import aten_op_batch_runner as runner
+    import aten_coverage_runner as runner
 
     all_results: List[OverloadResult] = []
     silent_out = io.StringIO()
@@ -101,15 +124,14 @@ def _run_all_batches(
         with contextlib.redirect_stdout(silent_out), contextlib.redirect_stderr(
             silent_out
         ):
-            results = runner.run_aten_op_batch(
+            results = runner.run_aten_coverage_batch(
                 ops,
                 coverage_json=coverage_json,
                 batch_label=batch_path.stem,
                 max_fails=0,
                 templates=templates,
                 show_skips=True,
-                validate_numeric=True,
-                templates_source=batch_path,
+                mode=mode,
             )
         for r in results:
             op, overload = r.name.split(".", 1)
@@ -175,26 +197,39 @@ def _write_json(path: Path, payload: Any) -> None:
     )
 
 
-def _load_unique_ops(path: Path) -> List[str]:
-    items = json.loads(path.read_text("utf-8"))
-    return [it["op"] for it in items]
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Collect AtenOpsCoverage numeric validation results and aggregate by unique op."
+        description="Run AtenOpsCoverage in graph/numeric mode and aggregate results."
     )
     parser.add_argument(
         "--catalog",
         type=Path,
         default=DEFAULT_CATALOG,
-        help="Path to aten_op_catalog.json",
+        help="Path to aten_coverage_catalog.json",
     )
     parser.add_argument(
         "--unique-ops",
         type=Path,
         default=DEFAULT_UNIQUE_OPS,
-        help="Path to aten_op_unique_ops.json (701 op baseline)",
+        help="Path to aten_coverage_unique_ops.json",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("numeric", "graph"),
+        default="numeric",
+        help="Validation mode",
+    )
+    parser.add_argument(
+        "--scope",
+        choices=("all", "unique", "ops"),
+        default="unique",
+        help="Operator set scope",
+    )
+    parser.add_argument(
+        "--ops",
+        type=str,
+        default="",
+        help="Comma-separated op.overload names for --scope ops",
     )
     parser.add_argument(
         "--out-by-op",
@@ -215,31 +250,79 @@ def main() -> int:
     args = parse_args()
     _bootstrap_pythonpath()
 
-    batch_files = sorted(THIS_DIR.glob("test_aten_op_batch_*.py"))
-    overload_results = _run_all_batches(batch_files, args.catalog)
+    if args.scope == "ops":
+        op_names = [x.strip() for x in args.ops.split(",") if x.strip()]
+        if not op_names:
+            raise RuntimeError("scope_ops_requires_non_empty_--ops")
 
-    # Basic validation: one result per catalog entry (op.overload).
+        import aten_coverage_runner as runner
+
+        results = runner.run_aten_coverage_batch(
+            op_names,
+            coverage_json=args.catalog,
+            batch_label="ops_scope",
+            max_fails=0,
+            templates={},
+            show_skips=True,
+            mode=args.mode,
+        )
+        overload_results = [
+            OverloadResult(
+                name=r.name,
+                op=r.name.split(".", 1)[0],
+                overload=r.name.split(".", 1)[1],
+                status=r.status,
+                reason=r.reason or "",
+            )
+            for r in results
+        ]
+    elif args.scope == "unique":
+        catalog_entries = json.loads(args.catalog.read_text("utf-8"))
+        unique_ops = _load_unique_op_names(args.unique_ops)
+        op_names = _pick_ops_for_unique(catalog_entries, unique_ops)
+
+        import aten_coverage_runner as runner
+
+        results = runner.run_aten_coverage_batch(
+            op_names,
+            coverage_json=args.catalog,
+            batch_label="unique_scope",
+            max_fails=0,
+            templates={},
+            show_skips=True,
+            mode=args.mode,
+        )
+        overload_results = [
+            OverloadResult(
+                name=r.name,
+                op=r.name.split(".", 1)[0],
+                overload=r.name.split(".", 1)[1],
+                status=r.status,
+                reason=r.reason or "",
+            )
+            for r in results
+        ]
+    else:
+        batch_files = sorted(THIS_DIR.glob("test_aten_coverage_batch_*.py"))
+        overload_results = _run_all_batches(
+            batch_files, args.catalog, args.mode
+        )
+
     seen = {r.name for r in overload_results}
     if len(seen) != len(overload_results):
         raise RuntimeError("duplicate_results_detected")
 
-    catalog_entries = json.loads(args.catalog.read_text("utf-8"))
-    expected_names = {f"{e['op']}.{e['overload']}" for e in catalog_entries}
-    missing = sorted(expected_names - seen)
-    extra = sorted(seen - expected_names)
-    if missing or extra:
-        raise RuntimeError(
-            f"result_name_mismatch missing={len(missing)} extra={len(extra)}"
-        )
-
     agg = _aggregate_by_op(overload_results)
 
-    unique_ops = _load_unique_ops(args.unique_ops)
-    agg_ops = [a.op for a in agg]
-    if set(unique_ops) != set(agg_ops):
-        raise RuntimeError(
-            f"unique_op_mismatch unique_ops={len(unique_ops)} agg_ops={len(agg_ops)}"
-        )
+    if args.scope == "all":
+        catalog_entries = json.loads(args.catalog.read_text("utf-8"))
+        expected_names = {f"{e['op']}.{e['overload']}" for e in catalog_entries}
+        missing = sorted(expected_names - seen)
+        extra = sorted(seen - expected_names)
+        if missing or extra:
+            raise RuntimeError(
+                f"result_name_mismatch missing={len(missing)} extra={len(extra)}"
+            )
 
     # Write results.
     _write_json(

@@ -1,5 +1,5 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
-from aten_op_batch_runner import run_aten_op_batch
+from aten_coverage_runner import run_aten_coverage_batch
 import torch
 
 CUSTOM_TEMPLATES = {}
@@ -670,12 +670,12 @@ OPS = [
 ]
 
 if __name__ == "__main__":
-    run_aten_op_batch(
+    run_aten_coverage_batch(
         OPS,
         batch_label="test_batch_8",
         max_fails=20,
         templates=CUSTOM_TEMPLATES,
-        templates_source=__file__,
+        mode="graph",
     )
 # CHECK: SUMMARY pass=
 # CHECK-SAME: fail=0

@@ -518,7 +518,25 @@ def replace_normal_with_runtime_rng(graph: Graph):
         mean_name = None
         std_name = None
 
-        if (
+        if len(args) == 1 and isinstance(args[0], str):
+            like_name = args[0]
+            mean_name = _insert_full_like_const(
+                graph,
+                op,
+                like_name,
+                0.0,
+                dtype,
+                "normal_mean_full_like",
+            )
+            std_name = _insert_full_like_const(
+                graph,
+                op,
+                like_name,
+                1.0,
+                dtype,
+                "normal_std_full_like",
+            )
+        elif (
             len(args) >= 2
             and isinstance(args[0], str)
             and isinstance(args[1], (float, int))
