@@ -24,6 +24,31 @@ DEFAULT_OUT_BY_OP = THIS_DIR / "aten_coverage_by_op.json"
 DEFAULT_OUT_BY_OVERLOAD = THIS_DIR / "aten_coverage_by_overload.json"
 
 
+NUMERIC_UNIQUE_OVERLOAD_OVERRIDES = {
+    "add": "Tensor",
+    "copysign": "Tensor",
+    "div": "Tensor",
+    "eq": "Tensor",
+    "fmod": "Tensor",
+    "frexp": "Tensor",
+    "ge": "Tensor",
+    "gt": "Tensor",
+    "le": "Tensor",
+    "lt": "Tensor",
+    "mul": "Tensor",
+    "ne": "Tensor",
+    "normal": "Tensor_Tensor",
+    "norm": "ScalarOpt_dim",
+    "rand": "default",
+    "randn": "default",
+    "remainder": "Tensor",
+    "repeat_interleave": "Tensor",
+    "select": "int",
+    "sub": "Tensor",
+    "where": "self",
+}
+
+
 def _bootstrap_pythonpath() -> None:
     os.environ.setdefault("BUDDY_OC_VALIDATE_NUMERIC", "1")
     os.environ.setdefault("BUDDY_RNG_SEED", "0")
@@ -57,7 +82,9 @@ def _load_unique_op_names(path: Path) -> List[str]:
 
 
 def _pick_ops_for_unique(
-    catalog_entries: List[Dict[str, Any]], unique_ops: List[str]
+    catalog_entries: List[Dict[str, Any]],
+    unique_ops: List[str],
+    mode: str,
 ) -> List[str]:
     by_op: Dict[str, List[str]] = defaultdict(list)
     for entry in catalog_entries:
@@ -68,6 +95,11 @@ def _pick_ops_for_unique(
         overloads = by_op.get(op, [])
         if not overloads:
             continue
+        if mode == "numeric":
+            forced = NUMERIC_UNIQUE_OVERLOAD_OVERRIDES.get(op)
+            if forced and forced in overloads:
+                selected.append(f"{op}.{forced}")
+                continue
         overload = _pick_best_overload(overloads)
         selected.append(f"{op}.{overload}")
     return selected
@@ -232,16 +264,21 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated op.overload names for --scope ops",
     )
     parser.add_argument(
+        "--emit-json",
+        action="store_true",
+        help="Write aggregated JSON outputs to default paths",
+    )
+    parser.add_argument(
         "--out-by-op",
         type=Path,
-        default=DEFAULT_OUT_BY_OP,
-        help="Output JSON aggregated by unique op",
+        default=None,
+        help="Optional output JSON path aggregated by unique op",
     )
     parser.add_argument(
         "--out-by-overload",
         type=Path,
-        default=DEFAULT_OUT_BY_OVERLOAD,
-        help="Output JSON with per-overload results",
+        default=None,
+        help="Optional output JSON path with per-overload results",
     )
     return parser.parse_args()
 
@@ -279,7 +316,11 @@ def main() -> int:
     elif args.scope == "unique":
         catalog_entries = json.loads(args.catalog.read_text("utf-8"))
         unique_ops = _load_unique_op_names(args.unique_ops)
-        op_names = _pick_ops_for_unique(catalog_entries, unique_ops)
+        op_names = _pick_ops_for_unique(
+            catalog_entries,
+            unique_ops,
+            args.mode,
+        )
 
         import aten_coverage_runner as runner
 
@@ -324,36 +365,45 @@ def main() -> int:
                 f"result_name_mismatch missing={len(missing)} extra={len(extra)}"
             )
 
-    # Write results.
-    _write_json(
-        args.out_by_overload,
-        [
-            {
-                "name": r.name,
-                "op": r.op,
-                "overload": r.overload,
-                "status": r.status,
-                "reason": r.reason,
-            }
-            for r in sorted(overload_results, key=lambda r: r.name)
-        ],
-    )
-    _write_json(
-        args.out_by_op,
-        [
-            {
-                "op": a.op,
-                "status": a.status,
-                "pass_overload_count": a.pass_overload_count,
-                "fail_overload_count": a.fail_overload_count,
-                "skip_overload_count": a.skip_overload_count,
-                "sample_pass_overload": a.sample_pass_overload,
-                "sample_fail_overload": a.sample_fail_overload,
-                "sample_fail_reason": a.sample_fail_reason,
-            }
-            for a in agg
-        ],
-    )
+    out_by_op = args.out_by_op
+    out_by_overload = args.out_by_overload
+    if args.emit_json:
+        if out_by_op is None:
+            out_by_op = DEFAULT_OUT_BY_OP
+        if out_by_overload is None:
+            out_by_overload = DEFAULT_OUT_BY_OVERLOAD
+
+    if out_by_overload is not None:
+        _write_json(
+            out_by_overload,
+            [
+                {
+                    "name": r.name,
+                    "op": r.op,
+                    "overload": r.overload,
+                    "status": r.status,
+                    "reason": r.reason,
+                }
+                for r in sorted(overload_results, key=lambda r: r.name)
+            ],
+        )
+    if out_by_op is not None:
+        _write_json(
+            out_by_op,
+            [
+                {
+                    "op": a.op,
+                    "status": a.status,
+                    "pass_overload_count": a.pass_overload_count,
+                    "fail_overload_count": a.fail_overload_count,
+                    "skip_overload_count": a.skip_overload_count,
+                    "sample_pass_overload": a.sample_pass_overload,
+                    "sample_fail_overload": a.sample_fail_overload,
+                    "sample_fail_reason": a.sample_fail_reason,
+                }
+                for a in agg
+            ],
+        )
 
     # Print summary.
     passed = sum(1 for a in agg if a.status == "pass")

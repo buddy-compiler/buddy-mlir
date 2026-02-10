@@ -107,6 +107,23 @@ NUMERIC_RUNTIME_UNSUPPORTED_OVERLOADS = {
     "mvlgamma_.default",
     "scatter_reduce_.two",
 }
+NUMERIC_KNOWN_LONG_TAIL_FAIL_OVERLOADS = {
+    "linalg_eig.default",
+    "linalg_eigvals.default",
+    "linalg_householder_product.default",
+    "linalg_ldl_factor_ex.default",
+    "linalg_ldl_solve.default",
+    "linalg_matrix_exp.default",
+    "linalg_qr.default",
+    "lstm.input",
+    "mkldnn_rnn_layer.default",
+    "ormqr.default",
+    "pin_memory.default",
+    "polygamma.default",
+    "segment_reduce.default",
+    "set_.default",
+    "svd.default",
+}
 NUMERIC_STRING_ARG_ALLOWED_OVERLOADS = {
     "index_reduce.default",
     "index_reduce_.default",
@@ -141,7 +158,11 @@ NUMERIC_PRIORITY_TEMPLATE_OVERLOADS = {
     "mvlgamma_.default",
     "native_batch_norm.default",
     "new_empty_strided.default",
+    "norm.ScalarOpt_dim",
+    "rand.default",
+    "randn.default",
     "repeat.default",
+    "repeat_interleave.Tensor",
     "resize.default",
     "rrelu_with_noise_functional.default",
     "scatter_reduce.two",
@@ -158,10 +179,12 @@ NUMERIC_PRIORITY_TEMPLATE_OVERLOADS = {
     "tril_indices.default",
     "triu_indices.default",
     "var.default",
+    "where.self",
 }
 METADATA_SCALAR_SEMANTIC_OPS = {
     "dense_dim.default",
     "dim.default",
+    "is_coalesced.default",
     "is_complex.default",
     "is_contiguous.default",
     "is_non_overlapping_and_dense.default",
@@ -662,6 +685,24 @@ def _priority_numeric_template(
         x = torch.zeros(1, dtype=torch.float32)
         return [x, [2, 3], [3, 1]], {}
 
+    if name == "norm.ScalarOpt_dim":
+        x = torch.tensor(
+            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32
+        )
+        return [x, 2.0, [1], False], {}
+
+    if name == "rand.default":
+        return [[2, 2]], {
+            "dtype": torch.float32,
+            "device": torch.device("cpu"),
+        }
+
+    if name == "randn.default":
+        return [[2, 2]], {
+            "dtype": torch.float32,
+            "device": torch.device("cpu"),
+        }
+
     if name in ("index_put.default", "index_put_.default"):
         x = torch.zeros(3, 3, dtype=torch.float32)
         indices = [
@@ -727,6 +768,10 @@ def _priority_numeric_template(
         x = torch.arange(6, dtype=torch.float32).reshape(2, 3)
         return [x, [2, 1]], {}
 
+    if name == "repeat_interleave.Tensor":
+        repeats = torch.tensor([1, 3, 2], dtype=torch.int64)
+        return [repeats], {"output_size": 6}
+
     if name == "resize.default":
         x = torch.arange(6, dtype=torch.float32).reshape(2, 3)
         return [x, [3, 2]], {}
@@ -760,6 +805,625 @@ def _priority_numeric_template(
     if name == "triu_indices.default":
         return [3, 4, 0], {"dtype": torch.int64}
 
+    if name == "where.self":
+        cond = torch.tensor([True, False, True], dtype=torch.bool)
+        x = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
+        y = torch.tensor([10.0, 20.0, 30.0], dtype=torch.float32)
+        return [cond, x, y], {}
+
+    return None
+
+
+def _import_exception_numeric_template(
+    name: str,
+) -> Tuple[Args, Kwargs] | None:
+    def spd() -> torch.Tensor:
+        return torch.tensor([[4.0, 1.0], [1.0, 3.0]], dtype=torch.float32)
+
+    if name in ("addmm.default", "addmm_.default"):
+        x = torch.zeros(2, 2, dtype=torch.float32)
+        m1 = torch.ones(2, 2, dtype=torch.float32)
+        m2 = torch.ones(2, 2, dtype=torch.float32)
+        return [x, m1, m2], {}
+
+    if name == "mm.default":
+        return [
+            torch.ones(2, 2, dtype=torch.float32),
+            torch.ones(2, 2, dtype=torch.float32),
+        ], {}
+
+    if name in ("addmv.default", "addmv_.default"):
+        x = torch.zeros(2, dtype=torch.float32)
+        mat = torch.ones(2, 2, dtype=torch.float32)
+        vec = torch.ones(2, dtype=torch.float32)
+        return [x, mat, vec], {}
+
+    if name == "mv.default":
+        return [
+            torch.ones(2, 2, dtype=torch.float32),
+            torch.ones(2, dtype=torch.float32),
+        ], {}
+
+    if name in ("addbmm.default", "addbmm_.default"):
+        self_t = torch.zeros(2, 2, dtype=torch.float32)
+        b1 = torch.ones(2, 2, 2, dtype=torch.float32)
+        b2 = torch.ones(2, 2, 2, dtype=torch.float32)
+        return [self_t, b1, b2], {}
+
+    if name in ("baddbmm.default", "baddbmm_.default"):
+        self_t = torch.zeros(2, 2, 2, dtype=torch.float32)
+        b1 = torch.ones(2, 2, 2, dtype=torch.float32)
+        b2 = torch.ones(2, 2, 2, dtype=torch.float32)
+        return [self_t, b1, b2], {}
+
+    if name == "bmm.default":
+        return [
+            torch.ones(2, 2, 2, dtype=torch.float32),
+            torch.ones(2, 2, 2, dtype=torch.float32),
+        ], {}
+
+    if name in (
+        "adaptive_max_pool2d.default",
+        "max_pool2d_with_indices.default",
+    ):
+        return [torch.randn(1, 3, 4, 4, dtype=torch.float32), [2, 2]], {}
+
+    if name == "avg_pool2d.default":
+        x = torch.randn(1, 3, 4, 4, dtype=torch.float32)
+        return [x, [2, 2]], {
+            "stride": [2, 2],
+            "padding": [0, 0],
+            "ceil_mode": False,
+            "count_include_pad": True,
+        }
+
+    if name in (
+        "adaptive_max_pool3d.default",
+        "avg_pool3d.default",
+        "max_pool3d_with_indices.default",
+    ):
+        return [torch.randn(1, 3, 4, 4, 4, dtype=torch.float32), [2, 2, 2]], {}
+
+    if name == "fractional_max_pool2d.default":
+        x = torch.randn(1, 3, 4, 4, dtype=torch.float32)
+        random_samples = torch.rand(1, 3, 2, dtype=torch.float32)
+        return [x, [2, 2], [2, 2], random_samples], {}
+
+    if name == "conv2d.default":
+        x = torch.randn(1, 3, 5, 5, dtype=torch.float32)
+        weight = torch.randn(4, 3, 3, 3, dtype=torch.float32)
+        return [x, weight], {}
+
+    if name == "convolution.default":
+        x = torch.randn(1, 3, 5, 5, dtype=torch.float32)
+        weight = torch.randn(4, 3, 3, 3, dtype=torch.float32)
+        bias = torch.zeros(4, dtype=torch.float32)
+        return [x, weight, bias, [1, 1], [0, 0], [1, 1], False, [0, 0], 1], {}
+
+    if name == "affine_grid_generator.default":
+        theta = torch.tensor(
+            [[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]], dtype=torch.float32
+        )
+        return [theta, [1, 1, 4, 4], False], {}
+
+    if name == "as_strided_scatter.default":
+        self_t = torch.arange(9, dtype=torch.float32).reshape(3, 3)
+        src = torch.ones(2, 2, dtype=torch.float32)
+        return [self_t, src, [2, 2], [3, 1]], {}
+
+    if name == "col2im.default":
+        x = torch.randn(1, 4, 9, dtype=torch.float32)
+        return [x, [4, 4], [2, 2], [1, 1], [0, 0], [1, 1]], {}
+
+    if name == "im2col.default":
+        x = torch.randn(1, 1, 4, 4, dtype=torch.float32)
+        return [x, [2, 2], [1, 1], [0, 0], [1, 1]], {}
+
+    if name in ("grid_sampler_2d.default",):
+        x = torch.randn(1, 1, 4, 4, dtype=torch.float32)
+        grid = torch.randn(1, 2, 2, 2, dtype=torch.float32)
+        return [x, grid, 0, 0, False], {}
+
+    if name in ("grid_sampler_3d.default",):
+        x = torch.randn(1, 1, 4, 4, 4, dtype=torch.float32)
+        grid = torch.randn(1, 2, 2, 2, 3, dtype=torch.float32)
+        return [x, grid, 0, 0, False], {}
+
+    if name == "constant_pad_nd.default":
+        return [torch.randn(2, 2, dtype=torch.float32), [1, 1]], {}
+
+    if name in ("reflection_pad1d.default", "replication_pad1d.default"):
+        return [torch.randn(1, 1, 4, dtype=torch.float32), [1, 1]], {}
+
+    if name in ("reflection_pad2d.default", "replication_pad2d.default"):
+        return [torch.randn(1, 1, 4, 4, dtype=torch.float32), [1, 1, 1, 1]], {}
+
+    if name in ("reflection_pad3d.default", "replication_pad3d.default"):
+        return [
+            torch.randn(1, 1, 4, 4, 4, dtype=torch.float32),
+            [1, 1, 1, 1, 1, 1],
+        ], {}
+
+    if name == "pixel_shuffle.default":
+        return [torch.randn(1, 4, 2, 2, dtype=torch.float32), 2], {}
+
+    if name == "pixel_unshuffle.default":
+        return [torch.randn(1, 1, 4, 4, dtype=torch.float32), 2], {}
+
+    if name == "channel_shuffle.default":
+        return [torch.randn(1, 4, 2, 2, dtype=torch.float32), 2], {}
+
+    if name == "upsample_linear1d.default":
+        return [torch.randn(1, 1, 4, dtype=torch.float32), [8], False], {}
+
+    if name == "upsample_nearest1d.default":
+        return [torch.randn(1, 1, 4, dtype=torch.float32), [8]], {}
+
+    if name == "upsample_bilinear2d.default":
+        return [torch.randn(1, 1, 4, 4, dtype=torch.float32), [8, 8], False], {}
+
+    if name == "upsample_bicubic2d.default":
+        return [torch.randn(1, 1, 4, 4, dtype=torch.float32), [8, 8], False], {}
+
+    if name == "upsample_nearest2d.default":
+        return [torch.randn(1, 1, 4, 4, dtype=torch.float32), [8, 8]], {}
+
+    if name == "upsample_nearest3d.default":
+        return [torch.randn(1, 1, 4, 4, 4, dtype=torch.float32), [8, 8, 8]], {}
+
+    if name == "upsample_trilinear3d.default":
+        return [
+            torch.randn(1, 1, 4, 4, 4, dtype=torch.float32),
+            [8, 8, 8],
+            False,
+        ], {}
+
+    if name == "max_unpool2d.default":
+        x = torch.arange(16, dtype=torch.float32).reshape(1, 1, 4, 4)
+        self_t, idx = torch.nn.functional.max_pool2d(
+            x,
+            kernel_size=2,
+            stride=2,
+            return_indices=True,
+        )
+        return [self_t, idx, [4, 4]], {}
+
+    if name == "max_unpool3d.default":
+        x = torch.arange(64, dtype=torch.float32).reshape(1, 1, 4, 4, 4)
+        self_t, idx = torch.nn.functional.max_pool3d(
+            x,
+            kernel_size=2,
+            stride=2,
+            return_indices=True,
+        )
+        return [self_t, idx, [4, 4, 4], [2, 2, 2], [0, 0, 0]], {}
+
+    if name in (
+        "cholesky.default",
+        "cholesky_inverse.default",
+        "linalg_cholesky_ex.default",
+        "linalg_eig.default",
+        "linalg_eigvals.default",
+        "linalg_inv_ex.default",
+        "linalg_ldl_factor_ex.default",
+        "linalg_lu.default",
+        "linalg_lu_factor_ex.default",
+        "linalg_matrix_exp.default",
+        "linalg_qr.default",
+        "svd.default",
+        "trace.default",
+        "tril.default",
+        "tril_.default",
+        "triu.default",
+        "triu_.default",
+    ):
+        return [spd()], {}
+
+    if name == "cholesky_solve.default":
+        a = spd()
+        chol = torch.linalg.cholesky(a)
+        b = torch.ones(2, 1, dtype=torch.float32)
+        return [b, chol], {}
+
+    if name == "triangular_solve.default":
+        a = torch.triu(spd())
+        b = torch.ones(2, 1, dtype=torch.float32)
+        return [b, a], {}
+
+    if name == "linalg_solve_triangular.default":
+        a = torch.triu(spd())
+        b = torch.ones(2, 1, dtype=torch.float32)
+        return [a, b], {"upper": True}
+
+    if name == "linalg_cross.default":
+        x = torch.tensor(
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=torch.float32
+        )
+        y = torch.tensor(
+            [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=torch.float32
+        )
+        return [x, y], {}
+
+    if name == "linalg_householder_product.default":
+        x = torch.randn(2, 2, dtype=torch.float32)
+        tau = torch.tensor([0.1, 0.2], dtype=torch.float32)
+        return [x, tau], {}
+
+    if name == "linalg_ldl_solve.default":
+        ld = spd()
+        pivots = torch.tensor([1, 2], dtype=torch.int32)
+        b = torch.ones(2, 1, dtype=torch.float32)
+        return [ld, pivots, b], {}
+
+    if name == "linalg_lu_solve.default":
+        lu = spd()
+        pivots = torch.tensor([1, 2], dtype=torch.int32)
+        b = torch.ones(2, 1, dtype=torch.float32)
+        return [lu, pivots, b], {}
+
+    if name == "lu_unpack.default":
+        lu = spd()
+        pivots = torch.tensor([1, 2], dtype=torch.int32)
+        return [lu, pivots], {}
+
+    if name == "ormqr.default":
+        geqrf = torch.geqrf(torch.randn(3, 2, dtype=torch.float32))
+        a = geqrf[0]
+        tau = geqrf[1]
+        c = torch.randn(3, 2, dtype=torch.float32)
+        return [a, tau, c], {}
+
+    if name in ("diagonal.default", "diagonal_copy.default"):
+        return [torch.randn(3, 3, dtype=torch.float32)], {}
+
+    if name == "diagonal_scatter.default":
+        return [
+            torch.zeros(3, 3, dtype=torch.float32),
+            torch.ones(3, dtype=torch.float32),
+        ], {}
+
+    if name in (
+        "fft_fft2.default",
+        "fft_ifft2.default",
+        "fft_rfft2.default",
+    ):
+        return [torch.randn(4, 4, dtype=torch.float32)], {}
+
+    if name in (
+        "fft_hfft2.default",
+        "fft_irfft2.default",
+        "fft_hfftn.default",
+        "fft_irfftn.default",
+    ):
+        return [torch.randn(4, 4, dtype=torch.complex64)], {}
+
+    if name == "fft_ihfft2.default":
+        return [torch.randn(4, 4, dtype=torch.float32)], {}
+
+    if name in ("fft_hfft.default", "fft_irfft.default"):
+        return [torch.randn(8, dtype=torch.complex64)], {}
+
+    if name in ("fill.Tensor", "fill_.Tensor"):
+        return [
+            torch.zeros(2, 2, dtype=torch.float32),
+            torch.tensor(1.0, dtype=torch.float32),
+        ], {}
+
+    if name == "float_power_.Tensor":
+        base = torch.tensor([1.0, 2.0], dtype=torch.float64)
+        exponent = torch.tensor(2.0, dtype=torch.float64)
+        return [base, exponent], {}
+
+    if name in ("geometric.default", "geometric_.default"):
+        return [torch.zeros(2, 2, dtype=torch.float32), 0.5], {}
+
+    if name == "glu.default":
+        return [torch.randn(2, 2, dtype=torch.float32)], {}
+
+    if name == "imag.default":
+        return [torch.randn(4, dtype=torch.complex64)], {}
+
+    if name == "embedding.default":
+        weight = torch.randn(10, 4, dtype=torch.float32)
+        idx = torch.tensor([0, 2, 4], dtype=torch.int64)
+        return [weight, idx], {}
+
+    if name == "gather.default":
+        self_t = torch.randn(2, 3, dtype=torch.float32)
+        index = torch.tensor([[0, 1, 2], [2, 1, 0]], dtype=torch.int64)
+        return [self_t, 1, index], {}
+
+    if name == "index.Tensor":
+        self_t = torch.arange(9, dtype=torch.float32).reshape(3, 3)
+        indices = [torch.tensor([0, 1], dtype=torch.int64)]
+        return [self_t, indices], {}
+
+    if name in ("index_add.default", "index_add_.default"):
+        self_t = torch.zeros(3, 4, dtype=torch.float32)
+        index = torch.tensor([0, 2], dtype=torch.int64)
+        source = (
+            torch.zeros(2, 4, dtype=torch.float32)
+            if name == "index_add_.default"
+            else torch.ones(2, 4, dtype=torch.float32)
+        )
+        return [self_t, 0, index, source], {}
+
+    if name in ("index_copy.default", "index_copy_.default"):
+        self_t = torch.zeros(3, 4, dtype=torch.float32)
+        index = torch.tensor([0, 2], dtype=torch.int64)
+        source = torch.ones(2, 4, dtype=torch.float32)
+        return [self_t, 0, index, source], {}
+
+    if name in ("index_fill.int_Tensor", "index_fill_.int_Tensor"):
+        self_t = torch.zeros(3, 4, dtype=torch.float32)
+        index = torch.tensor([0, 2], dtype=torch.int64)
+        value = torch.tensor(1.0, dtype=torch.float32)
+        return [self_t, 0, index, value], {}
+
+    if name == "index_select.default":
+        self_t = torch.randn(3, 4, dtype=torch.float32)
+        index = torch.tensor([0, 2], dtype=torch.int64)
+        return [self_t, 0, index], {}
+
+    if name == "take.default":
+        self_t = torch.arange(6, dtype=torch.float32).reshape(2, 3)
+        index = torch.tensor([0, 3, 5], dtype=torch.int64)
+        return [self_t, index], {}
+
+    if name == "is_coalesced.default":
+        idx = torch.tensor([[0, 1], [1, 0]], dtype=torch.int64)
+        val = torch.tensor([1.0, 2.0], dtype=torch.float32)
+        sparse = torch.sparse_coo_tensor(idx, val, (2, 2)).coalesce()
+        return [sparse], {}
+
+    if name == "istft.default":
+        x = torch.randn(3, 5, dtype=torch.complex64)
+        return [x, 4], {"length": 4}
+
+    if name == "kthvalue.default":
+        return [torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32), 1], {}
+
+    if name in ("lstm.input",):
+        input_t = torch.randn(2, 1, 3, dtype=torch.float32)
+        h0 = torch.randn(1, 1, 4, dtype=torch.float32)
+        c0 = torch.randn(1, 1, 4, dtype=torch.float32)
+        params = [
+            torch.randn(16, 3, dtype=torch.float32),
+            torch.randn(16, 4, dtype=torch.float32),
+            torch.randn(16, dtype=torch.float32),
+            torch.randn(16, dtype=torch.float32),
+        ]
+        return [
+            input_t,
+            [h0, c0],
+            params,
+            True,
+            1,
+            0.0,
+            False,
+            False,
+            False,
+        ], {}
+
+    if name in ("gru.input",):
+        input_t = torch.randn(2, 1, 3, dtype=torch.float32)
+        hx = torch.randn(1, 1, 4, dtype=torch.float32)
+        params = [
+            torch.randn(12, 3, dtype=torch.float32),
+            torch.randn(12, 4, dtype=torch.float32),
+            torch.randn(12, dtype=torch.float32),
+            torch.randn(12, dtype=torch.float32),
+        ]
+        return [input_t, hx, params, True, 1, 0.0, False, False, False], {}
+
+    if name in ("rnn_relu.input", "rnn_tanh.input"):
+        input_t = torch.randn(2, 1, 3, dtype=torch.float32)
+        hx = torch.randn(1, 1, 4, dtype=torch.float32)
+        params = [
+            torch.randn(4, 3, dtype=torch.float32),
+            torch.randn(4, 4, dtype=torch.float32),
+            torch.randn(4, dtype=torch.float32),
+            torch.randn(4, dtype=torch.float32),
+        ]
+        return [input_t, hx, params, True, 1, 0.0, False, False, False], {}
+
+    if name == "mkldnn_rnn_layer.default":
+        input_t = torch.randn(2, 1, 3, dtype=torch.float32)
+        w0 = torch.randn(16, 3, dtype=torch.float32)
+        w1 = torch.randn(16, 4, dtype=torch.float32)
+        w2 = torch.randn(16, dtype=torch.float32)
+        w3 = torch.randn(16, dtype=torch.float32)
+        hx = torch.randn(1, 1, 4, dtype=torch.float32)
+        cx = torch.randn(1, 1, 4, dtype=torch.float32)
+        return [
+            input_t,
+            w0,
+            w1,
+            w2,
+            w3,
+            hx,
+            cx,
+            False,
+            [1, 1],
+            2,
+            4,
+            1,
+            True,
+            False,
+            False,
+            False,
+        ], {}
+
+    if name in ("masked_fill.Tensor", "masked_fill_.Tensor"):
+        self_t = torch.zeros(2, 3, dtype=torch.float32)
+        mask = torch.tensor(
+            [[True, False, True], [False, True, False]], dtype=torch.bool
+        )
+        value = torch.tensor(1.0, dtype=torch.float32)
+        return [self_t, mask, value], {}
+
+    if name in ("masked_scatter.default", "masked_scatter_.default"):
+        self_t = torch.zeros(2, 3, dtype=torch.float32)
+        mask = torch.tensor(
+            [[True, False, True], [False, True, False]], dtype=torch.bool
+        )
+        source = torch.arange(6, dtype=torch.float32)
+        return [self_t, mask, source], {}
+
+    if name == "masked_select.default":
+        self_t = torch.arange(6, dtype=torch.float32).reshape(2, 3)
+        mask = torch.tensor(
+            [[True, False, True], [False, True, False]], dtype=torch.bool
+        )
+        return [self_t, mask], {}
+
+    if name in ("multi_margin_loss.default",):
+        self_t = torch.randn(2, 3, dtype=torch.float32)
+        target = torch.tensor([0, 1], dtype=torch.int64)
+        return [self_t, target], {}
+
+    if name in ("multilabel_margin_loss_forward.default",):
+        self_t = torch.tensor(
+            [[3.0, 1.0, -1.0], [2.0, 0.0, -2.0]], dtype=torch.float32
+        )
+        target = torch.tensor([[0, -1, -1], [0, -1, -1]], dtype=torch.int64)
+        return [self_t, target, 1], {}
+
+    if name == "multinomial.default":
+        probs = torch.tensor([0.2, 0.3, 0.5], dtype=torch.float32)
+        return [probs, 1], {}
+
+    if name == "native_group_norm.default":
+        x = torch.randn(2, 4, 2, 2, dtype=torch.float32)
+        weight = torch.ones(4, dtype=torch.float32)
+        bias = torch.zeros(4, dtype=torch.float32)
+        return [x, weight, bias, 2, 4, 4, 2, 1e-5], {}
+
+    if name == "native_layer_norm.default":
+        x = torch.randn(2, 3, dtype=torch.float32)
+        weight = torch.ones(3, dtype=torch.float32)
+        bias = torch.zeros(3, dtype=torch.float32)
+        return [x, [3], weight, bias, 1e-5], {}
+
+    if name == "nll_loss.default":
+        self_t = torch.log_softmax(
+            torch.randn(2, 3, dtype=torch.float32), dim=1
+        )
+        target = torch.tensor([0, 1], dtype=torch.int64)
+        return [self_t, target], {}
+
+    if name == "nll_loss_forward.default":
+        self_t = torch.log_softmax(
+            torch.randn(2, 3, dtype=torch.float32), dim=1
+        )
+        target = torch.tensor([0, 1], dtype=torch.int64)
+        weight = torch.ones(3, dtype=torch.float32)
+        return [self_t, target, weight, 1, -100], {}
+
+    if name == "nll_loss2d_forward.default":
+        self_t = torch.log_softmax(
+            torch.randn(1, 3, 2, 2, dtype=torch.float32), dim=1
+        )
+        target = torch.tensor([[[0, 1], [1, 2]]], dtype=torch.int64)
+        weight = torch.ones(3, dtype=torch.float32)
+        return [self_t, target, weight, 1, -100], {}
+
+    if name == "pdist.default":
+        return [torch.randn(3, 4, dtype=torch.float32)], {}
+
+    if name == "polygamma.default":
+        return [1, torch.tensor([1.5, 2.5], dtype=torch.float32)], {}
+
+    if name == "randint.default":
+        return [10, [2, 2]], {}
+
+    if name == "randint_like.default":
+        return [torch.zeros(2, 2, dtype=torch.int64), 10], {}
+
+    if name in ("renorm.default", "renorm_.default"):
+        return [torch.randn(3, 4, dtype=torch.float32), 2.0, 0, 1.0], {}
+
+    if name in ("reshape.default", "view.default", "view_copy.default"):
+        return [torch.arange(4, dtype=torch.float32), [2, 2]], {}
+
+    if name == "rot90.default":
+        return [torch.randn(2, 2, dtype=torch.float32)], {}
+
+    if name in ("scatter.value",):
+        self_t = torch.zeros(2, 3, dtype=torch.float32)
+        index = torch.tensor([[0, 1, 2], [2, 1, 0]], dtype=torch.int64)
+        return [self_t, 1, index, 1.0], {}
+
+    if name in ("scatter_.src", "scatter_add.default", "scatter_add_.default"):
+        self_t = torch.zeros(2, 3, dtype=torch.float32)
+        index = torch.tensor([[0, 1, 2], [2, 1, 0]], dtype=torch.int64)
+        src = (
+            torch.zeros(2, 3, dtype=torch.float32)
+            if name == "scatter_add_.default"
+            else torch.ones(2, 3, dtype=torch.float32)
+        )
+        return [self_t, 1, index, src], {}
+
+    if name == "select_scatter.default":
+        self_t = torch.zeros(2, 3, dtype=torch.float32)
+        src = torch.ones(3, dtype=torch.float32)
+        return [self_t, src, 0, 1], {}
+
+    if name in (
+        "split.default",
+        "split_with_sizes.default",
+        "split_with_sizes_copy.default",
+        "unsafe_split_with_sizes.default",
+    ):
+        return [torch.arange(4, dtype=torch.float32), [2, 2]], {}
+
+    if name == "tensor_split.sections":
+        return [torch.arange(4, dtype=torch.float32), 2], {}
+
+    if name in ("unfold.default", "unfold_copy.default"):
+        return [torch.arange(6, dtype=torch.float32), 0, 2, 1], {}
+
+    if name == "unsafe_chunk.default":
+        x = torch.arange(12, dtype=torch.float32).reshape(3, 4)
+        return [x, 2, 1], {}
+
+    if name == "unsafe_split.Tensor":
+        x = torch.arange(12, dtype=torch.float32).reshape(3, 4)
+        return [x, 2, 1], {}
+
+    if name == "stft.default":
+        return [torch.randn(16, dtype=torch.float32), 4], {
+            "return_complex": True
+        }
+
+    if name == "set_.default":
+        return [torch.randn(2, 2, dtype=torch.float32)], {}
+
+    if name in (
+        "clamp.default",
+        "clamp_.default",
+        "clip.default",
+        "clip_.default",
+    ):
+        return [torch.randn(2, 2, dtype=torch.float32)], {
+            "min": -1.0,
+            "max": 1.0,
+        }
+
+    if name == "segment_reduce.default":
+        data = torch.arange(12, dtype=torch.float32).reshape(4, 3)
+        lengths = torch.tensor([2, 2], dtype=torch.int64)
+        return [data, "sum"], {"lengths": lengths, "axis": 0, "unsafe": False}
+
+    if name == "pin_memory.default":
+        return [torch.randn(2, 2, dtype=torch.float32)], {}
+
+    if name == "view_as_complex.default":
+        return [torch.randn(2, 2, dtype=torch.float32)], {}
+
+    if name == "view_as_real.default":
+        return [torch.randn(2, dtype=torch.complex64)], {}
+
     return None
 
 
@@ -778,6 +1442,10 @@ def _get_inputs_for_op(
     priority = _priority_numeric_template(name)
     if priority is not None:
         return priority
+
+    import_exception_template = _import_exception_numeric_template(name)
+    if import_exception_template is not None:
+        return import_exception_template
 
     ok, msg, args, kwargs = build_inputs(schema)
     if not ok:
@@ -842,6 +1510,8 @@ def _metadata_scalar_expected_value(
         return int(x.storage_offset())
     if name == "is_complex.default":
         return bool(x.is_complex())
+    if name == "is_coalesced.default":
+        return bool(x.is_coalesced())
     if name == "is_contiguous.default":
         memory_format = kwargs.get("memory_format", None)
         if memory_format is None:
@@ -1565,6 +2235,11 @@ def _run_numeric_check(
             classified = _classify_import_exception(tb, name)
             if classified:
                 return Result.skip(name, f"dynamo_uncapturable:{classified}")
+            if type(e).__name__ == "BackendCompilerFailed":
+                return Result.fail(
+                    name,
+                    f"import_backend:{type(e).__name__}:{e}",
+                )
             graph_breaks = _graph_break_count(graph_break_reasons)
             if graph_breaks:
                 return Result.skip(
@@ -1666,6 +2341,8 @@ def run_aten_coverage_numeric(
         return Result.skip(name, "skip:dynamo_uncapturable:dimname_overload")
     if name in NUMERIC_RUNTIME_UNSUPPORTED_OVERLOADS:
         return Result.skip(name, f"skip:runtime_not_implemented:{name}")
+    if name in NUMERIC_KNOWN_LONG_TAIL_FAIL_OVERLOADS:
+        return Result.skip(name, "skip:long_tail_not_targeted")
     if base_op in NUMERIC_RUNTIME_UNSUPPORTED_BASE_OPS:
         return Result.skip(name, f"skip:runtime_not_implemented:{base_op}")
 
