@@ -12,6 +12,10 @@ target_link_libraries(buddy-opt
   ${conversion_libs}
   ${extension_libs}
   MLIROptLib
+  MLIRRegisterAllDialects
+  MLIRRegisterAllExtensions
+  MLIRRegisterAllPasses
+  MLIRSCFToControlFlow
   CBConvVectorization
   BuddyBud
   LowerBudPass

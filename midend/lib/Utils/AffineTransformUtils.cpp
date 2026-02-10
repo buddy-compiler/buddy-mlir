@@ -51,7 +51,7 @@ void affineTransformCoreTiled(OpBuilder &builder, Location loc,
       VectorType::get({stride}, IntegerType::get(builder.getContext(), 16));
 
   builder.create<scf::ForOp>(
-      loc, yStart, yEnd, c1, std::nullopt,
+      loc, yStart, yEnd, c1, ValueRange(),
       [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
         Value yOffset = yBuilder.create<arith::SubIOp>(yLoc, yiv, yStart);
 
@@ -65,11 +65,11 @@ void affineTransformCoreTiled(OpBuilder &builder, Location loc,
         Value y1 = yBuilder.create<arith::FPToSIOp>(yLoc, yBuilder.getI32Type(),
                                                     yF32_1_rsv);
 
-        Value y0Vec = yBuilder.create<vector::SplatOp>(yLoc, vectorTyI32, y0);
-        Value y1Vec = yBuilder.create<vector::SplatOp>(yLoc, vectorTyI32, y1);
+        Value y0Vec = yBuilder.create<vector::BroadcastOp>(yLoc, vectorTyI32, y0);
+        Value y1Vec = yBuilder.create<vector::BroadcastOp>(yLoc, vectorTyI32, y1);
 
         yBuilder.create<scf::ForOp>(
-            yLoc, xStart, xEnd, strideVal, std::nullopt,
+            yLoc, xStart, xEnd, strideVal, ValueRange(),
             [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
               Value xOffset = xBuilder.create<arith::SubIOp>(xLoc, xiv, xStart);
               Value x0Vec = xBuilder.create<vector::LoadOp>(xLoc, vectorTyI32,
@@ -123,7 +123,7 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
   Value strideVal = builder.create<arith::ConstantIndexOp>(loc, stride);
   VectorType vectorTyI32 =
       VectorType::get({stride}, IntegerType::get(builder.getContext(), 32));
-  Value rsvValVec = builder.create<vector::SplatOp>(loc, vectorTyI32, rsvVal);
+  Value rsvValVec = builder.create<vector::BroadcastOp>(loc, vectorTyI32, rsvVal);
 
   // create memref to store compute result for remap use
   // TODO: auto config BLOCK_SZ by input type. float->32, uchar->64
@@ -139,14 +139,14 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
 
   if (format == dip::ImageFormat::HW) {
     builder.create<scf::ForOp>(
-        loc, yStart, yEnd, rowStride, std::nullopt,
+        loc, yStart, yEnd, rowStride, ValueRange(),
         [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
           Value realYEnd = yBuilder.create<arith::MinUIOp>(
               yLoc, yEnd, yBuilder.create<arith::AddIOp>(yLoc, yiv, rowStride));
           Value rows = yBuilder.create<arith::SubIOp>(yLoc, realYEnd, yiv);
 
           yBuilder.create<scf::ForOp>(
-              yLoc, xStart, xEnd, colStride, std::nullopt,
+              yLoc, xStart, xEnd, colStride, ValueRange(),
               [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
                 Value realXEnd = xBuilder.create<arith::MinUIOp>(
                     xLoc, xEnd,
@@ -171,10 +171,10 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
              format == dip::ImageFormat::NHWC) {
     Value inputBatch = builder.create<memref::DimOp>(loc, input, c0);
     builder.create<scf::ForOp>(
-        loc, c0, inputBatch, c1, std::nullopt,
+        loc, c0, inputBatch, c1, ValueRange(),
         [&](OpBuilder &nBuilder, Location nLoc, Value niv, ValueRange) {
           nBuilder.create<scf::ForOp>(
-              loc, yStart, yEnd, rowStride, std::nullopt,
+              loc, yStart, yEnd, rowStride, ValueRange(),
               [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
                 Value realYEnd = yBuilder.create<arith::MinUIOp>(
                     yLoc, yEnd,
@@ -183,7 +183,7 @@ void affineTransformCore(OpBuilder &builder, Location loc, MLIRContext *ctx,
                     yBuilder.create<arith::SubIOp>(yLoc, realYEnd, yiv);
 
                 yBuilder.create<scf::ForOp>(
-                    yLoc, xStart, xEnd, colStride, std::nullopt,
+                    yLoc, xStart, xEnd, colStride, ValueRange(),
                     [&](OpBuilder &xBuilder, Location xLoc, Value xiv,
                         ValueRange) {
                       Value realXEnd = xBuilder.create<arith::MinUIOp>(
@@ -220,12 +220,12 @@ void remapNearest2D(OpBuilder &builder, Location loc, MLIRContext *ctx,
   Value inputRow = builder.create<memref::DimOp>(loc, input, c0);
   Value inputCol = builder.create<memref::DimOp>(loc, input, c1);
   builder.create<scf::ForOp>(
-      loc, c0, rows, c1, std::nullopt,
+      loc, c0, rows, c1, ValueRange(),
       [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
         Value dstY = yBuilder.create<arith::AddIOp>(yLoc, yiv, yStart);
 
         yBuilder.create<scf::ForOp>(
-            yLoc, c0, cols, c1, std::nullopt,
+            yLoc, c0, cols, c1, ValueRange(),
             [&](OpBuilder &xBuilder, Location xLoc, Value xiv, ValueRange) {
               Value dstX = xBuilder.create<arith::AddIOp>(xLoc, xiv, xStart);
               Value srcXI16 = xBuilder.create<memref::LoadOp>(
@@ -291,7 +291,7 @@ void remapNearest3D(OpBuilder &builder, Location loc, MLIRContext *ctx,
       loc, arith::CmpIPredicate::eq, inputChannel, c3);
 
   builder.create<scf::ForOp>(
-      loc, c0, rows, c1, std::nullopt,
+      loc, c0, rows, c1, ValueRange(),
       [&](OpBuilder &yBuilder, Location yLoc, Value yiv, ValueRange) {
         Value dstY = yBuilder.create<arith::AddIOp>(yLoc, yiv, yStart);
 
@@ -300,7 +300,7 @@ void remapNearest3D(OpBuilder &builder, Location loc, MLIRContext *ctx,
             [&](OpBuilder &thenBuilder, Location thenLoc) {
               //  3 channels, make common case fast
               thenBuilder.create<scf::ForOp>(
-                  thenLoc, c0, cols, c1, std::nullopt,
+                  thenLoc, c0, cols, c1, ValueRange(),
                   [&](OpBuilder &xBuilder, Location xLoc, Value xiv,
                       ValueRange) {
                     Value dstX =
@@ -399,7 +399,7 @@ void remapNearest3D(OpBuilder &builder, Location loc, MLIRContext *ctx,
             },
             [&](OpBuilder &elseBuilder, Location elseLoc) {
               elseBuilder.create<scf::ForOp>(
-                  elseLoc, c0, cols, c1, std::nullopt,
+                  elseLoc, c0, cols, c1, ValueRange(),
                   [&](OpBuilder &xBuilder, Location xLoc, Value xiv,
                       ValueRange) {
                     Value dstX =
@@ -423,7 +423,7 @@ void remapNearest3D(OpBuilder &builder, Location loc, MLIRContext *ctx,
                         xLoc, pixelInBound,
                         [&](OpBuilder &thenBuilder, Location thenLoc) {
                           thenBuilder.create<scf::ForOp>(
-                              thenLoc, c0, inputChannel, c1, std::nullopt,
+                              thenLoc, c0, inputChannel, c1, ValueRange(),
                               [&](OpBuilder &cBuilder, Location cLoc, Value civ,
                                   ValueRange) {
                                 if (format == dip::ImageFormat::NCHW) {
@@ -452,7 +452,7 @@ void remapNearest3D(OpBuilder &builder, Location loc, MLIRContext *ctx,
                           Value pixel = insertZeroConstantOp(ctx, elseBuilder,
                                                              elseLoc, inElemTy);
                           elseBuilder.create<scf::ForOp>(
-                              elseLoc, c0, inputChannel, c1, std::nullopt,
+                              elseLoc, c0, inputChannel, c1, ValueRange(),
                               [&](OpBuilder &cBuilder, Location cLoc, Value civ,
                                   ValueRange) {
                                 if (format == dip::ImageFormat::NCHW) {

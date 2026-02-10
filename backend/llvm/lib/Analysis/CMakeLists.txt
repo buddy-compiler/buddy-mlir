@@ -52,7 +52,6 @@ add_llvm_component_library(LLVMBuddyAnalysis
   ${LLVM_Analysis_DIR}/InlineCost.cpp
   ${LLVM_Analysis_DIR}/InlineAdvisor.cpp
   ${LLVM_Analysis_DIR}/InlineOrder.cpp
-  ${LLVM_Analysis_DIR}/InlineSizeEstimatorAnalysis.cpp
   ${LLVM_Analysis_DIR}/InstCount.cpp
   ${LLVM_Analysis_DIR}/InstructionPrecedenceTracking.cpp
   ${LLVM_Analysis_DIR}/InstructionSimplify.cpp

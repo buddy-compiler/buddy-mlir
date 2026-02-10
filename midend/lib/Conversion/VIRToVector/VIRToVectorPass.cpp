@@ -572,7 +572,7 @@ private:
         loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
         /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
         vectorWid,
-        /*iterArgs=*/std::nullopt,
+        /*iterArgs=*/ValueRange(),
         [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
           //===--------------------------------------------------------------===//
           // Step 4: Convert operations inside the dynamic vector region.
@@ -599,7 +599,7 @@ private:
         loc, /*lowerBound=*/ValueRange{tailStart}, rewriter.getDimIdentityMap(),
         /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
         /*step=*/1,
-        /*iterArgs=*/std::nullopt,
+        /*iterArgs=*/ValueRange(),
         [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
           DenseMap<Value, Value> virSymbolTable;
           // Initiate recursive descent process on top-level blocks (scalar

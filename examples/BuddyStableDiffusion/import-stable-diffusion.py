@@ -67,7 +67,7 @@ def resolve_model_source():
         if candidate.exists():
             return str(candidate.resolve()), True
 
-    return "stabilityai/stable-diffusion-2-1-base", False
+    return "Joypop/stable-diffusion-2-1-base", False
 
 
 model_source, local_files_only = resolve_model_source()

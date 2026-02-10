@@ -193,7 +193,7 @@ public:
             Value idx = iter_idx.getResult(0);
             rewriter.create<scf::ForOp>(
                 loc, idx, bCol,
-                /*Step=*/constantVals[1], std::nullopt,
+                /*Step=*/constantVals[1], ValueRange(),
                 [&](OpBuilder &builder, Location loc, Value iv0,
                     ValueRange itrArgs0) {
                   SmallVector<Value> cEles;

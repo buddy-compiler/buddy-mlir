@@ -122,7 +122,7 @@ public:
           Value bIdx = ivs[0];
           (void)builder;
           auto outerFor = rewriter.create<scf::ForOp>(
-              loc, constantVals[0], bCol, vlStep, std::nullopt,
+              loc, constantVals[0], bCol, vlStep, ValueRange(),
               [&](OpBuilder &builder, Location loc, Value nIdx,
                   ValueRange /*iterArgs*/) {
                 // Load initial C vector

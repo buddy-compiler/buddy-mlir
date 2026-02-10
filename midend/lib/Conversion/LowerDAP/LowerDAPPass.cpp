@@ -70,7 +70,7 @@ public:
     // data.
     Value fillInLen = rewriter.create<arith::SubIOp>(loc, kernelSize, c1);
     rewriter.create<scf::ForOp>(
-        loc, c0, fillInLen, c1, ValueRange{std::nullopt},
+        loc, c0, fillInLen, c1, ValueRange(),
         [&](OpBuilder &b, Location loc, Value iv_n, ValueRange iargs) {
           Value upperBound = b.create<arith::AddIOp>(loc, iv_n, c1);
           Value outFinal =
@@ -88,12 +88,12 @@ public:
                    })
                   .getResult(0);
           b.create<memref::StoreOp>(loc, outFinal, output, ValueRange{iv_n});
-          b.create<scf::YieldOp>(loc, std::nullopt);
+          b.create<scf::YieldOp>(loc, ValueRange());
         });
 
     // Compute the input data following the padding section.
     rewriter.create<scf::ForOp>(
-        loc, fillInLen, dataLen, c1, ValueRange{std::nullopt},
+        loc, fillInLen, dataLen, c1, ValueRange(),
         [&](OpBuilder &b, Location loc, Value iv_n, ValueRange iargs) {
           Value outFinal =
               b.create<scf::ForOp>(
@@ -110,7 +110,7 @@ public:
                    })
                   .getResult(0);
           b.create<memref::StoreOp>(loc, outFinal, output, ValueRange{iv_n});
-          b.create<scf::YieldOp>(loc, std::nullopt);
+          b.create<scf::YieldOp>(loc, ValueRange());
         });
 
     rewriter.eraseOp(op);
@@ -178,7 +178,7 @@ public:
     // y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] + a1*y[n-1] + a2*y[n-2];
     // FIR part
     rewriter.create<scf::ForOp>(
-        loc, c2, N, strideVal, ValueRange{std::nullopt},
+        loc, c2, N, strideVal, ValueRange(),
         [&](OpBuilder &builder, Location loc, Value ivs, ValueRange iargs) {
           Value idx0 = ivs;
           Value idx1 = builder.create<SubIOp>(loc, idx0, c1);
@@ -198,7 +198,7 @@ public:
           Value resVec1 = builder.create<FMAOp>(loc, inputVec1, Vecb1, resVec0);
           Value resVec2 = builder.create<FMAOp>(loc, inputVec2, Vecb2, resVec1);
           builder.create<StoreOp>(loc, resVec2, output, ValueRange{idx0});
-          builder.create<scf::YieldOp>(loc, std::nullopt);
+          builder.create<scf::YieldOp>(loc, ValueRange());
         });
 
     // IIR part

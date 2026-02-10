@@ -378,14 +378,14 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
                 Value inputColLastElemF32, Value c0F32) {
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
-      builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
-      [&](OpBuilder &builder, Location loc, ValueRange ivs,
+      builder.getDimIdentityMap(), /*step*/ 1, ValueRange(),
+      [&](OpBuilder &builder, Location loc, Value iv,
           ValueRange iterArg) {
         std::vector<Value> origIndices =
-            extractIndices(builder, loc, xVec, yVec, ivs[0],
+            extractIndices(builder, loc, xVec, yVec, iv,
                            inputColLastElemF32, inputRowLastElemF32, c0F32);
         std::vector<Value> resIndices =
-            extractIndices(builder, loc, resXVec, resYVec, ivs[0],
+            extractIndices(builder, loc, resXVec, resYVec, iv,
                            outputColLastElemF32, outputRowLastElemF32, c0F32);
 
         Value pixelVal = builder.create<memref::LoadOp>(
@@ -408,14 +408,14 @@ void fillPixelsNearestNeighbour4D(
     Value dataCondition) {
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
-      builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
-      [&](OpBuilder &builder, Location loc, ValueRange ivs,
+      builder.getDimIdentityMap(), /*step*/ 1, ValueRange(),
+      [&](OpBuilder &builder, Location loc, Value iv,
           ValueRange iterArg) {
         std::vector<Value> origIndices =
-            extractIndices(builder, loc, xVec, yVec, ivs[0],
+            extractIndices(builder, loc, xVec, yVec, iv,
                            inputColLastElemF32, inputRowLastElemF32, c0F32);
         std::vector<Value> resIndices =
-            extractIndices(builder, loc, resXVec, resYVec, ivs[0],
+            extractIndices(builder, loc, resXVec, resYVec, iv,
                            outputColLastElemF32, outputRowLastElemF32, c0F32);
 
         auto ifop = builder.create<scf::IfOp>(
@@ -601,13 +601,13 @@ void affineTransformController(OpBuilder &builder, Location loc,
   inverseAffineMatrix(builder, loc, affineMatrix);
 
   Value m0Vec =
-      builder.create<vector::SplatOp>(loc, vectorTyF32, affineMatrix[0]);
+      builder.create<vector::BroadcastOp>(loc, vectorTyF32, affineMatrix[0]);
   Value m2Vec =
-      builder.create<vector::SplatOp>(loc, vectorTyF32, affineMatrix[2]);
+      builder.create<vector::BroadcastOp>(loc, vectorTyF32, affineMatrix[2]);
   Value m3Vec =
-      builder.create<vector::SplatOp>(loc, vectorTyF32, affineMatrix[3]);
+      builder.create<vector::BroadcastOp>(loc, vectorTyF32, affineMatrix[3]);
   Value m5Vec =
-      builder.create<vector::SplatOp>(loc, vectorTyF32, affineMatrix[5]);
+      builder.create<vector::BroadcastOp>(loc, vectorTyF32, affineMatrix[5]);
 
   //  get the output image dimensions
   int dimIndex = -1;
@@ -649,18 +649,18 @@ void affineTransformController(OpBuilder &builder, Location loc,
       loc, builder.getF32FloatAttr((float)(1 << RSV_BITS)));
   Value rsv_delta = builder.create<arith::ConstantOp>(
       loc, builder.getI32IntegerAttr(1 << (RSV_BITS - 1)));
-  Value c_rsvVec = builder.create<vector::SplatOp>(loc, vectorTyF32, c_rsv);
+  Value c_rsvVec = builder.create<vector::BroadcastOp>(loc, vectorTyF32, c_rsv);
   Value rsv_deltaVec =
-      builder.create<vector::SplatOp>(loc, vectorTyI32, rsv_delta);
+      builder.create<vector::BroadcastOp>(loc, vectorTyI32, rsv_delta);
 
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0Index}, builder.getDimIdentityMap(),
       ValueRange{outputColMultiple}, builder.getDimIdentityMap(), stride,
-      std::nullopt,
-      [&](OpBuilder &builderFor, Location locFor, ValueRange ivsFor,
+      ValueRange(),
+      [&](OpBuilder &builderFor, Location locFor, Value ivFor,
           ValueRange iterArg) {
-        Value delta = builderFor.create<vector::SplatOp>(
-            locFor, vectorTyF32, indexToF32(builderFor, locFor, ivsFor[0]));
+        Value delta = builderFor.create<vector::BroadcastOp>(
+            locFor, vectorTyF32, indexToF32(builderFor, locFor, ivFor));
         Value xVec =
             builderFor.create<arith::AddFOp>(locFor, xVecInitial, delta);
         Value x0xM0 = builderFor.create<arith::MulFOp>(locFor, xVec, m0Vec);
@@ -682,9 +682,9 @@ void affineTransformController(OpBuilder &builder, Location loc,
         Value x1addrsv_delta =
             builderFor.create<arith::AddIOp>(locFor, x1, rsv_deltaVec);
         builderFor.create<vector::StoreOp>(locFor, x0addrsv_delta, xMm0,
-                                           ValueRange{ivsFor[0]});
+                                           ValueRange{ivFor});
         builderFor.create<vector::StoreOp>(locFor, x1addrsv_delta, xMm3,
-                                           ValueRange{ivsFor[0]});
+                                           ValueRange{ivFor});
         builderFor.create<affine::AffineYieldOp>(locFor);
       });
 
@@ -711,7 +711,7 @@ void shearTransformController(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
-        Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
+        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs0F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
                              c0, stride);
 
@@ -751,7 +751,7 @@ void standardRotateController(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
-        Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
+        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs0F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
                              c0, stride);
 
@@ -783,25 +783,25 @@ void fillPixelsBilinearInterpolate(
     Value c1F32) {
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
-      builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
-      [&](OpBuilder &builder, Location loc, ValueRange ivs,
+      builder.getDimIdentityMap(), /*step*/ 1, ValueRange(),
+      [&](OpBuilder &builder, Location loc, Value iv,
           ValueRange iterArg) {
         std::vector<Value> resIndices =
-            extractIndices(builder, loc, resXVec, resYVec, ivs[0],
+            extractIndices(builder, loc, resXVec, resYVec, iv,
                            outputColLastElemF32, outputRowLastElemF32, c0F32);
 
         std::vector<Value> inputIndices_L =
-            extractIndices(builder, loc, xVec_L, yVec_L, ivs[0],
+            extractIndices(builder, loc, xVec_L, yVec_L, iv,
                            inputColLastElemF32, inputRowLastElemF32, c0F32);
         std::vector<Value> inputIndices_H =
-            extractIndices(builder, loc, xVec_H, yVec_H, ivs[0],
+            extractIndices(builder, loc, xVec_H, yVec_H, iv,
                            inputColLastElemF32, inputRowLastElemF32, c0F32);
 
         std::vector<Value> indexWeights;
         Value xPos_temp =
-            vector::ExtractOp::create(builder, loc, xVecWeight, ivs[0]);
+            vector::ExtractOp::create(builder, loc, xVecWeight, iv);
         Value yPos_temp =
-            vector::ExtractOp::create(builder, loc, yVecWeight, ivs[0]);
+            vector::ExtractOp::create(builder, loc, yVecWeight, iv);
 
         indexWeights.push_back(
             valBound(builder, loc, xPos_temp, inputColLastElemF32, c0F32));
@@ -870,25 +870,25 @@ void fillPixelsBilinearInterpolate4D(
     Value c1F32, Value dataCondition) {
   builder.create<affine::AffineForOp>(
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
-      builder.getDimIdentityMap(), /*step*/ 1, std::nullopt,
-      [&](OpBuilder &builder, Location loc, ValueRange ivs,
+      builder.getDimIdentityMap(), /*step*/ 1, ValueRange(),
+      [&](OpBuilder &builder, Location loc, Value iv,
           ValueRange iterArg) {
         std::vector<Value> resIndices =
-            extractIndices(builder, loc, resXVec, resYVec, ivs[0],
+            extractIndices(builder, loc, resXVec, resYVec, iv,
                            outputColLastElemF32, outputRowLastElemF32, c0F32);
 
         std::vector<Value> inputIndices_L =
-            extractIndices(builder, loc, xVec_L, yVec_L, ivs[0],
+            extractIndices(builder, loc, xVec_L, yVec_L, iv,
                            inputColLastElemF32, inputRowLastElemF32, c0F32);
         std::vector<Value> inputIndices_H =
-            extractIndices(builder, loc, xVec_H, yVec_H, ivs[0],
+            extractIndices(builder, loc, xVec_H, yVec_H, iv,
                            inputColLastElemF32, inputRowLastElemF32, c0F32);
 
         std::vector<Value> indexWeights;
         Value xPos_temp =
-            vector::ExtractOp::create(builder, loc, xVecWeight, ivs[0]);
+            vector::ExtractOp::create(builder, loc, xVecWeight, iv);
         Value yPos_temp =
-            vector::ExtractOp::create(builder, loc, yVecWeight, ivs[0]);
+            vector::ExtractOp::create(builder, loc, yVecWeight, iv);
 
         indexWeights.push_back(
             valBound(builder, loc, xPos_temp, inputColLastElemF32, c0F32));
@@ -1001,7 +1001,7 @@ void NearestNeighbourInterpolationResizing(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
-        Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
+        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs0F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
                              c0, stride);
 
@@ -1033,7 +1033,7 @@ void NearestNeighbourInterpolationResizing4D(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs2F32 = indexToF32(builder, loc, ivs[2]);
-        Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs2F32);
+        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs2F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[3], strideVal, vectorTy32,
                              c0, stride);
 
@@ -1065,7 +1065,7 @@ void BilinearInterpolationResizing(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
-        Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
+        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs0F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
                              c0, stride);
 
@@ -1107,7 +1107,7 @@ void BilinearInterpolationResizing4D(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[2]);
-        Value yVec = builder.create<vector::SplatOp>(loc, vectorTy32, ivs0F32);
+        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs0F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[3], strideVal, vectorTy32,
                              c0, stride);
 

@@ -119,14 +119,18 @@ add_mlir_python_common_capi_library(BuddyMLIRPythonCAPI
 ################################################################################
 link_directories(${LLVM_BINARY_DIR}/tools/mlir/python_packages/mlir_core/mlir/_mlir_libs/)
 
+# Only link BuddyMLIRPythonCAPI. It already aggregates MLIRPythonSources and
+# MLIRPythonExtension.Core (see add_mlir_python_common_capi_library above).
+# Linking MLIRPythonCAPI as well would load LLVM twice and trigger:
+# "CommandLine Error: Option 'print-inst-addrs' registered more than once!"
 add_mlir_python_modules(BuddyMLIRPythonModules
   ROOT_PREFIX "${BUDDY_BUILD_DIR}/python_packages/buddy_mlir"
   INSTALL_PREFIX "python_packages/buddy_mlir"
+  MLIR_BINDINGS_PYTHON_NB_DOMAIN "buddy_mlir"
   DECLARED_SOURCES
     BuddyMLIRPythonSources
     MLIRPythonSources
     MLIRPythonExtension.Core
   COMMON_CAPI_LINK_LIBS
     BuddyMLIRPythonCAPI
-    MLIRPythonCAPI
   )

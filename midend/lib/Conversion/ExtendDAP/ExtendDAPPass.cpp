@@ -252,13 +252,13 @@ Value initMelFilter(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
   // TODO : remove tomemref & totensor, and use insert to replace store. !!
   Value c391 = rewriter.create<ConstantIndexOp>(loc, 391);
   Value number, d1, d2;
-  // rewriter.create<scf::ForOp>(loc, c0, c391, c1, std::nullopt,
+  // rewriter.create<scf::ForOp>(loc, c0, c391, c1, ValueRange(),
   //     [&](OpBuilder &builder, Location loc, Value iv, ValueRange iargs) {
   //       number = builder.create<tensor::ExtractOp>(loc, melFilterData, iv);
   //       d1 = builder.create<tensor::ExtractOp>(loc, dim1Index, iv);
   //       d2 = builder.create<tensor::ExtractOp>(loc, dim2Index, iv);
   //       builder.create<memref::StoreOp>(loc, number, melFilterMemRef,
-  //       ValueRange{d1, d2}); builder.create<scf::YieldOp>(loc, std::nullopt);
+  //       ValueRange{d1, d2}); builder.create<scf::YieldOp>(loc, ValueRange());
   //     });
   auto loopOp = rewriter.create<scf::ForOp>(loc, c0, c391, c1);
   rewriter.setInsertionPointToStart(loopOp.getBody());
@@ -768,12 +768,12 @@ void printMemref(OpBuilder &rewriter, Location loc, Value input, int l) {
   rewriter.create<vector::PrintOp>(loc, "Print Start:\n");
 
   rewriter.create<scf::ForOp>(
-      loc, c0, length, c1, std::nullopt,
+      loc, c0, length, c1, ValueRange(),
       [&](OpBuilder &b, Location loc, Value i, ValueRange iargs) {
         Value x = b.create<memref::LoadOp>(loc, input, i);
         b.create<vector::PrintOp>(loc, x);
 
-        b.create<scf::YieldOp>(loc, std::nullopt);
+        b.create<scf::YieldOp>(loc, ValueRange());
       });
 
   rewriter.create<vector::PrintOp>(loc, "\n");
@@ -943,18 +943,18 @@ void radfgExtend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
   Value idl1 = opBuilder.create<arith::MulIOp>(loc, ido, l1);
 
   opBuilder.create<scf::ForOp>(
-      loc, c0, idl1, c1, std::nullopt,
+      loc, c0, idl1, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value ik, ValueRange ik_args) {
         Value c2ik0 = C2(builder, loc, cc, ik, c0, idl1);
         CH2w(builder, loc, ch, ik, c0, idl1, c2ik0);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   opBuilder.create<scf::ForOp>(
-      loc, c1, ipph, c1, std::nullopt,
+      loc, c1, ipph, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value j, ValueRange j_args) {
         builder.create<scf::ForOp>(
-            loc, c0, idl1, c1, std::nullopt,
+            loc, c0, idl1, c1, ValueRange(),
             [&](OpBuilder &b, Location loc, Value ik, ValueRange ik_args) {
               Value c2ikj = C2(b, loc, cc, ik, j, idl1);
               Value ch2ik0 = CH2(b, loc, ch, ik, c0, idl1);
@@ -962,23 +962,23 @@ void radfgExtend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
                   b.create<arith::AddFOp>(loc, ch2ik0, c2ikj);
 
               CH2w(b, loc, ch, ik, c0, idl1, ch2ik0_updated);
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   opBuilder.create<scf::ForOp>(
-      loc, c0, l1, c1, std::nullopt,
+      loc, c0, l1, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value k, ValueRange k_args) {
         builder.create<scf::ForOp>(
-            loc, c0, ido, c1, std::nullopt,
+            loc, c0, ido, c1, ValueRange(),
             [&](OpBuilder &b, Location loc, Value i, ValueRange i_args) {
               Value chik0 = CH_radfg(b, loc, ch, i, k, c0, ido, l1);
 
               CCw(b, loc, cc, i, c0, k, ido, cdim, chik0);
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value j_start_0 = opBuilder.create<ConstantIndexOp>(loc, 1);
@@ -996,7 +996,7 @@ void radfgExtend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
         Value j2p1 = builder.create<arith::AddIOp>(loc, j2, c1);
 
         builder.create<scf::ForOp>(
-            loc, c0, l1, c1, std::nullopt,
+            loc, c0, l1, c1, ValueRange(),
             [&](OpBuilder &b, Location loc, Value k, ValueRange k_args) {
               Value ch0kj = CH_radfg(b, loc, ch, c0, k, j, ido, l1);
               CCw(b, loc, cc, idom1, j2, k, ido, cdim, ch0kj);
@@ -1004,7 +1004,7 @@ void radfgExtend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
               Value ch0kjc = CH_radfg(b, loc, ch, c0, k, jc, ido, l1);
               CCw(b, loc, cc, c0, j2p1, k, ido, cdim, ch0kjc);
 
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
 
         Value j_next = builder.create<arith::AddIOp>(loc, j, c1);
@@ -1032,7 +1032,7 @@ void radfgExtend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
               Value j2p1 = b.create<arith::AddIOp>(loc, j2, c1);
 
               b.create<scf::ForOp>(
-                  loc, c0, l1, c1, std::nullopt,
+                  loc, c0, l1, c1, ValueRange(),
                   [&](OpBuilder &b2, Location loc, Value k, ValueRange k_args) {
                     Value i_start_0 = b2.create<ConstantIndexOp>(loc, 1);
                     Value ic_start_0 = b2.create<arith::SubIOp>(loc, ido, c3);
@@ -1073,14 +1073,14 @@ void radfgExtend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
                           b3.create<scf::YieldOp>(
                               loc, std::vector<Value>{i_next, ic_next});
                         });
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   });
 
               Value j_next = b.create<arith::AddIOp>(loc, j, c1);
               Value jc_next = b.create<arith::SubIOp>(loc, jc, c1);
               b.create<scf::YieldOp>(loc, std::vector<Value>{j_next, jc_next});
             });
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   return;
@@ -1128,7 +1128,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
               Value is2 = b.create<arith::MulIOp>(loc, jcm1, idom1);
 
               b.create<scf::ForOp>(
-                  loc, c0, l1, c1, std::nullopt,
+                  loc, c0, l1, c1, ValueRange(),
                   [&](OpBuilder &b2, Location loc, Value k, ValueRange k_args) {
                     Value idij_start = b2.create<arith::SubIOp>(loc, is, c0);
                     Value idij2_start = b2.create<arith::SubIOp>(loc, is2, c0);
@@ -1206,7 +1206,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
                           b3.create<scf::YieldOp>(
                               loc, std::vector<Value>{idij_next, idij2_next});
                         });
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   }
 
               );
@@ -1215,7 +1215,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
               b.create<scf::YieldOp>(loc, jc_next);
             });
 
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value jc_a_start = opBuilder.create<arith::SubIOp>(loc, ip, c1);
@@ -1226,7 +1226,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
         Value jc_a = j_a_args[0];
 
         builder.create<scf::ForOp>(
-            loc, c0, l1, c1, std::nullopt,
+            loc, c0, l1, c1, ValueRange(),
             [&](OpBuilder &b, Location loc, Value k_a, ValueRange k_a_args) {
               Value t1_a = C1(b, loc, cc, c0, k_a, j_a, ido, l1);
               Value t2_a = C1(b, loc, cc, c0, k_a, jc_a, ido, l1);
@@ -1236,7 +1236,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
 
               C1w(b, loc, cc, c0, k_a, j_a, ido, l1, tmp_a);
               C1w(b, loc, cc, c0, k_a, jc_a, ido, l1, tmp1_a);
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
 
         Value jc_a_next = builder.create<arith::SubIOp>(loc, jc_a, c1);
@@ -1251,7 +1251,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
         Value lc_b = l_b_args[0];
 
         builder.create<scf::ForOp>(
-            loc, c0, idl1, c1, std::nullopt,
+            loc, c0, idl1, c1, ValueRange(),
             [&](OpBuilder &b, Location loc, Value ik_b, ValueRange ik_b_args) {
               Value m2l = b.create<arith::MulIOp>(loc, l_b, c2);
               Value m4l = b.create<arith::MulIOp>(loc, l_b, c4);
@@ -1282,7 +1282,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
               Value tmp6_b = b.create<arith::AddFOp>(loc, tmp4_b, tmp5_b);
 
               CH2w(b, loc, ch, ik_b, lc_b, idl1, tmp6_b);
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
 
         Value iang_start_c = builder.create<arith::MulIOp>(loc, c2, l_b);
@@ -1317,7 +1317,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
               Value ai4 = AI(b, loc, csarr, iang_4_c);
 
               b.create<scf::ForOp>(
-                  loc, c0, idl1, c1, std::nullopt,
+                  loc, c0, idl1, c1, ValueRange(),
                   [&](OpBuilder &b2, Location loc, Value ik_c,
                       ValueRange ik_c_args) {
                     Value jp1 = b2.create<arith::AddIOp>(loc, j, c1);
@@ -1378,7 +1378,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
                         b2.create<arith::AddFOp>(loc, tmp_ai7, ch2iklc);
                     CH2w(b2, loc, ch, ik_c, lc_b, idl1, tmp_ai8);
 
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   });
 
               Value j_next = b.create<arith::AddIOp>(loc, j, c4);
@@ -1408,7 +1408,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
               Value ai2 = AI(b, loc, csarr, iang_2_d);
 
               b.create<scf::ForOp>(
-                  loc, c0, idl1, c1, std::nullopt,
+                  loc, c0, idl1, c1, ValueRange(),
                   [&](OpBuilder &b2, Location loc, Value ik_d,
                       ValueRange ik_d_args) {
                     Value jp1 = b2.create<arith::AddIOp>(loc, j, c1);
@@ -1442,7 +1442,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
                         b2.create<arith::AddFOp>(loc, tmp_ai3, ch2iklc);
                     CH2w(b2, loc, ch, ik_d, lc_b, idl1, tmp_ai4);
 
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   });
 
               Value j_next = b.create<arith::AddIOp>(loc, j, c2);
@@ -1468,7 +1468,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
               Value ai = AI(b, loc, csarr, iang_1_e);
 
               b.create<scf::ForOp>(
-                  loc, c0, idl1, c1, std::nullopt,
+                  loc, c0, idl1, c1, ValueRange(),
                   [&](OpBuilder &b2, Location loc, Value ik_e,
                       ValueRange ik_e_args) {
                     Value c2ikj = C2(b2, loc, cc, ik_e, j, idl1);
@@ -1484,7 +1484,7 @@ void radfg(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
                         b2.create<arith::AddFOp>(loc, tmp_ai, ch2iklc);
                     CH2w(b2, loc, ch, ik_e, lc_b, idl1, tmp2_ai);
 
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   });
 
               Value j_next = b.create<arith::AddIOp>(loc, j, c2);
@@ -1516,10 +1516,10 @@ void radf2Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
   // Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
 
   opBuilder.create<scf::ForOp>(
-      loc, c0, l1, c1, std::nullopt,
+      loc, c0, l1, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value k, ValueRange k_args) {
         builder.create<scf::ForOp>(
-            loc, c2, ido, c2, std::nullopt,
+            loc, c2, ido, c2, ValueRange(),
             [&](OpBuilder &b, Location loc, Value i, ValueRange i_args) {
               Value ic = b.create<arith::SubIOp>(loc, ido, i);
               Value icm1 = b.create<arith::SubIOp>(loc, ic, c1);
@@ -1543,9 +1543,9 @@ void radf2Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
 
               CH(b, loc, ch, i, c0, k, ido, cdim, ti2_ccik0[0]);
               CH(b, loc, ch, ic, c1, k, ido, cdim, ti2_ccik0[1]);
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 }
 
@@ -1567,14 +1567,14 @@ void radf2(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
 
   opBuilder.create<scf::ForOp>(
-      loc, c0, l1, c1, std::nullopt,
+      loc, c0, l1, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value iv, ValueRange iv_args) {
         Value cc0k0 = CC(builder, loc, cc, c0, iv, c0, ido, l1);
         Value cc0k1 = CC(builder, loc, cc, c0, iv, c1, ido, l1);
         std::vector<Value> cc0k0_cc0k1 = PM(builder, loc, cc0k0, cc0k1);
         CH(builder, loc, ch, c0, c0, iv, ido, cdim, cc0k0_cc0k1[0]);
         CH(builder, loc, ch, idom1, c1, iv, ido, cdim, cc0k0_cc0k1[1]);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value flag = opBuilder.create<arith::RemSIOp>(loc, ido, c2);
@@ -1584,16 +1584,16 @@ void radf2(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   opBuilder.create<scf::IfOp>(
       loc, condition, [&](OpBuilder &builder, Location loc) {
         builder.create<scf::ForOp>(
-            loc, c0, l1, c1, std::nullopt,
+            loc, c0, l1, c1, ValueRange(),
             [&](OpBuilder &b, Location loc, Value k, ValueRange k_args) {
               Value ccidom1k1 = CC(b, loc, cc, idom1, k, c1, ido, l1);
               Value tmp = b.create<arith::NegFOp>(loc, ccidom1k1);
               CH(b, loc, ch, c0, c1, k, ido, cdim, tmp);
               Value ccidom1k0 = CC(b, loc, cc, idom1, k, c0, ido, l1);
               CH(b, loc, ch, idom1, c0, k, ido, cdim, ccidom1k0);
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value condition1 =
@@ -1601,7 +1601,7 @@ void radf2(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   opBuilder.create<scf::IfOp>(
       loc, condition1, [&](OpBuilder &builder, Location loc) {
         radf2Extend(builder, loc, cc, ch, wa, ido, l1, cdim);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 }
 
@@ -1622,10 +1622,10 @@ void radf3Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
   // Value c4 = opBuilder.create<ConstantIndexOp>(loc, 4);
 
   opBuilder.create<scf::ForOp>(
-      loc, c0, l1, c1, std::nullopt,
+      loc, c0, l1, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value k, ValueRange k_args) {
         builder.create<scf::ForOp>(
-            loc, c2, ido, c2, std::nullopt,
+            loc, c2, ido, c2, ValueRange(),
             [&](OpBuilder &b, Location loc, Value i, ValueRange i_args) {
               Value ic = b.create<arith::SubIOp>(loc, ido, i);
               Value icm1 = b.create<arith::SubIOp>(loc, ic, c1);
@@ -1679,9 +1679,9 @@ void radf3Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
               CH(builder, loc, ch, i, c2, k, ido, cdim, ti3_ti2[0]);
               CH(builder, loc, ch, ic, c1, k, ido, cdim, ti3_ti2[1]);
 
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 }
 
@@ -1706,7 +1706,7 @@ void radf3(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
 
   opBuilder.create<scf::ForOp>(
-      loc, c0, l1, c1, std::nullopt,
+      loc, c0, l1, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value iv, ValueRange iv_args) {
         Value cc0k1 = CC(builder, loc, cc, c0, iv, c1, ido, l1);
         Value cc0k2 = CC(builder, loc, cc, c0, iv, c2, ido, l1);
@@ -1724,7 +1724,7 @@ void radf3(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
         Value tmp4 = builder.create<arith::AddFOp>(loc, tmp3, cc0k0);
         CH(builder, loc, ch, idom1, c1, iv, ido, cdim, tmp4);
 
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value condition =
@@ -1732,7 +1732,7 @@ void radf3(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   opBuilder.create<scf::IfOp>(
       loc, condition, [&](OpBuilder &builder, Location loc) {
         radf3Extend(builder, loc, cc, ch, wa, ido, l1, cdim);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 }
 
@@ -1740,10 +1740,10 @@ void radf4Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
                  Value wa, Value ido, Value l1, Value cdim, Value c0, Value c1,
                  Value c2, Value c3) {
   opBuilder.create<scf::ForOp>(
-      loc, c0, l1, c1, std::nullopt,
+      loc, c0, l1, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value k, ValueRange kargs) {
         builder.create<scf::ForOp>(
-            loc, c2, ido, c2, std::nullopt,
+            loc, c2, ido, c2, ValueRange(),
             [&](OpBuilder &b, Location loc, Value i, ValueRange iargs) {
               Value ic = b.create<arith::SubIOp>(loc, ido, i);
               Value icm1 = b.create<arith::SubIOp>(loc, ic, c1);
@@ -1794,10 +1794,10 @@ void radf4Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
               CH(b, loc, ch, i, c2, k, ido, cdim, chtmp3[0]);
               CH(b, loc, ch, ic, c1, k, ido, cdim, chtmp3[1]);
 
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
 
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   return;
@@ -1813,7 +1813,7 @@ void radf4(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
 
   opBuilder.create<scf::ForOp>(
-      loc, c0, l1, c1, std::nullopt,
+      loc, c0, l1, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value iv, ValueRange iargs) {
         Value cc0k3 = CC(builder, loc, cc, c0, iv, c3, ido, l1);
         Value cc0k1 = CC(builder, loc, cc, c0, iv, c1, ido, l1);
@@ -1830,7 +1830,7 @@ void radf4(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
         CH(builder, loc, ch, c0, c0, iv, ido, cdim, tmp2_tmp3[0]);
         CH(builder, loc, ch, idom1, c3, iv, ido, cdim, tmp2_tmp3[1]);
 
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value reminder = opBuilder.create<arith::RemSIOp>(loc, ido, c2);
@@ -1842,7 +1842,7 @@ void radf4(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
             loc, f64Ty, APFloat(double(-0.70710678118654752440)));
 
         builder.create<scf::ForOp>(
-            loc, c0, l1, c1, std::nullopt,
+            loc, c0, l1, c1, ValueRange(),
             [&](OpBuilder &b, Location loc, Value iv, ValueRange iargs) {
               Value ccidom1k1 = CC(b, loc, cc, idom1, iv, c1, ido, l1);
               Value ccidom1k3 = CC(b, loc, cc, idom1, iv, c3, ido, l1);
@@ -1862,10 +1862,10 @@ void radf4(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
               CH(b, loc, ch, c0, c3, iv, ido, cdim, tmp4_tmp5[0]);
               CH(b, loc, ch, c0, c1, iv, ido, cdim, tmp4_tmp5[1]);
 
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
 
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value condition1 =
@@ -1873,7 +1873,7 @@ void radf4(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   opBuilder.create<scf::IfOp>(
       loc, condition1, [&](OpBuilder &builder, Location loc) {
         radf4Extend(builder, loc, cc, ch, wa, ido, l1, cdim, c0, c1, c2, c3);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   return;
@@ -1884,10 +1884,10 @@ void radf5Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
                  Value tr12, Value ti11, Value ti12, Value c0, Value c1,
                  Value c2, Value c3, Value c4) {
   opBuilder.create<scf::ForOp>(
-      loc, c0, l1, c1, std::nullopt,
+      loc, c0, l1, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value k, ValueRange kargs) {
         builder.create<scf::ForOp>(
-            loc, c2, ido, c2, std::nullopt,
+            loc, c2, ido, c2, ValueRange(),
             [&](OpBuilder &b, Location loc, Value i, ValueRange iargs) {
               Value ic = b.create<arith::SubIOp>(loc, ido, i);
               Value icm1 = b.create<arith::SubIOp>(loc, ic, c1);
@@ -1978,10 +1978,10 @@ void radf5Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
               CH(b, loc, ch, i, c4, k, ido, cdim, chtmp3[0]);
               CH(b, loc, ch, ic, c3, k, ido, cdim, chtmp3[1]);
 
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
 
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   return;
@@ -2005,7 +2005,7 @@ void radf5(OpBuilder &builder, Location loc, Value cc, Value ch, Value wa,
   Value idom1 = builder.create<arith::SubIOp>(loc, ido, c1);
 
   builder.create<scf::ForOp>(
-      loc, c0, l1, c1, std::nullopt,
+      loc, c0, l1, c1, ValueRange(),
       [&](OpBuilder &b, Location loc, Value iv, ValueRange iargs) {
         Value cc0k4 = CC(b, loc, cc, c0, iv, c4, ido, l1);
         Value cc0k1 = CC(b, loc, cc, c0, iv, c1, ido, l1);
@@ -2042,7 +2042,7 @@ void radf5(OpBuilder &builder, Location loc, Value cc, Value ch, Value wa,
         Value ch4 = b.create<arith::SubFOp>(loc, tmpch9, tmpch10);
         CH(b, loc, ch, c0, c4, iv, ido, cdim, ch4);
 
-        b.create<scf::YieldOp>(loc, std::nullopt);
+        b.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value condition =
@@ -2050,7 +2050,7 @@ void radf5(OpBuilder &builder, Location loc, Value cc, Value ch, Value wa,
   builder.create<scf::IfOp>(loc, condition, [&](OpBuilder &b, Location loc) {
     radf5Extend(b, loc, cc, ch, wa, ido, l1, cdim, tr11, tr12, ti11, ti12, c0,
                 c1, c2, c3, c4);
-    b.create<scf::YieldOp>(loc, std::nullopt);
+    b.create<scf::YieldOp>(loc, ValueRange());
   });
 
   return;
@@ -2147,7 +2147,7 @@ Value rfftp_factorize(OpBuilder &opBuilder, Location loc,
         Value nfctm1 = builder.create<arith::SubIOp>(loc, currnet_nfct_1, c1);
         index_SWAP(builder, loc, Rfftp_fctdata_fct, nfctm1, c0);
 
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   // TODO: remove type1 and type2?
@@ -2242,7 +2242,7 @@ Value rfftp_factorize(OpBuilder &opBuilder, Location loc,
                   b.create<arith::AddIOp>(loc, maxl_index_index_1, c1);
               b.create<memref::StoreOp>(loc, maxl_final_1, maxl, c0);
 
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
 
         Value divisor_next = builder.create<arith::AddIOp>(loc, divisor, c2);
@@ -2258,7 +2258,7 @@ Value rfftp_factorize(OpBuilder &opBuilder, Location loc,
         builder.create<memref::StoreOp>(loc, current_length1, Rfftp_fctdata_fct,
                                         current_nfct);
         index_increment(builder, loc, nfct);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value current_nfct1 = opBuilder.create<memref::LoadOp>(loc, nfct, c0);
@@ -2409,7 +2409,7 @@ void calc_first_octant_extend2(OpBuilder &opBuilder, Location loc, Value den,
   Value l1 = f64_to_index(opBuilder, loc, l1_f64);
 
   opBuilder.create<scf::ForOp>(
-      loc, c1, l1, c1, std::nullopt,
+      loc, c1, l1, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value i, ValueRange iargs) {
         Value i_f64 = index_to_f64(builder, loc, i);
         Value den_f64 = index_to_f64(builder, loc, den);
@@ -2420,13 +2420,13 @@ void calc_first_octant_extend2(OpBuilder &opBuilder, Location loc, Value den,
         Value im2_bias = builder.create<arith::AddIOp>(loc, im2, bias);
 
         my_sincosm1pi(builder, loc, arg_scaled, res, im2_bias);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value start_start = opBuilder.create<arith::AddIOp>(loc, l1, c0);
 
   opBuilder.create<scf::ForOp>(
-      loc, start_start, n, l1, std::nullopt,
+      loc, start_start, n, l1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value start_loop,
           ValueRange start_loop_args) {
         Value start_f64 = index_to_f64(builder, loc, start_loop);
@@ -2457,7 +2457,7 @@ void calc_first_octant_extend2(OpBuilder &opBuilder, Location loc, Value den,
                                                     n_minus_start, end_1);
 
         builder.create<scf::ForOp>(
-            loc, c1, end, c1, std::nullopt,
+            loc, c1, end, c1, ValueRange(),
             [&](OpBuilder &b, Location loc, Value i, ValueRange i_args) {
               Value i_2 = b.create<arith::MulIOp>(loc, i, c2);
               Value csx0 = b.create<memref::LoadOp>(loc, res_raw, i_2);
@@ -2485,21 +2485,21 @@ void calc_first_octant_extend2(OpBuilder &opBuilder, Location loc, Value den,
               b.create<memref::StoreOp>(loc, res_real, res_raw, start_plus_i_2);
               b.create<memref::StoreOp>(loc, res_imag, res_raw,
                                         start_plus_i_2_plus_1);
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
 
         builder.create<memref::DeallocOp>(loc, cs);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   opBuilder.create<scf::ForOp>(
-      loc, c1, l1, c1, std::nullopt,
+      loc, c1, l1, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value i, ValueRange i_args) {
         Value i_2 = builder.create<arith::MulIOp>(loc, i, c2);
         Value val = builder.create<memref::LoadOp>(loc, res_raw, i_2);
         Value val_plus_1 = builder.create<arith::AddFOp>(loc, val, f1);
         builder.create<memref::StoreOp>(loc, val_plus_1, res_raw, i_2);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   return;
@@ -2549,7 +2549,7 @@ void calc_first_octant_extend1(OpBuilder &opBuilder, Location loc, Value den,
   opBuilder.create<scf::IfOp>(
       loc, condition, [&](OpBuilder &builder, Location loc) {
         calc_first_octant_extend2(builder, loc, den, res, bias);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 }
 
@@ -2572,7 +2572,7 @@ void calc_first_octant(OpBuilder &opBuilder, Location loc, Value den, Value res,
   opBuilder.create<scf::IfOp>(
       loc, condition, [&](OpBuilder &builder, Location loc) {
         calc_first_octant_extend1(builder, loc, den, res, bias);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 }
 
@@ -2666,7 +2666,7 @@ void calc_first_quadrant(OpBuilder &opBuilder, Location loc, Value n,
         Value p_val_1 = builder.create<memref::LoadOp>(loc, p_raw, p_2i_plus_1);
         Value idx1_plus_1 = builder.create<arith::AddIOp>(loc, idx1_v, c1);
         builder.create<memref::StoreOp>(loc, p_val_1, res, idx1_plus_1);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   return;
@@ -2894,7 +2894,7 @@ void fill_first_quadrant(OpBuilder &opBuilder, Location loc, Value n,
         Value quart_plus_1 = builder.create<arith::AddIOp>(loc, quart, c1);
         builder.create<memref::StoreOp>(loc, hsqt2, res, quart);
         builder.create<memref::StoreOp>(loc, hsqt2, res, quart_plus_1);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value two_quart = opBuilder.create<arith::MulIOp>(loc, quart, c2);
@@ -2944,7 +2944,7 @@ void fill_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
       loc, condition,
       [&](OpBuilder &builder, Location loc) {
         builder.create<scf::ForOp>(
-            loc, c0, half, c2, std::nullopt,
+            loc, c0, half, c2, ValueRange(),
             [&](OpBuilder &b, Location loc, Value i, ValueRange i_args) {
               Value i_plus_1 = b.create<arith::AddIOp>(loc, i, c1);
               Value i_plus_half = b.create<arith::AddIOp>(loc, i, half);
@@ -2959,9 +2959,9 @@ void fill_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
               b.create<memref::StoreOp>(loc, neg_val_i_plus_1, res,
                                         i_plus_half);
               b.create<memref::StoreOp>(loc, val_i, res, i_plus_half_plus_1);
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       },
       [&](OpBuilder &builder, Location loc) {
         Value two_half_minus_2 = builder.create<arith::SubIOp>(loc, half, c1);
@@ -2984,7 +2984,7 @@ void fill_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
               b.create<scf::YieldOp>(loc, j_next);
             });
 
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   return;
@@ -3013,7 +3013,7 @@ void sincos_2pibyn_half(OpBuilder &opBuilder, Location loc, Value n,
 
         fill_first_quadrant(builder, loc, n, res);
         fill_first_half(builder, loc, n, res);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       },
       [&](OpBuilder &builder, Location loc) {
         // TODO: remove the following values?
@@ -3028,13 +3028,13 @@ void sincos_2pibyn_half(OpBuilder &opBuilder, Location loc, Value n,
             [&](OpBuilder &b, Location loc) {
               calc_first_quadrant(b, loc, n, res);
               fill_first_half(b, loc, n, res);
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             },
             [&](OpBuilder &b, Location loc) {
               calc_first_half(b, loc, n, res);
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 }
 
@@ -3086,10 +3086,10 @@ Value rfftp_comp_twiddle(OpBuilder &opBuilder, Location loc, Value length,
               Value ido_m1_d2_p1 = b.create<arith::AddIOp>(loc, ido_m1_d2, c1);
 
               b.create<scf::ForOp>(
-                  loc, c1, ip, c1, std::nullopt,
+                  loc, c1, ip, c1, ValueRange(),
                   [&](OpBuilder &b2, Location loc, Value j, ValueRange j_args) {
                     b2.create<scf::ForOp>(
-                        loc, c1, ido_m1_d2_p1, c1, std::nullopt,
+                        loc, c1, ido_m1_d2_p1, c1, ValueRange(),
                         [&](OpBuilder &b3, Location loc, Value i,
                             ValueRange i_args) {
                           Value j2 = b3.create<arith::MulIOp>(loc, j, c2);
@@ -3123,12 +3123,12 @@ Value rfftp_comp_twiddle(OpBuilder &opBuilder, Location loc, Value length,
                           b3.create<memref::StoreOp>(loc, twid_a, fct_k, tw_a);
                           b3.create<memref::StoreOp>(loc, twid_b, fct_k, tw_b);
 
-                          b3.create<scf::YieldOp>(loc, std::nullopt);
+                          b3.create<scf::YieldOp>(loc, ValueRange());
                         });
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   });
 
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
 
         Value condition2 = builder.create<arith::CmpIOp>(
@@ -3149,7 +3149,7 @@ Value rfftp_comp_twiddle(OpBuilder &opBuilder, Location loc, Value length,
               Value ip_div_2_p1 = b.create<arith::AddIOp>(loc, ip_div_2, c1);
 
               b.create<scf::ForOp>(
-                  loc, c1, ip_div_2_p1, c1, std::nullopt,
+                  loc, c1, ip_div_2_p1, c1, ValueRange(),
                   [&](OpBuilder &b2, Location loc, Value i, ValueRange i_args) {
                     Value i2 = b2.create<arith::MulIOp>(loc, i, c2);
                     Value i2_p1 = b2.create<arith::AddIOp>(loc, i2, c1);
@@ -3176,10 +3176,10 @@ Value rfftp_comp_twiddle(OpBuilder &opBuilder, Location loc, Value length,
                     b2.create<memref::StoreOp>(loc, twid_b, fct_k, i2_p1);
                     b2.create<memref::StoreOp>(loc, twid_c, fct_k, ip_m_i_2);
                     b2.create<memref::StoreOp>(loc, twid_d, fct_k, ip_m_i_2_p1);
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   });
 
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
 
         Value l1_next = builder.create<arith::MulIOp>(loc, l1, ip);
@@ -3230,7 +3230,7 @@ std::vector<Value> make_rfftp_plan(OpBuilder &opBuilder, Location loc,
   opBuilder.create<memref::StoreOp>(loc, c0, Rfftp_plan_nfct, c0);
 
   opBuilder.create<scf::ForOp>(
-      loc, c0, NFCT, c1, std::nullopt,
+      loc, c0, NFCT, c1, ValueRange(),
       [&](OpBuilder &builder, Location loc, Value i, ValueRange iargs) {
         builder.create<memref::StoreOp>(loc, c0, Rfftp_fctdata_fct, i);
 
@@ -3241,7 +3241,7 @@ std::vector<Value> make_rfftp_plan(OpBuilder &opBuilder, Location loc,
             loc, type1, /*dynamicOperands=*/length_2);
         builder.create<memref::StoreOp>(loc, tws_i, Rfftp_fctdata_tws, i);
 
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   Value condition = opBuilder.create<arith::CmpIOp>(
@@ -3257,7 +3257,7 @@ std::vector<Value> make_rfftp_plan(OpBuilder &opBuilder, Location loc,
         rfftp_comp_twiddle(builder, loc, length, Rfftp_fctdata_fct,
                            Rfftp_fctdata_tw, Rfftp_fctdata_tws,
                            Rfftp_plan_length, Rfftp_plan_nfct, Rfftp_plan_mem);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 
   return {Rfftp_fctdata_fct, Rfftp_fctdata_tw, Rfftp_fctdata_tws,
@@ -3276,14 +3276,14 @@ void memref_SWAP(OpBuilder &opBuilder, Location loc, Value p, Value p1) {
   Value length = opBuilder.create<memref::DimOp>(loc, p, c0);
 
   opBuilder.create<scf::ForOp>(
-      loc, c0, length, c1, std::nullopt,
+      loc, c0, length, c1, ValueRange(),
       [&](OpBuilder builder, Location loc, Value i, ValueRange i_args) {
         Value val_p = builder.create<memref::LoadOp>(loc, p, i);
         Value val_p1 = builder.create<memref::LoadOp>(loc, p1, i);
 
         builder.create<memref::StoreOp>(loc, val_p, p1, i);
         builder.create<memref::StoreOp>(loc, val_p1, p, i);
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 }
 
@@ -3324,26 +3324,26 @@ void copy_and_norm(OpBuilder &opBuilder, Location loc, Value c, Value p1,
             loc, condition1,
             [&](OpBuilder &b, Location loc) {
               b.create<scf::ForOp>(
-                  loc, c0, n, c1, std::nullopt,
+                  loc, c0, n, c1, ValueRange(),
                   [&](OpBuilder b2, Location loc, Value i, ValueRange i_args) {
                     Value p1_i = b2.create<memref::LoadOp>(loc, p1, i);
                     Value v = b2.create<arith::MulFOp>(loc, fct, p1_i);
                     b2.create<memref::StoreOp>(loc, v, c, i);
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   });
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             },
             [&](OpBuilder &b, Location loc) {
               b.create<scf::ForOp>(
-                  loc, c0, n, c1, std::nullopt,
+                  loc, c0, n, c1, ValueRange(),
                   [&](OpBuilder b2, Location loc, Value i, ValueRange i_args) {
                     Value val = b2.create<memref::LoadOp>(loc, p1, i);
                     b2.create<memref::StoreOp>(loc, val, c, i);
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   });
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       },
       [&](OpBuilder &builder, Location loc) {
         Value condition2 = builder.create<arith::CmpFOp>(
@@ -3351,16 +3351,16 @@ void copy_and_norm(OpBuilder &opBuilder, Location loc, Value c, Value p1,
         builder.create<scf::IfOp>(
             loc, condition2, [&](OpBuilder &b, Location loc) {
               b.create<scf::ForOp>(
-                  loc, c0, n, c1, std::nullopt,
+                  loc, c0, n, c1, ValueRange(),
                   [&](OpBuilder &b2, Location loc, Value i, ValueRange i_args) {
                     Value c_i = b2.create<memref::LoadOp>(loc, c, i);
                     Value newC = b2.create<arith::MulFOp>(loc, fct, c_i);
                     b2.create<memref::StoreOp>(loc, newC, c, i);
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   });
-              b.create<scf::YieldOp>(loc, std::nullopt);
+              b.create<scf::YieldOp>(loc, ValueRange());
             });
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 }
 
@@ -3438,7 +3438,7 @@ void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
                   loc, condition1,
                   [&](OpBuilder &b2, Location loc) {
                     radf4(b2, loc, p1_raw, p2_raw, tw, ido, l1, c0, c1, c2, c3);
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   },
                   [&](OpBuilder &b2, Location loc) {
                     Value condition2 = b2.create<arith::CmpIOp>(
@@ -3447,7 +3447,7 @@ void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
                         loc, condition2,
                         [&](OpBuilder &b3, Location loc) {
                           radf2(b3, loc, p1_raw, p2_raw, tw, ido, l1);
-                          b3.create<scf::YieldOp>(loc, std::nullopt);
+                          b3.create<scf::YieldOp>(loc, ValueRange());
                         },
                         [&](OpBuilder &b3, Location loc) {
                           Value condition3 = b3.create<arith::CmpIOp>(
@@ -3456,7 +3456,7 @@ void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
                               loc, condition3,
                               [&](OpBuilder &b4, Location loc) {
                                 radf3(b4, loc, p1_raw, p2_raw, tw, ido, l1);
-                                b4.create<scf::YieldOp>(loc, std::nullopt);
+                                b4.create<scf::YieldOp>(loc, ValueRange());
                               },
                               [&](OpBuilder &b4, Location loc) {
                                 Value condition4 = b4.create<arith::CmpIOp>(
@@ -3467,7 +3467,7 @@ void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
                                       radf5(b5, loc, p1_raw, p2_raw, tw, ido,
                                             l1, c0, c1, c2, c3, c4);
                                       b5.create<scf::YieldOp>(loc,
-                                                              std::nullopt);
+                                                              ValueRange());
                                     },
                                     [&](OpBuilder &b5, Location loc) {
                                       Value tws = b5.create<memref::LoadOp>(
@@ -3477,15 +3477,15 @@ void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
                                       memref_SWAP(b5, loc, p1_raw, p2_raw);
                                       flag_SWAP(b5, loc, flag);
                                       b5.create<scf::YieldOp>(loc,
-                                                              std::nullopt);
+                                                              ValueRange());
                                     });
-                                b4.create<scf::YieldOp>(loc, std::nullopt);
+                                b4.create<scf::YieldOp>(loc, ValueRange());
                               });
-                          b3.create<scf::YieldOp>(loc, std::nullopt);
+                          b3.create<scf::YieldOp>(loc, ValueRange());
                         }
 
                     );
-                    b2.create<scf::YieldOp>(loc, std::nullopt);
+                    b2.create<scf::YieldOp>(loc, ValueRange());
                   });
 
               memref_SWAP(b, loc, p1_raw, p2_raw);
@@ -3496,7 +3496,7 @@ void rfftp_forward(OpBuilder &opBuilder, Location loc, Value Rfftp_fctdata_fct,
 
         copy_and_norm(builder, loc, c, p1_raw, n, fct, flag);
 
-        builder.create<scf::YieldOp>(loc, std::nullopt);
+        builder.create<scf::YieldOp>(loc, ValueRange());
       });
 }
 

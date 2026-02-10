@@ -169,7 +169,7 @@ public:
 
             // Tail processing.
             builder.create<scf::ForOp>(
-                loc, nIterIdx.getResult(0), n, c1, std::nullopt,
+                loc, nIterIdx.getResult(0), n, c1, ValueRange(),
                 [&](OpBuilder &builder, Location loc, Value iv,
                     ValueRange iterArgs) {
                   SmallVector<Value> sumInits;
