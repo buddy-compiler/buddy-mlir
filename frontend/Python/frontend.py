@@ -78,13 +78,6 @@ class DynamoCompiler:
         imported_params: The imported parameters from the model.
     """
 
-    @staticmethod
-    def _sanitize_decompositions(
-        decompositions: Optional[dict],
-    ) -> Optional[dict]:
-        """Keep default decomposition table unchanged."""
-        return decompositions
-
     def __init__(
         self,
         func_name: str = "forward",
@@ -123,9 +116,7 @@ class DynamoCompiler:
         if primary_registry is None:
             primary_registry = {}
         self._func_name = func_name
-        self._aot_autograd_decomposition = self._sanitize_decompositions(
-            aot_autograd_decomposition
-        )
+        self._aot_autograd_decomposition = aot_autograd_decomposition
         self._verbose = verbose
         self._enable_external_calls = enable_external_calls
         self._imported_graphs = []
@@ -713,27 +704,6 @@ class DynamoCompiler:
             case _:
                 raise NotImplementedError(f"Unsupported dtype: {dtype}")
 
-    def _infer_meta_from_value(self, value):
-        """Infer scalar/tensor metadata from FX `val` when tensor_meta is absent."""
-        if isinstance(value, torch.Tensor):
-            return value.shape, self._torch_dtype_translate(str(value.dtype))
-
-        if isinstance(value, bool):
-            return [], TensorDType.Bool
-
-        sym_int_type = getattr(torch, "SymInt", None)
-        if sym_int_type is not None and isinstance(value, sym_int_type):
-            return [], TensorDType.Int64
-
-        sym_bool_type = getattr(torch, "SymBool", None)
-        if sym_bool_type is not None and isinstance(value, sym_bool_type):
-            return [], TensorDType.Bool
-
-        if isinstance(value, int):
-            return [], TensorDType.Int64
-
-        return None
-
     def _infer_meta_from_schema(self, schema):
         """Infer scalar metadata from op schema when runtime value is unavailable."""
         if schema is None or len(getattr(schema, "returns", ())) != 1:
@@ -753,6 +723,54 @@ class DynamoCompiler:
         if scalar_candidate in self._ops_map:
             return scalar_candidate
         return node_name
+
+    def _infer_unbind_output_meta(self, gm_node):
+        input_node = gm_node.args[0]
+        dim = gm_node.args[1] if len(gm_node.args) > 1 else 0
+        input_meta = input_node.meta.get("tensor_meta")
+        input_val = input_node.meta.get("val")
+        if input_meta is None:
+            if not isinstance(input_val, torch.Tensor):
+                raise RuntimeError("Missing input meta for aten.unbind.int")
+            input_shape = list(input_val.shape)
+            input_dtype = input_val.dtype
+        else:
+            input_shape = list(input_meta.shape)
+            input_dtype = input_meta.dtype
+        if dim < 0:
+            dim += len(input_shape)
+        length = input_shape[dim]
+        if length < 0:
+            raise RuntimeError("Dynamic unbind dimension not supported")
+        out_shape = tuple(input_shape[:dim] + input_shape[dim + 1 :])
+        node_shape = tuple([out_shape] * length)
+        node_dtype = tuple(
+            [self._torch_dtype_translate(str(input_dtype))] * length
+        )
+        return node_shape, node_dtype
+
+    def _resolve_single_output_meta(self, gm_node, tensor_meta, schema):
+        if tensor_meta is not None:
+            node_dtype = self._torch_dtype_translate(str(tensor_meta.dtype))
+            return tensor_meta.shape, node_dtype
+        if str(gm_node.target) == "aten.unbind.int":
+            return self._infer_unbind_output_meta(gm_node)
+        inferred = self._infer_meta_from_schema(schema)
+        if inferred is None:
+            raise RuntimeError(f"Missing tensor_meta for {gm_node.target}")
+        return inferred
+
+    def _extract_tensor_out_kwarg_names(self, target) -> List[str]:
+        out_kwarg_names: List[str] = []
+        schema = getattr(target, "_schema", None)
+        if schema is None:
+            return out_kwarg_names
+        for arg in getattr(schema, "arguments", ()):
+            if getattr(arg, "is_out", False):
+                arg_type = str(getattr(arg, "type", "")).lower()
+                if "tensor" in arg_type:
+                    out_kwarg_names.append(arg.name)
+        return out_kwarg_names
 
     def _create_node(
         self,
@@ -817,7 +835,6 @@ class DynamoCompiler:
         self,
         gm: torch.fx.GraphModule,
         inputs: List[torch.Tensor],
-        *,
         return_type: str = "eager",
     ) -> Any:
         """
@@ -915,16 +932,13 @@ class DynamoCompiler:
                 for user in gm_node.users.keys():
                     node_users.append(str(user))
 
-                # TorchDynamo dynamic-output-shape capture inserts symbolic shape
-                # constraint nodes that do not contribute to program outputs.
-                # Buddy does not model their side effects, so ignore them to
-                # avoid spurious "missing_lowering" failures in coverage.
-                target_str = str(getattr(gm_node, "target", ""))
-                if target_str in (
-                    "aten.sym_constrain_range_for_size.default",
-                    "aten._assert_scalar.default",
-                ):
-                    continue
+                if gm_node.op == "call_function":
+                    schema = getattr(gm_node.target, "_schema", None)
+                    if (
+                        schema is not None
+                        and len(getattr(schema, "returns", ())) == 0
+                    ):
+                        continue
                 if gm_node.op == "placeholder":
                     node_dtype = self._torch_dtype_translate(
                         str(gm_node.meta["tensor_meta"].dtype)
@@ -981,6 +995,7 @@ class DynamoCompiler:
                             raise NotImplementedError(
                                 "Unsupported _tensor_constant format"
                             )
+
                         gm_node.insert_arg(len(gm_node.args), value)
                         val = gm_node.meta.get("val")
                         node_shape = val.shape
@@ -1009,60 +1024,11 @@ class DynamoCompiler:
                         )
                     )
                     if num_returns == 1:
-                        if tensor_meta is None:
-                            inferred = self._infer_meta_from_value(val)
-                            if inferred is not None:
-                                node_shape, node_dtype = inferred
-                            elif str(gm_node.target) == "aten.unbind.int":
-                                input_node = gm_node.args[0]
-                                dim = (
-                                    gm_node.args[1]
-                                    if len(gm_node.args) > 1
-                                    else 0
-                                )
-                                input_meta = input_node.meta.get("tensor_meta")
-                                input_val = input_node.meta.get("val")
-                                if input_meta is None:
-                                    if not isinstance(input_val, torch.Tensor):
-                                        raise RuntimeError(
-                                            "Missing input meta for aten.unbind.int"
-                                        )
-                                    input_shape = list(input_val.shape)
-                                    input_dtype = input_val.dtype
-                                else:
-                                    input_shape = list(input_meta.shape)
-                                    input_dtype = input_meta.dtype
-                                if dim < 0:
-                                    dim += len(input_shape)
-                                length = input_shape[dim]
-                                if length < 0:
-                                    raise RuntimeError(
-                                        "Dynamic unbind dimension not supported"
-                                    )
-                                out_shape = tuple(
-                                    input_shape[:dim] + input_shape[dim + 1 :]
-                                )
-                                node_shape = tuple([out_shape] * length)
-                                node_dtype = tuple(
-                                    [
-                                        self._torch_dtype_translate(
-                                            str(input_dtype)
-                                        )
-                                    ]
-                                    * length
-                                )
-                            else:
-                                inferred = self._infer_meta_from_schema(schema)
-                                if inferred is None:
-                                    raise RuntimeError(
-                                        f"Missing tensor_meta for {gm_node.target}"
-                                    )
-                                node_shape, node_dtype = inferred
-                        else:
-                            node_dtype = self._torch_dtype_translate(
-                                str(tensor_meta.dtype)
+                        node_shape, node_dtype = (
+                            self._resolve_single_output_meta(
+                                gm_node, tensor_meta, schema
                             )
-                            node_shape = tensor_meta.shape
+                        )
                     elif num_returns > 1:
                         node_dtype = tuple(
                             [
@@ -1087,15 +1053,9 @@ class DynamoCompiler:
                         node_kwargs=gm_node.kwargs,
                     )
                     buddy_node._torch_op = str(gm_node.target.__name__)
-                    out_kwarg_names: List[str] = []
-                    schema = getattr(gm_node.target, "_schema", None)
-                    if schema is not None:
-                        for arg in getattr(schema, "arguments", ()):
-                            if getattr(arg, "is_out", False):
-                                t = str(getattr(arg, "type", "")).lower()
-                                if "tensor" in t:
-                                    out_kwarg_names.append(arg.name)
-                    buddy_node._torch_out_kwarg_names = out_kwarg_names
+                    buddy_node._torch_out_kwarg_names = (
+                        self._extract_tensor_out_kwarg_names(gm_node.target)
+                    )
                 graph.add_node(buddy_node)
             transform_list = [
                 maxpool2d_simplify,
