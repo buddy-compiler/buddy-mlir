@@ -47,21 +47,7 @@ from .ops.func import ops_registry as func_ops_registry
 from .graph import Graph, TensorDType, TensorMeta
 from .graph.operation import *
 from .graph.transform import (
-    replace_bernoulli_with_runtime_rng,
-    replace_exponential_with_runtime_rng,
-    replace_geometric_with_runtime_rng,
-    replace_log_normal_with_runtime_rng,
-    replace_multinomial_with_runtime_rng,
-    replace_normal_with_runtime_rng,
-    replace_poisson_with_runtime_rng,
-    replace_uniform_with_runtime_rng,
-    replace_cauchy_with_runtime_rng,
-    replace_rand_with_runtime_rng,
-    replace_rand_like_with_runtime_rng,
-    replace_randint_like_with_runtime_rng,
-    replace_randn_with_runtime_rng,
-    replace_randn_like_with_runtime_rng,
-    replace_rrelu_with_noise_with_runtime_rng,
+    RUNTIME_RNG_TRANSFORMS,
     maxpool2d_simplify,
 )
 from .graph.type import *
@@ -1061,25 +1047,7 @@ class DynamoCompiler:
                 maxpool2d_simplify,
             ]
             if self._enable_external_calls:
-                transform_list.extend(
-                    [
-                        replace_bernoulli_with_runtime_rng,
-                        replace_exponential_with_runtime_rng,
-                        replace_geometric_with_runtime_rng,
-                        replace_log_normal_with_runtime_rng,
-                        replace_multinomial_with_runtime_rng,
-                        replace_normal_with_runtime_rng,
-                        replace_poisson_with_runtime_rng,
-                        replace_uniform_with_runtime_rng,
-                        replace_cauchy_with_runtime_rng,
-                        replace_rand_with_runtime_rng,
-                        replace_rand_like_with_runtime_rng,
-                        replace_randint_like_with_runtime_rng,
-                        replace_randn_with_runtime_rng,
-                        replace_randn_like_with_runtime_rng,
-                        replace_rrelu_with_noise_with_runtime_rng,
-                    ]
-                )
+                transform_list.extend(RUNTIME_RNG_TRANSFORMS)
             graph.perform(transform_list)
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat

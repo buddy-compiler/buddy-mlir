@@ -960,3 +960,22 @@ def replace_exponential_with_runtime_rng(graph: Graph):
         call_op._args_index = [0]
         call_op._keyword_arguments = {}
         call_op._op_type = OpType.Unfusable
+
+
+RUNTIME_RNG_TRANSFORMS = (
+    replace_bernoulli_with_runtime_rng,
+    replace_exponential_with_runtime_rng,
+    replace_geometric_with_runtime_rng,
+    replace_log_normal_with_runtime_rng,
+    replace_multinomial_with_runtime_rng,
+    replace_normal_with_runtime_rng,
+    replace_poisson_with_runtime_rng,
+    replace_uniform_with_runtime_rng,
+    replace_cauchy_with_runtime_rng,
+    replace_rand_with_runtime_rng,
+    replace_rand_like_with_runtime_rng,
+    replace_randint_like_with_runtime_rng,
+    replace_randn_with_runtime_rng,
+    replace_randn_like_with_runtime_rng,
+    replace_rrelu_with_noise_with_runtime_rng,
+)
